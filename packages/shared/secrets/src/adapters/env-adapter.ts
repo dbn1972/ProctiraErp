@@ -39,9 +39,7 @@ export class EnvSecretAdapter implements SecretManager {
    * Example: 'database.password' → 'SECRET_DATABASE_PASSWORD'
    */
   private toEnvKey(key: string): string {
-    const normalized = key
-      .replace(/[.\-/]/g, '_')
-      .toUpperCase();
+    const normalized = key.replace(/[.\-/]/g, '_').toUpperCase();
     return `${this.prefix}${normalized}`;
   }
 
@@ -62,7 +60,11 @@ export class EnvSecretAdapter implements SecretManager {
     };
   }
 
-  async setSecret(key: string, value: string, _options?: SetSecretOptions): Promise<SecretMetadata> {
+  async setSecret(
+    key: string,
+    value: string,
+    _options?: SetSecretOptions,
+  ): Promise<SecretMetadata> {
     const envKey = this.toEnvKey(key);
     process.env[envKey] = value;
 

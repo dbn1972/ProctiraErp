@@ -9,7 +9,13 @@
  *
  * All calls are tenant-scoped via `gatewayFetch`.
  */
-import { gatewayFetch } from './gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  GatewayError,
+  gatewayFetch,
+  getSessionContext,
+} from './gateway';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -216,13 +222,12 @@ function toQuery(filters: StudentListFilters): string {
   return qs ? `?${qs}` : '';
 }
 
-export async function listStudents(
-  filters: StudentListFilters = {},
-): Promise<StudentListResponse> {
-  const result = await gatewayFetch<StudentListResponse>(
-    `/students${toQuery(filters)}`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
-  );
+export async function listStudents(filters: StudentListFilters = {}): Promise<StudentListResponse> {
+  const result = await gatewayFetch<StudentListResponse>(`/students${toQuery(filters)}`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   if (!result.ok || !result.data) {
     return {
       data: [],
@@ -237,13 +242,25 @@ export async function listStudents(
   return result.data;
 }
 
+/**
+ * Resolves to `null` only when the gateway says the student does not exist
+ * (404). Any other failure (5xx, network, auth) is thrown so the page shows an
+ * error boundary instead of a misleading "Page not found".
+ */
 export async function getStudent(id: string): Promise<Student | null> {
   const result = await gatewayFetch<Student>(`/students/${id}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.ok ? result.data : null;
+  if (result.ok) return result.data;
+  if (result.status === 404) return null;
+  throw new GatewayError({
+    status: result.status,
+    code: result.error?.code ?? 'GATEWAY_ERROR',
+    message: result.error?.message ?? `Failed to load student (${result.status})`,
+    details: result.error?.details,
+  });
 }
 
 export async function createStudent(input: CreateStudentInput): Promise<Student> {
@@ -257,10 +274,7 @@ export async function createStudent(input: CreateStudentInput): Promise<Student>
   return result.data;
 }
 
-export async function updateStudent(
-  id: string,
-  input: UpdateStudentInput,
-): Promise<Student> {
+export async function updateStudent(id: string, input: UpdateStudentInput): Promise<Student> {
   const result = await gatewayFetch<Student>(`/students/${id}`, {
     method: 'PUT',
     json: input,
@@ -277,9 +291,7 @@ export async function deleteStudent(id: string): Promise<void> {
 
 /* --------------------------------------------------------- Enrollments */
 
-export async function getStudentEnrollments(
-  studentId: string,
-): Promise<EnrollmentEntry[]> {
+export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {
   const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
     `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
@@ -287,9 +299,7 @@ export async function getStudentEnrollments(
   return result.ok && result.data ? result.data.data : [];
 }
 
-export async function getEnrollmentHistory(
-  studentId: string,
-): Promise<EnrollmentHistoryEntry[]> {
+export async function getEnrollmentHistory(studentId: string): Promise<EnrollmentHistoryEntry[]> {
   const result = await gatewayFetch<{ data: EnrollmentHistoryEntry[] }>(
     `/enrollments/student/${encodeURIComponent(studentId)}/history`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
@@ -297,9 +307,7 @@ export async function getEnrollmentHistory(
   return result.ok && result.data ? result.data.data : [];
 }
 
-export async function getTransferRecords(
-  studentId: string,
-): Promise<TransferRecord[]> {
+export async function getTransferRecords(studentId: string): Promise<TransferRecord[]> {
   const result = await gatewayFetch<{ data: TransferRecord[] }>(
     `/enrollments/student/${encodeURIComponent(studentId)}/transfers`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
@@ -334,7 +342,7 @@ export async function getStudentCustomFields(): Promise<CustomFieldDefinition[]>
     throwOnError: false,
     next: { revalidate: 60 },
   });
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 /* ----------------------------------------------------------- Bulk Import */
@@ -350,21 +358,18 @@ export interface BulkImportRequest {
 export async function submitBulkImport(
   request: BulkImportRequest,
 ): Promise<ImportResult | ImportProgress> {
-  const result = await gatewayFetch<ImportResult | ImportProgress>(
-    '/students/import',
-    {
-      method: 'POST',
-      json: {
-        file: {
-          buffer: request.fileBase64,
-          filename: request.fileName,
-          mimetype: request.mimeType,
-        },
-        duplicateResolution: request.duplicateResolution,
-        async: request.async ?? false,
+  const result = await gatewayFetch<ImportResult | ImportProgress>('/students/import', {
+    method: 'POST',
+    json: {
+      file: {
+        buffer: request.fileBase64,
+        filename: request.fileName,
+        mimetype: request.mimeType,
       },
+      duplicateResolution: request.duplicateResolution,
+      async: request.async ?? false,
     },
-  );
+  });
   if (!result.data) {
     throw new Error('Empty response from import endpoint');
   }
@@ -374,6 +379,189 @@ export async function submitBulkImport(
 export async function getImportProgress(jobId: string): Promise<ImportProgress | null> {
   const result = await gatewayFetch<ImportProgress>(
     `/students/import/${encodeURIComponent(jobId)}`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok ? result.data : null;
+}
+
+/* ----------------------------------------------------------- Students 360 (G-914) */
+
+export type ConsentKind = 'photo' | 'medical' | 'trips' | 'data_sharing';
+export type DisciplineSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type HeatSlot = 'present' | 'half' | 'absent' | 'empty';
+
+export interface StudentPhotoMeta {
+  id: string;
+  studentId: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+export interface StudentSibling {
+  id: string;
+  studentId: string;
+  siblingId: string;
+  createdAt: string;
+}
+
+export interface StudentConsent {
+  id: string;
+  studentId: string;
+  kind: ConsentKind;
+  granted: boolean;
+  actorId: string;
+  recordedAt: string;
+}
+
+export interface DisciplineIncident {
+  id: string;
+  studentId: string;
+  incidentType: string;
+  severity: DisciplineSeverity;
+  description: string;
+  actionTaken: string | null;
+  reporterId: string;
+  incidentDate: string;
+  visibleToParent: boolean;
+  createdAt: string;
+}
+
+export interface AttendanceHeatmapDay {
+  date: string;
+  status: string | null;
+  slot: HeatSlot;
+}
+
+export interface AttendanceHeatmap {
+  from: string;
+  to: string;
+  attendancePercentage: number;
+  absencePercentage: number;
+  totalRecords: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  days: AttendanceHeatmapDay[];
+}
+
+export async function uploadStudentPhoto(
+  studentId: string,
+  input: { contentBase64: string; mimeType: string },
+): Promise<StudentPhotoMeta> {
+  const result = await gatewayFetch<StudentPhotoMeta>(`/students/${studentId}/photo`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from photo upload');
+  return result.data;
+}
+
+export async function studentHasPhoto(studentId: string): Promise<boolean> {
+  const { tenantId, accessToken } = await getSessionContext();
+  try {
+    const response = await fetch(
+      `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${studentId}/photo`,
+      {
+        method: 'GET',
+        headers: {
+          'X-Tenant-ID': tenantId,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        cache: 'no-store',
+      },
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function listStudentSiblings(studentId: string): Promise<StudentSibling[]> {
+  const result = await gatewayFetch<{ data: StudentSibling[] }>(`/students/${studentId}/siblings`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? result.data.data : [];
+}
+
+export async function addStudentSibling(
+  studentId: string,
+  siblingId: string,
+): Promise<StudentSibling> {
+  const result = await gatewayFetch<StudentSibling>(`/students/${studentId}/siblings`, {
+    method: 'POST',
+    json: { siblingId },
+  });
+  if (!result.data) throw new Error('Empty response from sibling link');
+  return result.data;
+}
+
+export async function removeStudentSibling(studentId: string, siblingId: string): Promise<void> {
+  await gatewayFetch<void>(`/students/${studentId}/siblings/${siblingId}`, { method: 'DELETE' });
+}
+
+export async function listStudentConsents(studentId: string): Promise<StudentConsent[]> {
+  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${studentId}/consents`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? result.data.data : [];
+}
+
+export async function setStudentConsent(
+  studentId: string,
+  input: { kind: ConsentKind; granted: boolean },
+): Promise<StudentConsent> {
+  const result = await gatewayFetch<StudentConsent>(`/students/${studentId}/consents`, {
+    method: 'PUT',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from consent update');
+  return result.data;
+}
+
+export async function listStudentDiscipline(studentId: string): Promise<DisciplineIncident[]> {
+  const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
+    `/students/${studentId}/discipline`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? result.data.data : [];
+}
+
+export async function addStudentDiscipline(
+  studentId: string,
+  input: {
+    incidentType: string;
+    severity: DisciplineSeverity;
+    description: string;
+    actionTaken?: string;
+    incidentDate: string;
+    visibleToParent?: boolean;
+  },
+): Promise<DisciplineIncident> {
+  const result = await gatewayFetch<DisciplineIncident>(`/students/${studentId}/discipline`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from discipline create');
+  return result.data;
+}
+
+export async function getStudentAttendanceHeatmap(
+  studentId: string,
+  range?: { from?: string; to?: string },
+): Promise<AttendanceHeatmap | null> {
+  const params = new URLSearchParams();
+  if (range?.from) params.set('from', range.from);
+  if (range?.to) params.set('to', range.to);
+  const qs = params.toString();
+  const result = await gatewayFetch<AttendanceHeatmap>(
+    `/students/${studentId}/attendance-heatmap${qs ? `?${qs}` : ''}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok ? result.data : null;

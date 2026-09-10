@@ -45,9 +45,7 @@ export class InstitutionService {
     // Check global uniqueness of institution code
     const existingByCode = await this.repository.findByCode(input.code);
     if (existingByCode) {
-      throw new ConflictError(
-        `Institution with code '${input.code}' already exists`,
-      );
+      throw new ConflictError(`Institution with code '${input.code}' already exists`);
     }
 
     // Check name uniqueness within area
@@ -109,9 +107,7 @@ export class InstitutionService {
     if (input.code && input.code !== existing.code) {
       const existingByCode = await this.repository.findByCode(input.code);
       if (existingByCode) {
-        throw new ConflictError(
-          `Institution with code '${input.code}' already exists`,
-        );
+        throw new ConflictError(`Institution with code '${input.code}' already exists`);
       }
     }
 
@@ -119,11 +115,7 @@ export class InstitutionService {
     const newName = input.name ?? existing.name;
     const newAreaId = input.areaId ?? existing.areaId;
     if (input.name || input.areaId) {
-      const existingByName = await this.repository.findByNameInArea(
-        newName,
-        newAreaId,
-        tenantId,
-      );
+      const existingByName = await this.repository.findByNameInArea(newName, newAreaId, tenantId);
       if (existingByName && existingByName.id !== id) {
         throw new ConflictError(
           `Institution with name '${newName}' already exists in the specified area`,
@@ -162,11 +154,7 @@ export class InstitutionService {
    * @throws NotFoundError if institution not found
    * @throws BusinessRuleError if institution is already inactive
    */
-  async deactivate(
-    tenantId: string,
-    id: string,
-    reason: string,
-  ): Promise<InstitutionEntity> {
+  async deactivate(tenantId: string, id: string, reason: string): Promise<InstitutionEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Institution with id '${id}' not found`);

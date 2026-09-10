@@ -76,7 +76,11 @@ export class TranslationService {
     tenantId: string,
     warehouseId: string,
     input: BatchTranslationInput,
-  ): Promise<{ successCount: number; errorCount: number; errors: Array<{ index: number; message: string }> }> {
+  ): Promise<{
+    successCount: number;
+    errorCount: number;
+    errors: Array<{ index: number; message: string }>;
+  }> {
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
       throw new NotFoundError(`Warehouse not found: ${warehouseId}`);
@@ -133,7 +137,12 @@ export class TranslationService {
       throw new NotFoundError(`Warehouse not found: ${warehouseId}`);
     }
 
-    return this.translationRepository.getTranslationsForEntity(warehouseId, tenantId, entityType, entityId);
+    return this.translationRepository.getTranslationsForEntity(
+      warehouseId,
+      tenantId,
+      entityType,
+      entityId,
+    );
   }
 
   /**
@@ -142,7 +151,13 @@ export class TranslationService {
   async listTranslations(
     tenantId: string,
     warehouseId: string,
-    options: { language?: string; entityType?: TranslatableEntityType; entityId?: string; page?: number; pageSize?: number },
+    options: {
+      language?: string;
+      entityType?: TranslatableEntityType;
+      entityId?: string;
+      page?: number;
+      pageSize?: number;
+    },
   ): Promise<{ data: Translation[]; total: number }> {
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
@@ -241,11 +256,13 @@ export class TranslationService {
         successCount: 0,
         errorCount: 1,
         updatedCount: 0,
-        errors: [{
-          row: 0,
-          field: null,
-          message: `Import batch size ${rawTranslations.length} exceeds maximum of ${this.config.maxImportBatchSize}`,
-        }],
+        errors: [
+          {
+            row: 0,
+            field: null,
+            message: `Import batch size ${rawTranslations.length} exceeds maximum of ${this.config.maxImportBatchSize}`,
+          },
+        ],
       };
     }
 
@@ -265,7 +282,11 @@ export class TranslationService {
 
       // Validate entity type
       if (!['indicator', 'unit', 'subgroup', 'area'].includes(item.entityType)) {
-        errors.push({ row: i + 1, field: 'entityType', message: `Invalid entity type: ${item.entityType}` });
+        errors.push({
+          row: i + 1,
+          field: 'entityType',
+          message: `Invalid entity type: ${item.entityType}`,
+        });
         continue;
       }
 
@@ -362,7 +383,11 @@ export class TranslationService {
   ): Promise<void> {
     switch (entityType) {
       case 'indicator': {
-        const indicator = await this.warehouseRepository.findIndicatorById(entityId, warehouseId, tenantId);
+        const indicator = await this.warehouseRepository.findIndicatorById(
+          entityId,
+          warehouseId,
+          tenantId,
+        );
         if (!indicator) throw new NotFoundError(`Indicator not found: ${entityId}`);
         break;
       }
@@ -372,7 +397,11 @@ export class TranslationService {
         break;
       }
       case 'subgroup': {
-        const subgroup = await this.warehouseRepository.findSubgroupById(entityId, warehouseId, tenantId);
+        const subgroup = await this.warehouseRepository.findSubgroupById(
+          entityId,
+          warehouseId,
+          tenantId,
+        );
         if (!subgroup) throw new NotFoundError(`Subgroup not found: ${entityId}`);
         break;
       }
@@ -387,9 +416,10 @@ export class TranslationService {
   private translationsToCSV(translations: Translation[]): string {
     const header = 'entityType,entityId,language,field,value';
     const rows = translations.map((t) => {
-      const escapedValue = t.value.includes(',') || t.value.includes('"') || t.value.includes('\n')
-        ? `"${t.value.replace(/"/g, '""')}"`
-        : t.value;
+      const escapedValue =
+        t.value.includes(',') || t.value.includes('"') || t.value.includes('\n')
+          ? `"${t.value.replace(/"/g, '""')}"`
+          : t.value;
       return `${t.entityType},${t.entityId},${t.language},${t.field},${escapedValue}`;
     });
     return [header, ...rows].join('\n');
@@ -420,16 +450,18 @@ export class TranslationService {
 
     // Skip header
     const dataLines = lines.slice(1);
-    return dataLines.map((line) => {
-      const parts = this.parseCSVLine(line);
-      return {
-        entityType: parts[0] as TranslatableEntityType,
-        entityId: parts[1] || '',
-        language: parts[2] || '',
-        field: parts[3] || '',
-        value: parts[4] || '',
-      };
-    }).filter((t) => t.entityId && t.language && t.field && t.value);
+    return dataLines
+      .map((line) => {
+        const parts = this.parseCSVLine(line);
+        return {
+          entityType: parts[0] as TranslatableEntityType,
+          entityId: parts[1] || '',
+          language: parts[2] || '',
+          field: parts[3] || '',
+          value: parts[4] || '',
+        };
+      })
+      .filter((t) => t.entityId && t.language && t.field && t.value);
   }
 
   private parseJSONTranslations(content: string): Array<{
@@ -470,7 +502,13 @@ export class TranslationService {
     try {
       const decoded = Buffer.from(content, 'base64').toString('utf-8');
       // Verify the decoded content is valid UTF-8 text
-      if (decoded && (decoded.startsWith('[') || decoded.startsWith('{') || decoded.includes('\n') || decoded.includes(','))) {
+      if (
+        decoded &&
+        (decoded.startsWith('[') ||
+          decoded.startsWith('{') ||
+          decoded.includes('\n') ||
+          decoded.includes(','))
+      ) {
         return decoded;
       }
     } catch {

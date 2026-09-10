@@ -157,9 +157,7 @@ describe('TenantService — branding versioning (Task 58.2)', () => {
       expect(v1AfterRollback!.id).toBe(v1.id);
       expect(v1AfterRollback!.tokens).toEqual(tokensV1);
       expect(v1AfterRollback!.publishedBy).toBe(PUBLISHER_ALICE);
-      expect(v1AfterRollback!.publishedAt.toISOString()).toBe(
-        v1.publishedAt.toISOString(),
-      );
+      expect(v1AfterRollback!.publishedAt.toISOString()).toBe(v1.publishedAt.toISOString());
     });
 
     it('throws NotFoundError when rolling back to a non-existent revision', async () => {
@@ -236,11 +234,7 @@ describe('TenantService — branding versioning (Task 58.2)', () => {
 
       const versions = await service.listBrandingVersions(tenantId);
       expect(versions.map((v) => v.revision)).toEqual([1, 2, 3]);
-      expect(versions.map((v) => v.tokens)).toEqual([
-        tokensV1,
-        tokensV2,
-        tokensV3,
-      ]);
+      expect(versions.map((v) => v.tokens)).toEqual([tokensV1, tokensV2, tokensV3]);
     });
 
     it('returns an empty array for tenants with no revisions', async () => {

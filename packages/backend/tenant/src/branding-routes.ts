@@ -131,9 +131,11 @@ function hasPreviewSignal(request: FastifyRequest): boolean {
     return true;
   }
 
-  const cookieJar = (request as FastifyRequest & {
-    cookies?: Record<string, string | undefined>;
-  }).cookies;
+  const cookieJar = (
+    request as FastifyRequest & {
+      cookies?: Record<string, string | undefined>;
+    }
+  ).cookies;
   if (cookieJar && cookieJar[PREVIEW_COOKIE_NAME]?.length) {
     return true;
   }
@@ -257,9 +259,7 @@ export async function registerBrandingRoutes(
           tenantId,
           previewAllowed,
         );
-        return reply
-          .status(200)
-          .send(tenantService.formatActiveBrandingResponse(active));
+        return reply.status(200).send(tenantService.formatActiveBrandingResponse(active));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -271,25 +271,22 @@ export async function registerBrandingRoutes(
 
   // ─── GET /tenant/branding/versions ──────────────────────────────────────
 
-  fastify.get(
-    `${prefix}/versions`,
-    async function listBrandingVersionsHandler(request, reply) {
-      const tenantId = getTenantId(request);
-      if (!tenantId) return tenantRequired(reply);
+  fastify.get(`${prefix}/versions`, async function listBrandingVersionsHandler(request, reply) {
+    const tenantId = getTenantId(request);
+    if (!tenantId) return tenantRequired(reply);
 
-      try {
-        const versions = await tenantService.listBrandingVersions(tenantId);
-        return reply.status(200).send({
-          data: versions.map((v) => tenantService.formatThemeVersionResponse(v)),
-        });
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
+    try {
+      const versions = await tenantService.listBrandingVersions(tenantId);
+      return reply.status(200).send({
+        data: versions.map((v) => tenantService.formatThemeVersionResponse(v)),
+      });
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
       }
-    },
-  );
+      throw error;
+    }
+  });
 
   // ─── POST /tenant/branding/publish ──────────────────────────────────────
 
@@ -367,31 +364,26 @@ export async function registerBrandingRoutes(
    * the permission, the endpoint is invisible — this prevents leaking
    * staged-but-unpublished branding to unauthorized viewers.
    */
-  fastify.get(
-    `${prefix}/draft`,
-    async function getBrandingDraftHandler(request, reply) {
-      const tenantId = getTenantId(request);
-      if (!tenantId) return tenantRequired(reply);
+  fastify.get(`${prefix}/draft`, async function getBrandingDraftHandler(request, reply) {
+    const tenantId = getTenantId(request);
+    if (!tenantId) return tenantRequired(reply);
 
-      const allowed = Boolean(await hasPermission(request, 'branding:preview'));
-      if (!allowed) return forbidden(reply, 'branding:preview');
+    const allowed = Boolean(await hasPermission(request, 'branding:preview'));
+    if (!allowed) return forbidden(reply, 'branding:preview');
 
-      try {
-        const draft = await tenantService.getBrandingDraft(tenantId);
-        if (!draft) {
-          return reply.status(200).send(null);
-        }
-        return reply
-          .status(200)
-          .send(tenantService.formatBrandingDraftResponse(draft));
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
+    try {
+      const draft = await tenantService.getBrandingDraft(tenantId);
+      if (!draft) {
+        return reply.status(200).send(null);
       }
-    },
-  );
+      return reply.status(200).send(tenantService.formatBrandingDraftResponse(draft));
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      throw error;
+    }
+  });
 
   /**
    * POST /tenant/branding/draft — Save (upsert) the draft.
@@ -424,9 +416,7 @@ export async function registerBrandingRoutes(
 
       try {
         const draft = await tenantService.saveBrandingDraft(tenantId, result.data);
-        return reply
-          .status(201)
-          .send(tenantService.formatBrandingDraftResponse(draft));
+        return reply.status(201).send(tenantService.formatBrandingDraftResponse(draft));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -443,24 +433,21 @@ export async function registerBrandingRoutes(
    * not a draft was actually present so the client can call this
    * idempotently from a "Discard" button without inspecting the response.
    */
-  fastify.delete(
-    `${prefix}/draft`,
-    async function discardBrandingDraftHandler(request, reply) {
-      const tenantId = getTenantId(request);
-      if (!tenantId) return tenantRequired(reply);
+  fastify.delete(`${prefix}/draft`, async function discardBrandingDraftHandler(request, reply) {
+    const tenantId = getTenantId(request);
+    if (!tenantId) return tenantRequired(reply);
 
-      const allowed = Boolean(await hasPermission(request, 'branding:edit'));
-      if (!allowed) return forbidden(reply, 'branding:edit');
+    const allowed = Boolean(await hasPermission(request, 'branding:edit'));
+    if (!allowed) return forbidden(reply, 'branding:edit');
 
-      try {
-        await tenantService.discardBrandingDraft(tenantId);
-        return reply.status(204).send();
-      } catch (error: unknown) {
-        if (error instanceof AppError) {
-          return reply.status(error.statusCode).send(error.toJSON());
-        }
-        throw error;
+    try {
+      await tenantService.discardBrandingDraft(tenantId);
+      return reply.status(204).send();
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
       }
-    },
-  );
+      throw error;
+    }
+  });
 }

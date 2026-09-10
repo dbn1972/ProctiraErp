@@ -16,7 +16,9 @@ function createService(productVersion = '2.0.0') {
   return { repository, service };
 }
 
-function validManifest(overrides: Partial<RegisterPluginInput['manifest']> = {}): RegisterPluginInput['manifest'] {
+function validManifest(
+  overrides: Partial<RegisterPluginInput['manifest']> = {},
+): RegisterPluginInput['manifest'] {
   return {
     name: 'test-plugin',
     owner: 'proctira',
@@ -113,7 +115,9 @@ describe('PluginService', () => {
         consentedPermissions: [],
       };
 
-      await expect(service.install('tenant-1', installInput, 'admin')).rejects.toThrow(NotFoundError);
+      await expect(service.install('tenant-1', installInput, 'admin')).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should reject duplicate installation for same tenant', async () => {
@@ -126,7 +130,9 @@ describe('PluginService', () => {
       };
 
       await service.install('tenant-1', installInput, 'admin');
-      await expect(service.install('tenant-1', installInput, 'admin')).rejects.toThrow(ConflictError);
+      await expect(service.install('tenant-1', installInput, 'admin')).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should reject installation if required permissions not consented', async () => {
@@ -138,7 +144,9 @@ describe('PluginService', () => {
         consentedPermissions: ['read:students'], // missing 'write:attendance'
       };
 
-      await expect(service.install('tenant-1', installInput, 'admin')).rejects.toThrow(BusinessRuleError);
+      await expect(service.install('tenant-1', installInput, 'admin')).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should allow different tenants to install the same plugin', async () => {
@@ -184,7 +192,9 @@ describe('PluginService', () => {
       );
 
       await service.enable('tenant-1', install.id, 'admin');
-      await expect(service.enable('tenant-1', install.id, 'admin')).rejects.toThrow(BusinessRuleError);
+      await expect(service.enable('tenant-1', install.id, 'admin')).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should reject enabling for wrong tenant', async () => {
@@ -228,7 +238,9 @@ describe('PluginService', () => {
       await service.enable('tenant-1', install.id, 'admin');
       await service.disable('tenant-1', install.id, 'admin');
 
-      await expect(service.disable('tenant-1', install.id, 'admin')).rejects.toThrow(BusinessRuleError);
+      await expect(service.disable('tenant-1', install.id, 'admin')).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 
@@ -242,7 +254,12 @@ describe('PluginService', () => {
         'admin',
       );
 
-      const uninstalled = await service.uninstall('tenant-1', install.id, 'admin', 'No longer needed');
+      const uninstalled = await service.uninstall(
+        'tenant-1',
+        install.id,
+        'admin',
+        'No longer needed',
+      );
 
       expect(uninstalled.status).toBe('uninstalled');
       expect(uninstalled.uninstalledAt).toBeDefined();
@@ -262,7 +279,9 @@ describe('PluginService', () => {
       );
 
       await service.uninstall('tenant-1', install.id, 'admin');
-      await expect(service.uninstall('tenant-1', install.id, 'admin')).rejects.toThrow(BusinessRuleError);
+      await expect(service.uninstall('tenant-1', install.id, 'admin')).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 

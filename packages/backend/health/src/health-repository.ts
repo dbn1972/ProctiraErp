@@ -191,74 +191,182 @@ export interface ScreeningProgramEntity {
 
 export interface HealthRepository {
   // Measurements
-  createMeasurement(data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>): Promise<HealthMeasurementEntity>;
-  updateMeasurement(id: string, tenantId: string, data: Partial<HealthMeasurementEntity>): Promise<HealthMeasurementEntity | null>;
+  createMeasurement(
+    data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HealthMeasurementEntity>;
+  updateMeasurement(
+    id: string,
+    tenantId: string,
+    data: Partial<HealthMeasurementEntity>,
+  ): Promise<HealthMeasurementEntity | null>;
   findMeasurementById(id: string, tenantId: string): Promise<HealthMeasurementEntity | null>;
-  listMeasurementsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<HealthMeasurementEntity>>;
+  listMeasurementsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HealthMeasurementEntity>>;
   deleteMeasurement(id: string, tenantId: string): Promise<boolean>;
 
   // Allergies
   createAllergy(data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>): Promise<AllergyEntity>;
-  updateAllergy(id: string, tenantId: string, data: Partial<AllergyEntity>): Promise<AllergyEntity | null>;
+  updateAllergy(
+    id: string,
+    tenantId: string,
+    data: Partial<AllergyEntity>,
+  ): Promise<AllergyEntity | null>;
   findAllergyById(id: string, tenantId: string): Promise<AllergyEntity | null>;
-  listAllergiesByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<AllergyEntity>>;
+  listAllergiesByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<AllergyEntity>>;
   deleteAllergy(id: string, tenantId: string): Promise<boolean>;
 
   // Conditions
-  createCondition(data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>): Promise<HealthConditionEntity>;
-  updateCondition(id: string, tenantId: string, data: Partial<HealthConditionEntity>): Promise<HealthConditionEntity | null>;
+  createCondition(
+    data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HealthConditionEntity>;
+  updateCondition(
+    id: string,
+    tenantId: string,
+    data: Partial<HealthConditionEntity>,
+  ): Promise<HealthConditionEntity | null>;
   findConditionById(id: string, tenantId: string): Promise<HealthConditionEntity | null>;
-  listConditionsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<HealthConditionEntity>>;
+  listConditionsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HealthConditionEntity>>;
   deleteCondition(id: string, tenantId: string): Promise<boolean>;
 
   // Vaccinations
-  createVaccination(data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>): Promise<VaccinationEntity>;
-  updateVaccination(id: string, tenantId: string, data: Partial<VaccinationEntity>): Promise<VaccinationEntity | null>;
+  createVaccination(
+    data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<VaccinationEntity>;
+  updateVaccination(
+    id: string,
+    tenantId: string,
+    data: Partial<VaccinationEntity>,
+  ): Promise<VaccinationEntity | null>;
   findVaccinationById(id: string, tenantId: string): Promise<VaccinationEntity | null>;
-  listVaccinationsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<VaccinationEntity>>;
+  listVaccinationsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<VaccinationEntity>>;
   deleteVaccination(id: string, tenantId: string): Promise<boolean>;
 
   // Insurance
   createInsurance(data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>): Promise<InsuranceEntity>;
-  updateInsurance(id: string, tenantId: string, data: Partial<InsuranceEntity>): Promise<InsuranceEntity | null>;
+  updateInsurance(
+    id: string,
+    tenantId: string,
+    data: Partial<InsuranceEntity>,
+  ): Promise<InsuranceEntity | null>;
   findInsuranceById(id: string, tenantId: string): Promise<InsuranceEntity | null>;
-  listInsuranceByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<InsuranceEntity>>;
+  listInsuranceByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<InsuranceEntity>>;
   deleteInsurance(id: string, tenantId: string): Promise<boolean>;
 
   // Special Needs Assessments
-  createAssessment(data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>): Promise<SpecialNeedsAssessmentEntity>;
+  createAssessment(
+    data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<SpecialNeedsAssessmentEntity>;
   findAssessmentById(id: string, tenantId: string): Promise<SpecialNeedsAssessmentEntity | null>;
-  listAssessmentsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<SpecialNeedsAssessmentEntity>>;
+  listAssessmentsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<SpecialNeedsAssessmentEntity>>;
 
   // Diagnoses
   createDiagnosis(data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>): Promise<DiagnosisEntity>;
   findDiagnosisById(id: string, tenantId: string): Promise<DiagnosisEntity | null>;
-  listDiagnosesByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<DiagnosisEntity>>;
+  listDiagnosesByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<DiagnosisEntity>>;
 
   // Referrals
   createReferral(data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>): Promise<ReferralEntity>;
-  updateReferral(id: string, tenantId: string, data: Partial<ReferralEntity>): Promise<ReferralEntity | null>;
+  updateReferral(
+    id: string,
+    tenantId: string,
+    data: Partial<ReferralEntity>,
+  ): Promise<ReferralEntity | null>;
   findReferralById(id: string, tenantId: string): Promise<ReferralEntity | null>;
-  listReferralsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<ReferralEntity>>;
+  listReferralsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ReferralEntity>>;
 
   // Accommodation Plans
-  createAccommodationPlan(data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>): Promise<AccommodationPlanEntity>;
-  updateAccommodationPlan(id: string, tenantId: string, data: Partial<AccommodationPlanEntity>): Promise<AccommodationPlanEntity | null>;
+  createAccommodationPlan(
+    data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AccommodationPlanEntity>;
+  updateAccommodationPlan(
+    id: string,
+    tenantId: string,
+    data: Partial<AccommodationPlanEntity>,
+  ): Promise<AccommodationPlanEntity | null>;
   findAccommodationPlanById(id: string, tenantId: string): Promise<AccommodationPlanEntity | null>;
-  listAccommodationPlansByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<AccommodationPlanEntity>>;
+  listAccommodationPlansByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<AccommodationPlanEntity>>;
 
   // Counselling Sessions
-  createCounsellingSession(data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>): Promise<CounsellingSessionEntity>;
-  updateCounsellingSession(id: string, tenantId: string, data: Partial<CounsellingSessionEntity>): Promise<CounsellingSessionEntity | null>;
-  findCounsellingSessionById(id: string, tenantId: string): Promise<CounsellingSessionEntity | null>;
-  listCounsellingSessionsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<CounsellingSessionEntity>>;
+  createCounsellingSession(
+    data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<CounsellingSessionEntity>;
+  updateCounsellingSession(
+    id: string,
+    tenantId: string,
+    data: Partial<CounsellingSessionEntity>,
+  ): Promise<CounsellingSessionEntity | null>;
+  findCounsellingSessionById(
+    id: string,
+    tenantId: string,
+  ): Promise<CounsellingSessionEntity | null>;
+  listCounsellingSessionsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<CounsellingSessionEntity>>;
   /** Tenant-wide list for redesign UI aggregates (optional on older impls). */
   listAllCounsellingSessions?(tenantId: string): Promise<CounsellingSessionEntity[]>;
 
+  // G-912 — tenant-wide reads that back the redesign list pages from domain
+  // rows instead of the demo seed. Optional so older implementations still
+  // satisfy the contract; the UI aggregate treats "absent" as "no live rows".
+  listAllAllergies?(tenantId: string): Promise<AllergyEntity[]>;
+  listAllConditions?(tenantId: string): Promise<HealthConditionEntity[]>;
+  listAllDiagnoses?(tenantId: string): Promise<DiagnosisEntity[]>;
+  listAllAccommodationPlans?(tenantId: string): Promise<AccommodationPlanEntity[]>;
+
   // Screening Programs
-  createScreeningProgram(data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>): Promise<ScreeningProgramEntity>;
-  updateScreeningProgram(id: string, tenantId: string, data: Partial<ScreeningProgramEntity>): Promise<ScreeningProgramEntity | null>;
+  createScreeningProgram(
+    data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ScreeningProgramEntity>;
+  updateScreeningProgram(
+    id: string,
+    tenantId: string,
+    data: Partial<ScreeningProgramEntity>,
+  ): Promise<ScreeningProgramEntity | null>;
   findScreeningProgramById(id: string, tenantId: string): Promise<ScreeningProgramEntity | null>;
-  listScreeningPrograms(tenantId: string, pagination: PaginationOptions): Promise<PaginatedResult<ScreeningProgramEntity>>;
-  listScreeningProgramsByGrade(tenantId: string, gradeLevel: string, pagination: PaginationOptions): Promise<PaginatedResult<ScreeningProgramEntity>>;
+  listScreeningPrograms(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScreeningProgramEntity>>;
+  listScreeningProgramsByGrade(
+    tenantId: string,
+    gradeLevel: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScreeningProgramEntity>>;
 }

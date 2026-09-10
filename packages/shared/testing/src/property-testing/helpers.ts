@@ -16,7 +16,8 @@ export function getDefaultParameters(): fc.Parameters<unknown> {
   return {
     numRuns: parseInt(process.env['FC_NUM_RUNS'] ?? '100', 10),
     seed,
-    verbose: process.env['FC_VERBOSE'] === 'true' ? fc.VerbosityLevel.Verbose : fc.VerbosityLevel.None,
+    verbose:
+      process.env['FC_VERBOSE'] === 'true' ? fc.VerbosityLevel.Verbose : fc.VerbosityLevel.None,
     endOnFailure: true,
   };
 }
@@ -86,7 +87,10 @@ export function withSeed(seed: number, fn: () => void): void {
  * ```
  */
 export function createPropertyRunner(overrides: Partial<fc.Parameters<unknown>> = {}) {
-  return function runProperty<T>(arb: fc.Arbitrary<T>, predicate: (value: T) => void | boolean): void {
+  return function runProperty<T>(
+    arb: fc.Arbitrary<T>,
+    predicate: (value: T) => void | boolean,
+  ): void {
     const params = { ...getDefaultParameters(), ...overrides };
     fc.assert(fc.property(arb, predicate), params);
   };

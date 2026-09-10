@@ -19,13 +19,9 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  generateIdempotencyKey,
-  isValidIdempotencyKey,
-} from '../idempotencyKey';
+import { generateIdempotencyKey, isValidIdempotencyKey } from '../idempotencyKey';
 
-const UUID_V4_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // We mutate `globalThis.crypto` to drive the three code paths. Save
 // the original so the mutations cannot leak between tests.
@@ -111,26 +107,18 @@ describe('generateIdempotencyKey — Math.random last-resort fallback', () => {
 
 describe('isValidIdempotencyKey', () => {
   it('accepts canonical v4 UUIDs', () => {
-    expect(isValidIdempotencyKey('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')).toBe(
-      true,
-    );
-    expect(isValidIdempotencyKey('00000000-0000-4000-8000-000000000000')).toBe(
-      true,
-    );
+    expect(isValidIdempotencyKey('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee')).toBe(true);
+    expect(isValidIdempotencyKey('00000000-0000-4000-8000-000000000000')).toBe(true);
   });
 
   it('rejects strings with the wrong version nibble', () => {
     // Version `1` instead of `4`.
-    expect(isValidIdempotencyKey('aaaaaaaa-bbbb-1ccc-8ddd-eeeeeeeeeeee')).toBe(
-      false,
-    );
+    expect(isValidIdempotencyKey('aaaaaaaa-bbbb-1ccc-8ddd-eeeeeeeeeeee')).toBe(false);
   });
 
   it('rejects strings with the wrong variant nibble', () => {
     // Variant `c` instead of 8/9/a/b.
-    expect(isValidIdempotencyKey('aaaaaaaa-bbbb-4ccc-cddd-eeeeeeeeeeee')).toBe(
-      false,
-    );
+    expect(isValidIdempotencyKey('aaaaaaaa-bbbb-4ccc-cddd-eeeeeeeeeeee')).toBe(false);
   });
 
   it('rejects empty and malformed strings', () => {

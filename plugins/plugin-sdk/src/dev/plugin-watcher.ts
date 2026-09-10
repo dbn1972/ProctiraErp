@@ -110,7 +110,10 @@ export class PluginWatcher {
       this.debounceTimer = null;
     }
 
-    if (this.watcher && typeof (this.watcher as { close?: () => Promise<void> }).close === 'function') {
+    if (
+      this.watcher &&
+      typeof (this.watcher as { close?: () => Promise<void> }).close === 'function'
+    ) {
       await (this.watcher as { close: () => Promise<void> }).close();
     }
 

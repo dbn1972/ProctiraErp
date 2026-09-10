@@ -46,9 +46,9 @@ describe('validateActivePeriod', () => {
   it('should throw NotFoundError if period does not exist', async () => {
     prisma.academicPeriod.findFirst.mockResolvedValue(null);
 
-    await expect(
-      validateActivePeriod(prisma, TENANT_ID, 'nonexistent'),
-    ).rejects.toThrow(NotFoundError);
+    await expect(validateActivePeriod(prisma, TENANT_ID, 'nonexistent')).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('should throw BusinessRuleError if period is inactive', async () => {
@@ -61,9 +61,9 @@ describe('validateActivePeriod', () => {
     };
     prisma.academicPeriod.findFirst.mockResolvedValue(period);
 
-    await expect(
-      validateActivePeriod(prisma, TENANT_ID, 'period-1'),
-    ).rejects.toThrow(BusinessRuleError);
+    await expect(validateActivePeriod(prisma, TENANT_ID, 'period-1')).rejects.toThrow(
+      BusinessRuleError,
+    );
   });
 
   it('should throw BusinessRuleError if period is archived', async () => {
@@ -76,9 +76,9 @@ describe('validateActivePeriod', () => {
     };
     prisma.academicPeriod.findFirst.mockResolvedValue(period);
 
-    await expect(
-      validateActivePeriod(prisma, TENANT_ID, 'period-1'),
-    ).rejects.toThrow(BusinessRuleError);
+    await expect(validateActivePeriod(prisma, TENANT_ID, 'period-1')).rejects.toThrow(
+      BusinessRuleError,
+    );
   });
 
   it('should include period name and status in error message', async () => {
@@ -135,8 +135,6 @@ describe('ActivePeriodValidator (class-based)', () => {
     };
     prisma.academicPeriod.findFirst.mockResolvedValue(period);
 
-    await expect(
-      validator.validate(TENANT_ID, 'period-1'),
-    ).rejects.toThrow(BusinessRuleError);
+    await expect(validator.validate(TENANT_ID, 'period-1')).rejects.toThrow(BusinessRuleError);
   });
 });

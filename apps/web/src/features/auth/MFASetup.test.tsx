@@ -14,21 +14,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { LanguageProvider } from '@/providers/LanguageProvider';
-import {
-  BrandConfigProvider,
-  type Brand,
-} from '@/providers/BrandConfigProvider';
+import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
 import enMessages from '@/messages/en.json';
 
 import MFASetup, { formatBackupCodesDocument } from './MFASetup';
@@ -47,9 +38,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/api/auth', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api/auth')>(
-    '@/lib/api/auth',
-  );
+  const actual = await vi.importActual<typeof import('@/lib/api/auth')>('@/lib/api/auth');
   return {
     ...actual,
     setupMfa: vi.fn(),
@@ -61,10 +50,7 @@ const mockSetupMfa = vi.mocked(setupMfa);
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
-const messages = enMessages as unknown as Record<
-  string,
-  Record<string, string>
->;
+const messages = enMessages as unknown as Record<string, Record<string, string>>;
 
 const SAMPLE_BRAND: Brand = {
   name: 'ProctiraERP',
@@ -99,10 +85,7 @@ const ENROLMENT_PAYLOAD = {
 function renderMFASetup() {
   return render(
     <BrandConfigProvider initialBrand={SAMPLE_BRAND}>
-      <LanguageProvider
-        defaultLocale="en"
-        messagesByLocale={{ en: messages }}
-      >
+      <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
         <MemoryRouter initialEntries={['/auth/mfa-setup']}>
           <Routes>
             <Route path="/auth/mfa-setup" element={<MFASetup />} />
@@ -137,9 +120,7 @@ describe('<MFASetup>', () => {
 
     // QR + secret render once enrolment data has loaded.
     await screen.findByTestId('mfa-setup-qr');
-    expect(screen.getByTestId('mfa-setup-secret').textContent).toBe(
-      ENROLMENT_PAYLOAD.secret,
-    );
+    expect(screen.getByTestId('mfa-setup-secret').textContent).toBe(ENROLMENT_PAYLOAD.secret);
 
     // All 10 backup codes are rendered.
     const items = screen.getByTestId('mfa-setup-backup-codes').children;
@@ -157,9 +138,7 @@ describe('<MFASetup>', () => {
 
     renderMFASetup();
 
-    const finishButton = (await screen.findByTestId(
-      'mfa-setup-finish',
-    )) as HTMLButtonElement;
+    const finishButton = (await screen.findByTestId('mfa-setup-finish')) as HTMLButtonElement;
     expect(finishButton.disabled).toBe(true);
 
     const ack = screen.getByTestId('mfa-setup-ack');
@@ -176,9 +155,7 @@ describe('<MFASetup>', () => {
 
     renderMFASetup();
 
-    const finishButton = (await screen.findByTestId(
-      'mfa-setup-finish',
-    )) as HTMLButtonElement;
+    const finishButton = (await screen.findByTestId('mfa-setup-finish')) as HTMLButtonElement;
     fireEvent.click(screen.getByTestId('mfa-setup-ack'));
     await waitFor(() => expect(finishButton.disabled).toBe(false));
 
@@ -229,9 +206,7 @@ describe('<MFASetup>', () => {
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(blobParts.length).toBeGreaterThanOrEqual(1);
-    const text = blobParts[0]!
-      .map((part) => (typeof part === 'string' ? part : ''))
-      .join('');
+    const text = blobParts[0]!.map((part) => (typeof part === 'string' ? part : '')).join('');
     for (const code of ENROLMENT_PAYLOAD.backupCodes) {
       expect(text.includes(code)).toBe(true);
     }
@@ -279,10 +254,10 @@ describe('<MFASetup>', () => {
 
 describe('formatBackupCodesDocument()', () => {
   it('lists every code on its own line and includes the brand name', () => {
-    const document = formatBackupCodesDocument(
-      ENROLMENT_PAYLOAD.backupCodes,
-      { brandName: 'EduZo', generatedAt: new Date('2025-01-15T00:00:00Z') },
-    );
+    const document = formatBackupCodesDocument(ENROLMENT_PAYLOAD.backupCodes, {
+      brandName: 'EduZo',
+      generatedAt: new Date('2025-01-15T00:00:00Z'),
+    });
     expect(document.includes('EduZo')).toBe(true);
     expect(document.includes('2025-01-15T00:00:00.000Z')).toBe(true);
     for (const [index, code] of ENROLMENT_PAYLOAD.backupCodes.entries()) {

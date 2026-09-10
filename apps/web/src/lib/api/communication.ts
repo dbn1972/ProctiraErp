@@ -177,3 +177,157 @@ export async function dispatchEmergencyBlast(id: string): Promise<DispatchEmerge
   }
   return result.data;
 }
+
+/* ------------------------------------------------------------- G-922 circulars */
+
+export type CircularAudienceType = 'all' | 'roles' | 'classes' | 'institution';
+
+export interface CommunicationCircular {
+  id: string;
+  tenantId: string;
+  title: string;
+  body: string;
+  audienceType: string;
+  audienceJson: Record<string, unknown>;
+  requiresAck: boolean;
+  channels: string[];
+  status: string;
+  createdBy: string | null;
+  sentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  ackTotal: number;
+  ackCount: number;
+  ackRate: number;
+  acks: Array<{
+    id: string;
+    recipientId: string;
+    recipientLabel: string | null;
+    acknowledgedAt: string | null;
+  }>;
+}
+
+export interface DeliveryLogEntry {
+  id: string;
+  tenantId: string;
+  channel: string;
+  recipientId: string;
+  recipientLabel: string | null;
+  status: string;
+  providerRef: string | null;
+  sourceType: string;
+  sourceId: string | null;
+  errorMessage: string | null;
+  queuedAt: string;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  failedAt: string | null;
+  retriedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateCircularInput {
+  title: string;
+  body: string;
+  audienceType: CircularAudienceType;
+  audienceIds?: string[];
+  requiresAck?: boolean;
+  channels?: string[];
+  recipientIds?: string[];
+  recipientLabels?: Record<string, string>;
+  createdBy?: string;
+}
+
+export async function listCirculars(): Promise<CommunicationCircular[]> {
+  const result = await gatewayFetch<{ data: CommunicationCircular[] }>('/communication/circulars', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function getCircular(id: string): Promise<CommunicationCircular | null> {
+  const result = await gatewayFetch<CommunicationCircular>(`/communication/circulars/${id}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok ? result.data : null;
+}
+
+export async function createCircular(input: CreateCircularInput): Promise<CommunicationCircular> {
+  const result = await gatewayFetch<CommunicationCircular>('/communication/circulars', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create circular',
+    });
+  }
+  return result.data;
+}
+
+export async function sendCircular(id: string): Promise<CommunicationCircular> {
+  const result = await gatewayFetch<CommunicationCircular>(`/communication/circulars/${id}/send`, {
+    method: 'POST',
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'SEND_FAILED',
+      message: result.error?.message ?? 'Failed to send circular',
+    });
+  }
+  return result.data;
+}
+
+export async function ackCircular(id: string, recipientId: string): Promise<CommunicationCircular> {
+  const result = await gatewayFetch<CommunicationCircular>(`/communication/circulars/${id}/ack`, {
+    method: 'POST',
+    json: { recipientId },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'ACK_FAILED',
+      message: result.error?.message ?? 'Failed to acknowledge circular',
+    });
+  }
+  return result.data;
+}
+
+export async function listDeliveryLogs(
+  filters: {
+    channel?: string;
+    status?: string;
+    sourceType?: string;
+  } = {},
+): Promise<DeliveryLogEntry[]> {
+  const params = new URLSearchParams();
+  if (filters.channel) params.set('channel', filters.channel);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.sourceType) params.set('sourceType', filters.sourceType);
+  const qs = params.toString();
+  const result = await gatewayFetch<{ data: DeliveryLogEntry[] }>(
+    `/communication/delivery-log${qs ? `?${qs}` : ''}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function retryDeliveryLog(id: string): Promise<DeliveryLogEntry> {
+  const result = await gatewayFetch<DeliveryLogEntry>(`/communication/delivery-log/${id}/retry`, {
+    method: 'POST',
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'RETRY_FAILED',
+      message: result.error?.message ?? 'Failed to retry delivery',
+    });
+  }
+  return result.data;
+}

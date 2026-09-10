@@ -38,15 +38,12 @@ vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
   return {
     ...actual,
-    useBoardAdminDashboardData: (code?: string) =>
-      useBoardAdminDashboardDataMock(code),
+    useBoardAdminDashboardData: (code?: string) => useBoardAdminDashboardDataMock(code),
   };
 });
 
 async function renderPage() {
-  const { default: BoardAdminDashboard } = await import(
-    '../pages/BoardAdminDashboard'
-  );
+  const { default: BoardAdminDashboard } = await import('../pages/BoardAdminDashboard');
   return render(
     <MemoryRouter>
       <BoardAdminDashboard />
@@ -71,13 +68,9 @@ describe('<BoardAdminDashboard>', () => {
     expect(screen.getByTestId('board-kpi-attendance')).toBeTruthy();
     expect(screen.getByTestId('board-kpi-expiring')).toBeTruthy();
 
+    expect(within(screen.getByTestId('board-kpi-schools')).getByText('CBSE Schools')).toBeTruthy();
     expect(
-      within(screen.getByTestId('board-kpi-schools')).getByText('CBSE Schools'),
-    ).toBeTruthy();
-    expect(
-      within(screen.getByTestId('board-kpi-pass-rate')).getByText(
-        'Board Exam Pass Rate',
-      ),
+      within(screen.getByTestId('board-kpi-pass-rate')).getByText('Board Exam Pass Rate'),
     ).toBeTruthy();
   });
 
@@ -122,11 +115,7 @@ describe('<BoardAdminDashboard>', () => {
     await renderPage();
 
     const list = screen.getByTestId('board-action-items');
-    expect(
-      within(list).getByText('200 affiliations expiring in 6 months'),
-    ).toBeTruthy();
-    expect(
-      within(list).getByText('Review 456 provisional affiliations'),
-    ).toBeTruthy();
+    expect(within(list).getByText('200 affiliations expiring in 6 months')).toBeTruthy();
+    expect(within(list).getByText('Review 456 provisional affiliations')).toBeTruthy();
   });
 });

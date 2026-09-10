@@ -6,7 +6,12 @@
  * a default export (React component).
  */
 import { describe, it, expect } from 'vitest';
-import { featureRegistry, getModulesByScope, getModuleById, getFeatureChunkIds } from './featureRegistry';
+import {
+  featureRegistry,
+  getModulesByScope,
+  getModuleById,
+  getFeatureChunkIds,
+} from './featureRegistry';
 import type { FeatureModule, VisibilityScope } from './featureRegistry';
 
 describe('featureRegistry', () => {

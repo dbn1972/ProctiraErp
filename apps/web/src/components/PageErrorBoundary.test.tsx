@@ -170,14 +170,56 @@ describe('PageErrorBoundary', () => {
     }
 
     render(
-      <PageErrorBoundary
-        fallback={<div data-testid="custom-fallback">Custom Error UI</div>}
-      >
+      <PageErrorBoundary fallback={<div data-testid="custom-fallback">Custom Error UI</div>}>
         <ThrowingComponent />
       </PageErrorBoundary>,
     );
 
     expect(screen.getByTestId('custom-fallback')).toBeDefined();
     expect(screen.queryByTestId('page-error-boundary')).toBeNull();
+  });
+
+  it('hands Next navigation signals (notFound / redirect) back to the framework', async () => {
+    // G-905 finding: without this, notFound() from a streamed dashboard page
+    // rendered "Something went wrong" instead of the 404 page.
+    const navigation = await import('next/navigation');
+    const rethrow = vi.mocked(navigation.unstable_rethrow);
+    // Persistent: React replays the render after an error is thrown.
+    rethrow.mockImplementation((error: unknown) => {
+      throw error;
+    });
+    const notFoundSignal = Object.assign(new Error('NEXT_HTTP_ERROR_FALLBACK;404'), {
+      digest: 'NEXT_HTTP_ERROR_FALLBACK;404',
+    });
+    function NotFoundComponent(): React.ReactElement {
+      throw notFoundSignal;
+    }
+
+    class Outer extends React.Component<{ children: React.ReactNode }, { caught: unknown }> {
+      state = { caught: null as unknown };
+      static getDerivedStateFromError(error: unknown) {
+        return { caught: error };
+      }
+      render() {
+        return this.state.caught ? (
+          <div data-testid="outer-boundary">outer</div>
+        ) : (
+          this.props.children
+        );
+      }
+    }
+
+    render(
+      <Outer>
+        <PageErrorBoundary>
+          <NotFoundComponent />
+        </PageErrorBoundary>
+      </Outer>,
+    );
+
+    expect(rethrow).toHaveBeenCalledWith(notFoundSignal);
+    expect(screen.getByTestId('outer-boundary')).toBeDefined();
+    expect(screen.queryByTestId('page-error-boundary')).toBeNull();
+    rethrow.mockReset();
   });
 });

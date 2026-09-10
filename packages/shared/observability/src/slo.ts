@@ -12,7 +12,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 
-import { MetricsRegistry } from './metrics-registry.js';
+import type { MetricsRegistry } from './metrics-registry.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -119,9 +119,7 @@ function validateSLO(slo: ServiceSLO): void {
     throw new SLOValidationError('latency.p95 must be <= latency.p99');
   }
   if (errorRate.target <= 0 || errorRate.target >= 1) {
-    throw new SLOValidationError(
-      `errorRate.target must be in (0, 1), got ${errorRate.target}`,
-    );
+    throw new SLOValidationError(`errorRate.target must be in (0, 1), got ${errorRate.target}`);
   }
   if (saturation.cpuTarget <= 0 || saturation.cpuTarget > 1) {
     throw new SLOValidationError(
@@ -168,10 +166,7 @@ declare module 'fastify' {
  * @param fastify - The Fastify instance (must have the observability plugin registered).
  * @param slo - The service's SLO definition.
  */
-export function registerServiceSLO(
-  fastify: FastifyInstance,
-  slo: ServiceSLO,
-): void {
+export function registerServiceSLO(fastify: FastifyInstance, slo: ServiceSLO): void {
   validateSLO(slo);
 
   // Decorate the instance so other plugins can inspect the SLO.
@@ -184,17 +179,19 @@ export function registerServiceSLO(
 
   // Register queue lag gauge if the service has queue-based SLIs.
   if (slo.indicators.queueLag && fastify.hasDecorator('metrics')) {
-    const registry = fastify.metrics as MetricsRegistry;
+    const registry: MetricsRegistry = fastify.metrics;
     registry.gauge({
       name: 'slo_queue_lag_messages',
       help: 'Current consumer lag in messages for SLO tracking',
       labelNames: ['service', 'topic'],
     });
-    registry.gauge({
-      name: 'slo_queue_lag_max',
-      help: 'Maximum acceptable consumer lag (from SLO definition)',
-      labelNames: ['service'],
-    }).set({ service: slo.service }, slo.indicators.queueLag.maxLag);
+    registry
+      .gauge({
+        name: 'slo_queue_lag_max',
+        help: 'Maximum acceptable consumer lag (from SLO definition)',
+        labelNames: ['service'],
+      })
+      .set({ service: slo.service }, slo.indicators.queueLag.maxLag);
   }
 
   // Expose the SLO contract as a JSON endpoint for introspection.

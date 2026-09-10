@@ -46,10 +46,7 @@ const arbInactiveStatus: fc.Arbitrary<'transferred' | 'withdrawn' | 'graduated'>
 const arbSubjectCodes: fc.Arbitrary<string[]> = fc
   .integer({ min: 1, max: 5 })
   .chain((count) =>
-    fc.array(
-      fc.stringMatching(/^[A-Z]{2,6}$/),
-      { minLength: count, maxLength: count },
-    ),
+    fc.array(fc.stringMatching(/^[A-Z]{2,6}$/), { minLength: count, maxLength: count }),
   )
   .map((codes) => [...new Set(codes)]) // Ensure unique codes
   .filter((codes) => codes.length >= 1); // Must have at least 1
@@ -98,9 +95,7 @@ describe('Property 23: Examination Eligibility Validation', () => {
         code,
         maxScore: 100,
       })),
-      centers: [
-        { name: 'Test Center', code: 'CTR-1', institutionId: uuid(), capacity: 200 },
-      ],
+      centers: [{ name: 'Test Center', code: 'CTR-1', institutionId: uuid(), capacity: 200 }],
       gradingSchemes: [
         {
           name: 'Standard',
@@ -152,48 +147,42 @@ describe('Property 23: Examination Eligibility Validation', () => {
 
   it('students without active enrollment are always rejected with enrollment status error', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        arbSubjectCodes,
-        arbInactiveStatus,
-        async (subjectCodes, inactiveStatus) => {
-          // Create examination
-          const exam = await createExamination(subjectCodes);
-          const studentId = `student-${uuid()}`;
+      fc.asyncProperty(arbSubjectCodes, arbInactiveStatus, async (subjectCodes, inactiveStatus) => {
+        // Create examination
+        const exam = await createExamination(subjectCodes);
+        const studentId = `student-${uuid()}`;
 
-          // Set up student with inactive enrollment but all subjects completed
-          repository.setStudentEnrollment({
+        // Set up student with inactive enrollment but all subjects completed
+        repository.setStudentEnrollment({
+          studentId,
+          status: inactiveStatus,
+          institutionId: uuid(),
+          completedSubjectCodes: subjectCodes, // All subjects completed
+        });
+
+        // Registration should be rejected
+        try {
+          await service.registerCandidate(tenantId, exam.id, {
             studentId,
-            status: inactiveStatus,
-            institutionId: uuid(),
-            completedSubjectCodes: subjectCodes, // All subjects completed
+            centerId: exam.centers[0]!.id,
+            subjectIds: [exam.subjects[0]!.id],
           });
+          // Should not reach here
+          expect.fail('Expected ValidationError to be thrown');
+        } catch (error) {
+          expect(error).toBeInstanceOf(ValidationError);
+          const validationError = error as ValidationError;
+          const json = validationError.toJSON();
 
-          // Registration should be rejected
-          try {
-            await service.registerCandidate(tenantId, exam.id, {
-              studentId,
-              centerId: exam.centers[0]!.id,
-              subjectIds: [exam.subjects[0]!.id],
-            });
-            // Should not reach here
-            expect.fail('Expected ValidationError to be thrown');
-          } catch (error) {
-            expect(error).toBeInstanceOf(ValidationError);
-            const validationError = error as ValidationError;
-            const json = validationError.toJSON();
-
-            // Must have enrollment status error
-            expect(json.errors).toBeDefined();
-            const enrollmentError = json.errors!.find(
-              (e: any) => e.field === 'enrollmentStatus',
-            );
-            expect(enrollmentError).toBeDefined();
-            expect(enrollmentError!.rule).toBe('activeEnrollment');
-            // Error message should indicate the actual status
-            expect(enrollmentError!.message).toContain(inactiveStatus);
-          }
-        },
-      ),
+          // Must have enrollment status error
+          expect(json.errors).toBeDefined();
+          const enrollmentError = json.errors!.find((e: any) => e.field === 'enrollmentStatus');
+          expect(enrollmentError).toBeDefined();
+          expect(enrollmentError!.rule).toBe('activeEnrollment');
+          // Error message should indicate the actual status
+          expect(enrollmentError!.message).toContain(inactiveStatus);
+        }
+      }),
       { numRuns: 50 },
     );
   });
@@ -235,9 +224,7 @@ describe('Property 23: Examination Eligibility Validation', () => {
 
             // Must have prerequisite subjects error
             expect(json.errors).toBeDefined();
-            const prereqError = json.errors!.find(
-              (e: any) => e.field === 'prerequisiteSubjects',
-            );
+            const prereqError = json.errors!.find((e: any) => e.field === 'prerequisiteSubjects');
             expect(prereqError).toBeDefined();
             expect(prereqError!.rule).toBe('prerequisiteCompletion');
 
@@ -289,12 +276,8 @@ describe('Property 23: Examination Eligibility Validation', () => {
 
             expect(json.errors).toBeDefined();
             // Must have BOTH errors reported
-            const enrollmentError = json.errors!.find(
-              (e: any) => e.field === 'enrollmentStatus',
-            );
-            const prereqError = json.errors!.find(
-              (e: any) => e.field === 'prerequisiteSubjects',
-            );
+            const enrollmentError = json.errors!.find((e: any) => e.field === 'enrollmentStatus');
+            const prereqError = json.errors!.find((e: any) => e.field === 'prerequisiteSubjects');
 
             // Enrollment status error must be present
             expect(enrollmentError).toBeDefined();

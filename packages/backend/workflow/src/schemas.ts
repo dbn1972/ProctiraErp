@@ -21,18 +21,27 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
  * Requirement 13.2: assigning steps to roles/users based on area/institution context
  */
 export const WorkflowStateSchema = Type.Object({
-  id: Type.String({ minLength: 1, maxLength: 100, description: 'Unique state identifier within the workflow' }),
+  id: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Unique state identifier within the workflow',
+  }),
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Human-readable state name' }),
-  type: Type.Union(
-    [Type.Literal('INITIAL'), Type.Literal('INTERMEDIATE'), Type.Literal('FINAL')],
-    { description: 'State type: INITIAL (start), INTERMEDIATE (in-progress), FINAL (end)' },
-  ),
+  type: Type.Union([Type.Literal('INITIAL'), Type.Literal('INTERMEDIATE'), Type.Literal('FINAL')], {
+    description: 'State type: INITIAL (start), INTERMEDIATE (in-progress), FINAL (end)',
+  }),
   assigneeType: Type.Union(
     [Type.Literal('role'), Type.Literal('user'), Type.Literal('area_role')],
     { description: 'How the assignee is determined for this state' },
   ),
-  assigneeId: Type.String({ minLength: 1, maxLength: 255, description: 'Role ID, user ID, or area-role identifier' }),
-  institutionScoped: Type.Optional(Type.Boolean({ description: 'Whether assignment is scoped to institution context' })),
+  assigneeId: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'Role ID, user ID, or area-role identifier',
+  }),
+  institutionScoped: Type.Optional(
+    Type.Boolean({ description: 'Whether assignment is scoped to institution context' }),
+  ),
 });
 
 export type WorkflowStateInput = Static<typeof WorkflowStateSchema>;
@@ -48,23 +57,34 @@ export const WorkflowTransitionSchema = Type.Object({
   id: Type.String({ minLength: 1, maxLength: 100, description: 'Unique transition identifier' }),
   fromStateId: Type.String({ minLength: 1, maxLength: 100, description: 'Source state ID' }),
   toStateId: Type.String({ minLength: 1, maxLength: 100, description: 'Target state ID' }),
-  action: Type.String({ minLength: 1, maxLength: 100, description: 'Action name (e.g., approve, reject, escalate)' }),
-  requiredApprovals: Type.Optional(Type.Number({
-    minimum: 1,
-    maximum: 100,
-    description: 'Number of approvals required for parallel paths (default: 1)',
-  })),
-  conditions: Type.Optional(Type.Array(Type.Object({
-    field: Type.String({ description: 'Field to evaluate' }),
-    operator: Type.Union([
-      Type.Literal('eq'),
-      Type.Literal('neq'),
-      Type.Literal('gt'),
-      Type.Literal('lt'),
-      Type.Literal('in'),
-    ]),
-    value: Type.Unknown({ description: 'Value to compare against' }),
-  }), { description: 'Optional conditions that must be met for this transition' })),
+  action: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Action name (e.g., approve, reject, escalate)',
+  }),
+  requiredApprovals: Type.Optional(
+    Type.Number({
+      minimum: 1,
+      maximum: 100,
+      description: 'Number of approvals required for parallel paths (default: 1)',
+    }),
+  ),
+  conditions: Type.Optional(
+    Type.Array(
+      Type.Object({
+        field: Type.String({ description: 'Field to evaluate' }),
+        operator: Type.Union([
+          Type.Literal('eq'),
+          Type.Literal('neq'),
+          Type.Literal('gt'),
+          Type.Literal('lt'),
+          Type.Literal('in'),
+        ]),
+        value: Type.Unknown({ description: 'Value to compare against' }),
+      }),
+      { description: 'Optional conditions that must be met for this transition' },
+    ),
+  ),
 });
 
 export type WorkflowTransitionInput = Static<typeof WorkflowTransitionSchema>;
@@ -76,9 +96,17 @@ export type WorkflowTransitionInput = Static<typeof WorkflowTransitionSchema>;
  * Requirement 13.4: configurable escalation rules
  */
 export const EscalationRuleSchema = Type.Object({
-  stateId: Type.String({ minLength: 1, maxLength: 100, description: 'State to monitor for escalation' }),
+  stateId: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'State to monitor for escalation',
+  }),
   durationMinutes: Type.Number({ minimum: 1, description: 'Minutes before escalation triggers' }),
-  escalateToStateId: Type.String({ minLength: 1, maxLength: 100, description: 'State to escalate to' }),
+  escalateToStateId: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'State to escalate to',
+  }),
   notifyRoleId: Type.Optional(Type.String({ description: 'Role to notify on escalation' })),
 });
 
@@ -92,11 +120,23 @@ export type EscalationRuleInput = Static<typeof EscalationRuleSchema>;
  */
 export const CreateWorkflowDefinitionSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Workflow name' }),
-  entityType: Type.String({ minLength: 1, maxLength: 100, description: 'Entity type this workflow applies to (e.g., student_transfer, staff_leave)' }),
+  entityType: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Entity type this workflow applies to (e.g., student_transfer, staff_leave)',
+  }),
   description: Type.Optional(Type.String({ maxLength: 1000, description: 'Workflow description' })),
-  states: Type.Array(WorkflowStateSchema, { minItems: 2, description: 'Workflow states (must have at least initial and final)' }),
-  transitions: Type.Array(WorkflowTransitionSchema, { minItems: 1, description: 'Allowed transitions between states' }),
-  escalationRules: Type.Optional(Type.Array(EscalationRuleSchema, { description: 'Escalation rules for timeout handling' })),
+  states: Type.Array(WorkflowStateSchema, {
+    minItems: 2,
+    description: 'Workflow states (must have at least initial and final)',
+  }),
+  transitions: Type.Array(WorkflowTransitionSchema, {
+    minItems: 1,
+    description: 'Allowed transitions between states',
+  }),
+  escalationRules: Type.Optional(
+    Type.Array(EscalationRuleSchema, { description: 'Escalation rules for timeout handling' }),
+  ),
 });
 
 export type CreateWorkflowDefinitionInput = Static<typeof CreateWorkflowDefinitionSchema>;
@@ -107,9 +147,15 @@ export type CreateWorkflowDefinitionInput = Static<typeof CreateWorkflowDefiniti
 export const UpdateWorkflowDefinitionSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Workflow name' })),
   description: Type.Optional(Type.String({ maxLength: 1000, description: 'Workflow description' })),
-  states: Type.Optional(Type.Array(WorkflowStateSchema, { minItems: 2, description: 'Workflow states' })),
-  transitions: Type.Optional(Type.Array(WorkflowTransitionSchema, { minItems: 1, description: 'Allowed transitions' })),
-  escalationRules: Type.Optional(Type.Array(EscalationRuleSchema, { description: 'Escalation rules' })),
+  states: Type.Optional(
+    Type.Array(WorkflowStateSchema, { minItems: 2, description: 'Workflow states' }),
+  ),
+  transitions: Type.Optional(
+    Type.Array(WorkflowTransitionSchema, { minItems: 1, description: 'Allowed transitions' }),
+  ),
+  escalationRules: Type.Optional(
+    Type.Array(EscalationRuleSchema, { description: 'Escalation rules' }),
+  ),
 });
 
 export type UpdateWorkflowDefinitionInput = Static<typeof UpdateWorkflowDefinitionSchema>;
@@ -124,9 +170,21 @@ export const CreateWorkflowInstanceSchema = Type.Object({
     pattern: UUID_PATTERN,
     description: 'Workflow definition UUID',
   }),
-  entityType: Type.String({ minLength: 1, maxLength: 100, description: 'Entity type (e.g., student_transfer)' }),
-  entityId: Type.String({ minLength: 1, maxLength: 255, description: 'Entity ID this workflow instance is linked to' }),
-  metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Additional metadata for the instance' })),
+  entityType: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Entity type (e.g., student_transfer)',
+  }),
+  entityId: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'Entity ID this workflow instance is linked to',
+  }),
+  metadata: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), {
+      description: 'Additional metadata for the instance',
+    }),
+  ),
 });
 
 export type CreateWorkflowInstanceInput = Static<typeof CreateWorkflowInstanceSchema>;
@@ -138,9 +196,19 @@ export type CreateWorkflowInstanceInput = Static<typeof CreateWorkflowInstanceSc
  * Requirement 13.3: record transition with timestamp, actor, and comments
  */
 export const TransitionRequestSchema = Type.Object({
-  action: Type.String({ minLength: 1, maxLength: 100, description: 'Transition action (e.g., approve, reject)' }),
-  actorId: Type.String({ minLength: 1, maxLength: 255, description: 'User performing the transition' }),
-  comments: Type.Optional(Type.String({ maxLength: 2000, description: 'Comments for the transition' })),
+  action: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Transition action (e.g., approve, reject)',
+  }),
+  actorId: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'User performing the transition',
+  }),
+  comments: Type.Optional(
+    Type.String({ maxLength: 2000, description: 'Comments for the transition' }),
+  ),
 });
 
 export type TransitionRequestInput = Static<typeof TransitionRequestSchema>;
@@ -188,12 +256,14 @@ export const WorkflowInstanceResponseSchema = Type.Object({
   currentStateId: Type.String(),
   status: Type.String(),
   metadata: Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()]),
-  approvals: Type.Array(Type.Object({
-    stateId: Type.String(),
-    actorId: Type.String(),
-    action: Type.String(),
-    timestamp: Type.String(),
-  })),
+  approvals: Type.Array(
+    Type.Object({
+      stateId: Type.String(),
+      actorId: Type.String(),
+      action: Type.String(),
+      timestamp: Type.String(),
+    }),
+  ),
   createdAt: Type.String(),
   updatedAt: Type.String(),
 });
@@ -230,7 +300,9 @@ export const WorkflowInstanceListQuerySchema = Type.Object({
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
   entityType: Type.Optional(Type.String({ description: 'Filter by entity type' })),
   entityId: Type.Optional(Type.String({ description: 'Filter by entity ID' })),
-  status: Type.Optional(Type.Union([Type.Literal('ACTIVE'), Type.Literal('COMPLETED'), Type.Literal('CANCELLED')])),
+  status: Type.Optional(
+    Type.Union([Type.Literal('ACTIVE'), Type.Literal('COMPLETED'), Type.Literal('CANCELLED')]),
+  ),
 });
 
 export type WorkflowInstanceListQuery = Static<typeof WorkflowInstanceListQuerySchema>;

@@ -5,15 +5,9 @@ import { useRouter } from 'next/navigation';
 
 import { Button } from '@proctira/ui/components';
 
-import {
-  createBellScheduleAction,
-  createPeriodAction,
-} from '@/app/(dashboard)/timetable-actions';
+import { createBellScheduleAction, createPeriodAction } from '@/app/(dashboard)/timetable-actions';
 
-export function BellScheduleCreateForm(props: {
-  academicPeriodId: string;
-  institutionId: string;
-}) {
+export function BellScheduleCreateForm(props: { academicPeriodId: string; institutionId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +42,7 @@ export function BellScheduleCreateForm(props: {
       <label className="flex min-w-[12rem] flex-1 flex-col gap-1 text-sm">
         <span className="font-medium text-foreground">Schedule name</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -57,7 +51,7 @@ export function BellScheduleCreateForm(props: {
       <label className="flex min-w-[10rem] flex-col gap-1 text-sm">
         <span className="font-medium text-foreground">Day pattern</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
           value={dayPattern}
           onChange={(e) => setDayPattern(e.target.value)}
           aria-describedby="day-pattern-help"
@@ -118,7 +112,7 @@ export function PeriodCreateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Name</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -129,7 +123,7 @@ export function PeriodCreateForm(props: {
         <input
           type="number"
           min={0}
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={periodOrder}
           onChange={(e) => setPeriodOrder(e.target.value)}
           required
@@ -138,7 +132,7 @@ export function PeriodCreateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Start</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2 font-mono"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono"
           value={startTime}
           onChange={(e) => setStartTime(e.target.value)}
           pattern="\d{2}:\d{2}"
@@ -148,7 +142,7 @@ export function PeriodCreateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">End</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2 font-mono"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono"
           value={endTime}
           onChange={(e) => setEndTime(e.target.value)}
           pattern="\d{2}:\d{2}"
@@ -161,7 +155,10 @@ export function PeriodCreateForm(props: {
         </Button>
       </div>
       {error && (
-        <p className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p
+          className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400"
+          role="alert"
+        >
           {error}
         </p>
       )}

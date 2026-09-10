@@ -34,7 +34,11 @@ export interface TranslationRepository {
     language: string,
     field: string,
   ): Promise<Translation | null>;
-  listTranslations(warehouseId: string, tenantId: string, options: TranslationListOptions): Promise<TranslationListResult>;
+  listTranslations(
+    warehouseId: string,
+    tenantId: string,
+    options: TranslationListOptions,
+  ): Promise<TranslationListResult>;
   getTranslationsForEntity(
     warehouseId: string,
     tenantId: string,

@@ -76,9 +76,7 @@ export class InMemoryBootstrapStore implements BootstrapStore {
  * Before that, InMemoryBootstrapStore is used.
  */
 export class DatabaseBootstrapStore implements BootstrapStore {
-  constructor(
-    private readonly query: <T>(sql: string, params?: unknown[]) => Promise<T[]>,
-  ) {}
+  constructor(private readonly query: <T>(sql: string, params?: unknown[]) => Promise<T[]>) {}
 
   async createRun(run: BootstrapRunRecord): Promise<void> {
     await this.query(

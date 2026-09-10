@@ -18,7 +18,8 @@
  * |   role=board-admin   |                             |
  * | role=principal       | /app/dashboard/school       |
  * | role=teacher         | /app/dashboard/teacher      |
- * | role=parent / student| /parent                      |
+ * | role=parent / guardian| /parent                     |
+ * | role=student         | /student                     |
  * | (none of the above)  | /app/dashboard/me  (fallback)|
  *
  * The fallback is the lowest-privilege surface (`/me`) so that a user holding
@@ -27,12 +28,7 @@
  */
 
 /** UserScope levels exposed by `useAuth()` (matches AuthProvider). */
-export type DashboardScopeLevel =
-  | 'country'
-  | 'state'
-  | 'district'
-  | 'board'
-  | 'school';
+export type DashboardScopeLevel = 'country' | 'state' | 'district' | 'board' | 'school';
 
 /** Minimal shape of `useAuth().user.scope` consumed by the role router. */
 export interface RoleRouterScope {
@@ -59,10 +55,12 @@ export const DASHBOARD_ROUTES = {
 
 /** Parent / guardian / student portal (first-class shell, not staff dashboard). */
 export const PARENT_PORTAL_ROUTE = '/parent';
+export const STUDENT_PORTAL_ROUTE = '/student';
 
 export type DashboardRoute =
   | (typeof DASHBOARD_ROUTES)[keyof typeof DASHBOARD_ROUTES]
-  | typeof PARENT_PORTAL_ROUTE;
+  | typeof PARENT_PORTAL_ROUTE
+  | typeof STUDENT_PORTAL_ROUTE;
 
 /**
  * Lowest-privilege accessible dashboard. Used when no scope/role rule
@@ -100,15 +98,14 @@ function rolesContain(
  *   4. `principal` role (school admin), or school scope paired with the
  *      principal role.
  *   5. `teacher` role.
- *   6. `parent` / `guardian` / `student` role → parent portal.
+ *   6. `parent` / `guardian` role → parent portal.
+ *   6b. `student` role → student portal.
  *   7. Fallback: `/app/dashboard/me`.
  *
  * Server-side policy still gates the data on each route; this function is
  * deliberately client-only and never makes an authorisation decision.
  */
-export function selectDefaultDashboardRoute(
-  input: RoleRouterInput,
-): DashboardRoute {
+export function selectDefaultDashboardRoute(input: RoleRouterInput): DashboardRoute {
   const { scope, roles } = input;
 
   // (1) Country-level admin lands on the national dashboard.
@@ -142,9 +139,13 @@ export function selectDefaultDashboardRoute(
     return DASHBOARD_ROUTES.teacher;
   }
 
-  // (6) Parents, guardians, and students land on the parent portal.
-  if (rolesContain(roles, ['parent', 'guardian', 'student'])) {
+  // (6) Parents and guardians land on the family portal.
+  if (rolesContain(roles, ['parent', 'guardian'])) {
     return PARENT_PORTAL_ROUTE;
+  }
+
+  if (rolesContain(roles, ['student'])) {
+    return STUDENT_PORTAL_ROUTE;
   }
 
   // (7) Fallback — lowest-privilege surface.

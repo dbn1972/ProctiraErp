@@ -5,6 +5,7 @@ namespace: proctira-dev
 
 resources:
   - ../../base
+  - secrets.yaml
 
 namePrefix: dev-
 

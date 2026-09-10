@@ -3,9 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import {
-  Button,
-} from '@proctira/ui/components';
+import { Button } from '@proctira/ui/components';
 
 interface StaffListPaginationProps {
   page: number;
@@ -34,11 +32,7 @@ export function StaffListPagination({
 
   return (
     <div className="flex flex-col items-center justify-between gap-3 border-t pt-4 text-sm md:flex-row">
-      <p
-        className="text-[hsl(var(--muted-foreground))]"
-        role="status"
-        aria-live="polite"
-      >
+      <p className="text-[hsl(var(--muted-foreground))]" role="status" aria-live="polite">
         Showing <span className="font-medium">{start}</span>–
         <span className="font-medium">{end}</span> of{' '}
         <span className="font-medium">{totalItems}</span> staff

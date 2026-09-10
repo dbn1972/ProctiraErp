@@ -6,20 +6,9 @@ import { StubDataBanner } from '@/components/stub-data-banner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { getTenant } from '@/lib/api/tenants';
 import { listAudit } from '@/lib/api/audit';
 import { requireRole } from '@/lib/auth/server';
@@ -67,8 +56,8 @@ export default async function TenantDetailPage({
       {searchParams?.provisioned === '1' && (
         <Alert variant="success" className="mb-6">
           <AlertDescription>
-            Tenant provisioning request accepted. The tenant will become active
-            once background workers complete setup.
+            Tenant provisioning request accepted. The tenant will become active once background
+            workers complete setup.
           </AlertDescription>
         </Alert>
       )}
@@ -79,7 +68,8 @@ export default async function TenantDetailPage({
           {tenant.plan}
         </Badge>
         <span className="text-sm text-muted-foreground">
-          Created {formatDate(tenant.createdAt)} · {tenant.activeUsers.toLocaleString()} active users
+          Created {formatDate(tenant.createdAt)} · {tenant.activeUsers.toLocaleString()} active
+          users
         </span>
       </div>
 
@@ -121,14 +111,19 @@ export default async function TenantDetailPage({
             <CardHeader>
               <CardTitle>Plan: {tenant.plan}</CardTitle>
               <CardDescription>
-                Subscription tier and quotas. Edit globally from the Plans
-                section.
+                Subscription tier and quotas. Edit globally from the Plans section.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                This tenant uses the <strong className="capitalize">{tenant.plan}</strong> plan.
-                See <Link href={`/plans/plan_${tenant.plan}`} className="font-medium text-[hsl(var(--accent))] hover:underline">plan details</Link> to manage tier quotas and entitlement defaults.
+                This tenant uses the <strong className="capitalize">{tenant.plan}</strong> plan. See{' '}
+                <Link
+                  href={`/plans/plan_${tenant.plan}`}
+                  className="font-medium text-[hsl(var(--accent))] hover:underline"
+                >
+                  plan details
+                </Link>{' '}
+                to manage tier quotas and entitlement defaults.
               </p>
             </CardContent>
           </Card>
@@ -157,7 +152,14 @@ export default async function TenantDetailPage({
             <CardHeader>
               <CardTitle>Branding & themes</CardTitle>
               <CardDescription>
-                Theme assignments are reviewed in the <Link className="font-medium text-[hsl(var(--accent))] hover:underline" href="/themes">themes</Link> section.
+                Theme assignments are reviewed in the{' '}
+                <Link
+                  className="font-medium text-[hsl(var(--accent))] hover:underline"
+                  href="/themes"
+                >
+                  themes
+                </Link>{' '}
+                section.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
@@ -170,15 +172,11 @@ export default async function TenantDetailPage({
           <Card>
             <CardHeader>
               <CardTitle>Access log</CardTitle>
-              <CardDescription>
-                Recent audit events scoped to this tenant.
-              </CardDescription>
+              <CardDescription>Recent audit events scoped to this tenant.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {auditQuery.entries.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No recent audit events.
-                </p>
+                <p className="text-sm text-muted-foreground">No recent audit events.</p>
               )}
               {auditQuery.entries.map((entry) => (
                 <div
@@ -191,9 +189,7 @@ export default async function TenantDetailPage({
                       {entry.actor} → {entry.resource}
                     </div>
                     {entry.reason && (
-                      <div className="text-xs text-muted-foreground italic">
-                        {entry.reason}
-                      </div>
+                      <div className="text-xs text-muted-foreground italic">{entry.reason}</div>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">
@@ -210,15 +206,11 @@ export default async function TenantDetailPage({
             <CardHeader>
               <CardTitle>Lifecycle actions</CardTitle>
               <CardDescription>
-                All actions are logged with the operator identity and a written
-                justification.
+                All actions are logged with the operator identity and a written justification.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <TenantLifecycleActions
-                tenantId={tenant.id}
-                status={tenant.status}
-              />
+              <TenantLifecycleActions tenantId={tenant.id} status={tenant.status} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -232,9 +224,7 @@ function DefinitionList({ items }: { items: Array<[string, string]> }) {
     <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
       {items.map(([label, value]) => (
         <div key={label} className="flex flex-col gap-0.5">
-          <dt className="text-xs uppercase tracking-wider text-muted-foreground">
-            {label}
-          </dt>
+          <dt className="text-xs uppercase tracking-wider text-muted-foreground">{label}</dt>
           <dd className="text-sm font-medium">{value}</dd>
         </div>
       ))}

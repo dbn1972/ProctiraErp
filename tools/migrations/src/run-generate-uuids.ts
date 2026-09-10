@@ -14,4 +14,6 @@ if (result.status === 'error') {
   process.exit(1);
 }
 
-console.log(`UUID generation complete: ${result.tablesProcessed} tables, ${result.rowsProcessed} rows`);
+console.log(
+  `UUID generation complete: ${result.tablesProcessed} tables, ${result.rowsProcessed} rows`,
+);

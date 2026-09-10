@@ -18,7 +18,11 @@ export type { ScholarshipPluginOptions } from './scholarship-plugin.js';
 
 // Service
 export { ScholarshipService } from './scholarship-service.js';
-export type { WorkflowEngineClient, ScholarshipServiceOptions } from './scholarship-service.js';
+export type {
+  WorkflowEngineClient,
+  ScholarshipServiceOptions,
+  ApplicationDecision,
+} from './scholarship-service.js';
 
 // Repository
 export type {
@@ -44,6 +48,17 @@ export type {
 
 // In-memory repository (for testing / gateway demo seed)
 export { InMemoryScholarshipRepository } from './in-memory-repository.js';
+
+// Postgres factory (G-204)
+export {
+  createScholarshipRepository,
+  isPgScholarshipEnabled,
+} from './create-scholarship-repository.js';
+export {
+  PgScholarshipRepository,
+  getSharedScholarshipPool,
+  ensureScholarshipSchema,
+} from './pg-scholarship-repository.js';
 
 // Cached repository decorator
 export { CachedScholarshipRepository } from './cached-scholarship-repository.js';

@@ -51,10 +51,7 @@ describe('<RadarComparison />', () => {
       />,
     );
 
-    expect(screen.getByTestId('radar')).toHaveAttribute(
-      'data-state',
-      'loading',
-    );
+    expect(screen.getByTestId('radar')).toHaveAttribute('data-state', 'loading');
     expect(screen.getByTestId('radar-comparison-skeleton')).toBeInTheDocument();
     expect(screen.queryByTestId('radar-comparison-chart')).toBeNull();
   });
@@ -69,9 +66,7 @@ describe('<RadarComparison />', () => {
       />,
     );
 
-    expect(screen.getByTestId('radar-comparison-empty').textContent).toBe(
-      'No boards selected',
-    );
+    expect(screen.getByTestId('radar-comparison-empty').textContent).toBe('No boards selected');
   });
 
   it('renders an error state with role="alert" when error is set', () => {

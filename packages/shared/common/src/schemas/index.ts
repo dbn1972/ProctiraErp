@@ -11,10 +11,12 @@ import { Type } from '@sinclair/typebox';
 export const FieldErrorSchema = Type.Object(
   {
     field: Type.String({ description: 'JSON path to the field (e.g., "body.email")' }),
-    rule: Type.String({ description: 'The validation rule that failed (e.g., "required", "format")' }),
+    rule: Type.String({
+      description: 'The validation rule that failed (e.g., "required", "format")',
+    }),
     message: Type.String({ description: 'Human-readable error message' }),
   },
-  { $id: 'FieldError', description: 'Field-level validation error detail' }
+  { $id: 'FieldError', description: 'Field-level validation error detail' },
 );
 
 /**
@@ -26,10 +28,12 @@ export const ApiErrorSchema = Type.Object(
     message: Type.String({ description: 'Human-readable error message' }),
     statusCode: Type.Integer({ description: 'HTTP status code', minimum: 400, maximum: 599 }),
     errors: Type.Optional(
-      Type.Array(FieldErrorSchema, { description: 'Array of field-level errors for validation failures' })
+      Type.Array(FieldErrorSchema, {
+        description: 'Array of field-level errors for validation failures',
+      }),
     ),
   },
-  { $id: 'ApiError', description: 'Structured API error response' }
+  { $id: 'ApiError', description: 'Structured API error response' },
 );
 
 /** TypeScript type inferred from FieldErrorSchema */

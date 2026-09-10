@@ -27,11 +27,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import {
-  canAccessHealthRecords,
-  listSpecialNeeds,
-  type SpecialNeedRecord,
-} from '@/lib/api/health';
+import { canAccessHealthRecords, listSpecialNeeds, type SpecialNeedRecord } from '@/lib/api/health';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -59,7 +55,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -120,13 +116,15 @@ export default async function SpecialNeedsPage() {
         role="note"
         className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
       >
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+        <Info
+          className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400"
+          aria-hidden="true"
+        />
         <p>
           <span className="font-semibold">Accommodations are binding. </span>
-          Once recorded here, accommodations (extra exam time, scribes, front-row
-          seating, accessible materials) are applied automatically in attendance,
-          assessments, and examination seating plans. Schools are notified of every
-          change.
+          Once recorded here, accommodations (extra exam time, scribes, front-row seating,
+          accessible materials) are applied automatically in attendance, assessments, and
+          examination seating plans. Schools are notified of every change.
         </p>
       </div>
 
@@ -134,9 +132,7 @@ export default async function SpecialNeedsPage() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Register</CardTitle>
-          <CardDescription>
-            {total.toLocaleString()} students with special needs.
-          </CardDescription>
+          <CardDescription>{total.toLocaleString()} students with special needs.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {total === 0 ? (
@@ -189,9 +185,7 @@ function SpecialNeedRow({ record }: { record: SpecialNeedRecord }) {
           >
             {initialsOf(record.studentName)}
           </span>
-          <span className="min-w-0 truncate font-medium text-foreground">
-            {record.studentName}
-          </span>
+          <span className="min-w-0 truncate font-medium text-foreground">{record.studentName}</span>
         </div>
       </TableCell>
 
@@ -213,11 +207,7 @@ function SpecialNeedRow({ record }: { record: SpecialNeedRecord }) {
 
       {/* Accommodations */}
       <TableCell className="max-w-[280px] text-sm text-muted-foreground">
-        {record.accommodations.length > 0 ? (
-          record.accommodations.join(' · ')
-        ) : (
-          '—'
-        )}
+        {record.accommodations.length > 0 ? record.accommodations.join(' · ') : '—'}
       </TableCell>
 
       {/* IEP */}

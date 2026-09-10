@@ -12,12 +12,7 @@
  * - 10.3: Reject ineligible candidates with error indicating which conditions failed
  * - 10.7: Support 1–10 grading schemes per examination with minimum pass thresholds
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -32,7 +27,11 @@ import type {
   ExaminationGradingScheme,
   GradeThreshold,
 } from './examination-repository.js';
-import type { CreateExaminationInput, UpdateExaminationInput, RegisterCandidateInput } from './schemas.js';
+import type {
+  CreateExaminationInput,
+  UpdateExaminationInput,
+  RegisterCandidateInput,
+} from './schemas.js';
 
 /** Minimum number of days in the future for exam dates */
 export const MIN_DAYS_IN_FUTURE = 7;
@@ -70,9 +69,7 @@ export class ExaminationService {
     // Check code uniqueness within tenant
     const existingByCode = await this.repository.findByCode(input.code, tenantId);
     if (existingByCode) {
-      throw new ConflictError(
-        `Examination with code '${input.code}' already exists`,
-      );
+      throw new ConflictError(`Examination with code '${input.code}' already exists`);
     }
 
     // Validate subjects (minimum 1 enforced by schema, but double-check)
@@ -217,9 +214,7 @@ export class ExaminationService {
 
     // Cannot update completed or cancelled examinations
     if (existing.status === 'COMPLETED' || existing.status === 'CANCELLED') {
-      throw new BusinessRuleError(
-        `Cannot update examination in '${existing.status}' status`,
-      );
+      throw new BusinessRuleError(`Cannot update examination in '${existing.status}' status`);
     }
 
     const errors: FieldError[] = [];
@@ -228,9 +223,7 @@ export class ExaminationService {
     if (input.code && input.code !== existing.code) {
       const existingByCode = await this.repository.findByCode(input.code, tenantId);
       if (existingByCode) {
-        throw new ConflictError(
-          `Examination with code '${input.code}' already exists`,
-        );
+        throw new ConflictError(`Examination with code '${input.code}' already exists`);
       }
     }
 
@@ -375,9 +368,7 @@ export class ExaminationService {
     }
 
     if (existing.status === 'IN_PROGRESS' || existing.status === 'COMPLETED') {
-      throw new BusinessRuleError(
-        `Cannot delete examination in '${existing.status}' status`,
-      );
+      throw new BusinessRuleError(`Cannot delete examination in '${existing.status}' status`);
     }
 
     const deleted = await this.repository.delete(id, tenantId);
@@ -429,6 +420,15 @@ export class ExaminationService {
    * @throws ValidationError if candidate fails eligibility validation
    * @throws ConflictError if candidate is already registered
    */
+  /** List registrations for the Candidates tab (G-902). */
+  async listCandidates(tenantId: string, examinationId: string): Promise<CandidateRegistration[]> {
+    const examination = await this.repository.findById(examinationId, tenantId);
+    if (!examination) {
+      throw new NotFoundError(`Examination with id '${examinationId}' not found`);
+    }
+    return this.repository.listCandidateRegistrations(examinationId, tenantId);
+  }
+
   async registerCandidate(
     tenantId: string,
     examinationId: string,
@@ -467,10 +467,7 @@ export class ExaminationService {
     );
 
     if (eligibilityErrors.length > 0) {
-      throw new ValidationError(
-        'Candidate eligibility validation failed',
-        eligibilityErrors,
-      );
+      throw new ValidationError('Candidate eligibility validation failed', eligibilityErrors);
     }
 
     // Validate center exists in the examination
@@ -557,7 +554,11 @@ export class ExaminationService {
     }
 
     // Check prerequisite subject completion
-    // All examination subjects are considered prerequisites that must be completed
+    // All examination subjects are considered prerequisites that must be completed.
+    // Skipped when the enrollment source cannot supply transcript data (null).
+    if (enrollment.completedSubjectCodes === null) {
+      return errors;
+    }
     const examSubjectCodes = examination.subjects.map((s) => s.code);
     const completedCodes = new Set(enrollment.completedSubjectCodes);
     const missingSubjects: string[] = [];
@@ -637,7 +638,13 @@ export class ExaminationService {
    * Validate a grading scheme's pass threshold and thresholds.
    */
   private validateGradingScheme(
-    scheme: { name: string; minScore: number; maxScore: number; passThreshold: number; thresholds: GradeThreshold[] },
+    scheme: {
+      name: string;
+      minScore: number;
+      maxScore: number;
+      passThreshold: number;
+      thresholds: GradeThreshold[];
+    },
     index: number,
   ): FieldError[] {
     const errors: FieldError[] = [];
@@ -694,7 +701,13 @@ export class ExaminationService {
    * Validate examination sessions.
    */
   private validateSessions(
-    sessions: Array<{ subjectId: string; date: string; startTime: string; endTime: string; centerId?: string }>,
+    sessions: Array<{
+      subjectId: string;
+      date: string;
+      startTime: string;
+      endTime: string;
+      centerId?: string;
+    }>,
     startDate: string,
     endDate: string,
   ): FieldError[] {

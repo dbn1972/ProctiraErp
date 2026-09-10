@@ -55,9 +55,16 @@ export interface ReportRoutesOptions {
  * Extract user context from request for RBAC scoping.
  */
 function extractUserContext(request: FastifyRequest, tenantId: string): ReportUserContext {
-  const user = (request as FastifyRequest & {
-    user?: { sub?: string; roles?: Array<{ roleId: string; areaId: string }>; areas?: string[]; institutions?: string[] };
-  }).user;
+  const user = (
+    request as FastifyRequest & {
+      user?: {
+        sub?: string;
+        roles?: Array<{ roleId: string; areaId: string }>;
+        areas?: string[];
+        institutions?: string[];
+      };
+    }
+  ).user;
 
   return {
     userId: user?.sub ?? 'anonymous',
@@ -132,7 +139,7 @@ function formatTemplateResponse(entity: {
   layout: string;
   mergeFields: unknown[];
   conditionalSections: unknown[] | null;
-  branding: unknown | null;
+  branding: unknown;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -213,10 +220,7 @@ export async function registerReportRoutes(
    */
   fastify.post(
     `${prefix}/generate`,
-    async function generateReportHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function generateReportHandler(request: FastifyRequest, reply: FastifyReply) {
       const result = validate(GenerateReportSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -258,10 +262,7 @@ export async function registerReportRoutes(
    */
   fastify.get(
     `${prefix}/jobs`,
-    async function listJobsHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listJobsHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -404,10 +405,7 @@ export async function registerReportRoutes(
    */
   fastify.post(
     `${prefix}/templates`,
-    async function createTemplateHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function createTemplateHandler(request: FastifyRequest, reply: FastifyReply) {
       const result = validate(CreateReportTemplateSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -445,10 +443,7 @@ export async function registerReportRoutes(
    */
   fastify.get(
     `${prefix}/templates`,
-    async function listTemplatesHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listTemplatesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -615,10 +610,7 @@ export async function registerReportRoutes(
    */
   fastify.post(
     `${prefix}/schedules`,
-    async function createScheduleHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function createScheduleHandler(request: FastifyRequest, reply: FastifyReply) {
       const result = validate(CreateScheduledReportSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -656,10 +648,7 @@ export async function registerReportRoutes(
    */
   fastify.get(
     `${prefix}/schedules`,
-    async function listSchedulesHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listSchedulesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({

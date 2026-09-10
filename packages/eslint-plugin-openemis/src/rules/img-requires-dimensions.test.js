@@ -1,17 +1,17 @@
-"use strict";
+'use strict';
 
-const { RuleTester } = require("eslint");
-const rule = require("./img-requires-dimensions");
+const { RuleTester } = require('eslint');
+const rule = require('./img-requires-dimensions');
 
 const ruleTester = new RuleTester({
   parserOptions: {
     ecmaVersion: 2022,
-    sourceType: "module",
+    sourceType: 'module',
     ecmaFeatures: { jsx: true },
   },
 });
 
-ruleTester.run("img-requires-dimensions", rule, {
+ruleTester.run('img-requires-dimensions', rule, {
   valid: [
     // Explicit width/height + loading="lazy".
     {
@@ -58,49 +58,43 @@ ruleTester.run("img-requires-dimensions", rule, {
     {
       code: '<img src="/a.png" alt="A" />',
       errors: [
-        { messageId: "missingWidth" },
-        { messageId: "missingHeight" },
-        { messageId: "missingLoading" },
+        { messageId: 'missingWidth' },
+        { messageId: 'missingHeight' },
+        { messageId: 'missingLoading' },
       ],
     },
     // Missing height only.
     {
       code: '<img src="/a.png" alt="A" width={64} loading="lazy" />',
-      errors: [{ messageId: "missingHeight" }],
+      errors: [{ messageId: 'missingHeight' }],
     },
     // Missing width only.
     {
       code: '<img src="/a.png" alt="A" height={64} loading="lazy" />',
-      errors: [{ messageId: "missingWidth" }],
+      errors: [{ messageId: 'missingWidth' }],
     },
     // Missing loading on a non-hero image.
     {
       code: '<img src="/a.png" alt="A" width={64} height={64} />',
-      errors: [{ messageId: "missingLoading" }],
+      errors: [{ messageId: 'missingLoading' }],
     },
     // Empty string width/height counts as missing.
     {
       code: '<img src="/a.png" alt="A" width="" height="" loading="lazy" />',
-      errors: [
-        { messageId: "missingWidth" },
-        { messageId: "missingHeight" },
-      ],
+      errors: [{ messageId: 'missingWidth' }, { messageId: 'missingHeight' }],
     },
     // Style object missing height should still fail height + loading.
     {
       code: '<img src="/a.png" alt="A" style={{ width: 100 }} />',
-      errors: [
-        { messageId: "missingHeight" },
-        { messageId: "missingLoading" },
-      ],
+      errors: [{ messageId: 'missingHeight' }, { messageId: 'missingLoading' }],
     },
     // Custom element <Img>.
     {
       code: '<Img src="/a.png" alt="A" />',
       errors: [
-        { messageId: "missingWidth" },
-        { messageId: "missingHeight" },
-        { messageId: "missingLoading" },
+        { messageId: 'missingWidth' },
+        { messageId: 'missingHeight' },
+        { messageId: 'missingLoading' },
       ],
     },
     // aria-hidden allowance disabled by config.
@@ -108,17 +102,17 @@ ruleTester.run("img-requires-dimensions", rule, {
       code: '<img src="/spacer.png" aria-hidden />',
       options: [{ allowAriaHiddenDecorative: false }],
       errors: [
-        { messageId: "missingWidth" },
-        { messageId: "missingHeight" },
-        { messageId: "missingLoading" },
+        { messageId: 'missingWidth' },
+        { messageId: 'missingHeight' },
+        { messageId: 'missingLoading' },
       ],
     },
     // fetchpriority that isn't "high" still requires loading.
     {
       code: '<img src="/a.png" alt="A" width={64} height={64} fetchpriority="low" />',
-      errors: [{ messageId: "missingLoading" }],
+      errors: [{ messageId: 'missingLoading' }],
     },
   ],
 });
 
-console.log("All tests passed!");
+console.log('All tests passed!');

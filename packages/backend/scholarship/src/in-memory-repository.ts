@@ -74,18 +74,14 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     filter: ProgramFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<ScholarshipProgramEntity>> {
-    let items = Array.from(this.programs.values()).filter(
-      (entity) => entity.tenantId === tenantId,
-    );
+    let items = Array.from(this.programs.values()).filter((entity) => entity.tenantId === tenantId);
 
     if (filter.status) {
       items = items.filter((entity) => entity.status === filter.status);
     }
     if (filter.search) {
       const searchLower = filter.search.toLowerCase();
-      items = items.filter((entity) =>
-        entity.name.toLowerCase().includes(searchLower),
-      );
+      items = items.filter((entity) => entity.name.toLowerCase().includes(searchLower));
     }
 
     // Sort
@@ -103,7 +99,10 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     const start = (pagination.page - 1) * pagination.pageSize;
     const data = items.slice(start, start + pagination.pageSize);
 
-    return { data, meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages } };
+    return {
+      data,
+      meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
+    };
   }
 
   async deleteProgram(id: string, tenantId: string): Promise<boolean> {
@@ -151,7 +150,10 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     return updated;
   }
 
-  async findApplicationById(id: string, tenantId: string): Promise<ScholarshipApplicationEntity | null> {
+  async findApplicationById(
+    id: string,
+    tenantId: string,
+  ): Promise<ScholarshipApplicationEntity | null> {
     const entity = this.applications.get(id);
     if (!entity || entity.tenantId !== tenantId) {
       return null;
@@ -201,12 +203,19 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     const start = (pagination.page - 1) * pagination.pageSize;
     const data = items.slice(start, start + pagination.pageSize);
 
-    return { data, meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages } };
+    return {
+      data,
+      meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
+    };
   }
 
   async countApplicationsByProgram(programId: string, tenantId: string): Promise<number> {
     return Array.from(this.applications.values()).filter(
-      (e) => e.programId === programId && e.tenantId === tenantId && e.status !== 'withdrawn' && e.status !== 'rejected',
+      (e) =>
+        e.programId === programId &&
+        e.tenantId === tenantId &&
+        e.status !== 'withdrawn' &&
+        e.status !== 'rejected',
     ).length;
   }
 
@@ -308,10 +317,16 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     const start = (pagination.page - 1) * pagination.pageSize;
     const data = items.slice(start, start + pagination.pageSize);
 
-    return { data, meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages } };
+    return {
+      data,
+      meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
+    };
   }
 
-  async listDisbursementsByApplication(applicationId: string, tenantId: string): Promise<DisbursementEntity[]> {
+  async listDisbursementsByApplication(
+    applicationId: string,
+    tenantId: string,
+  ): Promise<DisbursementEntity[]> {
     return Array.from(this.disbursements.values()).filter(
       (e) => e.applicationId === applicationId && e.tenantId === tenantId,
     );
@@ -332,7 +347,10 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
     return entity;
   }
 
-  async listComplianceRecords(applicationId: string, tenantId: string): Promise<ComplianceRecordEntity[]> {
+  async listComplianceRecords(
+    applicationId: string,
+    tenantId: string,
+  ): Promise<ComplianceRecordEntity[]> {
     return Array.from(this.complianceRecords.values()).filter(
       (e) => e.applicationId === applicationId && e.tenantId === tenantId,
     );
@@ -340,10 +358,15 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
 
   // ─── Report Operations ───────────────────────────────────────────────────
 
-  async getUtilizationReport(tenantId: string, filter: UtilizationReportFilter): Promise<UtilizationReportData> {
+  async getUtilizationReport(
+    tenantId: string,
+    filter: UtilizationReportFilter,
+  ): Promise<UtilizationReportData> {
     const programs = Array.from(this.programs.values()).filter((p) => p.tenantId === tenantId);
     let apps = Array.from(this.applications.values()).filter((a) => a.tenantId === tenantId);
-    const disbursementsList = Array.from(this.disbursements.values()).filter((d) => d.tenantId === tenantId);
+    const disbursementsList = Array.from(this.disbursements.values()).filter(
+      (d) => d.tenantId === tenantId,
+    );
 
     // Apply filters
     if (filter.programId) {
@@ -370,7 +393,10 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
 
     // Build breakdown
     const groupBy = filter.groupBy ?? 'program';
-    const groupMap = new Map<string, { applicationCount: number; approvedCount: number; disbursedAmount: number }>();
+    const groupMap = new Map<
+      string,
+      { applicationCount: number; approvedCount: number; disbursedAmount: number }
+    >();
 
     for (const app of apps) {
       let key: string;
@@ -434,9 +460,10 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       applicationCount: data.applicationCount,
       approvedCount: data.approvedCount,
       disbursedAmount: data.disbursedAmount,
-      utilizationRate: data.applicationCount > 0
-        ? Math.round((data.approvedCount / data.applicationCount) * 10000) / 100
-        : 0,
+      utilizationRate:
+        data.applicationCount > 0
+          ? Math.round((data.approvedCount / data.applicationCount) * 10000) / 100
+          : 0,
     }));
 
     return {

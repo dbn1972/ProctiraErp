@@ -115,18 +115,15 @@ describe('Property 10: Academic Period Scoping', () => {
 
     it('for any active period, the ActivePeriodValidator class also succeeds', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          academicPeriodArb(fc.constant('active')),
-          async (period) => {
-            const prisma = createMockPrisma(period);
-            const validator = new ActivePeriodValidator({ prisma });
+        fc.asyncProperty(academicPeriodArb(fc.constant('active')), async (period) => {
+          const prisma = createMockPrisma(period);
+          const validator = new ActivePeriodValidator({ prisma });
 
-            const result = await validator.validate(period.tenantId, period.id);
+          const result = await validator.validate(period.tenantId, period.id);
 
-            expect(result).toEqual(period);
-            expect(result.status).toBe('active');
-          },
-        ),
+          expect(result).toEqual(period);
+          expect(result.status).toBe('active');
+        }),
         { numRuns: 100 },
       );
     });
@@ -141,9 +138,9 @@ describe('Property 10: Academic Period Scoping', () => {
           async (period, _operationType) => {
             const prisma = createMockPrisma(period);
 
-            await expect(
-              validateActivePeriod(prisma, period.tenantId, period.id),
-            ).rejects.toThrow(BusinessRuleError);
+            await expect(validateActivePeriod(prisma, period.tenantId, period.id)).rejects.toThrow(
+              BusinessRuleError,
+            );
           },
         ),
         { numRuns: 100 },
@@ -152,67 +149,58 @@ describe('Property 10: Academic Period Scoping', () => {
 
     it('for any non-active period, the error message indicates the period is not currently active', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          academicPeriodArb(nonActiveStatusArb),
-          async (period) => {
-            const prisma = createMockPrisma(period);
+        fc.asyncProperty(academicPeriodArb(nonActiveStatusArb), async (period) => {
+          const prisma = createMockPrisma(period);
 
-            try {
-              await validateActivePeriod(prisma, period.tenantId, period.id);
-              expect.fail('Expected BusinessRuleError to be thrown');
-            } catch (error: any) {
-              expect(error).toBeInstanceOf(BusinessRuleError);
-              // Error message must indicate the period is not currently active
-              expect(error.message).toContain('not currently active');
-              // Error message must include the period name for user clarity
-              expect(error.message).toContain(period.name);
-              // Error message must include the current status
-              expect(error.message).toContain(period.status);
-            }
-          },
-        ),
+          try {
+            await validateActivePeriod(prisma, period.tenantId, period.id);
+            expect.fail('Expected BusinessRuleError to be thrown');
+          } catch (error: any) {
+            expect(error).toBeInstanceOf(BusinessRuleError);
+            // Error message must indicate the period is not currently active
+            expect(error.message).toContain('not currently active');
+            // Error message must include the period name for user clarity
+            expect(error.message).toContain(period.name);
+            // Error message must include the current status
+            expect(error.message).toContain(period.status);
+          }
+        }),
         { numRuns: 100 },
       );
     });
 
     it('for any inactive period specifically, validation rejects with status "inactive" in message', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          academicPeriodArb(fc.constant('inactive')),
-          async (period) => {
-            const prisma = createMockPrisma(period);
+        fc.asyncProperty(academicPeriodArb(fc.constant('inactive')), async (period) => {
+          const prisma = createMockPrisma(period);
 
-            try {
-              await validateActivePeriod(prisma, period.tenantId, period.id);
-              expect.fail('Expected BusinessRuleError to be thrown');
-            } catch (error: any) {
-              expect(error).toBeInstanceOf(BusinessRuleError);
-              expect(error.message).toContain('inactive');
-              expect(error.message).toContain('not currently active');
-            }
-          },
-        ),
+          try {
+            await validateActivePeriod(prisma, period.tenantId, period.id);
+            expect.fail('Expected BusinessRuleError to be thrown');
+          } catch (error: any) {
+            expect(error).toBeInstanceOf(BusinessRuleError);
+            expect(error.message).toContain('inactive');
+            expect(error.message).toContain('not currently active');
+          }
+        }),
         { numRuns: 50 },
       );
     });
 
     it('for any archived period specifically, validation rejects with status "archived" in message', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          academicPeriodArb(fc.constant('archived')),
-          async (period) => {
-            const prisma = createMockPrisma(period);
+        fc.asyncProperty(academicPeriodArb(fc.constant('archived')), async (period) => {
+          const prisma = createMockPrisma(period);
 
-            try {
-              await validateActivePeriod(prisma, period.tenantId, period.id);
-              expect.fail('Expected BusinessRuleError to be thrown');
-            } catch (error: any) {
-              expect(error).toBeInstanceOf(BusinessRuleError);
-              expect(error.message).toContain('archived');
-              expect(error.message).toContain('not currently active');
-            }
-          },
-        ),
+          try {
+            await validateActivePeriod(prisma, period.tenantId, period.id);
+            expect.fail('Expected BusinessRuleError to be thrown');
+          } catch (error: any) {
+            expect(error).toBeInstanceOf(BusinessRuleError);
+            expect(error.message).toContain('archived');
+            expect(error.message).toContain('not currently active');
+          }
+        }),
         { numRuns: 50 },
       );
     });
@@ -283,17 +271,13 @@ describe('Property 10: Academic Period Scoping', () => {
   describe('Non-existent periods are handled correctly', () => {
     it('for any tenant and period ID where the period does not exist, NotFoundError is thrown', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          uuidArb,
-          uuidArb,
-          async (tenantId, periodId) => {
-            const prisma = createMockPrisma(null);
+        fc.asyncProperty(uuidArb, uuidArb, async (tenantId, periodId) => {
+          const prisma = createMockPrisma(null);
 
-            await expect(
-              validateActivePeriod(prisma, tenantId, periodId),
-            ).rejects.toThrow(NotFoundError);
-          },
-        ),
+          await expect(validateActivePeriod(prisma, tenantId, periodId)).rejects.toThrow(
+            NotFoundError,
+          );
+        }),
         { numRuns: 50 },
       );
     });

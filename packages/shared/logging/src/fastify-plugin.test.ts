@@ -37,7 +37,7 @@ describe('loggingPlugin', () => {
     expect(capturedRequestId.length).toBeGreaterThan(0);
     // UUID v4 format
     expect(capturedRequestId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
   });
 
@@ -76,7 +76,7 @@ describe('loggingPlugin', () => {
     expect(capturedCorrelationId).toBeDefined();
     expect(capturedCorrelationId.length).toBeGreaterThan(0);
     expect(capturedCorrelationId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
   });
 

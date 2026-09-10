@@ -9,7 +9,7 @@
  *   ms-*, me-*, ps-*, pe-*, start-*, end-*, border-s-*, border-e-*, text-start, text-end
  */
 
-"use strict";
+'use strict';
 
 /** @type {Array<{pattern: RegExp, replacement: (match: string) => string, description: string}>} */
 const PHYSICAL_TO_LOGICAL = [
@@ -17,61 +17,61 @@ const PHYSICAL_TO_LOGICAL = [
     // ml-0, ml-1, ml-2, ml-px, ml-auto, ml-[10px], -ml-2, etc.
     pattern: /^(-?)ml-(.+)$/,
     replacement: (_match, neg, value) => `${neg}ms-${value}`,
-    description: "ms-* (margin-inline-start)",
+    description: 'ms-* (margin-inline-start)',
   },
   {
     // mr-0, mr-1, mr-auto, etc.
     pattern: /^(-?)mr-(.+)$/,
     replacement: (_match, neg, value) => `${neg}me-${value}`,
-    description: "me-* (margin-inline-end)",
+    description: 'me-* (margin-inline-end)',
   },
   {
     // pl-0, pl-1, pl-px, etc.
     pattern: /^(-?)pl-(.+)$/,
     replacement: (_match, neg, value) => `${neg}ps-${value}`,
-    description: "ps-* (padding-inline-start)",
+    description: 'ps-* (padding-inline-start)',
   },
   {
     // pr-0, pr-1, pr-auto, etc.
     pattern: /^(-?)pr-(.+)$/,
     replacement: (_match, neg, value) => `${neg}pe-${value}`,
-    description: "pe-* (padding-inline-end)",
+    description: 'pe-* (padding-inline-end)',
   },
   {
     // left-0, left-1, left-full, left-[10px], -left-2, etc.
     pattern: /^(-?)left-(.+)$/,
     replacement: (_match, neg, value) => `${neg}start-${value}`,
-    description: "start-* (inset-inline-start)",
+    description: 'start-* (inset-inline-start)',
   },
   {
     // right-0, right-1, right-full, etc.
     pattern: /^(-?)right-(.+)$/,
     replacement: (_match, neg, value) => `${neg}end-${value}`,
-    description: "end-* (inset-inline-end)",
+    description: 'end-* (inset-inline-end)',
   },
   {
     // border-l, border-l-2, border-l-[3px], etc.
     pattern: /^border-l(-(.+))?$/,
-    replacement: (_match, suffix) => `border-s${suffix || ""}`,
-    description: "border-s-* (border-inline-start)",
+    replacement: (_match, suffix) => `border-s${suffix || ''}`,
+    description: 'border-s-* (border-inline-start)',
   },
   {
     // border-r, border-r-2, border-r-[3px], etc.
     pattern: /^border-r(-(.+))?$/,
-    replacement: (_match, suffix) => `border-e${suffix || ""}`,
-    description: "border-e-* (border-inline-end)",
+    replacement: (_match, suffix) => `border-e${suffix || ''}`,
+    description: 'border-e-* (border-inline-end)',
   },
   {
     // text-left
     pattern: /^text-left$/,
-    replacement: () => "text-start",
-    description: "text-start",
+    replacement: () => 'text-start',
+    description: 'text-start',
   },
   {
     // text-right
     pattern: /^text-right$/,
-    replacement: () => "text-end",
-    description: "text-end",
+    replacement: () => 'text-end',
+    description: 'text-end',
   },
 ];
 
@@ -118,14 +118,14 @@ function extractClasses(value) {
 /** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
-    type: "suggestion",
+    type: 'suggestion',
     docs: {
       description:
-        "Disallow physical-axis directional Tailwind utilities; use logical equivalents for RTL support",
-      category: "Best Practices",
+        'Disallow physical-axis directional Tailwind utilities; use logical equivalents for RTL support',
+      category: 'Best Practices',
       recommended: true,
     },
-    fixable: "code",
+    fixable: 'code',
     schema: [],
     messages: {
       physicalClass:
@@ -148,17 +148,14 @@ module.exports = {
 
           context.report({
             node,
-            messageId: "physicalClass",
+            messageId: 'physicalClass',
             data: {
               original: result.original,
               fixed: result.fixed,
               description: result.description,
             },
             fix(fixer) {
-              return fixer.replaceTextRange(
-                [nodeStart, nodeEnd],
-                result.fixed
-              );
+              return fixer.replaceTextRange([nodeStart, nodeEnd], result.fixed);
             },
           });
         }
@@ -169,17 +166,14 @@ module.exports = {
      * Check if a JSX attribute is a className-like prop.
      */
     function isClassNameProp(attrName) {
-      return attrName === "className" || attrName === "class";
+      return attrName === 'className' || attrName === 'class';
     }
 
     /**
      * Visitor for JSX attributes with className.
      */
     function checkJSXAttribute(node) {
-      if (
-        !node.name ||
-        !isClassNameProp(node.name.name)
-      ) {
+      if (!node.name || !isClassNameProp(node.name.name)) {
         return;
       }
 
@@ -187,14 +181,14 @@ module.exports = {
       if (!value) return;
 
       // className="some classes"
-      if (value.type === "Literal" && typeof value.value === "string") {
+      if (value.type === 'Literal' && typeof value.value === 'string') {
         // +1 for the opening quote
         checkStringForPhysicalClasses(node, value.value, value.range[0] - node.range[0] + 1);
         return;
       }
 
       // className={`template`} or className={someExpression}
-      if (value.type === "JSXExpressionContainer") {
+      if (value.type === 'JSXExpressionContainer') {
         visitExpression(value.expression);
       }
     }
@@ -206,22 +200,18 @@ module.exports = {
       if (!expr) return;
 
       // String literal: "classes"
-      if (expr.type === "Literal" && typeof expr.value === "string") {
+      if (expr.type === 'Literal' && typeof expr.value === 'string') {
         checkStringForPhysicalClasses(expr, expr.value, 1); // +1 for quote
         return;
       }
 
       // Template literal: `classes ${var} more`
-      if (expr.type === "TemplateLiteral") {
+      if (expr.type === 'TemplateLiteral') {
         for (const quasi of expr.quasis) {
           if (quasi.value && quasi.value.raw) {
             // quasi.range[0] + 1 accounts for the backtick/}
             const offset = quasi.range[0] - expr.range[0] + 1;
-            checkStringForPhysicalClasses(
-              expr,
-              quasi.value.raw,
-              offset
-            );
+            checkStringForPhysicalClasses(expr, quasi.value.raw, offset);
           }
         }
         // Also check expressions within the template
@@ -232,7 +222,7 @@ module.exports = {
       }
 
       // Function calls like cn("ml-4", "p-2"), clsx("ml-4"), twMerge(...)
-      if (expr.type === "CallExpression") {
+      if (expr.type === 'CallExpression') {
         for (const arg of expr.arguments) {
           visitExpression(arg);
         }
@@ -240,21 +230,21 @@ module.exports = {
       }
 
       // Conditional: condition ? "ml-4" : "mr-4"
-      if (expr.type === "ConditionalExpression") {
+      if (expr.type === 'ConditionalExpression') {
         visitExpression(expr.consequent);
         visitExpression(expr.alternate);
         return;
       }
 
       // Logical: someCondition && "ml-4"
-      if (expr.type === "LogicalExpression") {
+      if (expr.type === 'LogicalExpression') {
         visitExpression(expr.left);
         visitExpression(expr.right);
         return;
       }
 
       // Array: ["ml-4", "p-2"]
-      if (expr.type === "ArrayExpression") {
+      if (expr.type === 'ArrayExpression') {
         for (const element of expr.elements) {
           if (element) visitExpression(element);
         }

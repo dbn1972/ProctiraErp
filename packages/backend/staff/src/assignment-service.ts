@@ -9,11 +9,7 @@
  * - 7.5: Track each assignment independently with role and time allocation as percentage,
  *         where total allocation across all active assignments shall not exceed 100%
  */
-import {
-  BusinessRuleError,
-  ConflictError,
-  NotFoundError,
-} from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,9 +41,7 @@ export class StaffAssignmentService {
   async create(tenantId: string, input: CreateAssignmentInput): Promise<StaffAssignmentEntity> {
     // Validate end date is after start date
     if (input.endDate && input.endDate <= input.startDate) {
-      throw new BusinessRuleError(
-        'End date must be after start date',
-      );
+      throw new BusinessRuleError('End date must be after start date');
     }
 
     // Check for overlapping assignments to the same institution-subject-class
@@ -69,10 +63,7 @@ export class StaffAssignmentService {
 
     // Check total allocation constraint
     const activeAssignments = await this.repository.findActiveByStaffId(input.staffId, tenantId);
-    const currentTotal = activeAssignments.reduce(
-      (sum, a) => sum + a.allocationPercentage,
-      0,
-    );
+    const currentTotal = activeAssignments.reduce((sum, a) => sum + a.allocationPercentage, 0);
 
     if (currentTotal + input.allocationPercentage > 100) {
       throw new BusinessRuleError(
@@ -126,9 +117,7 @@ export class StaffAssignmentService {
 
     // Validate end date is after start date
     if (newEndDate && newEndDate <= newStartDate) {
-      throw new BusinessRuleError(
-        'End date must be after start date',
-      );
+      throw new BusinessRuleError('End date must be after start date');
     }
 
     // Check for overlapping assignments if dates changed
@@ -174,7 +163,8 @@ export class StaffAssignmentService {
 
     const updateData: Partial<StaffAssignmentEntity> = {};
     if (input.role !== undefined) updateData.role = input.role;
-    if (input.allocationPercentage !== undefined) updateData.allocationPercentage = input.allocationPercentage;
+    if (input.allocationPercentage !== undefined)
+      updateData.allocationPercentage = input.allocationPercentage;
     if (input.startDate !== undefined) updateData.startDate = input.startDate;
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
     if (input.status !== undefined) updateData.status = input.status as 'ACTIVE' | 'INACTIVE';

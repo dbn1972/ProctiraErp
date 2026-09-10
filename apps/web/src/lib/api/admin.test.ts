@@ -30,7 +30,9 @@ import {
 
 type FetchSpy = ReturnType<typeof vi.fn<unknown[], unknown>>;
 
-function makeFetchSpy(handler: (url: string, init?: RequestInit) => Response | Promise<Response>): FetchSpy {
+function makeFetchSpy(
+  handler: (url: string, init?: RequestInit) => Response | Promise<Response>,
+): FetchSpy {
   return vi.fn(async (...args: unknown[]) =>
     handler(args[0] as string, args[1] as RequestInit | undefined),
   ) as unknown as FetchSpy;
@@ -254,7 +256,11 @@ describe('admin client → audit event dispatch', () => {
       return emptyResponse(201);
     });
 
-    await deleteRole(FIXTURE_ROLE.id, { roleName: FIXTURE_ROLE.name }, { fetcher: asFetch(fetcher) });
+    await deleteRole(
+      FIXTURE_ROLE.id,
+      { roleName: FIXTURE_ROLE.name },
+      { fetcher: asFetch(fetcher) },
+    );
 
     expect(calls).toHaveLength(2);
     const auditBody = JSON.parse(String(calls[1]!.init.body));

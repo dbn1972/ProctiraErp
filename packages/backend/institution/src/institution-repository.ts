@@ -46,7 +46,11 @@ export interface InstitutionRepository {
   create(data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>): Promise<InstitutionEntity>;
 
   /** Update an existing institution */
-  update(id: string, tenantId: string, data: Partial<InstitutionEntity>): Promise<InstitutionEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<InstitutionEntity>,
+  ): Promise<InstitutionEntity | null>;
 
   /** Find an institution by ID within a tenant */
   findById(id: string, tenantId: string): Promise<InstitutionEntity | null>;
@@ -55,7 +59,11 @@ export interface InstitutionRepository {
   findByCode(code: string): Promise<InstitutionEntity | null>;
 
   /** Find an institution by name within a specific area and tenant */
-  findByNameInArea(name: string, areaId: string, tenantId: string): Promise<InstitutionEntity | null>;
+  findByNameInArea(
+    name: string,
+    areaId: string,
+    tenantId: string,
+  ): Promise<InstitutionEntity | null>;
 
   /** List institutions with pagination and filtering */
   list(

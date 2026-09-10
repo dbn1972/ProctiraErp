@@ -39,6 +39,7 @@ import {
 import { cn } from '@/lib/utils';
 import { listIndicators, type DwIndicator } from '@/lib/api/data-warehouse';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -124,7 +125,22 @@ export default async function DataWarehousePage() {
       {/* ── Indicators table ── */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">
-          {indicators.length === 0 ? <EmptyState /> : <IndicatorsTable items={indicators} />}
+          {indicators.length === 0 ? (
+            <EmptyState
+              title="No indicators yet"
+              description="Import operational data to populate indicators."
+              action={
+                <Button asChild size="sm">
+                  <Link href="/data-warehouse/import">
+                    <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
+                    Import data
+                  </Link>
+                </Button>
+              }
+            />
+          ) : (
+            <IndicatorsTable items={indicators} />
+          )}
         </CardContent>
       </Card>
     </section>
@@ -168,28 +184,6 @@ function KpiCard({ icon: Icon, iconBg, label, value, valueMuted, foot }: KpiCard
     </Card>
   );
 }
-
-/* ──────────────────────────────────────── Empty state ── */
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-      <BarChart3 className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-      <p className="text-base font-semibold">No indicators yet</p>
-      <p className="text-sm text-muted-foreground">
-        Import operational data to populate indicators.
-      </p>
-      <Button asChild size="sm" className="mt-2">
-        <Link href="/data-warehouse/import">
-          <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Import data
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
-/* ──────────────────────────────────────── Indicators table ── */
 
 function IndicatorsTable({ items }: { items: DwIndicator[] }) {
   return (

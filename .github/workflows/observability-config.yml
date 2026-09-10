@@ -1,0 +1,106 @@
+# =============================================================================
+# G-725 — Observability config validation
+# =============================================================================
+# Prometheus scrape config + alert rules must parse, and the Alertmanager
+# template must render to a valid config both with and without optional
+# receiver credentials (missing keys degrade to email, never to a dead route).
+# =============================================================================
+
+name: Observability Config
+
+on:
+  pull_request:
+    paths:
+      - 'infra/observability/**'
+      - '.github/workflows/observability-config.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/observability/**'
+
+concurrency:
+  group: observability-config-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PROMETHEUS_VERSION: 2.54.1
+  ALERTMANAGER_VERSION: 0.27.0
+
+jobs:
+  validate:
+    name: promtool + amtool
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install promtool + amtool
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz" \
+            | tar xz -C /tmp --strip-components=1 "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool"
+          curl -fsSL "https://github.com/prometheus/alertmanager/releases/download/v${ALERTMANAGER_VERSION}/alertmanager-${ALERTMANAGER_VERSION}.linux-amd64.tar.gz" \
+            | tar xz -C /tmp --strip-components=1 "alertmanager-${ALERTMANAGER_VERSION}.linux-amd64/amtool"
+          sudo apt-get install -y -qq gettext-base
+
+      - name: promtool check config + rules
+        run: |
+          set -euo pipefail
+          /tmp/promtool check config infra/observability/prometheus.yml
+          /tmp/promtool check rules infra/observability/alerts/*.yml
+
+      - name: Scrape targets must be real /metrics services
+        # Guard against re-adding phantom targets: every static target must be
+        # one of the processes that registers @proctira/observability.
+        run: |
+          set -euo pipefail
+          allowed='^(api-gateway|etl-worker|(institution|student|staff|assessment|attendance|examination|workflow|notification|report)-service|localhost|alertmanager):[0-9]+$'
+          bad=0
+          while read -r t; do
+            if ! echo "$t" | grep -Eq "$allowed"; then
+              echo "::error::phantom scrape target: $t"
+              bad=1
+            fi
+          done < <(grep -oE "'[a-z-]+:[0-9]+'" infra/observability/prometheus.yml | tr -d "'")
+          exit $bad
+
+      - name: Render Alertmanager — no optional receivers (email fallback)
+        env:
+          ALERT_EMAIL_TO: ci@example.org
+        run: |
+          set -euo pipefail
+          sh infra/observability/render-alertmanager.sh infra/observability/alertmanager.yml.tpl /tmp/am-min.yml
+          /tmp/amtool check-config /tmp/am-min.yml
+          grep -q 'receiver: default-email' /tmp/am-min.yml
+          if grep -q 'receiver: pagerduty-critical' /tmp/am-min.yml; then
+            echo "::error::critical route points at PagerDuty without a key"; exit 1
+          fi
+          if grep -q 'REPLACE_ME' /tmp/am-min.yml; then
+            echo "::error::placeholder credential leaked into rendered config"; exit 1
+          fi
+
+      - name: Render Alertmanager — all receivers configured
+        env:
+          ALERT_EMAIL_TO: ci@example.org
+          ALERT_SMTP_FROM: alertmanager@example.org
+          ALERT_SMTP_SMARTHOST: smtp.example.org:587
+          PAGERDUTY_INTEGRATION_KEY: ci-placeholder-key
+          SLACK_WEBHOOK_URL: https://hooks.slack.com/services/ci/placeholder
+          SLACK_SECURITY_WEBHOOK_URL: https://hooks.slack.com/services/ci/security
+        run: |
+          set -euo pipefail
+          sh infra/observability/render-alertmanager.sh infra/observability/alertmanager.yml.tpl /tmp/am-full.yml
+          /tmp/amtool check-config /tmp/am-full.yml
+          grep -q 'receiver: pagerduty-critical' /tmp/am-full.yml
+          grep -q 'receiver: slack-warnings' /tmp/am-full.yml
+          grep -q 'receiver: slack-security' /tmp/am-full.yml
+
+      - name: Rendered config must never be committed
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch infra/observability/alertmanager.yml >/dev/null 2>&1; then
+            echo "::error::infra/observability/alertmanager.yml is tracked — it must be rendered from the template"
+            exit 1
+          fi

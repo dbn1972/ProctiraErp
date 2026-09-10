@@ -104,7 +104,8 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
   if (Array.isArray(m['requiredPermissions']) && m['requiredPermissions'].length === 0) {
     warnings.push({
       path: '/requiredPermissions',
-      message: 'Plugin declares no required permissions. Most plugins need at least read access to some entity.',
+      message:
+        'Plugin declares no required permissions. Most plugins need at least read access to some entity.',
       severity: 'warning',
     });
   }
@@ -113,7 +114,8 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
   if (Array.isArray(m['requiredExtensionPoints']) && m['requiredExtensionPoints'].length === 0) {
     warnings.push({
       path: '/requiredExtensionPoints',
-      message: 'Plugin declares no required extension points. Consider declaring which hooks your plugin uses.',
+      message:
+        'Plugin declares no required extension points. Consider declaring which hooks your plugin uses.',
       severity: 'warning',
     });
   }
@@ -122,7 +124,8 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
   if (typeof m['auditBehavior'] === 'string' && m['auditBehavior'].length < 20) {
     warnings.push({
       path: '/auditBehavior',
-      message: 'auditBehavior description is very short. Provide a clear description of what actions are audited.',
+      message:
+        'auditBehavior description is very short. Provide a clear description of what actions are audited.',
       severity: 'warning',
     });
   }
@@ -131,7 +134,8 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
   if (m['tenantScopeBehavior'] === 'shared') {
     warnings.push({
       path: '/tenantScopeBehavior',
-      message: 'Shared tenant scope requires additional security review. Most plugins should use "isolated".',
+      message:
+        'Shared tenant scope requires additional security review. Most plugins should use "isolated".',
       severity: 'warning',
     });
   }

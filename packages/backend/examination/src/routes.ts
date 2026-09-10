@@ -15,8 +15,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { ExaminationService } from './examination-service.js';
 import type { ExaminationEntity } from './examination-repository.js';
+import type { ExaminationService } from './examination-service.js';
 import {
   CreateExaminationSchema,
   UpdateExaminationSchema,
@@ -255,7 +255,7 @@ export async function registerExaminationRoutes(
         });
       }
 
-      const query = request.query as ExaminationListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'name';
@@ -311,6 +311,59 @@ export async function registerExaminationRoutes(
       try {
         const examination = await examinationService.getById(tenantId, paramsResult.data.id);
         return reply.status(200).send(formatExaminationResponse(examination));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /examinations/:id/candidates
+   * List candidate registrations (G-902: the Candidates tab reads this).
+   */
+  fastify.get(
+    `${prefix}/:id/candidates`,
+    async function listCandidatesHandler(
+      request: FastifyRequest<{ Params: ExaminationParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ExaminationParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid examination ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const registrations = await examinationService.listCandidates(
+          tenantId,
+          paramsResult.data.id,
+        );
+        return reply.status(200).send({
+          data: registrations.map((registration) => ({
+            id: registration.id,
+            examinationId: registration.examinationId,
+            studentId: registration.studentId,
+            centerId: registration.centerId,
+            subjectIds: registration.subjectIds,
+            status: registration.status,
+            registeredAt: registration.registeredAt.toISOString(),
+          })),
+          meta: { total: registrations.length },
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

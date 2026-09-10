@@ -40,9 +40,7 @@ export default function AttendanceDashboard() {
       try {
         // Fetch institution-level attendance for the current month
         const now = new Date();
-        const startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-          .toISOString()
-          .slice(0, 10);
+        const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
         const endDate = now.toISOString().slice(0, 10);
 
         const params = new URLSearchParams();
@@ -82,7 +80,10 @@ export default function AttendanceDashboard() {
 
       {/* Loading state */}
       {isLoading && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="attendance-dashboard-loading">
+        <div
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+          data-testid="attendance-dashboard-loading"
+        >
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-24 animate-pulse rounded-lg bg-muted" />
           ))}
@@ -104,12 +105,8 @@ export default function AttendanceDashboard() {
 
           <div className="rounded-lg border bg-card p-4" data-testid="kpi-absence-rate">
             <p className="text-sm text-muted-foreground">Absence Rate</p>
-            <p className="text-2xl font-bold text-red-600">
-              {stats.absencePercentage.toFixed(1)}%
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {stats.absentCount} absent days
-            </p>
+            <p className="text-2xl font-bold text-red-600">{stats.absencePercentage.toFixed(1)}%</p>
+            <p className="text-xs text-muted-foreground mt-1">{stats.absentCount} absent days</p>
           </div>
 
           <div className="rounded-lg border bg-card p-4" data-testid="kpi-late-count">

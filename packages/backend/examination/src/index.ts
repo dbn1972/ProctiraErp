@@ -23,19 +23,33 @@ export { examinationPlugin } from './examination-plugin.js';
 export type { ExaminationPluginOptions } from './examination-plugin.js';
 
 // Service
-export { ExaminationService, MIN_DAYS_IN_FUTURE, MAX_GRADING_SCHEMES, MIN_GRADING_SCHEMES } from './examination-service.js';
+export {
+  ExaminationService,
+  MIN_DAYS_IN_FUTURE,
+  MAX_GRADING_SCHEMES,
+  MIN_GRADING_SCHEMES,
+} from './examination-service.js';
 
 // Result Publication Service
-export { ResultPublicationService, MAX_PUBLICATION_DURATION_MS, SCORE_DISTRIBUTION_BUCKETS } from './result-publication-service.js';
+export {
+  ResultPublicationService,
+  MAX_PUBLICATION_DURATION_MS,
+  SCORE_DISTRIBUTION_BUCKETS,
+} from './result-publication-service.js';
 
 // Document Generation Service
 export {
   DocumentGenerationService,
+  InMemoryDocumentBlobStore,
   NoOpDocumentTaskQueue,
   MAX_BATCH_SIZE,
   MAX_GENERATION_DURATION_MS,
 } from './document-generation-service.js';
-export type { GenerateDocumentsInput, DocumentTaskQueue } from './document-generation-service.js';
+export type {
+  GenerateDocumentsInput,
+  DocumentTaskQueue,
+  DocumentBlobStore,
+} from './document-generation-service.js';
 
 // PDF Generator
 export { SimplePdfGenerator } from './pdf-generator.js';
@@ -94,6 +108,8 @@ export {
   createExaminationRepository,
   createResultRepository,
   createDocumentRepository,
+  createExamOpsStore,
+  isPgExaminationEnabled,
 } from './repository-factory.js';
 export type { ExaminationRepositoryConfig } from './repository-factory.js';
 
@@ -172,3 +188,27 @@ export type { ResultRoutesOptions } from './result-routes.js';
 // Document Routes
 export { registerDocumentRoutes } from './document-routes.js';
 export type { DocumentRoutesOptions } from './document-routes.js';
+
+export {
+  ExamOpsService,
+  DEFAULT_VARIANCE_TOLERANCE,
+  isModeratorRole,
+  conflictResponse,
+} from './ops-service.js';
+export type {
+  ExamOpsActor,
+  ExamOpsServiceDeps,
+  AllocateOutcome,
+  MarksPairView,
+} from './ops-service.js';
+export { InMemoryExamOpsStore, PgExamOpsStore } from './ops-store.js';
+export type { ExamOpsStore, ExamSessionRecord, ExamInvigilatorRecord } from './ops-store.js';
+export { registerExamOpsRoutes } from './ops-routes.js';
+export type { ExamOpsRoutesOptions } from './ops-routes.js';
+export { generateSeatingPlan, SEATS_PER_ROOM } from './seating-generator.js';
+export {
+  sessionsOverlap,
+  findStaffClashes,
+  findRoomClashes,
+  invigilatorsAreClashFree,
+} from './clash.js';

@@ -35,6 +35,7 @@ const attendanceStatusArb: fc.Arbitrary<AttendanceStatus> = fc.constantFrom(
   AttendanceStatus.ABSENT,
   AttendanceStatus.LATE,
   AttendanceStatus.EXCUSED,
+  AttendanceStatus.EARLY_DEPARTURE,
 );
 
 /** Generates a date string in YYYY-MM-DD format within a fixed range. */
@@ -58,15 +59,9 @@ function studentRecordsArb(
   return fc
     .uniqueArray(dateStrArb, { minLength, maxLength, comparator: (a, b) => a === b })
     .chain((dates) =>
-      fc.tuple(
-        ...dates.map((date) =>
-          fc.tuple(idArb, fc.constant(date), attendanceStatusArb),
-        ),
-      ),
+      fc.tuple(...dates.map((date) => fc.tuple(idArb, fc.constant(date), attendanceStatusArb))),
     )
-    .map((tuples) =>
-      tuples.map(([id, date, status]) => ({ id, date, status })),
-    );
+    .map((tuples) => tuples.map(([id, date, status]) => ({ id, date, status })));
 }
 
 /**
@@ -100,7 +95,10 @@ function expectedAttendancePercentage(statuses: AttendanceStatus[]): number {
   if (statuses.length === 0) return 0;
   const presentCount = statuses.filter((s) => s === AttendanceStatus.PRESENT).length;
   const lateCount = statuses.filter((s) => s === AttendanceStatus.LATE).length;
-  return Math.round(((presentCount + lateCount) / statuses.length) * 10000) / 100;
+  const earlyCount = statuses.filter((s) => s === AttendanceStatus.EARLY_DEPARTURE).length;
+  return (
+    Math.round(((presentCount + lateCount + 0.5 * earlyCount) / statuses.length) * 10000) / 100
+  );
 }
 
 /**
@@ -164,53 +162,47 @@ describe('Property 21: Attendance Percentage Calculation', () => {
   describe('Attendance percentage formula: (present + late) / total * 100, rounded to 2 decimal places', () => {
     it('attendance percentage equals (present + late) / total * 100 for any set of records', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          studentRecordsArb(1, 50),
-          async (records) => {
-            // Clear and seed
-            repository.clear();
-            await seedStudentRecords(repository, records);
+        fc.asyncProperty(studentRecordsArb(1, 50), async (records) => {
+          // Clear and seed
+          repository.clear();
+          await seedStudentRecords(repository, records);
 
-            // Calculate using the service
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          // Calculate using the service
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            // Verify against reference implementation
-            const statuses = records.map((r) => r.status);
-            const expected = expectedAttendancePercentage(statuses);
+          // Verify against reference implementation
+          const statuses = records.map((r) => r.status);
+          const expected = expectedAttendancePercentage(statuses);
 
-            expect(result.attendancePercentage).toBe(expected);
-          },
-        ),
+          expect(result.attendancePercentage).toBe(expected);
+        }),
         { numRuns: 100 },
       );
     });
 
     it('result is always rounded to exactly 2 decimal places', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          studentRecordsArb(1, 50),
-          async (records) => {
-            repository.clear();
-            await seedStudentRecords(repository, records);
+        fc.asyncProperty(studentRecordsArb(1, 50), async (records) => {
+          repository.clear();
+          await seedStudentRecords(repository, records);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(hasAtMostTwoDecimalPlaces(result.attendancePercentage)).toBe(true);
-            expect(hasAtMostTwoDecimalPlaces(result.absencePercentage)).toBe(true);
-          },
-        ),
+          expect(hasAtMostTwoDecimalPlaces(result.attendancePercentage)).toBe(true);
+          expect(hasAtMostTwoDecimalPlaces(result.absencePercentage)).toBe(true);
+        }),
         { numRuns: 100 },
       );
     });
@@ -219,26 +211,23 @@ describe('Property 21: Attendance Percentage Calculation', () => {
   describe('Absence percentage formula: absent / total * 100, rounded to 2 decimal places', () => {
     it('absence percentage equals absent / total * 100 for any set of records', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          studentRecordsArb(1, 50),
-          async (records) => {
-            repository.clear();
-            await seedStudentRecords(repository, records);
+        fc.asyncProperty(studentRecordsArb(1, 50), async (records) => {
+          repository.clear();
+          await seedStudentRecords(repository, records);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            const statuses = records.map((r) => r.status);
-            const expected = expectedAbsencePercentage(statuses);
+          const statuses = records.map((r) => r.status);
+          const expected = expectedAbsencePercentage(statuses);
 
-            expect(result.absencePercentage).toBe(expected);
-          },
-        ),
+          expect(result.absencePercentage).toBe(expected);
+        }),
         { numRuns: 100 },
       );
     });
@@ -247,92 +236,86 @@ describe('Property 21: Attendance Percentage Calculation', () => {
   describe('Calculation works correctly for all scopes (student, class, institution)', () => {
     it('class scope aggregates all students in the class', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          classRecordsArb(),
-          async (records) => {
-            repository.clear();
+        fc.asyncProperty(classRecordsArb(), async (records) => {
+          repository.clear();
 
-            // Seed records for multiple students in the same class
-            for (const record of records) {
-              await repository.createStudentAttendance({
-                id: record.id,
-                tenantId: TENANT_ID,
-                studentId: record.studentId,
-                institutionId: INSTITUTION_ID,
-                classId: CLASS_ID,
-                academicPeriodId: PERIOD_ID,
-                date: record.date,
-                subjectId: null,
-                periodId: null,
-                status: record.status,
-                comment: null,
-                recordedBy: 'test-user',
-              });
-            }
-
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'class',
+          // Seed records for multiple students in the same class
+          for (const record of records) {
+            await repository.createStudentAttendance({
+              id: record.id,
+              tenantId: TENANT_ID,
+              studentId: record.studentId,
+              institutionId: INSTITUTION_ID,
               classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
+              academicPeriodId: PERIOD_ID,
+              date: record.date,
+              subjectId: null,
+              periodId: null,
+              status: record.status,
+              comment: null,
+              recordedBy: 'test-user',
             });
+          }
 
-            const statuses = records.map((r) => r.status);
-            const expectedAttendance = expectedAttendancePercentage(statuses);
-            const expectedAbsence = expectedAbsencePercentage(statuses);
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'class',
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(result.attendancePercentage).toBe(expectedAttendance);
-            expect(result.absencePercentage).toBe(expectedAbsence);
-            expect(result.totalRecords).toBe(records.length);
-            expect(result.scope).toBe('class');
-          },
-        ),
+          const statuses = records.map((r) => r.status);
+          const expectedAttendance = expectedAttendancePercentage(statuses);
+          const expectedAbsence = expectedAbsencePercentage(statuses);
+
+          expect(result.attendancePercentage).toBe(expectedAttendance);
+          expect(result.absencePercentage).toBe(expectedAbsence);
+          expect(result.totalRecords).toBe(records.length);
+          expect(result.scope).toBe('class');
+        }),
         { numRuns: 100 },
       );
     });
 
     it('institution scope aggregates all records for the institution', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          classRecordsArb(),
-          async (records) => {
-            repository.clear();
+        fc.asyncProperty(classRecordsArb(), async (records) => {
+          repository.clear();
 
-            // Seed records for multiple students across different classes but same institution
-            for (const record of records) {
-              await repository.createStudentAttendance({
-                id: record.id,
-                tenantId: TENANT_ID,
-                studentId: record.studentId,
-                institutionId: INSTITUTION_ID,
-                classId: `class-${record.studentId}`, // Different classes
-                academicPeriodId: PERIOD_ID,
-                date: record.date,
-                subjectId: null,
-                periodId: null,
-                status: record.status,
-                comment: null,
-                recordedBy: 'test-user',
-              });
-            }
-
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'institution',
+          // Seed records for multiple students across different classes but same institution
+          for (const record of records) {
+            await repository.createStudentAttendance({
+              id: record.id,
+              tenantId: TENANT_ID,
+              studentId: record.studentId,
               institutionId: INSTITUTION_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
+              classId: `class-${record.studentId}`, // Different classes
+              academicPeriodId: PERIOD_ID,
+              date: record.date,
+              subjectId: null,
+              periodId: null,
+              status: record.status,
+              comment: null,
+              recordedBy: 'test-user',
             });
+          }
 
-            const statuses = records.map((r) => r.status);
-            const expectedAttendance = expectedAttendancePercentage(statuses);
-            const expectedAbsence = expectedAbsencePercentage(statuses);
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'institution',
+            institutionId: INSTITUTION_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(result.attendancePercentage).toBe(expectedAttendance);
-            expect(result.absencePercentage).toBe(expectedAbsence);
-            expect(result.totalRecords).toBe(records.length);
-            expect(result.scope).toBe('institution');
-          },
-        ),
+          const statuses = records.map((r) => r.status);
+          const expectedAttendance = expectedAttendancePercentage(statuses);
+          const expectedAbsence = expectedAbsencePercentage(statuses);
+
+          expect(result.attendancePercentage).toBe(expectedAttendance);
+          expect(result.absencePercentage).toBe(expectedAbsence);
+          expect(result.totalRecords).toBe(records.length);
+          expect(result.scope).toBe('institution');
+        }),
         { numRuns: 100 },
       );
     });
@@ -411,158 +394,151 @@ describe('Property 21: Attendance Percentage Calculation', () => {
       expect(result.absentCount).toBe(0);
       expect(result.lateCount).toBe(0);
       expect(result.excusedCount).toBe(0);
+      expect(result.earlyDepartureCount).toBe(0);
     });
 
     it('single record returns correct percentage for each status', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          attendanceStatusArb,
-          idArb,
-          dateStrArb,
-          async (status, id, date) => {
-            repository.clear();
-            await seedStudentRecords(repository, [{ id, date, status }]);
+        fc.asyncProperty(attendanceStatusArb, idArb, dateStrArb, async (status, id, date) => {
+          repository.clear();
+          await seedStudentRecords(repository, [{ id, date, status }]);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(result.totalRecords).toBe(1);
+          expect(result.totalRecords).toBe(1);
 
-            // Single PRESENT or LATE record → 100% attendance
-            if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.LATE) {
-              expect(result.attendancePercentage).toBe(100);
-              expect(result.absencePercentage).toBe(0);
-            }
-            // Single ABSENT record → 0% attendance, 100% absence
-            if (status === AttendanceStatus.ABSENT) {
-              expect(result.attendancePercentage).toBe(0);
-              expect(result.absencePercentage).toBe(100);
-            }
-            // Single EXCUSED record → 0% attendance, 0% absence
-            if (status === AttendanceStatus.EXCUSED) {
-              expect(result.attendancePercentage).toBe(0);
-              expect(result.absencePercentage).toBe(0);
-            }
-          },
-        ),
+          // Single PRESENT or LATE record → 100% attendance
+          if (status === AttendanceStatus.PRESENT || status === AttendanceStatus.LATE) {
+            expect(result.attendancePercentage).toBe(100);
+            expect(result.absencePercentage).toBe(0);
+          }
+          // Single ABSENT record → 0% attendance, 100% absence
+          if (status === AttendanceStatus.ABSENT) {
+            expect(result.attendancePercentage).toBe(0);
+            expect(result.absencePercentage).toBe(100);
+          }
+          // Single EXCUSED record → 0% attendance, 0% absence
+          if (status === AttendanceStatus.EXCUSED) {
+            expect(result.attendancePercentage).toBe(0);
+            expect(result.absencePercentage).toBe(0);
+          }
+          // Single EARLY_DEPARTURE → 50% attendance (present-partial weight 0.5)
+          if (status === AttendanceStatus.EARLY_DEPARTURE) {
+            expect(result.attendancePercentage).toBe(50);
+            expect(result.absencePercentage).toBe(0);
+          }
+        }),
         { numRuns: 20 },
       );
     });
 
     it('all present records yield 100% attendance and 0% absence', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          fc.integer({ min: 1, max: 30 }),
-          async (count) => {
-            repository.clear();
+        fc.asyncProperty(fc.integer({ min: 1, max: 30 }), async (count) => {
+          repository.clear();
 
-            const records = Array.from({ length: count }, (_, i) => ({
-              id: `all-present-${i}`,
-              date: `2024-${String(Math.floor(i / 28) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
-              status: AttendanceStatus.PRESENT,
-            }));
+          const records = Array.from({ length: count }, (_, i) => ({
+            id: `all-present-${i}`,
+            date: `2024-${String(Math.floor(i / 28) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
+            status: AttendanceStatus.PRESENT,
+          }));
 
-            await seedStudentRecords(repository, records);
+          await seedStudentRecords(repository, records);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(result.attendancePercentage).toBe(100);
-            expect(result.absencePercentage).toBe(0);
-          },
-        ),
+          expect(result.attendancePercentage).toBe(100);
+          expect(result.absencePercentage).toBe(0);
+        }),
         { numRuns: 20 },
       );
     });
 
     it('all absent records yield 0% attendance and 100% absence', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          fc.integer({ min: 1, max: 30 }),
-          async (count) => {
-            repository.clear();
+        fc.asyncProperty(fc.integer({ min: 1, max: 30 }), async (count) => {
+          repository.clear();
 
-            const records = Array.from({ length: count }, (_, i) => ({
-              id: `all-absent-${i}`,
-              date: `2024-${String(Math.floor(i / 28) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
-              status: AttendanceStatus.ABSENT,
-            }));
+          const records = Array.from({ length: count }, (_, i) => ({
+            id: `all-absent-${i}`,
+            date: `2024-${String(Math.floor(i / 28) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`,
+            status: AttendanceStatus.ABSENT,
+          }));
 
-            await seedStudentRecords(repository, records);
+          await seedStudentRecords(repository, records);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(result.attendancePercentage).toBe(0);
-            expect(result.absencePercentage).toBe(100);
-          },
-        ),
+          expect(result.attendancePercentage).toBe(0);
+          expect(result.absencePercentage).toBe(100);
+        }),
         { numRuns: 20 },
       );
     });
 
     it('percentage values are always between 0 and 100 inclusive', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          studentRecordsArb(1, 50),
-          async (records) => {
-            repository.clear();
-            await seedStudentRecords(repository, records);
+        fc.asyncProperty(studentRecordsArb(1, 50), async (records) => {
+          repository.clear();
+          await seedStudentRecords(repository, records);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            expect(result.attendancePercentage).toBeGreaterThanOrEqual(0);
-            expect(result.attendancePercentage).toBeLessThanOrEqual(100);
-            expect(result.absencePercentage).toBeGreaterThanOrEqual(0);
-            expect(result.absencePercentage).toBeLessThanOrEqual(100);
-          },
-        ),
+          expect(result.attendancePercentage).toBeGreaterThanOrEqual(0);
+          expect(result.attendancePercentage).toBeLessThanOrEqual(100);
+          expect(result.absencePercentage).toBeGreaterThanOrEqual(0);
+          expect(result.absencePercentage).toBeLessThanOrEqual(100);
+        }),
         { numRuns: 100 },
       );
     });
 
     it('count breakdown sums to total records', async () => {
       await fc.assert(
-        fc.asyncProperty(
-          studentRecordsArb(1, 50),
-          async (records) => {
-            repository.clear();
-            await seedStudentRecords(repository, records);
+        fc.asyncProperty(studentRecordsArb(1, 50), async (records) => {
+          repository.clear();
+          await seedStudentRecords(repository, records);
 
-            const result = await service.calculateAttendancePercentage(TENANT_ID, {
-              scope: 'student',
-              studentId: STUDENT_ID,
-              classId: CLASS_ID,
-              startDate: '2024-01-01',
-              endDate: '2024-12-31',
-            });
+          const result = await service.calculateAttendancePercentage(TENANT_ID, {
+            scope: 'student',
+            studentId: STUDENT_ID,
+            classId: CLASS_ID,
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          });
 
-            const sumOfCounts =
-              result.presentCount + result.absentCount + result.lateCount + result.excusedCount;
-            expect(sumOfCounts).toBe(result.totalRecords);
-          },
-        ),
+          const sumOfCounts =
+            result.presentCount +
+            result.absentCount +
+            result.lateCount +
+            result.excusedCount +
+            result.earlyDepartureCount;
+          expect(sumOfCounts).toBe(result.totalRecords);
+        }),
         { numRuns: 100 },
       );
     });

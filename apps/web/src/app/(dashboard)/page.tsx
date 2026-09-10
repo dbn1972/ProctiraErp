@@ -8,16 +8,22 @@ import {
   ClipboardCheck,
   GraduationCap,
   Inbox,
+  LayoutDashboard,
   Plus,
   School,
   Upload,
 } from 'lucide-react';
 
 import { DocumentTitle } from '@/components/DocumentTitle';
+import { RoleDashboardPanel } from '@/app/(dashboard)/reports/_components/role-dashboard-panel';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { listInstitutions } from '@/lib/api/institutions';
+import { getRoleDashboard } from '@/lib/api/reports';
 import { listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
 import { listPendingApprovals, type WorkflowApproval } from '@/lib/api/workflows';
+import { getSession } from '@/lib/auth/server';
+import { dashboardRoleLabel, detectDashboardRole } from '@/lib/dashboard/role-detection';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
@@ -32,15 +38,25 @@ export const dynamic = 'force-dynamic';
  * day-one workflows.
  */
 export default async function DashboardPage() {
-  const [institutions, students, staff, periods, approvals] = await Promise.all([
-    listInstitutions({ pageSize: 200 }).catch(() => null),
-    listStudents({ pageSize: 1 }).catch(() => null),
-    listStaff({ pageSize: 1 }).catch(() => null),
-    listAcademicPeriods().catch(() => null as AcademicPeriod[] | null),
-    listPendingApprovals().catch(() => null as WorkflowApproval[] | null),
-  ]);
+  const session = await getSession();
+  const role = detectDashboardRole(session?.user.roles);
+
+  const [institutions, students, staff, periods, approvals, roleDashboardResult] =
+    await Promise.all([
+      listInstitutions({ pageSize: 200 }).catch(() => null),
+      listStudents({ pageSize: 1 }).catch(() => null),
+      listStaff({ pageSize: 1 }).catch(() => null),
+      listAcademicPeriods().catch(() => null as AcademicPeriod[] | null),
+      listPendingApprovals().catch(() => null as WorkflowApproval[] | null),
+      getRoleDashboard(role).catch(() => ({
+        dashboard: null,
+        source: 'scaffold' as const,
+        status: 503,
+      })),
+    ]);
 
   const activePeriod = periods?.find((p) => p.status === 'active') ?? null;
+  const { dashboard: roleDashboard, source: roleDashboardSource } = roleDashboardResult;
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -97,6 +113,31 @@ export default async function DashboardPage() {
         />
       </div>
 
+      {roleDashboard ? (
+        <div className="rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-base font-semibold">
+              <LayoutDashboard className="h-4 w-4 text-[hsl(var(--primary))]" aria-hidden="true" />
+              {dashboardRoleLabel(role)} snapshot
+            </h2>
+            <Link
+              href={`/reports/dashboard?role=${role}`}
+              className="inline-flex items-center gap-1 text-xs font-medium text-[hsl(var(--primary))] hover:underline"
+              data-testid="home-role-dashboard-link"
+            >
+              Full dashboard
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
+          </div>
+          <RoleDashboardPanel dashboard={roleDashboard} />
+        </div>
+      ) : (
+        <ScaffoldModeBanner
+          source={roleDashboardSource}
+          surface={`${dashboardRoleLabel(role)} dashboard`}
+        />
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
           <h2 className="text-base font-semibold">Quick actions</h2>
@@ -151,7 +192,9 @@ function ApprovalsPanel({ approvals }: { approvals: WorkflowApproval[] | null })
         <div className="mt-4 flex flex-col items-center gap-1 py-6 text-center">
           <Inbox className="h-8 w-8 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
           <p className="text-sm font-medium">All caught up</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">No approvals waiting on you.</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            No approvals waiting on you.
+          </p>
         </div>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -210,17 +253,9 @@ function KpiCard({
         </p>
       </div>
       {value === null ? (
-        <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">
-          Currently unavailable
-        </p>
+        <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">Currently unavailable</p>
       ) : (
-        <p
-          className={`mt-2 font-bold tracking-tight ${
-            small ? 'text-lg' : 'text-3xl'
-          }`}
-        >
-          {value}
-        </p>
+        <p className={`mt-2 font-bold tracking-tight ${small ? 'text-lg' : 'text-3xl'}`}>{value}</p>
       )}
     </Link>
   );

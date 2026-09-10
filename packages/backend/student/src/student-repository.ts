@@ -63,6 +63,8 @@ export interface StudentEntity {
 export interface StudentFilter {
   gender?: string;
   search?: string;
+  /** When set, only students enrolled at this institution are returned. */
+  institutionId?: string;
 }
 
 /**

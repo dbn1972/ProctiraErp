@@ -25,7 +25,7 @@ export class InMemoryReportRepository implements ReportRepository {
   }
 
   async getJobById(tenantId: string, id: string): Promise<ReportJobEntity | null> {
-    const found = this.jobs.find(j => j.id === id && j.tenantId === tenantId);
+    const found = this.jobs.find((j) => j.id === id && j.tenantId === tenantId);
     return found ? { ...found } : null;
   }
 
@@ -34,7 +34,7 @@ export class InMemoryReportRepository implements ReportRepository {
     tenantId: string,
     update: Partial<Omit<ReportJobEntity, 'id' | 'tenantId' | 'createdAt'>>,
   ): Promise<ReportJobEntity | null> {
-    const index = this.jobs.findIndex(j => j.id === id && j.tenantId === tenantId);
+    const index = this.jobs.findIndex((j) => j.id === id && j.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.jobs[index]!;
@@ -54,14 +54,14 @@ export class InMemoryReportRepository implements ReportRepository {
     options: ReportJobQueryOptions,
   ): Promise<PaginatedReportJobs> {
     let filtered = this.jobs.filter(
-      j => j.tenantId === tenantId && j.requestedBy === requestedBy,
+      (j) => j.tenantId === tenantId && j.requestedBy === requestedBy,
     );
 
     if (options.status) {
-      filtered = filtered.filter(j => j.status === options.status);
+      filtered = filtered.filter((j) => j.status === options.status);
     }
     if (options.reportType) {
-      filtered = filtered.filter(j => j.reportType === options.reportType);
+      filtered = filtered.filter((j) => j.reportType === options.reportType);
     }
 
     // Sort by createdAt descending
@@ -73,7 +73,7 @@ export class InMemoryReportRepository implements ReportRepository {
     const data = filtered.slice(start, start + options.pageSize);
 
     return {
-      data: data.map(j => ({ ...j })),
+      data: data.map((j) => ({ ...j })),
       total,
       page: options.page,
       pageSize: options.pageSize,
@@ -89,7 +89,7 @@ export class InMemoryReportRepository implements ReportRepository {
   }
 
   async getTemplateById(tenantId: string, id: string): Promise<ReportTemplateEntity | null> {
-    const found = this.templates.find(t => t.id === id && t.tenantId === tenantId);
+    const found = this.templates.find((t) => t.id === id && t.tenantId === tenantId);
     return found ? { ...found } : null;
   }
 
@@ -98,7 +98,7 @@ export class InMemoryReportRepository implements ReportRepository {
     tenantId: string,
     update: Partial<Omit<ReportTemplateEntity, 'id' | 'tenantId' | 'createdAt'>>,
   ): Promise<ReportTemplateEntity | null> {
-    const index = this.templates.findIndex(t => t.id === id && t.tenantId === tenantId);
+    const index = this.templates.findIndex((t) => t.id === id && t.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.templates[index]!;
@@ -113,14 +113,14 @@ export class InMemoryReportRepository implements ReportRepository {
   }
 
   async deleteTemplate(tenantId: string, id: string): Promise<boolean> {
-    const index = this.templates.findIndex(t => t.id === id && t.tenantId === tenantId);
+    const index = this.templates.findIndex((t) => t.id === id && t.tenantId === tenantId);
     if (index === -1) return false;
     this.templates.splice(index, 1);
     return true;
   }
 
   async listTemplates(tenantId: string): Promise<ReportTemplateEntity[]> {
-    return this.templates.filter(t => t.tenantId === tenantId).map(t => ({ ...t }));
+    return this.templates.filter((t) => t.tenantId === tenantId).map((t) => ({ ...t }));
   }
 
   // ─── Scheduled Reports ─────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export class InMemoryReportRepository implements ReportRepository {
   }
 
   async getScheduleById(tenantId: string, id: string): Promise<ScheduledReportEntity | null> {
-    const found = this.schedules.find(s => s.id === id && s.tenantId === tenantId);
+    const found = this.schedules.find((s) => s.id === id && s.tenantId === tenantId);
     return found ? { ...found } : null;
   }
 
@@ -140,7 +140,7 @@ export class InMemoryReportRepository implements ReportRepository {
     tenantId: string,
     update: Partial<Omit<ScheduledReportEntity, 'id' | 'tenantId' | 'createdAt'>>,
   ): Promise<ScheduledReportEntity | null> {
-    const index = this.schedules.findIndex(s => s.id === id && s.tenantId === tenantId);
+    const index = this.schedules.findIndex((s) => s.id === id && s.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.schedules[index]!;
@@ -155,20 +155,20 @@ export class InMemoryReportRepository implements ReportRepository {
   }
 
   async deleteSchedule(tenantId: string, id: string): Promise<boolean> {
-    const index = this.schedules.findIndex(s => s.id === id && s.tenantId === tenantId);
+    const index = this.schedules.findIndex((s) => s.id === id && s.tenantId === tenantId);
     if (index === -1) return false;
     this.schedules.splice(index, 1);
     return true;
   }
 
   async listSchedules(tenantId: string): Promise<ScheduledReportEntity[]> {
-    return this.schedules.filter(s => s.tenantId === tenantId).map(s => ({ ...s }));
+    return this.schedules.filter((s) => s.tenantId === tenantId).map((s) => ({ ...s }));
   }
 
   async getDueSchedules(currentTime: Date): Promise<ScheduledReportEntity[]> {
     return this.schedules
-      .filter(s => s.isActive && s.nextRunAt !== null && s.nextRunAt <= currentTime)
-      .map(s => ({ ...s }));
+      .filter((s) => s.isActive && s.nextRunAt !== null && s.nextRunAt <= currentTime)
+      .map((s) => ({ ...s }));
   }
 
   // ─── Test Helpers ──────────────────────────────────────────────────────

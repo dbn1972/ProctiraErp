@@ -13,10 +13,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-import {
-  DEFAULT_SW_SCRIPT_URL,
-  registerServiceWorker,
-} from './register';
+import { DEFAULT_SW_SCRIPT_URL, registerServiceWorker } from './register';
 
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 
@@ -32,8 +29,7 @@ afterEach(() => {
   if (ORIGINAL_NODE_ENV === undefined) {
     delete (process.env as Record<string, string | undefined>).NODE_ENV;
   } else {
-    (process.env as Record<string, string | undefined>).NODE_ENV =
-      ORIGINAL_NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = ORIGINAL_NODE_ENV;
   }
 });
 

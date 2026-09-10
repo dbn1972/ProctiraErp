@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 interface OAuthCallbackPageProps {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /**
@@ -16,9 +16,7 @@ interface OAuthCallbackPageProps {
  * This indirection lets the OAuth provider's "Authorized redirect URI" be a
  * stable, user-readable path that does not include `/api/...`.
  */
-export default function OAuthCallbackPage({
-  searchParams,
-}: OAuthCallbackPageProps): JSX.Element {
+export default function OAuthCallbackPage({ searchParams }: OAuthCallbackPageProps): JSX.Element {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(searchParams)) {
     if (typeof value === 'string') {

@@ -30,8 +30,18 @@ export function DocumentsStep({ institutionType, fileFields }: DocumentsStepProp
       ? fileFields
       : [
           { id: 'photo', label: t('documents.photo'), type: 'file', required: true },
-          { id: 'birthCertificate', label: t('documents.birthCertificate'), type: 'file', required: true },
-          { id: 'identityDocument', label: t('documents.identityDocument'), type: 'file', required: false },
+          {
+            id: 'birthCertificate',
+            label: t('documents.birthCertificate'),
+            type: 'file',
+            required: true,
+          },
+          {
+            id: 'identityDocument',
+            label: t('documents.identityDocument'),
+            type: 'file',
+            required: false,
+          },
         ];
 
   function handleNext() {

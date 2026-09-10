@@ -47,7 +47,9 @@ export const PluginManifestSchema = Type.Object({
   version: SemverSchema,
   supportedProductVersions: SemverRangeSchema,
   requiredPermissions: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 0 }),
-  requiredExtensionPoints: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 0 }),
+  requiredExtensionPoints: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), {
+    minItems: 0,
+  }),
   configSchema: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   runtimeDependencies: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 0 }),
   tenantScopeBehavior: TenantScopeBehaviorSchema,

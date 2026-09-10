@@ -227,4 +227,49 @@ describe('Transport Routes', () => {
       expect(body.isActive).toBe(true);
     });
   });
+
+  describe('G-920 GPS / live / attendance', () => {
+    it('registers a device, ingests a ping, and lists it on /transport/live', async () => {
+      const vehicleRes = await app.inject({
+        method: 'POST',
+        url: '/transport/vehicles',
+        payload: { registrationNumber: 'GPS-001', capacity: 30 },
+      });
+      const vehicle = vehicleRes.json();
+      const deviceRes = await app.inject({
+        method: 'POST',
+        url: `/transport/vehicles/${vehicle.id}/device`,
+        payload: { deviceId: 'bus-gps-001' },
+      });
+      expect(deviceRes.statusCode).toBe(201);
+      const device = deviceRes.json();
+      expect(device.deviceKey).toBeTruthy();
+
+      const pingRes = await app.inject({
+        method: 'POST',
+        url: '/transport/gps',
+        headers: { 'x-transport-device-key': device.deviceKey },
+        payload: {
+          deviceId: device.deviceId,
+          pings: [{ pingId: 'ping-1', latitude: 19.076, longitude: 72.8777 }],
+        },
+      });
+      expect(pingRes.statusCode).toBe(201);
+      const replay = await app.inject({
+        method: 'POST',
+        url: '/transport/gps',
+        headers: { 'x-transport-device-key': device.deviceKey },
+        payload: {
+          deviceId: device.deviceId,
+          pings: [{ pingId: 'ping-1', latitude: 0, longitude: 0 }],
+        },
+      });
+      expect(replay.json().data[0].duplicate).toBe(true);
+
+      const live = await app.inject({ method: 'GET', url: '/transport/live' });
+      expect(live.statusCode).toBe(200);
+      expect(live.json().vehicles).toHaveLength(1);
+      expect(live.json().honestyNote).toMatch(/SVG/i);
+    });
+  });
 });

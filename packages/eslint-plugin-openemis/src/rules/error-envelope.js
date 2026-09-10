@@ -12,15 +12,15 @@
  * time (the aggregator).
  */
 
-"use strict";
+'use strict';
 
-const REQUIRED_FIELDS = ["code", "message", "statusCode"];
+const REQUIRED_FIELDS = ['code', 'message', 'statusCode'];
 
 /** Returns the numeric status code from a `status(n)` / `code(n)` argument. */
 function readStatusArg(node) {
   if (!node) return null;
-  if (node.type === "Literal" && typeof node.value === "number") return node.value;
-  if (node.type === "TemplateLiteral" && node.quasis.length === 1) {
+  if (node.type === 'Literal' && typeof node.value === 'number') return node.value;
+  if (node.type === 'TemplateLiteral' && node.quasis.length === 1) {
     const n = Number(node.quasis[0].value.cooked);
     return Number.isFinite(n) ? n : null;
   }
@@ -29,14 +29,14 @@ function readStatusArg(node) {
 
 /** Returns true when the call expression is `<expr>.status(n).send(...)`. */
 function isReplySendCall(node) {
-  if (node.type !== "CallExpression") return false;
-  if (node.callee.type !== "MemberExpression") return false;
-  if (node.callee.property.name !== "send") return false;
+  if (node.type !== 'CallExpression') return false;
+  if (node.callee.type !== 'MemberExpression') return false;
+  if (node.callee.property.name !== 'send') return false;
   const inner = node.callee.object;
-  if (inner.type !== "CallExpression") return false;
-  if (inner.callee.type !== "MemberExpression") return false;
+  if (inner.type !== 'CallExpression') return false;
+  if (inner.callee.type !== 'MemberExpression') return false;
   const innerName = inner.callee.property.name;
-  if (innerName !== "status" && innerName !== "code") return false;
+  if (innerName !== 'status' && innerName !== 'code') return false;
   return true;
 }
 
@@ -45,15 +45,15 @@ function isReplySendCall(node) {
  * are missing. Returns `null` to indicate "presumed compliant" (e.g. spread).
  */
 function findMissingFields(objectExpr) {
-  if (!objectExpr || objectExpr.type !== "ObjectExpression") return null;
+  if (!objectExpr || objectExpr.type !== 'ObjectExpression') return null;
   const present = new Set();
   for (const prop of objectExpr.properties) {
-    if (prop.type === "SpreadElement") return null;
-    if (prop.type !== "Property") continue;
+    if (prop.type === 'SpreadElement') return null;
+    if (prop.type !== 'Property') continue;
     const key =
-      prop.key.type === "Identifier"
+      prop.key.type === 'Identifier'
         ? prop.key.name
-        : prop.key.type === "Literal"
+        : prop.key.type === 'Literal'
           ? String(prop.key.value)
           : null;
     if (key) present.add(key);
@@ -64,11 +64,11 @@ function findMissingFields(objectExpr) {
 /** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
-    type: "problem",
+    type: 'problem',
     docs: {
       description:
-        "Require the standard {code, message, statusCode} envelope on Fastify 4xx/5xx replies.",
-      category: "Possible Errors",
+        'Require the standard {code, message, statusCode} envelope on Fastify 4xx/5xx replies.',
+      category: 'Possible Errors',
       recommended: true,
     },
     schema: [],
@@ -76,7 +76,7 @@ module.exports = {
       missingFields:
         'Error response (status {{status}}) is missing envelope field(s): {{missing}}. Use { code, message, statusCode } or AppError.',
       rawError:
-        "Avoid `throw new Error(...)` outside catch blocks; use AppError so the global handler renders the envelope.",
+        'Avoid `throw new Error(...)` outside catch blocks; use AppError so the global handler renders the envelope.',
     },
   },
 
@@ -92,24 +92,24 @@ module.exports = {
         if (!missing || missing.length === 0) return;
         context.report({
           node,
-          messageId: "missingFields",
-          data: { status: String(status), missing: missing.join(", ") },
+          messageId: 'missingFields',
+          data: { status: String(status), missing: missing.join(', ') },
         });
       },
 
       ThrowStatement(node) {
         if (!node.argument) return;
-        if (node.argument.type !== "NewExpression") return;
+        if (node.argument.type !== 'NewExpression') return;
         const callee = node.argument.callee;
-        if (callee.type !== "Identifier" || callee.name !== "Error") return;
+        if (callee.type !== 'Identifier' || callee.name !== 'Error') return;
 
         // Walk up parents to see if we're inside a catch clause.
         let parent = node.parent;
         while (parent) {
-          if (parent.type === "CatchClause") return;
+          if (parent.type === 'CatchClause') return;
           parent = parent.parent;
         }
-        context.report({ node, messageId: "rawError" });
+        context.report({ node, messageId: 'rawError' });
       },
     };
   },

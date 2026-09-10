@@ -174,9 +174,7 @@ function srgbToLinear(c: number): number {
 
 /** WCAG 2.1 relative luminance for an sRGB color. */
 export function relativeLuminance({ r, g, b }: RgbColor): number {
-  return (
-    0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b)
-  );
+  return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
 }
 
 /**
@@ -207,10 +205,7 @@ export function getContrastRatio(input: string): number | null {
  * Mirrors `validateColorToken()` in `branding-validation.ts` so the
  * client form's red/green status flag matches the publish-time guard.
  */
-export function isContrastAccessible(
-  ratio: number | null,
-  threshold: number,
-): boolean {
+export function isContrastAccessible(ratio: number | null, threshold: number): boolean {
   return typeof ratio === 'number' && ratio >= threshold;
 }
 

@@ -62,31 +62,25 @@ export async function registerDashboardRoutes(
     return sendResult(reply, result);
   });
 
-  fastify.get<{ Params: StateParams }>(
-    `${prefix}/state/:stateId`,
-    async (request, reply) => {
-      const jwt = requireJwt(request, reply);
-      if (!jwt) return;
+  fastify.get<{ Params: StateParams }>(`${prefix}/state/:stateId`, async (request, reply) => {
+    const jwt = requireJwt(request, reply);
+    if (!jwt) return;
 
-      const result = await service.getStateDashboard(jwt, {
-        stateId: request.params.stateId,
-      });
-      return sendResult(reply, result);
-    },
-  );
+    const result = await service.getStateDashboard(jwt, {
+      stateId: request.params.stateId,
+    });
+    return sendResult(reply, result);
+  });
 
-  fastify.get<{ Params: BoardParams }>(
-    `${prefix}/board-admin/:boardId`,
-    async (request, reply) => {
-      const jwt = requireJwt(request, reply);
-      if (!jwt) return;
+  fastify.get<{ Params: BoardParams }>(`${prefix}/board-admin/:boardId`, async (request, reply) => {
+    const jwt = requireJwt(request, reply);
+    if (!jwt) return;
 
-      const result = await service.getBoardAdminDashboard(jwt, {
-        boardId: request.params.boardId,
-      });
-      return sendResult(reply, result);
-    },
-  );
+    const result = await service.getBoardAdminDashboard(jwt, {
+      boardId: request.params.boardId,
+    });
+    return sendResult(reply, result);
+  });
 
   fastify.get<{ Params: SchoolParams }>(
     `${prefix}/school/:institutionId`,
@@ -148,10 +142,7 @@ function sendResult<T>(
 /**
  * Pull the JWT payload off the request, sending a 401 if missing.
  */
-function requireJwt(
-  request: FastifyRequest,
-  reply: FastifyReply,
-): JwtPayload | null {
+function requireJwt(request: FastifyRequest, reply: FastifyReply): JwtPayload | null {
   const user = (request as FastifyRequest & { user?: JwtPayload }).user;
   if (!user) {
     void reply.status(401).send({

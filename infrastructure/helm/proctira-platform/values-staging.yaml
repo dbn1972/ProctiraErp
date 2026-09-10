@@ -1,0 +1,129 @@
+# =============================================================================
+# Staging environment overrides
+# =============================================================================
+# Usage: helm install proctira ./proctira-platform -f values-staging.yaml
+
+global:
+  environment: staging
+  domain: staging.proctira.io
+  nodeEnv: production
+  logLevel: info
+
+ingress:
+  enabled: true
+  hosts:
+    api: 'api.staging.proctira.io'
+    web: '*.staging.proctira.io'
+    register: 'register.staging.proctira.io'
+    public: 'staging.proctira.io'
+    admin: 'admin.staging.proctira.io'
+    developers: 'developers.staging.proctira.io'
+  tls:
+    enabled: true
+    secretName: proctira-staging-tls
+
+apiGateway:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+web:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+etlWorker:
+  replicaCount: 1
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+
+registrationPortal:
+  replicaCount: 2
+
+publicWebsite:
+  replicaCount: 2
+
+adminConsole:
+  replicaCount: 1
+
+developerPortal:
+  replicaCount: 1
+
+# -- Backend domain services (staging overrides)
+institutionService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+
+studentService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+
+staffService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+
+assessmentService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+attendanceService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+
+examinationService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+workflowService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+notificationService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+reportService:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+config:
+  tenantBaseDomain: staging.proctira.io

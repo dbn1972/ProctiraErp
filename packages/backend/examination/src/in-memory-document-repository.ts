@@ -11,12 +11,15 @@ import type {
   CandidateResultData,
   DocumentGenerationJob,
 } from './document-repository.js';
+import type { ExamOpsStore } from './ops-store.js';
 
 export class InMemoryDocumentRepository implements DocumentRepository {
   private candidates: Map<string, DocumentCandidate[]> = new Map();
   private seatingAssignments: Map<string, SeatingAssignment[]> = new Map();
   private candidateResults: Map<string, CandidateResultData[]> = new Map();
   private jobs: Map<string, DocumentGenerationJob> = new Map();
+
+  constructor(private readonly seatingStore?: ExamOpsStore) {}
 
   /** Test helper: seed candidates for an examination */
   seedCandidates(examinationId: string, candidates: DocumentCandidate[]): void {
@@ -47,9 +50,23 @@ export class InMemoryDocumentRepository implements DocumentRepository {
 
   async getSeatingAssignments(
     examinationId: string,
-    _tenantId: string,
+    tenantId: string,
     centerId?: string,
   ): Promise<SeatingAssignment[]> {
+    if (this.seatingStore) {
+      const persisted = await this.seatingStore.listSeating(tenantId, examinationId);
+      const mapped = persisted.map((row) => ({
+        candidateId: row.candidateId,
+        studentName: row.studentName,
+        rollNumber: row.rollNumber,
+        centerId: row.centerId,
+        centerName: row.centerName,
+        roomNumber: row.roomNumber,
+        seatNumber: row.seatNumber,
+        subjectNames: row.subjectNames,
+      }));
+      return centerId ? mapped.filter((a) => a.centerId === centerId) : mapped;
+    }
     const all = this.seatingAssignments.get(examinationId) ?? [];
     if (centerId) {
       return all.filter((a) => a.centerId === centerId);
@@ -91,13 +108,8 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     return this.jobs.get(jobId) ?? null;
   }
 
-  async listJobs(
-    examinationId: string,
-    _tenantId: string,
-  ): Promise<DocumentGenerationJob[]> {
-    return Array.from(this.jobs.values()).filter(
-      (job) => job.examinationId === examinationId,
-    );
+  async listJobs(examinationId: string, _tenantId: string): Promise<DocumentGenerationJob[]> {
+    return Array.from(this.jobs.values()).filter((job) => job.examinationId === examinationId);
   }
 
   /** Test helper: clear all data */

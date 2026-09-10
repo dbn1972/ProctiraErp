@@ -31,11 +31,9 @@ export const GatewayConfigSchema = Type.Object({
   /** Server host */
   host: Type.String({ default: '0.0.0.0' }),
   /** Environment */
-  env: Type.Union([
-    Type.Literal('development'),
-    Type.Literal('production'),
-    Type.Literal('test'),
-  ], { default: 'development' }),
+  env: Type.Union([Type.Literal('development'), Type.Literal('production'), Type.Literal('test')], {
+    default: 'development',
+  }),
   /** Rate limiting configuration */
   rateLimiting: Type.Object({
     /** Time window in milliseconds */
@@ -48,14 +46,21 @@ export const GatewayConfigSchema = Type.Object({
     /** Allowed origins */
     origins: Type.Array(Type.String(), { default: ['http://localhost:3000'] }),
     /** Allowed HTTP methods */
-    methods: Type.Array(Type.String(), { default: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] }),
+    methods: Type.Array(Type.String(), {
+      default: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    }),
     /** Allow credentials */
     credentials: Type.Boolean({ default: true }),
   }),
   /** JWT configuration */
   jwt: Type.Object({
-    /** JWT signing secret */
+    /** JWT signing secret (current / kid=current) */
     secret: Type.String(),
+    /**
+     * Previous JWT signing secret accepted during rotation (G-504).
+     * Set JWT_SECRET_PREVIOUS while old tokens remain valid, then clear.
+     */
+    previousSecret: Type.Optional(Type.String()),
     /** Token issuer */
     issuer: Type.String({ default: 'proctira-platform' }),
     /** Token audience */
@@ -75,6 +80,43 @@ export const GatewayConfigSchema = Type.Object({
 });
 
 export type GatewayConfig = Static<typeof GatewayConfigSchema>;
+
+/** Dev-only fallback; refused outright when NODE_ENV=production (G-703). */
+export const DEV_JWT_SECRET = 'dev-secret-change-in-production';
+
+const WEAK_JWT_SECRETS = new Set([
+  DEV_JWT_SECRET,
+  'CHANGE_ME',
+  'CHANGE_ME_IN_PRODUCTION',
+  'secret',
+  'changeme',
+]);
+
+/** Minimum HS256 key length (bytes) accepted in production. */
+export const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
+
+/**
+ * Resolve the HS256 signing secret. Production fails closed: missing, weak,
+ * or short secrets throw at boot instead of silently signing with a default.
+ */
+export function resolveJwtSecret(env: string, raw: string | undefined): string {
+  const secret = raw?.trim() ?? '';
+  if (env !== 'production') {
+    return secret.length > 0 ? secret : DEV_JWT_SECRET;
+  }
+  if (secret.length === 0) {
+    throw new Error('JWT_SECRET is required when NODE_ENV=production (G-703)');
+  }
+  if (WEAK_JWT_SECRETS.has(secret)) {
+    throw new Error('JWT_SECRET uses a known placeholder value; refusing to start in production');
+  }
+  if (secret.length < MIN_PRODUCTION_JWT_SECRET_LENGTH) {
+    throw new Error(
+      `JWT_SECRET must be at least ${MIN_PRODUCTION_JWT_SECRET_LENGTH} characters in production`,
+    );
+  }
+  return secret;
+}
 
 /**
  * Load gateway configuration from environment variables.
@@ -152,7 +194,8 @@ export function loadConfig(): GatewayConfig {
       credentials: true,
     },
     jwt: {
-      secret: process.env['JWT_SECRET'] || 'dev-secret-change-in-production',
+      secret: resolveJwtSecret(env, process.env['JWT_SECRET']),
+      previousSecret: process.env['JWT_SECRET_PREVIOUS']?.trim() || undefined,
       issuer: process.env['JWT_ISSUER'] || 'proctira-platform',
       audience: process.env['JWT_AUDIENCE'] || 'proctira-api',
       accessTokenExpiresIn: process.env['JWT_ACCESS_TOKEN_EXPIRES_IN'] || '15m',

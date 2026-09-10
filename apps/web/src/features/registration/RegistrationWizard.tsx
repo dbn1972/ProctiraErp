@@ -39,14 +39,8 @@ import {
   type SchoolPreference,
   type SchoolSelectionValues,
 } from './schemas';
-import {
-  RankedPreference,
-  MAX_RANKED_PREFERENCES,
-} from './components/RankedPreference';
-import {
-  SchoolFinder,
-  type SchoolFinderOption,
-} from './components/SchoolFinder';
+import { RankedPreference, MAX_RANKED_PREFERENCES } from './components/RankedPreference';
+import { SchoolFinder, type SchoolFinderOption } from './components/SchoolFinder';
 import { WizardProgress } from './components/WizardProgress';
 import type { SchoolFinderResult } from '@/lib/api/registration';
 import {
@@ -172,18 +166,12 @@ function PersonalInfoStep({ wizard }: { wizard: Wizard }) {
           data-testid="dateOfBirth"
         />
       </Field>
-      <Field
-        label="Gender"
-        htmlFor={`${id}-gender`}
-        error={findError(wizard.errors, 'gender')}
-      >
+      <Field label="Gender" htmlFor={`${id}-gender`} error={findError(wizard.errors, 'gender')}>
         <select
           id={`${id}-gender`}
           className="w-full rounded-md border bg-background p-2"
           value={values.gender}
-          onChange={(e) =>
-            set({ gender: e.target.value as PersonalInfoValues['gender'] })
-          }
+          onChange={(e) => set({ gender: e.target.value as PersonalInfoValues['gender'] })}
           data-testid="gender"
         >
           <option value="male">Male</option>
@@ -249,11 +237,7 @@ function ContactStep({ wizard }: { wizard: Wizard }) {
           data-testid="guardianRelationship"
         />
       </Field>
-      <Field
-        label="Phone"
-        htmlFor={`${id}-phone`}
-        error={findError(wizard.errors, 'phone')}
-      >
+      <Field label="Phone" htmlFor={`${id}-phone`} error={findError(wizard.errors, 'phone')}>
         <input
           id={`${id}-phone`}
           type="tel"
@@ -263,11 +247,7 @@ function ContactStep({ wizard }: { wizard: Wizard }) {
           data-testid="phone"
         />
       </Field>
-      <Field
-        label="Email"
-        htmlFor={`${id}-email`}
-        error={findError(wizard.errors, 'email')}
-      >
+      <Field label="Email" htmlFor={`${id}-email`} error={findError(wizard.errors, 'email')}>
         <input
           id={`${id}-email`}
           type="email"
@@ -291,11 +271,7 @@ function ContactStep({ wizard }: { wizard: Wizard }) {
           data-testid="addressLine1"
         />
       </Field>
-      <Field
-        label="City"
-        htmlFor={`${id}-city`}
-        error={findError(wizard.errors, 'city')}
-      >
+      <Field label="City" htmlFor={`${id}-city`} error={findError(wizard.errors, 'city')}>
         <input
           id={`${id}-city`}
           type="text"
@@ -305,11 +281,7 @@ function ContactStep({ wizard }: { wizard: Wizard }) {
           data-testid="city"
         />
       </Field>
-      <Field
-        label="Country"
-        htmlFor={`${id}-country`}
-        error={findError(wizard.errors, 'country')}
-      >
+      <Field label="Country" htmlFor={`${id}-country`} error={findError(wizard.errors, 'country')}>
         <input
           id={`${id}-country`}
           type="text"
@@ -385,8 +357,8 @@ function SchoolSelectionStep({
     <fieldset className="space-y-4" data-testid="step-school-selection">
       <legend className="sr-only">{STEP_LABELS['school-selection']}</legend>
       <p className="text-sm text-muted-foreground">
-        Search for schools by location or filter, then rank up to{' '}
-        {MAX_RANKED_PREFERENCES} preferences in order.
+        Search for schools by location or filter, then rank up to {MAX_RANKED_PREFERENCES}{' '}
+        preferences in order.
       </p>
       <SchoolFinder
         areaOptions={schoolFinderProps?.areaOptions}
@@ -457,9 +429,8 @@ function DocumentsStep({ wizard }: { wizard: Wizard }) {
     <fieldset className="space-y-4" data-testid="step-documents">
       <legend className="sr-only">{STEP_LABELS.documents}</legend>
       <p className="text-sm text-muted-foreground">
-        Attach the required supporting documents. The full upload widget is
-        wired in task 51.5; this placeholder accepts an upload reference so the
-        state machine is exercised end-to-end.
+        Attach the required supporting documents. The full upload widget is wired in task 51.5; this
+        placeholder accepts an upload reference so the state machine is exercised end-to-end.
       </p>
       <div className="grid gap-3 sm:grid-cols-[1fr,1fr,1fr,auto]">
         <Field label="Document type" htmlFor={`${id}-type`}>
@@ -478,9 +449,7 @@ function DocumentsStep({ wizard }: { wizard: Wizard }) {
             type="text"
             className="w-full rounded-md border bg-background p-2"
             value={pending.documentId}
-            onChange={(e) =>
-              setPending((d) => ({ ...d, documentId: e.target.value }))
-            }
+            onChange={(e) => setPending((d) => ({ ...d, documentId: e.target.value }))}
             data-testid="documentId-input"
           />
         </Field>
@@ -490,9 +459,7 @@ function DocumentsStep({ wizard }: { wizard: Wizard }) {
             type="text"
             className="w-full rounded-md border bg-background p-2"
             value={pending.fileName}
-            onChange={(e) =>
-              setPending((d) => ({ ...d, fileName: e.target.value }))
-            }
+            onChange={(e) => setPending((d) => ({ ...d, fileName: e.target.value }))}
             data-testid="fileName-input"
           />
         </Field>
@@ -505,11 +472,7 @@ function DocumentsStep({ wizard }: { wizard: Wizard }) {
           Add
         </button>
       </div>
-      <ul
-        className="space-y-2"
-        aria-label="Attached documents"
-        data-testid="documents-list"
-      >
+      <ul className="space-y-2" aria-label="Attached documents" data-testid="documents-list">
         {values.documents.map((d, idx) => (
           <li
             key={`${d.type}-${d.documentId}`}
@@ -656,16 +619,10 @@ export interface RegistrationWizardProps {
 /**
  * The composed wizard. Mount under `/registration/form`.
  */
-export function RegistrationWizard({
-  onSubmit,
-  schoolSelectionConfig,
-}: RegistrationWizardProps) {
+export function RegistrationWizard({ onSubmit, schoolSelectionConfig }: RegistrationWizardProps) {
   const wizard = useRegistrationWizard();
 
-  const stepLabel = useMemo(
-    () => STEP_LABELS[wizard.currentStep],
-    [wizard.currentStep],
-  );
+  const stepLabel = useMemo(() => STEP_LABELS[wizard.currentStep], [wizard.currentStep]);
 
   // Step descriptors for `<WizardProgress>`. The pill labels are the
   // shorter "Personal info" / "Contact" forms called out by the spec
@@ -722,9 +679,7 @@ export function RegistrationWizard({
       </header>
 
       <div data-testid={`step-pane-${wizard.currentStep}`}>
-        {wizard.currentStep === 'personal-info' ? (
-          <PersonalInfoStep wizard={wizard} />
-        ) : null}
+        {wizard.currentStep === 'personal-info' ? <PersonalInfoStep wizard={wizard} /> : null}
         {wizard.currentStep === 'contact' ? <ContactStep wizard={wizard} /> : null}
         {wizard.currentStep === 'school-selection' ? (
           <SchoolSelectionStep

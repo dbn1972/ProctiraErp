@@ -1,0 +1,4 @@
+{
+  "$comment": "Advisory waivers for tools/scripts/audit-gate.mjs. Every entry must name a tracked gap (docs/audits/ENTERPRISE_FABLE51_PRODUCT_GAP_AUDIT.md) and an expiry; expired entries fail the gate. G-735 cleared the Next 15 / Fastify 5 majors — keep this list empty unless a new high/critical needs a time-boxed waiver.",
+  "entries": []
+}

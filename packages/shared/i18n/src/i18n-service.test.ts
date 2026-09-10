@@ -73,9 +73,7 @@ describe('I18nServiceImpl', () => {
     });
 
     it('should interpolate multiple parameters', () => {
-      expect(service.translate('errors.validation', { field: 'Email' })).toBe(
-        'Email is invalid',
-      );
+      expect(service.translate('errors.validation', { field: 'Email' })).toBe('Email is invalid');
     });
 
     it('should keep unresolved placeholders when params are missing', () => {

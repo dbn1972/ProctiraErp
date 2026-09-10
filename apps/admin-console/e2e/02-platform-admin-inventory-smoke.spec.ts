@@ -27,9 +27,7 @@ const INVENTORY_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
 ];
 
 function createFakeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
-    'base64',
-  );
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
   const body = Buffer.from(JSON.stringify(payload)).toString('base64');
   return `${header}.${body}.ZmFrZS1zaWduYXR1cmU`;
 }
@@ -46,9 +44,7 @@ async function setupOperatorSession(page: Page): Promise<void> {
     exp: now + 60 * 60 * 8,
   });
 
-  const baseUrl = new URL(
-    page.url() === 'about:blank' ? 'http://127.0.0.1:3014' : page.url(),
-  );
+  const baseUrl = new URL(page.url() === 'about:blank' ? 'http://127.0.0.1:3014' : page.url());
 
   await page.context().addCookies([
     {

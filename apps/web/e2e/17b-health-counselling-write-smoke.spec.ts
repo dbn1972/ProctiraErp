@@ -1,48 +1,43 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import {
+  createSignedJwt,
+  setupFakeTenantSession,
+  setupGatewayTenantSession,
+} from './fixtures/fake-session';
+
 /**
  * Health counselling — ungated write-validation smoke.
  * Asserts client UUID/date/required validation before any API call.
+ *
+ * Live create (E2E_BACKEND_READY) uses HS256 cookies so api-gateway jwtVerify
+ * accepts writes without seeded password login / IdP secrets (G-401).
  */
 
-function createFakeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  return `${header}.${body}.sig`;
-}
-
 async function setupHealthSession(page: Page): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const token = createFakeJwt({
+  await setupFakeTenantSession(page, {
     sub: 'health-e2e-user',
     email: 'nurse@tenant-a.test',
     displayName: 'Health E2E',
     tenantId: '00000000-0000-4000-8000-0000000000aa',
-    roles: [{ roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null }],
-    iat: now,
-    exp: now + 60 * 60 * 8,
+    roles: [
+      { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+      { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
+    ],
   });
+}
 
-  await page.context().addCookies([
-    {
-      name: 'access_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-    {
-      name: 'refresh_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-  ]);
+async function setupHealthLiveSession(page: Page): Promise<void> {
+  await setupGatewayTenantSession(page, {
+    sub: 'health-e2e-user',
+    email: 'nurse@tenant-a.test',
+    displayName: 'Health E2E',
+    tenantId: '00000000-0000-4000-8000-0000000000aa',
+    roles: [
+      { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+      { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
+    ],
+  });
 }
 
 test.describe('Health counselling — write validation (ungated)', () => {
@@ -77,12 +72,34 @@ test.describe('Health counselling — write validation (ungated)', () => {
 });
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+const GATEWAY_URL =
+  process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
+const HEALTH_TENANT = '00000000-0000-4000-8000-0000000000aa';
+
+function healthApiHeaders() {
+  const token = createSignedJwt({
+    sub: 'health-e2e-user',
+    email: 'nurse@tenant-a.test',
+    displayName: 'Health E2E',
+    tenantId: HEALTH_TENANT,
+    roles: [
+      { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+      { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
+    ],
+    institutions: [],
+  });
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'X-Tenant-ID': HEALTH_TENANT,
+  };
+}
 
 test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires live gateway + DATABASE_URL counselling store');
 
   test.beforeEach(async ({ page }) => {
-    await setupHealthSession(page);
+    await setupHealthLiveSession(page);
   });
 
   test('schedules a counselling session via live API', async ({ page }) => {
@@ -96,5 +113,34 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
 
     await expect(page).toHaveURL(/\/health\/counselling/, { timeout: 20_000 });
     await expect(page.getByRole('heading').first()).toBeVisible();
+  });
+
+  test('G-912: an allergy written through the domain API surfaces on /health (records aggregate)', async ({
+    page,
+    request,
+  }) => {
+    const studentId = crypto.randomUUID();
+    const created = await request.post(`${GATEWAY_URL}/api/v1/health/allergies`, {
+      headers: healthApiHeaders(),
+      data: {
+        studentId,
+        allergyType: 'food',
+        description: `E2E shellfish ${studentId.slice(0, 6)}`,
+        severity: 'severe',
+        reaction: 'Hives',
+      },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+
+    const aggregate = await request.get(`${GATEWAY_URL}/api/v1/health/records/${studentId}`, {
+      headers: healthApiHeaders(),
+    });
+    expect(aggregate.status()).toBe(200);
+    const record = await aggregate.json();
+    expect(record.studentId).toBe(studentId);
+    expect(record.allergies).toContain(`E2E shellfish ${studentId.slice(0, 6)}`);
+
+    await page.goto('/health', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText(studentId.slice(0, 8)).first()).toBeVisible({ timeout: 20_000 });
   });
 });

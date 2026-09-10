@@ -29,14 +29,7 @@ describe('<MapDrillDown />', () => {
   });
 
   it('renders a skeleton placeholder when loading', () => {
-    render(
-      <MapDrillDown
-        title="Enrollment by state"
-        regions={[]}
-        loading
-        data-testid="map"
-      />,
-    );
+    render(<MapDrillDown title="Enrollment by state" regions={[]} loading data-testid="map" />);
 
     expect(screen.getByTestId('map')).toHaveAttribute('data-state', 'loading');
     expect(screen.getByTestId('map-drill-down-skeleton')).toBeInTheDocument();
@@ -44,17 +37,9 @@ describe('<MapDrillDown />', () => {
   });
 
   it('renders the empty state when regions is empty after a load', () => {
-    render(
-      <MapDrillDown
-        title="Enrollment by state"
-        regions={[]}
-        emptyMessage="Nothing to map"
-      />,
-    );
+    render(<MapDrillDown title="Enrollment by state" regions={[]} emptyMessage="Nothing to map" />);
 
-    expect(screen.getByTestId('map-drill-down-empty').textContent).toBe(
-      'Nothing to map',
-    );
+    expect(screen.getByTestId('map-drill-down-empty').textContent).toBe('Nothing to map');
   });
 
   it('shows an inline error with role="alert" when error is set', () => {
@@ -76,11 +61,7 @@ describe('<MapDrillDown />', () => {
   it('invokes onRegionClick when a region is selected', () => {
     const onRegionClick = vi.fn();
     render(
-      <MapDrillDown
-        title="Enrollment by state"
-        regions={regions}
-        onRegionClick={onRegionClick}
-      />,
+      <MapDrillDown title="Enrollment by state" regions={regions} onRegionClick={onRegionClick} />,
     );
 
     fireEvent.click(screen.getByTestId('map-drill-down-region-tn'));

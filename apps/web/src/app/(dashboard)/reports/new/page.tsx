@@ -13,7 +13,7 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { ReportBuilderForm } from './report-builder-form';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 function single(value: string | string[] | undefined): string | undefined {
@@ -21,7 +21,8 @@ function single(value: string | string[] | undefined): string | undefined {
   return value;
 }
 
-export default async function NewReportPage({ searchParams }: PageProps) {
+export default async function NewReportPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const requestedTemplateId = single(searchParams?.templateId);
   const [{ templates, source }, requested] = await Promise.all([
     listReportTemplates(),
@@ -40,9 +41,7 @@ export default async function NewReportPage({ searchParams }: PageProps) {
       </Button>
 
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          New report
-        </h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">New report</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Pick a template, set filters, and download once the run completes.
         </p>

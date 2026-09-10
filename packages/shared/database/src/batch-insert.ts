@@ -38,12 +38,11 @@ export async function batchInsert<T extends Record<string, unknown>>(
   prisma: PrismaClient,
   model: string,
   records: T[],
-  options: BatchInsertOptions | number = {}
+  options: BatchInsertOptions | number = {},
 ): Promise<number> {
   if (records.length === 0) return 0;
 
-  const opts: BatchInsertOptions =
-    typeof options === 'number' ? { batchSize: options } : options;
+  const opts: BatchInsertOptions = typeof options === 'number' ? { batchSize: options } : options;
   const batchSize = opts.batchSize ?? 100;
   const skipDuplicates = opts.skipDuplicates ?? false;
 
@@ -54,7 +53,12 @@ export async function batchInsert<T extends Record<string, unknown>>(
     const batch = records.slice(i, i + batchSize);
 
     // Use Prisma's $transaction with raw SQL for maximum performance
-    const result = await (prisma as unknown as Record<string, { createMany: (args: unknown) => Promise<{ count: number }> }>)[model]!.createMany({
+    const result = await (
+      prisma as unknown as Record<
+        string,
+        { createMany: (args: unknown) => Promise<{ count: number }> }
+      >
+    )[model]!.createMany({
       data: batch,
       skipDuplicates,
     });
@@ -81,7 +85,7 @@ export async function batchInsertRaw(
   table: string,
   columns: string[],
   records: unknown[][],
-  batchSize = 100
+  batchSize = 100,
 ): Promise<number> {
   if (records.length === 0) return 0;
 
@@ -99,15 +103,13 @@ export async function batchInsertRaw(
     const placeholders = batch
       .map(
         (_, rowIdx) =>
-          `(${safeColumns.map((_, colIdx) => `$${rowIdx * safeColumns.length + colIdx + 1}`).join(', ')})`
+          `(${safeColumns.map((_, colIdx) => `$${rowIdx * safeColumns.length + colIdx + 1}`).join(', ')})`,
       )
       .join(', ');
 
     const values = batch.flat();
 
-    const query = Prisma.raw(
-      `INSERT INTO "${safeTable}" (${columnList}) VALUES ${placeholders}`
-    );
+    const query = Prisma.raw(`INSERT INTO "${safeTable}" (${columnList}) VALUES ${placeholders}`);
 
     // Assign values to the raw query
     (query as unknown as { values: unknown[] }).values = values;

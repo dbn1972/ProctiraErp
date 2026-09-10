@@ -43,7 +43,10 @@ export function TrackingForm() {
     <form onSubmit={handleSubmit} className="card space-y-5" noValidate>
       <div>
         <label htmlFor="trackingNumber" className="input-label">
-          {t('trackingNumber')} <span className="text-red-500" aria-hidden="true">*</span>
+          {t('trackingNumber')}{' '}
+          <span className="text-red-500" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="trackingNumber"
@@ -67,7 +70,10 @@ export function TrackingForm() {
 
       <div>
         <label htmlFor="dob" className="input-label">
-          {t('dobLabel')} <span className="text-red-500" aria-hidden="true">*</span>
+          {t('dobLabel')}{' '}
+          <span className="text-red-500" aria-hidden="true">
+            *
+          </span>
         </label>
         <input
           id="dob"
@@ -88,7 +94,10 @@ export function TrackingForm() {
         )}
       </div>
 
-      <button type="submit" className="btn-primary inline-flex w-full items-center justify-center gap-2">
+      <button
+        type="submit"
+        className="btn-primary inline-flex w-full items-center justify-center gap-2"
+      >
         <Search className="h-4 w-4" aria-hidden="true" />
         {t('checkStatus')}
       </button>

@@ -17,20 +17,27 @@ import { gatewayFetch, GatewayError } from '@/lib/api/gateway';
 import type {
   AcademicPeriod,
   AreaNode,
+  CalendarEvent,
   ClassSection,
   CreateAcademicPeriodInput,
+  CreateCalendarEventInput,
   CreateInstitutionInput,
   Grade,
   InfrastructureHierarchy,
   Institution,
   InstitutionListFilters,
   PaginatedResponse,
+  RolloverInput,
+  RolloverSummary,
   UpdateAcademicPeriodInput,
   UpdateInstitutionInput,
 } from './types';
 import { ApiClientError } from './types';
 
-function unwrap<T>(result: { ok: boolean; data: T | null; error?: { code: string; message: string } }, fallback?: T): T {
+function unwrap<T>(
+  result: { ok: boolean; data: T | null; error?: { code: string; message: string } },
+  fallback?: T,
+): T {
   if (!result.ok || result.data === null) {
     if (fallback !== undefined) return fallback;
     throw new ApiClientError({
@@ -78,7 +85,7 @@ function rethrowAsApiError(error: unknown): never {
 // ---------------------------------------------------------------------------
 
 export async function listInstitutions(
-  filters: InstitutionListFilters = {}
+  filters: InstitutionListFilters = {},
 ): Promise<PaginatedResponse<Institution>> {
   try {
     const result = await gatewayFetch<PaginatedResponse<Institution>>(
@@ -91,7 +98,7 @@ export async function listInstitutions(
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
       })}`,
-      { method: 'GET', throwOnError: true }
+      { method: 'GET', throwOnError: true },
     );
     return unwrap(result);
   } catch (error) {
@@ -101,10 +108,10 @@ export async function listInstitutions(
 
 export async function getInstitution(id: string): Promise<Institution> {
   try {
-    const result = await gatewayFetch<Institution>(
-      `/institutions/${encodeURIComponent(id)}`,
-      { method: 'GET', throwOnError: true }
-    );
+    const result = await gatewayFetch<Institution>(`/institutions/${encodeURIComponent(id)}`, {
+      method: 'GET',
+      throwOnError: true,
+    });
     return unwrap(result);
   } catch (error) {
     rethrowAsApiError(error);
@@ -126,13 +133,14 @@ export async function createInstitution(input: CreateInstitutionInput): Promise<
 
 export async function updateInstitution(
   id: string,
-  input: UpdateInstitutionInput
+  input: UpdateInstitutionInput,
 ): Promise<Institution> {
   try {
-    const result = await gatewayFetch<Institution>(
-      `/institutions/${encodeURIComponent(id)}`,
-      { method: 'PUT', json: input, throwOnError: true }
-    );
+    const result = await gatewayFetch<Institution>(`/institutions/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      json: input,
+      throwOnError: true,
+    });
     return unwrap(result);
   } catch (error) {
     rethrowAsApiError(error);
@@ -143,7 +151,7 @@ export async function deactivateInstitution(id: string, reason: string): Promise
   try {
     const result = await gatewayFetch<Institution>(
       `/institutions/${encodeURIComponent(id)}/deactivate`,
-      { method: 'POST', json: { reason }, throwOnError: true }
+      { method: 'POST', json: { reason }, throwOnError: true },
     );
     return unwrap(result);
   } catch (error) {
@@ -157,10 +165,10 @@ export async function deactivateInstitution(id: string, reason: string): Promise
 
 export async function listAreaTree(rootId?: string): Promise<AreaNode[]> {
   try {
-    const result = await gatewayFetch<AreaNode[]>(
-      `/areas/tree${buildQuery({ rootId })}`,
-      { method: 'GET', throwOnError: true }
-    );
+    const result = await gatewayFetch<AreaNode[]>(`/areas/tree${buildQuery({ rootId })}`, {
+      method: 'GET',
+      throwOnError: true,
+    });
     return unwrap(result, []);
   } catch (error) {
     rethrowAsApiError(error);
@@ -202,7 +210,7 @@ export async function listSubjects(): Promise<SubjectSummary[]> {
 }
 
 export async function createAcademicPeriod(
-  input: CreateAcademicPeriodInput
+  input: CreateAcademicPeriodInput,
 ): Promise<AcademicPeriod> {
   try {
     const result = await gatewayFetch<AcademicPeriod>('/academic-periods', {
@@ -218,12 +226,12 @@ export async function createAcademicPeriod(
 
 export async function updateAcademicPeriod(
   id: string,
-  input: UpdateAcademicPeriodInput
+  input: UpdateAcademicPeriodInput,
 ): Promise<AcademicPeriod> {
   try {
     const result = await gatewayFetch<AcademicPeriod>(
       `/academic-periods/${encodeURIComponent(id)}`,
-      { method: 'PUT', json: input, throwOnError: true }
+      { method: 'PUT', json: input, throwOnError: true },
     );
     return unwrap(result);
   } catch (error) {
@@ -237,6 +245,63 @@ export async function deleteAcademicPeriod(id: string): Promise<void> {
       method: 'DELETE',
       throwOnError: true,
     });
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G-905 — Academic calendar events + rollover
+// ---------------------------------------------------------------------------
+
+export async function listCalendarEvents(periodId: string): Promise<CalendarEvent[]> {
+  try {
+    const result = await gatewayFetch<{ data: CalendarEvent[] }>(
+      `/academic-periods/${encodeURIComponent(periodId)}/calendar`,
+      { method: 'GET', throwOnError: true },
+    );
+    return unwrap(result, { data: [] }).data;
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function createCalendarEvent(
+  periodId: string,
+  input: CreateCalendarEventInput,
+): Promise<CalendarEvent> {
+  try {
+    const result = await gatewayFetch<CalendarEvent>(
+      `/academic-periods/${encodeURIComponent(periodId)}/calendar`,
+      { method: 'POST', json: input, throwOnError: true },
+    );
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function deleteCalendarEvent(periodId: string, eventId: string): Promise<void> {
+  try {
+    await gatewayFetch<null>(
+      `/academic-periods/${encodeURIComponent(periodId)}/calendar/${encodeURIComponent(eventId)}`,
+      { method: 'DELETE', throwOnError: true },
+    );
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function rolloverAcademicPeriod(
+  sourcePeriodId: string,
+  input: RolloverInput,
+): Promise<RolloverSummary> {
+  try {
+    const result = await gatewayFetch<RolloverSummary>(
+      `/academic-periods/${encodeURIComponent(sourcePeriodId)}/rollover`,
+      { method: 'POST', json: input, throwOnError: true },
+    );
+    return unwrap(result);
   } catch (error) {
     rethrowAsApiError(error);
   }
@@ -258,14 +323,54 @@ export async function listGrades(): Promise<Grade[]> {
   }
 }
 
+export interface CreateGradeInput {
+  name: string;
+  code: string;
+  order: number;
+}
+
+export async function createGrade(input: CreateGradeInput): Promise<Grade> {
+  try {
+    const result = await gatewayFetch<Grade>('/grades', {
+      method: 'POST',
+      json: input,
+      throwOnError: true,
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export interface CreateClassSectionInput {
+  institutionId: string;
+  gradeId: string;
+  academicPeriodId: string;
+  name: string;
+  capacity?: number;
+}
+
+export async function createClassSection(input: CreateClassSectionInput): Promise<ClassSection> {
+  try {
+    const result = await gatewayFetch<ClassSection>('/classes', {
+      method: 'POST',
+      json: input,
+      throwOnError: true,
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 export async function listClassesByInstitution(
   institutionId: string,
-  academicPeriodId?: string
+  academicPeriodId?: string,
 ): Promise<ClassSection[]> {
   try {
     const result = await gatewayFetch<ClassSection[]>(
       `/classes${buildQuery({ institutionId, academicPeriodId })}`,
-      { method: 'GET', throwOnError: true }
+      { method: 'GET', throwOnError: true },
     );
     return unwrap(result, []);
   } catch (error) {
@@ -278,12 +383,13 @@ export async function listClassesByInstitution(
 // ---------------------------------------------------------------------------
 
 export async function getInfrastructureHierarchy(
-  institutionId: string
+  institutionId: string,
 ): Promise<InfrastructureHierarchy> {
   try {
+    // G-901: backend route is `/infrastructure/hierarchy/:institutionId`.
     const result = await gatewayFetch<InfrastructureHierarchy>(
-      `/institutions/${encodeURIComponent(institutionId)}/infrastructure/hierarchy`,
-      { method: 'GET', throwOnError: true }
+      `/infrastructure/hierarchy/${encodeURIComponent(institutionId)}`,
+      { method: 'GET', throwOnError: true },
     );
     return unwrap(result, { lands: [] });
   } catch (error) {

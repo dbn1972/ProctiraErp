@@ -141,10 +141,7 @@ function checkLegalElementRemoval(value: string, path: string): ValidationIssue[
 /**
  * Validate all string values in an object recursively for security issues.
  */
-function validateStringSecurity(
-  obj: unknown,
-  basePath: string,
-): ValidationIssue[] {
+function validateStringSecurity(obj: unknown, basePath: string): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
   if (typeof obj === 'string') {
@@ -266,10 +263,7 @@ function validateSpacingBounds(tokens: ThemeTokens): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const { spacing } = tokens;
 
-  if (
-    spacing.unit < SPACING_BOUNDS.unit.min ||
-    spacing.unit > SPACING_BOUNDS.unit.max
-  ) {
+  if (spacing.unit < SPACING_BOUNDS.unit.min || spacing.unit > SPACING_BOUNDS.unit.max) {
     issues.push({
       type: 'bounds',
       message: `Spacing unit ${spacing.unit}px is outside allowed range [${SPACING_BOUNDS.unit.min}, ${SPACING_BOUNDS.unit.max}]`,

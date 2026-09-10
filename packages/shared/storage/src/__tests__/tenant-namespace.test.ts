@@ -105,18 +105,12 @@ describe('tenant-namespace', () => {
 
   describe('validateTenantOwnership', () => {
     it('should return true when key belongs to expected tenant', () => {
-      const result = validateTenantOwnership(
-        'tenants/tenant-123/file.txt',
-        'tenant-123',
-      );
+      const result = validateTenantOwnership('tenants/tenant-123/file.txt', 'tenant-123');
       expect(result).toBe(true);
     });
 
     it('should return false when key belongs to different tenant', () => {
-      const result = validateTenantOwnership(
-        'tenants/tenant-123/file.txt',
-        'tenant-456',
-      );
+      const result = validateTenantOwnership('tenants/tenant-123/file.txt', 'tenant-456');
       expect(result).toBe(false);
     });
 

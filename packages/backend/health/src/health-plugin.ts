@@ -39,10 +39,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the health service and routes.
  */
 export const healthPlugin = fp(
-  async function healthPluginImpl(
-    fastify: FastifyInstance,
-    options: HealthPluginOptions,
-  ) {
+  async function healthPluginImpl(fastify: FastifyInstance, options: HealthPluginOptions) {
     const { repository, prefix = '/health' } = options;
 
     // Create health service instance
@@ -59,7 +56,7 @@ export const healthPlugin = fp(
   },
   {
     name: '@proctira/backend-health',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

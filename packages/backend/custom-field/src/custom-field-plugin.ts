@@ -11,7 +11,10 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { CustomFieldDefinitionRepository, CustomFieldValueRepository } from './custom-field-repository.js';
+import type {
+  CustomFieldDefinitionRepository,
+  CustomFieldValueRepository,
+} from './custom-field-repository.js';
 import { CustomFieldService } from './custom-field-service.js';
 import { registerCustomFieldRoutes } from './routes.js';
 
@@ -58,7 +61,7 @@ export const customFieldPlugin = fp(
   },
   {
     name: '@proctira/backend-custom-field',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

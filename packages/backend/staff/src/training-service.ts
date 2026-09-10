@@ -8,11 +8,7 @@
  *         including certification expiry dates
  * - 7.8: Update certification status to expired and trigger notification on expiry
  */
-import {
-  NotFoundError,
-  BusinessRuleError,
-  ConflictError,
-} from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -138,8 +134,10 @@ export class TrainingService {
     if (input.startDate !== undefined) updateData.startDate = input.startDate;
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
     if (input.provider !== undefined) updateData.provider = input.provider;
-    if (input.certificationName !== undefined) updateData.certificationName = input.certificationName;
-    if (input.certificationValidityDays !== undefined) updateData.certificationValidityDays = input.certificationValidityDays;
+    if (input.certificationName !== undefined)
+      updateData.certificationName = input.certificationName;
+    if (input.certificationValidityDays !== undefined)
+      updateData.certificationValidityDays = input.certificationValidityDays;
 
     const updated = await this.programRepository.update(programId, tenantId, updateData);
     if (!updated) {
@@ -284,10 +282,7 @@ export class TrainingService {
   /**
    * Get attendance records for a staff member.
    */
-  async getStaffAttendance(
-    tenantId: string,
-    staffId: string,
-  ): Promise<TrainingAttendanceEntity[]> {
+  async getStaffAttendance(tenantId: string, staffId: string): Promise<TrainingAttendanceEntity[]> {
     return this.attendanceRepository.listByStaff(tenantId, staffId);
   }
 

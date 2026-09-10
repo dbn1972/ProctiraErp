@@ -8,6 +8,8 @@ import { randomUUID } from 'node:crypto';
 
 import pg from 'pg';
 
+import { withPgTenant, type PgQueryable } from '@proctira/database';
+
 export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook' | 'sms';
 export type NotificationCategory =
   | 'academic'
@@ -172,16 +174,27 @@ export function isPgNotificationPrefsEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
 }
 
-export function createPgNotificationPrefsStore(): NotificationPrefsStore {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+/**
+ * Postgres-backed store. Every query runs inside {@link withPgTenant} so the
+ * RLS policies on notification_preferences / notification_devices
+ * (db/sql/015_rls_policies.sql) see `app.tenant_id`; without it FORCE RLS
+ * rejects the insert with "new row violates row-level security policy".
+ */
+export function createPgNotificationPrefsStore(
+  pool: PgQueryable = new pg.Pool({ connectionString: process.env.DATABASE_URL }),
+): NotificationPrefsStore {
+  const scoped = <T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>) =>
+    withPgTenant(pool, tenantId, fn);
 
   return {
     async getPreferences(tenantId, userId) {
-      const result = await pool.query(
-        `SELECT categories, digest_frequency, quiet_hours
+      const result = await scoped(tenantId, (client) =>
+        client.query(
+          `SELECT categories, digest_frequency, quiet_hours
          FROM notification_preferences
          WHERE tenant_id = $1 AND user_id = $2`,
-        [tenantId, userId],
+          [tenantId, userId],
+        ),
       );
       const row = result.rows[0] as
         | {
@@ -201,8 +214,9 @@ export function createPgNotificationPrefsStore(): NotificationPrefsStore {
     async updatePreferences(tenantId, userId, patch) {
       const current = await this.getPreferences(tenantId, userId);
       const next = mergePreferences(current, patch);
-      await pool.query(
-        `INSERT INTO notification_preferences
+      await scoped(tenantId, (client) =>
+        client.query(
+          `INSERT INTO notification_preferences
            (tenant_id, user_id, categories, digest_frequency, quiet_hours, updated_at)
          VALUES ($1, $2, $3::jsonb, $4, $5::jsonb, now())
          ON CONFLICT (tenant_id, user_id) DO UPDATE SET
@@ -210,21 +224,23 @@ export function createPgNotificationPrefsStore(): NotificationPrefsStore {
            digest_frequency = EXCLUDED.digest_frequency,
            quiet_hours = EXCLUDED.quiet_hours,
            updated_at = now()`,
-        [
-          tenantId,
-          userId,
-          JSON.stringify(next.categories),
-          next.digestFrequency,
-          JSON.stringify(next.quietHours),
-        ],
+          [
+            tenantId,
+            userId,
+            JSON.stringify(next.categories),
+            next.digestFrequency,
+            JSON.stringify(next.quietHours),
+          ],
+        ),
       );
       return next;
     },
 
     async registerDevice(input) {
       const id = input.id ?? randomUUID();
-      const result = await pool.query(
-        `INSERT INTO notification_devices
+      const result = await scoped(input.tenantId, (client) =>
+        client.query(
+          `INSERT INTO notification_devices
            (id, tenant_id, user_id, platform, push_token, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, now(), now())
          ON CONFLICT (tenant_id, push_token) DO UPDATE SET
@@ -232,7 +248,8 @@ export function createPgNotificationPrefsStore(): NotificationPrefsStore {
            platform = EXCLUDED.platform,
            updated_at = now()
          RETURNING id, tenant_id, user_id, platform, push_token, created_at, updated_at`,
-        [id, input.tenantId, input.userId, input.platform, input.pushToken],
+          [id, input.tenantId, input.userId, input.platform, input.pushToken],
+        ),
       );
       const row = result.rows[0] as {
         id: string;
@@ -255,12 +272,14 @@ export function createPgNotificationPrefsStore(): NotificationPrefsStore {
     },
 
     async listDevices(tenantId, userId) {
-      const result = await pool.query(
-        `SELECT id, tenant_id, user_id, platform, push_token, created_at, updated_at
+      const result = await scoped(tenantId, (client) =>
+        client.query(
+          `SELECT id, tenant_id, user_id, platform, push_token, created_at, updated_at
          FROM notification_devices
          WHERE tenant_id = $1 AND user_id = $2
          ORDER BY updated_at DESC`,
-        [tenantId, userId],
+          [tenantId, userId],
+        ),
       );
       return (
         result.rows as Array<{
@@ -284,11 +303,13 @@ export function createPgNotificationPrefsStore(): NotificationPrefsStore {
     },
 
     async deleteDevice(tenantId, deviceId) {
-      const result = await pool.query(
-        `DELETE FROM notification_devices WHERE tenant_id = $1 AND id = $2`,
-        [tenantId, deviceId],
+      const result = await scoped(tenantId, (client) =>
+        client.query(`DELETE FROM notification_devices WHERE tenant_id = $1 AND id = $2`, [
+          tenantId,
+          deviceId,
+        ]),
       );
-      return (result.rowCount ?? 0) > 0;
+      return ((result.rowCount as number | null | undefined) ?? 0) > 0;
     },
   };
 }

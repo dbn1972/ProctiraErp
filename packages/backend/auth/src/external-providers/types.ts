@@ -146,10 +146,7 @@ export interface SAMLProviderConfig {
 /**
  * Union type for all provider configurations.
  */
-export type ExternalProviderConfig =
-  | OAuth2ProviderConfig
-  | OIDCProviderConfig
-  | SAMLProviderConfig;
+export type ExternalProviderConfig = OAuth2ProviderConfig | OIDCProviderConfig | SAMLProviderConfig;
 
 /**
  * Interface that all external auth providers must implement.

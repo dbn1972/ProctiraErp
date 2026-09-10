@@ -12,7 +12,6 @@ import { AppError } from '@proctira/common';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { ImportService } from './import-service.js';
-import type { ImportProgress, ImportResult } from './types.js';
 import { MAX_IMPORT_FILE_SIZE } from './types.js';
 
 /**
@@ -60,6 +59,9 @@ export async function registerImportRoutes(
         file?: { buffer: Buffer; filename: string; mimetype: string };
         duplicateResolution?: string;
         async?: boolean;
+        /** G-307: `validate` or `dryRun=true` skips writes */
+        mode?: string;
+        dryRun?: boolean | string;
       };
 
       if (!body.file || !body.file.buffer) {
@@ -104,9 +106,17 @@ export async function registerImportRoutes(
       }
 
       try {
+        const dryRun =
+          body.dryRun === true ||
+          body.dryRun === 'true' ||
+          body.mode === 'validate' ||
+          body.mode === 'dry-run' ||
+          body.mode === 'dryRun';
+
         const result = await importService.processImport(tenantId, body.file.buffer, {
           duplicateResolution: duplicateResolution as 'skip' | 'update' | 'create',
-          async: body.async,
+          async: dryRun ? false : body.async,
+          dryRun,
         });
 
         // Check if result is async (ImportProgress) or sync (ImportResult)
@@ -136,7 +146,10 @@ export async function registerImportRoutes(
     ) {
       const { jobId } = request.params;
 
-      if (!jobId || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(jobId)) {
+      if (
+        !jobId ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(jobId)
+      ) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'Invalid job ID format',

@@ -5,13 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { StubDataBanner } from '@/components/stub-data-banner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { listTenants } from '@/lib/api/tenants';
 import { listBreakGlassRequests } from '@/lib/api/break-glass';
 import { requireRole } from '@/lib/auth/server';
@@ -61,9 +55,7 @@ export default async function SupportPage({
         <Card>
           <CardHeader>
             <CardTitle>Select tenant</CardTitle>
-            <CardDescription>
-              Pick the tenant whose case you are working.
-            </CardDescription>
+            <CardDescription>Pick the tenant whose case you are working.</CardDescription>
           </CardHeader>
           <CardContent>
             <TenantPicker
@@ -90,12 +82,13 @@ export default async function SupportPage({
               <Card>
                 <CardHeader>
                   <CardTitle>Impact scope: {selectedTenant.name}</CardTitle>
-                  <CardDescription>
-                    Effects of any support actions you take.
-                  </CardDescription>
+                  <CardDescription>Effects of any support actions you take.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <ImpactRow label="Active users" value={selectedTenant.activeUsers.toLocaleString()} />
+                  <ImpactRow
+                    label="Active users"
+                    value={selectedTenant.activeUsers.toLocaleString()}
+                  />
                   <ImpactRow label="Plan" value={selectedTenant.plan} />
                   <ImpactRow label="Region" value={selectedTenant.region} />
                   <ImpactRow label="Status" value={selectedTenant.status} />
@@ -118,8 +111,8 @@ export default async function SupportPage({
                 <CardHeader>
                   <CardTitle>Masquerade as tenant administrator</CardTitle>
                   <CardDescription>
-                    Open a session inside the tenant's app to reproduce a
-                    customer issue. Requires an active break-glass grant.
+                    Open a session inside the tenant's app to reproduce a customer issue. Requires
+                    an active break-glass grant.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -132,21 +125,15 @@ export default async function SupportPage({
                   ) : (
                     <Alert variant="warning" className="mb-4">
                       <AlertDescription>
-                        Masquerade is gated on a security-approved break-glass
-                        grant. Submit a request to proceed.
+                        Masquerade is gated on a security-approved break-glass grant. Submit a
+                        request to proceed.
                       </AlertDescription>
                     </Alert>
                   )}
                   <div className="flex flex-wrap gap-2">
-                    <Button disabled={!hasActiveGrant}>
-                      Open masquerade session
-                    </Button>
+                    <Button disabled={!hasActiveGrant}>Open masquerade session</Button>
                     <Button asChild variant="outline">
-                      <Link
-                        href={`/break-glass?tenantId=${encodeURIComponent(
-                          selectedTenant.id,
-                        )}`}
-                      >
+                      <Link href={`/break-glass?tenantId=${encodeURIComponent(selectedTenant.id)}`}>
                         Request break-glass
                       </Link>
                     </Button>

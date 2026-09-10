@@ -8,18 +8,10 @@
  *     http_request_duration_seconds{service,method,route,status_code}      (Histogram)
  *     http_requests_in_flight{service}                                     (Gauge)
  */
-import type {
-  FastifyInstance,
-  FastifyPluginAsync,
-  FastifyReply,
-  FastifyRequest,
-} from 'fastify';
+import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
-import {
-  DEFAULT_HTTP_DURATION_BUCKETS,
-  MetricsRegistry,
-} from './metrics-registry.js';
+import { DEFAULT_HTTP_DURATION_BUCKETS, MetricsRegistry } from './metrics-registry.js';
 
 export interface ObservabilityPluginOptions {
   /** Service name. Used as both a default label value and for the registry. */
@@ -48,6 +40,14 @@ export interface ObservabilityPluginOptions {
    * Whether to register default Node.js process metrics. Defaults to true.
    */
   collectDefaultMetrics?: boolean;
+
+  /**
+   * Master switch. Defaults to `process.env.METRICS_ENABLED !== 'false'` so
+   * every service exposes /metrics unless an operator explicitly opts out;
+   * when false the plugin still decorates `fastify.metrics` (so callers can
+   * record custom series) but registers no route or hooks.
+   */
+  enabled?: boolean;
 }
 
 declare module 'fastify' {
@@ -60,19 +60,8 @@ declare module 'fastify' {
   }
 }
 
-const HTTP_LABELS = [
-  'service',
-  'method',
-  'route',
-  'status_code',
-  'tenant_id',
-] as const;
-const HTTP_DURATION_LABELS = [
-  'service',
-  'method',
-  'route',
-  'status_code',
-] as const;
+const HTTP_LABELS = ['service', 'method', 'route', 'status_code', 'tenant_id'] as const;
+const HTTP_DURATION_LABELS = ['service', 'method', 'route', 'status_code'] as const;
 const IN_FLIGHT_LABELS = ['service'] as const;
 
 /**
@@ -80,14 +69,14 @@ const IN_FLIGHT_LABELS = ['service'] as const;
  * route hasn't been matched yet (e.g. for 404s or onRequest hooks).
  */
 function getRoute(request: FastifyRequest): string {
-  const routeFromContext =
-    (request as FastifyRequest & {
+  const routeFromContext = (
+    request as FastifyRequest & {
       routeOptions?: { url?: string };
-    }).routeOptions?.url;
+    }
+  ).routeOptions?.url;
   if (routeFromContext) return routeFromContext;
   // Fastify v4: routerPath is set after route matching
-  const routerPath = (request as FastifyRequest & { routerPath?: string })
-    .routerPath;
+  const routerPath = (request as FastifyRequest & { routerPath?: string }).routerPath;
   if (routerPath) return routerPath;
   // Strip query string from raw URL as a last resort.
   const url = request.url || '/';
@@ -95,9 +84,10 @@ function getRoute(request: FastifyRequest): string {
   return qIdx >= 0 ? url.slice(0, qIdx) : url;
 }
 
-const observabilityPluginImpl: FastifyPluginAsync<
-  ObservabilityPluginOptions
-> = async (fastify: FastifyInstance, options: ObservabilityPluginOptions) => {
+const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = async (
+  fastify: FastifyInstance,
+  options: ObservabilityPluginOptions,
+) => {
   const {
     serviceName,
     registry = new MetricsRegistry(serviceName),
@@ -105,7 +95,17 @@ const observabilityPluginImpl: FastifyPluginAsync<
     durationBuckets = DEFAULT_HTTP_DURATION_BUCKETS,
     ignorePaths = [],
     collectDefaultMetrics: collectDefault = true,
+    enabled = process.env['METRICS_ENABLED'] !== 'false',
   } = options;
+
+  if (!enabled) {
+    fastify.decorate('metrics', registry);
+    fastify.log.warn(
+      { service: serviceName },
+      'METRICS_ENABLED=false — Prometheus /metrics endpoint and HTTP instrumentation disabled',
+    );
+    return;
+  }
 
   if (collectDefault) {
     registry.collectDefaultMetrics();
@@ -148,36 +148,31 @@ const observabilityPluginImpl: FastifyPluginAsync<
   });
 
   // On response, observe duration and increment counters.
-  fastify.addHook(
-    'onResponse',
-    async (request: FastifyRequest, reply: FastifyReply) => {
-      if (ignored.has(request.url)) return;
+  fastify.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
+    if (ignored.has(request.url)) return;
 
-      const start = request.metricsStart;
-      if (typeof start !== 'number') return;
+    const start = request.metricsStart;
+    if (typeof start !== 'number') return;
 
-      const durationSeconds = (Date.now() - start) / 1000;
-      const route = getRoute(request);
-      const statusCode = String(reply.statusCode);
-      const method = request.method;
-      const tenantId =
-        (request as FastifyRequest & { tenantId?: string }).tenantId ??
-        'unknown';
+    const durationSeconds = (Date.now() - start) / 1000;
+    const route = getRoute(request);
+    const statusCode = String(reply.statusCode);
+    const method = request.method;
+    const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId ?? 'unknown';
 
-      requestDuration.observe(
-        { service: serviceName, method, route, status_code: statusCode },
-        durationSeconds,
-      );
-      requestsTotal.inc({
-        service: serviceName,
-        method,
-        route,
-        status_code: statusCode,
-        tenant_id: tenantId,
-      });
-      requestsInFlight.dec({ service: serviceName });
-    },
-  );
+    requestDuration.observe(
+      { service: serviceName, method, route, status_code: statusCode },
+      durationSeconds,
+    );
+    requestsTotal.inc({
+      service: serviceName,
+      method,
+      route,
+      status_code: statusCode,
+      tenant_id: tenantId,
+    });
+    requestsInFlight.dec({ service: serviceName });
+  });
 
   // If a request errors out before onResponse, ensure in-flight is decremented.
   fastify.addHook('onError', async (request: FastifyRequest) => {
@@ -218,5 +213,5 @@ const observabilityPluginImpl: FastifyPluginAsync<
  */
 export const observabilityPlugin = fp(observabilityPluginImpl, {
   name: '@proctira/observability',
-  fastify: '4.x',
+  fastify: '5.x',
 });

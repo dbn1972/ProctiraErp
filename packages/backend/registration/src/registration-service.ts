@@ -15,7 +15,11 @@ import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/com
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import { InMemoryAdmissionsCrmStore } from './admissions-crm-store.js';
+import {
+  InMemoryAdmissionsCrmStore,
+  type AdmissionsCrmStore,
+  type WaitlistEntry,
+} from './admissions-crm-store.js';
 import type {
   RegistrationRepository,
   InstitutionLocationFilter,
@@ -182,11 +186,11 @@ export function validateCustomFields(
  * Registration service handling public registration portal operations.
  */
 export class RegistrationService {
-  private readonly crm: InMemoryAdmissionsCrmStore;
+  private readonly crm: AdmissionsCrmStore;
 
   constructor(
     private readonly repository: RegistrationRepository,
-    crmStore?: InMemoryAdmissionsCrmStore,
+    crmStore?: AdmissionsCrmStore,
   ) {
     this.crm = crmStore ?? new InMemoryAdmissionsCrmStore();
   }
@@ -294,8 +298,9 @@ export class RegistrationService {
   async checkStatus(
     trackingNumber: string,
     dateOfBirth?: string,
+    tenantId?: string,
   ): Promise<RegistrationStatusResponse> {
-    const registration = await this.repository.findByTrackingNumber(trackingNumber);
+    const registration = await this.repository.findByTrackingNumber(trackingNumber, tenantId);
     if (!registration) {
       throw new NotFoundError(`Registration with tracking number '${trackingNumber}' not found`);
     }
@@ -306,6 +311,11 @@ export class RegistrationService {
       throw new NotFoundError(`Registration with tracking number '${trackingNumber}' not found`);
     }
 
+    const [waitlist, bookings] = await Promise.all([
+      this.crm.listWaitlist(registration.tenantId, registration.institutionId),
+      this.crm.listBookingsForApplication(registration.tenantId, registration.id),
+    ]);
+
     return {
       trackingNumber: registration.trackingNumber,
       status: registration.status,
@@ -315,11 +325,8 @@ export class RegistrationService {
       updatedAt: registration.updatedAt.toISOString(),
       remarks: registration.remarks ?? undefined,
       waitlistPosition:
-        this.crm
-          .listWaitlist(registration.tenantId, registration.institutionId)
-          .find((row) => row.applicationId === registration.id)?.position ?? undefined,
-      interviewBookings: this.crm
-        .listBookingsForApplication(registration.tenantId, registration.id)
+        waitlist.find((row) => row.applicationId === registration.id)?.position ?? undefined,
+      interviewBookings: bookings
         .filter((row) => row.status === 'booked')
         .map((row) => ({
           id: row.id,
@@ -439,19 +446,19 @@ export class RegistrationService {
     status: RegistrationStatus,
     remarks?: string,
   ) {
-    const application = await this.repository.findById(applicationId);
+    const application = await this.repository.findById(applicationId, tenantId);
     if (!application || application.tenantId !== tenantId) {
       throw new NotFoundError(`Application with id '${applicationId}' not found`);
     }
 
-    const updated = await this.repository.updateStatus(applicationId, status, remarks);
+    const updated = await this.repository.updateStatus(applicationId, status, remarks, tenantId);
     if (!updated) {
       throw new NotFoundError(`Application with id '${applicationId}' not found`);
     }
 
-    let waitlistEntry = null;
+    let waitlistEntry: WaitlistEntry | null = null;
     if (status === 'waitlisted') {
-      waitlistEntry = this.crm.enqueueWaitlist({
+      waitlistEntry = await this.crm.enqueueWaitlist({
         tenantId,
         applicationId,
         institutionId: application.institutionId,
@@ -487,24 +494,24 @@ export class RegistrationService {
   }
 
   async bookInterview(tenantId: string, input: { slotId: string; applicationId: string }) {
-    const application = await this.repository.findById(input.applicationId);
+    const application = await this.repository.findById(input.applicationId, tenantId);
     if (!application || application.tenantId !== tenantId) {
       throw new NotFoundError(`Application with id '${input.applicationId}' not found`);
     }
 
-    const slot = this.crm.findSlot(input.slotId, tenantId);
+    const slot = await this.crm.findSlot(input.slotId, tenantId);
     if (!slot || slot.status !== 'open') {
       throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
     }
 
-    const booked = this.crm.listBookingsForSlot(tenantId, slot.id);
+    const booked = await this.crm.listBookingsForSlot(tenantId, slot.id);
     if (booked.length >= slot.capacity) {
       throw new BusinessRuleError('Interview slot is at capacity');
     }
 
-    const existing = this.crm
-      .listBookingsForApplication(tenantId, input.applicationId)
-      .find((row) => row.slotId === slot.id && row.status === 'booked');
+    const existing = (
+      await this.crm.listBookingsForApplication(tenantId, input.applicationId)
+    ).find((row) => row.slotId === slot.id && row.status === 'booked');
     if (existing) {
       return existing;
     }

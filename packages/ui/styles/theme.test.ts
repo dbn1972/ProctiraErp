@@ -41,21 +41,16 @@ describe('theme.css — base typography (Task 56.1, Requirement 37 AC 1)', () =>
 
   it('html sets font-size to 18px (directly or via the --font-size token)', () => {
     const htmlBlock = extractBlock(themeCss, 'html');
-    expect(
-      htmlBlock,
-      'expected an `html { ... }` rule inside theme.css'
-    ).not.toBe('');
+    expect(htmlBlock, 'expected an `html { ... }` rule inside theme.css').not.toBe('');
 
     // Accept either a literal `18px` or the token form
     // `var(--font-size, 18px)` — both resolve to 18 px because the
     // `:root, :root.light` block declares `--font-size: 18px`.
     const literal = /font-size:\s*18px\b/i.test(htmlBlock);
-    const tokenForm = /font-size:\s*var\(\s*--font-size\s*(?:,\s*18px\s*)?\)/i.test(
-      htmlBlock
-    );
+    const tokenForm = /font-size:\s*var\(\s*--font-size\s*(?:,\s*18px\s*)?\)/i.test(htmlBlock);
     expect(
       literal || tokenForm,
-      `expected html font-size to resolve to 18px, got: ${htmlBlock.trim()}`
+      `expected html font-size to resolve to 18px, got: ${htmlBlock.trim()}`,
     ).toBe(true);
   });
 
@@ -67,10 +62,7 @@ describe('theme.css — base typography (Task 56.1, Requirement 37 AC 1)', () =>
 
   it('body sets line-height to 1.5 (WCAG body-copy minimum)', () => {
     const bodyBlock = extractBlock(themeCss, 'body');
-    expect(
-      bodyBlock,
-      'expected a `body { ... }` rule inside theme.css'
-    ).not.toBe('');
+    expect(bodyBlock, 'expected a `body { ... }` rule inside theme.css').not.toBe('');
     expect(bodyBlock).toMatch(/line-height:\s*1\.5\s*;?/);
   });
 
@@ -132,7 +124,10 @@ describe('theme.css — global focus ring (Task 56.4, Requirement 37 AC 3)', () 
       if (ch === '{') depth++;
       else if (ch === '}') {
         depth--;
-        if (depth === 0) { end = i; break; }
+        if (depth === 0) {
+          end = i;
+          break;
+        }
       }
     }
     expect(end, 'expected a balanced `@layer base { ... }` block').toBeGreaterThan(-1);
@@ -145,19 +140,12 @@ describe('theme.css — global focus ring (Task 56.4, Requirement 37 AC 3)', () 
     // specials and would treat `*` as a literal asterisk preceded by an
     // escaped backslash; here we want a real regex that matches the
     // `*:focus-visible { ... }` selector exactly.
-    const focusMatch = themeCss.match(
-      /\*\s*:focus-visible\s*\{([^}]*)\}/
-    );
-    expect(
-      focusMatch,
-      'expected a `*:focus-visible { ... }` rule inside theme.css'
-    ).not.toBeNull();
+    const focusMatch = themeCss.match(/\*\s*:focus-visible\s*\{([^}]*)\}/);
+    expect(focusMatch, 'expected a `*:focus-visible { ... }` rule inside theme.css').not.toBeNull();
     const focusBlock = focusMatch![1];
 
     // Canonical declarations from the task description.
-    expect(focusBlock).toMatch(
-      /outline:\s*2px\s+solid\s+var\(\s*--ring\s*\)\s*;?/i
-    );
+    expect(focusBlock).toMatch(/outline:\s*2px\s+solid\s+var\(\s*--ring\s*\)\s*;?/i);
     expect(focusBlock).toMatch(/outline-offset:\s*2px\s*;?/i);
   });
 

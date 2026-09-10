@@ -11,10 +11,7 @@ import type { Config } from 'tailwindcss';
  * animation is essential. See packages/ui/README.md for the full guide.
  */
 const config: Config = {
-  content: [
-    './src/**/*.{ts,tsx}',
-    '../../packages/ui/**/src/**/*.{ts,tsx}',
-  ],
+  content: ['./src/**/*.{ts,tsx}', '../../packages/ui/**/src/**/*.{ts,tsx}'],
   darkMode: 'class',
   theme: {
     extend: {

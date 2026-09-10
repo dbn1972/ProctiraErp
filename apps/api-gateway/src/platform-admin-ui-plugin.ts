@@ -13,12 +13,9 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-type TenantStatus =
-  | 'provisioning'
-  | 'active'
-  | 'suspended'
-  | 'decommissioning'
-  | 'archived';
+import { createPlatformAdminStores } from './platform-admin-store.js';
+
+type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
 interface Tenant {
   id: string;
@@ -136,17 +133,59 @@ function seedBreakGlass(): BreakGlassRequest[] {
   ];
 }
 
+/** Role IDs that may access the platform admin console (G-104). */
+const PLATFORM_ADMIN_ROLE_IDS = new Set(['platform_admin', 'super-admin']);
+
+function roleIdOf(role: unknown): string | undefined {
+  if (typeof role === 'string') return role;
+  if (role && typeof role === 'object' && 'roleId' in role) {
+    const id = (role as { roleId?: unknown }).roleId;
+    return typeof id === 'string' ? id : undefined;
+  }
+  return undefined;
+}
+
 export const platformAdminUiPlugin = fp(
   async function platformAdminUiPluginImpl(fastify: FastifyInstance) {
-    const tenants = new Map<string, Tenant>(seedTenants().map((t) => [t.id, t]));
-    const plugins = new Map<string, PluginSubmission>(seedPlugins().map((p) => [p.id, p]));
-    const breakGlass = new Map<string, BreakGlassRequest>(
-      seedBreakGlass().map((b) => [b.id, b]),
-    );
+    // G-704: durable console state (Postgres when DATABASE_URL is set); demo
+    // rows only when the seed policy allows (G-705).
+    const stores = await createPlatformAdminStores<Tenant, PluginSubmission, BreakGlassRequest>({
+      tenants: seedTenants,
+      plugins: seedPlugins,
+      breakGlass: seedBreakGlass,
+    });
+    const { tenants, plugins, breakGlass } = stores;
+    fastify.log.info({ persistence: stores.persistence }, 'platform-admin console store ready');
+
+    // G-104: require platform_admin (or DEFAULT_ROLES super-admin) for all console routes
+    fastify.addHook('preHandler', async (request, reply) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          statusCode: 401,
+        });
+      }
+
+      const roles = user.roles ?? [];
+      const allowed = roles.some((r) => {
+        const id = roleIdOf(r);
+        return id !== undefined && PLATFORM_ADMIN_ROLE_IDS.has(id);
+      });
+
+      if (!allowed) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'Platform administrator role required',
+          statusCode: 403,
+        });
+      }
+    });
 
     fastify.get('/tenants', async (request, reply) => {
       const query = request.query as { status?: string; q?: string };
-      let items = Array.from(tenants.values());
+      let items = await tenants.list();
       if (query.status && query.status !== 'all') {
         items = items.filter((t) => t.status === query.status);
       }
@@ -160,7 +199,7 @@ export const platformAdminUiPlugin = fp(
     });
 
     fastify.get<{ Params: { id: string } }>('/tenants/:id', async (request, reply) => {
-      const tenant = tenants.get(request.params.id);
+      const tenant = await tenants.get(request.params.id);
       if (!tenant) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -192,37 +231,34 @@ export const platformAdminUiPlugin = fp(
         activeUsers: 0,
         entitlements: ['core'],
       };
-      tenants.set(tenant.id, tenant);
+      await tenants.set(tenant);
       return reply.status(201).send(tenant);
     });
 
     for (const action of ['suspend', 'reactivate', 'decommission'] as const) {
-      fastify.post<{ Params: { id: string } }>(
-        `/tenants/:id/${action}`,
-        async (request, reply) => {
-          const tenant = tenants.get(request.params.id);
-          if (!tenant) {
-            return reply.status(404).send({
-              code: 'NOT_FOUND',
-              message: 'Tenant not found',
-              statusCode: 404,
-            });
-          }
-          const next: TenantStatus =
-            action === 'suspend'
-              ? 'suspended'
-              : action === 'reactivate'
-                ? 'active'
-                : 'decommissioning';
-          const updated = { ...tenant, status: next };
-          tenants.set(tenant.id, updated);
-          return reply.send(updated);
-        },
-      );
+      fastify.post<{ Params: { id: string } }>(`/tenants/:id/${action}`, async (request, reply) => {
+        const tenant = await tenants.get(request.params.id);
+        if (!tenant) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: 'Tenant not found',
+            statusCode: 404,
+          });
+        }
+        const next: TenantStatus =
+          action === 'suspend'
+            ? 'suspended'
+            : action === 'reactivate'
+              ? 'active'
+              : 'decommissioning';
+        const updated = { ...tenant, status: next };
+        await tenants.set(updated);
+        return reply.send(updated);
+      });
     }
 
     fastify.delete<{ Params: { id: string } }>('/tenants/:id', async (request, reply) => {
-      const tenant = tenants.get(request.params.id);
+      const tenant = await tenants.get(request.params.id);
       if (!tenant) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -231,17 +267,17 @@ export const platformAdminUiPlugin = fp(
         });
       }
       const updated = { ...tenant, status: 'archived' as const };
-      tenants.set(tenant.id, updated);
+      await tenants.set(updated);
       return reply.send(updated);
     });
 
     fastify.get('/plugins', async (_request, reply) => {
-      const items = Array.from(plugins.values());
+      const items = await plugins.list();
       return reply.send({ items, data: items });
     });
 
     fastify.get<{ Params: { id: string } }>('/plugins/:id', async (request, reply) => {
-      const plugin = plugins.get(request.params.id);
+      const plugin = await plugins.get(request.params.id);
       if (!plugin) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -253,41 +289,38 @@ export const platformAdminUiPlugin = fp(
     });
 
     for (const action of ['approve', 'revoke', 'disable', 'reject'] as const) {
-      fastify.post<{ Params: { id: string } }>(
-        `/plugins/:id/${action}`,
-        async (request, reply) => {
-          const plugin = plugins.get(request.params.id);
-          if (!plugin) {
-            return reply.status(404).send({
-              code: 'NOT_FOUND',
-              message: 'Plugin not found',
-              statusCode: 404,
-            });
-          }
-          const body = (request.body ?? {}) as { reason?: string };
-          if (!body.reason || body.reason.trim().length < 12) {
-            return reply.status(400).send({
-              code: 'VALIDATION_ERROR',
-              message: 'reason must be at least 12 characters',
-              statusCode: 400,
-            });
-          }
-          const status =
-            action === 'approve' ? 'approved' : action === 'disable' ? 'disabled' : 'revoked';
-          const updated = { ...plugin, status: status as PluginSubmission['status'] };
-          plugins.set(plugin.id, updated);
-          return reply.send(updated);
-        },
-      );
+      fastify.post<{ Params: { id: string } }>(`/plugins/:id/${action}`, async (request, reply) => {
+        const plugin = await plugins.get(request.params.id);
+        if (!plugin) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: 'Plugin not found',
+            statusCode: 404,
+          });
+        }
+        const body = (request.body ?? {}) as { reason?: string };
+        if (!body.reason || body.reason.trim().length < 12) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'reason must be at least 12 characters',
+            statusCode: 400,
+          });
+        }
+        const status =
+          action === 'approve' ? 'approved' : action === 'disable' ? 'disabled' : 'revoked';
+        const updated = { ...plugin, status: status as PluginSubmission['status'] };
+        await plugins.set(updated);
+        return reply.send(updated);
+      });
     }
 
     fastify.get('/break-glass', async (_request, reply) => {
-      const items = Array.from(breakGlass.values());
+      const items = await breakGlass.list();
       return reply.send({ items, data: items });
     });
 
     fastify.get('/break-glass/requests', async (_request, reply) => {
-      const items = Array.from(breakGlass.values());
+      const items = await breakGlass.list();
       return reply.send({ items, data: items });
     });
 
@@ -311,49 +344,43 @@ export const platformAdminUiPlugin = fp(
         status: 'pending_approval',
         createdAt: new Date().toISOString(),
       };
-      breakGlass.set(row.id, row);
+      await breakGlass.set(row);
       return reply.status(201).send(row);
     });
 
-    fastify.post<{ Params: { id: string } }>(
-      '/break-glass/:id/approve',
-      async (request, reply) => {
-        const row = breakGlass.get(request.params.id);
-        if (!row) {
-          return reply.status(404).send({
-            code: 'NOT_FOUND',
-            message: 'Break-glass request not found',
-            statusCode: 404,
-          });
-        }
-        const updated: BreakGlassRequest = {
-          ...row,
-          status: 'active',
-          approver: 'security@proctira.org',
-          approvedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + row.durationMinutes * 60_000).toISOString(),
-        };
-        breakGlass.set(row.id, updated);
-        return reply.send(updated);
-      },
-    );
+    fastify.post<{ Params: { id: string } }>('/break-glass/:id/approve', async (request, reply) => {
+      const row = await breakGlass.get(request.params.id);
+      if (!row) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Break-glass request not found',
+          statusCode: 404,
+        });
+      }
+      const updated: BreakGlassRequest = {
+        ...row,
+        status: 'active',
+        approver: 'security@proctira.org',
+        approvedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + row.durationMinutes * 60_000).toISOString(),
+      };
+      await breakGlass.set(updated);
+      return reply.send(updated);
+    });
 
-    fastify.post<{ Params: { id: string } }>(
-      '/break-glass/:id/deny',
-      async (request, reply) => {
-        const row = breakGlass.get(request.params.id);
-        if (!row) {
-          return reply.status(404).send({
-            code: 'NOT_FOUND',
-            message: 'Break-glass request not found',
-            statusCode: 404,
-          });
-        }
-        const updated = { ...row, status: 'denied' as const };
-        breakGlass.set(row.id, updated);
-        return reply.send(updated);
-      },
-    );
+    fastify.post<{ Params: { id: string } }>('/break-glass/:id/deny', async (request, reply) => {
+      const row = await breakGlass.get(request.params.id);
+      if (!row) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Break-glass request not found',
+          statusCode: 404,
+        });
+      }
+      const updated = { ...row, status: 'denied' as const };
+      await breakGlass.set(updated);
+      return reply.send(updated);
+    });
 
     fastify.get('/plans', async (_request, reply) => {
       return reply.send({
@@ -453,5 +480,5 @@ export const platformAdminUiPlugin = fp(
       });
     });
   },
-  { name: 'platform-admin-ui-aggregates', fastify: '4.x' },
+  { name: 'platform-admin-ui-aggregates', fastify: '5.x' },
 );

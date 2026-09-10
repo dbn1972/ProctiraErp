@@ -90,10 +90,7 @@ export interface ConnectivityIndicatorProps {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ConnectivityIndicator({
-  className,
-  iconOnly = false,
-}: ConnectivityIndicatorProps) {
+export function ConnectivityIndicator({ className, iconOnly = false }: ConnectivityIndicatorProps) {
   const { status } = useConnectivity();
   const t = useTranslations('connectivity');
 
@@ -118,14 +115,9 @@ export function ConnectivityIndicator({
       <span
         aria-hidden="true"
         data-testid="connectivity-indicator-dot"
-        className={cn(
-          'inline-block h-3 w-3 shrink-0 rounded-full',
-          presentation.dotClass,
-        )}
+        className={cn('inline-block h-3 w-3 shrink-0 rounded-full', presentation.dotClass)}
       />
-      {iconOnly ? null : (
-        <span data-testid="connectivity-indicator-label">{label}</span>
-      )}
+      {iconOnly ? null : <span data-testid="connectivity-indicator-label">{label}</span>}
     </span>
   );
 }

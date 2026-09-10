@@ -96,6 +96,12 @@ export const EnrollStudentSchema = Type.Object({
 });
 export type EnrollStudentInput = Static<typeof EnrollStudentSchema>;
 
+/** Bulk roster assign (G-304). Dedupes studentIds; partial success returned per row. */
+export const BulkEnrollStudentsSchema = Type.Object({
+  studentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 200 }),
+});
+export type BulkEnrollStudentsInput = Static<typeof BulkEnrollStudentsSchema>;
+
 export const CreateRoomSchema = Type.Object({
   institutionId: Type.String({ minLength: 1 }),
   code: Type.String({ minLength: 1, maxLength: 50 }),
@@ -105,3 +111,42 @@ export const CreateRoomSchema = Type.Object({
   status: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
 });
 export type CreateRoomInput = Static<typeof CreateRoomSchema>;
+
+const DemandSchema = Type.Object({
+  id: Type.Optional(Type.String({ minLength: 1 })),
+  sectionId: Type.String({ minLength: 1 }),
+  subjectId: Type.String({ minLength: 1 }),
+  staffId: Type.String({ minLength: 1 }),
+  periodsPerWeek: Type.Integer({ minimum: 1, maximum: 20 }),
+  preferredRoomId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  enrollmentCount: Type.Optional(Type.Integer({ minimum: 0, maximum: 2000 })),
+});
+
+export const CreateGenerationJobSchema = Type.Object({
+  institutionId: Type.String({ minLength: 1 }),
+  academicPeriodId: Type.String({ minLength: 1 }),
+  bellScheduleId: Type.Optional(Type.String({ minLength: 1 })),
+  persistMeetings: Type.Optional(Type.Boolean()),
+  teacherMaxPeriodsPerDay: Type.Optional(Type.Integer({ minimum: 1, maximum: 16 })),
+  daysOfWeek: Type.Optional(Type.Array(Type.Integer({ minimum: 1, maximum: 7 }), { maxItems: 7 })),
+  demands: Type.Array(DemandSchema, { minItems: 1, maxItems: 400 }),
+  unavailable: Type.Optional(
+    Type.Array(
+      Type.Object({
+        staffId: Type.String({ minLength: 1 }),
+        dayOfWeek: Type.Integer({ minimum: 1, maximum: 7 }),
+        periodId: Type.String({ minLength: 1 }),
+      }),
+      { maxItems: 400 },
+    ),
+  ),
+});
+export type CreateGenerationJobInput = Static<typeof CreateGenerationJobSchema>;
+
+export const CreateTeacherAbsenceSchema = Type.Object({
+  institutionId: Type.String({ minLength: 1 }),
+  staffId: Type.String({ minLength: 1 }),
+  absenceDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
+  reason: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
+});
+export type CreateTeacherAbsenceInput = Static<typeof CreateTeacherAbsenceSchema>;

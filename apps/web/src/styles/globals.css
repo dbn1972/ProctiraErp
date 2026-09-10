@@ -79,8 +79,7 @@
      * Roboto, sans-serif, with Inter listed AFTER the system fonts so the
      * UA paints with system fonts first and only swaps to Inter when ready. */
     --font-sans:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter',
-      system-ui, sans-serif;
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', system-ui, sans-serif;
   }
 
   .dark {
@@ -117,8 +116,8 @@
    * fall through to a script-appropriate Noto face if Inter has not loaded. */
   [dir='rtl'] {
     --font-sans:
-      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic',
-      'Inter', system-ui, sans-serif;
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic', 'Inter', system-ui,
+      sans-serif;
   }
 
   * {
@@ -135,7 +134,8 @@
 @layer components {
   /* Sidebar links — designed for the deep-navy sidebar (Design System v2.0) */
   .sidebar-link {
-    @apply relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors;
+    /* min-h-11 = 44px pointer target (enterprise touch-target bar, Property F-5). */
+    @apply relative flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors;
   }
 
   .sidebar-link-active {
@@ -156,6 +156,23 @@
 
   .sidebar-link-inactive {
     @apply text-slate-400 hover:bg-white/5 hover:text-white;
+  }
+
+  /* Coarse pointers (touch): form controls and standalone links meet the 48px
+     mobile bar (Property F-5) without changing desktop density. Buttons that
+     already set an explicit height keep it via the more specific utility. */
+  @media (pointer: coarse) {
+    .touch-controls input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+    .touch-controls select,
+    .touch-controls textarea,
+    .touch-controls button:not(.touch-exempt),
+    .touch-controls [role='button'] {
+      min-height: 3rem;
+    }
+    .touch-controls a.inline-flex,
+    .touch-controls a.flex {
+      min-height: 3rem;
+    }
   }
 
   .breadcrumb-separator {

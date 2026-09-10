@@ -19,12 +19,13 @@ import {
 } from './registration';
 
 function makeFetcher(response: Partial<Response> & { jsonValue?: unknown }) {
-  return vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
-    ({
-      ok: response.ok ?? true,
-      status: response.status ?? 200,
-      json: async () => response.jsonValue ?? {},
-    }) as Response,
+  return vi.fn(
+    async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      ({
+        ok: response.ok ?? true,
+        status: response.status ?? 200,
+        json: async () => response.jsonValue ?? {},
+      }) as Response,
   );
 }
 
@@ -182,7 +183,6 @@ describe('normalizeTrackingResult', () => {
   });
 });
 
-
 // =============================================================================
 // School Finder client tests (Task 51.3 / Requirement 16.9)
 // =============================================================================
@@ -200,9 +200,7 @@ describe('buildSchoolFinderQueryString', () => {
 
   it('serialises geolocation only when all three fields are present', () => {
     expect(buildSchoolFinderQueryString({ latitude: 12.95 })).toBe('');
-    expect(
-      buildSchoolFinderQueryString({ latitude: 12.95, longitude: 77.59 }),
-    ).toBe('');
+    expect(buildSchoolFinderQueryString({ latitude: 12.95, longitude: 77.59 })).toBe('');
     const qs = buildSchoolFinderQueryString({
       latitude: 12.95,
       longitude: 77.59,
@@ -329,10 +327,7 @@ describe('searchSchools', () => {
     const fetcher = vi.fn(async () => {
       throw new Error('Network down');
     });
-    const result = await searchSchools(
-      {},
-      { fetcher: fetcher as unknown as typeof fetch },
-    );
+    const result = await searchSchools({}, { fetcher: fetcher as unknown as typeof fetch });
     expect(result.kind).toBe('error');
     if (result.kind === 'error') {
       expect(result.message).toBe('Network down');

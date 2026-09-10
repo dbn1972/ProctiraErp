@@ -145,6 +145,12 @@ export interface ResultRepository {
   /** Get all candidates for an examination */
   getCandidates(examinationId: string, tenantId: string): Promise<ExaminationCandidate[]>;
 
+  /**
+   * Upsert candidate rows (marks entry before publication, G-902). Keyed by
+   * (examinationId, studentId); replaces subjectResults for those candidates.
+   */
+  upsertCandidates(tenantId: string, candidates: ExaminationCandidate[]): Promise<void>;
+
   /** Save publication result */
   savePublicationResult(result: PublicationResult): Promise<void>;
 

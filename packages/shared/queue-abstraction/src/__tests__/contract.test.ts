@@ -91,9 +91,9 @@ describe('QueueAdapter Contract Tests', () => {
       });
 
       it('should throw on subscribe when not connected', async () => {
-        await expect(
-          adapter.subscribe({ topic: 'test' }, async () => {})
-        ).rejects.toThrow(/not connected/i);
+        await expect(adapter.subscribe({ topic: 'test' }, async () => {})).rejects.toThrow(
+          /not connected/i,
+        );
       });
 
       it('should throw on dispatch when not connected', async () => {
@@ -102,9 +102,9 @@ describe('QueueAdapter Contract Tests', () => {
       });
 
       it('should throw on consume when not connected', async () => {
-        await expect(
-          adapter.consume({ topic: 'test' }, async () => {})
-        ).rejects.toThrow(/not connected/i);
+        await expect(adapter.consume({ topic: 'test' }, async () => {})).rejects.toThrow(
+          /not connected/i,
+        );
       });
     });
 

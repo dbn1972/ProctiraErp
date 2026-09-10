@@ -196,8 +196,7 @@ describe('<RolesPermissions>', () => {
     // The client API was called with the updated permission list, the role
     // metadata for audit context, and nothing else.
     expect(adminApi.updateRolePermissions).toHaveBeenCalledTimes(1);
-    const [roleId, payload, context] = vi.mocked(adminApi.updateRolePermissions).mock
-      .calls[0]!;
+    const [roleId, payload, context] = vi.mocked(adminApi.updateRolePermissions).mock.calls[0]!;
     expect(roleId).toBe(CUSTOM_ROLE.id);
     expect(payload.permissions).toEqual([
       { resource: 'student', action: 'read' },

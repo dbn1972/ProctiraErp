@@ -24,15 +24,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 import {
   Card,
@@ -54,12 +46,7 @@ import {
 } from '@proctira/ui-dashboards';
 
 import { useStateDashboardData } from '../api';
-import type {
-  BoardRow,
-  DashboardKpi,
-  DistrictRanking,
-  DistrictRow,
-} from '../api';
+import type { BoardRow, DashboardKpi, DistrictRanking, DistrictRow } from '../api';
 
 const ICONS: Record<string, KpiCardProps['icon']> = {
   schools: <School className="h-5 w-5" aria-hidden="true" />,
@@ -173,10 +160,7 @@ function buildDistrictColumns(): ReadonlyArray<DataTableCardColumn<DistrictRow>>
       id: 'drill',
       header: '',
       cell: () => (
-        <ChevronRight
-          className="h-4 w-4 text-[hsl(var(--muted-foreground))]"
-          aria-hidden="true"
-        />
+        <ChevronRight className="h-4 w-4 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
       ),
       headerClassName: 'text-end',
       className: 'text-end',
@@ -215,12 +199,7 @@ function DistrictRankingCard({ ranking, loading }: DistrictRankingCardProps) {
                 <XAxis type="number" domain={[0, 100]} />
                 <YAxis dataKey="district" type="category" width={100} />
                 <Tooltip />
-                <Bar
-                  dataKey="passRate"
-                  name="Pass Rate %"
-                  fill={color}
-                  isAnimationActive={false}
-                />
+                <Bar dataKey="passRate" name="Pass Rate %" fill={color} isAnimationActive={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>

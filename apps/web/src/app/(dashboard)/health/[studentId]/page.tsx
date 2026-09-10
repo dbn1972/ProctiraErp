@@ -49,17 +49,18 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
 /* ------------------------------------------------------------------ page */
 
 interface PageProps {
-  params: { studentId: string };
+  params: Promise<{ studentId: string }>;
 }
 
-export default async function HealthRecordPage({ params }: PageProps) {
+export default async function HealthRecordPage(props: PageProps) {
+  const params = await props.params;
   const session = await requireSession(`/health/${params.studentId}`);
 
   if (!canAccessHealthRecords(session.user.roles)) {
@@ -131,11 +132,14 @@ export default async function HealthRecordPage({ params }: PageProps) {
         role="note"
         className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
       >
-        <Heart className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+        <Heart
+          className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400"
+          aria-hidden="true"
+        />
         <p>
           <span className="font-semibold">Confidential medical record. </span>
-          This profile is visible to you as a Health Officer. Sharing findings outside
-          the school health programme requires written guardian consent.
+          This profile is visible to you as a Health Officer. Sharing findings outside the school
+          health programme requires written guardian consent.
         </p>
       </div>
 
@@ -206,11 +210,7 @@ export default async function HealthRecordPage({ params }: PageProps) {
                 <FactRow label="Blood group" value={record.bloodType ?? '—'} mono />
                 <FactRow
                   label="Allergies"
-                  value={
-                    record.allergies?.length
-                      ? `${record.allergies.length} on file`
-                      : 'None'
-                  }
+                  value={record.allergies?.length ? `${record.allergies.length} on file` : 'None'}
                 />
                 <FactRow
                   label="Chronic conditions"
@@ -231,14 +231,8 @@ export default async function HealthRecordPage({ params }: PageProps) {
             </CardHeader>
             <CardContent>
               <dl className="text-sm">
-                <FactRow
-                  label="Emergency contact"
-                  value={record.emergencyContactName ?? '—'}
-                />
-                <FactRow
-                  label="Emergency phone"
-                  value={record.emergencyContactPhone ?? '—'}
-                />
+                <FactRow label="Emergency contact" value={record.emergencyContactName ?? '—'} />
+                <FactRow label="Emergency phone" value={record.emergencyContactPhone ?? '—'} />
               </dl>
             </CardContent>
           </Card>
@@ -262,15 +256,7 @@ export default async function HealthRecordPage({ params }: PageProps) {
 
 /* --------------------------------------------------------------- micro-components */
 
-function FactRow({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
+function FactRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="grid grid-cols-[140px_1fr] gap-2 border-b border-border/60 py-2 last:border-0">
       <dt className="text-muted-foreground">{label}</dt>

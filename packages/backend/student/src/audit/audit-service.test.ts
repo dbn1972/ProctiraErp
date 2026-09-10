@@ -65,9 +65,17 @@ describe('AuditService', () => {
 
       // All fields should appear as changes (oldValue = null)
       expect(entry.changes).toHaveLength(4);
-      expect(entry.changes).toContainEqual({ field: 'dateOfBirth', oldValue: null, newValue: '2005-03-15' });
+      expect(entry.changes).toContainEqual({
+        field: 'dateOfBirth',
+        oldValue: null,
+        newValue: '2005-03-15',
+      });
       expect(entry.changes).toContainEqual({ field: 'gender', oldValue: null, newValue: 'male' });
-      expect(entry.changes).toContainEqual({ field: 'id', oldValue: null, newValue: 'student-001' });
+      expect(entry.changes).toContainEqual({
+        field: 'id',
+        oldValue: null,
+        newValue: 'student-001',
+      });
       expect(entry.changes).toContainEqual({ field: 'name', oldValue: null, newValue: 'John Doe' });
     });
 

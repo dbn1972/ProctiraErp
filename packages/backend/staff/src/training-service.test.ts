@@ -41,7 +41,9 @@ function uuid(): string {
 
 const TENANT_ID = uuid();
 
-function validProgramInput(overrides: Partial<CreateTrainingProgramInput> = {}): CreateTrainingProgramInput {
+function validProgramInput(
+  overrides: Partial<CreateTrainingProgramInput> = {},
+): CreateTrainingProgramInput {
   return {
     name: 'Advanced Teaching Methods',
     description: 'A comprehensive training program',
@@ -129,9 +131,9 @@ describe('TrainingService', () => {
     });
 
     it('should throw NotFoundError when program does not exist', async () => {
-      await expect(
-        service.updateProgram(TENANT_ID, uuid(), { name: 'New Name' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.updateProgram(TENANT_ID, uuid(), { name: 'New Name' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw BusinessRuleError when update makes endDate <= startDate', async () => {
@@ -573,11 +575,14 @@ describe('TrainingService', () => {
   describe('listPrograms', () => {
     it('should list programs with pagination', async () => {
       for (let i = 0; i < 3; i++) {
-        await service.createProgram(TENANT_ID, validProgramInput({
-          name: `Program ${i}`,
-          startDate: `2024-0${i + 1}-01`,
-          endDate: `2024-0${i + 2}-28`,
-        }));
+        await service.createProgram(
+          TENANT_ID,
+          validProgramInput({
+            name: `Program ${i}`,
+            startDate: `2024-0${i + 1}-01`,
+            endDate: `2024-0${i + 2}-28`,
+          }),
+        );
       }
 
       const result = await service.listPrograms(TENANT_ID, undefined, { page: 1, pageSize: 20 });
@@ -587,11 +592,14 @@ describe('TrainingService', () => {
 
     it('should search programs by name', async () => {
       await service.createProgram(TENANT_ID, validProgramInput({ name: 'Advanced Teaching' }));
-      await service.createProgram(TENANT_ID, validProgramInput({
-        name: 'Basic Admin',
-        startDate: '2024-07-01',
-        endDate: '2024-12-31',
-      }));
+      await service.createProgram(
+        TENANT_ID,
+        validProgramInput({
+          name: 'Basic Admin',
+          startDate: '2024-07-01',
+          endDate: '2024-12-31',
+        }),
+      );
 
       const result = await service.listPrograms(TENANT_ID, 'advanced', { page: 1, pageSize: 20 });
       expect(result.data).toHaveLength(1);

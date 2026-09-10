@@ -65,6 +65,15 @@ export {
   VehicleResponseSchema,
   DriverAssignmentResponseSchema,
   StudentAssignmentResponseSchema,
+  RecordGpsPingSchema,
+  VehicleParamsSchema,
+  RecordBusAttendanceSchema,
+  IngestGpsBatchSchema,
+  RegisterVehicleDeviceSchema,
+  UpsertBusAttendanceSchema,
+  CreateAlertRuleSchema,
+  EvaluateAlertsSchema,
+  CreateTransportFeeStructureSchema,
 } from './schemas.js';
 export type {
   CreateTransportRouteInput,
@@ -85,7 +94,27 @@ export type {
   VehicleResponse,
   DriverAssignmentResponse,
   StudentAssignmentResponse,
+  RecordGpsPingInput,
+  VehicleParams,
+  RecordBusAttendanceInput,
+  IngestGpsBatchInput,
+  RegisterVehicleDeviceInput,
+  UpsertBusAttendanceInput,
+  CreateAlertRuleInput,
+  EvaluateAlertsInput,
+  CreateTransportFeeStructureInput,
 } from './schemas.js';
+
+export {
+  GpsAttendanceStubStore,
+  GPS_STUB_HONESTY_NOTE,
+  BUS_ATTENDANCE_STUB_HONESTY_NOTE,
+} from './gps-attendance-stub.js';
+export type { GpsPing, BusAttendanceEvent } from './gps-attendance-stub.js';
+
+export { evaluateTransportAlerts, osmDeepLink, haversineMeters } from './alert-evaluator.js';
+export type { TransportFeesPort } from './fees-port.js';
+export { GPS_LIVE_HONESTY_NOTE, TRANSPORT_FEE_PENDING_NOTE } from './transport-service.js';
 
 // Routes
 export { registerTransportRoutes } from './routes.js';

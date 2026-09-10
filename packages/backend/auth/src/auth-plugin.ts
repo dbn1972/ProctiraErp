@@ -53,10 +53,7 @@ function isExcludedPath(path: string, excludePaths: string[]): boolean {
  * an `authenticate` preHandler decorator.
  */
 export const authPlugin = fp(
-  async function authPluginImpl(
-    fastify: FastifyInstance,
-    options: AuthPluginOptions,
-  ) {
+  async function authPluginImpl(fastify: FastifyInstance, options: AuthPluginOptions) {
     const {
       config,
       excludePaths = [
@@ -86,10 +83,7 @@ export const authPlugin = fp(
     // Decorate with authenticate function
     fastify.decorate(
       'authenticate',
-      async function authenticateHandler(
-        request: FastifyRequest,
-        reply: FastifyReply,
-      ) {
+      async function authenticateHandler(request: FastifyRequest, reply: FastifyReply) {
         // Skip excluded paths
         if (isExcludedPath(request.url, excludePaths)) {
           return;
@@ -115,7 +109,7 @@ export const authPlugin = fp(
   },
   {
     name: '@proctira/backend-auth',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

@@ -22,10 +22,7 @@ import {
   SelectValue,
   Textarea,
 } from '@proctira/ui/components';
-import {
-  appraisalFormSchema,
-  type AppraisalFormValues,
-} from '@/lib/validation/staff-schema';
+import { appraisalFormSchema, type AppraisalFormValues } from '@/lib/validation/staff-schema';
 
 import { createAppraisalAction, type ActionState } from '../actions';
 
@@ -46,8 +43,7 @@ const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
 
 export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
   const router = useRouter();
-  const [serverState, setServerState] =
-    useState<ActionState<{ appraisalId: string }> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<{ appraisalId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -159,9 +155,7 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
       >
         <Select
           value={templateId || undefined}
-          onValueChange={(value) =>
-            setValue('templateId', value, { shouldValidate: true })
-          }
+          onValueChange={(value) => setValue('templateId', value, { shouldValidate: true })}
         >
           <SelectTrigger id="templateId">
             <SelectValue placeholder="Select template" />
@@ -208,12 +202,9 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
                 className="grid gap-3 rounded-md border p-3 md:grid-cols-[1fr_120px_1fr]"
               >
                 <div>
-                  <p className="text-sm font-medium">
-                    {criterion?.name ?? field.criterionName}
-                  </p>
+                  <p className="text-sm font-medium">{criterion?.name ?? field.criterionName}</p>
                   <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    Weight: {criterion?.weight ?? 0}% · Max:{' '}
-                    {criterion?.maxScore ?? 0}
+                    Weight: {criterion?.weight ?? 0}% · Max: {criterion?.maxScore ?? 0}
                   </p>
                 </div>
                 <FormField
@@ -257,12 +248,7 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
       </FormField>
 
       <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={isPending}>

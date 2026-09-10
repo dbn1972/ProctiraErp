@@ -47,32 +47,13 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
-  const {
-    fullName,
-    email,
-    password,
-    institutionName,
-    roleId,
-    termsAcceptance,
-  } = body;
+  const { fullName, email, password, institutionName, roleId, termsAcceptance } = body;
 
-  if (
-    !fullName ||
-    !email ||
-    !password ||
-    !institutionName ||
-    !roleId
-  ) {
-    return NextResponse.json(
-      { message: 'All fields are required.' },
-      { status: 400 },
-    );
+  if (!fullName || !email || !password || !institutionName || !roleId) {
+    return NextResponse.json({ message: 'All fields are required.' }, { status: 400 });
   }
 
   // Requirement 4 AC 14 — reject `weak` passwords server-side using the
@@ -103,17 +84,12 @@ export async function POST(request: Request): Promise<NextResponse> {
     !termsAcceptance.termsVersion ||
     !termsAcceptance.privacyVersion
   ) {
-    return NextResponse.json(
-      { message: 'Terms acceptance is required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Terms acceptance is required.' }, { status: 400 });
   }
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';
   const forwardedFor =
-    request.headers.get('x-forwarded-for') ??
-    request.headers.get('x-real-ip') ??
-    '';
+    request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? '';
   const userAgent = request.headers.get('user-agent') ?? '';
 
   let upstream: Response;
@@ -148,8 +124,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json(
       {
-        message:
-          'The authentication service is currently unavailable. Please try again shortly.',
+        message: 'The authentication service is currently unavailable. Please try again shortly.',
       },
       { status: 503 },
     );

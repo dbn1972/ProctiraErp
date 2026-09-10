@@ -43,6 +43,11 @@ test.describe('Scholarships E2E', () => {
     expect(body.length).toBeGreaterThan(20);
   });
 
+  test('program edit route resolves for seeded program (G-804)', async ({ page }) => {
+    await page.goto(`/scholarships/programs/${PROGRAM_ID}/edit`);
+    await expect(page.locator('h1').first()).toBeVisible();
+  });
+
   test('applications list renders', async ({ page }) => {
     await page.goto('/scholarships/applications');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

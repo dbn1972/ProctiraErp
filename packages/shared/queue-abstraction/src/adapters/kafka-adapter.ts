@@ -116,9 +116,7 @@ export class KafkaAdapter implements QueueAdapter {
       eachMessage: async (payload: EachMessagePayload) => {
         if (!payload.message.value) return;
 
-        const message = JSON.parse(
-          payload.message.value.toString()
-        ) as QueueMessage;
+        const message = JSON.parse(payload.message.value.toString()) as QueueMessage;
 
         await handler(message);
       },
@@ -167,9 +165,7 @@ export class KafkaAdapter implements QueueAdapter {
     return this.connected;
   }
 
-  private serializeHeaders(
-    headers?: Record<string, string>
-  ): Record<string, string> | undefined {
+  private serializeHeaders(headers?: Record<string, string>): Record<string, string> | undefined {
     if (!headers) return undefined;
     return headers;
   }

@@ -9,12 +9,7 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
-import {
-  AUTH_COOKIES,
-  decodeTokenPayload,
-  isTokenExpired,
-  type TokenPayload,
-} from './session';
+import { AUTH_COOKIES, decodeTokenPayload, isTokenExpired, type TokenPayload } from './session';
 
 /** Result returned by getSession. */
 export interface ServerSession {
@@ -65,9 +60,7 @@ export async function getSession(): Promise<ServerSession | null> {
 export async function requireSession(returnTo?: string): Promise<ServerSession> {
   const session = await getSession();
   if (!session || session.isExpired) {
-    const params = returnTo
-      ? `?returnTo=${encodeURIComponent(returnTo)}`
-      : '';
+    const params = returnTo ? `?returnTo=${encodeURIComponent(returnTo)}` : '';
     redirect(`/login${params}`);
   }
   return session;

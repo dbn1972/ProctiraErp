@@ -3,7 +3,21 @@ import { randomUUID } from 'node:crypto';
 import { NotFoundError, ValidationError } from '@proctira/common';
 
 import { detectMeetingClashes, detectSubstituteClashes } from './clash-helper.js';
-import { TimetableClashError } from './timetable-errors.js';
+import {
+  InMemoryTimetableOpsStore,
+  type GenerationJobRecord,
+  type TeacherAbsenceRecord,
+  type TimetableOpsStore,
+} from './generation-store.js';
+import {
+  generateTimetable,
+  type GenerateInput,
+  type GeneratorDemand,
+  type GeneratorPeriod,
+  type GeneratorRoom,
+} from './generation.js';
+import type { CreateGenerationJobInput, CreateTeacherAbsenceInput } from './schemas.js';
+import { isTimetableClashError, TimetableClashError } from './timetable-errors.js';
 import type {
   BellScheduleEntity,
   PeriodEntity,
@@ -72,10 +86,20 @@ function slugCode(name: string, fallback: string): string {
   );
 }
 
+function isoWeekday(isoDate: string): number {
+  return ((new Date(`${isoDate}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+}
+
 export class TimetableService {
   private readonly auditLog: TimetableAuditEntry[] = [];
+  private readonly ops: TimetableOpsStore;
 
-  constructor(private readonly repo: TimetableRepository) {}
+  constructor(
+    private readonly repo: TimetableRepository,
+    ops?: TimetableOpsStore,
+  ) {
+    this.ops = ops ?? new InMemoryTimetableOpsStore();
+  }
 
   listAudits(tenantId: string): TimetableAuditEntry[] {
     return this.auditLog.filter((row) => row.tenantId === tenantId);
@@ -338,6 +362,122 @@ export class TimetableService {
   }
 
   /**
+   * Bulk roster assign (G-304). Processes each student independently so one
+   * capacity/validation failure does not roll back prior successes.
+   */
+  async bulkEnrollStudents(
+    tenantId: string,
+    sectionId: string,
+    studentIds: string[],
+  ): Promise<{
+    enrolled: SectionEnrollmentEntity[];
+    failed: Array<{ studentId: string; code: string; message: string }>;
+  }> {
+    const unique = [...new Set(studentIds.map((id) => id.trim()).filter(Boolean))];
+    const enrolled: SectionEnrollmentEntity[] = [];
+    const failed: Array<{ studentId: string; code: string; message: string }> = [];
+
+    for (const studentId of unique) {
+      try {
+        const row = await this.enrollStudent(tenantId, sectionId, studentId);
+        if (!row) {
+          failed.push({
+            studentId,
+            code: 'ENROLL_FAILED',
+            message: 'Enrollment update returned no row',
+          });
+          continue;
+        }
+        enrolled.push(row);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Enroll failed';
+        const code =
+          error instanceof NotFoundError
+            ? 'NOT_FOUND'
+            : error instanceof ValidationError
+              ? 'VALIDATION_ERROR'
+              : 'ENROLL_FAILED';
+        failed.push({ studentId, code, message });
+      }
+    }
+
+    this.recordAudit({
+      tenantId,
+      action: 'section.bulk_enroll',
+      entityType: 'section',
+      entityId: sectionId,
+      actorId: null,
+      details: {
+        requested: unique.length,
+        enrolled: enrolled.length,
+        failed: failed.length,
+      },
+    });
+
+    return { enrolled, failed };
+  }
+
+  /**
+   * Surface the master-schedule conflict engine for an institution grid (G-304).
+   * Returns unique staff/room/class clashes among active meetings.
+   */
+  async listConflicts(
+    tenantId: string,
+    filter: { institutionId: string; academicPeriodId?: string },
+  ): Promise<
+    Array<{
+      reason: string;
+      meetingId?: string;
+      againstMeetingId: string;
+      dayOfWeek: number;
+      periodId: string;
+      staffId?: string;
+      sectionId?: string;
+      roomId?: string | null;
+    }>
+  > {
+    const meetings = await this.repo.listMeetings(tenantId, {
+      institutionId: filter.institutionId,
+      academicPeriodId: filter.academicPeriodId,
+    });
+
+    const seen = new Set<string>();
+    const out: Array<{
+      reason: string;
+      meetingId?: string;
+      againstMeetingId: string;
+      dayOfWeek: number;
+      periodId: string;
+      staffId?: string;
+      sectionId?: string;
+      roomId?: string | null;
+    }> = [];
+
+    for (const candidate of meetings) {
+      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id);
+      for (const c of conflicts) {
+        const peer = c.meetingId ?? '';
+        const pairKey = [candidate.id, peer].sort().join('|');
+        const key = `${c.reason}|${pairKey}|${c.dayOfWeek}|${c.periodId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          reason: c.reason,
+          meetingId: c.meetingId,
+          againstMeetingId: candidate.id,
+          dayOfWeek: c.dayOfWeek,
+          periodId: c.periodId,
+          staffId: c.staffId,
+          sectionId: c.sectionId,
+          roomId: c.roomId,
+        });
+      }
+    }
+
+    return out;
+  }
+
+  /**
    * Publish a draft section. Runs institution-wide room∩time and teacher∩time
    * clash detection including this section's meetings → 409 on conflict.
    */
@@ -595,6 +735,224 @@ export class TimetableService {
 
   listAttendancePeriods(tenantId: string, filter: { institutionId: string; dayOfWeek?: number }) {
     return this.repo.listAttendancePeriods(tenantId, filter);
+  }
+
+  listGenerationJobs(tenantId: string, filter: { institutionId?: string }) {
+    return this.ops.listJobs(tenantId, filter);
+  }
+
+  getGenerationJob(tenantId: string, id: string) {
+    return this.ops.getJob(tenantId, id);
+  }
+
+  /**
+   * Queue a generation job and run it synchronously in-process (G-917).
+   */
+  async runGenerationJob(
+    tenantId: string,
+    input: CreateGenerationJobInput,
+    requestedBy: string | null,
+  ): Promise<GenerationJobRecord> {
+    const now = nowIso();
+    const job = await this.ops.createJob({
+      id: randomUUID(),
+      tenantId,
+      institutionId: input.institutionId,
+      academicPeriodId: input.academicPeriodId,
+      bellScheduleId: input.bellScheduleId ?? null,
+      status: 'queued',
+      requestedBy,
+      persistMeetings: input.persistMeetings ?? false,
+      teacherMaxPeriodsPerDay: input.teacherMaxPeriodsPerDay ?? 6,
+      demandCount: input.demands.length,
+      assignedCount: 0,
+      unassignedCount: 0,
+      clashCount: 0,
+      repairPasses: 0,
+      stats: {},
+      input: input as unknown as Record<string, unknown>,
+      result: {},
+      errorMessage: null,
+      createdAt: now,
+      startedAt: null,
+      finishedAt: null,
+      updatedAt: now,
+    });
+
+    await this.ops.updateJob(tenantId, job.id, {
+      status: 'running',
+      startedAt: nowIso(),
+    });
+
+    try {
+      const periods = await this.resolvePeriods(tenantId, input);
+      const rooms = await this.repo.listRooms(tenantId, { institutionId: input.institutionId });
+      const generateInput: GenerateInput = {
+        daysOfWeek: input.daysOfWeek ?? [1, 2, 3, 4, 5],
+        periods,
+        rooms: rooms.map((r): GeneratorRoom => ({ id: r.id, capacity: r.capacity })),
+        demands: input.demands.map(
+          (d): GeneratorDemand => ({
+            id: d.id ?? randomUUID(),
+            sectionId: d.sectionId,
+            subjectId: d.subjectId,
+            staffId: d.staffId,
+            periodsPerWeek: d.periodsPerWeek,
+            preferredRoomId: d.preferredRoomId ?? null,
+            enrollmentCount: d.enrollmentCount ?? 0,
+          }),
+        ),
+        unavailable: input.unavailable,
+        teacherMaxPeriodsPerDay: input.teacherMaxPeriodsPerDay ?? 6,
+      };
+      const generated = generateTimetable(generateInput);
+
+      let persisted = 0;
+      let persistSkipped = 0;
+      if (input.persistMeetings) {
+        for (const assignment of generated.assignments) {
+          try {
+            await this.createMeeting(tenantId, {
+              institutionId: input.institutionId,
+              academicPeriodId: input.academicPeriodId,
+              sectionId: assignment.sectionId,
+              subjectId: assignment.subjectId,
+              staffId: assignment.staffId,
+              periodId: assignment.periodId,
+              roomId: assignment.roomId,
+              dayOfWeek: assignment.dayOfWeek,
+              status: 'active',
+            });
+            persisted += 1;
+          } catch (error) {
+            if (isTimetableClashError(error)) {
+              persistSkipped += 1;
+              continue;
+            }
+            throw error;
+          }
+        }
+      }
+
+      const updated = await this.ops.updateJob(tenantId, job.id, {
+        status: 'done',
+        assignedCount: generated.assignments.length,
+        unassignedCount: generated.unassigned.reduce((s, u) => s + u.remaining, 0),
+        clashCount: generated.hardClashCount,
+        repairPasses: generated.repairPasses,
+        stats: {
+          ...generated.stats,
+          persisted,
+          persistSkipped,
+        },
+        result: {
+          assignments: generated.assignments,
+          unassigned: generated.unassigned,
+        },
+        finishedAt: nowIso(),
+      });
+      this.recordAudit({
+        tenantId,
+        action: 'generation.run',
+        entityType: 'generation_job',
+        entityId: job.id,
+        actorId: requestedBy,
+        details: {
+          assigned: generated.assignments.length,
+          clashCount: generated.hardClashCount,
+          persistMeetings: Boolean(input.persistMeetings),
+        },
+      });
+      return updated ?? job;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'generation failed';
+      const failed = await this.ops.updateJob(tenantId, job.id, {
+        status: 'failed',
+        errorMessage: message,
+        finishedAt: nowIso(),
+      });
+      if (failed) return failed;
+      throw error;
+    }
+  }
+
+  async markTeacherAbsent(
+    tenantId: string,
+    input: CreateTeacherAbsenceInput,
+    createdBy: string | null,
+  ): Promise<{
+    absence: TeacherAbsenceRecord;
+    affected: Awaited<ReturnType<TimetableService['listAffectedPeriods']>>;
+  }> {
+    const absence = await this.ops.createAbsence({
+      id: randomUUID(),
+      tenantId,
+      institutionId: input.institutionId,
+      staffId: input.staffId,
+      absenceDate: input.absenceDate,
+      reason: input.reason ?? null,
+      createdBy,
+      createdAt: nowIso(),
+    });
+    const affected = await this.listAffectedPeriods(tenantId, {
+      institutionId: input.institutionId,
+      staffId: input.staffId,
+      date: input.absenceDate,
+    });
+    this.recordAudit({
+      tenantId,
+      action: 'teacher_absence.create',
+      entityType: 'teacher_absence',
+      entityId: absence.id,
+      actorId: createdBy,
+      details: { staffId: input.staffId, date: input.absenceDate, affected: affected.length },
+    });
+    return { absence, affected };
+  }
+
+  async listAffectedPeriods(
+    tenantId: string,
+    filter: { institutionId: string; staffId: string; date: string },
+  ) {
+    const dayOfWeek = isoWeekday(filter.date);
+    const meetings = await this.repo.listMeetings(tenantId, {
+      institutionId: filter.institutionId,
+      staffId: filter.staffId,
+    });
+    return meetings.filter((m) => m.dayOfWeek === dayOfWeek && m.status !== 'cancelled');
+  }
+
+  private async resolvePeriods(
+    tenantId: string,
+    input: CreateGenerationJobInput,
+  ): Promise<GeneratorPeriod[]> {
+    if (input.bellScheduleId) {
+      const rows = await this.repo.listPeriods(tenantId, input.bellScheduleId);
+      return rows.map((p) => ({
+        id: p.id,
+        startTime: p.startTime,
+        endTime: p.endTime,
+        periodOrder: p.periodOrder,
+      }));
+    }
+    const schedules = await this.repo.listBellSchedules(tenantId, {
+      institutionId: input.institutionId,
+      academicPeriodId: input.academicPeriodId,
+    });
+    const first = schedules[0];
+    if (!first) {
+      throw new ValidationError('No bell schedule found; create periods before generating');
+    }
+    const rows = await this.repo.listPeriods(tenantId, first.id);
+    if (rows.length === 0) {
+      throw new ValidationError('Bell schedule has no periods');
+    }
+    return rows.map((p) => ({
+      id: p.id,
+      startTime: p.startTime,
+      endTime: p.endTime,
+      periodOrder: p.periodOrder,
+    }));
   }
 
   private async assertSectionEditable(tenantId: string, sectionId: string): Promise<void> {

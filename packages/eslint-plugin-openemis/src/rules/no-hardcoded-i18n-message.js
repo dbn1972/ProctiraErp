@@ -13,7 +13,7 @@
  * Mirrors tools/dod-checks/src/checks/i18n-readiness.mjs.
  */
 
-"use strict";
+'use strict';
 
 const ACCEPTABLE_PATTERNS = [
   /^[a-z][a-z0-9_]+(\.[a-z0-9_]+)+$/,
@@ -31,11 +31,11 @@ function isAcceptable(value) {
 /** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
-    type: "suggestion",
+    type: 'suggestion',
     docs: {
       description:
-        "Disallow hardcoded user-facing strings in the `message` property of route response payloads.",
-      category: "Best Practices",
+        'Disallow hardcoded user-facing strings in the `message` property of route response payloads.',
+      category: 'Best Practices',
       recommended: false,
     },
     schema: [],
@@ -47,23 +47,23 @@ module.exports = {
 
   create(context) {
     function checkProperty(node) {
-      if (node.type !== "Property") return;
+      if (node.type !== 'Property') return;
       // Property key must be `message` (identifier or literal).
       const keyName =
-        node.key.type === "Identifier"
+        node.key.type === 'Identifier'
           ? node.key.name
-          : node.key.type === "Literal"
+          : node.key.type === 'Literal'
             ? node.key.value
             : null;
-      if (keyName !== "message") return;
+      if (keyName !== 'message') return;
       // Value must be a plain string literal.
-      if (node.value.type !== "Literal") return;
-      if (typeof node.value.value !== "string") return;
+      if (node.value.type !== 'Literal') return;
+      if (typeof node.value.value !== 'string') return;
       const value = node.value.value;
       if (isAcceptable(value)) return;
       context.report({
         node: node.value,
-        messageId: "hardcoded",
+        messageId: 'hardcoded',
         data: { preview: value.length > 60 ? `${value.slice(0, 57)}...` : value },
       });
     }

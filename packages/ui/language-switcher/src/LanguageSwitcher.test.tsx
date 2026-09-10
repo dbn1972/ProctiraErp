@@ -17,7 +17,7 @@ describe('LanguageSwitcher', () => {
           languages={testLanguages}
           currentLanguage="en"
           onLanguageChange={vi.fn()}
-        />
+        />,
       );
 
       expect(screen.getByText('English')).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('LanguageSwitcher', () => {
           languages={testLanguages}
           currentLanguage="en"
           onLanguageChange={vi.fn()}
-        />
+        />,
       );
 
       const trigger = screen.getByRole('button', { name: /current language: english/i });
@@ -47,7 +47,7 @@ describe('LanguageSwitcher', () => {
           languages={testLanguages}
           currentLanguage="en"
           onLanguageChange={onLanguageChange}
-        />
+        />,
       );
 
       // Open dropdown
@@ -67,7 +67,7 @@ describe('LanguageSwitcher', () => {
           currentLanguage="en"
           onLanguageChange={vi.fn()}
           onRtlToggle={onRtlToggle}
-        />
+        />,
       );
 
       fireEvent.click(screen.getByRole('button', { name: /current language: english/i }));
@@ -84,7 +84,7 @@ describe('LanguageSwitcher', () => {
           onLanguageChange={vi.fn()}
           showRtlToggle
           onRtlToggle={vi.fn()}
-        />
+        />,
       );
 
       const rtlToggle = screen.getByRole('button', { name: /switch to right-to-left layout/i });
@@ -102,7 +102,7 @@ describe('LanguageSwitcher', () => {
           showRtlToggle
           onRtlToggle={onRtlToggle}
           isRtl={false}
-        />
+        />,
       );
 
       fireEvent.click(screen.getByRole('button', { name: /switch to right-to-left layout/i }));
@@ -118,7 +118,7 @@ describe('LanguageSwitcher', () => {
           showRtlToggle
           onRtlToggle={vi.fn()}
           disabled
-        />
+        />,
       );
 
       expect(screen.getByRole('button', { name: /current language/i })).toBeDisabled();
@@ -131,7 +131,7 @@ describe('LanguageSwitcher', () => {
           languages={testLanguages}
           currentLanguage="en"
           onLanguageChange={vi.fn()}
-        />
+        />,
       );
 
       const trigger = screen.getByRole('button', { name: /current language: english/i });
@@ -148,7 +148,7 @@ describe('LanguageSwitcher', () => {
           currentLanguage="en"
           onLanguageChange={vi.fn()}
           variant="inline"
-        />
+        />,
       );
 
       expect(screen.getByRole('button', { name: /switch to english/i })).toBeInTheDocument();
@@ -163,7 +163,7 @@ describe('LanguageSwitcher', () => {
           currentLanguage="en"
           onLanguageChange={vi.fn()}
           variant="inline"
-        />
+        />,
       );
 
       const activeOption = screen.getByRole('option', { selected: true });

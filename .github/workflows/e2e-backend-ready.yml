@@ -1,0 +1,295 @@
+# =============================================================================
+# G-401 / G-706 — E2E backend-ready (PR gate + nightly + manual)
+# =============================================================================
+# Spins Postgres + Redis, applies Prisma migrations + db/sql domain schemas,
+# then invokes tools/scripts/run-e2e-backend-ready.sh which starts api-gateway
+# and runs Playwright live write-smokes with E2E_BACKEND_READY=1.
+#
+# Modes:
+#   pull_request  — HARD gate (E2E_REQUIRE_LIVE=1): gateway must come up and the
+#                   PR spec set must pass; a red job blocks the PR.
+#   schedule      — nightly, hard-fail, broader spec set.
+#   dispatch      — operator picks specs; require_live defaults to true.
+#
+# Honest scope (no live IdP / Keycloak secrets): all live specs authenticate
+# with HS256 cookies (JWT_SECRET) — no seeded password login is claimed here.
+# =============================================================================
+
+name: E2E Backend Ready
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'redesign/**'
+  workflow_dispatch:
+    inputs:
+      require_live:
+        description: 'Fail if api-gateway does not become healthy (E2E_REQUIRE_LIVE=1)'
+        required: false
+        type: boolean
+        default: true
+      skip_stack:
+        description: 'Scaffolding only — migrate/SQL then skip gateway + Playwright'
+        required: false
+        type: boolean
+        default: false
+      specs:
+        description: 'Playwright specs relative to apps/web (space-separated)'
+        required: false
+        type: string
+        default: ''
+  schedule:
+    # Nightly 04:15 UTC — broader spec set than the PR gate.
+    - cron: '15 4 * * *'
+
+concurrency:
+  group: e2e-backend-ready-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+  DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+  REDIS_URL: redis://localhost:6379
+  JWT_SECRET: dev-secret-change-in-production
+  E2E_GATEWAY_URL: http://127.0.0.1:3000
+  NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:3000
+  # PR gate: HS256-cookie live smokes that need only Postgres + gateway.
+  # G-722: PR gate includes authenticated axe matrix (a11y-axe) + 17c smoke.
+  PR_SPECS: >-
+    e2e/17b-health-counselling-write-smoke.spec.ts
+    e2e/17c-module-a11y-smoke.spec.ts
+    e2e/a11y-axe.spec.ts
+    e2e/22-parent-portal-smoke.spec.ts
+    e2e/21c-campus-comms-write-smoke.spec.ts
+    e2e/14c-insights-live-write-smoke.spec.ts
+    e2e/20c-notifications-prefs-write-smoke.spec.ts
+    e2e/25-platform-surfaces-smoke.spec.ts
+    e2e/26-lms-write-smoke.spec.ts
+    e2e/27-academics-setup-write-smoke.spec.ts
+    e2e/34-examinations-write-smoke.spec.ts
+    e2e/35-admin-console-write-smoke.spec.ts
+    e2e/36-audit-integrity-dsar-smoke.spec.ts
+    e2e/37-scholarship-decision-write-smoke.spec.ts
+    e2e/38-academic-calendar-write-smoke.spec.ts
+    e2e/39-fees-structures-write-smoke.spec.ts
+    e2e/40-portals-academic-visibility-smoke.spec.ts
+    e2e/41-admissions-crm-write-smoke.spec.ts
+    e2e/42-gradebook-workflow-write-smoke.spec.ts
+    e2e/43-curriculum-coverage-write-smoke.spec.ts
+    e2e/44-students-360-write-smoke.spec.ts
+    e2e/45-exam-ops-write-smoke.spec.ts
+    e2e/46-reports-bi-write-smoke.spec.ts
+    e2e/46-reports-real-exports-smoke.spec.ts
+    e2e/47-lms-depth-write-smoke.spec.ts
+    e2e/48-library-ops-write-smoke.spec.ts
+    e2e/49-hostel-ops-write-smoke.spec.ts
+    e2e/50-timetable-generation-write-smoke.spec.ts
+    e2e/51-attendance-ops-write-smoke.spec.ts
+    e2e/52-staff-hr-write-smoke.spec.ts
+    e2e/53-communication-circulars-write-smoke.spec.ts
+    e2e/54-transport-ops-write-smoke.spec.ts
+  # Nightly: PR set + the remaining live write smokes.
+  NIGHTLY_SPECS: >-
+    e2e/17b-health-counselling-write-smoke.spec.ts
+    e2e/17c-module-a11y-smoke.spec.ts
+    e2e/a11y-axe.spec.ts
+    e2e/22-parent-portal-smoke.spec.ts
+    e2e/21c-campus-comms-write-smoke.spec.ts
+    e2e/14c-insights-live-write-smoke.spec.ts
+    e2e/20c-notifications-prefs-write-smoke.spec.ts
+    e2e/25-platform-surfaces-smoke.spec.ts
+    e2e/26-lms-write-smoke.spec.ts
+    e2e/27-academics-setup-write-smoke.spec.ts
+    e2e/34-examinations-write-smoke.spec.ts
+    e2e/35-admin-console-write-smoke.spec.ts
+    e2e/36-audit-integrity-dsar-smoke.spec.ts
+    e2e/37-scholarship-decision-write-smoke.spec.ts
+    e2e/38-academic-calendar-write-smoke.spec.ts
+    e2e/39-fees-structures-write-smoke.spec.ts
+    e2e/40-portals-academic-visibility-smoke.spec.ts
+    e2e/41-admissions-crm-write-smoke.spec.ts
+    e2e/42-gradebook-workflow-write-smoke.spec.ts
+    e2e/43-curriculum-coverage-write-smoke.spec.ts
+    e2e/44-students-360-write-smoke.spec.ts
+    e2e/45-exam-ops-write-smoke.spec.ts
+    e2e/46-reports-bi-write-smoke.spec.ts
+    e2e/46-reports-real-exports-smoke.spec.ts
+    e2e/47-lms-depth-write-smoke.spec.ts
+    e2e/48-library-ops-write-smoke.spec.ts
+    e2e/49-hostel-ops-write-smoke.spec.ts
+    e2e/50-timetable-generation-write-smoke.spec.ts
+    e2e/51-attendance-ops-write-smoke.spec.ts
+    e2e/52-staff-hr-write-smoke.spec.ts
+    e2e/53-communication-circulars-write-smoke.spec.ts
+    e2e/54-transport-ops-write-smoke.spec.ts
+    e2e/21d-campus-hostel-library-write-smoke.spec.ts
+    e2e/15b-staff-write-validation-smoke.spec.ts
+    e2e/15d-student-write-validation-smoke.spec.ts
+    e2e/19-services-write-validation-smoke.spec.ts
+    e2e/20b-attendance-write-validation-smoke.spec.ts
+    e2e/21b-assessments-write-validation-smoke.spec.ts
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-backend-ready:
+    name: E2E backend-ready live gate (G-401 / G-706)
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    # Hard-fail Playwright when it actually runs (no continue-on-error).
+    # Scaffolding skip path exits 0 from the harness with a clear summary.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          # Bootstrap superuser only; the gateway connects as `proctira`, a
+          # NOSUPERUSER / NOBYPASSRLS owner provisioned below so the live
+          # cross-tenant checks exercise RLS the way production does.
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Provision non-superuser app role + database (production RLS posture)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          export PGPASSWORD=postgres
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c 'CREATE DATABASE proctira_test OWNER proctira;'
+          psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: app role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
+
+      - name: Run database migrations (Prisma)
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Apply domain SQL schemas (G-002) with production FK posture (G-718)
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          APPLY_SEEDS: '1'
+          # Same tenant FK posture as production; the harness seeds the E2E
+          # tenant rows (tools/e2e/seed-e2e-tenants.sql) before the gateway starts.
+          APPLY_STRICT_FKS: '1'
+
+      - name: Multi-board 3×2×500 certification (G-408)
+        run: |
+          mkdir -p /opt/cursor/artifacts/multi-board-onboard
+          # Schema already applied above; re-run seed + verify via onboard script.
+          # apply-sql is idempotent; seed tears down prior cert tenant.
+          bash tools/scripts/setup-live-db-and-onboard.sh
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          ARTIFACT_DIR: /opt/cursor/artifacts/multi-board-onboard
+
+      - name: Upload multi-board certify artifacts (G-408)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-board-onboard
+          path: /opt/cursor/artifacts/multi-board-onboard/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Install Playwright Chromium
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_stack != true }}
+        run: pnpm --filter @proctira/web exec playwright install --with-deps chromium
+
+      - name: Select spec set + live requirement
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SPECS: ${{ inputs.specs }}
+          INPUT_REQUIRE_LIVE: ${{ inputs.require_live }}
+        run: |
+          case "$EVENT" in
+            pull_request)
+              echo "specs=${PR_SPECS}" >> "$GITHUB_OUTPUT"
+              echo "require_live=1" >> "$GITHUB_OUTPUT"
+              ;;
+            schedule)
+              echo "specs=${NIGHTLY_SPECS}" >> "$GITHUB_OUTPUT"
+              echo "require_live=1" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "specs=${INPUT_SPECS:-$NIGHTLY_SPECS}" >> "$GITHUB_OUTPUT"
+              if [ "$INPUT_REQUIRE_LIVE" = "false" ]; then
+                echo "require_live=0" >> "$GITHUB_OUTPUT"
+              else
+                echo "require_live=1" >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+          esac
+
+      - name: Run backend-ready E2E harness (G-401 / G-706)
+        # No continue-on-error: a failing spec or a gateway that never becomes
+        # healthy (E2E_REQUIRE_LIVE=1) fails the job and therefore the PR.
+        run: |
+          ARGS=()
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.skip_stack }}" == "true" ]]; then
+            ARGS+=(--skip-stack)
+          fi
+          bash tools/scripts/run-e2e-backend-ready.sh "${ARGS[@]}"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
+          NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
+          E2E_SPECS: ${{ steps.mode.outputs.specs }}
+          E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
+          CI: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-backend-ready-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            .e2e-gateway.log
+          retention-days: 14
+          if-no-files-found: ignore

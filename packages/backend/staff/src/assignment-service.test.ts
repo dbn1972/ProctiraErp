@@ -37,7 +37,9 @@ const INSTITUTION_ID = uuid();
 const SUBJECT_ID = uuid();
 const CLASS_ID = uuid();
 
-function validAssignmentInput(overrides: Partial<CreateAssignmentInput> = {}): CreateAssignmentInput {
+function validAssignmentInput(
+  overrides: Partial<CreateAssignmentInput> = {},
+): CreateAssignmentInput {
   return {
     staffId: STAFF_ID,
     institutionId: INSTITUTION_ID,
@@ -112,10 +114,13 @@ describe('StaffAssignmentService', () => {
     describe('overlapping assignment prevention (Requirement 7.2)', () => {
       it('should throw ConflictError for overlapping date ranges on same institution-subject-class', async () => {
         // Create first assignment: Jan-Jun 2024
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-06-30',
+          }),
+        );
 
         // Try to create overlapping assignment: Mar-Sep 2024
         const overlapping = validAssignmentInput({
@@ -130,10 +135,13 @@ describe('StaffAssignmentService', () => {
       });
 
       it('should throw ConflictError when new assignment is fully within existing range', async () => {
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-12-31',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-12-31',
+          }),
+        );
 
         const contained = validAssignmentInput({
           startDate: '2024-03-01',
@@ -145,10 +153,13 @@ describe('StaffAssignmentService', () => {
 
       it('should throw ConflictError when existing is ongoing and new overlaps', async () => {
         // Create ongoing assignment (no end date)
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: undefined,
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: undefined,
+          }),
+        );
 
         // Try to create assignment starting after existing
         const overlapping = validAssignmentInput({
@@ -160,10 +171,13 @@ describe('StaffAssignmentService', () => {
       });
 
       it('should throw ConflictError when both assignments are ongoing', async () => {
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: undefined,
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: undefined,
+          }),
+        );
 
         const overlapping = validAssignmentInput({
           startDate: '2024-06-01',
@@ -175,10 +189,13 @@ describe('StaffAssignmentService', () => {
 
       it('should allow non-overlapping assignments to same institution-subject-class', async () => {
         // First assignment: Jan-Jun 2024
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-06-30',
+          }),
+        );
 
         // Second assignment: Jul-Dec 2024 (no overlap)
         const nonOverlapping = validAssignmentInput({
@@ -192,10 +209,13 @@ describe('StaffAssignmentService', () => {
       });
 
       it('should allow overlapping dates for different institution', async () => {
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-06-30',
+          }),
+        );
 
         const differentInstitution = validAssignmentInput({
           institutionId: uuid(),
@@ -208,10 +228,13 @@ describe('StaffAssignmentService', () => {
       });
 
       it('should allow overlapping dates for different subject', async () => {
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-06-30',
+          }),
+        );
 
         const differentSubject = validAssignmentInput({
           subjectId: uuid(),
@@ -224,10 +247,13 @@ describe('StaffAssignmentService', () => {
       });
 
       it('should allow overlapping dates for different class', async () => {
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-06-30',
+          }),
+        );
 
         const differentClass = validAssignmentInput({
           classId: uuid(),
@@ -240,10 +266,13 @@ describe('StaffAssignmentService', () => {
       });
 
       it('should allow overlapping dates for different staff member', async () => {
-        await service.create(TENANT_ID, validAssignmentInput({
-          startDate: '2024-01-01',
-          endDate: '2024-06-30',
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            startDate: '2024-01-01',
+            endDate: '2024-06-30',
+          }),
+        );
 
         const differentStaff = validAssignmentInput({
           staffId: uuid(),
@@ -259,10 +288,13 @@ describe('StaffAssignmentService', () => {
     describe('allocation percentage constraint (Requirement 7.5)', () => {
       it('should throw BusinessRuleError when total allocation would exceed 100%', async () => {
         // Create first assignment with 60% allocation
-        await service.create(TENANT_ID, validAssignmentInput({
-          allocationPercentage: 60,
-          institutionId: uuid(),
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            allocationPercentage: 60,
+            institutionId: uuid(),
+          }),
+        );
 
         // Try to create second assignment with 50% (total would be 110%)
         const exceeding = validAssignmentInput({
@@ -279,10 +311,13 @@ describe('StaffAssignmentService', () => {
 
       it('should allow assignments that total exactly 100%', async () => {
         // Create first assignment with 60% allocation
-        await service.create(TENANT_ID, validAssignmentInput({
-          allocationPercentage: 60,
-          institutionId: uuid(),
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            allocationPercentage: 60,
+            institutionId: uuid(),
+          }),
+        );
 
         // Create second assignment with 40% (total = 100%)
         const exactlyFull = validAssignmentInput({
@@ -301,15 +336,21 @@ describe('StaffAssignmentService', () => {
         const inst2 = uuid();
         const inst3 = uuid();
 
-        await service.create(TENANT_ID, validAssignmentInput({
-          allocationPercentage: 30,
-          institutionId: inst1,
-        }));
-        await service.create(TENANT_ID, validAssignmentInput({
-          allocationPercentage: 30,
-          institutionId: inst2,
-          subjectId: uuid(),
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            allocationPercentage: 30,
+            institutionId: inst1,
+          }),
+        );
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            allocationPercentage: 30,
+            institutionId: inst2,
+            subjectId: uuid(),
+          }),
+        );
 
         const third = validAssignmentInput({
           allocationPercentage: 30,
@@ -324,10 +365,13 @@ describe('StaffAssignmentService', () => {
 
       it('should not count inactive assignments toward allocation total', async () => {
         // Create assignment with 80% and then deactivate it
-        const first = await service.create(TENANT_ID, validAssignmentInput({
-          allocationPercentage: 80,
-          institutionId: uuid(),
-        }));
+        const first = await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            allocationPercentage: 80,
+            institutionId: uuid(),
+          }),
+        );
 
         // Deactivate the first assignment
         await service.update(TENANT_ID, first.id, { status: 'INACTIVE' });
@@ -348,11 +392,14 @@ describe('StaffAssignmentService', () => {
         const otherStaffId = uuid();
 
         // Staff 1 has 90% allocation
-        await service.create(TENANT_ID, validAssignmentInput({
-          staffId: STAFF_ID,
-          allocationPercentage: 90,
-          institutionId: uuid(),
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            staffId: STAFF_ID,
+            allocationPercentage: 90,
+            institutionId: uuid(),
+          }),
+        );
 
         // Staff 2 should be able to have their own 90% allocation
         const otherStaffAssignment = validAssignmentInput({
@@ -385,45 +432,57 @@ describe('StaffAssignmentService', () => {
 
     it('should throw NotFoundError when assignment does not exist', async () => {
       const fakeId = uuid();
-      await expect(
-        service.update(TENANT_ID, fakeId, { role: 'New Role' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(TENANT_ID, fakeId, { role: 'New Role' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw ConflictError when date update creates overlap', async () => {
       // Create two non-overlapping assignments
-      const first = await service.create(TENANT_ID, validAssignmentInput({
-        startDate: '2024-01-01',
-        endDate: '2024-06-30',
-        allocationPercentage: 30,
-      }));
+      const first = await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          startDate: '2024-01-01',
+          endDate: '2024-06-30',
+          allocationPercentage: 30,
+        }),
+      );
 
-      await service.create(TENANT_ID, validAssignmentInput({
-        startDate: '2024-07-01',
-        endDate: '2024-12-31',
-        allocationPercentage: 30,
-      }));
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          startDate: '2024-07-01',
+          endDate: '2024-12-31',
+          allocationPercentage: 30,
+        }),
+      );
 
       // Try to extend first assignment to overlap with second
-      await expect(
-        service.update(TENANT_ID, first.id, { endDate: '2024-08-01' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.update(TENANT_ID, first.id, { endDate: '2024-08-01' })).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should throw BusinessRuleError when allocation update exceeds 100%', async () => {
       const inst1 = uuid();
       const inst2 = uuid();
 
-      await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 60,
-        institutionId: inst1,
-      }));
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 60,
+          institutionId: inst1,
+        }),
+      );
 
-      const second = await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 30,
-        institutionId: inst2,
-        subjectId: uuid(),
-      }));
+      const second = await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 30,
+          institutionId: inst2,
+          subjectId: uuid(),
+        }),
+      );
 
       // Try to increase second assignment to 50% (total would be 110%)
       await expect(
@@ -435,16 +494,22 @@ describe('StaffAssignmentService', () => {
       const inst1 = uuid();
       const inst2 = uuid();
 
-      await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 60,
-        institutionId: inst1,
-      }));
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 60,
+          institutionId: inst1,
+        }),
+      );
 
-      const second = await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 20,
-        institutionId: inst2,
-        subjectId: uuid(),
-      }));
+      const second = await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 20,
+          institutionId: inst2,
+          subjectId: uuid(),
+        }),
+      );
 
       // Increase to 40% (total = 100%)
       const updated = await service.update(TENANT_ID, second.id, { allocationPercentage: 40 });
@@ -452,10 +517,13 @@ describe('StaffAssignmentService', () => {
     });
 
     it('should throw BusinessRuleError when end date is before start date on update', async () => {
-      const created = await service.create(TENANT_ID, validAssignmentInput({
-        startDate: '2024-01-01',
-        endDate: '2024-06-30',
-      }));
+      const created = await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          startDate: '2024-01-01',
+          endDate: '2024-06-30',
+        }),
+      );
 
       await expect(
         service.update(TENANT_ID, created.id, { endDate: '2023-12-01' }),
@@ -492,12 +560,15 @@ describe('StaffAssignmentService', () => {
   describe('list', () => {
     it('should return paginated results', async () => {
       for (let i = 0; i < 5; i++) {
-        await service.create(TENANT_ID, validAssignmentInput({
-          institutionId: uuid(),
-          subjectId: uuid(),
-          classId: uuid(),
-          allocationPercentage: 10,
-        }));
+        await service.create(
+          TENANT_ID,
+          validAssignmentInput({
+            institutionId: uuid(),
+            subjectId: uuid(),
+            classId: uuid(),
+            allocationPercentage: 10,
+          }),
+        );
       }
 
       const result = await service.list(TENANT_ID, {}, { page: 1, pageSize: 3 });
@@ -510,16 +581,22 @@ describe('StaffAssignmentService', () => {
     it('should filter by staffId', async () => {
       const otherStaffId = uuid();
 
-      await service.create(TENANT_ID, validAssignmentInput({
-        staffId: STAFF_ID,
-        allocationPercentage: 30,
-      }));
-      await service.create(TENANT_ID, validAssignmentInput({
-        staffId: otherStaffId,
-        institutionId: uuid(),
-        subjectId: uuid(),
-        allocationPercentage: 30,
-      }));
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          staffId: STAFF_ID,
+          allocationPercentage: 30,
+        }),
+      );
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          staffId: otherStaffId,
+          institutionId: uuid(),
+          subjectId: uuid(),
+          allocationPercentage: 30,
+        }),
+      );
 
       const result = await service.list(
         TENANT_ID,
@@ -535,15 +612,21 @@ describe('StaffAssignmentService', () => {
       const inst1 = uuid();
       const inst2 = uuid();
 
-      await service.create(TENANT_ID, validAssignmentInput({
-        institutionId: inst1,
-        allocationPercentage: 30,
-      }));
-      await service.create(TENANT_ID, validAssignmentInput({
-        institutionId: inst2,
-        subjectId: uuid(),
-        allocationPercentage: 30,
-      }));
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          institutionId: inst1,
+          allocationPercentage: 30,
+        }),
+      );
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          institutionId: inst2,
+          subjectId: uuid(),
+          allocationPercentage: 30,
+        }),
+      );
 
       const result = await service.list(
         TENANT_ID,
@@ -556,23 +639,25 @@ describe('StaffAssignmentService', () => {
     });
 
     it('should filter by status', async () => {
-      const assignment = await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 30,
-      }));
-      await service.create(TENANT_ID, validAssignmentInput({
-        institutionId: uuid(),
-        subjectId: uuid(),
-        allocationPercentage: 30,
-      }));
+      const assignment = await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 30,
+        }),
+      );
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          institutionId: uuid(),
+          subjectId: uuid(),
+          allocationPercentage: 30,
+        }),
+      );
 
       // Deactivate first
       await service.update(TENANT_ID, assignment.id, { status: 'INACTIVE' });
 
-      const result = await service.list(
-        TENANT_ID,
-        { status: 'ACTIVE' },
-        { page: 1, pageSize: 20 },
-      );
+      const result = await service.list(TENANT_ID, { status: 'ACTIVE' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.status).toBe('ACTIVE');
@@ -597,15 +682,21 @@ describe('StaffAssignmentService', () => {
 
   describe('getTotalAllocation', () => {
     it('should return total allocation for a staff member', async () => {
-      await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 40,
-        institutionId: uuid(),
-      }));
-      await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 30,
-        institutionId: uuid(),
-        subjectId: uuid(),
-      }));
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 40,
+          institutionId: uuid(),
+        }),
+      );
+      await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 30,
+          institutionId: uuid(),
+          subjectId: uuid(),
+        }),
+      );
 
       const total = await service.getTotalAllocation(TENANT_ID, STAFF_ID);
       expect(total).toBe(70);
@@ -617,9 +708,12 @@ describe('StaffAssignmentService', () => {
     });
 
     it('should not count inactive assignments', async () => {
-      const assignment = await service.create(TENANT_ID, validAssignmentInput({
-        allocationPercentage: 50,
-      }));
+      const assignment = await service.create(
+        TENANT_ID,
+        validAssignmentInput({
+          allocationPercentage: 50,
+        }),
+      );
 
       await service.update(TENANT_ID, assignment.id, { status: 'INACTIVE' });
 

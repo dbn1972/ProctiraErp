@@ -13,23 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  BREAK_GLASS_MAX_MINUTES,
-  BREAK_GLASS_USE_CASES,
-} from '@/lib/api/break-glass-constants';
+import { BREAK_GLASS_MAX_MINUTES, BREAK_GLASS_USE_CASES } from '@/lib/api/break-glass-constants';
 
-import {
-  createBreakGlassAction,
-  type CreateBreakGlassState,
-} from './actions';
+import { createBreakGlassAction, type CreateBreakGlassState } from './actions';
 
 const initialState: CreateBreakGlassState = {};
 
 export function BreakGlassRequestForm() {
-  const [state, formAction] = useFormState(
-    createBreakGlassAction,
-    initialState,
-  );
+  const [state, formAction] = useFormState(createBreakGlassAction, initialState);
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
@@ -50,9 +41,7 @@ export function BreakGlassRequestForm() {
             aria-invalid={Boolean(state.fieldErrors?.targetTenantId)}
           />
           {state.fieldErrors?.targetTenantId && (
-            <p className="text-xs text-destructive">
-              {state.fieldErrors.targetTenantId}
-            </p>
+            <p className="text-xs text-destructive">{state.fieldErrors.targetTenantId}</p>
           )}
         </div>
 
@@ -99,9 +88,7 @@ export function BreakGlassRequestForm() {
             aria-invalid={Boolean(state.fieldErrors?.durationMinutes)}
           />
           {state.fieldErrors?.durationMinutes && (
-            <p className="text-xs text-destructive">
-              {state.fieldErrors.durationMinutes}
-            </p>
+            <p className="text-xs text-destructive">{state.fieldErrors.durationMinutes}</p>
           )}
           <p className="text-xs text-muted-foreground">
             Maximum {BREAK_GLASS_MAX_MINUTES} minutes per Section 41 policy.
@@ -120,9 +107,7 @@ export function BreakGlassRequestForm() {
           aria-invalid={Boolean(state.fieldErrors?.justification)}
         />
         {state.fieldErrors?.justification && (
-          <p className="text-xs text-destructive">
-            {state.fieldErrors.justification}
-          </p>
+          <p className="text-xs text-destructive">{state.fieldErrors.justification}</p>
         )}
       </div>
 

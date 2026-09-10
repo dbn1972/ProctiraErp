@@ -109,6 +109,21 @@ export {
   InMemoryAppraisalRepository,
 } from './in-memory-appraisal-repository.js';
 
+// Appraisal / training Postgres repositories + factories (G-717)
+export { PgAppraisalTemplateRepository, PgAppraisalRepository } from './pg-appraisal-repository.js';
+export {
+  PgTrainingProgramRepository,
+  PgTrainingSessionRepository,
+  PgTrainingAttendanceRepository,
+  PgCertificationRepository,
+} from './pg-training-repository.js';
+export {
+  createAppraisalRepositories,
+  createTrainingRepositories,
+} from './create-hr-repositories.js';
+export type { AppraisalRepositories, TrainingRepositories } from './create-hr-repositories.js';
+export { ensureHrSchema } from './pg-hr-schema.js';
+
 // Appraisal Schemas
 export {
   AppraisalStatus,
@@ -207,11 +222,13 @@ export type { TrainingRoutesOptions } from './training-routes.js';
 
 export { StaffLeaveService } from './leave-service.js';
 export type {
+  StaffLeaveBalanceEntity,
   StaffLeaveEntity,
   StaffLeaveRepository,
   StaffLeaveStatus,
   StaffLeaveType,
 } from './leave-repository.js';
+export { InsufficientLeaveBalanceError } from './leave-repository.js';
 export { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 export {
   CreateStaffLeaveSchema,
@@ -225,12 +242,48 @@ export type {
 } from './leave-schemas.js';
 export { registerStaffLeaveRoutes } from './leave-routes.js';
 export type { StaffLeaveRoutesOptions } from './leave-routes.js';
+export { inclusiveLeaveDays } from './leave-service.js';
 export {
   createStaffLeaveRepository,
   ensureStaffLeaveSchema,
   isPgStaffLeaveEnabled,
   PgStaffLeaveRepository,
 } from './pg-leave-repository.js';
+
+// ─── Staff / HR ops (G-918) ───────────────────────────────────────────
+
+export {
+  StaffHrService,
+  payableDays,
+  withRenewalAlert,
+  CONTRACT_RENEWAL_WINDOW_DAYS,
+} from './hr-service.js';
+export type {
+  AttendanceSummaryRow,
+  ContractView,
+  ImportCommitResult,
+  ImportDryRunResult,
+  PayrollExportResult,
+  PayrollRow,
+} from './hr-service.js';
+export type {
+  StaffAttendanceRecord,
+  StaffContractRecord,
+  StaffHrStore,
+  StaffQualificationRecord,
+} from './hr-store.js';
+export { InMemoryStaffHrStore } from './hr-store.js';
+export { PgStaffHrStore, ensureStaffHrSchema } from './pg-hr-ops-store.js';
+export { createStaffHrStore } from './create-staff-hr-store.js';
+export { registerStaffHrRoutes } from './hr-routes.js';
+export {
+  CreateContractSchema,
+  CreateQualificationSchema,
+  MarkAttendanceSchema,
+  StaffImportSchema,
+  PayrollExportQuerySchema,
+} from './hr-schemas.js';
+export { parseCsv, toCsv } from './staff-csv.js';
 
 // Persistence: Prisma repository + env-driven factory
 export { PrismaStaffRepository } from './prisma-staff-repository.js';

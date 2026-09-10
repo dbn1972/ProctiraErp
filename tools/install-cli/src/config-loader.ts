@@ -51,7 +51,9 @@ export function loadConfigFromFile(filePath: string): InstallConfig {
  * Loads configuration from environment variables.
  * Uses the ENV_VAR_MAP to map env vars to config paths.
  */
-export function loadConfigFromEnv(env: Record<string, string | undefined> = process.env): InstallConfig {
+export function loadConfigFromEnv(
+  env: Record<string, string | undefined> = process.env,
+): InstallConfig {
   const config: InstallConfig = {
     cdn: {
       adapter: (env['OPENEMIS_CDN_ADAPTER'] as CdnConfigInput['adapter']) ?? 'nginx',
@@ -72,7 +74,9 @@ export function loadConfigFromEnv(env: Record<string, string | undefined> = proc
       username: env['OPENEMIS_DB_USERNAME'] ?? '',
       password: env['OPENEMIS_DB_PASSWORD'] ?? '',
       ssl: env['OPENEMIS_DB_SSL'] === 'true',
-      poolSize: env['OPENEMIS_DB_POOL_SIZE'] ? parseInt(env['OPENEMIS_DB_POOL_SIZE'], 10) : undefined,
+      poolSize: env['OPENEMIS_DB_POOL_SIZE']
+        ? parseInt(env['OPENEMIS_DB_POOL_SIZE'], 10)
+        : undefined,
     },
     storage: {
       adapter: (env['OPENEMIS_STORAGE_ADAPTER'] as StorageConfigInput['adapter']) ?? 'minio',
@@ -129,13 +133,13 @@ export function loadConfigFromEnv(env: Record<string, string | undefined> = proc
  * Loads configuration via interactive prompts.
  * Asks the user for each configuration value with defaults.
  */
-export async function loadConfigInteractive(
-  rl?: readline.Interface,
-): Promise<InstallConfig> {
-  const reader = rl ?? readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
+export async function loadConfigInteractive(rl?: readline.Interface): Promise<InstallConfig> {
+  const reader =
+    rl ??
+    readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
 
   const ask = (question: string, defaultValue?: string): Promise<string> => {
     const prompt = defaultValue ? `${question} [${defaultValue}]: ` : `${question}: `;
@@ -161,7 +165,10 @@ export async function loadConfigInteractive(
 
     // CDN Configuration
     console.log('── CDN Configuration ──────────────────────────────');
-    const cdnAdapter = await ask('CDN adapter (cloudfront/nginx/custom)', 'nginx') as CdnConfigInput['adapter'];
+    const cdnAdapter = (await ask(
+      'CDN adapter (cloudfront/nginx/custom)',
+      'nginx',
+    )) as CdnConfigInput['adapter'];
     const cdnBaseUrl = await ask('CDN base URL', 'http://localhost:8080');
     const cdnTenantAware = (await ask('Tenant-aware CDN? (true/false)', 'true')) === 'true';
 
@@ -174,9 +181,15 @@ export async function loadConfigInteractive(
 
     // Database Configuration
     console.log('\n── Database Configuration ─────────────────────────');
-    const dbProvider = await ask('Database provider (postgresql/mysql)', 'postgresql') as DatabaseConfigInput['provider'];
+    const dbProvider = (await ask(
+      'Database provider (postgresql/mysql)',
+      'postgresql',
+    )) as DatabaseConfigInput['provider'];
     const dbHost = await ask('Database host', 'localhost');
-    const dbPort = parseInt(await ask('Database port', dbProvider === 'postgresql' ? '5432' : '3306'), 10);
+    const dbPort = parseInt(
+      await ask('Database port', dbProvider === 'postgresql' ? '5432' : '3306'),
+      10,
+    );
     const dbName = await ask('Database name', 'proctira');
     const dbUsername = await ask('Database username', 'proctira');
     const dbPassword = await askPassword('Database password');
@@ -184,28 +197,39 @@ export async function loadConfigInteractive(
 
     // Storage Configuration
     console.log('\n── Object Storage Configuration ───────────────────');
-    const storageAdapter = await ask('Storage adapter (s3/minio)', 'minio') as StorageConfigInput['adapter'];
+    const storageAdapter = (await ask(
+      'Storage adapter (s3/minio)',
+      'minio',
+    )) as StorageConfigInput['adapter'];
     const storageBucket = await ask('Storage bucket', 'proctira');
-    const storageRegion = storageAdapter === 's3' ? await ask('AWS region', 'us-east-1') : undefined;
-    const storageEndpoint = storageAdapter === 'minio' ? await ask('MinIO endpoint', 'http://localhost:9000') : undefined;
+    const storageRegion =
+      storageAdapter === 's3' ? await ask('AWS region', 'us-east-1') : undefined;
+    const storageEndpoint =
+      storageAdapter === 'minio' ? await ask('MinIO endpoint', 'http://localhost:9000') : undefined;
     const storageAccessKey = await ask('Access key ID');
     const storageSecretKey = await askPassword('Secret access key');
 
     // Cache Configuration
     console.log('\n── Cache Configuration ────────────────────────────');
-    const cacheAdapter = await ask('Cache adapter (redis/memory)', 'redis') as CacheConfigInput['adapter'];
+    const cacheAdapter = (await ask(
+      'Cache adapter (redis/memory)',
+      'redis',
+    )) as CacheConfigInput['adapter'];
     let cacheHost: string | undefined;
     let cachePort: number | undefined;
     let cachePassword: string | undefined;
     if (cacheAdapter === 'redis') {
       cacheHost = await ask('Redis host', 'localhost');
       cachePort = parseInt(await ask('Redis port', '6379'), 10);
-      cachePassword = await askPassword('Redis password (leave empty for none)') || undefined;
+      cachePassword = (await askPassword('Redis password (leave empty for none)')) || undefined;
     }
 
     // Queue Configuration
     console.log('\n── Queue Configuration ────────────────────────────');
-    const queueBackend = await ask('Queue backend (kafka/rabbitmq/sqs)', 'rabbitmq') as QueueConfigInput['backend'];
+    const queueBackend = (await ask(
+      'Queue backend (kafka/rabbitmq/sqs)',
+      'rabbitmq',
+    )) as QueueConfigInput['backend'];
 
     let kafka: QueueConfigInput['kafka'] | undefined;
     let rabbitmq: QueueConfigInput['rabbitmq'] | undefined;
@@ -298,9 +322,7 @@ export function validateConfigStructure(config: unknown): asserts config is Inst
   const missingSections = requiredSections.filter((s) => !obj[s] || typeof obj[s] !== 'object');
 
   if (missingSections.length > 0) {
-    throw new Error(
-      `Configuration is missing required sections: ${missingSections.join(', ')}`,
-    );
+    throw new Error(`Configuration is missing required sections: ${missingSections.join(', ')}`);
   }
 
   // Validate admin account fields

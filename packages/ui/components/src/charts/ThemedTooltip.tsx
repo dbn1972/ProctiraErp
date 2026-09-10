@@ -55,9 +55,7 @@ export function ThemedTooltip(props: TooltipProps) {
   // semi-transparent muted token so it doesn't blow out in dark mode.
   // Callers can override by passing `cursor={...}` explicitly.
   const cursor =
-    props.cursor === undefined
-      ? { fill: palette.tooltipMuted, fillOpacity: 0.1 }
-      : props.cursor;
+    props.cursor === undefined ? { fill: palette.tooltipMuted, fillOpacity: 0.1 } : props.cursor;
 
   return (
     <Tooltip

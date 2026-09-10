@@ -139,7 +139,12 @@ export type StudentSubjectResultResponse = Static<typeof StudentSubjectResultRes
 export const StudentResultsQuerySchema = Type.Object({
   subjectId: Type.String({ pattern: UUID_PATTERN, description: 'Subject UUID' }),
   academicPeriodId: Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
-  studentId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Student UUID (optional, returns all students if omitted)' })),
+  studentId: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Student UUID (optional, returns all students if omitted)',
+    }),
+  ),
 });
 
 export type StudentResultsQuery = Static<typeof StudentResultsQuerySchema>;

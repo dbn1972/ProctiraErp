@@ -12,10 +12,7 @@
 import { withTenantTransaction } from '@proctira/database';
 import type { PrismaClient, TenantTransactionClient } from '@proctira/database';
 
-import type {
-  AssessmentResultEntity,
-  AssessmentResultRepository,
-} from './result-repository.js';
+import type { AssessmentResultEntity, AssessmentResultRepository } from './result-repository.js';
 
 interface AssessmentResultRow {
   id: string;
@@ -77,9 +74,7 @@ export class PrismaAssessmentResultRepository implements AssessmentResultReposit
   async upsert(
     data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<AssessmentResultEntity> {
-    return withTenantTransaction(this.prisma, data.tenantId, async (tx) =>
-      upsertInTx(tx, data),
-    );
+    return withTenantTransaction(this.prisma, data.tenantId, async (tx) => upsertInTx(tx, data));
   }
 
   async bulkUpsert(
@@ -106,6 +101,20 @@ export class PrismaAssessmentResultRepository implements AssessmentResultReposit
       const rows = (await tx.assessmentResult.findMany({
         where: { tenantId, studentId, subjectId, academicPeriodId },
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      })) as AssessmentResultRow[];
+      return rows.map(toEntity);
+    });
+  }
+
+  async findByStudentPeriod(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<AssessmentResultEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.assessmentResult.findMany({
+        where: { tenantId, studentId, academicPeriodId },
+        orderBy: [{ subjectId: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
       })) as AssessmentResultRow[];
       return rows.map(toEntity);
     });

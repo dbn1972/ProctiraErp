@@ -35,12 +35,7 @@ export function ApprovalDecisionButtons({ approvalId }: { approvalId: string }) 
           <Check className="me-1 h-4 w-4" aria-hidden="true" />
           Approve
         </Button>
-        <Button
-          size="sm"
-          variant="destructive"
-          disabled={pending}
-          onClick={() => decide('reject')}
-        >
+        <Button size="sm" variant="destructive" disabled={pending} onClick={() => decide('reject')}>
           <X className="me-1 h-4 w-4" aria-hidden="true" />
           Reject
         </Button>

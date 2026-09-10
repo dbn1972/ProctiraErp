@@ -25,9 +25,7 @@ const NEW_PASSWORD = 'CorrectHorse9!Battery';
 const RESET_URL = '/reset-password?token=reset-token-abc';
 
 test.describe('auth — reset password (link consumption)', () => {
-  test('happy path: posts the new password and redirects to /login', async ({
-    page,
-  }) => {
+  test('happy path: posts the new password and redirects to /login', async ({ page }) => {
     let resetBody: Record<string, unknown> | null = null;
     await page.route('**/api/auth/reset-password', async (route) => {
       resetBody = route.request().postDataJSON() as Record<string, unknown>;
@@ -46,18 +44,14 @@ test.describe('auth — reset password (link consumption)', () => {
     await page.getByLabel(/confirm password/i).fill(NEW_PASSWORD);
     await page.getByRole('button', { name: /update password/i }).click();
 
-    await page.waitForURL(
-      (u) => u.pathname === '/login' && u.searchParams.get('reset') === 'true',
-    );
+    await page.waitForURL((u) => u.pathname === '/login' && u.searchParams.get('reset') === 'true');
     expect(resetBody).toMatchObject({
       token: 'reset-token-abc',
       newPassword: NEW_PASSWORD,
     });
   });
 
-  test('invalid / expired token surfaces the upstream error message', async ({
-    page,
-  }) => {
+  test('invalid / expired token surfaces the upstream error message', async ({ page }) => {
     await mockResetPassword(page, {
       invalid: 'The reset link is invalid or has expired. Please request a new one.',
     });
@@ -67,9 +61,7 @@ test.describe('auth — reset password (link consumption)', () => {
     await page.getByLabel(/confirm password/i).fill(NEW_PASSWORD);
     await page.getByRole('button', { name: /update password/i }).click();
 
-    await expect(
-      page.getByText(/reset link is invalid or has expired/i),
-    ).toBeVisible();
+    await expect(page.getByText(/reset link is invalid or has expired/i)).toBeVisible();
     // Still on /reset-password.
     expect(new URL(page.url()).pathname).toBe('/reset-password');
   });

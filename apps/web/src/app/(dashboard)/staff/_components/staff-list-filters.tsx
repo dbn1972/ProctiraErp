@@ -30,10 +30,7 @@ interface StaffListFiltersProps {
 
 const STATUS_VALUES = ['ALL', 'ACTIVE', 'INACTIVE'];
 
-export function StaffListFilters({
-  filterOptions,
-  initialValues,
-}: StaffListFiltersProps) {
+export function StaffListFilters({ filterOptions, initialValues }: StaffListFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -119,13 +116,7 @@ export function StaffListFilters({
       />
 
       <div className="flex items-end justify-end">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onReset}
-          disabled={isPending}
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={onReset} disabled={isPending}>
           <RefreshCw className="me-2 h-4 w-4" aria-hidden="true" />
           Reset
         </Button>
@@ -145,10 +136,7 @@ interface FilterSelectProps {
 function FilterSelect({ id, label, value, onChange, options }: FilterSelectProps) {
   return (
     <div className="space-y-1">
-      <Label
-        htmlFor={id}
-        className="text-xs uppercase text-[hsl(var(--muted-foreground))]"
-      >
+      <Label htmlFor={id} className="text-xs uppercase text-[hsl(var(--muted-foreground))]">
         {label}
       </Label>
       <Select value={value} onValueChange={onChange}>

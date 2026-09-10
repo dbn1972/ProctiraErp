@@ -12,12 +12,7 @@
  */
 
 /** Steps in the import wizard */
-export type ImportWizardStep =
-  | 'upload'
-  | 'mapping'
-  | 'validation'
-  | 'duplicates'
-  | 'confirmation';
+export type ImportWizardStep = 'upload' | 'mapping' | 'validation' | 'duplicates' | 'confirmation';
 
 /** Column mapping between source file and target system fields */
 export interface ColumnMapping {

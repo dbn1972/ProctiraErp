@@ -15,18 +15,13 @@ test.describe('Assessments write validation — ungated', () => {
     });
   });
 
-  test('/assessments/schemes/new validates required name before submit', async ({
-    page,
-  }) => {
+  test('/assessments/schemes/new validates required name before submit', async ({ page }) => {
     const response = await page.goto('/assessments/schemes/new', {
       waitUntil: 'domcontentloaded',
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByRole('heading', { name: /grading scheme/i })).toBeVisible();
-    await expect(page.getByTestId('grading-scheme-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    await expect(page.getByTestId('grading-scheme-form')).toHaveAttribute('data-hydrated', 'true');
 
     await page.locator('#name').fill('');
     await page.getByTestId('grading-scheme-submit').click();

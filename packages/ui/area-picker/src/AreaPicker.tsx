@@ -60,7 +60,7 @@ export function AreaPicker({
       if (node.children) return node.children.some(matchesSearch);
       return false;
     },
-    [searchQuery]
+    [searchQuery],
   );
 
   // Close on outside click
@@ -110,7 +110,7 @@ export function AreaPicker({
       }
       setExpandedIds(newExpanded);
     },
-    [expandedIds, nodeMap, onLoadChildren]
+    [expandedIds, nodeMap, onLoadChildren],
   );
 
   const handleSelect = useCallback(
@@ -133,7 +133,7 @@ export function AreaPicker({
 
       onSelect(newSelectedIds, selectedNodes);
     },
-    [multiple, selectedIds, nodeMap, onSelect]
+    [multiple, selectedIds, nodeMap, onSelect],
   );
 
   const getSelectedLabel = (): string => {
@@ -181,7 +181,9 @@ export function AreaPicker({
               disabled={disabled}
             >
               {isLoading ? (
-                <span className="proctira-area-picker__spinner" aria-hidden="true">⟳</span>
+                <span className="proctira-area-picker__spinner" aria-hidden="true">
+                  ⟳
+                </span>
               ) : (
                 <span aria-hidden="true">{isExpanded ? '▾' : '▸'}</span>
               )}
@@ -216,11 +218,7 @@ export function AreaPicker({
   };
 
   return (
-    <div
-      ref={containerRef}
-      className={`proctira-area-picker ${className}`}
-      aria-label={ariaLabel}
-    >
+    <div ref={containerRef} className={`proctira-area-picker ${className}`} aria-label={ariaLabel}>
       {/* Trigger button */}
       <button
         type="button"

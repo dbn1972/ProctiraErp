@@ -114,7 +114,13 @@ describe('PolicyService', () => {
     it('should bump version when rules are updated', async () => {
       const policy = await service.create(tenantId, validPasswordPolicy);
       const updated = await service.update(tenantId, policy.id, {
-        rules: { minLength: 12, requireUppercase: true, requireLowercase: true, requireNumbers: true, requireSpecialChars: false },
+        rules: {
+          minLength: 12,
+          requireUppercase: true,
+          requireLowercase: true,
+          requireNumbers: true,
+          requireSpecialChars: false,
+        },
       });
 
       expect(updated.version).toBe(2);
@@ -236,11 +242,7 @@ describe('PolicyService', () => {
       await service.create(tenantId, validPasswordPolicy);
       await service.create(tenantId, validRetentionPolicy);
 
-      const result = await service.list(
-        tenantId,
-        { scope: 'platform' },
-        { page: 1, pageSize: 10 },
-      );
+      const result = await service.list(tenantId, { scope: 'platform' }, { page: 1, pageSize: 10 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.scope).toBe('platform');

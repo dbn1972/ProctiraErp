@@ -169,10 +169,7 @@ export function RadarComparison({
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={rows as RadarRow[]} outerRadius="70%">
                 <PolarGrid stroke={palette.grid} />
-                <PolarAngleAxis
-                  dataKey="label"
-                  tick={{ fill: palette.axisTick, fontSize: 12 }}
-                />
+                <PolarAngleAxis dataKey="label" tick={{ fill: palette.axisTick, fontSize: 12 }} />
                 <PolarRadiusAxis
                   angle={90}
                   domain={max === 'auto' ? undefined : [0, max]}

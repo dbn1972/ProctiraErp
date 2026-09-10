@@ -6,14 +6,10 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { reviveDates, tenantKey } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type {
-  StudentEntity,
-  StudentFilter,
-  StudentRepository,
-} from './student-repository.js';
+import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
 
 /** TTL for student entity cache (5 minutes) */
 const STUDENT_TTL_SECONDS = 300;
@@ -28,7 +24,11 @@ export class CachedStudentRepository implements StudentRepository {
     return this.delegate.create(data);
   }
 
-  async update(id: string, tenantId: string, data: Partial<StudentEntity>): Promise<StudentEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<StudentEntity>,
+  ): Promise<StudentEntity | null> {
     const result = await this.delegate.update(id, tenantId, data);
     if (result && this.cache) {
       // Invalidate cached entry on update
@@ -44,11 +44,12 @@ export class CachedStudentRepository implements StudentRepository {
     }
 
     const key = tenantKey(tenantId, 'student', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findById(id, tenantId),
       STUDENT_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async findByNationalId(nationalId: string, tenantId: string): Promise<StudentEntity | null> {

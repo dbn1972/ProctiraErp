@@ -6,14 +6,13 @@
 import Link from 'next/link';
 import { FileBarChart, Plus, Play } from 'lucide-react';
 
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Badge, Button, Card, CardContent } from '@proctira/ui/components';
+import { EmptyState } from '@/components/page';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
+
+import { BoardSummaryPanel } from './_components/board-summary-panel';
+import { CatalogueGeneratePanel } from './_components/catalogue-generate-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,12 +41,20 @@ export default async function ReportsPage() {
             — or build your own.
           </p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/reports/new">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            New report
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/reports/schedules">Schedules</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/reports/dashboards">Dashboards</Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/reports/new">
+              <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+              New report
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <ScaffoldModeBanner
@@ -63,7 +70,10 @@ export default async function ReportsPage() {
       {templates.length === 0 ? (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
-            <EmptyState />
+            <EmptyState
+              title="No report templates"
+              description="Add a template to enable repeatable report generation."
+            />
           </CardContent>
         </Card>
       ) : (
@@ -81,6 +91,10 @@ export default async function ReportsPage() {
           </section>
         ))
       )}
+
+      {templates.length > 0 ? <CatalogueGeneratePanel templates={templates} /> : null}
+
+      <BoardSummaryPanel />
     </section>
   );
 }
@@ -105,16 +119,11 @@ function ReportCard({ template }: { template: ReportTemplate }) {
         <FileBarChart className="h-5 w-5" aria-hidden="true" />
       </span>
       <h3 className="text-base font-bold tracking-tight text-foreground">
-        <Link
-          href={`/reports/${template.id}/results`}
-          className="hover:underline"
-        >
+        <Link href={`/reports/${template.id}/results`} className="hover:underline">
           {template.name}
         </Link>
       </h3>
-      <p className="mt-1 flex-1 text-xs text-muted-foreground">
-        {template.description}
-      </p>
+      <p className="mt-1 flex-1 text-xs text-muted-foreground">{template.description}</p>
       <div className="mt-3 flex flex-wrap gap-1">
         {template.format.map((fmt) => (
           <Badge key={fmt} variant="secondary">
@@ -135,17 +144,5 @@ function ReportCard({ template }: { template: ReportTemplate }) {
         </Button>
       </div>
     </Card>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-      <FileBarChart className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-      <p className="text-base font-medium">No report templates</p>
-      <p className="text-sm text-muted-foreground">
-        Add a template to enable repeatable report generation.
-      </p>
-    </div>
   );
 }

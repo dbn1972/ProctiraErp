@@ -27,9 +27,5 @@
     }
   },
   "multidevicePngs": 54,
-  "waivers": [
-    "live Twilio/FCM/SMTP (sandbox honesty)",
-    "live IdP E2E",
-    "Android device-farm PNGs"
-  ]
+  "waivers": ["live Twilio/FCM/SMTP (sandbox honesty)", "live IdP E2E", "Android device-farm PNGs"]
 }

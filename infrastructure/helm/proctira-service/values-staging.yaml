@@ -1,0 +1,26 @@
+environment: staging
+replicaCount: 2
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+
+networkPolicy:
+  enabled: true
+  ingressNamespaces:
+    - ingress-nginx
+    - monitoring
+  egressCIDRs:
+    - cidr: 0.0.0.0/0
+      except:
+        - 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 443

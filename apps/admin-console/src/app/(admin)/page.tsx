@@ -1,22 +1,9 @@
 import Link from 'next/link';
-import {
-  Activity,
-  Building2,
-  FileText,
-  Plus,
-  Puzzle,
-  ShieldAlert,
-} from 'lucide-react';
+import { Activity, Building2, FileText, Plus, Puzzle, ShieldAlert } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { StubDataBanner } from '@/components/stub-data-banner';
 import { listTenants } from '@/lib/api/tenants';
@@ -40,12 +27,8 @@ export default async function DashboardPage() {
   const pendingPlugins = plugins.plugins.filter(
     (p) => p.status === 'submitted' || p.status === 'in_review',
   ).length;
-  const pendingBg = breakGlass.requests.filter(
-    (r) => r.status === 'pending_approval',
-  ).length;
-  const degradedAdapters = health.health.adapters.filter(
-    (a) => a.status !== 'healthy',
-  ).length;
+  const pendingBg = breakGlass.requests.filter((r) => r.status === 'pending_approval').length;
+  const degradedAdapters = health.health.adapters.filter((a) => a.status !== 'healthy').length;
 
   return (
     <>
@@ -149,9 +132,7 @@ export default async function DashboardPage() {
                       <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-secondary-foreground">
                         {entry.action}
                       </span>{' '}
-                      <span className="font-medium text-foreground">
-                        {entry.resource}
-                      </span>
+                      <span className="font-medium text-foreground">{entry.resource}</span>
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {entry.actor} · {formatDateTime(entry.timestamp)}
@@ -193,17 +174,11 @@ export default async function DashboardPage() {
                   className="flex items-center justify-between gap-3 border-b border-border pb-2 last:border-b-0 last:pb-0"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {adapter.name}
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {adapter.note}
-                    </div>
+                    <div className="truncate text-sm font-medium">{adapter.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{adapter.note}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-mono tabular-nums">
-                      {adapter.latencyMs}ms
-                    </span>
+                    <span className="font-mono tabular-nums">{adapter.latencyMs}ms</span>
                     <StatusBadge status={adapter.status} />
                   </div>
                 </div>
@@ -217,18 +192,10 @@ export default async function DashboardPage() {
               <CardTitle>Queues today</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <QueueRow
-                label="Plugin reviews waiting"
-                value={pendingPlugins}
-              />
-              <QueueRow
-                label="Break-glass requests"
-                value={breakGlass.requests.length}
-              />
+              <QueueRow label="Plugin reviews waiting" value={pendingPlugins} />
+              <QueueRow label="Break-glass requests" value={breakGlass.requests.length} />
               <Button asChild variant="secondary" className="w-full">
-                <Link href="/break-glass/requests">
-                  Review break-glass queue
-                </Link>
+                <Link href="/break-glass/requests">Review break-glass queue</Link>
               </Button>
             </CardContent>
           </Card>
@@ -242,9 +209,7 @@ function QueueRow({ label, value }: { label: string; value: number }) {
   return (
     <div className="flex items-center justify-between border-b border-border pb-2 last:border-b-0 last:pb-0">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-sm font-semibold tabular-nums text-foreground">
-        {value}
-      </span>
+      <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
     </div>
   );
 }
@@ -267,9 +232,7 @@ function StatTile({
       <Card className="transition-shadow hover:shadow-md">
         <CardContent className="flex items-center justify-between p-5">
           <div className="space-y-1">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              {title}
-            </div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">{title}</div>
             <div className="text-3xl font-extrabold tracking-tight tabular-nums text-foreground">
               {value}
             </div>

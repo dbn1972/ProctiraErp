@@ -50,10 +50,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the workflow service and routes.
  */
 export const workflowPlugin = fp(
-  async function workflowPluginImpl(
-    fastify: FastifyInstance,
-    options: WorkflowPluginOptions,
-  ) {
+  async function workflowPluginImpl(fastify: FastifyInstance, options: WorkflowPluginOptions) {
     const {
       repository,
       caseRepository,
@@ -99,7 +96,7 @@ export const workflowPlugin = fp(
   },
   {
     name: '@proctira/backend-workflow',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

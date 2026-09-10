@@ -7,11 +7,7 @@
  *
  * Charter: Section 27 (Security and Compliance)
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,7 +25,10 @@ import type {
   PolicyEvaluationResponse,
   CreatePolicyAssignmentInput,
 } from './schemas.js';
-import { PolicyEvaluationEngine, type PolicyEvaluationContext } from './policy-evaluation-engine.js';
+import {
+  PolicyEvaluationEngine,
+  type PolicyEvaluationContext,
+} from './policy-evaluation-engine.js';
 
 /**
  * Service handling policy business logic.
@@ -119,7 +118,8 @@ export class PolicyService {
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
     if (input.effectiveFrom !== undefined) updateData.effectiveFrom = new Date(input.effectiveFrom);
-    if (input.effectiveUntil !== undefined) updateData.effectiveUntil = new Date(input.effectiveUntil);
+    if (input.effectiveUntil !== undefined)
+      updateData.effectiveUntil = new Date(input.effectiveUntil);
     if (input.priority !== undefined) updateData.priority = input.priority;
 
     // If rules are changed, bump version
@@ -135,7 +135,9 @@ export class PolicyService {
         version: newVersion,
         rules: input.rules as Record<string, unknown>,
         effectiveFrom: input.effectiveFrom ? new Date(input.effectiveFrom) : existing.effectiveFrom,
-        effectiveUntil: input.effectiveUntil ? new Date(input.effectiveUntil) : existing.effectiveUntil,
+        effectiveUntil: input.effectiveUntil
+          ? new Date(input.effectiveUntil)
+          : existing.effectiveUntil,
         createdBy: null,
       });
     }
@@ -241,7 +243,11 @@ export class PolicyService {
    *
    * @throws NotFoundError if policy or version not found
    */
-  async getVersion(tenantId: string, policyId: string, version: number): Promise<PolicyVersionEntity> {
+  async getVersion(
+    tenantId: string,
+    policyId: string,
+    version: number,
+  ): Promise<PolicyVersionEntity> {
     const policy = await this.repository.findById(policyId, tenantId);
     if (!policy) {
       throw new NotFoundError(`Policy with id '${policyId}' not found`);

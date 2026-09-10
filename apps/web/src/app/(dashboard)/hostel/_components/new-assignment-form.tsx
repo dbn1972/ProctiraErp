@@ -16,11 +16,17 @@ import {
 } from '@proctira/ui/components';
 
 import { createHostelAssignmentAction } from '../../campus-actions';
-import type { HostelBed } from '@/lib/api/hostel';
+import type { HostelBed, HostelFeeStructure } from '@/lib/api/hostel';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewHostelAssignmentForm({ beds }: { beds: HostelBed[] }) {
+export function NewHostelAssignmentForm({
+  beds,
+  feeStructures,
+}: {
+  beds: HostelBed[];
+  feeStructures: HostelFeeStructure[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -37,6 +43,7 @@ export function NewHostelAssignmentForm({ beds }: { beds: HostelBed[] }) {
     const bedId = String(fd.get('bedId') ?? '').trim();
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
+    const feeStructureId = String(fd.get('feeStructureId') ?? '').trim();
     if (!UUID_RE.test(studentId)) {
       setError('Student must be a UUID v4 value.');
       return;
@@ -57,6 +64,7 @@ export function NewHostelAssignmentForm({ beds }: { beds: HostelBed[] }) {
         bedId,
         startDate,
         endDate: endDate || undefined,
+        feeStructureId: feeStructureId || undefined,
       });
       if (result.status === 'error') {
         setError(result.message ?? 'Failed to create assignment');
@@ -120,6 +128,21 @@ export function NewHostelAssignmentForm({ beds }: { beds: HostelBed[] }) {
               <Input id="assign-end" name="endDate" type="date" className="h-11 min-h-11" />
             </FormField>
           </div>
+          <FormField id="assign-fee" label="Fee structure (optional)">
+            <select
+              id="assign-fee"
+              name="feeStructureId"
+              className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              defaultValue=""
+            >
+              <option value="">No invoice</option>
+              {feeStructures.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.roomType} · {row.termLabel} · {row.amountCents}¢
+                </option>
+              ))}
+            </select>
+          </FormField>
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}

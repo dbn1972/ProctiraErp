@@ -93,9 +93,7 @@ describe('Sync_Queue (persistence) — enqueue + read', () => {
     const id = await enqueue(baseInput());
     const op = (await getOperation(id))!;
     // RFC 4122 v4 layout — 36 chars, version nibble = 4.
-    expect(op.id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    );
+    expect(op.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
     expect(op.idempotencyKey).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
@@ -194,12 +192,7 @@ describe('Sync_Queue (persistence) — persistAttempt', () => {
   });
 
   it('returns null when the operation has been dequeued mid-replay', async () => {
-    const result = await persistAttempt(
-      'never-existed',
-      3,
-      '2024-06-01T12:00:00Z',
-      'gone',
-    );
+    const result = await persistAttempt('never-existed', 3, '2024-06-01T12:00:00Z', 'gone');
 
     // Returning `null` is the signal to the replay loop that the
     // record is gone (the user discarded it) so it should exit

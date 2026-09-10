@@ -27,13 +27,9 @@ export function PageHero({ eyebrow, title, description, className }: PageHeroPro
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">
-          {title}
-        </h1>
+        <h1 className="text-4xl font-bold tracking-tight text-foreground md:text-5xl">{title}</h1>
         {description ? (
-          <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-            {description}
-          </p>
+          <p className="mt-4 max-w-2xl text-lg text-muted-foreground">{description}</p>
         ) : null}
       </div>
     </section>

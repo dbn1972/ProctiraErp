@@ -26,6 +26,8 @@
  * Validates Tasks 49.2, 49.4.
  */
 
+import { withCsrfHeader } from '@/lib/auth/csrf';
+
 // ─── Endpoints ──────────────────────────────────────────────────────────────
 
 /**
@@ -76,13 +78,11 @@ export interface FetchSignupRolesResult {
    * cancelled via `AbortController`; any other value is a network /
    * upstream failure the UI should surface.
    */
-  error?: 'aborted' | 'network' | string;
+  error?: string;
 }
 
 /** Loads the role list offered to public sign-ups for the active tenant. */
-export async function fetchSignupRoles(
-  signal?: AbortSignal,
-): Promise<FetchSignupRolesResult> {
+export async function fetchSignupRoles(signal?: AbortSignal): Promise<FetchSignupRolesResult> {
   try {
     const init: RequestInit = {
       method: 'GET',
@@ -165,7 +165,7 @@ export async function signUp(payload: SignUpRequest): Promise<SignUpResult> {
     const response = await fetch(AUTH_API_ENDPOINTS.SIGNUP, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
 
@@ -368,16 +368,17 @@ function randomBase32(length: number): string {
 
 /** Formats an 8-char string as `XXXX-XXXX`. */
 function formatBackupCode(raw: string): string {
-  const cleaned = raw.replace(/[^A-Z0-9]/gi, '').toUpperCase().padEnd(8, 'X');
+  const cleaned = raw
+    .replace(/[^A-Z0-9]/gi, '')
+    .toUpperCase()
+    .padEnd(8, 'X');
   return `${cleaned.slice(0, 4)}-${cleaned.slice(4, 8)}`;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /** Reads JSON from a Response without throwing on empty body. */
-async function safeJson<T = Record<string, unknown>>(
-  response: Response,
-): Promise<T> {
+async function safeJson<T = Record<string, unknown>>(response: Response): Promise<T> {
   try {
     const text = await response.text();
     return text ? (JSON.parse(text) as T) : ({} as T);

@@ -2,7 +2,7 @@
  * Staff fees hub (Server Component).
  */
 import Link from 'next/link';
-import { FileText, Receipt, Wallet } from 'lucide-react';
+import { FileText, Receipt, Wallet, Layers, BarChart3 } from 'lucide-react';
 
 import {
   Button,
@@ -12,14 +12,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
+import { getTranslations } from 'next-intl/server';
+
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans, listInvoices, listReceipts } from '@/lib/api/parent-portal';
+import { listFeePlans, listInvoices, listReceipts } from '@/lib/api/fees';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesOverviewPage() {
   await requireSession();
-  const [plans, invoices, receipts] = await Promise.all([
+  const [t, plans, invoices, receipts] = await Promise.all([
+    getTranslations('fees'),
     listFeePlans(),
     listInvoices('staff'),
     listReceipts('staff'),
@@ -28,11 +31,8 @@ export default async function FeesOverviewPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fees</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Fee plans, student invoices, sandbox payments, and receipts. Live PSP is waived — parents
-          pay via sandbox in the family portal.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -40,15 +40,13 @@ export default async function FeesOverviewPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Wallet className="h-4 w-4" aria-hidden="true" />
-              Plans
+              {t('plans')}
             </CardTitle>
-            <CardDescription>
-              {plans.length === 0 ? 'No plans yet.' : `${plans.length} plan(s).`}
-            </CardDescription>
+            <CardDescription>{t('planCount', { count: plans.length })}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link href="/fees/plans">Manage plans</Link>
+              <Link href="/fees/plans">{t('managePlans')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -56,15 +54,13 @@ export default async function FeesOverviewPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <FileText className="h-4 w-4" aria-hidden="true" />
-              Invoices
+              {t('invoices')}
             </CardTitle>
-            <CardDescription>
-              {invoices.length === 0 ? 'No invoices yet.' : `${invoices.length} invoice(s).`}
-            </CardDescription>
+            <CardDescription>{t('invoiceCount', { count: invoices.length })}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link href="/fees/invoices">Manage invoices</Link>
+              <Link href="/fees/invoices">{t('manageInvoices')}</Link>
             </Button>
           </CardContent>
         </Card>
@@ -72,15 +68,45 @@ export default async function FeesOverviewPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <Receipt className="h-4 w-4" aria-hidden="true" />
-              Receipts
+              {t('receipts')}
             </CardTitle>
-            <CardDescription>
-              {receipts.length === 0 ? 'No receipts yet.' : `${receipts.length} receipt(s).`}
-            </CardDescription>
+            <CardDescription>{t('receiptCount', { count: receipts.length })}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
-              <Link href="/fees/receipts">View receipts</Link>
+              <Link href="/fees/receipts">{t('viewReceipts')}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4" aria-hidden="true" />
+              Structures
+            </CardTitle>
+            <CardDescription>Class × category × term fee structures.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/structures" data-testid="open-structures">
+                Manage structures
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
+              Reports
+            </CardTitle>
+            <CardDescription>Dues summary, CSV export, reconciliation import.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/reports" data-testid="open-reports">
+                Open reports
+              </Link>
             </Button>
           </CardContent>
         </Card>

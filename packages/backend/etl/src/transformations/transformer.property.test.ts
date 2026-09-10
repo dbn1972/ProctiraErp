@@ -39,7 +39,9 @@ function arbFieldName(): fc.Arbitrary<string> {
 function arbNumericString(): fc.Arbitrary<string> {
   return fc.oneof(
     fc.integer({ min: -999999, max: 999999 }).map(String),
-    fc.float({ min: -999999, max: 999999, noNaN: true, noDefaultInfinity: true }).map((n) => n.toFixed(2)),
+    fc
+      .float({ min: -999999, max: 999999, noNaN: true, noDefaultInfinity: true })
+      .map((n) => n.toFixed(2)),
   );
 }
 
@@ -47,9 +49,7 @@ function arbNumericString(): fc.Arbitrary<string> {
  * Generates a boolean-like string value.
  */
 function arbBooleanString(): fc.Arbitrary<string> {
-  return fc.oneof(
-    fc.constantFrom('true', 'false', '1', '0', 'yes', 'no', 'y', 'n'),
-  );
+  return fc.oneof(fc.constantFrom('true', 'false', '1', '0', 'yes', 'no', 'y', 'n'));
 }
 
 /**
@@ -244,17 +244,13 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
       fc.assert(
         fc.property(
           fc.uniqueArray(arbSimpleString(), { minLength: 1, maxLength: 10 }).chain((keys) => {
-            return fc
-              .tuple(
-                ...keys.map(() => arbSimpleString()),
-              )
-              .map((values) => {
-                const table: Record<string, string> = {};
-                keys.forEach((k, i) => {
-                  table[k] = values[i]!;
-                });
-                return { table, keys };
+            return fc.tuple(...keys.map(() => arbSimpleString())).map((values) => {
+              const table: Record<string, string> = {};
+              keys.forEach((k, i) => {
+                table[k] = values[i]!;
               });
+              return { table, keys };
+            });
           }),
           ({ table, keys }) => {
             // Pick a random key that exists in the table
@@ -286,11 +282,10 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
       fc.assert(
         fc.property(
           fc.record({
-            lookupTable: fc.dictionary(
-              fc.stringMatching(/^[A-Z]{1,3}$/),
-              arbSimpleString(),
-              { minKeys: 1, maxKeys: 5 },
-            ),
+            lookupTable: fc.dictionary(fc.stringMatching(/^[A-Z]{1,3}$/), arbSimpleString(), {
+              minKeys: 1,
+              maxKeys: 5,
+            }),
             defaultValue: arbSimpleString(),
             missingKey: fc.stringMatching(/^[a-z]{4,8}$/),
           }),
@@ -322,11 +317,10 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
       fc.assert(
         fc.property(
           fc.record({
-            lookupTable: fc.dictionary(
-              fc.stringMatching(/^[A-Z]{1,3}$/),
-              arbSimpleString(),
-              { minKeys: 1, maxKeys: 5 },
-            ),
+            lookupTable: fc.dictionary(fc.stringMatching(/^[A-Z]{1,3}$/), arbSimpleString(), {
+              minKeys: 1,
+              maxKeys: 5,
+            }),
             missingKey: fc.stringMatching(/^[a-z]{4,8}$/),
           }),
           ({ lookupTable, missingKey }) => {
@@ -490,17 +484,15 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
         fc.property(
           fc.integer({ min: 2, max: 5 }).chain((fieldCount) => {
             const fieldNames = Array.from({ length: fieldCount }, (_, i) => `f${i}`);
-            return fc
-              .tuple(...fieldNames.map(() => arbSimpleString()))
-              .map((values) => {
-                const row: Record<string, unknown> = {};
-                fieldNames.forEach((name, i) => {
-                  row[name] = values[i];
-                });
-                const template = fieldNames.map((n) => `{${n}}`).join(' - ');
-                const expected = values.join(' - ');
-                return { row, template, expected };
+            return fc.tuple(...fieldNames.map(() => arbSimpleString())).map((values) => {
+              const row: Record<string, unknown> = {};
+              fieldNames.forEach((name, i) => {
+                row[name] = values[i];
               });
+              const template = fieldNames.map((n) => `{${n}}`).join(' - ');
+              const expected = values.join(' - ');
+              return { row, template, expected };
+            });
           }),
           ({ row, template, expected }) => {
             const rows = [row];
@@ -530,9 +522,7 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
         fc.property(
           fc.record({
             validField: arbSimpleString(),
-            invalidNumeric: fc.stringMatching(/^[a-z]{3,10}$/).filter(
-              (s) => isNaN(Number(s)),
-            ),
+            invalidNumeric: fc.stringMatching(/^[a-z]{3,10}$/).filter((s) => isNaN(Number(s))),
           }),
           ({ validField, invalidNumeric }) => {
             const rows = [{ name: validField, price: invalidNumeric }];
@@ -574,7 +564,10 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
               // Valid numeric string
               arbNumericString().map((v) => ({ value: v, shouldSucceed: true })),
               // Invalid non-numeric string
-              fc.stringMatching(/^[a-z]{3,8}$/).filter((s) => isNaN(Number(s))).map((v) => ({ value: v, shouldSucceed: false })),
+              fc
+                .stringMatching(/^[a-z]{3,8}$/)
+                .filter((s) => isNaN(Number(s)))
+                .map((v) => ({ value: v, shouldSucceed: false })),
             ),
             { minLength: 2, maxLength: 10 },
           ),
@@ -622,7 +615,10 @@ describe('Property 27: ETL Field Mapping Transformation', () => {
           fc.array(
             fc.oneof(
               arbNumericString().map((v) => ({ value: v })),
-              fc.stringMatching(/^[a-z]{3,8}$/).filter((s) => isNaN(Number(s))).map((v) => ({ value: v })),
+              fc
+                .stringMatching(/^[a-z]{3,8}$/)
+                .filter((s) => isNaN(Number(s)))
+                .map((v) => ({ value: v })),
             ),
             { minLength: 1, maxLength: 15 },
           ),

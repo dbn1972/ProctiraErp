@@ -8,17 +8,15 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, Pencil } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
-import {
-  getWorkflowDefinition,
-  type WorkflowDefinition,
-} from '@/lib/api/workflows';
+import { getWorkflowDefinition, type WorkflowDefinition } from '@/lib/api/workflows';
 import { cn } from '@/lib/utils';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function WorkflowDefinitionPage({ params }: PageProps) {
+export default async function WorkflowDefinitionPage(props: PageProps) {
+  const params = await props.params;
   const definition = await getWorkflowDefinition(params.id);
   if (!definition) notFound();
 
@@ -64,18 +62,13 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
           <Card className="overflow-hidden">
             <CardContent className="p-5">
               <div className="mb-1">
-                <h2 className="text-base font-semibold text-foreground">
-                  Approval pipeline
-                </h2>
+                <h2 className="text-base font-semibold text-foreground">Approval pipeline</h2>
                 <p className="text-sm text-muted-foreground">
-                  Requests move top to bottom — each step must approve before the
-                  next is activated.
+                  Requests move top to bottom — each step must approve before the next is activated.
                 </p>
               </div>
               {steps.length === 0 ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No steps defined.
-                </p>
+                <p className="py-8 text-center text-sm text-muted-foreground">No steps defined.</p>
               ) : (
                 <ol className="mt-4 space-y-0">
                   {steps.map((step, idx) => (
@@ -95,15 +88,11 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
                         )}
                       >
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-semibold text-foreground">
-                            {step.name}
-                          </span>
+                          <span className="font-semibold text-foreground">{step.name}</span>
                         </div>
                         <p className="mt-1 text-sm text-muted-foreground">
                           Approver role:{' '}
-                          <span className="font-medium text-foreground">
-                            {step.approverRole}
-                          </span>
+                          <span className="font-medium text-foreground">{step.approverRole}</span>
                         </p>
                       </div>
                     </li>
@@ -121,15 +110,9 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
               <dl>
                 <FactRow label="Module" value={definition.module} />
                 <FactRow label="Version" value={`v${definition.version}`} />
-                <FactRow
-                  label="Status"
-                  value={definition.active ? 'Active' : 'Inactive'}
-                />
+                <FactRow label="Status" value={definition.active ? 'Active' : 'Inactive'} />
                 <FactRow label="Steps" value={String(steps.length)} />
-                <FactRow
-                  label="Updated"
-                  value={definition.updatedAt || '—'}
-                />
+                <FactRow label="Updated" value={definition.updatedAt || '—'} />
               </dl>
             </CardContent>
           </Card>

@@ -52,7 +52,7 @@ describe('Theme Routes', () => {
     });
 
     // Add user decorator
-    app.decorateRequest('user', null);
+    app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
       (request as any).user = { sub: 'admin-user' };
     });

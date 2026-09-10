@@ -28,10 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import {
-  type ImportProgress,
-  type ImportResult,
-} from '@/lib/api/students';
+import { type ImportProgress, type ImportResult } from '@/lib/api/students';
 
 import { submitBulkImportAction } from '../../actions';
 
@@ -45,9 +42,9 @@ type ImportStatus = 'idle' | 'submitting' | 'completed' | 'queued' | 'error';
 
 export function BulkImportPanel() {
   const [file, setFile] = useState<File | null>(null);
-  const [duplicateResolution, setDuplicateResolution] = useState<
-    'skip' | 'update' | 'create'
-  >('skip');
+  const [duplicateResolution, setDuplicateResolution] = useState<'skip' | 'update' | 'create'>(
+    'skip',
+  );
   const [status, setStatus] = useState<ImportStatus>('idle');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -144,9 +141,7 @@ export function BulkImportPanel() {
       const action = await submitBulkImportAction({
         fileBase64,
         fileName: file.name,
-        mimeType:
-          file.type ||
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimeType: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         duplicateResolution,
         async: false,
       });
@@ -172,9 +167,7 @@ export function BulkImportPanel() {
       }
     } catch (error) {
       setStatus('error');
-      setStatusMessage(
-        error instanceof Error ? error.message : 'Unexpected import failure.',
-      );
+      setStatusMessage(error instanceof Error ? error.message : 'Unexpected import failure.');
     }
   }
 
@@ -192,9 +185,7 @@ export function BulkImportPanel() {
       <FormField id="duplicateResolution" label="Duplicate handling">
         <Select
           value={duplicateResolution}
-          onValueChange={(value) =>
-            setDuplicateResolution(value as 'skip' | 'update' | 'create')
-          }
+          onValueChange={(value) => setDuplicateResolution(value as 'skip' | 'update' | 'create')}
         >
           <SelectTrigger id="duplicateResolution">
             <SelectValue />
@@ -219,9 +210,7 @@ export function BulkImportPanel() {
         >
           <Upload className="h-6 w-6 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
           <div>
-            <p className="font-medium">
-              {file ? file.name : 'Drop your Excel file here'}
-            </p>
+            <p className="font-medium">{file ? file.name : 'Drop your Excel file here'}</p>
             <p className="text-xs text-[hsl(var(--muted-foreground))]">
               {file
                 ? `${(file.size / 1024 / 1024).toFixed(2)} MB`

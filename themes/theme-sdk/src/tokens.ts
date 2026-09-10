@@ -23,14 +23,7 @@ import type {
 } from '@proctira/backend-theme';
 
 // Re-export types from backend-theme for SDK consumers
-export type {
-  ThemeTokens,
-  ThemeAssets,
-  TypographyConfig,
-  SpacingConfig,
-  ThemeLevel,
-  ThemeStatus,
-};
+export type { ThemeTokens, ThemeAssets, TypographyConfig, SpacingConfig, ThemeLevel, ThemeStatus };
 
 /**
  * Complete theme definition combining tokens, assets, and metadata.
@@ -83,10 +76,7 @@ export const OPTIONAL_COLOR_TOKENS = [
 /**
  * All recognized color token keys.
  */
-export const ALL_COLOR_TOKENS = [
-  ...REQUIRED_COLOR_TOKENS,
-  ...OPTIONAL_COLOR_TOKENS,
-] as const;
+export const ALL_COLOR_TOKENS = [...REQUIRED_COLOR_TOKENS, ...OPTIONAL_COLOR_TOKENS] as const;
 
 export type RequiredColorToken = (typeof REQUIRED_COLOR_TOKENS)[number];
 export type OptionalColorToken = (typeof OPTIONAL_COLOR_TOKENS)[number];

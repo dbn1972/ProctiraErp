@@ -75,9 +75,7 @@ function toSchemeEntity(row: GradingSchemeRow): GradingSchemeEntity {
     type: row.type as GradingSchemeType,
     minValue: row.minValue,
     maxValue: row.maxValue,
-    thresholds: (Array.isArray(row.thresholds)
-      ? row.thresholds
-      : []) as GradeThreshold[],
+    thresholds: (Array.isArray(row.thresholds) ? row.thresholds : []) as GradeThreshold[],
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -320,9 +318,7 @@ export class PrismaAssessmentItemRepository implements AssessmentItemRepository 
 export class PrismaOutcomeRepository implements OutcomeRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(
-    data: Omit<OutcomeEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<OutcomeEntity> {
+  async create(data: Omit<OutcomeEntity, 'createdAt' | 'updatedAt'>): Promise<OutcomeEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
       const row = (await tx.assessmentOutcome.create({
         data: {

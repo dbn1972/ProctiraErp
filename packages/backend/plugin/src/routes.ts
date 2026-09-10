@@ -271,10 +271,7 @@ export async function registerPluginRoutes(
    */
   fastify.get(
     `${prefix}/installations`,
-    async function listInstallationsHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listInstallationsHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({

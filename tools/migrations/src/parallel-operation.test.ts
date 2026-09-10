@@ -4,11 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  ParallelOperationManager,
-  DEFAULT_ROUTING,
-  RoutingConfig,
-} from './parallel-operation.js';
+import { ParallelOperationManager, DEFAULT_ROUTING, RoutingConfig } from './parallel-operation.js';
 import { MigrationConfig } from './types.js';
 
 const mockConfig: MigrationConfig = {

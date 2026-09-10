@@ -61,9 +61,7 @@ test.describe('auth — MFA verify', () => {
     }
   });
 
-  test('typing a digit auto-advances focus to the next slot', async ({
-    page,
-  }) => {
+  test('typing a digit auto-advances focus to the next slot', async ({ page }) => {
     await page.goto(MFA_URL);
     const group = page.getByRole('group', { name: /verification code/i });
 
@@ -77,9 +75,7 @@ test.describe('auth — MFA verify', () => {
     await expect(group.getByLabel(/digit 3/i)).toBeFocused();
   });
 
-  test('backspace on an empty slot auto-retreats to the previous slot', async ({
-    page,
-  }) => {
+  test('backspace on an empty slot auto-retreats to the previous slot', async ({ page }) => {
     await page.goto(MFA_URL);
     const group = page.getByRole('group', { name: /verification code/i });
 
@@ -93,9 +89,7 @@ test.describe('auth — MFA verify', () => {
     await expect(group.getByLabel(/digit 2/i)).toBeFocused();
   });
 
-  test('submitting a 6-digit code posts to the verify endpoint', async ({
-    page,
-  }) => {
+  test('submitting a 6-digit code posts to the verify endpoint', async ({ page }) => {
     let verifyBody: Record<string, unknown> | null = null;
     await page.route('**/api/auth/mfa/verify', async (route) => {
       verifyBody = route.request().postDataJSON() as Record<string, unknown>;
@@ -117,9 +111,7 @@ test.describe('auth — MFA verify', () => {
     });
   });
 
-  test('invalid code surfaces the upstream message and clears the boxes', async ({
-    page,
-  }) => {
+  test('invalid code surfaces the upstream message and clears the boxes', async ({ page }) => {
     await mockMfaVerify(page, {
       invalid: 'That code is invalid or expired.',
     });
@@ -128,17 +120,13 @@ test.describe('auth — MFA verify', () => {
     await page.keyboard.type('999999');
     await page.getByRole('button', { name: /^verify$/i }).click();
 
-    await expect(
-      page.getByText(/that code is invalid or expired/i),
-    ).toBeVisible();
+    await expect(page.getByText(/that code is invalid or expired/i)).toBeVisible();
 
     // The boxes are cleared so the user can re-enter without manually
     // backspacing six times.
     const group = page.getByRole('group', { name: /verification code/i });
     for (let i = 1; i <= 6; i += 1) {
-      await expect(
-        group.getByLabel(new RegExp(`digit ${i}`, 'i')),
-      ).toHaveValue('');
+      await expect(group.getByLabel(new RegExp(`digit ${i}`, 'i'))).toHaveValue('');
     }
   });
 });

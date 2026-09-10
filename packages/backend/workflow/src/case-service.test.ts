@@ -60,7 +60,10 @@ describe('CaseService', () => {
     });
 
     it('should create a counselling case', async () => {
-      const input = createValidCaseInput({ type: 'counselling', title: 'Student Counselling Session' });
+      const input = createValidCaseInput({
+        type: 'counselling',
+        title: 'Student Counselling Session',
+      });
       const result = await service.createCase(TENANT_ID, input);
 
       expect(result.type).toBe('counselling');
@@ -169,9 +172,9 @@ describe('CaseService', () => {
     });
 
     it('should throw NotFoundError for non-existent case', async () => {
-      await expect(
-        service.updateCase(TENANT_ID, 'non-existent', { title: 'New' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.updateCase(TENANT_ID, 'non-existent', { title: 'New' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should allow escalation from open status', async () => {
@@ -366,7 +369,10 @@ describe('CaseService', () => {
     });
 
     it('should filter cases by status', async () => {
-      const case1 = await service.createCase(TENANT_ID, createValidCaseInput({ title: 'Open Case' }));
+      const case1 = await service.createCase(
+        TENANT_ID,
+        createValidCaseInput({ title: 'Open Case' }),
+      );
       await service.createCase(TENANT_ID, createValidCaseInput({ title: 'Another Open Case' }));
       await service.updateCase(TENANT_ID, case1.id, { status: 'in_progress' });
 

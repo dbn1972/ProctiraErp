@@ -2,13 +2,22 @@
    <body data-tab="home|students|attendance|services|profile"> ; omit data-tab for bare screens (login etc.) */
 (function () {
   'use strict';
-  const I = (p) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+  const I = (p) =>
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
   const icons = {
-    home: I('<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'),
+    home: I(
+      '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+    ),
     students: I('<path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>'),
-    attendance: I('<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>'),
-    services: I('<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>'),
-    profile: I('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    attendance: I(
+      '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    ),
+    services: I(
+      '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+    ),
+    profile: I(
+      '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    ),
   };
   const TABS = [
     ['home', 'Home', 'home.html'],
@@ -35,8 +44,10 @@
     const bar = document.createElement('nav');
     bar.className = 'm-tabbar';
     bar.setAttribute('aria-label', 'Tabs');
-    bar.innerHTML = TABS.map(([id, label, href]) =>
-      `<a href="${href}" class="${id === tab ? 'active' : ''}">${icons[id]}<span>${label}</span></a>`).join('');
+    bar.innerHTML = TABS.map(
+      ([id, label, href]) =>
+        `<a href="${href}" class="${id === tab ? 'active' : ''}">${icons[id]}<span>${label}</span></a>`,
+    ).join('');
     phone.appendChild(bar);
   }
   const hi = document.createElement('div');

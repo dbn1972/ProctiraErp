@@ -69,7 +69,11 @@ export class MinIOAdapter implements StorageAdapter {
     });
   }
 
-  async upload(key: string, data: Buffer | Readable, options: UploadOptions): Promise<StorageResult> {
+  async upload(
+    key: string,
+    data: Buffer | Readable,
+    options: UploadOptions,
+  ): Promise<StorageResult> {
     const namespacedKey = buildTenantKey(options.tenantId, key);
     const encryption = options.encryption ?? this.defaultEncryption;
 

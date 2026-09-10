@@ -166,9 +166,29 @@ const STATUS_VARIANTS: Record<
   RegistrationStatus['status'],
   { icon: React.ReactNode; badgeClass: string; labelKey: string }
 > = {
-  pending: { icon: <Clock className="inline h-3 w-3" />, badgeClass: 'status-pending', labelKey: 'statusPending' },
-  under_review: { icon: <ListChecks className="inline h-3 w-3" />, badgeClass: 'status-review', labelKey: 'statusUnderReview' },
-  approved: { icon: <CheckCircle2 className="inline h-3 w-3" />, badgeClass: 'status-approved', labelKey: 'statusApproved' },
-  rejected: { icon: <ShieldX className="inline h-3 w-3" />, badgeClass: 'status-rejected', labelKey: 'statusRejected' },
-  waitlisted: { icon: <AlertTriangle className="inline h-3 w-3" />, badgeClass: 'status-pending', labelKey: 'statusWaitlisted' },
+  pending: {
+    icon: <Clock className="inline h-3 w-3" />,
+    badgeClass: 'status-pending',
+    labelKey: 'statusPending',
+  },
+  under_review: {
+    icon: <ListChecks className="inline h-3 w-3" />,
+    badgeClass: 'status-review',
+    labelKey: 'statusUnderReview',
+  },
+  approved: {
+    icon: <CheckCircle2 className="inline h-3 w-3" />,
+    badgeClass: 'status-approved',
+    labelKey: 'statusApproved',
+  },
+  rejected: {
+    icon: <ShieldX className="inline h-3 w-3" />,
+    badgeClass: 'status-rejected',
+    labelKey: 'statusRejected',
+  },
+  waitlisted: {
+    icon: <AlertTriangle className="inline h-3 w-3" />,
+    badgeClass: 'status-pending',
+    labelKey: 'statusWaitlisted',
+  },
 };

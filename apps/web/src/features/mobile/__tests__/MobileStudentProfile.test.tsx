@@ -41,12 +41,11 @@ beforeAll(() => {
   // does not implement it, so we shim it out — a no-op observer keeps
   // the activation path running without affecting the assertions.
   if (!('ResizeObserver' in globalThis)) {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      } as unknown as typeof ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
   }
 });
 
@@ -82,11 +81,8 @@ function activateTab(testId: string): void {
   if (target.getAttribute('data-state') === 'active') {
     return;
   }
-  const tabs = screen
-    .getAllByRole('tab')
-    .filter((t) => t instanceof HTMLElement) as HTMLElement[];
-  const active =
-    tabs.find((t) => t.getAttribute('data-state') === 'active') ?? tabs[0]!;
+  const tabs = screen.getAllByRole('tab').filter((t) => t instanceof HTMLElement) as HTMLElement[];
+  const active = tabs.find((t) => t.getAttribute('data-state') === 'active') ?? tabs[0]!;
   act(() => {
     active.focus();
   });
@@ -118,15 +114,11 @@ describe('<MobileStudentProfile> — avatar and key identifiers', () => {
   it('renders the full name, grade / section, and student number', () => {
     render(<MobileStudentProfile />);
 
-    expect(screen.getByTestId('student-full-name').textContent).toContain(
-      'Ahmed Hassan',
-    );
+    expect(screen.getByTestId('student-full-name').textContent).toContain('Ahmed Hassan');
     expect(screen.getByTestId('student-grade-section').textContent).toContain(
       'Grade 5 - Section A',
     );
-    expect(screen.getByTestId('student-number').textContent).toContain(
-      'STU-2024-001234',
-    );
+    expect(screen.getByTestId('student-number').textContent).toContain('STU-2024-001234');
   });
 
   it('renders the three quick-stat KPIs (Attendance, Grade, Rank)', () => {
@@ -169,9 +161,7 @@ describe('<MobileStudentProfile> — tabbed sections', () => {
 
     activateTab('tab-attendance');
 
-    expect(screen.getByTestId('tab-attendance').getAttribute('data-state')).toBe(
-      'active',
-    );
+    expect(screen.getByTestId('tab-attendance').getAttribute('data-state')).toBe('active');
     expect(screen.getByText(/Attendance Summary/i)).toBeTruthy();
     expect(screen.getByText(/Recent History/i)).toBeTruthy();
   });
@@ -182,9 +172,7 @@ describe('<MobileStudentProfile> — tabbed sections', () => {
 
     activateTab('tab-results');
 
-    expect(screen.getByTestId('tab-results').getAttribute('data-state')).toBe(
-      'active',
-    );
+    expect(screen.getByTestId('tab-results').getAttribute('data-state')).toBe('active');
     expect(screen.getByText(/Recent Results/i)).toBeTruthy();
     expect(screen.getByText(/Mathematics/)).toBeTruthy();
   });

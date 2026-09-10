@@ -49,9 +49,7 @@ afterEach(() => {
 describe('<ParentStudentDashboard> — Task 52.4 / Req 40.8', () => {
   it('renders the page heading', () => {
     renderDashboard();
-    expect(
-      screen.getByRole('heading', { level: 1, name: /my dashboard/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: /my dashboard/i })).toBeTruthy();
   });
 
   it('renders the attendance summary KPI labels', () => {

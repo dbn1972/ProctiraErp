@@ -30,25 +30,15 @@ import {
   DeveloperAccountParamsSchema,
   CreateApiKeySchema,
   ApiKeyParamsSchema,
-  ApiKeyListQuerySchema,
   CreateWebhookSchema,
   UpdateWebhookSchema,
-  WebhookParamsSchema,
-  WebhookListQuerySchema,
-  WebhookDeliveryQuerySchema,
   CreateSandboxSchema,
-  SandboxParamsSchema,
   SubmitPluginSchema,
   PluginSubmissionParamsSchema,
   ReviewPluginSchema,
-  MarketplaceSearchQuerySchema,
-  MarketplacePluginParamsSchema,
   PluginRatingSchema,
   CreateDocPageSchema,
   UpdateDocPageSchema,
-  DocPageParamsSchema,
-  DocListQuerySchema,
-  AnalyticsQuerySchema,
   RecordAnalyticsEventSchema,
 } from './schemas.js';
 import type {
@@ -315,6 +305,32 @@ function formatDocPageResponse(entity: {
 /**
  * Register developer portal routes on a Fastify instance.
  */
+const SUBMISSION_STATUSES = new Set([
+  'draft',
+  'submitted',
+  'in_review',
+  'approved',
+  'rejected',
+  'published',
+]);
+
+function isSubmissionStatus(
+  value: unknown,
+): value is 'draft' | 'submitted' | 'in_review' | 'approved' | 'rejected' | 'published' {
+  return typeof value === 'string' && SUBMISSION_STATUSES.has(value);
+}
+
+/**
+ * Returns the authenticated subject (`request.user.sub`, populated by the
+ * gateway auth plugin) or `null` when the request is anonymous. Request
+ * headers are never consulted for identity.
+ */
+function authenticatedSubject(request: FastifyRequest): string | null {
+  const user = (request as FastifyRequest & { user?: { sub?: unknown } }).user;
+  const sub = user?.sub;
+  return typeof sub === 'string' && sub.length > 0 ? sub : null;
+}
+
 export async function registerDeveloperPortalRoutes(
   fastify: FastifyInstance,
   options: DeveloperPortalRoutesOptions,
@@ -394,7 +410,10 @@ export async function registerDeveloperPortalRoutes(
   fastify.patch(
     `${prefix}/accounts/:accountId`,
     async function updateAccountHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams; Body: UpdateDeveloperAccountInput }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams;
+        Body: UpdateDeveloperAccountInput;
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(DeveloperAccountParamsSchema, request.params);
@@ -531,7 +550,7 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
-      const query = request.query as ApiKeyListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -544,7 +563,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatApiKeyResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -559,7 +583,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DeveloperAccountParams & ApiKeyParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DeveloperAccountParams & ApiKeyParams;
+      const params = request.params;
       const accountResult = validate(DeveloperAccountParamsSchema, { accountId: params.accountId });
       const keyResult = validate(ApiKeyParamsSchema, { keyId: params.keyId });
 
@@ -568,7 +592,10 @@ export async function registerDeveloperPortalRoutes(
           code: 'VALIDATION_ERROR',
           message: 'Invalid parameters',
           statusCode: 400,
-          errors: [...(accountResult.success ? [] : accountResult.errors), ...(keyResult.success ? [] : keyResult.errors)],
+          errors: [
+            ...(accountResult.success ? [] : accountResult.errors),
+            ...(keyResult.success ? [] : keyResult.errors),
+          ],
         });
       }
 
@@ -685,7 +712,7 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
-      const query = request.query as WebhookListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -698,7 +725,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatWebhookResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -713,7 +745,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DeveloperAccountParams & WebhookParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DeveloperAccountParams & WebhookParams;
+      const params = request.params;
 
       try {
         const webhook = await service.getWebhook(params.accountId, params.webhookId);
@@ -734,10 +766,13 @@ export async function registerDeveloperPortalRoutes(
   fastify.patch(
     `${prefix}/accounts/:accountId/webhooks/:webhookId`,
     async function updateWebhookHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams & WebhookParams; Body: UpdateWebhookInput }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams & WebhookParams;
+        Body: UpdateWebhookInput;
+      }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DeveloperAccountParams & WebhookParams;
+      const params = request.params;
 
       const bodyResult = validate(UpdateWebhookSchema, request.body);
       if (!bodyResult.success) {
@@ -750,7 +785,11 @@ export async function registerDeveloperPortalRoutes(
       }
 
       try {
-        const webhook = await service.updateWebhook(params.accountId, params.webhookId, bodyResult.data);
+        const webhook = await service.updateWebhook(
+          params.accountId,
+          params.webhookId,
+          bodyResult.data,
+        );
         return reply.status(200).send(formatWebhookResponse(webhook));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -771,7 +810,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DeveloperAccountParams & WebhookParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DeveloperAccountParams & WebhookParams;
+      const params = request.params;
 
       try {
         await service.deleteWebhook(params.accountId, params.webhookId);
@@ -792,11 +831,14 @@ export async function registerDeveloperPortalRoutes(
   fastify.get(
     `${prefix}/accounts/:accountId/webhooks/:webhookId/deliveries`,
     async function listDeliveriesHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams & WebhookParams; Querystring: WebhookDeliveryQuery }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams & WebhookParams;
+        Querystring: WebhookDeliveryQuery;
+      }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DeveloperAccountParams & WebhookParams;
-      const query = request.query as WebhookDeliveryQuery;
+      const params = request.params;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -814,7 +856,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatDeliveryResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -907,7 +954,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DeveloperAccountParams & SandboxParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DeveloperAccountParams & SandboxParams;
+      const params = request.params;
 
       try {
         const sandbox = await service.destroySandbox(params.accountId, params.sandboxId);
@@ -972,7 +1019,10 @@ export async function registerDeveloperPortalRoutes(
   fastify.get(
     `${prefix}/accounts/:accountId/submissions`,
     async function listSubmissionsHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams; Querystring: { page?: number; pageSize?: number; status?: string } }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams;
+        Querystring: { page?: number; pageSize?: number; status?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(DeveloperAccountParamsSchema, request.params);
@@ -993,12 +1043,17 @@ export async function registerDeveloperPortalRoutes(
         paramsResult.data.accountId,
         page,
         pageSize,
-        query.status as any,
+        isSubmissionStatus(query.status) ? query.status : undefined,
       );
 
       return reply.status(200).send({
         data: result.data.map(formatSubmissionResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -1065,9 +1120,16 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const reviewerId = authenticatedSubject(request);
+      if (!reviewerId) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required to review a submission',
+          statusCode: 401,
+        });
+      }
+
       try {
-        // In production, reviewerId would come from authenticated user context
-        const reviewerId = 'system-reviewer';
         const submission = await service.reviewPlugin(
           paramsResult.data.submissionId,
           reviewerId,
@@ -1127,7 +1189,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Querystring: MarketplaceSearchQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query as MarketplaceSearchQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
       const tags = query.tags ? query.tags.split(',').map((t) => t.trim()) : undefined;
@@ -1144,7 +1206,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatMarketplaceResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -1159,7 +1226,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: MarketplacePluginParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as MarketplacePluginParams;
+      const params = request.params;
 
       try {
         const listing = await service.getMarketplaceListing(params.pluginName);
@@ -1183,7 +1250,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: MarketplacePluginParams; Body: PluginRatingInput }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as MarketplacePluginParams;
+      const params = request.params;
 
       const bodyResult = validate(PluginRatingSchema, request.body);
       if (!bodyResult.success) {
@@ -1195,9 +1262,19 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      // The rater identity is the authenticated principal only; the legacy
+      // `x-account-id` header is deliberately ignored (G-719) so a caller
+      // cannot forge ratings on behalf of another account.
+      const accountId = authenticatedSubject(request);
+      if (!accountId) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication is required to rate a plugin',
+          statusCode: 401,
+        });
+      }
+
       try {
-        // In production, accountId would come from authenticated user context
-        const accountId = (request.headers['x-account-id'] as string) || 'anonymous';
         const rating = await service.ratePlugin(accountId, params.pluginName, bodyResult.data);
         return reply.status(201).send({
           id: rating.id,
@@ -1259,7 +1336,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Querystring: DocListQuery }>,
       reply: FastifyReply,
     ) {
-      const query = request.query as DocListQuery;
+      const query = request.query;
       const pages = await service.listDocPages(query.category, query.published);
       return reply.status(200).send({
         data: pages.map(formatDocPageResponse),
@@ -1277,7 +1354,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DocPageParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DocPageParams;
+      const params = request.params;
 
       try {
         const page = await service.getDocPage(params.slug);
@@ -1301,7 +1378,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DocPageParams; Body: UpdateDocPageInput }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DocPageParams;
+      const params = request.params;
 
       const bodyResult = validate(UpdateDocPageSchema, request.body);
       if (!bodyResult.success) {
@@ -1335,7 +1412,7 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: DocPageParams }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as DocPageParams;
+      const params = request.params;
 
       try {
         await service.deleteDocPage(params.slug);
@@ -1398,8 +1475,8 @@ export async function registerDeveloperPortalRoutes(
       request: FastifyRequest<{ Params: MarketplacePluginParams; Querystring: AnalyticsQuery }>,
       reply: FastifyReply,
     ) {
-      const params = request.params as MarketplacePluginParams;
-      const query = request.query as AnalyticsQuery;
+      const params = request.params;
+      const query = request.query;
 
       const summary = await service.getPluginAnalytics(params.pluginName);
       const startDate = query.startDate ? new Date(query.startDate) : undefined;

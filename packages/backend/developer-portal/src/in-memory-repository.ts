@@ -97,9 +97,7 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     page: number,
     pageSize: number,
   ): Promise<{ data: ApiKeyEntity[]; total: number }> {
-    let keys = Array.from(this.apiKeys.values()).filter(
-      (k) => k.accountId === filter.accountId,
-    );
+    let keys = Array.from(this.apiKeys.values()).filter((k) => k.accountId === filter.accountId);
     if (filter.status) {
       keys = keys.filter((k) => k.status === filter.status);
     }
@@ -158,7 +156,9 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
 
   async updateWebhook(
     id: string,
-    updates: Partial<Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>>,
+    updates: Partial<
+      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+    >,
   ): Promise<WebhookEntity | null> {
     const webhook = this.webhooks.get(id);
     if (!webhook) return null;
@@ -202,7 +202,12 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
 
   async updateDelivery(
     id: string,
-    updates: Partial<Pick<WebhookDeliveryEntity, 'status' | 'httpStatus' | 'attempts' | 'lastAttemptAt' | 'nextRetryAt'>>,
+    updates: Partial<
+      Pick<
+        WebhookDeliveryEntity,
+        'status' | 'httpStatus' | 'attempts' | 'lastAttemptAt' | 'nextRetryAt'
+      >
+    >,
   ): Promise<WebhookDeliveryEntity | null> {
     const delivery = this.deliveries.get(id);
     if (!delivery) return null;
@@ -283,7 +288,8 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
       status,
       reviewNotes: reviewNotes ?? submission.reviewNotes,
       reviewedBy: reviewedBy ?? submission.reviewedBy,
-      reviewedAt: status === 'approved' || status === 'rejected' ? new Date() : submission.reviewedAt,
+      reviewedAt:
+        status === 'approved' || status === 'rejected' ? new Date() : submission.reviewedAt,
       publishedAt: status === 'published' ? new Date() : submission.publishedAt,
     };
     this.submissions.set(id, updated);
@@ -323,9 +329,7 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
       listings = listings.filter((l) => l.category === filter.category);
     }
     if (filter.tags && filter.tags.length > 0) {
-      listings = listings.filter((l) =>
-        filter.tags!.some((t) => l.tags.includes(t)),
-      );
+      listings = listings.filter((l) => filter.tags!.some((t) => l.tags.includes(t)));
     }
 
     // Sort
@@ -403,9 +407,7 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   }
 
   async getAverageRating(pluginName: string): Promise<{ average: number; count: number }> {
-    const ratings = Array.from(this.ratings.values()).filter(
-      (r) => r.pluginName === pluginName,
-    );
+    const ratings = Array.from(this.ratings.values()).filter((r) => r.pluginName === pluginName);
     if (ratings.length === 0) return { average: 0, count: 0 };
     const sum = ratings.reduce((acc, r) => acc + r.rating, 0);
     return { average: Math.round((sum / ratings.length) * 100) / 100, count: ratings.length };

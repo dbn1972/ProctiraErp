@@ -98,9 +98,7 @@ const STRUCTURAL_TOKEN_PREFIXES = [
 /**
  * Individual structural tokens that don't need dark-mode counterparts.
  */
-const STRUCTURAL_TOKENS = new Set([
-  '--font-size',
-]);
+const STRUCTURAL_TOKENS = new Set(['--font-size']);
 
 function isStructuralToken(token: string): boolean {
   if (STRUCTURAL_TOKENS.has(token)) return true;
@@ -111,9 +109,7 @@ function isStructuralToken(token: string): boolean {
  * Color-related tokens from the light block that MUST have dark-mode parity.
  * These are the tokens that affect visual appearance and must invert.
  */
-const colorTokens = Array.from(lightTokens).filter(
-  (token) => !isStructuralToken(token)
-);
+const colorTokens = Array.from(lightTokens).filter((token) => !isStructuralToken(token));
 
 // ---------------------------------------------------------------------------
 // Property Tests
@@ -140,64 +136,50 @@ describe('Dark Mode Parity (Property F-2)', () => {
     // Use fast-check to sample arbitrary indices into the color token array
     // and verify each sampled token exists in the dark-mode block.
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: colorTokens.length - 1 }),
-        (index) => {
-          const token = colorTokens[index];
-          const hasDarkCounterpart = darkTokens.has(token);
-          if (!hasDarkCounterpart) {
-            // Return false to signal property violation with a clear message
-            throw new Error(
-              `Light-mode token "${token}" has no corresponding dark-mode definition in :root.dark`
-            );
-          }
-          return true;
+      fc.property(fc.integer({ min: 0, max: colorTokens.length - 1 }), (index) => {
+        const token = colorTokens[index];
+        const hasDarkCounterpart = darkTokens.has(token);
+        if (!hasDarkCounterpart) {
+          // Return false to signal property violation with a clear message
+          throw new Error(
+            `Light-mode token "${token}" has no corresponding dark-mode definition in :root.dark`,
+          );
         }
-      ),
-      { numRuns: Math.min(colorTokens.length * 3, 500), verbose: true }
+        return true;
+      }),
+      { numRuns: Math.min(colorTokens.length * 3, 500), verbose: true },
     );
   });
 
   it('every dark-mode token has a corresponding light-mode token (no orphan dark tokens)', () => {
     // Reverse check: dark tokens should not define properties that don't
     // exist in light mode (would indicate a typo or orphaned token).
-    const darkColorTokens = Array.from(darkTokens).filter(
-      (token) => !isStructuralToken(token)
-    );
+    const darkColorTokens = Array.from(darkTokens).filter((token) => !isStructuralToken(token));
 
     expect(darkColorTokens.length).toBeGreaterThan(0);
 
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: darkColorTokens.length - 1 }),
-        (index) => {
-          const token = darkColorTokens[index];
-          const hasLightCounterpart = lightTokens.has(token);
-          if (!hasLightCounterpart) {
-            throw new Error(
-              `Dark-mode token "${token}" has no corresponding light-mode definition in :root/:root.light`
-            );
-          }
-          return true;
+      fc.property(fc.integer({ min: 0, max: darkColorTokens.length - 1 }), (index) => {
+        const token = darkColorTokens[index];
+        const hasLightCounterpart = lightTokens.has(token);
+        if (!hasLightCounterpart) {
+          throw new Error(
+            `Dark-mode token "${token}" has no corresponding light-mode definition in :root/:root.light`,
+          );
         }
-      ),
-      { numRuns: Math.min(darkColorTokens.length * 3, 500), verbose: true }
+        return true;
+      }),
+      { numRuns: Math.min(darkColorTokens.length * 3, 500), verbose: true },
     );
   });
 
   it('light and dark mode define the same set of color tokens (set equality)', () => {
     // Exhaustive check: the set of color tokens in light and dark must match
     const lightColorSet = new Set(colorTokens);
-    const darkColorTokens = new Set(
-      Array.from(darkTokens).filter((t) => !isStructuralToken(t))
-    );
+    const darkColorTokens = new Set(Array.from(darkTokens).filter((t) => !isStructuralToken(t)));
 
-    const missingInDark = Array.from(lightColorSet).filter(
-      (t) => !darkColorTokens.has(t)
-    );
-    const missingInLight = Array.from(darkColorTokens).filter(
-      (t) => !lightColorSet.has(t)
-    );
+    const missingInDark = Array.from(lightColorSet).filter((t) => !darkColorTokens.has(t));
+    const missingInLight = Array.from(darkColorTokens).filter((t) => !lightColorSet.has(t));
 
     expect(missingInDark, 'Tokens defined in light but missing in dark').toEqual([]);
     expect(missingInLight, 'Tokens defined in dark but missing in light').toEqual([]);
@@ -229,22 +211,19 @@ describe('Dark Mode Parity (Property F-2)', () => {
     ];
 
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: requiredSemanticTokens.length - 1 }),
-        (index) => {
-          const token = requiredSemanticTokens[index];
-          const inLight = lightTokens.has(token);
-          const inDark = darkTokens.has(token);
-          if (!inLight) {
-            throw new Error(`Required semantic token "${token}" missing from light mode`);
-          }
-          if (!inDark) {
-            throw new Error(`Required semantic token "${token}" missing from dark mode`);
-          }
-          return true;
+      fc.property(fc.integer({ min: 0, max: requiredSemanticTokens.length - 1 }), (index) => {
+        const token = requiredSemanticTokens[index];
+        const inLight = lightTokens.has(token);
+        const inDark = darkTokens.has(token);
+        if (!inLight) {
+          throw new Error(`Required semantic token "${token}" missing from light mode`);
         }
-      ),
-      { numRuns: requiredSemanticTokens.length * 5, verbose: true }
+        if (!inDark) {
+          throw new Error(`Required semantic token "${token}" missing from dark mode`);
+        }
+        return true;
+      }),
+      { numRuns: requiredSemanticTokens.length * 5, verbose: true },
     );
   });
 
@@ -252,50 +231,38 @@ describe('Dark Mode Parity (Property F-2)', () => {
     // Requirement 36.6: dark mode chart palettes must have sufficient contrast.
     // This verifies the tokens exist in both modes (contrast values are
     // verified by the check:contrast script).
-    const chartTokens = Array.from(lightTokens).filter(
-      (t) => t.startsWith('--chart-')
-    );
+    const chartTokens = Array.from(lightTokens).filter((t) => t.startsWith('--chart-'));
 
     expect(chartTokens.length).toBeGreaterThan(0);
 
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: chartTokens.length - 1 }),
-        (index) => {
-          const token = chartTokens[index];
-          if (!darkTokens.has(token)) {
-            throw new Error(
-              `Chart token "${token}" missing from dark mode — violates Requirement 36.6 (chart contrast in dark mode)`
-            );
-          }
-          return true;
+      fc.property(fc.integer({ min: 0, max: chartTokens.length - 1 }), (index) => {
+        const token = chartTokens[index];
+        if (!darkTokens.has(token)) {
+          throw new Error(
+            `Chart token "${token}" missing from dark mode — violates Requirement 36.6 (chart contrast in dark mode)`,
+          );
         }
-      ),
-      { numRuns: chartTokens.length * 3, verbose: true }
+        return true;
+      }),
+      { numRuns: chartTokens.length * 3, verbose: true },
     );
   });
 
   it('sidebar tokens are defined in both modes', () => {
-    const sidebarTokens = Array.from(lightTokens).filter(
-      (t) => t.startsWith('--sidebar')
-    );
+    const sidebarTokens = Array.from(lightTokens).filter((t) => t.startsWith('--sidebar'));
 
     expect(sidebarTokens.length).toBeGreaterThan(0);
 
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: sidebarTokens.length - 1 }),
-        (index) => {
-          const token = sidebarTokens[index];
-          if (!darkTokens.has(token)) {
-            throw new Error(
-              `Sidebar token "${token}" missing from dark mode`
-            );
-          }
-          return true;
+      fc.property(fc.integer({ min: 0, max: sidebarTokens.length - 1 }), (index) => {
+        const token = sidebarTokens[index];
+        if (!darkTokens.has(token)) {
+          throw new Error(`Sidebar token "${token}" missing from dark mode`);
         }
-      ),
-      { numRuns: sidebarTokens.length * 3, verbose: true }
+        return true;
+      }),
+      { numRuns: sidebarTokens.length * 3, verbose: true },
     );
   });
 });

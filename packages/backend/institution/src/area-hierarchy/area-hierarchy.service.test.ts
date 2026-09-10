@@ -45,7 +45,10 @@ class MockAreaHierarchyDb implements AreaHierarchyDbClient {
       return this.areas.find((a) => a.id === args.where.id) ?? null;
     },
 
-    findFirst: async (args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> | Record<string, unknown>[] }) => {
+    findFirst: async (args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown> | Record<string, unknown>[];
+    }) => {
       let filtered = this.areas.filter((a) => {
         for (const [key, value] of Object.entries(args.where)) {
           if (key === 'deletedAt' && value === null) {
@@ -74,7 +77,10 @@ class MockAreaHierarchyDb implements AreaHierarchyDbClient {
       return filtered[0] ?? null;
     },
 
-    findMany: async (args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> | Record<string, unknown>[] }) => {
+    findMany: async (args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown> | Record<string, unknown>[];
+    }) => {
       let filtered = this.areas.filter((a) => {
         for (const [key, value] of Object.entries(args.where)) {
           if (key === 'deletedAt' && value === null) {
@@ -171,14 +177,18 @@ class MockAreaHierarchyDb implements AreaHierarchyDbClient {
         for (const [key, value] of Object.entries(args.where)) {
           if (typeof value === 'object' && value !== null) {
             if ('gte' in value) {
-              if ((area as Record<string, unknown>)[key] as number < (value as { gte: number }).gte) {
+              if (
+                ((area as Record<string, unknown>)[key] as number) < (value as { gte: number }).gte
+              ) {
                 matches = false;
                 break;
               }
               continue;
             }
             if ('gt' in value) {
-              if ((area as Record<string, unknown>)[key] as number <= (value as { gt: number }).gt) {
+              if (
+                ((area as Record<string, unknown>)[key] as number) <= (value as { gt: number }).gt
+              ) {
                 matches = false;
                 break;
               }
@@ -194,7 +204,8 @@ class MockAreaHierarchyDb implements AreaHierarchyDbClient {
           for (const [key, value] of Object.entries(args.data)) {
             if (typeof value === 'object' && value !== null && 'increment' in value) {
               (area as Record<string, unknown>)[key] =
-                ((area as Record<string, unknown>)[key] as number) + (value as { increment: number }).increment;
+                ((area as Record<string, unknown>)[key] as number) +
+                (value as { increment: number }).increment;
             } else {
               (area as Record<string, unknown>)[key] = value;
             }
@@ -220,7 +231,12 @@ class MockAreaHierarchyDb implements AreaHierarchyDbClient {
   };
 
   institution = {
-    findMany: async (args: { where: Record<string, unknown>; orderBy?: Record<string, unknown>; skip?: number; take?: number }) => {
+    findMany: async (args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown>;
+      skip?: number;
+      take?: number;
+    }) => {
       let filtered = this.institutions.filter((inst) => {
         for (const [key, value] of Object.entries(args.where)) {
           if (key === 'deletedAt' && value === null) {
@@ -290,7 +306,9 @@ function makeArea(overrides: Partial<GeographicArea> & { id: string }): Geograph
 }
 
 /** Helper to create an Institution entity for seeding the mock DB */
-function makeInstitution(overrides: Partial<Institution> & { id: string; areaId: string }): Institution {
+function makeInstitution(
+  overrides: Partial<Institution> & { id: string; areaId: string },
+): Institution {
   return {
     tenantId: TENANT_ID,
     name: `Institution ${overrides.id}`,
@@ -429,34 +447,54 @@ describe('AreaHierarchyService', () => {
     });
 
     it('should throw NotFoundError for non-existent area', async () => {
-      await expect(
-        service.update(TENANT_ID, 'non-existent', { name: 'Test' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(TENANT_ID, 'non-existent', { name: 'Test' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw ConflictError for duplicate code on update', async () => {
       db.addArea(makeArea({ id: 'area-1', code: 'A1' }));
       db.addArea(makeArea({ id: 'area-2', code: 'A2' }));
 
-      await expect(
-        service.update(TENANT_ID, 'area-1', { code: 'A2' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.update(TENANT_ID, 'area-1', { code: 'A2' })).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should throw NotFoundError for area in different tenant', async () => {
       db.addArea(makeArea({ id: 'area-1', code: 'A1', tenantId: 'other-tenant' }));
 
-      await expect(
-        service.update(TENANT_ID, 'area-1', { name: 'Test' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(TENANT_ID, 'area-1', { name: 'Test' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
   describe('move', () => {
     it('should move an area to a new parent', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 6 }));
-      db.addArea(makeArea({ id: 'child-a', code: 'CA', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 3 }));
-      db.addArea(makeArea({ id: 'child-b', code: 'CB', level: 1, parentId: 'root', path: '/root', lft: 4, rgt: 5 }));
+      db.addArea(
+        makeArea({
+          id: 'child-a',
+          code: 'CA',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 3,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'child-b',
+          code: 'CB',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 4,
+          rgt: 5,
+        }),
+      );
 
       const moved = await service.move(TENANT_ID, 'child-a', { newParentId: 'child-b' });
       expect(moved.parentId).toBe('child-b');
@@ -466,24 +504,34 @@ describe('AreaHierarchyService', () => {
     it('should throw BusinessRuleError when moving to self', async () => {
       db.addArea(makeArea({ id: 'area-1', code: 'A1' }));
 
-      await expect(
-        service.move(TENANT_ID, 'area-1', { newParentId: 'area-1' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.move(TENANT_ID, 'area-1', { newParentId: 'area-1' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should throw BusinessRuleError when moving to own descendant', async () => {
       db.addArea(makeArea({ id: 'parent', code: 'P', level: 0, path: '', lft: 1, rgt: 4 }));
-      db.addArea(makeArea({ id: 'child', code: 'C', level: 1, parentId: 'parent', path: '/parent', lft: 2, rgt: 3 }));
+      db.addArea(
+        makeArea({
+          id: 'child',
+          code: 'C',
+          level: 1,
+          parentId: 'parent',
+          path: '/parent',
+          lft: 2,
+          rgt: 3,
+        }),
+      );
 
-      await expect(
-        service.move(TENANT_ID, 'parent', { newParentId: 'child' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.move(TENANT_ID, 'parent', { newParentId: 'child' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should throw NotFoundError for non-existent area', async () => {
-      await expect(
-        service.move(TENANT_ID, 'non-existent', { newParentId: null }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.move(TENANT_ID, 'non-existent', { newParentId: null })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw BusinessRuleError when move would exceed max depth', async () => {
@@ -494,24 +542,46 @@ describe('AreaHierarchyService', () => {
         const id = `l${i}`;
         const prevPath = db['areas'].find((a) => a.id === parentId)!.path;
         const path = prevPath ? `${prevPath}/${parentId}` : `/${parentId}`;
-        db.addArea(makeArea({ id, code: `L${i}`, level: i, parentId, path, lft: i * 2, rgt: i * 2 + 1 }));
+        db.addArea(
+          makeArea({ id, code: `L${i}`, level: i, parentId, path, lft: i * 2, rgt: i * 2 + 1 }),
+        );
         parentId = id;
       }
 
       // Create a separate subtree with depth 2: branch -> branch-child
       db.addArea(makeArea({ id: 'branch', code: 'BR', level: 0, path: '', lft: 21, rgt: 24 }));
-      db.addArea(makeArea({ id: 'branch-child', code: 'BRC', level: 1, parentId: 'branch', path: '/branch', lft: 22, rgt: 23 }));
+      db.addArea(
+        makeArea({
+          id: 'branch-child',
+          code: 'BRC',
+          level: 1,
+          parentId: 'branch',
+          path: '/branch',
+          lft: 22,
+          rgt: 23,
+        }),
+      );
 
       // Moving 'branch' under 'l8' (level 8) would make branch at level 9 and branch-child at level 10
       // That exceeds MAX_AREA_DEPTH (10) since branch-child would be at level 10 (0-indexed)
-      await expect(
-        service.move(TENANT_ID, 'branch', { newParentId: 'l8' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.move(TENANT_ID, 'branch', { newParentId: 'l8' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should allow moving to root (null parent)', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 4 }));
-      db.addArea(makeArea({ id: 'child', code: 'C', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 3 }));
+      db.addArea(
+        makeArea({
+          id: 'child',
+          code: 'C',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 3,
+        }),
+      );
 
       const moved = await service.move(TENANT_ID, 'child', { newParentId: null });
       expect(moved.parentId).toBeNull();
@@ -522,8 +592,28 @@ describe('AreaHierarchyService', () => {
   describe('getTree', () => {
     it('should return the full tree for a tenant', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 6 }));
-      db.addArea(makeArea({ id: 'child-a', code: 'CA', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 3 }));
-      db.addArea(makeArea({ id: 'child-b', code: 'CB', level: 1, parentId: 'root', path: '/root', lft: 4, rgt: 5 }));
+      db.addArea(
+        makeArea({
+          id: 'child-a',
+          code: 'CA',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 3,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'child-b',
+          code: 'CB',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 4,
+          rgt: 5,
+        }),
+      );
 
       const tree = await service.getTree(TENANT_ID);
       expect(tree).toHaveLength(1);
@@ -533,9 +623,39 @@ describe('AreaHierarchyService', () => {
 
     it('should return subtree from a specific root', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 8 }));
-      db.addArea(makeArea({ id: 'child-a', code: 'CA', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 5 }));
-      db.addArea(makeArea({ id: 'grandchild', code: 'GC', level: 2, parentId: 'child-a', path: '/root/child-a', lft: 3, rgt: 4 }));
-      db.addArea(makeArea({ id: 'child-b', code: 'CB', level: 1, parentId: 'root', path: '/root', lft: 6, rgt: 7 }));
+      db.addArea(
+        makeArea({
+          id: 'child-a',
+          code: 'CA',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 5,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'grandchild',
+          code: 'GC',
+          level: 2,
+          parentId: 'child-a',
+          path: '/root/child-a',
+          lft: 3,
+          rgt: 4,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'child-b',
+          code: 'CB',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 6,
+          rgt: 7,
+        }),
+      );
 
       const tree = await service.getTree(TENANT_ID, 'child-a');
       expect(tree).toHaveLength(1);
@@ -545,18 +665,46 @@ describe('AreaHierarchyService', () => {
     });
 
     it('should throw NotFoundError for non-existent root', async () => {
-      await expect(
-        service.getTree(TENANT_ID, 'non-existent'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getTree(TENANT_ID, 'non-existent')).rejects.toThrow(NotFoundError);
     });
   });
 
   describe('getDescendantIds', () => {
     it('should return the area itself and all descendants', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 8 }));
-      db.addArea(makeArea({ id: 'child-a', code: 'CA', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 5 }));
-      db.addArea(makeArea({ id: 'grandchild', code: 'GC', level: 2, parentId: 'child-a', path: '/root/child-a', lft: 3, rgt: 4 }));
-      db.addArea(makeArea({ id: 'child-b', code: 'CB', level: 1, parentId: 'root', path: '/root', lft: 6, rgt: 7 }));
+      db.addArea(
+        makeArea({
+          id: 'child-a',
+          code: 'CA',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 5,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'grandchild',
+          code: 'GC',
+          level: 2,
+          parentId: 'child-a',
+          path: '/root/child-a',
+          lft: 3,
+          rgt: 4,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'child-b',
+          code: 'CB',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 6,
+          rgt: 7,
+        }),
+      );
 
       const ids = await service.getDescendantIds(TENANT_ID, 'root');
       expect(ids).toContain('root');
@@ -567,24 +715,46 @@ describe('AreaHierarchyService', () => {
     });
 
     it('should return only the area itself if it has no children', async () => {
-      db.addArea(makeArea({ id: 'leaf', code: 'LEAF', level: 2, path: '/root/parent', lft: 3, rgt: 4 }));
+      db.addArea(
+        makeArea({ id: 'leaf', code: 'LEAF', level: 2, path: '/root/parent', lft: 3, rgt: 4 }),
+      );
 
       const ids = await service.getDescendantIds(TENANT_ID, 'leaf');
       expect(ids).toEqual(['leaf']);
     });
 
     it('should throw NotFoundError for non-existent area', async () => {
-      await expect(
-        service.getDescendantIds(TENANT_ID, 'non-existent'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getDescendantIds(TENANT_ID, 'non-existent')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
   describe('getAncestorIds', () => {
     it('should return ancestors from root to the area', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 8 }));
-      db.addArea(makeArea({ id: 'child', code: 'C', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 5 }));
-      db.addArea(makeArea({ id: 'grandchild', code: 'GC', level: 2, parentId: 'child', path: '/root/child', lft: 3, rgt: 4 }));
+      db.addArea(
+        makeArea({
+          id: 'child',
+          code: 'C',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 5,
+        }),
+      );
+      db.addArea(
+        makeArea({
+          id: 'grandchild',
+          code: 'GC',
+          level: 2,
+          parentId: 'child',
+          path: '/root/child',
+          lft: 3,
+          rgt: 4,
+        }),
+      );
 
       const ancestors = await service.getAncestorIds(TENANT_ID, 'grandchild');
       expect(ancestors).toEqual(['root', 'child', 'grandchild']);
@@ -601,13 +771,26 @@ describe('AreaHierarchyService', () => {
   describe('getInstitutionsByArea', () => {
     it('should return institutions in the area and all descendant areas', async () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 6 }));
-      db.addArea(makeArea({ id: 'child', code: 'C', level: 1, parentId: 'root', path: '/root', lft: 2, rgt: 3 }));
+      db.addArea(
+        makeArea({
+          id: 'child',
+          code: 'C',
+          level: 1,
+          parentId: 'root',
+          path: '/root',
+          lft: 2,
+          rgt: 3,
+        }),
+      );
 
       db.addInstitution(makeInstitution({ id: 'inst-1', areaId: 'root', name: 'School A' }));
       db.addInstitution(makeInstitution({ id: 'inst-2', areaId: 'child', name: 'School B' }));
       db.addInstitution(makeInstitution({ id: 'inst-3', areaId: 'other-area', name: 'School C' }));
 
-      const result = await service.getInstitutionsByArea(TENANT_ID, 'root', { page: 1, pageSize: 10 });
+      const result = await service.getInstitutionsByArea(TENANT_ID, 'root', {
+        page: 1,
+        pageSize: 10,
+      });
       expect(result.data).toHaveLength(2);
       expect(result.meta.totalItems).toBe(2);
     });
@@ -616,15 +799,23 @@ describe('AreaHierarchyService', () => {
       db.addArea(makeArea({ id: 'root', code: 'ROOT', level: 0, path: '', lft: 1, rgt: 2 }));
 
       for (let i = 0; i < 5; i++) {
-        db.addInstitution(makeInstitution({ id: `inst-${i}`, areaId: 'root', name: `School ${i}` }));
+        db.addInstitution(
+          makeInstitution({ id: `inst-${i}`, areaId: 'root', name: `School ${i}` }),
+        );
       }
 
-      const page1 = await service.getInstitutionsByArea(TENANT_ID, 'root', { page: 1, pageSize: 2 });
+      const page1 = await service.getInstitutionsByArea(TENANT_ID, 'root', {
+        page: 1,
+        pageSize: 2,
+      });
       expect(page1.data).toHaveLength(2);
       expect(page1.meta.totalItems).toBe(5);
       expect(page1.meta.totalPages).toBe(3);
 
-      const page2 = await service.getInstitutionsByArea(TENANT_ID, 'root', { page: 2, pageSize: 2 });
+      const page2 = await service.getInstitutionsByArea(TENANT_ID, 'root', {
+        page: 2,
+        pageSize: 2,
+      });
       expect(page2.data).toHaveLength(2);
     });
 

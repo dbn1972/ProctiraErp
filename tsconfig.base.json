@@ -34,6 +34,7 @@
       "@proctira/storage": ["./packages/shared/storage/src"],
       "@proctira/secrets": ["./packages/shared/secrets/src"],
       "@proctira/cache": ["./packages/shared/cache/src"],
+      "@proctira/pdf-lite": ["./packages/shared/pdf-lite/src"],
       "@proctira/ui/*": ["./packages/ui/*/src"]
     }
   },

@@ -20,10 +20,7 @@ export default function FeaturesPage() {
 
   return (
     <MarketingLayout pageTitle={t('marketing.pages.features.documentTitle')}>
-      <main
-        data-testid="marketing-features-page"
-        className="flex flex-1 flex-col"
-      >
+      <main data-testid="marketing-features-page" className="flex flex-1 flex-col">
         {/* Hero */}
         <section className="border-b border-border bg-[hsl(var(--secondary))]">
           <div className="mx-auto w-full max-w-5xl px-6 py-20 lg:px-8 lg:py-24">

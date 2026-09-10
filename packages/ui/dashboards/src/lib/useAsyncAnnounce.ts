@@ -67,10 +67,7 @@ export function useAsyncAnnounce({
     const wasLoading = wasLoadingRef.current;
     if (wasLoading && !loading) {
       if (error) {
-        announce(
-          errorMessage ?? defaultErrorMessage(loadedMessage),
-          'assertive',
-        );
+        announce(errorMessage ?? defaultErrorMessage(loadedMessage), 'assertive');
       } else {
         announce(loadedMessage, 'polite');
       }

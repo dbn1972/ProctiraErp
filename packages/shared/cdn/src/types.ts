@@ -15,11 +15,7 @@ import { Type, Static } from '@sinclair/typebox';
  */
 export const CdnConfigSchema = Type.Object({
   /** CDN adapter type */
-  adapter: Type.Union([
-    Type.Literal('cloudfront'),
-    Type.Literal('nginx'),
-    Type.Literal('custom'),
-  ]),
+  adapter: Type.Union([Type.Literal('cloudfront'), Type.Literal('nginx'), Type.Literal('custom')]),
   /** Base URL for the CDN (e.g., 'https://cdn.proctira.org') */
   baseUrl: Type.String({ minLength: 1 }),
   /** Whether to enable tenant-aware asset routing */
@@ -29,27 +25,33 @@ export const CdnConfigSchema = Type.Object({
   /** Path prefix for shared static assets */
   staticPrefix: Type.String({ default: '/static' }),
   /** Cache configuration */
-  cache: Type.Optional(Type.Object({
-    /** Default cache TTL in seconds */
-    defaultTtlSeconds: Type.Number({ minimum: 0, default: 86400 }),
-    /** Cache TTL for branding assets in seconds */
-    brandingTtlSeconds: Type.Number({ minimum: 0, default: 3600 }),
-    /** Whether to append version/hash query params for cache busting */
-    enableVersioning: Type.Boolean({ default: true }),
-  })),
+  cache: Type.Optional(
+    Type.Object({
+      /** Default cache TTL in seconds */
+      defaultTtlSeconds: Type.Number({ minimum: 0, default: 86400 }),
+      /** Cache TTL for branding assets in seconds */
+      brandingTtlSeconds: Type.Number({ minimum: 0, default: 3600 }),
+      /** Whether to append version/hash query params for cache busting */
+      enableVersioning: Type.Boolean({ default: true }),
+    }),
+  ),
   /** CloudFront-specific configuration */
-  cloudfront: Type.Optional(Type.Object({
-    distributionId: Type.String(),
-    /** AWS region for CloudFront API calls */
-    region: Type.String({ default: 'us-east-1' }),
-  })),
+  cloudfront: Type.Optional(
+    Type.Object({
+      distributionId: Type.String(),
+      /** AWS region for CloudFront API calls */
+      region: Type.String({ default: 'us-east-1' }),
+    }),
+  ),
   /** Custom CDN configuration for self-hosted or other providers */
-  custom: Type.Optional(Type.Object({
-    /** Custom invalidation endpoint URL */
-    invalidationEndpoint: Type.Optional(Type.String()),
-    /** Custom headers to include in invalidation requests */
-    headers: Type.Optional(Type.Record(Type.String(), Type.String())),
-  })),
+  custom: Type.Optional(
+    Type.Object({
+      /** Custom invalidation endpoint URL */
+      invalidationEndpoint: Type.Optional(Type.String()),
+      /** Custom headers to include in invalidation requests */
+      headers: Type.Optional(Type.Record(Type.String(), Type.String())),
+    }),
+  ),
 });
 
 export type CdnConfig = Static<typeof CdnConfigSchema>;

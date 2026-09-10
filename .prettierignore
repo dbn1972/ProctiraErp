@@ -13,3 +13,13 @@ infrastructure/helm/**/templates/**
 tools/dod-checks/reports/baseline.json
 tools/dod-checks/reports/dod-report.json
 *.tsbuildinfo
+
+# Playwright / visual artifacts (binary + ephemeral)
+**/test-results/**
+**/playwright-report/**
+**/*.spec.ts-snapshots/**
+*.png
+*.zip
+
+# G-804 generated page-wise regression matrix (tools/scripts/page-regression-matrix.mjs)
+docs/testing/PAGE_REGRESSION_MATRIX.md

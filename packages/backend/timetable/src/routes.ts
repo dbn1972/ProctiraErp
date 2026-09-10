@@ -21,7 +21,10 @@ import {
   CreateSectionSchema,
   UpdateSectionSchema,
   EnrollStudentSchema,
+  BulkEnrollStudentsSchema,
   CreateRoomSchema,
+  CreateGenerationJobSchema,
+  CreateTeacherAbsenceSchema,
 } from './schemas.js';
 import { assertTimetableAccess, type TimetableAction } from './timetable-access.js';
 import { isTimetableClashError, isTimetableSchemaMissingError } from './timetable-errors.js';
@@ -473,6 +476,33 @@ export async function registerTimetableRoutes(
     }
   });
 
+  // ── Conflict engine surface (G-304) ───────────────────────────────────────
+
+  fastify.get(`${prefix}/conflicts`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as {
+        institutionId?: string;
+        academicPeriodId?: string;
+      };
+      if (!query.institutionId) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'institutionId is required',
+          statusCode: 400,
+        });
+      }
+      const rows = await service.listConflicts(tenantId, {
+        institutionId: query.institutionId,
+        academicPeriodId: query.academicPeriodId,
+      });
+      return reply.send({ data: rows, count: rows.length });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
   // ── Sections (master schedule) ────────────────────────────────────────────
 
   fastify.get(`${prefix}/sections`, async (request, reply) => {
@@ -635,6 +665,44 @@ export async function registerTimetableRoutes(
     }
   });
 
+  fastify.post(`${prefix}/sections/:id/enrollments/bulk`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
+    const validated = validate(BulkEnrollStudentsSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const { id } = request.params as { id: string };
+      const section = await service.getSection(tenantId, id);
+      if (!section) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Section not found',
+          statusCode: 404,
+        });
+      }
+      const result = await service.bulkEnrollStudents(tenantId, id, validated.data.studentIds);
+      return reply.status(200).send({
+        enrolled: result.enrolled,
+        failed: result.failed,
+        summary: {
+          requested: validated.data.studentIds.length,
+          enrolled: result.enrolled.length,
+          failed: result.failed.length,
+        },
+      });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
   fastify.delete(`${prefix}/sections/:id/enrollments/:studentId`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
@@ -694,6 +762,112 @@ export async function registerTimetableRoutes(
         dayOfWeek: Number.isFinite(dayOfWeek) ? dayOfWeek : undefined,
       });
       return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  // ── Generation jobs (G-917) ───────────────────────────────────────────────
+
+  fastify.get(`${prefix}/generation-jobs`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { institutionId?: string };
+      const rows = await service.listGenerationJobs(tenantId, {
+        institutionId: query.institutionId,
+      });
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/generation-jobs/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const row = await service.getGenerationJob(tenantId, id);
+      if (!row) {
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Generation job not found', statusCode: 404 });
+      }
+      return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/generation-jobs`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
+    const validated = validate(CreateGenerationJobSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const actor = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
+      const row = await service.runGenerationJob(tenantId, validated.data, actor);
+      return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  // ── Teacher absences / affected periods (G-917) ───────────────────────────
+
+  fastify.post(`${prefix}/teacher-absences`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
+    const validated = validate(CreateTeacherAbsenceSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const actor = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
+      const row = await service.markTeacherAbsent(tenantId, validated.data, actor);
+      return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/teacher-absences/affected`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as {
+        institutionId?: string;
+        staffId?: string;
+        date?: string;
+      };
+      if (!query.institutionId || !query.staffId || !query.date) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'institutionId, staffId and date are required',
+          statusCode: 400,
+        });
+      }
+      const rows = await service.listAffectedPeriods(tenantId, {
+        institutionId: query.institutionId,
+        staffId: query.staffId,
+        date: query.date,
+      });
+      return reply.send({ data: rows, count: rows.length });
     } catch (error) {
       return sendDomainError(reply, error);
     }

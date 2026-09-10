@@ -132,7 +132,10 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
     return true;
   }
 
-  async getStudentEnrollment(studentId: string, _tenantId: string): Promise<StudentEnrollment | null> {
+  async getStudentEnrollment(
+    studentId: string,
+    _tenantId: string,
+  ): Promise<StudentEnrollment | null> {
     return this.studentEnrollments.get(studentId) ?? null;
   }
 
@@ -149,6 +152,15 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
   ): Promise<CandidateRegistration | null> {
     const key = `${examinationId}:${studentId}`;
     return this.candidateRegistrations.get(key) ?? null;
+  }
+
+  async listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]> {
+    return [...this.candidateRegistrations.values()]
+      .filter((r) => r.examinationId === examinationId && r.tenantId === tenantId)
+      .sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime());
   }
 
   /** Test helper to set student enrollment data */

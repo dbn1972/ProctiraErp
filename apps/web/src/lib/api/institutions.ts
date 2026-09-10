@@ -46,33 +46,30 @@ export async function listInstitutions(
     `/institutions?${qs.toString()}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
-export async function listAcademicPeriods(
-  institutionId: string,
-): Promise<AcademicPeriod[]> {
+export async function listAcademicPeriods(institutionId: string): Promise<AcademicPeriod[]> {
   const result = await gatewayFetch<{ data: AcademicPeriod[] }>(
     `/institutions/${encodeURIComponent(institutionId)}/academic-periods`,
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
-export async function listInstitutionGrades(
-  institutionId: string,
-): Promise<GradeSummary[]> {
+export async function listInstitutionGrades(institutionId: string): Promise<GradeSummary[]> {
   const result = await gatewayFetch<{ data: GradeSummary[] }>(
     `/institutions/${encodeURIComponent(institutionId)}/grades`,
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 export async function listAreas(): Promise<AreaNode[]> {
-  const result = await gatewayFetch<{ data: AreaNode[] }>(
-    '/institutions/areas?pageSize=500',
-    { method: 'GET', throwOnError: false, next: { revalidate: 60 } },
-  );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  const result = await gatewayFetch<{ data: AreaNode[] }>('/institutions/areas?pageSize=500', {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 60 },
+  });
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }

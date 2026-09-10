@@ -12,12 +12,7 @@
  * - 8.3: Reject if weights don't sum to 100%
  * - 8.6: Outcome-based assessment mapping
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -73,9 +68,7 @@ export class AssessmentService {
   ): Promise<GradingSchemeEntity> {
     // Validate min < max
     if (input.minValue >= input.maxValue) {
-      throw new BusinessRuleError(
-        'Minimum value must be less than maximum value',
-      );
+      throw new BusinessRuleError('Minimum value must be less than maximum value');
     }
 
     // Validate thresholds
@@ -84,9 +77,7 @@ export class AssessmentService {
     // Check name uniqueness within tenant
     const existing = await this.gradingSchemeRepo.findByName(input.name, tenantId);
     if (existing) {
-      throw new ConflictError(
-        `Grading scheme with name '${input.name}' already exists`,
-      );
+      throw new ConflictError(`Grading scheme with name '${input.name}' already exists`);
     }
 
     const entity: Omit<GradingSchemeEntity, 'createdAt' | 'updatedAt'> = {
@@ -123,9 +114,7 @@ export class AssessmentService {
     if (input.name && input.name !== existing.name) {
       const byName = await this.gradingSchemeRepo.findByName(input.name, tenantId);
       if (byName) {
-        throw new ConflictError(
-          `Grading scheme with name '${input.name}' already exists`,
-        );
+        throw new ConflictError(`Grading scheme with name '${input.name}' already exists`);
       }
     }
 
@@ -134,9 +123,7 @@ export class AssessmentService {
 
     // Validate min < max
     if (newMinValue >= newMaxValue) {
-      throw new BusinessRuleError(
-        'Minimum value must be less than maximum value',
-      );
+      throw new BusinessRuleError('Minimum value must be less than maximum value');
     }
 
     // Validate thresholds if provided
@@ -222,9 +209,7 @@ export class AssessmentService {
     // Validate grading scheme exists
     const gradingScheme = await this.gradingSchemeRepo.findById(input.gradingSchemeId, tenantId);
     if (!gradingScheme) {
-      throw new NotFoundError(
-        `Grading scheme with id '${input.gradingSchemeId}' not found`,
-      );
+      throw new NotFoundError(`Grading scheme with id '${input.gradingSchemeId}' not found`);
     }
 
     // Validate item count (max 50)
@@ -272,11 +257,14 @@ export class AssessmentService {
       const missingIds = allOutcomeIds.filter((id) => !foundIds.has(id));
 
       if (missingIds.length > 0) {
-        throw new ValidationError('Invalid outcome references', missingIds.map((id) => ({
-          field: 'items.outcomeIds',
-          rule: 'exists',
-          message: `Outcome with id '${id}' not found`,
-        })));
+        throw new ValidationError(
+          'Invalid outcome references',
+          missingIds.map((id) => ({
+            field: 'items.outcomeIds',
+            rule: 'exists',
+            message: `Outcome with id '${id}' not found`,
+          })),
+        );
       }
     }
 

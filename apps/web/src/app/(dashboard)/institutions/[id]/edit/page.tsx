@@ -7,19 +7,13 @@
  */
 import { notFound } from 'next/navigation';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { InstitutionForm } from '@/components/institutions/institution-form';
 import { ApiClientError, getInstitution } from '@/lib/institutions/api';
 import { loadInstitutionFormLookups } from '@/lib/institutions/lookups';
 
 interface EditInstitutionPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -29,7 +23,8 @@ interface EditInstitutionPageProps {
  * provide the "which school" context. This page renders only a focused,
  * max-width edit form below that shell.
  */
-export default async function EditInstitutionPage({ params }: EditInstitutionPageProps) {
+export default async function EditInstitutionPage(props: EditInstitutionPageProps) {
+  const params = await props.params;
   const [institution, lookups] = await Promise.all([
     loadInstitutionOrNotFound(params.id),
     loadInstitutionFormLookups(),
@@ -40,8 +35,8 @@ export default async function EditInstitutionPage({ params }: EditInstitutionPag
       <CardHeader>
         <CardTitle className="text-base">Edit institution profile</CardTitle>
         <CardDescription>
-          Update identity, location, classification, and contact details. Changes
-          are recorded in the audit trail. Fields marked * are required.
+          Update identity, location, classification, and contact details. Changes are recorded in
+          the audit trail. Fields marked * are required.
         </CardDescription>
       </CardHeader>
       <CardContent>

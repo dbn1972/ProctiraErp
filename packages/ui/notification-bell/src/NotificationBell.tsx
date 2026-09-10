@@ -66,7 +66,7 @@ export function NotificationBell({
       onNotificationClick?.(notification);
       setIsOpen(false);
     },
-    [onNotificationClick, onMarkRead]
+    [onNotificationClick, onMarkRead],
   );
 
   const formatTime = (dateStr: string): string => {
@@ -86,10 +86,14 @@ export function NotificationBell({
 
   const getTypeIcon = (type: Notification['type']): string => {
     switch (type) {
-      case 'info': return 'ℹ️';
-      case 'warning': return '⚠️';
-      case 'error': return '❌';
-      case 'success': return '✅';
+      case 'info':
+        return 'ℹ️';
+      case 'warning':
+        return '⚠️';
+      case 'error':
+        return '❌';
+      case 'success':
+        return '✅';
     }
   };
 
@@ -109,10 +113,7 @@ export function NotificationBell({
           🔔
         </span>
         {effectiveUnreadCount > 0 && (
-          <span
-            className="proctira-notification-bell__badge"
-            aria-hidden="true"
-          >
+          <span className="proctira-notification-bell__badge" aria-hidden="true">
             {effectiveUnreadCount > 99 ? '99+' : effectiveUnreadCount}
           </span>
         )}

@@ -9,10 +9,7 @@ import type { ApprovedEvent, DomainEventPayload, HookContext } from '@proctira/b
 /**
  * Event handler function type.
  */
-export type PluginEventHandler = (
-  event: DomainEventPayload,
-  context: HookContext,
-) => Promise<void>;
+export type PluginEventHandler = (event: DomainEventPayload, context: HookContext) => Promise<void>;
 
 /**
  * An event handler definition linking a domain event to a handler function.

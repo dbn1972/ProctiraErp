@@ -298,7 +298,11 @@ export async function registerThemeRoutes(
       }
 
       try {
-        const theme = await themeService.update(tenantId, paramsResult.data.themeId, bodyResult.data);
+        const theme = await themeService.update(
+          tenantId,
+          paramsResult.data.themeId,
+          bodyResult.data,
+        );
         return reply.status(200).send(formatThemeResponse(theme));
       } catch (error: unknown) {
         if (error instanceof AppError) {

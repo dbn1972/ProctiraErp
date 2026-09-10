@@ -182,9 +182,7 @@ export async function listGradingSchemes(
   return result.data;
 }
 
-export async function getGradingScheme(
-  id: string,
-): Promise<GradingScheme | null> {
+export async function getGradingScheme(id: string): Promise<GradingScheme | null> {
   const result = await gatewayFetch<GradingScheme>(`/grading-schemes/${id}`, {
     method: 'GET',
     throwOnError: false,
@@ -193,9 +191,7 @@ export async function getGradingScheme(
   return result.ok ? result.data : null;
 }
 
-export async function createGradingScheme(
-  input: CreateGradingSchemeInput,
-): Promise<GradingScheme> {
+export async function createGradingScheme(input: CreateGradingSchemeInput): Promise<GradingScheme> {
   const result = await gatewayFetch<GradingScheme>('/grading-schemes', {
     method: 'POST',
     json: input,
@@ -291,5 +287,49 @@ export async function getStudentResults(
     `/results/grades?${params.toString()}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+/* ---------------------------------------------------------- Outcomes */
+
+export interface CurriculumOutcome {
+  id: string;
+  tenantId: string;
+  name: string;
+  code: string;
+  description: string | null;
+  subjectId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listOutcomes(subjectId: string): Promise<CurriculumOutcome[]> {
+  const params = new URLSearchParams({ subjectId });
+  const result = await gatewayFetch<{ data: CurriculumOutcome[] }>(
+    `/outcomes?${params.toString()}`,
+    {
+      method: 'GET',
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function createOutcome(input: {
+  name: string;
+  code: string;
+  description?: string;
+  subjectId: string;
+}): Promise<CurriculumOutcome> {
+  const result = await gatewayFetch<CurriculumOutcome>('/outcomes', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from assessment-service');
+  return result.data;
+}
+
+export async function deleteOutcome(id: string): Promise<void> {
+  await gatewayFetch<void>(`/outcomes/${id}`, { method: 'DELETE' });
 }

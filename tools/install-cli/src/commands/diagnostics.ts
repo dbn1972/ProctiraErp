@@ -79,14 +79,7 @@ export interface DiagnosticsOptions {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const REDACT_PATTERNS = [
-  /password/i,
-  /secret/i,
-  /token/i,
-  /key/i,
-  /credential/i,
-  /auth/i,
-];
+const REDACT_PATTERNS = [/password/i, /secret/i, /token/i, /key/i, /credential/i, /auth/i];
 
 function redactValue(key: string, value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -98,20 +91,42 @@ function redactValue(key: string, value: string | undefined): string | undefined
 
 function getConfigSummary(): Record<string, string | undefined> {
   const relevantPrefixes = [
-    'NODE_ENV', 'LOG_LEVEL', 'PORT', 'HOST',
-    'DATABASE_URL', 'REDIS_URL', 'KAFKA_BROKERS', 'RABBITMQ_URL',
-    'S3_ENDPOINT', 'S3_BUCKET', 'S3_REGION',
-    'JWT_SECRET', 'JWT_ISSUER', 'JWT_AUDIENCE',
-    'COOKIE_SECRET', 'CORS_ORIGINS',
-    'TENANT_BASE_DOMAIN', 'TENANT_HEADER_NAME',
-    'METRICS_ENABLED', 'TRACING_ENABLED', 'AUDIT_ENABLED',
-    'MFA_ENABLED', 'SSO_ENABLED',
-    'REPLICAS', 'MULTI_AZ',
-    'TLS_CERT_PATH', 'TLS_KEY_PATH',
-    'GATEWAY_URL', 'GATEWAY_PORT',
-    'POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_DB',
-    'MINIO_ROOT_USER', 'MINIO_ROOT_PASSWORD',
-    'OPENEMIS_ADMIN_USERNAME', 'OPENEMIS_ADMIN_PASSWORD',
+    'NODE_ENV',
+    'LOG_LEVEL',
+    'PORT',
+    'HOST',
+    'DATABASE_URL',
+    'REDIS_URL',
+    'KAFKA_BROKERS',
+    'RABBITMQ_URL',
+    'S3_ENDPOINT',
+    'S3_BUCKET',
+    'S3_REGION',
+    'JWT_SECRET',
+    'JWT_ISSUER',
+    'JWT_AUDIENCE',
+    'COOKIE_SECRET',
+    'CORS_ORIGINS',
+    'TENANT_BASE_DOMAIN',
+    'TENANT_HEADER_NAME',
+    'METRICS_ENABLED',
+    'TRACING_ENABLED',
+    'AUDIT_ENABLED',
+    'MFA_ENABLED',
+    'SSO_ENABLED',
+    'REPLICAS',
+    'MULTI_AZ',
+    'TLS_CERT_PATH',
+    'TLS_KEY_PATH',
+    'GATEWAY_URL',
+    'GATEWAY_PORT',
+    'POSTGRES_USER',
+    'POSTGRES_PASSWORD',
+    'POSTGRES_DB',
+    'MINIO_ROOT_USER',
+    'MINIO_ROOT_PASSWORD',
+    'OPENEMIS_ADMIN_USERNAME',
+    'OPENEMIS_ADMIN_PASSWORD',
   ];
 
   const config: Record<string, string | undefined> = {};
@@ -121,11 +136,7 @@ function getConfigSummary(): Record<string, string | undefined> {
   return config;
 }
 
-async function checkService(
-  name: string,
-  url: string,
-  timeoutMs: number,
-): Promise<ServiceStatus> {
+async function checkService(name: string, url: string, timeoutMs: number): Promise<ServiceStatus> {
   const start = Date.now();
   try {
     const controller = new AbortController();
@@ -200,9 +211,7 @@ export async function generateDiagnosticBundle(
 
   const services: ServiceStatus[] = [];
   for (const svc of serviceEndpoints) {
-    const url = svc.path.startsWith(':')
-      ? `http://localhost${svc.path}`
-      : `${baseUrl}${svc.path}`;
+    const url = svc.path.startsWith(':') ? `http://localhost${svc.path}` : `${baseUrl}${svc.path}`;
     services.push(await checkService(svc.name, url, timeoutMs));
   }
 

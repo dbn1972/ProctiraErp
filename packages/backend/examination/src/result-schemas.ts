@@ -24,6 +24,31 @@ export const ResultExaminationParamsSchema = Type.Object({
 export type ResultExaminationParams = Static<typeof ResultExaminationParamsSchema>;
 
 /**
+ * Marks entry payload (G-902). `score: null` records an incomplete subject.
+ */
+export const RecordMarksSchema = Type.Object({
+  entries: Type.Array(
+    Type.Object({
+      studentId: Type.String({ pattern: UUID_PATTERN }),
+      gender: Type.Optional(
+        Type.Union([Type.Literal('male'), Type.Literal('female'), Type.Literal('other')]),
+      ),
+      areaId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+      marks: Type.Array(
+        Type.Object({
+          subjectId: Type.String({ pattern: UUID_PATTERN }),
+          score: Type.Union([Type.Number(), Type.Null()]),
+        }),
+        { minItems: 1 },
+      ),
+    }),
+    { minItems: 1, maxItems: 500 },
+  ),
+});
+
+export type RecordMarksBody = Static<typeof RecordMarksSchema>;
+
+/**
  * Score distribution bucket in analysis response.
  */
 export const ScoreDistributionBucketSchema = Type.Object({
@@ -38,7 +63,9 @@ export const ScoreDistributionBucketSchema = Type.Object({
  * Analysis breakdown schema for a single dimension value.
  */
 export const AnalysisBreakdownSchema = Type.Object({
-  dimensionId: Type.String({ description: 'Dimension identifier (subject ID, center ID, gender, area ID)' }),
+  dimensionId: Type.String({
+    description: 'Dimension identifier (subject ID, center ID, gender, area ID)',
+  }),
   dimensionName: Type.String({ description: 'Human-readable dimension name' }),
   totalCandidates: Type.Number({ description: 'Total unique candidates in this group' }),
   passCount: Type.Number({ description: 'Number of passing results' }),
@@ -60,20 +87,26 @@ export const PublicationResultResponseSchema = Type.Object({
   processedCount: Type.Number({ description: 'Number of subject-results successfully processed' }),
   incompleteCount: Type.Number({ description: 'Number of records flagged as incomplete' }),
   durationMs: Type.Number({ description: 'Processing duration in milliseconds' }),
-  gradeResults: Type.Array(Type.Object({
-    candidateId: Type.String(),
-    studentId: Type.String(),
-    subjectId: Type.String(),
-    score: Type.Number(),
-    grade: Type.String(),
-    passed: Type.Boolean(),
-  }), { description: 'Computed grade results' }),
-  incompleteRecords: Type.Array(Type.Object({
-    candidateId: Type.String(),
-    studentId: Type.String(),
-    subjectId: Type.String(),
-    reason: Type.String(),
-  }), { description: 'Records flagged as incomplete' }),
+  gradeResults: Type.Array(
+    Type.Object({
+      candidateId: Type.String(),
+      studentId: Type.String(),
+      subjectId: Type.String(),
+      score: Type.Number(),
+      grade: Type.String(),
+      passed: Type.Boolean(),
+    }),
+    { description: 'Computed grade results' },
+  ),
+  incompleteRecords: Type.Array(
+    Type.Object({
+      candidateId: Type.String(),
+      studentId: Type.String(),
+      subjectId: Type.String(),
+      reason: Type.String(),
+    }),
+    { description: 'Records flagged as incomplete' },
+  ),
 });
 
 export type PublicationResultResponse = Static<typeof PublicationResultResponseSchema>;

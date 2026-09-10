@@ -67,7 +67,12 @@ export function NewInterviewSlotForm() {
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-3" aria-busy={pending}>
           <FormField id="slot-institution" label="Institution UUID" required>
-            <Input id="slot-institution" name="institutionId" required disabled={!hydrated || pending} />
+            <Input
+              id="slot-institution"
+              name="institutionId"
+              required
+              disabled={!hydrated || pending}
+            />
           </FormField>
           <FormField id="slot-start" label="Starts at" required>
             <Input

@@ -1,6 +1,5 @@
--- Admissions CRM depth (raw SQL — waitlist + interview slots). OCR waived.
--- Applications themselves may still live in registration in-memory for public apply;
--- CRM tables back staff waitlist/interview workflows when DATABASE_URL is set.
+-- Admissions CRM depth (raw SQL — applications + waitlist + interview slots). OCR waived.
+-- G-205: PgRegistrationRepository persists the public apply pipeline here when DATABASE_URL is set.
 
 CREATE TABLE IF NOT EXISTS admission_applications (
   id UUID PRIMARY KEY,
@@ -13,13 +12,25 @@ CREATE TABLE IF NOT EXISTS admission_applications (
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
   date_of_birth DATE NOT NULL,
+  gender TEXT NOT NULL DEFAULT 'other',
   guardian_name TEXT NOT NULL,
   guardian_phone TEXT NOT NULL,
+  guardian_email TEXT,
+  custom_fields JSONB NOT NULL DEFAULT '[]'::jsonb,
+  documents JSONB NOT NULL DEFAULT '[]'::jsonb,
+  preferred_language TEXT,
   remarks TEXT,
   submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, tracking_number)
 );
+
+-- Idempotent column adds for environments that already applied an earlier 014.
+ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS gender TEXT NOT NULL DEFAULT 'other';
+ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS guardian_email TEXT;
+ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS custom_fields JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS documents JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE admission_applications ADD COLUMN IF NOT EXISTS preferred_language TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_admission_applications_tenant_status
   ON admission_applications (tenant_id, status);

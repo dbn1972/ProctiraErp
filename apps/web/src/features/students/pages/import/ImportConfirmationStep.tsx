@@ -45,24 +45,20 @@ export function ImportConfirmationStep({
     return null;
   }
 
-  const totalProcessed = importResult.success + importResult.failed + importResult.skipped + importResult.updated;
+  const totalProcessed =
+    importResult.success + importResult.failed + importResult.skipped + importResult.updated;
   const hasFailures = importResult.failed > 0;
 
   return (
     <div className="space-y-6" aria-live="polite">
       <div className="flex flex-col items-center py-6">
-        <span
-          className={`mb-3 text-5xl ${hasFailures ? '' : ''}`}
-          aria-hidden="true"
-        >
+        <span className={`mb-3 text-5xl ${hasFailures ? '' : ''}`} aria-hidden="true">
           {hasFailures ? '⚠️' : '✅'}
         </span>
         <h3 className="text-xl font-semibold">
           {hasFailures ? 'Import Completed with Issues' : 'Import Successful'}
         </h3>
-        <p className="text-sm text-muted-foreground">
-          {totalProcessed} records processed
-        </p>
+        <p className="text-sm text-muted-foreground">{totalProcessed} records processed</p>
       </div>
 
       {/* Result stats */}
@@ -86,9 +82,7 @@ export function ImportConfirmationStep({
           <p className="text-xs text-gray-600 dark:text-gray-500">Skipped</p>
         </div>
         <div className="rounded-md border border-red-200 bg-red-50 p-4 text-center dark:border-red-900 dark:bg-red-950/30">
-          <p className="text-3xl font-bold text-red-700 dark:text-red-400">
-            {importResult.failed}
-          </p>
+          <p className="text-3xl font-bold text-red-700 dark:text-red-400">{importResult.failed}</p>
           <p className="text-xs text-red-600 dark:text-red-500">Failed</p>
         </div>
       </div>

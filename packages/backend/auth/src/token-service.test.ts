@@ -222,9 +222,9 @@ describe('TokenService', () => {
     it('should throw InvalidRefreshTokenError for non-existent token', async () => {
       const user = createTestUser();
 
-      await expect(
-        tokenService.refreshTokenPair('non-existent-token', user),
-      ).rejects.toThrow(InvalidRefreshTokenError);
+      await expect(tokenService.refreshTokenPair('non-existent-token', user)).rejects.toThrow(
+        InvalidRefreshTokenError,
+      );
     });
 
     it('should throw InvalidRefreshTokenError for revoked token and revoke all session tokens', async () => {
@@ -237,9 +237,9 @@ describe('TokenService', () => {
       await tokenService.revokeRefreshToken(original.refreshToken, 'Manual revocation');
 
       // Try to use revoked token
-      await expect(
-        tokenService.refreshTokenPair(original.refreshToken, user),
-      ).rejects.toThrow(InvalidRefreshTokenError);
+      await expect(tokenService.refreshTokenPair(original.refreshToken, user)).rejects.toThrow(
+        InvalidRefreshTokenError,
+      );
 
       // All session tokens should be revoked
       expect(refreshTokenStore.revokeAllForSession).toHaveBeenCalledWith(
@@ -260,9 +260,9 @@ describe('TokenService', () => {
         storedToken.expiresAt = new Date(Date.now() - 1000); // expired 1 second ago
       }
 
-      await expect(
-        tokenService.refreshTokenPair(original.refreshToken, user),
-      ).rejects.toThrow(InvalidRefreshTokenError);
+      await expect(tokenService.refreshTokenPair(original.refreshToken, user)).rejects.toThrow(
+        InvalidRefreshTokenError,
+      );
     });
 
     it('should throw InvalidRefreshTokenError for tenant mismatch', async () => {
@@ -288,10 +288,7 @@ describe('TokenService', () => {
       const pair = await tokenService.issueTokenPair(user, sessionId);
       await tokenService.revokeRefreshToken(pair.refreshToken, 'Test revocation');
 
-      expect(refreshTokenStore.revoke).toHaveBeenCalledWith(
-        pair.refreshToken,
-        'Test revocation',
-      );
+      expect(refreshTokenStore.revoke).toHaveBeenCalledWith(pair.refreshToken, 'Test revocation');
     });
   });
 
@@ -305,10 +302,7 @@ describe('TokenService', () => {
 
       await tokenService.revokeAllSessionTokens(sessionId, 'Logout');
 
-      expect(refreshTokenStore.revokeAllForSession).toHaveBeenCalledWith(
-        sessionId,
-        'Logout',
-      );
+      expect(refreshTokenStore.revokeAllForSession).toHaveBeenCalledWith(sessionId, 'Logout');
     });
   });
 

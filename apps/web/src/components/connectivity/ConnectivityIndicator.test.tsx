@@ -197,9 +197,7 @@ describe('<ConnectivityIndicator> — localised labels resolve from next-intl', 
         <ConnectivityIndicator />
       </Harness>,
     );
-    expect(screen.getByTestId('connectivity-indicator-label').textContent).toBe(
-      'غير متصل',
-    );
+    expect(screen.getByTestId('connectivity-indicator-label').textContent).toBe('غير متصل');
   });
 
   it('translates the syncing label into Arabic when the locale is "ar"', () => {
@@ -209,9 +207,7 @@ describe('<ConnectivityIndicator> — localised labels resolve from next-intl', 
         <ConnectivityIndicator />
       </Harness>,
     );
-    expect(screen.getByTestId('connectivity-indicator-label').textContent).toBe(
-      'جاري المزامنة',
-    );
+    expect(screen.getByTestId('connectivity-indicator-label').textContent).toBe('جاري المزامنة');
   });
 });
 
@@ -226,9 +222,7 @@ describe('<ConnectivityIndicator> — iconOnly mode', () => {
       </Harness>,
     );
     expect(screen.queryByTestId('connectivity-indicator-label')).toBeNull();
-    expect(screen.getByTestId('connectivity-indicator').getAttribute('aria-label')).toBe(
-      'Online',
-    );
+    expect(screen.getByTestId('connectivity-indicator').getAttribute('aria-label')).toBe('Online');
     // The dot is still rendered so the indicator is visible at a glance.
     const dot = screen.getByTestId('connectivity-indicator-dot');
     expect(dot.className).toContain('h-3');

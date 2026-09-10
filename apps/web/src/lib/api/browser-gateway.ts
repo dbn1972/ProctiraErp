@@ -23,15 +23,15 @@
  * back to a default value when the endpoint is not yet wired in dev.
  */
 
+import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
+
 /** Base URL of the API gateway, configurable per environment. */
-export const BROWSER_GATEWAY_BASE_URL =
-  process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
+export const BROWSER_GATEWAY_BASE_URL = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
 
 /** API version prefix used by every gateway path. */
 export const BROWSER_GATEWAY_API_PREFIX = '/api/v1';
 
-export interface BrowserGatewayRequestInit
-  extends Omit<RequestInit, 'body' | 'method'> {
+export interface BrowserGatewayRequestInit extends Omit<RequestInit, 'body' | 'method'> {
   method?: RequestInit['method'];
   /** Optional structured body that will be JSON encoded. */
   json?: unknown;
@@ -48,12 +48,7 @@ export class BrowserGatewayError extends Error {
   readonly code: string;
   readonly details?: unknown;
 
-  constructor(init: {
-    status: number;
-    code: string;
-    message: string;
-    details?: unknown;
-  }) {
+  constructor(init: { status: number; code: string; message: string; details?: unknown }) {
     super(init.message);
     this.name = 'BrowserGatewayError';
     this.status = init.status;
@@ -84,6 +79,8 @@ export async function browserGatewayFetch<T>(
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.tenantId) headers.set('X-Tenant-ID', init.tenantId);
+  const csrfToken = readCsrfTokenFromDocument();
+  if (csrfToken && !headers.has(CSRF_HEADER)) headers.set(CSRF_HEADER, csrfToken);
 
   let body: BodyInit | null | undefined = init.body;
   if (body == null && init.json !== undefined) {
@@ -106,8 +103,7 @@ export async function browserGatewayFetch<T>(
     throw new BrowserGatewayError({
       status: 0,
       code: 'NETWORK_ERROR',
-      message:
-        error instanceof Error ? error.message : 'Network error',
+      message: error instanceof Error ? error.message : 'Network error',
     });
   }
 
@@ -137,7 +133,7 @@ export async function browserGatewayFetch<T>(
     });
   }
 
-  return (payload as T);
+  return payload as T;
 }
 
 function isErrorPayload(value: unknown): value is { code: string; message: string } {

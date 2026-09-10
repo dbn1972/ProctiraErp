@@ -15,6 +15,7 @@ import {
   deleteGradingScheme,
   enterBulkResults,
   importResultsFromExcel,
+  createOutcome,
   updateGradingScheme,
   type BulkResultEntryResponse,
   type CreateGradingSchemeInput,
@@ -38,9 +39,7 @@ export interface ActionState<T = unknown> {
 
 /* ------------------------------------------------------------------ Helpers */
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -48,10 +47,7 @@ function zodFlatten(
   return out;
 }
 
-function toErrorState<T = unknown>(
-  error: unknown,
-  fallback: string,
-): ActionState<T> {
+function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
   if (error instanceof GatewayError) {
     return { status: 'error', message: error.message || fallback };
   }
@@ -61,9 +57,7 @@ function toErrorState<T = unknown>(
   return { status: 'error', message: fallback };
 }
 
-function toCreateSchemeInput(
-  values: GradingSchemeFormValues,
-): CreateGradingSchemeInput {
+function toCreateSchemeInput(values: GradingSchemeFormValues): CreateGradingSchemeInput {
   return {
     name: values.name,
     type: values.type,
@@ -104,10 +98,7 @@ export async function createGradingSchemeAction(
       data: { schemeId: scheme.id },
     };
   } catch (error) {
-    return toErrorState<{ schemeId: string }>(
-      error,
-      'Failed to create grading scheme',
-    );
+    return toErrorState<{ schemeId: string }>(error, 'Failed to create grading scheme');
   }
 }
 
@@ -136,16 +127,11 @@ export async function updateGradingSchemeAction(
       data: { schemeId: scheme.id },
     };
   } catch (error) {
-    return toErrorState<{ schemeId: string }>(
-      error,
-      'Failed to update grading scheme',
-    );
+    return toErrorState<{ schemeId: string }>(error, 'Failed to update grading scheme');
   }
 }
 
-export async function deleteGradingSchemeAction(
-  schemeId: string,
-): Promise<ActionState> {
+export async function deleteGradingSchemeAction(schemeId: string): Promise<ActionState> {
   try {
     await deleteGradingScheme(schemeId);
     revalidatePath('/assessments');
@@ -164,8 +150,7 @@ export async function defineAssessmentItemsAction(
   if (!parsed.success) {
     return {
       status: 'error',
-      message:
-        parsed.error.issues[0]?.message ?? 'Please fix the highlighted fields.',
+      message: parsed.error.issues[0]?.message ?? 'Please fix the highlighted fields.',
       fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
     };
   }
@@ -191,10 +176,7 @@ export async function defineAssessmentItemsAction(
       data: { totalWeight: result.totalWeight },
     };
   } catch (error) {
-    return toErrorState<{ totalWeight: number }>(
-      error,
-      'Failed to save assessment items',
-    );
+    return toErrorState<{ totalWeight: number }>(error, 'Failed to save assessment items');
   }
 }
 
@@ -238,10 +220,7 @@ export async function submitBulkResultsAction(
       data: response,
     };
   } catch (error) {
-    return toErrorState<BulkResultEntryResponse>(
-      error,
-      'Failed to save results',
-    );
+    return toErrorState<BulkResultEntryResponse>(error, 'Failed to save results');
   }
 }
 
@@ -273,9 +252,42 @@ export async function importResultsFromExcelAction(
       data: response,
     };
   } catch (error) {
-    return toErrorState<BulkResultEntryResponse>(
-      error,
-      'Failed to import results',
-    );
+    return toErrorState<BulkResultEntryResponse>(error, 'Failed to import results');
+  }
+}
+
+export async function createOutcomeAction(input: {
+  subjectId: string;
+  name: string;
+  code: string;
+  description?: string;
+}): Promise<ActionState<{ id: string }>> {
+  const subjectId = input.subjectId.trim();
+  const name = input.name.trim();
+  const code = input.code.trim();
+  if (!subjectId) {
+    return {
+      status: 'error',
+      message: 'Subject is required.',
+      fieldErrors: { subjectId: 'Required' },
+    };
+  }
+  if (!name) {
+    return { status: 'error', message: 'Name is required.', fieldErrors: { name: 'Required' } };
+  }
+  if (!code) {
+    return { status: 'error', message: 'Code is required.', fieldErrors: { code: 'Required' } };
+  }
+  try {
+    const row = await createOutcome({
+      subjectId,
+      name,
+      code,
+      description: input.description?.trim() || undefined,
+    });
+    revalidatePath('/assessments/outcomes');
+    return { status: 'success', message: 'Outcome saved.', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to create outcome');
   }
 }

@@ -57,7 +57,9 @@ export function createMultiTenantFixture(
     getTenant(index: number): TenantFixture {
       const tenant = tenants[index];
       if (!tenant) {
-        throw new Error(`Tenant at index ${index} does not exist. Created ${tenants.length} tenants.`);
+        throw new Error(
+          `Tenant at index ${index} does not exist. Created ${tenants.length} tenants.`,
+        );
       }
       return tenant;
     },

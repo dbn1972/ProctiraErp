@@ -49,9 +49,7 @@ afterEach(() => {
 describe('<TeacherDashboard> — Task 52.4 / Req 40.7', () => {
   it('renders the page heading', () => {
     renderDashboard();
-    expect(
-      screen.getByRole('heading', { level: 1, name: /teacher dashboard/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: /teacher dashboard/i })).toBeTruthy();
   });
 
   it('renders the headline KPI labels', () => {
@@ -60,17 +58,15 @@ describe('<TeacherDashboard> — Task 52.4 / Req 40.7', () => {
     expect(screen.getByText(/^attendance pending$/i)).toBeTruthy();
     // "Pending assessment tasks" appears as the KPI label and as the
     // section heading — the KPI card scopes via data-testid.
-    expect(
-      screen.getByTestId('kpi-pending-assessments').textContent ?? '',
-    ).toMatch(/pending assessment tasks/i);
+    expect(screen.getByTestId('kpi-pending-assessments').textContent ?? '').toMatch(
+      /pending assessment tasks/i,
+    );
   });
 
   it('reflects the assigned-class count from the loaded payload', () => {
     renderDashboard();
     const totalClasses = __TEACHER_DASHBOARD_MOCK__.assignedClasses.length;
-    expect(
-      screen.getByTestId('kpi-assigned-classes').textContent,
-    ).toMatch(String(totalClasses));
+    expect(screen.getByTestId('kpi-assigned-classes').textContent).toMatch(String(totalClasses));
   });
 
   it('renders today\u2019s schedule via the timeline widget', () => {
@@ -85,13 +81,9 @@ describe('<TeacherDashboard> — Task 52.4 / Req 40.7', () => {
     renderDashboard();
     expect(screen.getByTestId('attendance-pending')).toBeTruthy();
     const items = screen.getAllByTestId('attendance-pending-item');
-    expect(items.length).toBe(
-      __TEACHER_DASHBOARD_MOCK__.attendancePending.length,
-    );
+    expect(items.length).toBe(__TEACHER_DASHBOARD_MOCK__.attendancePending.length);
     const firstLink = items[0]?.querySelector('a');
-    expect(firstLink?.getAttribute('href')).toMatch(
-      /^\/app\/attendance\/today\?class=/,
-    );
+    expect(firstLink?.getAttribute('href')).toMatch(/^\/app\/attendance\/today\?class=/);
   });
 
   it('renders the pending assessment task checklist', () => {

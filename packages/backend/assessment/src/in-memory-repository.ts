@@ -19,7 +19,9 @@ import type {
 export class InMemoryGradingSchemeRepository implements GradingSchemeRepository {
   private schemes: GradingSchemeEntity[] = [];
 
-  async create(data: Omit<GradingSchemeEntity, 'createdAt' | 'updatedAt'>): Promise<GradingSchemeEntity> {
+  async create(
+    data: Omit<GradingSchemeEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GradingSchemeEntity> {
     const now = new Date();
     const entity: GradingSchemeEntity = {
       ...data,
@@ -30,7 +32,11 @@ export class InMemoryGradingSchemeRepository implements GradingSchemeRepository 
     return entity;
   }
 
-  async update(id: string, tenantId: string, data: Partial<GradingSchemeEntity>): Promise<GradingSchemeEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<GradingSchemeEntity>,
+  ): Promise<GradingSchemeEntity | null> {
     const index = this.schemes.findIndex((s) => s.id === id && s.tenantId === tenantId);
     if (index === -1) return null;
 
@@ -52,9 +58,11 @@ export class InMemoryGradingSchemeRepository implements GradingSchemeRepository 
   }
 
   async findByName(name: string, tenantId: string): Promise<GradingSchemeEntity | null> {
-    return this.schemes.find(
-      (s) => s.name.toLowerCase() === name.toLowerCase() && s.tenantId === tenantId,
-    ) ?? null;
+    return (
+      this.schemes.find(
+        (s) => s.name.toLowerCase() === name.toLowerCase() && s.tenantId === tenantId,
+      ) ?? null
+    );
   }
 
   async delete(id: string, tenantId: string): Promise<boolean> {
@@ -124,7 +132,12 @@ export class InMemoryAssessmentItemRepository implements AssessmentItemRepositor
   ): Promise<AssessmentItemEntity[]> {
     // Remove existing items for this subject+period
     this.items = this.items.filter(
-      (i) => !(i.tenantId === tenantId && i.subjectId === subjectId && i.academicPeriodId === academicPeriodId),
+      (i) =>
+        !(
+          i.tenantId === tenantId &&
+          i.subjectId === subjectId &&
+          i.academicPeriodId === academicPeriodId
+        ),
     );
 
     const now = new Date();
@@ -144,7 +157,10 @@ export class InMemoryAssessmentItemRepository implements AssessmentItemRepositor
     academicPeriodId: string,
   ): Promise<AssessmentItemEntity[]> {
     return this.items.filter(
-      (i) => i.tenantId === tenantId && i.subjectId === subjectId && i.academicPeriodId === academicPeriodId,
+      (i) =>
+        i.tenantId === tenantId &&
+        i.subjectId === subjectId &&
+        i.academicPeriodId === academicPeriodId,
     );
   }
 
@@ -154,7 +170,10 @@ export class InMemoryAssessmentItemRepository implements AssessmentItemRepositor
     academicPeriodId: string,
   ): Promise<number> {
     return this.items.filter(
-      (i) => i.tenantId === tenantId && i.subjectId === subjectId && i.academicPeriodId === academicPeriodId,
+      (i) =>
+        i.tenantId === tenantId &&
+        i.subjectId === subjectId &&
+        i.academicPeriodId === academicPeriodId,
     ).length;
   }
 

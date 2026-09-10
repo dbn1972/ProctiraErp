@@ -9,7 +9,11 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import { registerBrandingRoutes, type BrandingPermissionResolver, type TenantIdResolver } from './branding-routes.js';
+import {
+  registerBrandingRoutes,
+  type BrandingPermissionResolver,
+  type TenantIdResolver,
+} from './branding-routes.js';
 import { registerTenantRoutes } from './routes.js';
 import type { TenantRepository } from './tenant-repository.js';
 import { TenantService } from './tenant-service.js';
@@ -55,10 +59,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the tenant lifecycle service and routes.
  */
 export const tenantLifecyclePlugin = fp(
-  async function tenantLifecyclePluginImpl(
-    fastify: FastifyInstance,
-    options: TenantPluginOptions,
-  ) {
+  async function tenantLifecyclePluginImpl(fastify: FastifyInstance, options: TenantPluginOptions) {
     const { repository, prefix = '/tenants', branding } = options;
 
     // Create tenant service instance
@@ -85,7 +86,7 @@ export const tenantLifecyclePlugin = fp(
   },
   {
     name: '@proctira/backend-tenant',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

@@ -59,10 +59,6 @@ function envSet(name: string): boolean {
   return val !== undefined && val !== '' && val !== 'undefined';
 }
 
-function envEquals(name: string, expected: string): boolean {
-  return process.env[name] === expected;
-}
-
 async function httpGet(
   url: string,
   timeoutMs: number,
@@ -133,7 +129,7 @@ function checkHttps(): ReadinessCategory {
     recommendations: [
       'Set TLS_CERT_PATH and TLS_KEY_PATH environment variables',
       'Use a reverse proxy (nginx/traefik) with TLS termination',
-      'Consider Let\'s Encrypt for automated certificate management',
+      "Consider Let's Encrypt for automated certificate management",
     ],
   };
 }
@@ -263,7 +259,9 @@ function checkMfaSso(): ReadinessCategory {
       maxScore: 10,
       message: 'Partial authentication hardening — either MFA or SSO is configured but not both',
       recommendations: [
-        mfaEnabled ? 'Configure SSO (SAML/OIDC) for enterprise identity federation' : 'Enable MFA for all admin accounts',
+        mfaEnabled
+          ? 'Configure SSO (SAML/OIDC) for enterprise identity federation'
+          : 'Enable MFA for all admin accounts',
       ],
     };
   }
@@ -285,7 +283,6 @@ function checkMfaSso(): ReadinessCategory {
 function checkDatabaseBackup(): ReadinessCategory {
   const backupEnabled = envSet('DB_BACKUP_ENABLED') && process.env['DB_BACKUP_ENABLED'] === 'true';
   const backupSchedule = envSet('DB_BACKUP_SCHEDULE');
-  const backupRetention = envSet('DB_BACKUP_RETENTION_DAYS');
 
   if (backupEnabled && backupSchedule) {
     return {
@@ -294,7 +291,7 @@ function checkDatabaseBackup(): ReadinessCategory {
       status: 'pass',
       score: 10,
       maxScore: 10,
-      message: `Database backup enabled (schedule: ${process.env['DB_BACKUP_SCHEDULE']})`,
+      message: `Database backup enabled (schedule: ${process.env['DB_BACKUP_SCHEDULE'] ?? ''})`,
     };
   }
 
@@ -356,7 +353,9 @@ function checkObjectStorage(): ReadinessCategory {
     score: 0,
     maxScore: 10,
     message: `Object storage not fully configured — missing: ${missing.join(', ')}`,
-    recommendations: ['Configure all S3/MinIO environment variables for file uploads and attachments'],
+    recommendations: [
+      'Configure all S3/MinIO environment variables for file uploads and attachments',
+    ],
   };
 }
 
@@ -403,34 +402,48 @@ function checkQueue(): ReadinessCategory {
 }
 
 function checkMonitoring(): ReadinessCategory {
-  const metricsEnabled = envSet('METRICS_ENABLED') && process.env['METRICS_ENABLED'] !== 'false';
-  const tracingEnabled = envSet('TRACING_ENABLED') && process.env['TRACING_ENABLED'] !== 'false';
-  const alertingUrl = envSet('ALERTING_WEBHOOK_URL');
-  const otelEndpoint = envSet('OTEL_EXPORTER_OTLP_ENDPOINT');
+  // Honest scope (G-725): every Fastify service registers @proctira/observability
+  // and serves Prometheus /metrics unconditionally; METRICS_ENABLED=false is the
+  // only way to opt out. Distributed tracing is NOT implemented — no OpenTelemetry
+  // SDK or exporter is wired — so TRACING_ENABLED / OTEL_EXPORTER_OTLP_ENDPOINT
+  // must not earn readiness points.
+  const metricsDisabled = process.env['METRICS_ENABLED'] === 'false';
+  const alertingConfigured =
+    envSet('ALERTING_WEBHOOK_URL') ||
+    envSet('PAGERDUTY_INTEGRATION_KEY') ||
+    envSet('SLACK_WEBHOOK_URL') ||
+    envSet('ALERT_EMAIL_TO');
+  const tracingRequested = envSet('TRACING_ENABLED') || envSet('OTEL_EXPORTER_OTLP_ENDPOINT');
 
   let score = 0;
   const active: string[] = [];
   const missing: string[] = [];
+  const recommendations: string[] = [];
 
-  if (metricsEnabled || otelEndpoint) {
-    score += 4;
-    active.push('metrics');
+  if (!metricsDisabled) {
+    score += 5;
+    active.push('metrics (Prometheus /metrics)');
   } else {
     missing.push('metrics');
+    recommendations.push(
+      'Unset METRICS_ENABLED=false — Prometheus /metrics is the only metrics path',
+    );
   }
 
-  if (tracingEnabled || otelEndpoint) {
-    score += 3;
-    active.push('tracing');
-  } else {
-    missing.push('tracing');
-  }
-
-  if (alertingUrl) {
-    score += 3;
+  if (alertingConfigured) {
+    score += 5;
     active.push('alerting');
   } else {
     missing.push('alerting');
+    recommendations.push(
+      'Set ALERT_EMAIL_TO plus PAGERDUTY_INTEGRATION_KEY / SLACK_WEBHOOK_URL (infra/observability/render-alertmanager.sh), or ALERTING_WEBHOOK_URL',
+    );
+  }
+
+  if (tracingRequested) {
+    recommendations.push(
+      'TRACING_ENABLED / OTEL_EXPORTER_OTLP_ENDPOINT have no effect: distributed tracing is not implemented in this release (metrics + request-id log correlation only)',
+    );
   }
 
   if (score >= 10) {
@@ -440,7 +453,8 @@ function checkMonitoring(): ReadinessCategory {
       status: 'pass',
       score: 10,
       maxScore: 10,
-      message: 'Full observability stack configured (metrics, tracing, alerting)',
+      message: 'Metrics + alerting configured (tracing: not available in this release)',
+      ...(recommendations.length > 0 ? { recommendations } : {}),
     };
   }
 
@@ -452,14 +466,7 @@ function checkMonitoring(): ReadinessCategory {
       score,
       maxScore: 10,
       message: `Partial monitoring: ${active.join(', ')} active; missing: ${missing.join(', ')}`,
-      recommendations: missing.map((m) => {
-        switch (m) {
-          case 'metrics': return 'Set METRICS_ENABLED=true or OTEL_EXPORTER_OTLP_ENDPOINT';
-          case 'tracing': return 'Set TRACING_ENABLED=true for distributed tracing';
-          case 'alerting': return 'Set ALERTING_WEBHOOK_URL for incident notifications';
-          default: return '';
-        }
-      }).filter(Boolean),
+      recommendations,
     };
   }
 
@@ -470,12 +477,7 @@ function checkMonitoring(): ReadinessCategory {
     score: 0,
     maxScore: 10,
     message: 'No monitoring configured — blind to production issues',
-    recommendations: [
-      'Set OTEL_EXPORTER_OTLP_ENDPOINT for OpenTelemetry export',
-      'Set METRICS_ENABLED=true',
-      'Set TRACING_ENABLED=true',
-      'Set ALERTING_WEBHOOK_URL for PagerDuty/Slack/OpsGenie',
-    ],
+    recommendations,
   };
 }
 
@@ -490,7 +492,7 @@ function checkAudit(): ReadinessCategory {
       status: 'pass',
       score: 10,
       maxScore: 10,
-      message: `Audit logging enabled with ${process.env['AUDIT_RETENTION_DAYS']}-day retention`,
+      message: `Audit logging enabled with ${process.env['AUDIT_RETENTION_DAYS'] ?? ''}-day retention`,
     };
   }
 

@@ -49,17 +49,17 @@ pnpm migrate:cdc-sync     # Run CDC incremental sync cycle
 
 ## Legacy Table Mapping
 
-| Legacy Table (MySQL) | New Table (PostgreSQL) | Notes |
-|---------------------|----------------------|-------|
-| `institutions` | `institutions` | Service-prefixed in queries |
-| `institution_students` | `enrollments` | Enrollment lifecycle |
-| `security_users` (type=student) | `students` | Split by user type |
-| `security_users` (type=staff) | `staff` | Split by user type |
-| `area_administratives` | `geographic_areas` | Hierarchy preserved |
-| `academic_periods` | `academic_periods` | Direct mapping |
-| `education_grades` | `grades` | Simplified |
-| `institution_classes` | `classes` | Institution-scoped |
-| `institution_subjects` | `institution_subjects` | Grade linkage |
+| Legacy Table (MySQL)            | New Table (PostgreSQL) | Notes                       |
+| ------------------------------- | ---------------------- | --------------------------- |
+| `institutions`                  | `institutions`         | Service-prefixed in queries |
+| `institution_students`          | `enrollments`          | Enrollment lifecycle        |
+| `security_users` (type=student) | `students`             | Split by user type          |
+| `security_users` (type=staff)   | `staff`                | Split by user type          |
+| `area_administratives`          | `geographic_areas`     | Hierarchy preserved         |
+| `academic_periods`              | `academic_periods`     | Direct mapping              |
+| `education_grades`              | `grades`               | Simplified                  |
+| `institution_classes`           | `classes`              | Institution-scoped          |
+| `institution_subjects`          | `institution_subjects` | Grade linkage               |
 
 ## Architecture
 
@@ -90,6 +90,7 @@ tools/migrations/
 ## Migration Report (Requirement 24.3)
 
 Generates a comprehensive report listing:
+
 - Tables processed with row counts and throughput metrics
 - Rows successfully migrated per table
 - Unmigrated data with specific reasons (constraint violations, missing references, enum mismatches, etc.)
@@ -101,6 +102,7 @@ pnpm migrate:report
 ## Schema Constraint Validation (Requirement 24.5)
 
 Validates migrated data against new PostgreSQL schema constraints **without halting** the migration:
+
 - NOT NULL constraints on required columns
 - UNIQUE constraints (duplicate detection)
 - Foreign key integrity
@@ -114,6 +116,7 @@ pnpm migrate:constraints
 ## CDC Incremental Sync (Requirement 24.4)
 
 Kafka-based Change Data Capture for keeping legacy MySQL and new PostgreSQL in sync during parallel operation:
+
 - Timestamp-based change detection from legacy system
 - Publishes change events to tenant-prefixed Kafka topics
 - Applies changes to PostgreSQL with conflict resolution (source_wins, target_wins, latest_wins)
@@ -125,13 +128,13 @@ pnpm migrate:cdc-sync
 
 ### CDC Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `KAFKA_BROKERS` | `localhost:9092` | Kafka broker addresses |
-| `CDC_TOPIC_PREFIX` | `cdc.migration` | Topic prefix for CDC events |
-| `CDC_POLL_INTERVAL_MS` | `5000` | Polling interval |
-| `CDC_BATCH_SIZE` | `1000` | Max events per poll |
-| `CDC_CONFLICT_RESOLUTION` | `source_wins` | Conflict strategy |
+| Variable                  | Default          | Description                 |
+| ------------------------- | ---------------- | --------------------------- |
+| `KAFKA_BROKERS`           | `localhost:9092` | Kafka broker addresses      |
+| `CDC_TOPIC_PREFIX`        | `cdc.migration`  | Topic prefix for CDC events |
+| `CDC_POLL_INTERVAL_MS`    | `5000`           | Polling interval            |
+| `CDC_BATCH_SIZE`          | `1000`           | Max events per poll         |
+| `CDC_CONFLICT_RESOLUTION` | `source_wins`    | Conflict strategy           |
 
 ## Parallel Operation
 

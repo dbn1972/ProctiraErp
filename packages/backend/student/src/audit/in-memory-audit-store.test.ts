@@ -70,7 +70,9 @@ describe('InMemoryAuditStore', () => {
       expect(entry.tenantId).toBe('tenant-xyz');
       expect(entry.userId).toBe('admin-user');
       expect(entry.operation).toBe('update');
-      expect(entry.changes).toEqual([{ field: 'status', oldValue: 'enrolled', newValue: 'transferred' }]);
+      expect(entry.changes).toEqual([
+        { field: 'status', oldValue: 'enrolled', newValue: 'transferred' },
+      ]);
       expect(entry.ipAddress).toBe('10.0.0.1');
     });
 

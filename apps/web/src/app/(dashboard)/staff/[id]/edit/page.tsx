@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
+import { PageHeader } from '@/components/page';
 import { getStaff } from '@/lib/api/staff';
 import type { StaffFormValues } from '@/lib/validation/staff-schema';
 
@@ -22,10 +23,11 @@ import { StaffForm } from '../../_components/staff-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditStaffPage({ params }: PageProps) {
+export default async function EditStaffPage(props: PageProps) {
+  const params = await props.params;
   const staff = await getStaff(params.id);
   if (!staff) {
     notFound();
@@ -50,19 +52,18 @@ export default async function EditStaffPage({ params }: PageProps) {
         </Link>
       </Button>
 
+      <PageHeader
+        title={`Edit ${staff.firstName} ${staff.lastName}`}
+        description="Update identity and contact information."
+      />
+
       <Card>
         <CardHeader>
-          <CardTitle id="edit-staff-heading">
-            Edit {staff.firstName} {staff.lastName}
-          </CardTitle>
-          <CardDescription>Update identity and contact information.</CardDescription>
+          <CardTitle id="edit-staff-heading">Staff details</CardTitle>
+          <CardDescription>Identity and contact fields for this record.</CardDescription>
         </CardHeader>
         <CardContent>
-          <StaffForm
-            mode="edit"
-            staffId={staff.id}
-            initialValues={initialValues}
-          />
+          <StaffForm mode="edit" staffId={staff.id} initialValues={initialValues} />
         </CardContent>
       </Card>
     </section>

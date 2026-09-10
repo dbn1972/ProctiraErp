@@ -336,3 +336,247 @@ export async function decideStaffLeave(
   if (!result.data) throw new Error('Empty response from staff-service');
   return result.data;
 }
+
+/* ------------------------------------------------------------- G-918 HR */
+
+export type StaffContractType = 'permanent' | 'probation' | 'fixed_term' | 'visiting' | 'intern';
+export type StaffContractStatus = 'draft' | 'active' | 'expired' | 'terminated';
+export type StaffAttendanceStatus = 'present' | 'absent' | 'leave' | 'half_day';
+
+export interface StaffContract {
+  id: string;
+  tenantId: string;
+  staffId: string;
+  contractType: string;
+  startDate: string;
+  endDate: string | null;
+  salaryBand: string;
+  status: string;
+  notes: string | null;
+  renewalAlert: boolean;
+  daysUntilEnd: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffQualification {
+  id: string;
+  tenantId: string;
+  staffId: string;
+  degree: string;
+  institution: string;
+  year: number;
+  verified: boolean;
+  documentRef: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffAttendanceMark {
+  id: string;
+  tenantId: string;
+  staffId: string;
+  date: string;
+  status: string;
+  notes: string | null;
+  markedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffAttendanceSummary {
+  staffId: string;
+  present: number;
+  absent: number;
+  leave: number;
+  halfDay: number;
+  payableDays: number;
+}
+
+export interface StaffImportReport {
+  rows: number;
+  valid: number;
+  created?: number;
+  staffIds?: string[];
+  errors: Array<{ row: number; field?: string; message: string }>;
+}
+
+export interface PayrollExport {
+  month: string;
+  filename: string;
+  csv: string;
+  rows: Array<{
+    staffId: string;
+    name: string;
+    salaryBand: string;
+    daysPresent: number;
+    leaveDays: number;
+    deductionsPlaceholder: number;
+    payableDays: number;
+  }>;
+}
+
+export interface CreateContractInput {
+  staffId: string;
+  contractType: StaffContractType;
+  startDate: string;
+  endDate?: string;
+  salaryBand?: string;
+  status?: StaffContractStatus;
+  notes?: string;
+}
+
+export interface CreateQualificationInput {
+  staffId: string;
+  degree: string;
+  institution: string;
+  year: number;
+  verified?: boolean;
+  documentRef?: string;
+}
+
+export async function listStaffContracts(staffId?: string): Promise<StaffContract[]> {
+  const qs = staffId ? `?staffId=${encodeURIComponent(staffId)}` : '';
+  const result = await gatewayFetch<{ data: StaffContract[] }>(`/staff/contracts${qs}`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function createStaffContract(input: CreateContractInput): Promise<StaffContract> {
+  const result = await gatewayFetch<StaffContract>('/staff/contracts', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function listStaffQualifications(staffId?: string): Promise<StaffQualification[]> {
+  const qs = staffId ? `?staffId=${encodeURIComponent(staffId)}` : '';
+  const result = await gatewayFetch<{ data: StaffQualification[] }>(`/staff/qualifications${qs}`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function createStaffQualification(
+  input: CreateQualificationInput,
+): Promise<StaffQualification> {
+  const result = await gatewayFetch<StaffQualification>('/staff/qualifications', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function verifyStaffQualification(
+  id: string,
+  verified: boolean,
+  documentRef?: string,
+): Promise<StaffQualification> {
+  const result = await gatewayFetch<StaffQualification>(`/staff/qualifications/${id}/verify`, {
+    method: 'POST',
+    json: { verified, documentRef },
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function listStaffAttendance(
+  filters: {
+    date?: string;
+    staffId?: string;
+    from?: string;
+    to?: string;
+  } = {},
+): Promise<StaffAttendanceMark[]> {
+  const params = new URLSearchParams();
+  if (filters.date) params.set('date', filters.date);
+  if (filters.staffId) params.set('staffId', filters.staffId);
+  if (filters.from) params.set('from', filters.from);
+  if (filters.to) params.set('to', filters.to);
+  const qs = params.toString();
+  const result = await gatewayFetch<{ data: StaffAttendanceMark[] }>(
+    `/staff/attendance${qs ? `?${qs}` : ''}`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function listStaffAttendanceSummary(
+  month: string,
+  staffId?: string,
+): Promise<StaffAttendanceSummary[]> {
+  const params = new URLSearchParams({ month });
+  if (staffId) params.set('staffId', staffId);
+  const result = await gatewayFetch<{ data: StaffAttendanceSummary[] }>(
+    `/staff/attendance/summary?${params.toString()}`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function markStaffAttendance(input: {
+  staffId: string;
+  date: string;
+  status: StaffAttendanceStatus;
+  notes?: string;
+}): Promise<StaffAttendanceMark> {
+  const result = await gatewayFetch<StaffAttendanceMark>('/staff/attendance', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function markStaffAttendanceBulk(input: {
+  date: string;
+  marks: Array<{ staffId: string; status: StaffAttendanceStatus; notes?: string }>;
+}): Promise<StaffAttendanceMark[]> {
+  const result = await gatewayFetch<{ data: StaffAttendanceMark[] }>('/staff/attendance/bulk', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data.data ?? [];
+}
+
+export async function dryRunStaffImport(
+  csv: string,
+  filename?: string,
+): Promise<StaffImportReport> {
+  const result = await gatewayFetch<StaffImportReport>('/staff/import/dry-run', {
+    method: 'POST',
+    json: { csv, filename },
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function commitStaffImport(
+  csv: string,
+  filename?: string,
+): Promise<StaffImportReport> {
+  const result = await gatewayFetch<StaffImportReport>('/staff/import/commit', {
+    method: 'POST',
+    json: { csv, filename },
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function exportStaffPayroll(month: string): Promise<PayrollExport> {
+  const result = await gatewayFetch<PayrollExport>(
+    `/staff/payroll/export?month=${encodeURIComponent(month)}`,
+    { method: 'GET' },
+  );
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}

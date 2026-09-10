@@ -29,12 +29,7 @@ export function StubDataBanner({
   if (!force && source !== 'stub') return null;
 
   return (
-    <Alert
-      variant="warning"
-      className={className}
-      data-testid="stub-data-banner"
-      data-mode="stub"
-    >
+    <Alert variant="warning" className={className} data-testid="stub-data-banner" data-mode="stub">
       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
       <AlertTitle>Stub / demo mode</AlertTitle>
       <AlertDescription>

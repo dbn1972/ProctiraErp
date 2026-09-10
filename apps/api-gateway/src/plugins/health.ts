@@ -155,5 +155,5 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
 
 export default fp(healthPlugin, {
   name: 'health-check',
-  fastify: '4.x',
+  fastify: '5.x',
 });

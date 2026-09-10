@@ -8,7 +8,7 @@ import {
   createInvoice,
   type CreateFeePlanInput,
   type CreateInvoiceInput,
-} from '@/lib/api/parent-portal';
+} from '@/lib/api/fees';
 
 export interface FeesActionState {
   status: 'idle' | 'success' | 'error';

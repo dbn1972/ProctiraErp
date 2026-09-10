@@ -45,7 +45,10 @@ export class OIDCProvider implements ExternalAuthProvider {
   private discoveryDoc: OIDCDiscoveryDocument | null = null;
 
   // Store state/nonce for validation
-  private readonly pendingAuths = new Map<string, { tenantId: string; nonce: string; createdAt: number }>();
+  private readonly pendingAuths = new Map<
+    string,
+    { tenantId: string; nonce: string; createdAt: number }
+  >();
 
   constructor(config: OIDCProviderConfig, httpClient?: HttpClient) {
     this.config = config;
@@ -201,7 +204,10 @@ export class OIDCProvider implements ExternalAuthProvider {
   /**
    * Exchange authorization code for tokens.
    */
-  private async exchangeCode(code: string, tokenEndpoint: string): Promise<Record<string, unknown>> {
+  private async exchangeCode(
+    code: string,
+    tokenEndpoint: string,
+  ): Promise<Record<string, unknown>> {
     const response = await this.httpClient.post(tokenEndpoint, {
       grant_type: 'authorization_code',
       code,
@@ -236,12 +242,15 @@ export class OIDCProvider implements ExternalAuthProvider {
       );
     }
 
-    const payload = JSON.parse(
-      Buffer.from(parts[1]!, 'base64url').toString('utf-8'),
-    ) as Record<string, unknown>;
+    const payload = JSON.parse(Buffer.from(parts[1]!, 'base64url').toString('utf-8')) as Record<
+      string,
+      unknown
+    >;
 
     const sub = payload['sub'] as string | undefined;
-    const email = (payload['email'] as string | undefined) ?? (payload['preferred_username'] as string | undefined);
+    const email =
+      (payload['email'] as string | undefined) ??
+      (payload['preferred_username'] as string | undefined);
     const name = payload['name'] as string | undefined;
     const givenName = payload['given_name'] as string | undefined;
     const familyName = payload['family_name'] as string | undefined;
@@ -269,7 +278,10 @@ export class OIDCProvider implements ExternalAuthProvider {
   /**
    * Fetch user info from the OIDC userinfo endpoint.
    */
-  private async fetchUserInfo(accessToken: string, userinfoEndpoint: string): Promise<ExternalUserProfile> {
+  private async fetchUserInfo(
+    accessToken: string,
+    userinfoEndpoint: string,
+  ): Promise<ExternalUserProfile> {
     const response = await this.httpClient.get(userinfoEndpoint, {
       Authorization: `Bearer ${accessToken}`,
     });
@@ -284,7 +296,8 @@ export class OIDCProvider implements ExternalAuthProvider {
 
     const data = response.data;
     const sub = data['sub'] as string | undefined;
-    const email = (data['email'] as string | undefined) ?? (data['preferred_username'] as string | undefined);
+    const email =
+      (data['email'] as string | undefined) ?? (data['preferred_username'] as string | undefined);
     const name = data['name'] as string | undefined;
     const givenName = data['given_name'] as string | undefined;
     const familyName = data['family_name'] as string | undefined;

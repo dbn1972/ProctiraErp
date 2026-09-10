@@ -4,7 +4,11 @@
  * In-memory implementation of TranslationRepository for testing and development.
  */
 import type { Translation, TranslatableEntityType } from './translation-schemas.js';
-import type { TranslationRepository, TranslationListOptions, TranslationListResult } from './translation-repository.js';
+import type {
+  TranslationRepository,
+  TranslationListOptions,
+  TranslationListResult,
+} from './translation-repository.js';
 
 export class InMemoryTranslationRepository implements TranslationRepository {
   private translations: Map<string, Translation> = new Map();
@@ -121,10 +125,7 @@ export class InMemoryTranslationRepository implements TranslationRepository {
   ): Promise<Translation[]> {
     return Array.from(this.translations.values())
       .filter(
-        (t) =>
-          t.warehouseId === warehouseId &&
-          t.tenantId === tenantId &&
-          t.language === language,
+        (t) => t.warehouseId === warehouseId && t.tenantId === tenantId && t.language === language,
       )
       .map((t) => ({ ...t }));
   }

@@ -2,14 +2,26 @@
  * In-memory hostel repository (v1 gateway default).
  */
 import type {
+  GatePassEntity,
   HostelAssignmentEntity,
+  HostelAttendanceEntity,
   HostelBedEntity,
   HostelBlockEntity,
   HostelEntity,
+  HostelFeeStructureEntity,
   HostelLeaveEntity,
   HostelRepository,
   HostelRoomEntity,
   HostelVisitorEntity,
+  MessMenuItemEntity,
+  MessPlanEntity,
+  MessSubscriptionEntity,
+  NewGatePass,
+  NewHostelAttendance,
+  NewHostelFeeStructure,
+  NewMessMenuItem,
+  NewMessPlan,
+  NewMessSubscription,
 } from './hostel-repository.js';
 
 export class InMemoryHostelRepository implements HostelRepository {
@@ -20,6 +32,12 @@ export class InMemoryHostelRepository implements HostelRepository {
   private blocks: HostelBlockEntity[] = [];
   private rooms: HostelRoomEntity[] = [];
   private beds: HostelBedEntity[] = [];
+  private messPlans: MessPlanEntity[] = [];
+  private messMenu: MessMenuItemEntity[] = [];
+  private messSubs: MessSubscriptionEntity[] = [];
+  private gatePasses: GatePassEntity[] = [];
+  private feeStructures: HostelFeeStructureEntity[] = [];
+  private attendance: HostelAttendanceEntity[] = [];
 
   async createHostel(data: Omit<HostelEntity, 'createdAt' | 'updatedAt'>): Promise<HostelEntity> {
     const now = new Date();
@@ -178,5 +196,132 @@ export class InMemoryHostelRepository implements HostelRepository {
     };
     this.beds[index] = updated;
     return updated;
+  }
+
+  async createMessPlan(data: NewMessPlan): Promise<MessPlanEntity> {
+    const now = new Date();
+    const entity: MessPlanEntity = { ...data, createdAt: now, updatedAt: now };
+    this.messPlans.push(entity);
+    return entity;
+  }
+
+  async listMessPlans(tenantId: string, hostelId?: string): Promise<MessPlanEntity[]> {
+    return this.messPlans.filter(
+      (p) => p.tenantId === tenantId && (hostelId === undefined || p.hostelId === hostelId),
+    );
+  }
+
+  async findMessPlanById(id: string, tenantId: string): Promise<MessPlanEntity | null> {
+    return this.messPlans.find((p) => p.id === id && p.tenantId === tenantId) ?? null;
+  }
+
+  async createMessMenuItem(data: NewMessMenuItem): Promise<MessMenuItemEntity> {
+    const now = new Date();
+    const entity: MessMenuItemEntity = { ...data, createdAt: now, updatedAt: now };
+    this.messMenu.push(entity);
+    return entity;
+  }
+
+  async listMessMenuItems(tenantId: string, planId: string): Promise<MessMenuItemEntity[]> {
+    return this.messMenu.filter((m) => m.tenantId === tenantId && m.planId === planId);
+  }
+
+  async createMessSubscription(data: NewMessSubscription): Promise<MessSubscriptionEntity> {
+    const now = new Date();
+    const entity: MessSubscriptionEntity = { ...data, createdAt: now, updatedAt: now };
+    this.messSubs.push(entity);
+    return entity;
+  }
+
+  async listMessSubscriptions(
+    tenantId: string,
+    planId?: string,
+  ): Promise<MessSubscriptionEntity[]> {
+    return this.messSubs.filter(
+      (s) => s.tenantId === tenantId && (planId === undefined || s.planId === planId),
+    );
+  }
+
+  async createGatePass(data: NewGatePass): Promise<GatePassEntity> {
+    const now = new Date();
+    const entity: GatePassEntity = { ...data, createdAt: now, updatedAt: now };
+    this.gatePasses.push(entity);
+    return entity;
+  }
+
+  async listGatePasses(tenantId: string, hostelId?: string): Promise<GatePassEntity[]> {
+    return this.gatePasses.filter(
+      (g) => g.tenantId === tenantId && (hostelId === undefined || g.hostelId === hostelId),
+    );
+  }
+
+  async findGatePassById(id: string, tenantId: string): Promise<GatePassEntity | null> {
+    return this.gatePasses.find((g) => g.id === id && g.tenantId === tenantId) ?? null;
+  }
+
+  async updateGatePass(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>>,
+  ): Promise<GatePassEntity | null> {
+    const index = this.gatePasses.findIndex((g) => g.id === id && g.tenantId === tenantId);
+    if (index === -1) return null;
+    const updated: GatePassEntity = {
+      ...this.gatePasses[index]!,
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.gatePasses[index] = updated;
+    return updated;
+  }
+
+  async createFeeStructure(data: NewHostelFeeStructure): Promise<HostelFeeStructureEntity> {
+    const now = new Date();
+    const entity: HostelFeeStructureEntity = { ...data, createdAt: now, updatedAt: now };
+    this.feeStructures.push(entity);
+    return entity;
+  }
+
+  async listFeeStructures(
+    tenantId: string,
+    hostelId?: string,
+  ): Promise<HostelFeeStructureEntity[]> {
+    return this.feeStructures.filter(
+      (f) => f.tenantId === tenantId && (hostelId === undefined || f.hostelId === hostelId),
+    );
+  }
+
+  async upsertAttendance(data: NewHostelAttendance): Promise<HostelAttendanceEntity> {
+    const index = this.attendance.findIndex(
+      (a) =>
+        a.tenantId === data.tenantId &&
+        a.blockId === data.blockId &&
+        a.studentId === data.studentId &&
+        a.onDate === data.onDate,
+    );
+    const now = new Date();
+    if (index === -1) {
+      const entity: HostelAttendanceEntity = { ...data, createdAt: now, updatedAt: now };
+      this.attendance.push(entity);
+      return entity;
+    }
+    const updated: HostelAttendanceEntity = {
+      ...this.attendance[index]!,
+      status: data.status,
+      reason: data.reason,
+      updatedAt: now,
+    };
+    this.attendance[index] = updated;
+    return updated;
+  }
+
+  async listAttendance(
+    tenantId: string,
+    blockId: string,
+    onDate: string,
+  ): Promise<HostelAttendanceEntity[]> {
+    return this.attendance.filter(
+      (a) => a.tenantId === tenantId && a.blockId === blockId && a.onDate === onDate,
+    );
   }
 }

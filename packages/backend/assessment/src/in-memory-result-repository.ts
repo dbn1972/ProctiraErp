@@ -3,10 +3,7 @@
  *
  * Used for unit testing without database dependencies.
  */
-import type {
-  AssessmentResultEntity,
-  AssessmentResultRepository,
-} from './result-repository.js';
+import type { AssessmentResultEntity, AssessmentResultRepository } from './result-repository.js';
 
 export class InMemoryAssessmentResultRepository implements AssessmentResultRepository {
   private results: AssessmentResultEntity[] = [];
@@ -68,6 +65,19 @@ export class InMemoryAssessmentResultRepository implements AssessmentResultRepos
         r.tenantId === tenantId &&
         r.studentId === studentId &&
         r.subjectId === subjectId &&
+        r.academicPeriodId === academicPeriodId,
+    );
+  }
+
+  async findByStudentPeriod(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<AssessmentResultEntity[]> {
+    return this.results.filter(
+      (r) =>
+        r.tenantId === tenantId &&
+        r.studentId === studentId &&
         r.academicPeriodId === academicPeriodId,
     );
   }

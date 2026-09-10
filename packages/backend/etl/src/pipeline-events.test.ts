@@ -9,11 +9,17 @@ describe('InMemoryEventPublisher', () => {
     const publisher = new InMemoryEventPublisher();
 
     await publisher.publish(
-      createPipelineEvent('pipeline.execution.started', 'tenant-1', 'pipe-1', {
-        pipelineName: 'Test',
-        attempt: 0,
-        scheduledExecution: false,
-      }, 'exec-1'),
+      createPipelineEvent(
+        'pipeline.execution.started',
+        'tenant-1',
+        'pipe-1',
+        {
+          pipelineName: 'Test',
+          attempt: 0,
+          scheduledExecution: false,
+        },
+        'exec-1',
+      ),
     );
 
     expect(publisher.events).toHaveLength(1);
@@ -89,12 +95,9 @@ describe('createPipelineEvent', () => {
   });
 
   it('should create event without executionId', () => {
-    const event = createPipelineEvent(
-      'pipeline.schedule.registered',
-      'tenant-1',
-      'pipe-1',
-      { cronExpression: '@hourly' },
-    );
+    const event = createPipelineEvent('pipeline.schedule.registered', 'tenant-1', 'pipe-1', {
+      cronExpression: '@hourly',
+    });
 
     expect(event.executionId).toBeUndefined();
   });

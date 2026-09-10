@@ -32,7 +32,9 @@ function uuid(): string {
 }
 
 // Helper to create a valid examination input
-function validExaminationInput(overrides: Partial<CreateExaminationInput> = {}): CreateExaminationInput {
+function validExaminationInput(
+  overrides: Partial<CreateExaminationInput> = {},
+): CreateExaminationInput {
   return {
     name: 'National Examination 2025',
     code: `EXAM-${Date.now()}`,
@@ -44,9 +46,7 @@ function validExaminationInput(overrides: Partial<CreateExaminationInput> = {}):
       { name: 'Mathematics', code: 'MATH', maxScore: 100 },
       { name: 'English', code: 'ENG', maxScore: 100 },
     ],
-    centers: [
-      { name: 'Center A', code: 'CTR-A', institutionId: uuid(), capacity: 200 },
-    ],
+    centers: [{ name: 'Center A', code: 'CTR-A', institutionId: uuid(), capacity: 200 }],
     gradingSchemes: [
       {
         name: 'Standard Grading',
@@ -271,9 +271,9 @@ describe('ExaminationService', () => {
     });
 
     it('should throw NotFoundError if examination does not exist', async () => {
-      await expect(
-        service.update(tenantId, uuid(), { name: 'Test' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(tenantId, uuid(), { name: 'Test' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw BusinessRuleError if examination is COMPLETED', async () => {
@@ -283,9 +283,9 @@ describe('ExaminationService', () => {
       // Manually set status to COMPLETED
       await repository.update(created.id, tenantId, { status: 'COMPLETED' });
 
-      await expect(
-        service.update(tenantId, created.id, { name: 'Test' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.update(tenantId, created.id, { name: 'Test' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should throw BusinessRuleError if examination is CANCELLED', async () => {
@@ -294,9 +294,9 @@ describe('ExaminationService', () => {
 
       await repository.update(created.id, tenantId, { status: 'CANCELLED' });
 
-      await expect(
-        service.update(tenantId, created.id, { name: 'Test' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.update(tenantId, created.id, { name: 'Test' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should throw ConflictError if updated code already exists', async () => {
@@ -305,27 +305,27 @@ describe('ExaminationService', () => {
       await service.create(tenantId, input1);
       const exam2 = await service.create(tenantId, input2);
 
-      await expect(
-        service.update(tenantId, exam2.id, { code: 'CODE-1' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.update(tenantId, exam2.id, { code: 'CODE-1' })).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should validate subjects minimum on update', async () => {
       const input = validExaminationInput();
       const created = await service.create(tenantId, input);
 
-      await expect(
-        service.update(tenantId, created.id, { subjects: [] as any }),
-      ).rejects.toThrow(ValidationError);
+      await expect(service.update(tenantId, created.id, { subjects: [] as any })).rejects.toThrow(
+        ValidationError,
+      );
     });
 
     it('should validate centers minimum on update', async () => {
       const input = validExaminationInput();
       const created = await service.create(tenantId, input);
 
-      await expect(
-        service.update(tenantId, created.id, { centers: [] as any }),
-      ).rejects.toThrow(ValidationError);
+      await expect(service.update(tenantId, created.id, { centers: [] as any })).rejects.toThrow(
+        ValidationError,
+      );
     });
   });
 

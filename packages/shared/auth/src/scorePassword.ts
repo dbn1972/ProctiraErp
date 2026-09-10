@@ -199,9 +199,7 @@ export function scorePasswordDetails(password: string): PasswordScoreDetails {
     return {
       score: 0,
       rating: 'weak',
-      reasons: [
-        { code: 'too_short', message: 'Use at least 8 characters.' },
-      ],
+      reasons: [{ code: 'too_short', message: 'Use at least 8 characters.' }],
       checks: {
         length8: false,
         length12: false,

@@ -11,17 +11,32 @@ import { revalidatePath } from 'next/cache';
 import {
   ApiClientError,
   createAcademicPeriod,
+  createCalendarEvent,
+  createClassSection,
+  createGrade,
   createInstitution,
   deactivateInstitution,
   deleteAcademicPeriod,
+  deleteCalendarEvent,
+  rolloverAcademicPeriod,
   updateAcademicPeriod,
   updateInstitution,
 } from './api';
+import type { CreateAcademicPeriodInput, RolloverSummary } from './types';
 import {
   academicPeriodFormSchema,
+  calendarEventFormSchema,
+  classSectionFormSchema,
+  gradeFormSchema,
   institutionFormSchema,
+  rolloverFormSchema,
+  type AcademicPeriodFormParsed,
   type AcademicPeriodFormValues,
+  type CalendarEventFormValues,
+  type ClassSectionFormValues,
+  type GradeFormValues,
   type InstitutionFormValues,
+  type RolloverFormValues,
 } from './validation';
 
 export interface FieldError {
@@ -35,7 +50,7 @@ export type ActionResult<T = unknown> =
 
 function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldError[] {
   return Object.entries(errors).flatMap(([field, messages]) =>
-    (messages ?? []).map((message) => ({ field, message }))
+    (messages ?? []).map((message) => ({ field, message })),
   );
 }
 
@@ -58,7 +73,7 @@ function toActionError(error: unknown): ActionResult<never> {
 // ---------------------------------------------------------------------------
 
 export async function createInstitutionAction(
-  values: InstitutionFormValues
+  values: InstitutionFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = institutionFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -80,7 +95,7 @@ export async function createInstitutionAction(
 
 export async function updateInstitutionAction(
   id: string,
-  values: InstitutionFormValues
+  values: InstitutionFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = institutionFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -103,7 +118,7 @@ export async function updateInstitutionAction(
 
 export async function deactivateInstitutionAction(
   id: string,
-  reason: string
+  reason: string,
 ): Promise<ActionResult<{ id: string }>> {
   if (!reason || reason.trim().length === 0) {
     return {
@@ -127,8 +142,14 @@ export async function deactivateInstitutionAction(
 // Academic Periods
 // ---------------------------------------------------------------------------
 
+/** G-905: the form uses '' for "no parent"; the API wants null. */
+function toPeriodInput(parsed: AcademicPeriodFormParsed): CreateAcademicPeriodInput {
+  const { parentId, ...rest } = parsed;
+  return { ...rest, kind: rest.kind ?? 'year', parentId: parentId ? parentId : null };
+}
+
 export async function createAcademicPeriodAction(
-  values: AcademicPeriodFormValues
+  values: AcademicPeriodFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = academicPeriodFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -140,7 +161,7 @@ export async function createAcademicPeriodAction(
   }
 
   try {
-    const period = await createAcademicPeriod(parsed.data);
+    const period = await createAcademicPeriod(toPeriodInput(parsed.data));
     revalidatePath('/academic-periods');
     return { success: true, data: { id: period.id } };
   } catch (error) {
@@ -150,7 +171,7 @@ export async function createAcademicPeriodAction(
 
 export async function updateAcademicPeriodAction(
   id: string,
-  values: AcademicPeriodFormValues
+  values: AcademicPeriodFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = academicPeriodFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -162,7 +183,7 @@ export async function updateAcademicPeriodAction(
   }
 
   try {
-    const period = await updateAcademicPeriod(id, parsed.data);
+    const period = await updateAcademicPeriod(id, toPeriodInput(parsed.data));
     revalidatePath('/academic-periods');
     return { success: true, data: { id: period.id } };
   } catch (error) {
@@ -171,12 +192,133 @@ export async function updateAcademicPeriodAction(
 }
 
 export async function deleteAcademicPeriodAction(
-  id: string
+  id: string,
 ): Promise<ActionResult<{ id: string }>> {
   try {
     await deleteAcademicPeriod(id);
     revalidatePath('/academic-periods');
     return { success: true, data: { id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G-905 — Academic calendar events + year-end rollover
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function createCalendarEventAction(
+  periodId: string,
+  values: CalendarEventFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  if (!UUID_RE.test(periodId)) {
+    return { success: false, error: 'Invalid academic period' };
+  }
+  const parsed = calendarEventFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const event = await createCalendarEvent(periodId, parsed.data);
+    revalidatePath(`/academic-periods/${periodId}/calendar`);
+    return { success: true, data: { id: event.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function deleteCalendarEventAction(
+  periodId: string,
+  eventId: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!UUID_RE.test(periodId) || !UUID_RE.test(eventId)) {
+    return { success: false, error: 'Invalid calendar event' };
+  }
+  try {
+    await deleteCalendarEvent(periodId, eventId);
+    revalidatePath(`/academic-periods/${periodId}/calendar`);
+    return { success: true, data: { id: eventId } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function rolloverAcademicPeriodAction(
+  sourcePeriodId: string,
+  values: RolloverFormValues,
+): Promise<ActionResult<RolloverSummary>> {
+  if (!UUID_RE.test(sourcePeriodId)) {
+    return { success: false, error: 'Invalid academic period' };
+  }
+  const parsed = rolloverFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    // Default to a dry run — the caller must opt in to writing.
+    const summary = await rolloverAcademicPeriod(sourcePeriodId, {
+      ...parsed.data,
+      dryRun: parsed.data.dryRun ?? true,
+    });
+    if (!summary.dryRun) {
+      revalidatePath('/academic-periods');
+      revalidatePath('/institutions', 'layout');
+    }
+    return { success: true, data: summary };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G-901 — Grades & class sections
+// ---------------------------------------------------------------------------
+
+export async function createGradeAction(
+  values: GradeFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = gradeFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const grade = await createGrade(parsed.data);
+    revalidatePath('/institutions', 'layout');
+    return { success: true, data: { id: grade.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function createClassSectionAction(
+  values: ClassSectionFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = classSectionFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const section = await createClassSection(parsed.data);
+    revalidatePath(`/institutions/${parsed.data.institutionId}`, 'layout');
+    return { success: true, data: { id: section.id } };
   } catch (error) {
     return toActionError(error);
   }

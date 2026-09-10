@@ -10,10 +10,7 @@
  */
 import { gatewayFetch } from './gateway';
 
-export {
-  BREAK_GLASS_USE_CASES,
-  BREAK_GLASS_MAX_MINUTES,
-} from './break-glass-constants';
+export { BREAK_GLASS_USE_CASES, BREAK_GLASS_MAX_MINUTES } from './break-glass-constants';
 export type { BreakGlassUseCase } from './break-glass-constants';
 
 export type BreakGlassStatus =
@@ -111,9 +108,7 @@ export async function listBreakGlassRequests(): Promise<{
   return { requests: STUB_REQUESTS, source: 'stub' };
 }
 
-export async function getBreakGlassRequest(
-  id: string,
-): Promise<BreakGlassRequest | null> {
+export async function getBreakGlassRequest(id: string): Promise<BreakGlassRequest | null> {
   const response = await gatewayFetch<BreakGlassRequest>(`/break-glass/${id}`);
   if (response.ok && response.data) return response.data;
   return STUB_REQUESTS.find((r) => r.id === id) ?? null;

@@ -18,9 +18,12 @@
  *   S3_SECRET_KEY - S3 secret key
  *   S3_BUCKET     - S3 bucket name
  */
+import { observabilityPlugin } from '@proctira/observability';
 import Fastify from 'fastify';
-import { reportPlugin } from './report-plugin.js';
+
 import { InMemoryReportRepository } from './in-memory-repository.js';
+import { reportPlugin } from './report-plugin.js';
+import type { ReportDataSource } from './report-repository.js';
 
 const PORT = parseInt(process.env['PORT'] || '3028', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -31,13 +34,17 @@ async function start() {
   const app = Fastify({
     logger: {
       level: LOG_LEVEL,
-      transport:
-        process.env['NODE_ENV'] === 'development'
-          ? { target: 'pino-pretty' }
-          : undefined,
+      transport: process.env['NODE_ENV'] === 'development' ? { target: 'pino-pretty' } : undefined,
     },
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
+  });
+
+  // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
+  // standalone deployments are scraped by infra/observability/prometheus.yml.
+  await app.register(observabilityPlugin, {
+    serviceName: SERVICE_NAME,
+    ignorePaths: ['/health', '/ready'],
   });
 
   // Health check endpoint (liveness)
@@ -62,9 +69,22 @@ async function start() {
 
   // Register the report domain plugin with repository
   const repository = new InMemoryReportRepository();
-  await app.register(reportPlugin as any, {
+  // The standalone binary has no domain data source of its own (the gateway
+  // wires PG-backed aggregates); until one is injected every report resolves
+  // to an empty, well-typed result rather than crashing on a missing method.
+  const emptyDataSource: ReportDataSource = {
+    async fetchData(tenantId, reportType) {
+      app.log.warn(
+        { tenantId, reportType },
+        'report standalone: no data source configured — returning empty result set',
+      );
+      return { rows: [], columns: [], totalRows: 0 };
+    },
+  };
+  await app.register(reportPlugin, {
     prefix: '/reports',
     repository,
+    dataSource: emptyDataSource,
   });
 
   try {
@@ -78,10 +98,15 @@ async function start() {
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   for (const signal of signals) {
-    process.on(signal, async () => {
+    process.on(signal, () => {
       app.log.info(`Received ${signal}, shutting down gracefully...`);
-      await app.close();
-      process.exit(0);
+      void app.close().then(
+        () => process.exit(0),
+        (err: unknown) => {
+          app.log.error(err);
+          process.exit(1);
+        },
+      );
     });
   }
 }

@@ -74,7 +74,9 @@ describe('validateTheme', () => {
       });
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'security' && i.path?.includes('logoUrl'))).toBe(true);
+      expect(result.issues.some((i) => i.type === 'security' && i.path?.includes('logoUrl'))).toBe(
+        true,
+      );
     });
 
     it('should detect event handlers in string values', () => {
@@ -118,7 +120,9 @@ describe('validateTheme', () => {
       theme.tokens.shadows = { footer: 'footer display: none' };
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'security' && i.message.includes('footer'))).toBe(true);
+      expect(result.issues.some((i) => i.type === 'security' && i.message.includes('footer'))).toBe(
+        true,
+      );
     });
 
     it('should detect attempts to hide copyright via visibility:hidden', () => {
@@ -126,7 +130,9 @@ describe('validateTheme', () => {
       theme.tokens.shadows = { custom: 'copyright visibility: hidden' };
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'security' && i.message.includes('copyright'))).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'security' && i.message.includes('copyright')),
+      ).toBe(true);
     });
 
     it('should not flag normal values that happen to contain protected words', () => {
@@ -145,7 +151,9 @@ describe('validateTheme', () => {
       delete theme.tokens.colors['primary'];
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'completeness' && i.path === 'colors.primary')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'completeness' && i.path === 'colors.primary'),
+      ).toBe(true);
     });
 
     it('should fail when background color is missing', () => {
@@ -153,7 +161,9 @@ describe('validateTheme', () => {
       delete theme.tokens.colors['background'];
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'completeness' && i.path === 'colors.background')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'completeness' && i.path === 'colors.background'),
+      ).toBe(true);
     });
 
     it('should fail when textPrimary color is missing', () => {
@@ -161,7 +171,9 @@ describe('validateTheme', () => {
       delete theme.tokens.colors['textPrimary'];
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'completeness' && i.path === 'colors.textPrimary')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'completeness' && i.path === 'colors.textPrimary'),
+      ).toBe(true);
     });
   });
 
@@ -171,7 +183,9 @@ describe('validateTheme', () => {
       theme.tokens.typography.baseFontSize = 10;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.baseFontSize')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.baseFontSize'),
+      ).toBe(true);
     });
 
     it('should fail when baseFontSize is above maximum (24px)', () => {
@@ -179,7 +193,9 @@ describe('validateTheme', () => {
       theme.tokens.typography.baseFontSize = 30;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.baseFontSize')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.baseFontSize'),
+      ).toBe(true);
     });
 
     it('should fail when lineHeight is below minimum (1.2)', () => {
@@ -187,7 +203,9 @@ describe('validateTheme', () => {
       theme.tokens.typography.lineHeight = 1.0;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.lineHeight')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.lineHeight'),
+      ).toBe(true);
     });
 
     it('should fail when lineHeight is above maximum (2.0)', () => {
@@ -195,7 +213,9 @@ describe('validateTheme', () => {
       theme.tokens.typography.lineHeight = 2.5;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.lineHeight')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.lineHeight'),
+      ).toBe(true);
     });
 
     it('should fail when scaleRatio is out of bounds', () => {
@@ -203,7 +223,9 @@ describe('validateTheme', () => {
       theme.tokens.typography.scaleRatio = 2.0;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.scaleRatio')).toBe(true);
+      expect(
+        result.issues.some((i) => i.type === 'bounds' && i.path === 'typography.scaleRatio'),
+      ).toBe(true);
     });
   });
 
@@ -213,7 +235,9 @@ describe('validateTheme', () => {
       theme.tokens.spacing.unit = 1;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'spacing.unit')).toBe(true);
+      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'spacing.unit')).toBe(
+        true,
+      );
     });
 
     it('should fail when spacing unit is above maximum (16px)', () => {
@@ -221,7 +245,9 @@ describe('validateTheme', () => {
       theme.tokens.spacing.unit = 20;
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'spacing.unit')).toBe(true);
+      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'spacing.unit')).toBe(
+        true,
+      );
     });
 
     it('should fail when spacing scale has too many items', () => {
@@ -229,7 +255,9 @@ describe('validateTheme', () => {
       theme.tokens.spacing.scale = Array.from({ length: 25 }, (_, i) => i);
       const result = validateTheme(theme);
       expect(result.valid).toBe(false);
-      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'spacing.scale')).toBe(true);
+      expect(result.issues.some((i) => i.type === 'bounds' && i.path === 'spacing.scale')).toBe(
+        true,
+      );
     });
   });
 

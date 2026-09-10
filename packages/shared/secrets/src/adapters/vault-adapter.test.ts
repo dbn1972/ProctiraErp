@@ -5,7 +5,7 @@ import type { VaultConfig } from '../types.js';
 import { SecretAccessError } from './aws-kms-adapter.js';
 
 function createMockVaultClient(
-  handler?: (options: { method: string; path: string; body?: unknown }) => VaultResponse
+  handler?: (options: { method: string; path: string; body?: unknown }) => VaultResponse,
 ): VaultHttpClient {
   return {
     request: vi.fn().mockImplementation((options) => {
@@ -102,7 +102,7 @@ describe('VaultSecretAdapter', () => {
           headers: expect.objectContaining({
             'X-Vault-Namespace': 'my-org',
           }),
-        })
+        }),
       );
     });
 
@@ -157,7 +157,7 @@ describe('VaultSecretAdapter', () => {
               _tags: { service: 'payment' },
             },
           },
-        })
+        }),
       );
     });
 
@@ -239,7 +239,7 @@ describe('VaultSecretAdapter', () => {
           method: 'POST',
           path: '/v1/secret/destroy/my-key',
           body: { versions: [5] },
-        })
+        }),
       );
     });
 
@@ -249,7 +249,7 @@ describe('VaultSecretAdapter', () => {
 
       await expect(adapter.rotateSecret('key')).rejects.toThrow(SecretAccessError);
       await expect(adapter.rotateSecret('key')).rejects.toThrow(
-        /Cannot rotate secret.*without a new value/
+        /Cannot rotate secret.*without a new value/,
       );
     });
   });

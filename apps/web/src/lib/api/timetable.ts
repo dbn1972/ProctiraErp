@@ -300,10 +300,9 @@ export async function listRooms(filters?: {
     const params = new URLSearchParams();
     if (filters?.institutionId) params.set('institutionId', filters.institutionId);
     const qs = params.toString();
-    const result = await gatewayFetch<{ data: Room[] }>(
-      `/timetable/rooms${qs ? `?${qs}` : ''}`,
-      { next: { revalidate: 0 } },
-    );
+    const result = await gatewayFetch<{ data: Room[] }>(`/timetable/rooms${qs ? `?${qs}` : ''}`, {
+      next: { revalidate: 0 },
+    });
     return { ok: true, data: result.data?.data ?? [] };
   } catch (error) {
     return { ok: false, ...mapError(error) };
@@ -420,6 +419,61 @@ export async function withdrawStudent(
   return result.data;
 }
 
+export type ScheduleConflict = {
+  reason: string;
+  meetingId?: string;
+  againstMeetingId: string;
+  dayOfWeek: number;
+  periodId: string;
+  staffId?: string;
+  sectionId?: string;
+  roomId?: string | null;
+};
+
+export async function listScheduleConflicts(filters: {
+  institutionId: string;
+  academicPeriodId?: string;
+}): Promise<TimetableLoadResult<ScheduleConflict[]>> {
+  try {
+    const params = new URLSearchParams();
+    params.set('institutionId', filters.institutionId);
+    if (filters.academicPeriodId) params.set('academicPeriodId', filters.academicPeriodId);
+    const result = await gatewayFetch<{ data: ScheduleConflict[] }>(
+      `/timetable/conflicts?${params.toString()}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function bulkEnrollStudents(
+  sectionId: string,
+  studentIds: string[],
+): Promise<{
+  enrolled: SectionEnrollment[];
+  failed: Array<{ studentId: string; code: string; message: string }>;
+  summary: { requested: number; enrolled: number; failed: number };
+}> {
+  const result = await gatewayFetch<{
+    enrolled: SectionEnrollment[];
+    failed: Array<{ studentId: string; code: string; message: string }>;
+    summary: { requested: number; enrolled: number; failed: number };
+  }>(`/timetable/sections/${encodeURIComponent(sectionId)}/enrollments/bulk`, {
+    method: 'POST',
+    json: { studentIds },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Bulk enroll returned no body',
+    });
+  }
+  return result.data;
+}
+
 export async function publishSection(sectionId: string): Promise<ScheduleSection> {
   const result = await gatewayFetch<ScheduleSection>(
     `/timetable/sections/${encodeURIComponent(sectionId)}/publish`,
@@ -460,6 +514,111 @@ export async function listAttendancePeriods(filters: {
     if (filters.dayOfWeek != null) params.set('dayOfWeek', String(filters.dayOfWeek));
     const result = await gatewayFetch<{ data: AttendancePeriodSlot[] }>(
       `/timetable/attendance-periods?${params.toString()}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export interface GenerationJob {
+  id: string;
+  tenantId: string;
+  institutionId: string;
+  academicPeriodId: string;
+  status: 'queued' | 'running' | 'done' | 'failed';
+  assignedCount: number;
+  unassignedCount: number;
+  clashCount: number;
+  repairPasses: number;
+  persistMeetings: boolean;
+  stats: Record<string, unknown>;
+  errorMessage: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+}
+
+export interface GenerationDemandInput {
+  sectionId: string;
+  subjectId: string;
+  staffId: string;
+  periodsPerWeek: number;
+  preferredRoomId?: string | null;
+  enrollmentCount?: number;
+}
+
+export async function runGenerationJob(input: {
+  institutionId: string;
+  academicPeriodId: string;
+  bellScheduleId?: string;
+  persistMeetings?: boolean;
+  teacherMaxPeriodsPerDay?: number;
+  demands: GenerationDemandInput[];
+}): Promise<GenerationJob> {
+  const result = await gatewayFetch<GenerationJob>('/timetable/generation-jobs', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Generation job returned no body',
+    });
+  }
+  return result.data;
+}
+
+export async function listGenerationJobs(filters: {
+  institutionId?: string;
+}): Promise<TimetableLoadResult<GenerationJob[]>> {
+  try {
+    const params = new URLSearchParams();
+    if (filters.institutionId) params.set('institutionId', filters.institutionId);
+    const qs = params.toString();
+    const result = await gatewayFetch<{ data: GenerationJob[] }>(
+      `/timetable/generation-jobs${qs ? `?${qs}` : ''}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function markTeacherAbsent(input: {
+  institutionId: string;
+  staffId: string;
+  absenceDate: string;
+  reason?: string | null;
+}): Promise<{
+  absence: { id: string; staffId: string; absenceDate: string };
+  affected: SectionMeeting[];
+}> {
+  const result = await gatewayFetch<{
+    absence: { id: string; staffId: string; absenceDate: string };
+    affected: SectionMeeting[];
+  }>('/timetable/teacher-absences', { method: 'POST', json: input });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Teacher absence returned no body',
+    });
+  }
+  return result.data;
+}
+
+export async function listAffectedPeriods(filters: {
+  institutionId: string;
+  staffId: string;
+  date: string;
+}): Promise<TimetableLoadResult<SectionMeeting[]>> {
+  try {
+    const params = new URLSearchParams(filters);
+    const result = await gatewayFetch<{ data: SectionMeeting[] }>(
+      `/timetable/teacher-absences/affected?${params.toString()}`,
       { next: { revalidate: 0 } },
     );
     return { ok: true, data: result.data?.data ?? [] };

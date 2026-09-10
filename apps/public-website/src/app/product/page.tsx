@@ -1,12 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  Award,
-  BarChart3,
-  CalendarCheck,
-  ClipboardList,
-  GraduationCap,
-} from 'lucide-react';
+import { Award, BarChart3, CalendarCheck, ClipboardList, GraduationCap } from 'lucide-react';
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
@@ -224,8 +218,8 @@ export default function ProductPage() {
               Plays well with public digital infrastructure
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              First-class connectors keep ProctiraERP in sync with the systems
-              your government already runs.
+              First-class connectors keep ProctiraERP in sync with the systems your government
+              already runs.
             </p>
           </div>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
@@ -258,8 +252,8 @@ export default function ProductPage() {
             See the full platform in action
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Get a guided walkthrough tailored to your schools, district, or
-            ministry — or spin up your own instance from the installation guide.
+            Get a guided walkthrough tailored to your schools, district, or ministry — or spin up
+            your own instance from the installation guide.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">

@@ -20,7 +20,11 @@ import { WorkflowService } from './workflow-service.js';
 import { EscalationService, InMemoryEscalationPublisher } from './escalation-service.js';
 import type { EscalationTaskPayload } from './escalation-service.js';
 import { InMemoryWorkflowRepository } from './in-memory-repository.js';
-import type { WorkflowStateInput, WorkflowTransitionInput, EscalationRuleInput } from './schemas.js';
+import type {
+  WorkflowStateInput,
+  WorkflowTransitionInput,
+  EscalationRuleInput,
+} from './schemas.js';
 
 const TENANT_ID = 'tenant-escalation-pbt-001';
 
@@ -183,7 +187,12 @@ function arbWorkflowWithInitialEscalation() {
 
       const transitions: WorkflowTransitionInput[] = [
         { id: 't-1', fromStateId: 'state-initial', toStateId: 'state-resolved', action: 'resolve' },
-        { id: 't-2', fromStateId: 'state-escalated', toStateId: 'state-resolved', action: 'resolve' },
+        {
+          id: 't-2',
+          fromStateId: 'state-escalated',
+          toStateId: 'state-resolved',
+          action: 'resolve',
+        },
       ];
 
       const escalationRules: EscalationRuleInput[] = [

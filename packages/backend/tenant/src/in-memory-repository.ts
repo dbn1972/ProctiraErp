@@ -60,9 +60,14 @@ export class InMemoryTenantRepository implements TenantRepository {
       region: data.region !== undefined ? data.region : existing.region,
       config: data.config ?? existing.config,
       suspendedAt: data.suspendedAt !== undefined ? data.suspendedAt : existing.suspendedAt,
-      suspendedReason: data.suspendedReason !== undefined ? data.suspendedReason : existing.suspendedReason,
-      decommissionedAt: data.decommissionedAt !== undefined ? data.decommissionedAt : existing.decommissionedAt,
-      dataRetentionUntil: data.dataRetentionUntil !== undefined ? data.dataRetentionUntil : existing.dataRetentionUntil,
+      suspendedReason:
+        data.suspendedReason !== undefined ? data.suspendedReason : existing.suspendedReason,
+      decommissionedAt:
+        data.decommissionedAt !== undefined ? data.decommissionedAt : existing.decommissionedAt,
+      dataRetentionUntil:
+        data.dataRetentionUntil !== undefined
+          ? data.dataRetentionUntil
+          : existing.dataRetentionUntil,
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
@@ -75,9 +80,7 @@ export class InMemoryTenantRepository implements TenantRepository {
   }
 
   async findTenantBySlug(slug: string): Promise<TenantEntity | null> {
-    return this.tenants.find(
-      (t) => t.slug.toLowerCase() === slug.toLowerCase(),
-    ) ?? null;
+    return this.tenants.find((t) => t.slug.toLowerCase() === slug.toLowerCase()) ?? null;
   }
 
   async listTenants(
@@ -95,9 +98,7 @@ export class InMemoryTenantRepository implements TenantRepository {
     if (filter.search) {
       const search = filter.search.toLowerCase();
       filtered = filtered.filter(
-        (t) =>
-          t.name.toLowerCase().includes(search) ||
-          t.slug.toLowerCase().includes(search),
+        (t) => t.name.toLowerCase().includes(search) || t.slug.toLowerCase().includes(search),
       );
     }
 
@@ -148,9 +149,7 @@ export class InMemoryTenantRepository implements TenantRepository {
   }
 
   async removeDomain(tenantId: string, domainId: string): Promise<boolean> {
-    const index = this.domains.findIndex(
-      (d) => d.tenantId === tenantId && d.id === domainId,
-    );
+    const index = this.domains.findIndex((d) => d.tenantId === tenantId && d.id === domainId);
     if (index === -1) return false;
     this.domains.splice(index, 1);
     return true;
@@ -161,9 +160,7 @@ export class InMemoryTenantRepository implements TenantRepository {
   }
 
   async findDomainByName(domain: string): Promise<DomainEntity | null> {
-    return this.domains.find(
-      (d) => d.domain.toLowerCase() === domain.toLowerCase(),
-    ) ?? null;
+    return this.domains.find((d) => d.domain.toLowerCase() === domain.toLowerCase()) ?? null;
   }
 
   // ─── Usage Tracking ──────────────────────────────────────────────────────
@@ -193,7 +190,10 @@ export class InMemoryTenantRepository implements TenantRepository {
     return entity;
   }
 
-  async updateUsage(tenantId: string, data: Partial<TenantUsageEntity>): Promise<TenantUsageEntity> {
+  async updateUsage(
+    tenantId: string,
+    data: Partial<TenantUsageEntity>,
+  ): Promise<TenantUsageEntity> {
     const index = this.usageRecords.findIndex((u) => u.tenantId === tenantId);
     if (index === -1) {
       // Create if not exists
@@ -227,10 +227,7 @@ export class InMemoryTenantRepository implements TenantRepository {
     // single-threaded JavaScript event loop already serializes us here, so
     // we just compute MAX(revision) + 1 over the existing rows.
     const existing = this.themeVersions.filter((row) => row.tenantId === data.tenantId);
-    const maxRevision = existing.reduce(
-      (acc, row) => (row.revision > acc ? row.revision : acc),
-      0,
-    );
+    const maxRevision = existing.reduce((acc, row) => (row.revision > acc ? row.revision : acc), 0);
     const nextRevision = maxRevision + 1;
 
     const entity: TenantThemeVersionEntity = {
@@ -267,9 +264,7 @@ export class InMemoryTenantRepository implements TenantRepository {
       .map((row) => ({ ...row, tokens: structuredClone(row.tokens) }));
   }
 
-  async findLatestThemeVersion(
-    tenantId: string,
-  ): Promise<TenantThemeVersionEntity | null> {
+  async findLatestThemeVersion(tenantId: string): Promise<TenantThemeVersionEntity | null> {
     const sorted = await this.listThemeVersions(tenantId);
     return sorted.length === 0 ? null : sorted[sorted.length - 1]!;
   }
@@ -292,9 +287,7 @@ export class InMemoryTenantRepository implements TenantRepository {
     return { ...entity, tokens: structuredClone(entity.tokens) };
   }
 
-  async findBrandingDraft(
-    tenantId: string,
-  ): Promise<TenantBrandingDraftEntity | null> {
+  async findBrandingDraft(tenantId: string): Promise<TenantBrandingDraftEntity | null> {
     const found = this.brandingDrafts.get(tenantId);
     return found ? { ...found, tokens: structuredClone(found.tokens) } : null;
   }

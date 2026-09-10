@@ -9,10 +9,7 @@ import React from 'react';
 export type AnnouncePriority = 'polite' | 'assertive';
 
 /** Function returned by `useAnnounce()`. */
-export type Announce = (
-  message: string,
-  priority?: AnnouncePriority,
-) => void;
+export type Announce = (message: string, priority?: AnnouncePriority) => void;
 
 // ---------------------------------------------------------------------------
 // Module-level event emitter
@@ -37,10 +34,7 @@ const listeners = new Set<Listener>();
  * named export is for non-React callers (queue workers, fetch
  * interceptors, error boundaries).
  */
-export function announce(
-  message: string,
-  priority: AnnouncePriority = 'polite',
-): void {
+export function announce(message: string, priority: AnnouncePriority = 'polite'): void {
   if (!message) return;
   for (const listener of listeners) {
     listener(message, priority);
@@ -117,15 +111,9 @@ export function LiveRegion({ clearAfterMs = 500 }: LiveRegionProps = {}) {
 
   // Track timers per region so we can cancel them when a new message
   // arrives before the previous one cleared.
-  const politeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const assertiveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const flushTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const politeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const assertiveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
     const listener: Listener = (message, priority) => {

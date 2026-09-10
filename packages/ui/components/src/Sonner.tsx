@@ -18,8 +18,7 @@ export const Toaster = ({ ...props }: ToasterProps) => {
   // does not hard-require the optional peer dependency.
   let theme: ToasterProps['theme'] = 'system';
   const dynamicRequire =
-    (globalThis as unknown as { require?: (id: string) => unknown }).require ??
-    null;
+    (globalThis as unknown as { require?: (id: string) => unknown }).require ?? null;
   if (dynamicRequire) {
     try {
       const nextThemes = dynamicRequire('next-themes') as
@@ -44,10 +43,8 @@ export const Toaster = ({ ...props }: ToasterProps) => {
           toast:
             'group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg',
           description: 'group-[.toast]:text-muted-foreground',
-          actionButton:
-            'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
-          cancelButton:
-            'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground',
+          actionButton: 'group-[.toast]:bg-primary group-[.toast]:text-primary-foreground',
+          cancelButton: 'group-[.toast]:bg-muted group-[.toast]:text-muted-foreground',
         },
       }}
       {...props}

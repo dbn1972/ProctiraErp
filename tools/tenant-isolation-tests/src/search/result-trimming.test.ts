@@ -104,13 +104,11 @@ describe('Category 5 — Search Result Trimming', () => {
   it('search across multiple tenants never returns documents from foreign tenants', () => {
     fc.assert(
       fc.property(
-        fc.uniqueArray(
-          fc.tuple(
-            entityNameArb,
-            fc.uuid(),
-          ),
-          { minLength: 3, maxLength: 6, selector: ([, id]) => id },
-        ),
+        fc.uniqueArray(fc.tuple(entityNameArb, fc.uuid()), {
+          minLength: 3,
+          maxLength: 6,
+          selector: ([, id]) => id,
+        }),
         (entries) => {
           index.clear();
           const term = 'common-term';

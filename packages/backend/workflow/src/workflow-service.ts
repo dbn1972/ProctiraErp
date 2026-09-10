@@ -177,7 +177,10 @@ export class WorkflowService {
     tenantId: string,
     input: CreateWorkflowInstanceInput,
   ): Promise<WorkflowInstanceEntity> {
-    const definition = await this.repository.findDefinitionById(input.workflowDefinitionId, tenantId);
+    const definition = await this.repository.findDefinitionById(
+      input.workflowDefinitionId,
+      tenantId,
+    );
     if (!definition) {
       throw new NotFoundError(
         `Workflow definition with id '${input.workflowDefinitionId}' not found`,
@@ -393,7 +396,12 @@ export class WorkflowService {
   private validateDefinitionStructure(
     states: WorkflowStateInput[],
     transitions: WorkflowTransitionInput[],
-    escalationRules: { stateId: string; escalateToStateId: string; durationMinutes: number; notifyRoleId?: string }[],
+    escalationRules: {
+      stateId: string;
+      escalateToStateId: string;
+      durationMinutes: number;
+      notifyRoleId?: string;
+    }[],
   ): void {
     const stateIds = new Set(states.map((s) => s.id));
 
@@ -408,7 +416,9 @@ export class WorkflowService {
       throw new ValidationError('Workflow definition must have exactly one INITIAL state');
     }
     if (initialStates.length > 1) {
-      throw new ValidationError('Workflow definition must have exactly one INITIAL state, found multiple');
+      throw new ValidationError(
+        'Workflow definition must have exactly one INITIAL state, found multiple',
+      );
     }
 
     // Validate at least one FINAL state
@@ -434,9 +444,7 @@ export class WorkflowService {
     // Validate escalation rule references
     for (const rule of escalationRules) {
       if (!stateIds.has(rule.stateId)) {
-        throw new ValidationError(
-          `Escalation rule references unknown stateId '${rule.stateId}'`,
-        );
+        throw new ValidationError(`Escalation rule references unknown stateId '${rule.stateId}'`);
       }
       if (!stateIds.has(rule.escalateToStateId)) {
         throw new ValidationError(

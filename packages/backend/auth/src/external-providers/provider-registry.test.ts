@@ -4,10 +4,18 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ProviderRegistry } from './provider-registry.js';
 import { ExternalAuthError } from './types.js';
-import type { ExternalAuthProvider, AuthInitiationResult, AuthCallbackParams, ExternalUserProfile } from './types.js';
+import type {
+  ExternalAuthProvider,
+  AuthInitiationResult,
+  AuthCallbackParams,
+  ExternalUserProfile,
+} from './types.js';
 
 /** Create a mock provider for testing */
-function createMockProvider(id: string, type: 'oauth2' | 'oidc' | 'saml' = 'oauth2'): ExternalAuthProvider {
+function createMockProvider(
+  id: string,
+  type: 'oauth2' | 'oidc' | 'saml' = 'oauth2',
+): ExternalAuthProvider {
   return {
     providerId: id,
     type,
@@ -15,7 +23,10 @@ function createMockProvider(id: string, type: 'oauth2' | 'oidc' | 'saml' = 'oaut
     async initiateAuth(_tenantId: string): Promise<AuthInitiationResult> {
       return { redirectUrl: `https://example.com/auth/${id}`, state: 'test-state' };
     },
-    async handleCallback(_params: AuthCallbackParams, _tenantId: string): Promise<ExternalUserProfile> {
+    async handleCallback(
+      _params: AuthCallbackParams,
+      _tenantId: string,
+    ): Promise<ExternalUserProfile> {
       return {
         externalId: 'ext-123',
         email: 'user@example.com',
@@ -102,9 +113,21 @@ describe('ProviderRegistry', () => {
 
       const list = registry.listProviders();
       expect(list).toHaveLength(3);
-      expect(list).toContainEqual({ providerId: 'google', type: 'oauth2', displayName: 'Mock google' });
-      expect(list).toContainEqual({ providerId: 'custom-idp', type: 'oidc', displayName: 'Mock custom-idp' });
-      expect(list).toContainEqual({ providerId: 'corp-saml', type: 'saml', displayName: 'Mock corp-saml' });
+      expect(list).toContainEqual({
+        providerId: 'google',
+        type: 'oauth2',
+        displayName: 'Mock google',
+      });
+      expect(list).toContainEqual({
+        providerId: 'custom-idp',
+        type: 'oidc',
+        displayName: 'Mock custom-idp',
+      });
+      expect(list).toContainEqual({
+        providerId: 'corp-saml',
+        type: 'saml',
+        displayName: 'Mock corp-saml',
+      });
     });
   });
 

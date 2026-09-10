@@ -27,9 +27,7 @@ describe('<Input /> + <Textarea /> — axe-core WCAG 2.1 AA gate', () => {
   });
 
   it('input with aria-label only is also accessible', async () => {
-    const { container } = render(
-      <Input aria-label="Search students" type="search" />,
-    );
+    const { container } = render(<Input aria-label="Search students" type="search" />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

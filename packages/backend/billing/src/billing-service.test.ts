@@ -112,18 +112,18 @@ describe('BillingService', () => {
       const plan = await service.createPlan(createFreePlan());
       await service.updatePlan(plan.id, { status: 'archived' });
 
-      await expect(
-        service.updatePlan(plan.id, { name: 'New Name' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.updatePlan(plan.id, { name: 'New Name' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should reject updating to a conflicting name', async () => {
       const plan1 = await service.createPlan(createFreePlan());
       await service.createPlan(createProPlan());
 
-      await expect(
-        service.updatePlan(plan1.id, { name: 'Professional Plan' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.updatePlan(plan1.id, { name: 'Professional Plan' })).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should get a plan by ID', async () => {
@@ -135,9 +135,9 @@ describe('BillingService', () => {
     });
 
     it('should throw NotFoundError for non-existent plan', async () => {
-      await expect(
-        service.getPlanById('00000000-0000-4000-8000-000000000000'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getPlanById('00000000-0000-4000-8000-000000000000')).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should list plans with filtering', async () => {
@@ -190,9 +190,9 @@ describe('BillingService', () => {
     it('should reject subscribing to inactive plan', async () => {
       const plan = await service.createPlan(createProPlan());
 
-      await expect(
-        service.subscribeTenant({ tenantId, planId: plan.id }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.subscribeTenant({ tenantId, planId: plan.id })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should reject duplicate active subscriptions', async () => {
@@ -201,9 +201,9 @@ describe('BillingService', () => {
 
       await service.subscribeTenant({ tenantId, planId: plan.id });
 
-      await expect(
-        service.subscribeTenant({ tenantId, planId: plan.id }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.subscribeTenant({ tenantId, planId: plan.id })).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should activate a trial subscription', async () => {
@@ -231,9 +231,9 @@ describe('BillingService', () => {
         startTrial: false,
       });
 
-      await expect(
-        service.activateSubscription(subscription.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.activateSubscription(subscription.id)).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should suspend a subscription', async () => {
@@ -274,9 +274,7 @@ describe('BillingService', () => {
 
       await service.cancelSubscription(subscription.id);
 
-      await expect(
-        service.cancelSubscription(subscription.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.cancelSubscription(subscription.id)).rejects.toThrow(BusinessRuleError);
     });
 
     it('should reactivate a suspended subscription', async () => {
@@ -302,9 +300,9 @@ describe('BillingService', () => {
         planId: plan.id,
       });
 
-      await expect(
-        service.reactivateSubscription(subscription.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.reactivateSubscription(subscription.id)).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 
@@ -466,9 +464,9 @@ describe('BillingService', () => {
 
       await service.subscribeTenant({ tenantId, planId: proPlan.id });
 
-      await expect(
-        service.upgradePlan(tenantId, { newPlanId: freePlan.id }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.upgradePlan(tenantId, { newPlanId: freePlan.id })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should downgrade a plan with warnings', async () => {
@@ -517,9 +515,9 @@ describe('BillingService', () => {
 
       await service.subscribeTenant({ tenantId, planId: freePlan.id });
 
-      await expect(
-        service.downgradePlan(tenantId, { newPlanId: proPlan.id }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.downgradePlan(tenantId, { newPlanId: proPlan.id })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should re-provision entitlements after upgrade', async () => {

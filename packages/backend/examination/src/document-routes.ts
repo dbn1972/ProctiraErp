@@ -5,6 +5,7 @@
  * GET    /examinations/:examinationId/documents/jobs       - List document generation jobs
  * GET    /examinations/:examinationId/documents/jobs/:jobId - Get job status
  * POST   /examinations/:examinationId/documents/jobs/:jobId/process - Process a queued job (worker endpoint)
+ * GET    /examinations/:examinationId/documents/jobs/:jobId/download - Stream the completed PDF (G-902)
  *
  * Requirements:
  * - 10.6: Generate examination documents (admit cards, seating plans, result certificates)
@@ -213,12 +214,65 @@ export async function registerDocumentRoutes(
       }
 
       try {
-        const job = await documentGenerationService.getJobStatus(
+        const job = await documentGenerationService.getJobStatus(tenantId, paramsResult.data.jobId);
+
+        return reply.status(200).send(serializeJob(job));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /examinations/:examinationId/documents/jobs/:jobId/download
+   * Stream the generated PDF of a completed job (G-902 Documents tab).
+   */
+  fastify.get(
+    `${prefix}/:examinationId/documents/jobs/:jobId/download`,
+    async function downloadJobHandler(
+      request: FastifyRequest<{ Params: DocumentJobParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(DocumentJobParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid parameters',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const output = await documentGenerationService.getJobOutput(
           tenantId,
           paramsResult.data.jobId,
         );
-
-        return reply.status(200).send(serializeJob(job));
+        if (!output) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: 'Document output not available',
+            statusCode: 404,
+          });
+        }
+        return reply
+          .status(200)
+          .header('content-type', 'application/pdf')
+          .header(
+            'content-disposition',
+            `attachment; filename="${output.job.documentType}-${output.job.id}.pdf"`,
+          )
+          .send(output.pdf);
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -259,10 +313,7 @@ export async function registerDocumentRoutes(
       }
 
       try {
-        const job = await documentGenerationService.processJob(
-          tenantId,
-          paramsResult.data.jobId,
-        );
+        const job = await documentGenerationService.processJob(tenantId, paramsResult.data.jobId);
 
         return reply.status(200).send(serializeJob(job));
       } catch (error: unknown) {

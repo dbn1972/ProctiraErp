@@ -14,18 +14,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
   const { email } = body;
   if (!email) {
-    return NextResponse.json(
-      { message: 'Email is required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Email is required.' }, { status: 400 });
   }
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';

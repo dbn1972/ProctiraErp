@@ -36,19 +36,21 @@ const CATEGORY_IDS = ['accessibility', 'performance', 'best-practices', 'seo'] a
  * Generate a Lighthouse score in [0, 1] rounded to two decimal places
  * (matching Lighthouse's actual output precision).
  */
-const scoreArb = fc.double({ min: 0, max: 1, noNaN: true }).map((v) =>
-  Math.round(v * 100) / 100,
-);
+const scoreArb = fc.double({ min: 0, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100);
 
 /**
  * Generate a full set of category scores where every score is AT or ABOVE
  * its threshold (a passing report).
  */
 const passingScoresArb = fc.record({
-  accessibility: fc.double({ min: 0.95, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100),
-  performance: fc.double({ min: 0.80, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100),
-  'best-practices': fc.double({ min: 0.90, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100),
-  seo: fc.double({ min: 0.90, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100),
+  accessibility: fc
+    .double({ min: 0.95, max: 1, noNaN: true })
+    .map((v) => Math.round(v * 100) / 100),
+  performance: fc.double({ min: 0.8, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100),
+  'best-practices': fc
+    .double({ min: 0.9, max: 1, noNaN: true })
+    .map((v) => Math.round(v * 100) / 100),
+  seo: fc.double({ min: 0.9, max: 1, noNaN: true }).map((v) => Math.round(v * 100) / 100),
 });
 
 /**
@@ -66,9 +68,9 @@ const failingScoresArb = fc
     // At least one category must be below its threshold
     return (
       scores.accessibility < 0.95 ||
-      scores.performance < 0.80 ||
-      scores['best-practices'] < 0.90 ||
-      scores.seo < 0.90
+      scores.performance < 0.8 ||
+      scores['best-practices'] < 0.9 ||
+      scores.seo < 0.9
     );
   });
 
@@ -120,9 +122,7 @@ describe('Property F-10: Lighthouse Budget', () => {
         expect(verdict.passed).toBe(false);
 
         // At least one category must report failed
-        const failedCategories = CATEGORY_IDS.filter(
-          (id) => !verdict.scores[id].passed,
-        );
+        const failedCategories = CATEGORY_IDS.filter((id) => !verdict.scores[id].passed);
         expect(failedCategories.length).toBeGreaterThan(0);
 
         // Every failed category must have a score below its threshold
@@ -160,9 +160,7 @@ describe('Property F-10: Lighthouse Budget', () => {
           // Only test if the below score is actually below the threshold
           if (belowScore < threshold) {
             belowThreshold[categoryId] = belowScore;
-            const verdictBelow = gate.evaluateLhrAgainstThresholds(
-              buildLhr(belowThreshold),
-            );
+            const verdictBelow = gate.evaluateLhrAgainstThresholds(buildLhr(belowThreshold));
             expect(verdictBelow.passed).toBe(false);
             expect(verdictBelow.scores[categoryId].passed).toBe(false);
           }

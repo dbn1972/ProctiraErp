@@ -4,7 +4,11 @@
  * In-memory implementation of PipelineRepository for testing and development.
  */
 import type { Pipeline, PipelineExecution } from './schemas.js';
-import type { PipelineRepository, PipelineListFilter, PipelineListResult } from './pipeline-repository.js';
+import type {
+  PipelineRepository,
+  PipelineListFilter,
+  PipelineListResult,
+} from './pipeline-repository.js';
 
 export class InMemoryPipelineRepository implements PipelineRepository {
   private pipelines: Map<string, Pipeline> = new Map();
@@ -47,9 +51,7 @@ export class InMemoryPipelineRepository implements PipelineRepository {
     page: number,
     pageSize: number,
   ): Promise<PipelineListResult> {
-    let results = Array.from(this.pipelines.values()).filter(
-      (p) => p.tenantId === tenantId,
-    );
+    let results = Array.from(this.pipelines.values()).filter((p) => p.tenantId === tenantId);
 
     if (filter.search) {
       const search = filter.search.toLowerCase();
@@ -76,7 +78,10 @@ export class InMemoryPipelineRepository implements PipelineRepository {
     return { ...execution };
   }
 
-  async updateExecution(id: string, updates: Partial<PipelineExecution>): Promise<PipelineExecution> {
+  async updateExecution(
+    id: string,
+    updates: Partial<PipelineExecution>,
+  ): Promise<PipelineExecution> {
     const existing = this.executions.get(id);
     if (!existing) {
       throw new Error(`Execution not found: ${id}`);

@@ -16,11 +16,7 @@ export {
   resetDefaultRegistry,
   DEFAULT_HTTP_DURATION_BUCKETS,
 } from './metrics-registry.js';
-export type {
-  CounterConfig,
-  HistogramConfig,
-  GaugeConfig,
-} from './metrics-registry.js';
+export type { CounterConfig, HistogramConfig, GaugeConfig } from './metrics-registry.js';
 
 export { observabilityPlugin } from './fastify-plugin.js';
 export type { ObservabilityPluginOptions } from './fastify-plugin.js';

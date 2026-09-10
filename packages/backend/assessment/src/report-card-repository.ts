@@ -91,7 +91,9 @@ export interface ReportCardJobEntity {
  */
 export interface ReportCardTemplateRepository {
   /** Create a new template */
-  create(data: Omit<ReportCardTemplateEntity, 'createdAt' | 'updatedAt'>): Promise<ReportCardTemplateEntity>;
+  create(
+    data: Omit<ReportCardTemplateEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ReportCardTemplateEntity>;
 
   /** Find a template by ID within a tenant */
   findById(id: string, tenantId: string): Promise<ReportCardTemplateEntity | null>;
@@ -103,7 +105,11 @@ export interface ReportCardTemplateRepository {
   list(tenantId: string): Promise<ReportCardTemplateEntity[]>;
 
   /** Update a template */
-  update(id: string, tenantId: string, data: Partial<ReportCardTemplateEntity>): Promise<ReportCardTemplateEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<ReportCardTemplateEntity>,
+  ): Promise<ReportCardTemplateEntity | null>;
 
   /** Delete a template */
   delete(id: string, tenantId: string): Promise<boolean>;
@@ -114,7 +120,9 @@ export interface ReportCardTemplateRepository {
  */
 export interface TeacherCommentRepository {
   /** Create or update a teacher comment */
-  upsert(data: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'>): Promise<TeacherCommentEntity>;
+  upsert(
+    data: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TeacherCommentEntity>;
 
   /** Find comments for a student in an academic period */
   findByStudentAndPeriod(
@@ -140,7 +148,10 @@ export interface TeacherCommentRepository {
  */
 export interface InstitutionBrandingRepository {
   /** Get branding info for an institution */
-  findByInstitutionId(institutionId: string, tenantId: string): Promise<InstitutionBrandingEntity | null>;
+  findByInstitutionId(
+    institutionId: string,
+    tenantId: string,
+  ): Promise<InstitutionBrandingEntity | null>;
 }
 
 /**
@@ -148,7 +159,9 @@ export interface InstitutionBrandingRepository {
  */
 export interface ReportCardJobRepository {
   /** Create a new job */
-  create(data: Omit<ReportCardJobEntity, 'createdAt' | 'updatedAt' | 'completedAt'>): Promise<ReportCardJobEntity>;
+  create(
+    data: Omit<ReportCardJobEntity, 'createdAt' | 'updatedAt' | 'completedAt'>,
+  ): Promise<ReportCardJobEntity>;
 
   /** Find a job by ID */
   findById(id: string, tenantId: string): Promise<ReportCardJobEntity | null>;

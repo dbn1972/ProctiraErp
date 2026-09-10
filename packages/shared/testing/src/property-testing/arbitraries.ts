@@ -93,10 +93,12 @@ export const phoneArb: fc.Arbitrary<string> = fc
 /**
  * Generates valid tenant slugs.
  */
-export const tenantSlugArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-  { minLength: 3, maxLength: 30 },
-).filter((s) => /^[a-z]/.test(s) && !s.endsWith('-') && !s.includes('--'));
+export const tenantSlugArb: fc.Arbitrary<string> = fc
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+    minLength: 3,
+    maxLength: 30,
+  })
+  .filter((s) => /^[a-z]/.test(s) && !s.endsWith('-') && !s.includes('--'));
 
 /**
  * Generates valid area level numbers (1-10).

@@ -13,26 +13,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@proctira/ui/components': path.resolve(
-        __dirname,
-        '../../packages/ui/components/src',
-      ),
-      '@proctira/ui-components': path.resolve(
-        __dirname,
-        '../../packages/ui/components/src',
-      ),
-      '@proctira/ui-dashboards': path.resolve(
-        __dirname,
-        '../../packages/ui/dashboards/src',
-      ),
-      '@proctira/ui/dashboards': path.resolve(
-        __dirname,
-        '../../packages/ui/dashboards/src',
-      ),
-      '@proctira/ui/file-upload': path.resolve(
-        __dirname,
-        '../../packages/ui/file-upload/src',
-      ),
+      '@proctira/ui/components': path.resolve(__dirname, '../../packages/ui/components/src'),
+      '@proctira/ui-components': path.resolve(__dirname, '../../packages/ui/components/src'),
+      '@proctira/ui-dashboards': path.resolve(__dirname, '../../packages/ui/dashboards/src'),
+      '@proctira/ui/dashboards': path.resolve(__dirname, '../../packages/ui/dashboards/src'),
+      '@proctira/ui/file-upload': path.resolve(__dirname, '../../packages/ui/file-upload/src'),
     },
   },
 });

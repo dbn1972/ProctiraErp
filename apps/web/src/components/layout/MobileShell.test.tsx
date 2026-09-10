@@ -24,14 +24,7 @@
  * lightweight stubs/mocks so the shell can render in isolation.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 
@@ -45,7 +38,7 @@ vi.mock('@/components/PageErrorBoundary', () => ({
   PageErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-let currentPathname = '/app/dashboard';
+let currentPathname = '/';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => currentPathname,
@@ -90,10 +83,7 @@ vi.mock('next/link', () => ({
 // ─── Test subject ────────────────────────────────────────────────────────────
 
 import { MobileShell, getActiveMobileTab } from './MobileShell';
-import {
-  BrandConfigProvider,
-  type Brand,
-} from '@/providers/BrandConfigProvider';
+import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
 
 const TEST_BRAND: Brand = {
   name: 'EduZo',
@@ -118,7 +108,7 @@ function renderShell(node: React.ReactNode = <div data-testid="page">page-conten
 // ─── Setup / teardown ────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  currentPathname = '/app/dashboard';
+  currentPathname = '/';
 });
 
 afterEach(() => {
@@ -137,10 +127,10 @@ describe('<MobileShell> — bottom-tab navigation (Task 53.2 / Req 41 AC 3)', ()
     const students = screen.getByTestId('mobile-shell-tab-students');
     const profile = screen.getByTestId('mobile-shell-tab-profile');
 
-    expect(home.getAttribute('href')).toBe('/app/dashboard');
-    expect(attendance.getAttribute('href')).toBe('/app/attendance');
-    expect(students.getAttribute('href')).toBe('/app/students');
-    expect(profile.getAttribute('href')).toBe('/app/me/profile');
+    expect(home.getAttribute('href')).toBe('/');
+    expect(attendance.getAttribute('href')).toBe('/attendance');
+    expect(students.getAttribute('href')).toBe('/students');
+    expect(profile.getAttribute('href')).toBe('/admin/users');
 
     expect(home.textContent).toContain('Home');
     expect(attendance.textContent).toContain('Attendance');
@@ -168,8 +158,8 @@ describe('<MobileShell> — bottom-tab navigation (Task 53.2 / Req 41 AC 3)', ()
 });
 
 describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
-  it('flags the Home tab when the pathname is /app/dashboard', () => {
-    currentPathname = '/app/dashboard';
+  it('flags the Home tab when the pathname is /', () => {
+    currentPathname = '/';
     renderShell();
     const home = screen.getByTestId('mobile-shell-tab-home');
     expect(home.getAttribute('aria-current')).toBe('page');
@@ -177,30 +167,36 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
   });
 
   it('flags the Students tab when the pathname is a Students sub-route', () => {
-    currentPathname = '/app/students/abc-123/edit';
+    currentPathname = '/students/abc-123/edit';
     renderShell();
     const students = screen.getByTestId('mobile-shell-tab-students');
     expect(students.getAttribute('aria-current')).toBe('page');
     expect(students.getAttribute('data-active')).toBe('true');
     // Sibling tabs must remain inactive.
     expect(screen.getByTestId('mobile-shell-tab-home').getAttribute('data-active')).toBe('false');
-    expect(screen.getByTestId('mobile-shell-tab-attendance').getAttribute('data-active')).toBe('false');
-    expect(screen.getByTestId('mobile-shell-tab-profile').getAttribute('data-active')).toBe('false');
+    expect(screen.getByTestId('mobile-shell-tab-attendance').getAttribute('data-active')).toBe(
+      'false',
+    );
+    expect(screen.getByTestId('mobile-shell-tab-profile').getAttribute('data-active')).toBe(
+      'false',
+    );
   });
 
   it('flags no tab as active when the pathname does not match any tab prefix', () => {
-    currentPathname = '/app/settings';
+    currentPathname = '/admin';
     renderShell();
     for (const key of ['home', 'attendance', 'students', 'profile'] as const) {
-      expect(screen.getByTestId(`mobile-shell-tab-${key}`).getAttribute('data-active')).toBe('false');
+      expect(screen.getByTestId(`mobile-shell-tab-${key}`).getAttribute('data-active')).toBe(
+        'false',
+      );
     }
   });
 
   it('exposes a pure helper `getActiveMobileTab` for callers outside the shell', () => {
-    expect(getActiveMobileTab('/app/attendance')?.key).toBe('attendance');
-    expect(getActiveMobileTab('/app/me/profile')?.key).toBe('profile');
-    expect(getActiveMobileTab('/app/me/profile/edit')?.key).toBe('profile');
-    expect(getActiveMobileTab('/app/settings')).toBeNull();
+    expect(getActiveMobileTab('/attendance')?.key).toBe('attendance');
+    expect(getActiveMobileTab('/admin/users')?.key).toBe('profile');
+    expect(getActiveMobileTab('/admin/users/edit')?.key).toBe('profile');
+    expect(getActiveMobileTab('/admin')).toBeNull();
     expect(getActiveMobileTab(null)).toBeNull();
     expect(getActiveMobileTab(undefined)).toBeNull();
   });
@@ -236,22 +232,34 @@ describe('<MobileShell> — hamburger drawer (Task 53.2 / Design §K)', () => {
     });
 
     expect(screen.getByTestId('mobile-shell-drawer-link-settings').getAttribute('href')).toBe(
-      '/app/settings',
+      '/admin',
     );
     expect(screen.getByTestId('mobile-shell-drawer-link-reports').getAttribute('href')).toBe(
-      '/app/reports',
+      '/reports',
     );
-    expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe(
-      '/app/help',
-    );
+    expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe('/help');
     expect(screen.getByTestId('mobile-shell-drawer-link-signout').getAttribute('href')).toBe(
-      '/api/auth/signout',
+      '/api/auth/logout',
     );
 
-    expect(screen.getByTestId('mobile-shell-drawer-link-settings').textContent).toContain('Settings');
+    for (const [key, href] of [
+      ['fees', '/fees'],
+      ['hostel', '/hostel'],
+      ['transport', '/transport'],
+      ['library', '/library'],
+      ['communication', '/communication'],
+    ] as const) {
+      expect(screen.getByTestId(`mobile-shell-drawer-link-${key}`).getAttribute('href')).toBe(href);
+    }
+
+    expect(screen.getByTestId('mobile-shell-drawer-link-settings').textContent).toContain(
+      'Settings',
+    );
     expect(screen.getByTestId('mobile-shell-drawer-link-reports').textContent).toContain('Reports');
     expect(screen.getByTestId('mobile-shell-drawer-link-help').textContent).toContain('Help');
-    expect(screen.getByTestId('mobile-shell-drawer-link-signout').textContent).toContain('Sign out');
+    expect(screen.getByTestId('mobile-shell-drawer-link-signout').textContent).toContain(
+      'Sign out',
+    );
   });
 
   it('closes the drawer on Escape', () => {

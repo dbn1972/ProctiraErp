@@ -54,7 +54,18 @@ const nameArb: fc.Arbitrary<string> = fc.stringOf(
  * Generates a valid gender value.
  */
 const validGenderArb: fc.Arbitrary<string> = fc.constantFrom(
-  'Male', 'Female', 'Other', 'male', 'female', 'other', 'M', 'F', 'O', 'm', 'f', 'o',
+  'Male',
+  'Female',
+  'Other',
+  'male',
+  'female',
+  'other',
+  'M',
+  'F',
+  'O',
+  'm',
+  'f',
+  'o',
 );
 
 /**
@@ -62,14 +73,14 @@ const validGenderArb: fc.Arbitrary<string> = fc.constantFrom(
  */
 const validEmailArb: fc.Arbitrary<string> = fc
   .record({
-    local: fc.stringOf(
-      fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
-      { minLength: 1, maxLength: 10 },
-    ),
-    domain: fc.stringOf(
-      fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
-      { minLength: 2, maxLength: 10 },
-    ),
+    local: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), {
+      minLength: 1,
+      maxLength: 10,
+    }),
+    domain: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+      minLength: 2,
+      maxLength: 10,
+    }),
   })
   .map(({ local, domain }) => `${local}@${domain}.com`);
 
@@ -109,49 +120,67 @@ const validImportRowArb: fc.Arbitrary<ImportStudentRow> = fc
  */
 const invalidImportRowArb: fc.Arbitrary<ImportStudentRow> = fc.oneof(
   // Missing firstName
-  fc.record({
-    rowNumber: fc.integer({ min: 2, max: 10000 }),
-    firstName: fc.constant(''),
-    lastName: nameArb,
-    dateOfBirth: validDateArb,
-  }).map((r) => ({ ...r } as ImportStudentRow)),
+  fc
+    .record({
+      rowNumber: fc.integer({ min: 2, max: 10000 }),
+      firstName: fc.constant(''),
+      lastName: nameArb,
+      dateOfBirth: validDateArb,
+    })
+    .map((r) => ({ ...r }) as ImportStudentRow),
   // Missing lastName
-  fc.record({
-    rowNumber: fc.integer({ min: 2, max: 10000 }),
-    firstName: nameArb,
-    lastName: fc.constant(''),
-    dateOfBirth: validDateArb,
-  }).map((r) => ({ ...r } as ImportStudentRow)),
+  fc
+    .record({
+      rowNumber: fc.integer({ min: 2, max: 10000 }),
+      firstName: nameArb,
+      lastName: fc.constant(''),
+      dateOfBirth: validDateArb,
+    })
+    .map((r) => ({ ...r }) as ImportStudentRow),
   // Missing dateOfBirth
-  fc.record({
-    rowNumber: fc.integer({ min: 2, max: 10000 }),
-    firstName: nameArb,
-    lastName: nameArb,
-    dateOfBirth: fc.constant(''),
-  }).map((r) => ({ ...r } as ImportStudentRow)),
+  fc
+    .record({
+      rowNumber: fc.integer({ min: 2, max: 10000 }),
+      firstName: nameArb,
+      lastName: nameArb,
+      dateOfBirth: fc.constant(''),
+    })
+    .map((r) => ({ ...r }) as ImportStudentRow),
   // Invalid date format
-  fc.record({
-    rowNumber: fc.integer({ min: 2, max: 10000 }),
-    firstName: nameArb,
-    lastName: nameArb,
-    dateOfBirth: fc.constantFrom('15/03/2005', '2005-13-45', 'not-a-date', '01-01-2000', '2005/03/15'),
-  }).map((r) => ({ ...r } as ImportStudentRow)),
+  fc
+    .record({
+      rowNumber: fc.integer({ min: 2, max: 10000 }),
+      firstName: nameArb,
+      lastName: nameArb,
+      dateOfBirth: fc.constantFrom(
+        '15/03/2005',
+        '2005-13-45',
+        'not-a-date',
+        '01-01-2000',
+        '2005/03/15',
+      ),
+    })
+    .map((r) => ({ ...r }) as ImportStudentRow),
   // Invalid email format
-  fc.record({
-    rowNumber: fc.integer({ min: 2, max: 10000 }),
-    firstName: nameArb,
-    lastName: nameArb,
-    dateOfBirth: validDateArb,
-    contactEmail: fc.constantFrom('not-an-email', 'missing@', '@nodomain', 'spaces in@email.com'),
-  }).map((r) => ({ ...r } as ImportStudentRow)),
+  fc
+    .record({
+      rowNumber: fc.integer({ min: 2, max: 10000 }),
+      firstName: nameArb,
+      lastName: nameArb,
+      dateOfBirth: validDateArb,
+      contactEmail: fc.constantFrom('not-an-email', 'missing@', '@nodomain', 'spaces in@email.com'),
+    })
+    .map((r) => ({ ...r }) as ImportStudentRow),
   // Invalid gender
-  fc.record({
-    rowNumber: fc.integer({ min: 2, max: 10000 }),
-    firstName: nameArb,
-    lastName: nameArb,
-    dateOfBirth: validDateArb,
-    gender: fc.constantFrom('unknown', 'X', 'nonbinary', 'invalid', '123'),
-  }).map((r) => ({ ...r } as ImportStudentRow)),
+  fc
+    .record({
+      rowNumber: fc.integer({ min: 2, max: 10000 }),
+      firstName: nameArb,
+      lastName: nameArb,
+      dateOfBirth: validDateArb,
+      gender: fc.constantFrom('unknown', 'X', 'nonbinary', 'invalid', '123'),
+    })
+    .map((r) => ({ ...r }) as ImportStudentRow),
 );
 
 /**
@@ -179,40 +208,39 @@ describe('Property 15: Bulk Import Row-Level Validation', () => {
 
   it('every invalid row produces at least one error with its row number and specific validation failure', () => {
     fc.assert(
-      fc.property(
-        invalidImportRowArb,
-        (invalidRow) => {
-          const errors = validateRow(invalidRow);
+      fc.property(invalidImportRowArb, (invalidRow) => {
+        const errors = validateRow(invalidRow);
 
-          // Every invalid row must produce at least one error
-          expect(errors.length).toBeGreaterThanOrEqual(1);
+        // Every invalid row must produce at least one error
+        expect(errors.length).toBeGreaterThanOrEqual(1);
 
-          // Each error must reference the correct row number
-          for (const error of errors) {
-            expect(error.rowNumber).toBe(invalidRow.rowNumber);
-            // Each error must have a specific field
-            expect(error.field).toBeTruthy();
-            // Each error must have a human-readable message
-            expect(error.message).toBeTruthy();
-            expect(error.message.length).toBeGreaterThan(0);
-            // Each error must have a valid error code
-            expect(['REQUIRED_FIELD', 'INVALID_FORMAT', 'DUPLICATE_IN_FILE', 'UNIQUENESS_VIOLATION']).toContain(error.code);
-          }
-        },
-      ),
+        // Each error must reference the correct row number
+        for (const error of errors) {
+          expect(error.rowNumber).toBe(invalidRow.rowNumber);
+          // Each error must have a specific field
+          expect(error.field).toBeTruthy();
+          // Each error must have a human-readable message
+          expect(error.message).toBeTruthy();
+          expect(error.message.length).toBeGreaterThan(0);
+          // Each error must have a valid error code
+          expect([
+            'REQUIRED_FIELD',
+            'INVALID_FORMAT',
+            'DUPLICATE_IN_FILE',
+            'UNIQUENESS_VIOLATION',
+          ]).toContain(error.code);
+        }
+      }),
       { numRuns: 200 },
     );
   });
 
   it('valid rows produce zero validation errors', () => {
     fc.assert(
-      fc.property(
-        validImportRowArb,
-        (validRow) => {
-          const errors = validateRow(validRow);
-          expect(errors).toHaveLength(0);
-        },
-      ),
+      fc.property(validImportRowArb, (validRow) => {
+        const errors = validateRow(validRow);
+        expect(errors).toHaveLength(0);
+      }),
       { numRuns: 200 },
     );
   });
@@ -246,7 +274,9 @@ describe('Property 15: Bulk Import Row-Level Validation', () => {
           // Interleave valid and invalid rows
           const allRows: ImportStudentRow[] = [...deduplicatedValidRows, ...numberedInvalidRows];
 
-          const result = await service.processRows(tenantId, allRows, { duplicateResolution: 'skip' });
+          const result = await service.processRows(tenantId, allRows, {
+            duplicateResolution: 'skip',
+          });
 
           // All invalid rows must appear in the error report
           const errorRowNumbers = new Set(result.errors.map((e) => e.rowNumber));
@@ -347,33 +377,37 @@ describe('Property 16: Duplicate Detection on Import', () => {
         async (tenantId, nationalId, firstName, lastName, dob, rowNumber) => {
           // Seed an existing student with the national ID
           repository.clear();
-          repository.seed([{
-            id: 'existing-student-001',
-            tenantId,
-            firstName: 'Existing',
-            lastName: 'Student',
-            dateOfBirth: '2000-01-01',
-            gender: 'Male',
-            nationalId,
-            nationality: null,
-            contactPhone: null,
-            contactEmail: null,
-            guardianName: null,
-            guardianPhone: null,
-            institutionCode: null,
-            customData: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }]);
+          repository.seed([
+            {
+              id: 'existing-student-001',
+              tenantId,
+              firstName: 'Existing',
+              lastName: 'Student',
+              dateOfBirth: '2000-01-01',
+              gender: 'Male',
+              nationalId,
+              nationality: null,
+              contactPhone: null,
+              contactEmail: null,
+              guardianName: null,
+              guardianPhone: null,
+              institutionCode: null,
+              customData: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]);
 
           // Import row with the same national ID
-          const rows: ImportStudentRow[] = [{
-            rowNumber,
-            firstName,
-            lastName,
-            dateOfBirth: dob,
-            nationalId,
-          }];
+          const rows: ImportStudentRow[] = [
+            {
+              rowNumber,
+              firstName,
+              lastName,
+              dateOfBirth: dob,
+              nationalId,
+            },
+          ];
 
           const duplicates = await detectDuplicates(tenantId, rows, repository);
 
@@ -400,32 +434,36 @@ describe('Property 16: Duplicate Detection on Import', () => {
         async (tenantId, firstName, lastName, dob, rowNumber) => {
           // Seed an existing student with the same name and DOB
           repository.clear();
-          repository.seed([{
-            id: 'existing-student-002',
-            tenantId,
-            firstName,
-            lastName,
-            dateOfBirth: dob,
-            gender: null,
-            nationalId: null, // no national ID so name+DOB check is used
-            nationality: null,
-            contactPhone: null,
-            contactEmail: null,
-            guardianName: null,
-            guardianPhone: null,
-            institutionCode: null,
-            customData: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }]);
+          repository.seed([
+            {
+              id: 'existing-student-002',
+              tenantId,
+              firstName,
+              lastName,
+              dateOfBirth: dob,
+              gender: null,
+              nationalId: null, // no national ID so name+DOB check is used
+              nationality: null,
+              contactPhone: null,
+              contactEmail: null,
+              guardianName: null,
+              guardianPhone: null,
+              institutionCode: null,
+              customData: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]);
 
           // Import row with the same name and DOB (no national ID)
-          const rows: ImportStudentRow[] = [{
-            rowNumber,
-            firstName,
-            lastName,
-            dateOfBirth: dob,
-          }];
+          const rows: ImportStudentRow[] = [
+            {
+              rowNumber,
+              firstName,
+              lastName,
+              dateOfBirth: dob,
+            },
+          ];
 
           const duplicates = await detectDuplicates(tenantId, rows, repository);
 
@@ -453,32 +491,36 @@ describe('Property 16: Duplicate Detection on Import', () => {
         validDateArb,
         async (tenantId, nationalId, firstName, lastName, dob) => {
           repository.clear();
-          repository.seed([{
-            id: 'existing-skip',
-            tenantId,
-            firstName: 'Original',
-            lastName: 'Record',
-            dateOfBirth: '2000-01-01',
-            gender: null,
-            nationalId,
-            nationality: null,
-            contactPhone: null,
-            contactEmail: null,
-            guardianName: null,
-            guardianPhone: null,
-            institutionCode: null,
-            customData: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }]);
+          repository.seed([
+            {
+              id: 'existing-skip',
+              tenantId,
+              firstName: 'Original',
+              lastName: 'Record',
+              dateOfBirth: '2000-01-01',
+              gender: null,
+              nationalId,
+              nationality: null,
+              contactPhone: null,
+              contactEmail: null,
+              guardianName: null,
+              guardianPhone: null,
+              institutionCode: null,
+              customData: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]);
 
-          const rows: ImportStudentRow[] = [{
-            rowNumber: 2,
-            firstName,
-            lastName,
-            dateOfBirth: dob,
-            nationalId,
-          }];
+          const rows: ImportStudentRow[] = [
+            {
+              rowNumber: 2,
+              firstName,
+              lastName,
+              dateOfBirth: dob,
+              nationalId,
+            },
+          ];
 
           const result = await service.processRows(tenantId, rows, { duplicateResolution: 'skip' });
 
@@ -506,34 +548,40 @@ describe('Property 16: Duplicate Detection on Import', () => {
         validDateArb,
         async (tenantId, nationalId, firstName, lastName, dob) => {
           repository.clear();
-          repository.seed([{
-            id: 'existing-update',
-            tenantId,
-            firstName: 'Original',
-            lastName: 'Name',
-            dateOfBirth: '2000-01-01',
-            gender: null,
-            nationalId,
-            nationality: null,
-            contactPhone: null,
-            contactEmail: null,
-            guardianName: null,
-            guardianPhone: null,
-            institutionCode: null,
-            customData: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }]);
+          repository.seed([
+            {
+              id: 'existing-update',
+              tenantId,
+              firstName: 'Original',
+              lastName: 'Name',
+              dateOfBirth: '2000-01-01',
+              gender: null,
+              nationalId,
+              nationality: null,
+              contactPhone: null,
+              contactEmail: null,
+              guardianName: null,
+              guardianPhone: null,
+              institutionCode: null,
+              customData: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]);
 
-          const rows: ImportStudentRow[] = [{
-            rowNumber: 2,
-            firstName,
-            lastName,
-            dateOfBirth: dob,
-            nationalId,
-          }];
+          const rows: ImportStudentRow[] = [
+            {
+              rowNumber: 2,
+              firstName,
+              lastName,
+              dateOfBirth: dob,
+              nationalId,
+            },
+          ];
 
-          const result = await service.processRows(tenantId, rows, { duplicateResolution: 'update' });
+          const result = await service.processRows(tenantId, rows, {
+            duplicateResolution: 'update',
+          });
 
           // Duplicate is detected and updated
           expect(result.duplicateCount).toBe(1);
@@ -560,34 +608,40 @@ describe('Property 16: Duplicate Detection on Import', () => {
         validDateArb,
         async (tenantId, nationalId, firstName, lastName, dob) => {
           repository.clear();
-          repository.seed([{
-            id: 'existing-create',
-            tenantId,
-            firstName: 'Original',
-            lastName: 'Record',
-            dateOfBirth: '2000-01-01',
-            gender: null,
-            nationalId,
-            nationality: null,
-            contactPhone: null,
-            contactEmail: null,
-            guardianName: null,
-            guardianPhone: null,
-            institutionCode: null,
-            customData: null,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }]);
+          repository.seed([
+            {
+              id: 'existing-create',
+              tenantId,
+              firstName: 'Original',
+              lastName: 'Record',
+              dateOfBirth: '2000-01-01',
+              gender: null,
+              nationalId,
+              nationality: null,
+              contactPhone: null,
+              contactEmail: null,
+              guardianName: null,
+              guardianPhone: null,
+              institutionCode: null,
+              customData: null,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ]);
 
-          const rows: ImportStudentRow[] = [{
-            rowNumber: 2,
-            firstName,
-            lastName,
-            dateOfBirth: dob,
-            nationalId,
-          }];
+          const rows: ImportStudentRow[] = [
+            {
+              rowNumber: 2,
+              firstName,
+              lastName,
+              dateOfBirth: dob,
+              nationalId,
+            },
+          ];
 
-          const result = await service.processRows(tenantId, rows, { duplicateResolution: 'create' });
+          const result = await service.processRows(tenantId, rows, {
+            duplicateResolution: 'create',
+          });
 
           // Duplicate is detected but a new record is created
           expect(result.duplicateCount).toBe(1);

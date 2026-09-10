@@ -16,11 +16,27 @@ const mockValidationResult: ImportValidationResult = {
   warningRows: 0,
   errors: [
     { row: 3, field: 'firstName', message: 'Required field is empty', severity: 'error' },
-    { row: 7, field: 'email', message: 'Invalid email format', value: 'not-an-email', severity: 'error' },
+    {
+      row: 7,
+      field: 'email',
+      message: 'Invalid email format',
+      value: 'not-an-email',
+      severity: 'error',
+    },
   ],
   preview: [
-    { rowNumber: 1, data: { firstName: 'Alice', lastName: 'Smith', email: 'alice@test.com' }, hasErrors: false, errors: [] },
-    { rowNumber: 2, data: { firstName: 'Bob', lastName: 'Jones', email: 'bob@test.com' }, hasErrors: false, errors: [] },
+    {
+      rowNumber: 1,
+      data: { firstName: 'Alice', lastName: 'Smith', email: 'alice@test.com' },
+      hasErrors: false,
+      errors: [],
+    },
+    {
+      rowNumber: 2,
+      data: { firstName: 'Bob', lastName: 'Jones', email: 'bob@test.com' },
+      hasErrors: false,
+      errors: [],
+    },
   ],
   columnMappings: [
     { sourceColumn: 'First Name', targetField: 'firstName', required: true, valid: true },
@@ -31,7 +47,9 @@ const mockValidationResult: ImportValidationResult = {
 
 function createFile(name: string, size: number): File {
   const content = new Array(size).fill('a').join('');
-  return new File([content], name, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return new File([content], name, {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
 }
 
 describe('BulkImport', () => {
@@ -42,7 +60,7 @@ describe('BulkImport', () => {
         targetFields={targetFields}
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText('Import Students')).toBeInTheDocument();
@@ -56,7 +74,7 @@ describe('BulkImport', () => {
         targetFields={targetFields}
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText('Upload')).toBeInTheDocument();
@@ -72,7 +90,7 @@ describe('BulkImport', () => {
         maxFileSize={100}
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     const file = createFile('big.xlsx', 200);
@@ -95,7 +113,7 @@ describe('BulkImport', () => {
         acceptedFileTypes={['.xlsx']}
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     const file = new File(['content'], 'test.txt', { type: 'text/plain' });
@@ -117,7 +135,7 @@ describe('BulkImport', () => {
         targetFields={targetFields}
         onFileValidate={onFileValidate}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     const file = createFile('students.xlsx', 100);
@@ -140,7 +158,7 @@ describe('BulkImport', () => {
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
         onDownloadTemplate={onDownloadTemplate}
-      />
+      />,
     );
 
     const templateBtn = screen.getByRole('button', { name: /download import template/i });
@@ -157,7 +175,7 @@ describe('BulkImport', () => {
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
         onCancel={onCancel}
-      />
+      />,
     );
 
     const cancelBtn = screen.getByRole('button', { name: /cancel import/i });
@@ -172,7 +190,7 @@ describe('BulkImport', () => {
         targetFields={targetFields}
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByRole('navigation', { name: /import progress/i })).toBeInTheDocument();
@@ -186,7 +204,7 @@ describe('BulkImport', () => {
         acceptedFileTypes={['.xlsx', '.csv']}
         onFileValidate={vi.fn()}
         onImportConfirm={vi.fn()}
-      />
+      />,
     );
 
     expect(screen.getByText(/\.xlsx, \.csv/)).toBeInTheDocument();

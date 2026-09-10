@@ -26,6 +26,7 @@ export const CreateAssignmentSchema = Type.Object({
   startDate: Type.String({ minLength: 10, maxLength: 10 }),
   endDate: Type.Optional(Type.String({ minLength: 10, maxLength: 10 })),
   isActive: Type.Optional(Type.Boolean()),
+  feeStructureId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
 });
 
 export type CreateAssignmentInput = Static<typeof CreateAssignmentSchema>;
@@ -100,3 +101,83 @@ export const CreateBedSchema = Type.Object({
 });
 
 export type CreateBedInput = Static<typeof CreateBedSchema>;
+
+export const CreateMessPlanSchema = Type.Object({
+  hostelId: Type.String({ pattern: UUID_PATTERN }),
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  mealCount: Type.Optional(Type.Number({ minimum: 1, maximum: 6 })),
+});
+
+export type CreateMessPlanInput = Static<typeof CreateMessPlanSchema>;
+
+export const CreateMessMenuItemSchema = Type.Object({
+  planId: Type.String({ pattern: UUID_PATTERN }),
+  weekday: Type.Number({ minimum: 0, maximum: 6 }),
+  meal: Type.Union([
+    Type.Literal('breakfast'),
+    Type.Literal('lunch'),
+    Type.Literal('dinner'),
+    Type.Literal('snacks'),
+  ]),
+  itemName: Type.String({ minLength: 1, maxLength: 255 }),
+});
+
+export type CreateMessMenuItemInput = Static<typeof CreateMessMenuItemSchema>;
+
+export const CreateMessSubscriptionSchema = Type.Object({
+  planId: Type.String({ pattern: UUID_PATTERN }),
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  startDate: Type.String({ minLength: 10, maxLength: 10 }),
+  endDate: Type.Optional(Type.String({ minLength: 10, maxLength: 10 })),
+});
+
+export type CreateMessSubscriptionInput = Static<typeof CreateMessSubscriptionSchema>;
+
+export const CreateGatePassSchema = Type.Object({
+  hostelId: Type.String({ pattern: UUID_PATTERN }),
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  requestedBy: Type.Optional(Type.Union([Type.Literal('resident'), Type.Literal('parent')])),
+  requesterUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+  reason: Type.Optional(Type.String({ maxLength: 1000 })),
+  expectedOutAt: Type.String({ minLength: 1 }),
+  expectedInAt: Type.String({ minLength: 1 }),
+});
+
+export type CreateGatePassInput = Static<typeof CreateGatePassSchema>;
+
+export const GatePassParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type GatePassParams = Static<typeof GatePassParamsSchema>;
+
+export const CreateFeeStructureSchema = Type.Object({
+  hostelId: Type.String({ pattern: UUID_PATTERN }),
+  roomType: Type.String({ minLength: 1, maxLength: 64 }),
+  termLabel: Type.String({ minLength: 1, maxLength: 64 }),
+  amountCents: Type.Number({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+});
+
+export type CreateFeeStructureInput = Static<typeof CreateFeeStructureSchema>;
+
+export const CreateAttendanceSchema = Type.Object({
+  blockId: Type.String({ pattern: UUID_PATTERN }),
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  onDate: Type.String({ minLength: 10, maxLength: 10 }),
+  status: Type.Union([Type.Literal('present'), Type.Literal('absent'), Type.Literal('leave')]),
+  reason: Type.Optional(Type.String({ maxLength: 500 })),
+});
+
+export type CreateAttendanceInput = Static<typeof CreateAttendanceSchema>;
+
+export const TransitionGatePassSchema = Type.Object({
+  status: Type.Union([
+    Type.Literal('approved'),
+    Type.Literal('rejected'),
+    Type.Literal('out'),
+    Type.Literal('in'),
+  ]),
+});
+
+export type TransitionGatePassInput = Static<typeof TransitionGatePassSchema>;

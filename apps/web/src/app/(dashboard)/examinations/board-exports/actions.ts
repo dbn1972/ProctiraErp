@@ -25,9 +25,7 @@ export async function createBoardExportJobAction(input: {
       status: job.status,
       artifactUri: job.artifactUri,
       checksum:
-        typeof job.metadata?.checksumSha256 === 'string'
-          ? job.metadata.checksumSha256
-          : undefined,
+        typeof job.metadata?.checksumSha256 === 'string' ? job.metadata.checksumSha256 : undefined,
     };
   } catch (error) {
     if (error instanceof GatewayError) {

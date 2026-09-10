@@ -2,6 +2,7 @@
  * Optional live audience counts from hostel / transport tables (raw pg).
  * Falls back to null when DATABASE_URL is unset or queries fail.
  */
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
 const { Pool } = pg;
@@ -24,10 +25,15 @@ export async function fetchLiveAudienceCounts(
   tenantId: string,
   audienceJson: Record<string, unknown>,
 ): Promise<LiveAudienceCounts> {
-  const db = getPool();
-  if (!db) {
+  const rawPool = getPool();
+  if (!rawPool) {
     return { hostelActiveAssignments: null, routeActiveAssignments: null };
   }
+  // RLS on hostel_* / transport_* would silently return 0 without app.tenant_id.
+  const db: PgQueryable = {
+    query: (text, values) =>
+      withPgTenant(rawPool, tenantId, (client) => client.query(text, values)),
+  };
 
   const scope = String(audienceJson['scope'] ?? 'all').toLowerCase();
   let hostelActiveAssignments: number | null = null;

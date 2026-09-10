@@ -51,10 +51,12 @@ export const CreateAssignmentSchema = Type.Object({
     pattern: DATE_PATTERN,
     description: 'Assignment start date (YYYY-MM-DD)',
   }),
-  endDate: Type.Optional(Type.String({
-    pattern: DATE_PATTERN,
-    description: 'Assignment end date (YYYY-MM-DD), null for ongoing',
-  })),
+  endDate: Type.Optional(
+    Type.String({
+      pattern: DATE_PATTERN,
+      description: 'Assignment end date (YYYY-MM-DD), null for ongoing',
+    }),
+  ),
 });
 
 export type CreateAssignmentInput = Static<typeof CreateAssignmentSchema>;
@@ -63,30 +65,37 @@ export type CreateAssignmentInput = Static<typeof CreateAssignmentSchema>;
  * Schema for updating an existing staff assignment.
  */
 export const UpdateAssignmentSchema = Type.Object({
-  role: Type.Optional(Type.String({
-    minLength: 1,
-    maxLength: 100,
-    description: 'Role in this assignment',
-  })),
-  allocationPercentage: Type.Optional(Type.Number({
-    minimum: 1,
-    maximum: 100,
-    description: 'Time allocation percentage (1-100)',
-  })),
-  startDate: Type.Optional(Type.String({
-    pattern: DATE_PATTERN,
-    description: 'Assignment start date (YYYY-MM-DD)',
-  })),
-  endDate: Type.Optional(Type.Union([
-    Type.String({ pattern: DATE_PATTERN }),
-    Type.Null(),
-  ], {
-    description: 'Assignment end date (YYYY-MM-DD) or null for ongoing',
-  })),
-  status: Type.Optional(Type.String({
-    enum: ['ACTIVE', 'INACTIVE'],
-    description: 'Assignment status',
-  })),
+  role: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 100,
+      description: 'Role in this assignment',
+    }),
+  ),
+  allocationPercentage: Type.Optional(
+    Type.Number({
+      minimum: 1,
+      maximum: 100,
+      description: 'Time allocation percentage (1-100)',
+    }),
+  ),
+  startDate: Type.Optional(
+    Type.String({
+      pattern: DATE_PATTERN,
+      description: 'Assignment start date (YYYY-MM-DD)',
+    }),
+  ),
+  endDate: Type.Optional(
+    Type.Union([Type.String({ pattern: DATE_PATTERN }), Type.Null()], {
+      description: 'Assignment end date (YYYY-MM-DD) or null for ongoing',
+    }),
+  ),
+  status: Type.Optional(
+    Type.String({
+      enum: ['ACTIVE', 'INACTIVE'],
+      description: 'Assignment status',
+    }),
+  ),
 });
 
 export type UpdateAssignmentInput = Static<typeof UpdateAssignmentSchema>;
@@ -95,13 +104,23 @@ export type UpdateAssignmentInput = Static<typeof UpdateAssignmentSchema>;
  * Schema for assignment list query parameters.
  */
 export const AssignmentListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff ID' })),
-  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by institution ID' })),
-  subjectId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by subject ID' })),
+  institutionId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by institution ID' }),
+  ),
+  subjectId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by subject ID' }),
+  ),
   classId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by class ID' })),
-  status: Type.Optional(Type.String({ enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status' })),
+  status: Type.Optional(
+    Type.String({ enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status' }),
+  ),
 });
 
 export type AssignmentListQuery = Static<typeof AssignmentListQuerySchema>;

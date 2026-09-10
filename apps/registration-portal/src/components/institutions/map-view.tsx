@@ -36,12 +36,13 @@ export function MapView({ institutions, loading }: MapViewProps) {
       inst.latitude !== null && inst.longitude !== null,
   );
 
-  const center: [number, number] = withCoords.length > 0
-    ? [
-        withCoords.reduce((sum, i) => sum + i.latitude, 0) / withCoords.length,
-        withCoords.reduce((sum, i) => sum + i.longitude, 0) / withCoords.length,
-      ]
-    : DEFAULT_CENTER;
+  const center: [number, number] =
+    withCoords.length > 0
+      ? [
+          withCoords.reduce((sum, i) => sum + i.latitude, 0) / withCoords.length,
+          withCoords.reduce((sum, i) => sum + i.longitude, 0) / withCoords.length,
+        ]
+      : DEFAULT_CENTER;
   const zoom = withCoords.length > 0 ? 8 : DEFAULT_ZOOM;
 
   return (

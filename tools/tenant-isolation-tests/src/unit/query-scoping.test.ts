@@ -65,20 +65,16 @@ describe('Category 1 — Unit Tests: Tenant Scoping in Every Query', () => {
 
   it('findById returns null when the row belongs to a foreign tenant', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        isolationRecordArb,
-        ({ tenantA, tenantB }, record) => {
-          store.clear();
+      fc.property(distinctTenantPairArb, isolationRecordArb, ({ tenantA, tenantB }, record) => {
+        store.clear();
 
-          const owned = { ...record, tenantId: tenantA };
-          store.setCurrentTenant(tenantA);
-          store.insert(owned);
+        const owned = { ...record, tenantId: tenantA };
+        store.setCurrentTenant(tenantA);
+        store.insert(owned);
 
-          store.setCurrentTenant(tenantB);
-          expect(store.findById(owned.id)).toBeNull();
-        },
-      ),
+        store.setCurrentTenant(tenantB);
+        expect(store.findById(owned.id)).toBeNull();
+      }),
       { numRuns: 100 },
     );
   });
@@ -109,23 +105,19 @@ describe('Category 1 — Unit Tests: Tenant Scoping in Every Query', () => {
 
   it('DELETE refuses to remove foreign-tenant rows', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        isolationRecordArb,
-        ({ tenantA, tenantB }, record) => {
-          store.clear();
+      fc.property(distinctTenantPairArb, isolationRecordArb, ({ tenantA, tenantB }, record) => {
+        store.clear();
 
-          const owned = { ...record, tenantId: tenantA };
-          store.setCurrentTenant(tenantA);
-          store.insert(owned);
+        const owned = { ...record, tenantId: tenantA };
+        store.setCurrentTenant(tenantA);
+        store.insert(owned);
 
-          store.setCurrentTenant(tenantB);
-          expect(store.delete(owned.id)).toBe(false);
+        store.setCurrentTenant(tenantB);
+        expect(store.delete(owned.id)).toBe(false);
 
-          store.setCurrentTenant(tenantA);
-          expect(store.findById(owned.id)).not.toBeNull();
-        },
-      ),
+        store.setCurrentTenant(tenantA);
+        expect(store.findById(owned.id)).not.toBeNull();
+      }),
       { numRuns: 100 },
     );
   });
@@ -176,17 +168,11 @@ describe('Category 1 — Unit Tests: Tenant Scoping in Every Query', () => {
 
   it('insert refuses to write a row carrying a foreign tenantId', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        isolationRecordArb,
-        ({ tenantA, tenantB }, record) => {
-          store.clear();
-          store.setCurrentTenant(tenantA);
-          expect(() => store.insert({ ...record, tenantId: tenantB })).toThrowError(
-            /RLS violation/,
-          );
-        },
-      ),
+      fc.property(distinctTenantPairArb, isolationRecordArb, ({ tenantA, tenantB }, record) => {
+        store.clear();
+        store.setCurrentTenant(tenantA);
+        expect(() => store.insert({ ...record, tenantId: tenantB })).toThrowError(/RLS violation/);
+      }),
       { numRuns: 50 },
     );
   });

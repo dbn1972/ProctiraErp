@@ -29,59 +29,65 @@ function hasAtMostTwoDecimalPlaces(num: number): boolean {
 }
 
 // Arbitrary for generating a valid UUID-like string
-const arbId = fc.hexaString({ minLength: 8, maxLength: 8 }).map((s) => `${s}-0000-4000-8000-000000000000`);
+const arbId = fc
+  .hexaString({ minLength: 8, maxLength: 8 })
+  .map((s) => `${s}-0000-4000-8000-000000000000`);
 
 // Arbitrary for gender
 const arbGender: fc.Arbitrary<CandidateGender> = fc.constantFrom('male', 'female', 'other');
 
 // Arbitrary for generating a grading scheme with pass threshold
-const arbGradingScheme = fc.record({
-  minScore: fc.constant(0),
-  maxScore: fc.constant(100),
-  passThreshold: fc.integer({ min: 1, max: 99 }),
-}).map(({ minScore, maxScore, passThreshold }) => {
-  const schemeId = `scheme-${Math.random().toString(36).slice(2, 10)}`;
-  const scheme: ExaminationGradingScheme = {
-    id: schemeId,
-    examinationId: '',
-    name: 'Test Grading Scheme',
-    minScore,
-    maxScore,
-    passThreshold,
-    thresholds: [
-      { grade: 'A', minScore: 80, maxScore: 100 },
-      { grade: 'B', minScore: 60, maxScore: 79 },
-      { grade: 'C', minScore: passThreshold, maxScore: 59 },
-      { grade: 'F', minScore: 0, maxScore: passThreshold - 1 },
-    ],
-  };
-  return scheme;
-});
+const arbGradingScheme = fc
+  .record({
+    minScore: fc.constant(0),
+    maxScore: fc.constant(100),
+    passThreshold: fc.integer({ min: 1, max: 99 }),
+  })
+  .map(({ minScore, maxScore, passThreshold }) => {
+    const schemeId = `scheme-${Math.random().toString(36).slice(2, 10)}`;
+    const scheme: ExaminationGradingScheme = {
+      id: schemeId,
+      examinationId: '',
+      name: 'Test Grading Scheme',
+      minScore,
+      maxScore,
+      passThreshold,
+      thresholds: [
+        { grade: 'A', minScore: 80, maxScore: 100 },
+        { grade: 'B', minScore: 60, maxScore: 79 },
+        { grade: 'C', minScore: passThreshold, maxScore: 59 },
+        { grade: 'F', minScore: 0, maxScore: passThreshold - 1 },
+      ],
+    };
+    return scheme;
+  });
 
 // Arbitrary for generating subjects (1-5 subjects)
-const arbSubjects = fc.integer({ min: 1, max: 5 }).chain((count) =>
-  fc.tuple(
-    ...Array.from({ length: count }, (_, i) =>
-      fc.constant({ id: `subj-${i}`, name: `Subject ${i}`, code: `S${i}` }),
+const arbSubjects = fc
+  .integer({ min: 1, max: 5 })
+  .chain((count) =>
+    fc.tuple(
+      ...Array.from({ length: count }, (_, i) =>
+        fc.constant({ id: `subj-${i}`, name: `Subject ${i}`, code: `S${i}` }),
+      ),
     ),
-  ),
-);
+  );
 
 // Arbitrary for generating centers (1-3 centers)
-const arbCenters = fc.integer({ min: 1, max: 3 }).chain((count) =>
-  fc.tuple(
-    ...Array.from({ length: count }, (_, i) =>
-      fc.constant({ id: `center-${i}`, name: `Center ${i}` }),
+const arbCenters = fc
+  .integer({ min: 1, max: 3 })
+  .chain((count) =>
+    fc.tuple(
+      ...Array.from({ length: count }, (_, i) =>
+        fc.constant({ id: `center-${i}`, name: `Center ${i}` }),
+      ),
     ),
-  ),
-);
+  );
 
 // Arbitrary for generating areas (1-3 areas)
-const arbAreas = fc.integer({ min: 1, max: 3 }).chain((count) =>
-  fc.tuple(
-    ...Array.from({ length: count }, (_, i) => fc.constant(`area-${i}`)),
-  ),
-);
+const arbAreas = fc
+  .integer({ min: 1, max: 3 })
+  .chain((count) => fc.tuple(...Array.from({ length: count }, (_, i) => fc.constant(`area-${i}`))));
 
 // Generate a complete test scenario with candidates and scores
 interface TestScenario {
@@ -122,8 +128,9 @@ const arbTestScenario: fc.Arbitrary<TestScenario> = fc
       }),
     });
 
-    return fc.array(candidateArb, { minLength: numCandidates, maxLength: numCandidates }).map(
-      (candidateData) => {
+    return fc
+      .array(candidateArb, { minLength: numCandidates, maxLength: numCandidates })
+      .map((candidateData) => {
         const candidates = candidateData.map((c, idx) => ({
           id: `cand-${idx}`,
           studentId: `student-${idx}`,
@@ -143,8 +150,7 @@ const arbTestScenario: fc.Arbitrary<TestScenario> = fc
           areaIds,
           candidates,
         };
-      },
-    );
+      });
   });
 
 describe('Property 24: Examination Result Analysis Accuracy', () => {

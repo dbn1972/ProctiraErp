@@ -38,9 +38,7 @@ interface DataQueryBuilderProps {
   indicatorSelections?: IndicatorSelection[];
 }
 
-export default function DataQueryBuilder({
-  indicatorSelections = [],
-}: DataQueryBuilderProps) {
+export default function DataQueryBuilder({ indicatorSelections = [] }: DataQueryBuilderProps) {
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
   const [selectedTimePeriodIds, setSelectedTimePeriodIds] = useState<string[]>([]);
   const [aggregation, setAggregation] = useState<'none' | 'sum' | 'avg' | 'count'>('none');
@@ -128,7 +126,8 @@ export default function DataQueryBuilder({
             <label className="text-sm font-medium mb-1 block">Selected Indicators</label>
             {indicatorSelections.length > 0 ? (
               <p className="text-sm text-muted-foreground">
-                {indicatorSelections.length} indicator{indicatorSelections.length !== 1 ? 's' : ''} selected
+                {indicatorSelections.length} indicator{indicatorSelections.length !== 1 ? 's' : ''}{' '}
+                selected
                 {indicatorSelections.map((s) => s.indicatorName).join(', ')}
               </p>
             ) : (
@@ -173,10 +172,7 @@ export default function DataQueryBuilder({
               {loading ? 'Querying…' : 'Run Query'}
             </Button>
             <DataExport queryParams={buildQueryParams()} disabled={!result} />
-            <Button
-              variant="outline"
-              onClick={() => setShowMap(!showMap)}
-            >
+            <Button variant="outline" onClick={() => setShowMap(!showMap)}>
               {showMap ? 'Hide Map' : 'Show Map'}
             </Button>
           </div>

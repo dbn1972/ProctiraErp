@@ -48,7 +48,10 @@ export class PluginService {
     }
 
     // Validate compatibility with current product version
-    const compatibility = validateCompatibility(this.config.productVersion, manifest.supportedProductVersions);
+    const compatibility = validateCompatibility(
+      this.config.productVersion,
+      manifest.supportedProductVersions,
+    );
     if (!compatibility.compatible) {
       throw new BusinessRuleError(compatibility.message);
     }
@@ -118,7 +121,11 @@ export class PluginService {
    * Validates compatibility, checks for existing installation,
    * and records consented permissions.
    */
-  async install(tenantId: string, input: InstallPluginInput, actor: string): Promise<PluginInstallEntity> {
+  async install(
+    tenantId: string,
+    input: InstallPluginInput,
+    actor: string,
+  ): Promise<PluginInstallEntity> {
     const { pluginId, consentedPermissions, configuration } = input;
 
     // Verify plugin exists and is active
@@ -127,11 +134,16 @@ export class PluginService {
       throw new NotFoundError(`Plugin not found: ${pluginId}`);
     }
     if (plugin.status !== 'active') {
-      throw new BusinessRuleError(`Plugin '${plugin.name}' is not available for installation (status: ${plugin.status})`);
+      throw new BusinessRuleError(
+        `Plugin '${plugin.name}' is not available for installation (status: ${plugin.status})`,
+      );
     }
 
     // Check compatibility with current product version
-    const compatibility = validateCompatibility(this.config.productVersion, plugin.supportedProductVersions);
+    const compatibility = validateCompatibility(
+      this.config.productVersion,
+      plugin.supportedProductVersions,
+    );
     if (!compatibility.compatible) {
       throw new BusinessRuleError(compatibility.message);
     }
@@ -276,7 +288,12 @@ export class PluginService {
    * Uninstall a plugin for a tenant.
    * Revokes all permissions and marks the installation as uninstalled.
    */
-  async uninstall(tenantId: string, installId: string, actor: string, reason?: string): Promise<PluginInstallEntity> {
+  async uninstall(
+    tenantId: string,
+    installId: string,
+    actor: string,
+    reason?: string,
+  ): Promise<PluginInstallEntity> {
     const install = await this.repository.findInstallById(installId);
     if (!install) {
       throw new NotFoundError(`Plugin installation not found: ${installId}`);
@@ -331,7 +348,12 @@ export class PluginService {
   /**
    * Revoke a specific permission for a plugin installation.
    */
-  async revokePermission(tenantId: string, installId: string, permissionId: string, actor: string): Promise<void> {
+  async revokePermission(
+    tenantId: string,
+    installId: string,
+    permissionId: string,
+    actor: string,
+  ): Promise<void> {
     const install = await this.repository.findInstallById(installId);
     if (!install || install.tenantId !== tenantId) {
       throw new NotFoundError(`Plugin installation not found: ${installId}`);

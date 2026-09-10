@@ -58,7 +58,7 @@ export const developerPortalPlugin = fp(
   },
   {
     name: '@proctira/backend-developer-portal',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

@@ -67,7 +67,13 @@ You can view the enrollment details by logging into {{brand_name}}.
 
 Best regards,
 The {{brand_name}} Team`,
-  variables: ['brand_name', 'recipient_name', 'student_name', 'institution_name', 'academic_period'],
+  variables: [
+    'brand_name',
+    'recipient_name',
+    'student_name',
+    'institution_name',
+    'academic_period',
+  ],
 };
 
 export const absenceAlertEmailTemplate: DefaultTemplate = {
@@ -104,7 +110,14 @@ Please log into {{brand_name}} to review the transfer details.
 
 Best regards,
 The {{brand_name}} Team`,
-  variables: ['brand_name', 'recipient_name', 'student_name', 'source_institution', 'destination_institution', 'transfer_date'],
+  variables: [
+    'brand_name',
+    'recipient_name',
+    'student_name',
+    'source_institution',
+    'destination_institution',
+    'transfer_date',
+  ],
 };
 
 // ─── Push Notification Templates ─────────────────────────────────────────────

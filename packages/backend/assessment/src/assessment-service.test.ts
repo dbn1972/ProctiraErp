@@ -9,7 +9,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 
-import { AssessmentService, MAX_ITEMS_PER_SUBJECT_PERIOD, REQUIRED_WEIGHT_TOTAL } from './assessment-service.js';
+import {
+  AssessmentService,
+  MAX_ITEMS_PER_SUBJECT_PERIOD,
+  REQUIRED_WEIGHT_TOTAL,
+} from './assessment-service.js';
 import {
   InMemoryGradingSchemeRepository,
   InMemoryAssessmentItemRepository,
@@ -86,10 +90,30 @@ describe('AssessmentService', () => {
         minValue: 1,
         maxValue: 4,
         thresholds: [
-          { grade: 'Exceeding', minScore: 4, maxScore: 4, descriptor: 'Consistently exceeds expectations' },
-          { grade: 'Meeting', minScore: 3, maxScore: 3, descriptor: 'Meets all expected standards' },
-          { grade: 'Approaching', minScore: 2, maxScore: 2, descriptor: 'Approaching expected standards' },
-          { grade: 'Beginning', minScore: 1, maxScore: 1, descriptor: 'Beginning to develop skills' },
+          {
+            grade: 'Exceeding',
+            minScore: 4,
+            maxScore: 4,
+            descriptor: 'Consistently exceeds expectations',
+          },
+          {
+            grade: 'Meeting',
+            minScore: 3,
+            maxScore: 3,
+            descriptor: 'Meets all expected standards',
+          },
+          {
+            grade: 'Approaching',
+            minScore: 2,
+            maxScore: 2,
+            descriptor: 'Approaching expected standards',
+          },
+          {
+            grade: 'Beginning',
+            minScore: 1,
+            maxScore: 1,
+            descriptor: 'Beginning to develop skills',
+          },
         ],
       };
 
@@ -193,7 +217,9 @@ describe('AssessmentService', () => {
     });
 
     it('should throw NotFoundError for non-existent scheme', async () => {
-      await expect(service.deleteGradingScheme(tenantId, 'non-existent')).rejects.toThrow(NotFoundError);
+      await expect(service.deleteGradingScheme(tenantId, 'non-existent')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
@@ -255,7 +281,9 @@ describe('AssessmentService', () => {
         ],
       };
 
-      await expect(service.defineAssessmentItems(tenantId, input)).rejects.toThrow(BusinessRuleError);
+      await expect(service.defineAssessmentItems(tenantId, input)).rejects.toThrow(
+        BusinessRuleError,
+      );
       try {
         await service.defineAssessmentItems(tenantId, input);
       } catch (error) {
@@ -279,7 +307,9 @@ describe('AssessmentService', () => {
         items,
       };
 
-      await expect(service.defineAssessmentItems(tenantId, input)).rejects.toThrow(BusinessRuleError);
+      await expect(service.defineAssessmentItems(tenantId, input)).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should accept exactly 50 items', async () => {
@@ -317,9 +347,7 @@ describe('AssessmentService', () => {
         subjectId,
         academicPeriodId,
         gradingSchemeId,
-        items: [
-          { name: 'Invalid', weight: 100, minScore: 100, maxScore: 50 },
-        ],
+        items: [{ name: 'Invalid', weight: 100, minScore: 100, maxScore: 50 }],
       };
 
       await expect(service.defineAssessmentItems(tenantId, input)).rejects.toThrow(ValidationError);
@@ -331,9 +359,7 @@ describe('AssessmentService', () => {
         subjectId,
         academicPeriodId,
         gradingSchemeId,
-        items: [
-          { name: 'Old Item', weight: 100, minScore: 0, maxScore: 100 },
-        ],
+        items: [{ name: 'Old Item', weight: 100, minScore: 0, maxScore: 100 }],
       });
 
       // Replace with new items
@@ -429,7 +455,11 @@ describe('AssessmentService', () => {
 
       await service.createOutcome(tenantId, { name: 'Outcome 1', code: 'O1', subjectId });
       await service.createOutcome(tenantId, { name: 'Outcome 2', code: 'O2', subjectId });
-      await service.createOutcome(tenantId, { name: 'Other', code: 'O3', subjectId: otherSubjectId });
+      await service.createOutcome(tenantId, {
+        name: 'Other',
+        code: 'O3',
+        subjectId: otherSubjectId,
+      });
 
       const results = await service.getOutcomesBySubject(tenantId, subjectId);
       expect(results).toHaveLength(2);

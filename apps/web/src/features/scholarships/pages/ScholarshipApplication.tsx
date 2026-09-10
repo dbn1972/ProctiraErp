@@ -84,7 +84,13 @@ export default function ScholarshipApplication() {
   // Form state
   const [selectedProgramId, setSelectedProgramId] = useState('');
   const [academicRecords, setAcademicRecords] = useState<AcademicRecord[]>([
-    { institutionName: '', educationLevel: '', gpa: undefined, yearCompleted: undefined, fieldOfStudy: '' },
+    {
+      institutionName: '',
+      educationLevel: '',
+      gpa: undefined,
+      yearCompleted: undefined,
+      fieldOfStudy: '',
+    },
   ]);
   const [financialInfo, setFinancialInfo] = useState<FinancialInfo>({});
   const [documents, setDocuments] = useState<ApplicationDocument[]>([]);
@@ -160,8 +166,8 @@ export default function ScholarshipApplication() {
         <div className="text-4xl">🎉</div>
         <h1 className="text-2xl font-semibold">Application Submitted</h1>
         <p className="text-muted-foreground">
-          Your scholarship application has been submitted and is now under review.
-          You can track its status from the application status page.
+          Your scholarship application has been submitted and is now under review. You can track its
+          status from the application status page.
         </p>
       </div>
     );
@@ -196,7 +202,9 @@ export default function ScholarshipApplication() {
             {loadingPrograms ? (
               <p className="text-muted-foreground text-sm">Loading available programs…</p>
             ) : programs.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No open scholarship programs available.</p>
+              <p className="text-muted-foreground text-sm">
+                No open scholarship programs available.
+              </p>
             ) : (
               <div className="space-y-3">
                 {programs.map((program) => (
@@ -226,9 +234,7 @@ export default function ScholarshipApplication() {
                         )}
                       </div>
                       <div className="text-right text-xs text-muted-foreground">
-                        <div>
-                          {program.totalSlots - program.usedSlots} slots remaining
-                        </div>
+                        <div>{program.totalSlots - program.usedSlots} slots remaining</div>
                         <div className="font-medium text-foreground">
                           {new Intl.NumberFormat(undefined, {
                             style: 'currency',
@@ -293,7 +299,10 @@ export default function ScholarshipApplication() {
                       value={record.gpa ?? ''}
                       onChange={(e) => {
                         const updated = [...academicRecords];
-                        updated[idx] = { ...record, gpa: e.target.value ? Number(e.target.value) : undefined };
+                        updated[idx] = {
+                          ...record,
+                          gpa: e.target.value ? Number(e.target.value) : undefined,
+                        };
                         setAcademicRecords(updated);
                       }}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -308,7 +317,10 @@ export default function ScholarshipApplication() {
                       value={record.yearCompleted ?? ''}
                       onChange={(e) => {
                         const updated = [...academicRecords];
-                        updated[idx] = { ...record, yearCompleted: e.target.value ? Number(e.target.value) : undefined };
+                        updated[idx] = {
+                          ...record,
+                          yearCompleted: e.target.value ? Number(e.target.value) : undefined,
+                        };
                         setAcademicRecords(updated);
                       }}
                       className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -331,7 +343,13 @@ export default function ScholarshipApplication() {
               onClick={() =>
                 setAcademicRecords([
                   ...academicRecords,
-                  { institutionName: '', educationLevel: '', gpa: undefined, yearCompleted: undefined, fieldOfStudy: '' },
+                  {
+                    institutionName: '',
+                    educationLevel: '',
+                    gpa: undefined,
+                    yearCompleted: undefined,
+                    fieldOfStudy: '',
+                  },
                 ])
               }
               className="text-sm text-primary hover:underline"
@@ -384,7 +402,8 @@ export default function ScholarshipApplication() {
                   onChange={(e) =>
                     setFinancialInfo({
                       ...financialInfo,
-                      employmentStatus: (e.target.value || undefined) as FinancialInfo['employmentStatus'],
+                      employmentStatus: (e.target.value ||
+                        undefined) as FinancialInfo['employmentStatus'],
                     })
                   }
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -410,7 +429,10 @@ export default function ScholarshipApplication() {
             {documents.length > 0 && (
               <ul className="space-y-2">
                 {documents.map((doc, idx) => (
-                  <li key={idx} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                  <li
+                    key={idx}
+                    className="flex items-center justify-between rounded-md border p-3 text-sm"
+                  >
                     <div>
                       <span className="font-medium">{doc.documentType}</span>
                       <span className="text-muted-foreground ml-2">{doc.fileName}</span>
@@ -487,7 +509,9 @@ export default function ScholarshipApplication() {
 
             {/* Personal statement */}
             <div>
-              <label className="block text-xs font-medium mb-1">Personal Statement (optional)</label>
+              <label className="block text-xs font-medium mb-1">
+                Personal Statement (optional)
+              </label>
               <textarea
                 value={personalStatement}
                 onChange={(e) => setPersonalStatement(e.target.value)}
@@ -502,7 +526,10 @@ export default function ScholarshipApplication() {
             </div>
 
             {submitError && (
-              <div role="alert" className="rounded-md bg-destructive/10 p-3 text-destructive text-sm">
+              <div
+                role="alert"
+                className="rounded-md bg-destructive/10 p-3 text-destructive text-sm"
+              >
                 {submitError}
               </div>
             )}

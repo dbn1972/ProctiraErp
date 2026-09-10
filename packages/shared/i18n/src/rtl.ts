@@ -7,18 +7,18 @@
  * Includes primary language codes and common regional variants.
  */
 export const RTL_LOCALES: ReadonlySet<string> = new Set([
-  'ar',    // Arabic
-  'he',    // Hebrew
-  'fa',    // Persian (Farsi)
-  'ur',    // Urdu
-  'ps',    // Pashto
-  'sd',    // Sindhi
-  'yi',    // Yiddish
-  'dv',    // Divehi (Maldivian)
-  'ku',    // Kurdish (Sorani)
-  'ckb',   // Central Kurdish
-  'arc',   // Aramaic
-  'syr',   // Syriac
+  'ar', // Arabic
+  'he', // Hebrew
+  'fa', // Persian (Farsi)
+  'ur', // Urdu
+  'ps', // Pashto
+  'sd', // Sindhi
+  'yi', // Yiddish
+  'dv', // Divehi (Maldivian)
+  'ku', // Kurdish (Sorani)
+  'ckb', // Central Kurdish
+  'arc', // Aramaic
+  'syr', // Syriac
 ]);
 
 /**

@@ -3,7 +3,7 @@
  *
  * Used for unit testing without database dependencies.
  */
-import type { AttendanceStatus } from '@proctira/common';
+import { AttendanceStatus } from '@proctira/common';
 
 import type {
   AttendanceRepository,
@@ -88,9 +88,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     tenantId: string,
     data: Partial<StudentAttendanceEntity>,
   ): Promise<StudentAttendanceEntity | null> {
-    const index = this.studentAttendance.findIndex(
-      r => r.id === id && r.tenantId === tenantId,
-    );
+    const index = this.studentAttendance.findIndex((r) => r.id === id && r.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.studentAttendance[index]!;
@@ -99,7 +97,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
       ...data,
       updatedAt: new Date(),
     };
-    return this.studentAttendance[index]!;
+    return this.studentAttendance[index];
   }
 
   async findStudentAttendance(
@@ -112,7 +110,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   ): Promise<StudentAttendanceEntity | null> {
     return (
       this.studentAttendance.find(
-        r =>
+        (r) =>
           r.tenantId === tenantId &&
           r.studentId === studentId &&
           r.classId === classId &&
@@ -129,7 +127,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     date: string,
   ): Promise<StudentAttendanceEntity[]> {
     return this.studentAttendance.filter(
-      r => r.tenantId === tenantId && r.classId === classId && r.date === date,
+      (r) => r.tenantId === tenantId && r.classId === classId && r.date === date,
     );
   }
 
@@ -152,9 +150,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     tenantId: string,
     data: Partial<StaffAttendanceEntity>,
   ): Promise<StaffAttendanceEntity | null> {
-    const index = this.staffAttendance.findIndex(
-      r => r.id === id && r.tenantId === tenantId,
-    );
+    const index = this.staffAttendance.findIndex((r) => r.id === id && r.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.staffAttendance[index]!;
@@ -163,7 +159,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
       ...data,
       updatedAt: new Date(),
     };
-    return this.staffAttendance[index]!;
+    return this.staffAttendance[index];
   }
 
   async findStaffAttendance(
@@ -173,7 +169,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   ): Promise<StaffAttendanceEntity | null> {
     return (
       this.staffAttendance.find(
-        r => r.tenantId === tenantId && r.staffId === staffId && r.date === date,
+        (r) => r.tenantId === tenantId && r.staffId === staffId && r.date === date,
       ) ?? null
     );
   }
@@ -186,7 +182,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     _academicPeriodId: string,
     _date: string,
   ): Promise<StudentRosterEntry[]> {
-    return this.rosterEntries.filter(r => r.classId === classId);
+    return this.rosterEntries.filter((r) => r.classId === classId);
   }
 
   // --- Academic Period ---
@@ -196,9 +192,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     _institutionId: string,
   ): Promise<AcademicPeriodInfo | null> {
     return (
-      this.academicPeriods.find(
-        p => p.tenantId === tenantId && p.status === 'active',
-      ) ?? null
+      this.academicPeriods.find((p) => p.tenantId === tenantId && p.status === 'active') ?? null
     );
   }
 
@@ -206,11 +200,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     tenantId: string,
     periodId: string,
   ): Promise<AcademicPeriodInfo | null> {
-    return (
-      this.academicPeriods.find(
-        p => p.tenantId === tenantId && p.id === periodId,
-      ) ?? null
-    );
+    return this.academicPeriods.find((p) => p.tenantId === tenantId && p.id === periodId) ?? null;
   }
 
   // --- Institution Config ---
@@ -221,7 +211,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   ): Promise<InstitutionAttendanceConfig | null> {
     return (
       this.institutionConfigs.find(
-        c => c.tenantId === tenantId && c.institutionId === institutionId,
+        (c) => c.tenantId === tenantId && c.institutionId === institutionId,
       ) ?? null
     );
   }
@@ -234,7 +224,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
   ): Promise<AbsenceThresholdConfig | null> {
     return (
       this.absenceThresholdConfigs.find(
-        c => c.tenantId === tenantId && c.institutionId === institutionId,
+        (c) => c.tenantId === tenantId && c.institutionId === institutionId,
       ) ?? null
     );
   }
@@ -245,7 +235,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     tenantId: string,
     query: AttendancePercentageQuery,
   ): Promise<StudentAttendanceEntity[]> {
-    return this.studentAttendance.filter(r => {
+    return this.studentAttendance.filter((r) => {
       if (r.tenantId !== tenantId) return false;
       if (r.date < query.startDate || r.date > query.endDate) return false;
 
@@ -262,6 +252,21 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     });
   }
 
+  async listStudentAttendanceByStudentDateRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]> {
+    return this.studentAttendance.filter(
+      (r) =>
+        r.tenantId === tenantId &&
+        r.studentId === studentId &&
+        r.date >= startDate &&
+        r.date <= endDate,
+    );
+  }
+
   // --- Count absences ---
 
   async countStudentAbsences(
@@ -272,13 +277,13 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     endDate: string,
   ): Promise<number> {
     return this.studentAttendance.filter(
-      r =>
+      (r) =>
         r.tenantId === tenantId &&
         r.studentId === studentId &&
         r.institutionId === institutionId &&
         r.date >= startDate &&
         r.date <= endDate &&
-        r.status === 'ABSENT',
+        r.status === AttendanceStatus.ABSENT,
     ).length;
   }
 
@@ -288,7 +293,13 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     this.auditEntries.push(entry);
   }
 
-  async getAuditEntriesForAttendance(attendanceId: string): Promise<AttendanceAuditEntry[]> {
-    return this.auditEntries.filter(e => e.attendanceId === attendanceId);
+  async getAuditEntriesForAttendance(
+    attendanceId: string,
+    tenantId?: string,
+  ): Promise<AttendanceAuditEntry[]> {
+    return this.auditEntries.filter(
+      (e) =>
+        e.attendanceId === attendanceId && (!tenantId || !e.tenantId || e.tenantId === tenantId),
+    );
   }
 }

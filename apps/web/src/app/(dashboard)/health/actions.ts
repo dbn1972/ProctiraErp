@@ -6,10 +6,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
-import {
-  createCounsellingSession,
-  type CreateCounsellingSessionInput,
-} from '@/lib/api/health';
+import { createCounsellingSession, type CreateCounsellingSessionInput } from '@/lib/api/health';
 
 export interface HealthActionState {
   status: 'idle' | 'success' | 'error';

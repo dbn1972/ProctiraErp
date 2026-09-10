@@ -21,10 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@proctira/ui/components';
-import {
-  assignmentFormSchema,
-  type AssignmentFormValues,
-} from '@/lib/validation/staff-schema';
+import { assignmentFormSchema, type AssignmentFormValues } from '@/lib/validation/staff-schema';
 
 import { createAssignmentAction, type ActionState } from '../actions';
 
@@ -64,8 +61,9 @@ export function AssignmentForm({
   defaultInstitutionId = '',
 }: AssignmentFormProps) {
   const router = useRouter();
-  const [serverState, setServerState] =
-    useState<ActionState<{ assignmentId: string }> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<{ assignmentId: string }> | null>(
+    null,
+  );
   const [isPending, setIsPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -176,25 +174,14 @@ export function AssignmentForm({
       </FormField>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <FormField
-          id="classId"
-          label="Class"
-          required
-          error={errors.classId?.message ?? null}
-        >
+        <FormField id="classId" label="Class" required error={errors.classId?.message ?? null}>
           <Select
             value={watch('classId') || undefined}
-            onValueChange={(value) =>
-              setValue('classId', value, { shouldValidate: true })
-            }
+            onValueChange={(value) => setValue('classId', value, { shouldValidate: true })}
           >
             <SelectTrigger id="classId" aria-label="Class">
               <SelectValue
-                placeholder={
-                  watch('institutionId')
-                    ? 'Select class'
-                    : 'Select institution first'
-                }
+                placeholder={watch('institutionId') ? 'Select class' : 'Select institution first'}
               />
             </SelectTrigger>
             <SelectContent>
@@ -223,9 +210,7 @@ export function AssignmentForm({
         >
           <Select
             value={watch('subjectId') || undefined}
-            onValueChange={(value) =>
-              setValue('subjectId', value, { shouldValidate: true })
-            }
+            onValueChange={(value) => setValue('subjectId', value, { shouldValidate: true })}
           >
             <SelectTrigger id="subjectId" aria-label="Subject">
               <SelectValue placeholder="Select subject" />
@@ -247,12 +232,7 @@ export function AssignmentForm({
           </Select>
         </FormField>
 
-        <FormField
-          id="role"
-          label="Role"
-          required
-          error={errors.role?.message ?? null}
-        >
+        <FormField id="role" label="Role" required error={errors.role?.message ?? null}>
           <Input id="role" placeholder="Teacher, Assistant…" {...register('role')} />
         </FormField>
 
@@ -281,22 +261,13 @@ export function AssignmentForm({
           <Input id="startDate" type="date" {...register('startDate')} />
         </FormField>
 
-        <FormField
-          id="endDate"
-          label="End date (optional)"
-          error={errors.endDate?.message ?? null}
-        >
+        <FormField id="endDate" label="End date (optional)" error={errors.endDate?.message ?? null}>
           <Input id="endDate" type="date" {...register('endDate')} />
         </FormField>
       </div>
 
       <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={isPending}>

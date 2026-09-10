@@ -84,9 +84,7 @@ export default defineConfig({
           }
 
           // Feature module chunks — each feature gets its own async chunk
-          const featureMatch = id.match(
-            /src\/features\/([\w-]+)\//
-          );
+          const featureMatch = id.match(/src\/features\/([\w-]+)\//);
           if (featureMatch) {
             return `feature-${featureMatch[1]}`;
           }

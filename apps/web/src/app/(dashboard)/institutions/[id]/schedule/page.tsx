@@ -10,32 +10,36 @@ import { Card, CardContent } from '@proctira/ui/components';
 import { SectionCreateForm } from '@/components/timetable/section-create-form';
 import { SectionPublishControls } from '@/components/timetable/section-roster-controls';
 import { listAcademicPeriods } from '@/lib/institutions/api';
-import { listRooms, listSections } from '@/lib/api/timetable';
+import { listRooms, listScheduleConflicts, listSections } from '@/lib/api/timetable';
 
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function InstitutionSchedulePage({ params }: PageProps) {
+export default async function InstitutionSchedulePage(props: PageProps) {
+  const params = await props.params;
   const institutionId = params.id;
 
   let academicPeriodId = '';
   try {
     const periods = await listAcademicPeriods();
-    academicPeriodId =
-      periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
+    academicPeriodId = periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
   } catch {
     academicPeriodId = '';
   }
 
-  const [sectionsResult, roomsResult] = await Promise.all([
+  const [sectionsResult, roomsResult, conflictsResult] = await Promise.all([
     listSections({
       institutionId,
       academicPeriodId: academicPeriodId || undefined,
     }),
     listRooms({ institutionId }),
+    listScheduleConflicts({
+      institutionId,
+      academicPeriodId: academicPeriodId || undefined,
+    }),
   ]);
 
   const apiError = !sectionsResult.ok
@@ -46,6 +50,7 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
 
   const sections = sectionsResult.ok ? sectionsResult.data : [];
   const rooms = roomsResult.ok ? roomsResult.data : [];
+  const conflicts = conflictsResult.ok ? conflictsResult.data : [];
   const roomOptions = rooms.map((r) => ({
     id: r.id,
     label: `${r.code} · ${r.name}`,
@@ -55,12 +60,10 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold tracking-tight text-foreground">
-          Master schedule
-        </h2>
+        <h2 className="text-lg font-bold tracking-tight text-foreground">Master schedule</h2>
         <p className="text-sm text-muted-foreground">
-          Course sections, room assignment, rostering, and draft → published
-          workflow. Room and teacher clashes return HTTP 409.
+          Course sections, room assignment, rostering, and draft → published workflow. Room and
+          teacher clashes return HTTP 409.
         </p>
       </div>
 
@@ -78,6 +81,30 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
         </Card>
       ) : (
         <>
+          {conflicts.length > 0 && (
+            <Card>
+              <CardContent className="space-y-2 p-6" data-testid="schedule-conflicts">
+                <h3 className="text-base font-semibold">Schedule conflicts ({conflicts.length})</h3>
+                <p className="text-sm text-muted-foreground">
+                  Conflict engine surface — resolve room/teacher/class double-books before publish.
+                </p>
+                <ul className="space-y-1 text-sm">
+                  {conflicts.slice(0, 12).map((c, idx) => (
+                    <li key={`${c.againstMeetingId}-${c.reason}-${idx}`}>
+                      <span className="font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                        {c.reason}
+                      </span>
+                      {' · '}
+                      day {c.dayOfWeek} · period {c.periodId.slice(0, 8)}
+                      {c.staffId ? ` · staff ${c.staffId.slice(0, 8)}` : ''}
+                      {c.roomId ? ` · room ${c.roomId.slice(0, 8)}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardContent className="space-y-4 p-6">
               <h3 className="text-base font-semibold">Create section</h3>
@@ -93,8 +120,8 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
             <CardContent className="p-0">
               {sections.length === 0 ? (
                 <p className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No sections yet. Create a draft section, add meetings on the
-                  Timetable tab, then publish.
+                  No sections yet. Create a draft section, add meetings on the Timetable tab, then
+                  publish.
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -123,8 +150,8 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
                             {section.defaultRoomId
-                              ? roomLabel.get(section.defaultRoomId) ??
-                                section.defaultRoomId.slice(0, 8)
+                              ? (roomLabel.get(section.defaultRoomId) ??
+                                section.defaultRoomId.slice(0, 8))
                               : '—'}
                           </td>
                           <td className="px-4 py-3 tabular-nums">{section.capacity}</td>

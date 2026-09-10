@@ -94,12 +94,21 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     return registration;
   }
 
-  async findByTrackingNumber(trackingNumber: string): Promise<RegistrationEntity | null> {
-    return this.registrations.find((r) => r.trackingNumber === trackingNumber) ?? null;
+  async findByTrackingNumber(
+    trackingNumber: string,
+    tenantId?: string,
+  ): Promise<RegistrationEntity | null> {
+    return (
+      this.registrations.find(
+        (r) => r.trackingNumber === trackingNumber && (!tenantId || r.tenantId === tenantId),
+      ) ?? null
+    );
   }
 
-  async findById(id: string): Promise<RegistrationEntity | null> {
-    return this.registrations.find((r) => r.id === id) ?? null;
+  async findById(id: string, tenantId?: string): Promise<RegistrationEntity | null> {
+    return (
+      this.registrations.find((r) => r.id === id && (!tenantId || r.tenantId === tenantId)) ?? null
+    );
   }
 
   async listByTenant(tenantId: string): Promise<RegistrationEntity[]> {
@@ -112,8 +121,11 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     id: string,
     status: RegistrationStatus,
     remarks?: string,
+    tenantId?: string,
   ): Promise<RegistrationEntity | null> {
-    const index = this.registrations.findIndex((r) => r.id === id);
+    const index = this.registrations.findIndex(
+      (r) => r.id === id && (!tenantId || r.tenantId === tenantId),
+    );
     if (index === -1) return null;
 
     const registration = this.registrations[index]!;

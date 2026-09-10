@@ -83,9 +83,7 @@ export class ThemeService {
         .filter((i) => i.severity === 'error')
         .map((i) => i.message)
         .join('; ');
-      throw new BusinessRuleError(
-        `Theme fails accessibility validation: ${errorMessages}`,
-      );
+      throw new BusinessRuleError(`Theme fails accessibility validation: ${errorMessages}`);
     }
 
     const themeId = uuidv4();
@@ -130,9 +128,7 @@ export class ThemeService {
           .filter((i) => i.severity === 'error')
           .map((i) => i.message)
           .join('; ');
-        throw new BusinessRuleError(
-          `Theme fails accessibility validation: ${errorMessages}`,
-        );
+        throw new BusinessRuleError(`Theme fails accessibility validation: ${errorMessages}`);
       }
       updates.tokens = input.tokens;
     }
@@ -231,7 +227,12 @@ export class ThemeService {
   async preview(
     tenantId: string,
     themeId: string,
-  ): Promise<{ themeId: string; tokens: ThemeTokens; assets: ThemeAssets | null; accessibilityResult: AccessibilityResult }> {
+  ): Promise<{
+    themeId: string;
+    tokens: ThemeTokens;
+    assets: ThemeAssets | null;
+    accessibilityResult: AccessibilityResult;
+  }> {
     const theme = await this.getThemeForTenant(tenantId, themeId);
 
     const accessibilityResult = validateAccessibility(theme.tokens);
@@ -274,7 +275,11 @@ export class ThemeService {
 
     // Apply portal override if specified
     if (portalId) {
-      const portalTheme = await this.repository.findThemeByTenantAndLevel(tenantId, 'portal', portalId);
+      const portalTheme = await this.repository.findThemeByTenantAndLevel(
+        tenantId,
+        'portal',
+        portalId,
+      );
       if (portalTheme && portalTheme.status === 'published') {
         effectiveTokens = effectiveTokens
           ? this.mergeTokens(effectiveTokens, portalTheme.tokens)

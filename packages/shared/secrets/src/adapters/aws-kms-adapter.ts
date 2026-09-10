@@ -91,10 +91,9 @@ export class AwsKmsSecretAdapter implements SecretManager {
       if (isResourceNotFoundError(error)) {
         return null;
       }
-      throw new SecretAccessError(
-        `Failed to retrieve secret '${key}' from AWS Secrets Manager`,
-        { cause: error }
-      );
+      throw new SecretAccessError(`Failed to retrieve secret '${key}' from AWS Secrets Manager`, {
+        cause: error,
+      });
     }
   }
 
@@ -133,10 +132,9 @@ export class AwsKmsSecretAdapter implements SecretManager {
           createdAt: new Date(),
         };
       }
-      throw new SecretAccessError(
-        `Failed to set secret '${key}' in AWS Secrets Manager`,
-        { cause: error }
-      );
+      throw new SecretAccessError(`Failed to set secret '${key}' in AWS Secrets Manager`, {
+        cause: error,
+      });
     }
   }
 
@@ -146,8 +144,9 @@ export class AwsKmsSecretAdapter implements SecretManager {
     try {
       const description = await this.client.describeSecret({ SecretId: key });
       if (description.VersionIdsToStages) {
-        previousVersion = Object.entries(description.VersionIdsToStages)
-          .find(([, stages]) => stages.includes('AWSCURRENT'))?.[0];
+        previousVersion = Object.entries(description.VersionIdsToStages).find(([, stages]) =>
+          stages.includes('AWSCURRENT'),
+        )?.[0];
       }
     } catch {
       // If we can't get the previous version, continue with rotation
@@ -155,7 +154,7 @@ export class AwsKmsSecretAdapter implements SecretManager {
 
     if (!options?.newValue) {
       throw new SecretAccessError(
-        `Cannot rotate secret '${key}' without a new value (AWS KMS adapter does not auto-generate secrets)`
+        `Cannot rotate secret '${key}' without a new value (AWS KMS adapter does not auto-generate secrets)`,
       );
     }
 

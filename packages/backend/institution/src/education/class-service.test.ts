@@ -187,9 +187,9 @@ describe('ClassService', () => {
     it('should throw NotFoundError if class does not exist', async () => {
       prisma.class.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.update(TENANT_ID, 'nonexistent', { name: 'X' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(TENANT_ID, 'nonexistent', { name: 'X' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 

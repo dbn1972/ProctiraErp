@@ -22,10 +22,12 @@ import type { CreateAssignmentInput } from './assignment-schemas.js';
 const arbUuid = fc.uuid().map((u) => u.toLowerCase());
 
 /** Generate a valid ISO date string (YYYY-MM-DD) within a reasonable range */
-const arbDate = fc.date({
-  min: new Date('2020-01-01'),
-  max: new Date('2030-12-31'),
-}).map((d) => d.toISOString().slice(0, 10));
+const arbDate = fc
+  .date({
+    min: new Date('2020-01-01'),
+    max: new Date('2030-12-31'),
+  })
+  .map((d) => d.toISOString().slice(0, 10));
 
 /** Generate a date range where endDate > startDate (or endDate is undefined for ongoing) */
 const arbDateRange = fc.tuple(arbDate, arbDate, fc.boolean()).map(([d1, d2, hasEnd]) => {
@@ -48,29 +50,37 @@ const arbDateRange = fc.tuple(arbDate, arbDate, fc.boolean()).map(([d1, d2, hasE
 const arbAllocation = fc.integer({ min: 1, max: 100 });
 
 /** Generate a role string */
-const arbRole = fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd', 'e'), { minLength: 1, maxLength: 10 });
+const arbRole = fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd', 'e'), {
+  minLength: 1,
+  maxLength: 10,
+});
 
 /** Generate a valid CreateAssignmentInput */
-function arbAssignmentInput(overrides: Partial<CreateAssignmentInput> = {}): fc.Arbitrary<CreateAssignmentInput> {
-  return fc.record({
-    staffId: overrides.staffId ? fc.constant(overrides.staffId) : arbUuid,
-    institutionId: overrides.institutionId ? fc.constant(overrides.institutionId) : arbUuid,
-    subjectId: overrides.subjectId ? fc.constant(overrides.subjectId) : arbUuid,
-    classId: overrides.classId ? fc.constant(overrides.classId) : arbUuid,
-    role: arbRole,
-    allocationPercentage: overrides.allocationPercentage !== undefined
-      ? fc.constant(overrides.allocationPercentage)
-      : arbAllocation,
-    startDate: fc.constant('placeholder'),
-    endDate: fc.constant(undefined as string | undefined),
-  }).chain((base) =>
-    arbDateRange.map((range) => ({
-      ...base,
-      startDate: range.startDate,
-      endDate: range.endDate,
-      ...overrides,
-    })),
-  );
+function arbAssignmentInput(
+  overrides: Partial<CreateAssignmentInput> = {},
+): fc.Arbitrary<CreateAssignmentInput> {
+  return fc
+    .record({
+      staffId: overrides.staffId ? fc.constant(overrides.staffId) : arbUuid,
+      institutionId: overrides.institutionId ? fc.constant(overrides.institutionId) : arbUuid,
+      subjectId: overrides.subjectId ? fc.constant(overrides.subjectId) : arbUuid,
+      classId: overrides.classId ? fc.constant(overrides.classId) : arbUuid,
+      role: arbRole,
+      allocationPercentage:
+        overrides.allocationPercentage !== undefined
+          ? fc.constant(overrides.allocationPercentage)
+          : arbAllocation,
+      startDate: fc.constant('placeholder'),
+      endDate: fc.constant(undefined as string | undefined),
+    })
+    .chain((base) =>
+      arbDateRange.map((range) => ({
+        ...base,
+        startDate: range.startDate,
+        endDate: range.endDate,
+        ...overrides,
+      })),
+    );
 }
 
 // --- Helpers ---
@@ -121,7 +131,10 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
           // Fresh repository for each test run
           repository.clear();
 
-          const successfulAssignments: Array<{ startDate: string; endDate: string | null | undefined }> = [];
+          const successfulAssignments: Array<{
+            startDate: string;
+            endDate: string | null | undefined;
+          }> = [];
 
           for (const input of inputs) {
             try {
@@ -163,15 +176,22 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
 
     await fc.assert(
       fc.asyncProperty(
-        fc.array(
-          fc.tuple(arbUuid, arbUuid, arbUuid, arbAllocation, arbDateRange, arbRole),
-          { minLength: 1, maxLength: 15 },
-        ),
+        fc.array(fc.tuple(arbUuid, arbUuid, arbUuid, arbAllocation, arbDateRange, arbRole), {
+          minLength: 1,
+          maxLength: 15,
+        }),
         async (assignmentParams) => {
           // Fresh repository for each test run
           repository.clear();
 
-          for (const [institutionId, subjectId, classId, allocation, dateRange, role] of assignmentParams) {
+          for (const [
+            institutionId,
+            subjectId,
+            classId,
+            allocation,
+            dateRange,
+            role,
+          ] of assignmentParams) {
             const input: CreateAssignmentInput = {
               staffId,
               institutionId,
@@ -196,9 +216,7 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
           // Invariant: Total allocation of all active assignments must not exceed 100%
           const totalAllocation = await service.getTotalAllocation(tenantId, staffId);
           if (totalAllocation > 100) {
-            throw new Error(
-              `Total allocation exceeded 100%: got ${totalAllocation}%`,
-            );
+            throw new Error(`Total allocation exceeded 100%: got ${totalAllocation}%`);
           }
         },
       ),
@@ -211,21 +229,29 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
     const staffId = '00000000-0000-4000-8000-000000000002';
 
     // Define operation types for the model
-    type CreateOp = { type: 'create'; institutionId: string; subjectId: string; classId: string; allocation: number; startDate: string; endDate: string | undefined };
+    type CreateOp = {
+      type: 'create';
+      institutionId: string;
+      subjectId: string;
+      classId: string;
+      allocation: number;
+      startDate: string;
+      endDate: string | undefined;
+    };
     type DeleteOp = { type: 'delete'; index: number };
     type Operation = CreateOp | DeleteOp;
 
-    const arbCreateOp: fc.Arbitrary<CreateOp> = fc.tuple(
-      arbUuid, arbUuid, arbUuid, arbAllocation, arbDateRange,
-    ).map(([institutionId, subjectId, classId, allocation, dateRange]) => ({
-      type: 'create' as const,
-      institutionId,
-      subjectId,
-      classId,
-      allocation,
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-    }));
+    const arbCreateOp: fc.Arbitrary<CreateOp> = fc
+      .tuple(arbUuid, arbUuid, arbUuid, arbAllocation, arbDateRange)
+      .map(([institutionId, subjectId, classId, allocation, dateRange]) => ({
+        type: 'create' as const,
+        institutionId,
+        subjectId,
+        classId,
+        allocation,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+      }));
 
     const arbDeleteOp: fc.Arbitrary<DeleteOp> = fc.nat({ max: 20 }).map((index) => ({
       type: 'delete' as const,
@@ -317,9 +343,7 @@ describe('Property 17: Staff Assignment Non-Overlap and Allocation Constraint', 
           // Verify invariant 2: Total allocation ≤ 100%
           const totalAllocation = await service.getTotalAllocation(tenantId, staffId);
           if (totalAllocation > 100) {
-            throw new Error(
-              `Total allocation exceeded 100%: got ${totalAllocation}%`,
-            );
+            throw new Error(`Total allocation exceeded 100%: got ${totalAllocation}%`);
           }
         },
       ),

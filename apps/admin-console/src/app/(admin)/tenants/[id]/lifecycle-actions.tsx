@@ -46,8 +46,7 @@ export function TenantLifecycleActions({ tenantId, status }: Props) {
       {actions.length === 0 && (
         <Alert>
           <AlertDescription>
-            No lifecycle actions are available for tenants in the{' '}
-            <strong>{status}</strong> state.
+            No lifecycle actions are available for tenants in the <strong>{status}</strong> state.
           </AlertDescription>
         </Alert>
       )}
@@ -107,13 +106,7 @@ function ActionButton({
 }) {
   const { pending } = useFormStatus();
   return (
-    <Button
-      type="submit"
-      name="action"
-      value={value}
-      variant={tone}
-      disabled={pending || disabled}
-    >
+    <Button type="submit" name="action" value={value} variant={tone} disabled={pending || disabled}>
       {label}
     </Button>
   );

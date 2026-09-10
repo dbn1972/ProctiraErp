@@ -107,7 +107,11 @@ describe('Tenant Routes', () => {
     });
 
     it('should filter by status', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       await app.inject({
@@ -132,7 +136,11 @@ describe('Tenant Routes', () => {
 
   describe('GET /tenants/:id', () => {
     it('should return a tenant by ID', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -158,7 +166,11 @@ describe('Tenant Routes', () => {
 
   describe('PUT /tenants/:id', () => {
     it('should update a tenant', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -176,7 +188,11 @@ describe('Tenant Routes', () => {
 
   describe('POST /tenants/:id/suspend', () => {
     it('should suspend a tenant', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -191,7 +207,11 @@ describe('Tenant Routes', () => {
     });
 
     it('should return 400 without reason', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -208,7 +228,11 @@ describe('Tenant Routes', () => {
 
   describe('POST /tenants/:id/reactivate', () => {
     it('should reactivate a suspended tenant', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       await app.inject({
@@ -231,7 +255,11 @@ describe('Tenant Routes', () => {
 
   describe('POST /tenants/:id/decommission', () => {
     it('should decommission a tenant', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -250,7 +278,11 @@ describe('Tenant Routes', () => {
 
   describe('GET /tenants/:id/config', () => {
     it('should return tenant configuration', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -266,7 +298,11 @@ describe('Tenant Routes', () => {
 
   describe('PUT /tenants/:id/config', () => {
     it('should update tenant configuration', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -286,7 +322,11 @@ describe('Tenant Routes', () => {
 
   describe('POST /tenants/:id/domains', () => {
     it('should add a domain to a tenant', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({
@@ -303,7 +343,11 @@ describe('Tenant Routes', () => {
 
   describe('GET /tenants/:id/domains', () => {
     it('should list tenant domains', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       await app.inject({
@@ -326,7 +370,11 @@ describe('Tenant Routes', () => {
 
   describe('GET /tenants/:id/usage', () => {
     it('should return tenant usage dashboard', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/tenants', payload: validCreateBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/tenants',
+        payload: validCreateBody,
+      });
       const tenantId = createRes.json().id;
 
       const response = await app.inject({

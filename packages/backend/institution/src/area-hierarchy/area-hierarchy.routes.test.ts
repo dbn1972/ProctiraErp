@@ -121,7 +121,12 @@ class SimpleAreaDb implements AreaHierarchyDbClient {
   };
 
   institution = {
-    findMany: async (args: { where: Record<string, unknown>; orderBy?: any; skip?: number; take?: number }) => {
+    findMany: async (args: {
+      where: Record<string, unknown>;
+      orderBy?: any;
+      skip?: number;
+      take?: number;
+    }) => {
       let filtered = this.institutions.filter((inst) => {
         for (const [key, value] of Object.entries(args.where)) {
           if (key === 'deletedAt' && value === null) continue;

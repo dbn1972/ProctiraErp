@@ -7,11 +7,7 @@
  * Requirements: 13.5
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import type {
-  CaseRepository,
-  CaseEntity,
-  CaseFilter,
-} from './case-repository.js';
+import type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 
 export class InMemoryCaseRepository implements CaseRepository {
   private cases: CaseEntity[] = [];
@@ -53,7 +49,10 @@ export class InMemoryCaseRepository implements CaseRepository {
       areaId: data.areaId !== undefined ? data.areaId : existing.areaId,
       assignedTo: data.assignedTo !== undefined ? data.assignedTo : existing.assignedTo,
       priority: data.priority !== undefined ? data.priority : existing.priority,
-      workflowInstanceId: data.workflowInstanceId !== undefined ? data.workflowInstanceId : existing.workflowInstanceId,
+      workflowInstanceId:
+        data.workflowInstanceId !== undefined
+          ? data.workflowInstanceId
+          : existing.workflowInstanceId,
       attachments: data.attachments ?? existing.attachments,
       resolution: data.resolution !== undefined ? data.resolution : existing.resolution,
       metadata: data.metadata !== undefined ? data.metadata : existing.metadata,

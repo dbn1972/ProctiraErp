@@ -39,7 +39,7 @@ describe('workflowUiPlugin', () => {
   async function buildApp() {
     const app = Fastify();
     apps.push(app);
-    await app.register(workflowUiPlugin);
+    await app.register(workflowUiPlugin, { forceMemory: true });
     await app.ready();
     return app;
   }
@@ -63,7 +63,7 @@ describe('workflowUiPlugin', () => {
         roles: [{ roleId: 'principal', roleName: 'PRINCIPAL', areaId: 'area-1' }],
       });
     });
-    await app.register(workflowUiPlugin);
+    await app.register(workflowUiPlugin, { forceMemory: true });
     await app.ready();
     const res = await app.inject({ method: 'GET', url: '/workflows/definitions' });
     expect(res.statusCode).toBe(400);
@@ -83,7 +83,7 @@ describe('workflowUiPlugin', () => {
         WORKFLOW_DEMO_TENANT_ID,
       );
     });
-    await app.register(workflowUiPlugin);
+    await app.register(workflowUiPlugin, { forceMemory: true });
     await app.ready();
 
     const res = await app.inject({
@@ -112,7 +112,7 @@ describe('workflowUiPlugin', () => {
         otherTenant,
       );
     });
-    await app.register(workflowUiPlugin);
+    await app.register(workflowUiPlugin, { forceMemory: true });
     await app.ready();
 
     const res = await app.inject({
@@ -138,7 +138,7 @@ describe('workflowUiPlugin', () => {
         WORKFLOW_DEMO_TENANT_ID,
       );
     });
-    await app.register(workflowUiPlugin);
+    await app.register(workflowUiPlugin, { forceMemory: true });
     await app.ready();
 
     const create = await app.inject({
@@ -182,7 +182,7 @@ describe('workflowUiPlugin', () => {
         WORKFLOW_DEMO_TENANT_ID,
       );
     });
-    await app.register(workflowUiPlugin);
+    await app.register(workflowUiPlugin, { forceMemory: true });
     await app.ready();
 
     const approve = await app.inject({

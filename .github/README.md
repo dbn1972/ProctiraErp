@@ -11,6 +11,7 @@ The CI/CD pipeline uses GitHub Actions with Turborepo remote caching and affecte
 Runs on every push and PR to `main`/`develop` branches.
 
 **Stages:**
+
 1. **Detect Changes** — Identifies which packages/apps were modified
 2. **Lint** — ESLint + Prettier formatting check (affected packages only)
 3. **Type Check** — TypeScript compilation (affected packages only)
@@ -18,15 +19,30 @@ Runs on every push and PR to `main`/`develop` branches.
 5. **Build** — Production build (affected packages only)
 6. **Integration Tests** — Tests requiring PostgreSQL/Redis (backend changes only)
 
+### `e2e-backend-ready.yml` — G-401 / G-706 live E2E gate
+
+Runs on every `pull_request` (hard gate), nightly, and on `workflow_dispatch`.
+Spins Postgres + Redis, runs Prisma migrate + `tools/scripts/apply-sql.sh`
+with `APPLY_STRICT_FKS=1` (production FK posture), seeds the fixed E2E tenant
+rows (`tools/e2e/seed-e2e-tenants.sql`), then
+`tools/scripts/run-e2e-backend-ready.sh` starts api-gateway and runs the
+`E2E_BACKEND_READY=1` Playwright live write-smokes with `E2E_REQUIRE_LIVE=1`:
+a gateway that never becomes healthy or any failing spec turns the PR red.
+PRs run the curated `PR_SPECS` set; the nightly run adds the remaining live
+write smokes. All live specs authenticate with HS256 cookies (`JWT_SECRET`);
+no IdP secrets are required.
+
 ### `release.yml` — Release (Container Image Build & Push)
 
 Gated on successful completion of the `CI` workflow. Builds and pushes container images for affected services to the configured OCI registry (GHCR by default).
 
 **Triggers:**
+
 - `workflow_run`: After CI completes successfully on `main`, `develop`, or `release/**`
 - `workflow_dispatch`: Manual release with optional service list and `force-all` flag
 
 **Stages:**
+
 1. **CI Gate** — Verifies the upstream CI run succeeded; resolves the released SHA/branch
 2. **Detect Services** — Path-based detection of affected services (full release on shared/infra changes)
 3. **Matrix Prep** — Converts the service list into a build matrix
@@ -34,6 +50,7 @@ Gated on successful completion of the `CI` workflow. Builds and pushes container
 5. **Release Summary** — Aggregates matrix results and surfaces them in the run summary
 
 **Image tagging strategy** (per service):
+
 - Branch name: `ghcr.io/<owner>/proctira-<service>:<branch>`
 - Short SHA: `ghcr.io/<owner>/proctira-<service>:sha-<short-sha>`
 - Full SHA: `ghcr.io/<owner>/proctira-<service>:sha-<full-sha>`
@@ -44,6 +61,7 @@ Gated on successful completion of the `CI` workflow. Builds and pushes container
 Triggered on push to `main` (production) or `develop` (staging), or manually via workflow dispatch. Deploys previously-released images to the Kubernetes cluster via Helm.
 
 **Stages:**
+
 1. **Prepare** — Determines environment and affected services
 2. **Build Images** — Builds Docker images for affected services (parallel matrix)
 3. **Deploy** — Deploys via Helm to the target Kubernetes cluster
@@ -55,6 +73,7 @@ Runs [actionlint](https://github.com/rhysd/actionlint) (with shellcheck) on ever
 ### `pr-check.yml` — Pull Request Checks
 
 Lightweight validation on every PR:
+
 - PR size warning (>1000 lines)
 - Affected module summary in PR comments
 
@@ -88,6 +107,7 @@ Turborepo's built-in filter detects which packages changed since the last commit
 ### 2. Path-based Detection (`dorny/paths-filter`)
 
 For coarser-grained decisions (e.g., skip integration tests if only frontend changed), the pipeline uses path-based filtering to categorize changes into:
+
 - `backend` — Backend services and shared packages
 - `frontend` — UI packages and web apps
 - `shared` — Core shared packages (triggers full rebuild)
@@ -100,6 +120,7 @@ The deploy workflow detects which specific services need new container images by
 ## Container Image Building
 
 Images are built using Docker Buildx with:
+
 - **GitHub Actions cache** (`type=gha`) for layer caching
 - **Multi-platform** support (linux/amd64 by default)
 - **Parallel matrix** builds for multiple services
@@ -112,12 +133,14 @@ Images are built using Docker Buildx with:
 ```
 
 Where `{tag}` is one of:
+
 - A branch name (e.g. `main`, `develop`)
 - `sha-{short-sha}` (e.g. `sha-abc1234`) — produced by both CI and the release workflow
 - `sha-{full-sha}` — immutable digest reference for traceability
 - `latest` — only for `main` branch builds
 
 Examples:
+
 - `ghcr.io/proctira-foundation/proctira-api-gateway:main`
 - `ghcr.io/proctira-foundation/proctira-api-gateway:sha-abc1234`
 - `ghcr.io/proctira-foundation/proctira-institution:develop`
@@ -126,22 +149,22 @@ Examples:
 
 ### Secrets
 
-| Name | Description | Required |
-|------|-------------|----------|
-| `TURBO_TOKEN` | Turborepo remote cache access token | Recommended |
-| `GITHUB_TOKEN` | Auto-provided; used for GHCR authentication | Always present |
-| `REGISTRY_USERNAME` | Registry username (only when `CONTAINER_REGISTRY` is set to a non-GHCR registry) | Conditional |
-| `REGISTRY_PASSWORD` | Registry password/token (only when `CONTAINER_REGISTRY` is set to a non-GHCR registry) | Conditional |
-| `KUBECONFIG` | Kubernetes cluster configuration | Required for deploys |
-| `SLACK_WEBHOOK_URL` | Slack notification webhook | Optional |
+| Name                | Description                                                                            | Required             |
+| ------------------- | -------------------------------------------------------------------------------------- | -------------------- |
+| `TURBO_TOKEN`       | Turborepo remote cache access token                                                    | Recommended          |
+| `GITHUB_TOKEN`      | Auto-provided; used for GHCR authentication                                            | Always present       |
+| `REGISTRY_USERNAME` | Registry username (only when `CONTAINER_REGISTRY` is set to a non-GHCR registry)       | Conditional          |
+| `REGISTRY_PASSWORD` | Registry password/token (only when `CONTAINER_REGISTRY` is set to a non-GHCR registry) | Conditional          |
+| `KUBECONFIG`        | Kubernetes cluster configuration                                                       | Required for deploys |
+| `SLACK_WEBHOOK_URL` | Slack notification webhook                                                             | Optional             |
 
 ### Variables
 
-| Name | Description | Default |
-|------|-------------|---------|
-| `TURBO_TEAM` | Turborepo team slug | (none) |
-| `CONTAINER_REGISTRY` | Container registry URL | `ghcr.io` |
-| `IMAGE_NAMESPACE` | Image namespace under the registry | `${{ github.repository_owner }}` |
+| Name                 | Description                        | Default                          |
+| -------------------- | ---------------------------------- | -------------------------------- |
+| `TURBO_TEAM`         | Turborepo team slug                | (none)                           |
+| `CONTAINER_REGISTRY` | Container registry URL             | `ghcr.io`                        |
+| `IMAGE_NAMESPACE`    | Image namespace under the registry | `${{ github.repository_owner }}` |
 
 When `CONTAINER_REGISTRY` is `ghcr.io` (default), the release workflow authenticates using the auto-provided `GITHUB_TOKEN`. For any other registry, set `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` secrets.
 

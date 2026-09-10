@@ -21,7 +21,9 @@ import type {
 export class InMemoryCustomFieldDefinitionRepository implements CustomFieldDefinitionRepository {
   private definitions: Map<string, CustomFieldDefinition> = new Map();
 
-  async create(data: Omit<CustomFieldDefinition, 'createdAt' | 'updatedAt'>): Promise<CustomFieldDefinition> {
+  async create(
+    data: Omit<CustomFieldDefinition, 'createdAt' | 'updatedAt'>,
+  ): Promise<CustomFieldDefinition> {
     const now = new Date();
     const definition: CustomFieldDefinition = {
       ...data,
@@ -83,9 +85,7 @@ export class InMemoryCustomFieldDefinitionRepository implements CustomFieldDefin
     filter: CustomFieldDefinitionFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<CustomFieldDefinition>> {
-    let items = Array.from(this.definitions.values()).filter(
-      (d) => d.tenantId === tenantId,
-    );
+    let items = Array.from(this.definitions.values()).filter((d) => d.tenantId === tenantId);
 
     // Apply filters
     if (filter.entityType) {
@@ -149,7 +149,9 @@ export class InMemoryCustomFieldValueRepository implements CustomFieldValueRepos
     return `${entityType}:${entityId}:${fieldDefinitionId}`;
   }
 
-  async setValue(data: Omit<CustomFieldValue, 'createdAt' | 'updatedAt'>): Promise<CustomFieldValue> {
+  async setValue(
+    data: Omit<CustomFieldValue, 'createdAt' | 'updatedAt'>,
+  ): Promise<CustomFieldValue> {
     const key = this.compositeKey(data.entityType, data.entityId, data.fieldDefinitionId);
     const existing = this.values.get(key);
     const now = new Date();

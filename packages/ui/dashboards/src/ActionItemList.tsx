@@ -168,10 +168,7 @@ export function ActionItemList({
     >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <AlertTriangle
-            className="h-5 w-5 text-[hsl(var(--warning))]"
-            aria-hidden="true"
-          />
+          <AlertTriangle className="h-5 w-5 text-[hsl(var(--warning))]" aria-hidden="true" />
           {title}
         </CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
@@ -186,31 +183,21 @@ export function ActionItemList({
             Unable to load action items.
           </p>
         ) : loading ? (
-          <ul
-            className="space-y-3"
-            data-testid="action-item-list-skeleton"
-          >
-            {Array.from({ length: Math.max(1, loadingRowCount) }).map(
-              (_, i) => (
-                <li key={i} className="flex items-center gap-3">
-                  <Skeleton className="h-4 flex-1 rounded" />
-                  <Skeleton className="h-5 w-16 rounded" />
-                </li>
-              ),
-            )}
+          <ul className="space-y-3" data-testid="action-item-list-skeleton">
+            {Array.from({ length: Math.max(1, loadingRowCount) }).map((_, i) => (
+              <li key={i} className="flex items-center gap-3">
+                <Skeleton className="h-4 flex-1 rounded" />
+                <Skeleton className="h-5 w-16 rounded" />
+              </li>
+            ))}
           </ul>
         ) : items.length === 0 ? (
           <div
             className="flex flex-col items-center gap-2 py-8 text-center"
             data-testid="action-item-list-empty"
           >
-            <CheckCircle2
-              className="h-8 w-8 text-[hsl(var(--success))]"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {emptyMessage}
-            </p>
+            <CheckCircle2 className="h-8 w-8 text-[hsl(var(--success))]" aria-hidden="true" />
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{emptyMessage}</p>
           </div>
         ) : (
           <ul className="space-y-2" aria-label={title}>
@@ -220,9 +207,7 @@ export function ActionItemList({
                 typeof item.title === 'string' ? item.title : 'action item'
               }`;
               const inner = (
-                <span
-                  className="flex flex-1 items-center justify-between gap-3"
-                >
+                <span className="flex flex-1 items-center justify-between gap-3">
                   <span className="flex-1 space-y-0.5 text-start">
                     <span className="block text-sm font-medium text-[hsl(var(--foreground))]">
                       {item.title}
@@ -238,10 +223,7 @@ export function ActionItemList({
                       </span>
                     ) : null}
                   </span>
-                  <Badge
-                    variant={variant}
-                    aria-label={priorityLabel(item.priority)}
-                  >
+                  <Badge variant={variant} aria-label={priorityLabel(item.priority)}>
                     {item.priority ?? 'medium'}
                   </Badge>
                   <ChevronRight

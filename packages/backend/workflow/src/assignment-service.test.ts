@@ -24,7 +24,12 @@ describe('AssignmentService', () => {
     areaResolver.addArea({ id: 'country-1', parentId: null, name: 'Country', level: 1 });
     areaResolver.addArea({ id: 'region-1', parentId: 'country-1', name: 'North Region', level: 2 });
     areaResolver.addArea({ id: 'district-1', parentId: 'region-1', name: 'District A', level: 3 });
-    areaResolver.addArea({ id: 'school-area-1', parentId: 'district-1', name: 'School Area 1', level: 4 });
+    areaResolver.addArea({
+      id: 'school-area-1',
+      parentId: 'district-1',
+      name: 'School Area 1',
+      level: 4,
+    });
 
     // Set up institution-area mapping
     areaResolver.setInstitutionArea('institution-001', 'school-area-1');
@@ -196,36 +201,20 @@ describe('AssignmentService', () => {
 
     it('should resolve escalation through multiple levels', async () => {
       // First escalation: school-area → district
-      const first = await service.resolveEscalationTarget(
-        TENANT_ID,
-        'school-area-1',
-        'manager',
-      );
+      const first = await service.resolveEscalationTarget(TENANT_ID, 'school-area-1', 'manager');
       expect(first!.areaId).toBe('district-1');
 
       // Second escalation: district → region
-      const second = await service.resolveEscalationTarget(
-        TENANT_ID,
-        'district-1',
-        'manager',
-      );
+      const second = await service.resolveEscalationTarget(TENANT_ID, 'district-1', 'manager');
       expect(second!.areaId).toBe('region-1');
 
       // Third escalation: region → country
-      const third = await service.resolveEscalationTarget(
-        TENANT_ID,
-        'region-1',
-        'manager',
-      );
+      const third = await service.resolveEscalationTarget(TENANT_ID, 'region-1', 'manager');
       expect(third!.areaId).toBe('country-1');
     });
 
     it('should return null when at root level (cannot escalate further)', async () => {
-      const result = await service.resolveEscalationTarget(
-        TENANT_ID,
-        'country-1',
-        'supervisor',
-      );
+      const result = await service.resolveEscalationTarget(TENANT_ID, 'country-1', 'supervisor');
 
       expect(result).toBeNull();
     });

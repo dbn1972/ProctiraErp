@@ -12,11 +12,15 @@ import { redirect } from 'next/navigation';
 
 import { listAcademicPeriods, listInstitutionGrades } from '@/lib/api/institutions';
 import {
+  addStudentDiscipline,
+  addStudentSibling,
   createStudent,
   deleteStudent,
+  setStudentConsent,
   submitBulkImport,
   transferStudent,
   updateStudent,
+  uploadStudentPhoto,
   type BulkImportRequest,
   type CreateStudentInput,
   type ImportProgress,
@@ -31,6 +35,12 @@ import {
   type StudentFormValues,
   type TransferFormValues,
 } from '@/lib/validation/student-schema';
+import {
+  studentConsentSchema,
+  studentDisciplineSchema,
+  studentPhotoUploadSchema,
+  studentSiblingSchema,
+} from '@/lib/validation/student-360-schema';
 
 export interface ActionState<T = unknown> {
   status: 'idle' | 'success' | 'error';
@@ -97,9 +107,7 @@ export async function updateStudentAction(
 
 /* ------------------------------------------------------------------- Delete */
 
-export async function deleteStudentAction(
-  studentId: string,
-): Promise<ActionState> {
+export async function deleteStudentAction(studentId: string): Promise<ActionState> {
   try {
     await deleteStudent(studentId);
     revalidatePath('/students');
@@ -234,9 +242,7 @@ function stripDocumentBlanks(d: StudentFormValues['identityDocuments'][number]) 
   return out;
 }
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -257,6 +263,114 @@ function toErrorState<T = unknown>(error: unknown, fallback: string): ActionStat
   return { status: 'error', message: fallback };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function revalidateStudent(studentId: string) {
+  revalidatePath(`/students/${studentId}`);
+  revalidatePath('/students');
+}
+
+export async function uploadStudentPhotoAction(
+  studentId: string,
+  values: { contentBase64: string; mimeType: string },
+): Promise<ActionState> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student' };
+  }
+  const parsed = studentPhotoUploadSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Please choose a JPEG, PNG, or WebP photo up to 2 MB.',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    await uploadStudentPhoto(studentId, parsed.data);
+    revalidateStudent(studentId);
+    return { status: 'success', message: 'Photo uploaded.' };
+  } catch (error) {
+    return toErrorState(error, 'Failed to upload photo');
+  }
+}
+
+export async function addStudentSiblingAction(
+  studentId: string,
+  values: { siblingId: string },
+): Promise<ActionState> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student' };
+  }
+  const parsed = studentSiblingSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Enter a valid sibling student id.',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    await addStudentSibling(studentId, parsed.data.siblingId);
+    revalidateStudent(studentId);
+    return { status: 'success', message: 'Sibling linked.' };
+  } catch (error) {
+    return toErrorState(error, 'Failed to link sibling');
+  }
+}
+
+export async function setStudentConsentAction(
+  studentId: string,
+  values: { kind: string; granted: boolean },
+): Promise<ActionState> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student' };
+  }
+  const parsed = studentConsentSchema.safeParse(values);
+  if (!parsed.success) {
+    return { status: 'error', message: 'Invalid consent update.' };
+  }
+  try {
+    await setStudentConsent(studentId, parsed.data);
+    revalidateStudent(studentId);
+    return { status: 'success' };
+  } catch (error) {
+    return toErrorState(error, 'Failed to update consent');
+  }
+}
+
+export async function addStudentDisciplineAction(
+  studentId: string,
+  values: {
+    incidentType: string;
+    severity: string;
+    description: string;
+    actionTaken?: string;
+    incidentDate: string;
+    visibleToParent?: boolean;
+  },
+): Promise<ActionState> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student' };
+  }
+  const parsed = studentDisciplineSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    await addStudentDiscipline(studentId, {
+      ...parsed.data,
+      actionTaken: parsed.data.actionTaken || undefined,
+    });
+    revalidateStudent(studentId);
+    return { status: 'success', message: 'Incident recorded.' };
+  } catch (error) {
+    return toErrorState(error, 'Failed to record incident');
+  }
+}
 
 /* ----------------------------------------------------- Lookup helpers */
 

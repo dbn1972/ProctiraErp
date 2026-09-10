@@ -43,12 +43,12 @@ export async function generateUuidsForTable(
   sourceTable: string,
   pkColumn: string,
   batchSize: number,
-  sourceFilter?: string
+  sourceFilter?: string,
 ): Promise<number> {
   // Count total rows to process
   const filterClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
   const countResult = await client.query(
-    `SELECT COUNT(*) as total FROM "${stagingSchema}"."${sourceTable}" ${filterClause}`
+    `SELECT COUNT(*) as total FROM "${stagingSchema}"."${sourceTable}" ${filterClause}`,
   );
   const totalRows = parseInt(countResult.rows[0].total, 10);
 
@@ -65,7 +65,7 @@ export async function generateUuidsForTable(
        ${filterClause}
        ORDER BY "${pkColumn}"
        LIMIT $1 OFFSET $2`,
-      [batchSize, offset]
+      [batchSize, offset],
     );
 
     if (batchResult.rows.length === 0) break;
@@ -86,7 +86,7 @@ export async function generateUuidsForTable(
       `INSERT INTO migration_uuid_map (legacy_table, legacy_id, new_uuid)
        VALUES ${values.join(', ')}
        ON CONFLICT (legacy_table, legacy_id) DO NOTHING`,
-      params
+      params,
     );
 
     processed += batchResult.rows.length;
@@ -103,7 +103,7 @@ async function applyUuidsToTable(
   client: PoolClient,
   targetSchema: string,
   targetTable: string,
-  sourceTable: string
+  sourceTable: string,
 ): Promise<number> {
   // Add a temporary legacy_id column if not present
   await client.query(`
@@ -112,13 +112,16 @@ async function applyUuidsToTable(
   `);
 
   // Update the UUID primary key from the mapping table
-  const result = await client.query(`
+  const result = await client.query(
+    `
     UPDATE "${targetSchema}"."${targetTable}" t
     SET id = m.new_uuid::text
     FROM migration_uuid_map m
     WHERE m.legacy_table = $1
       AND m.legacy_id = t._legacy_id::bigint
-  `, [sourceTable]);
+  `,
+    [sourceTable],
+  );
 
   return result.rowCount ?? 0;
 }
@@ -131,9 +134,10 @@ export async function remapForeignKeys(
   targetSchema: string,
   targetTable: string,
   fkColumn: string,
-  referencedSourceTable: string
+  referencedSourceTable: string,
 ): Promise<number> {
-  const result = await client.query(`
+  const result = await client.query(
+    `
     UPDATE "${targetSchema}"."${targetTable}" t
     SET "${fkColumn}" = m.new_uuid::text
     FROM migration_uuid_map m
@@ -141,7 +145,9 @@ export async function remapForeignKeys(
       AND m.legacy_id = CAST(t."${fkColumn}" AS bigint)
       AND t."${fkColumn}" IS NOT NULL
       AND t."${fkColumn}" ~ '^[0-9]+$'
-  `, [referencedSourceTable]);
+  `,
+    [referencedSourceTable],
+  );
 
   return result.rowCount ?? 0;
 }
@@ -190,7 +196,7 @@ export async function generateUuids(config: MigrationConfig): Promise<MigrationS
           mapping.sourceTable,
           mapping.legacyPkColumn,
           config.batchSize,
-          mapping.sourceFilter
+          mapping.sourceFilter,
         );
         console.log(`[uuid-gen]     ✓ ${count} UUIDs generated`);
         tablesProcessed++;
@@ -212,7 +218,7 @@ export async function generateUuids(config: MigrationConfig): Promise<MigrationS
           client,
           config.pg.schema,
           mapping.targetTable,
-          mapping.sourceTable
+          mapping.sourceTable,
         );
         console.log(`[uuid-gen]   ✓ ${mapping.targetTable}: ${count} PKs updated`);
       } catch (error) {
@@ -231,9 +237,11 @@ export async function generateUuids(config: MigrationConfig): Promise<MigrationS
             config.pg.schema,
             mapping.targetTable,
             fk.column,
-            fk.referencesTable
+            fk.referencesTable,
           );
-          console.log(`[uuid-gen]   ✓ ${mapping.targetTable}.${fk.column} → ${fk.targetReferencesTable}: ${count} FKs remapped`);
+          console.log(
+            `[uuid-gen]   ✓ ${mapping.targetTable}.${fk.column} → ${fk.targetReferencesTable}: ${count} FKs remapped`,
+          );
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           warnings.push({

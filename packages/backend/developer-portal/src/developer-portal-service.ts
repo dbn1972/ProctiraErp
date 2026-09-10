@@ -89,7 +89,7 @@ export function hashApiKey(key: string): string {
   let hash = 0;
   for (let i = 0; i < key.length; i++) {
     const char = key.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash; // Convert to 32bit integer
   }
   return `sha256:${Math.abs(hash).toString(16).padStart(16, '0')}`;
@@ -105,7 +105,7 @@ export function generateWebhookSignature(payload: string, secret: string): strin
   const combined = secret + payload;
   for (let i = 0; i < combined.length; i++) {
     const char = combined.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
+    hash = (hash << 5) - hash + char;
     hash = hash & hash;
   }
   return `sha256=${Math.abs(hash).toString(16).padStart(64, '0')}`;
@@ -294,10 +294,7 @@ export class DeveloperPortalService {
 
   // ─── Webhooks ───────────────────────────────────────────────────────────
 
-  async createWebhook(
-    accountId: string,
-    input: CreateWebhookInput,
-  ): Promise<WebhookEntity> {
+  async createWebhook(accountId: string, input: CreateWebhookInput): Promise<WebhookEntity> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -362,7 +359,9 @@ export class DeveloperPortalService {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
 
-    const updates: Partial<Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>> = {};
+    const updates: Partial<
+      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+    > = {};
     if (input.url !== undefined) updates.url = input.url;
     if (input.events !== undefined) updates.events = input.events;
     if (input.secret !== undefined) updates.secretHash = hashApiKey(input.secret);
@@ -472,10 +471,7 @@ export class DeveloperPortalService {
 
   // ─── Sandboxes ─────────────────────────────────────────────────────────
 
-  async createSandbox(
-    accountId: string,
-    input: CreateSandboxInput,
-  ): Promise<SandboxEntity> {
+  async createSandbox(accountId: string, input: CreateSandboxInput): Promise<SandboxEntity> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -542,10 +538,7 @@ export class DeveloperPortalService {
 
   // ─── Plugin Submissions ─────────────────────────────────────────────────
 
-  async submitPlugin(
-    accountId: string,
-    input: SubmitPluginInput,
-  ): Promise<PluginSubmissionEntity> {
+  async submitPlugin(accountId: string, input: SubmitPluginInput): Promise<PluginSubmissionEntity> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -795,7 +788,9 @@ export class DeveloperPortalService {
       throw new NotFoundError(`Documentation page '${slug}' not found`);
     }
 
-    const updates: Partial<Pick<DocPageEntity, 'title' | 'content' | 'category' | 'order' | 'published'>> = {};
+    const updates: Partial<
+      Pick<DocPageEntity, 'title' | 'content' | 'category' | 'order' | 'published'>
+    > = {};
     if (input.title !== undefined) updates.title = input.title;
     if (input.content !== undefined) updates.content = input.content;
     if (input.category !== undefined) updates.category = input.category;
@@ -848,9 +843,6 @@ export class DeveloperPortalService {
     endDate?: Date,
     granularity: 'day' | 'week' | 'month' = 'day',
   ): Promise<AnalyticsTimeSeries[]> {
-    return this.repository.getAnalyticsTimeSeries(
-      { pluginName, startDate, endDate },
-      granularity,
-    );
+    return this.repository.getAnalyticsTimeSeries({ pluginName, startDate, endDate }, granularity);
   }
 }

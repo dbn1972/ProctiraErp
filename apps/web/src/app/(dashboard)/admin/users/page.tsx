@@ -1,12 +1,12 @@
 /**
- * Admin users list (Server Component).
+ * Admin users list (Server Component) — G-910.
+ *
+ * Reads `/tenant/users` + `/tenant/roles`; invite / role edit / suspend are
+ * live Server Actions (previously inert buttons).
  *
  * Validates: Requirement 4.x — manage users in the active tenant.
  */
-import { Plus } from 'lucide-react';
-
 import {
-  Button,
   Card,
   CardContent,
   Table,
@@ -16,9 +16,9 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listUsers } from '@/lib/api/admin.server';
-import { type AdminUser } from '@/lib/api/admin';
+import { listTenantRoles, listTenantUsers, type TenantUser } from '@/lib/api/admin.server';
 import { cn } from '@/lib/utils';
+import { InviteUserDialog, UserRowActions } from '@/components/admin/admin-console-controls';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 export const dynamic = 'force-dynamic';
@@ -51,35 +51,36 @@ function initials(name: string): string {
 }
 
 export default async function AdminUsersPage() {
-  const { users, source } = await listUsers();
+  const [{ users, source }, { roles }] = await Promise.all([listTenantUsers(), listTenantRoles()]);
+  const roleName = new Map(roles.map((r) => [r.id, r.name]));
   const activeCount = users.filter((u) => u.status === 'ACTIVE').length;
 
   return (
     <section aria-labelledby="users-heading" className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1
-            id="users-heading"
-            className="text-3xl font-extrabold tracking-tight text-foreground"
-          >
+          <h1 id="users-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
             Users
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {users.length.toLocaleString()} accounts ({activeCount.toLocaleString()} active)
-            · invites, roles, and security status.
+            {users.length.toLocaleString()} accounts ({activeCount.toLocaleString()} active) ·
+            invites, roles, and security status.
           </p>
         </div>
-        <Button size="sm">
-          <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Invite user
-        </Button>
+        {source === 'gateway' ? <InviteUserDialog roles={roles} /> : null}
       </div>
 
-      <ScaffoldModeBanner
-        source={source}
-        surface="Admin users"
-        detail="Nested admin UI scaffold. Lists stay empty when tenant admin APIs are offline."
-      />
+      {source === 'forbidden' ? (
+        <p role="status" className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          You need the tenant administrator role to manage users.
+        </p>
+      ) : (
+        <ScaffoldModeBanner
+          source={source}
+          surface="Admin users"
+          detail="Lists stay empty when the tenant admin API is offline."
+        />
+      )}
 
       <Card className="overflow-hidden">
         <CardContent className="p-0">
@@ -94,13 +95,12 @@ export default async function AdminUsersPage() {
                   <TableHead className="font-semibold">User</TableHead>
                   <TableHead className="font-semibold">Roles</TableHead>
                   <TableHead className="font-semibold">Status</TableHead>
-                  <TableHead className="font-semibold">Last login</TableHead>
                   <TableHead className="text-end font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={user.id} className="group">
+                  <TableRow key={user.id} className="group" data-testid={`user-row-${user.email}`}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <span
@@ -116,23 +116,21 @@ export default async function AdminUsersPage() {
                           <div className="truncate font-medium text-foreground">
                             {user.displayName}
                           </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {user.email}
-                          </div>
+                          <div className="truncate text-xs text-muted-foreground">{user.email}</div>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      {user.roles.length === 0 ? (
+                      {user.roleIds.length === 0 ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
                         <div className="flex flex-wrap gap-1">
-                          {user.roles.map((role) => (
+                          {user.roleIds.map((roleId) => (
                             <span
-                              key={role}
+                              key={roleId}
                               className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-900 dark:text-sky-300"
                             >
-                              {role}
+                              {roleName.get(roleId) ?? roleId}
                             </span>
                           ))}
                         </div>
@@ -141,17 +139,8 @@ export default async function AdminUsersPage() {
                     <TableCell>
                       <UserStatus status={user.status} />
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {user.lastLoginAt ?? 'Never'}
-                    </TableCell>
                     <TableCell className="text-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-60 group-hover:opacity-100"
-                      >
-                        Edit
-                      </Button>
+                      <UserRowActions user={user} roles={roles} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -164,12 +153,11 @@ export default async function AdminUsersPage() {
   );
 }
 
-function UserStatus({ status }: { status: AdminUser['status'] }) {
-  const map: Record<AdminUser['status'], { label: string; className: string }> = {
+function UserStatus({ status }: { status: TenantUser['status'] }) {
+  const map: Record<TenantUser['status'], { label: string; className: string }> = {
     ACTIVE: {
       label: 'Active',
-      className:
-        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
     },
     SUSPENDED: {
       label: 'Suspended',
@@ -187,6 +175,7 @@ function UserStatus({ status }: { status: AdminUser['status'] }) {
         'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
         className,
       )}
+      data-testid="user-status"
     >
       {label}
     </span>

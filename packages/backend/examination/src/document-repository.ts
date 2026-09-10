@@ -139,8 +139,5 @@ export interface DocumentRepository {
   getJob(jobId: string, tenantId: string): Promise<DocumentGenerationJob | null>;
 
   /** List document generation jobs for an examination */
-  listJobs(
-    examinationId: string,
-    tenantId: string,
-  ): Promise<DocumentGenerationJob[]>;
+  listJobs(examinationId: string, tenantId: string): Promise<DocumentGenerationJob[]>;
 }

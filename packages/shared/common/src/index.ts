@@ -4,7 +4,12 @@
  */
 
 // Interfaces
-export type { PaginationOptions, PaginatedResult, FieldError, ApiError } from './interfaces/index.js';
+export type {
+  PaginationOptions,
+  PaginatedResult,
+  FieldError,
+  ApiError,
+} from './interfaces/index.js';
 
 // Schemas
 export { FieldErrorSchema, ApiErrorSchema } from './schemas/index.js';
@@ -21,7 +26,13 @@ export {
 } from './constants/index.js';
 
 // Exceptions
-export { AppError, ValidationError, ConflictError, NotFoundError, BusinessRuleError } from './exceptions/index.js';
+export {
+  AppError,
+  ValidationError,
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+} from './exceptions/index.js';
 
 // Utilities
 export { CircuitBreaker, CircuitState, CircuitBreakerError } from './circuit-breaker.js';

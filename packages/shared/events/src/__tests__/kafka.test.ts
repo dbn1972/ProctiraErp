@@ -6,8 +6,12 @@ vi.mock('kafkajs', () => {
   const mockProducer = {
     connect: vi.fn().mockResolvedValue(undefined),
     disconnect: vi.fn().mockResolvedValue(undefined),
-    send: vi.fn().mockResolvedValue([{ topicName: 'test', partition: 0, errorCode: 0, offset: '0' }]),
-    sendBatch: vi.fn().mockResolvedValue([{ topicName: 'test', partition: 0, errorCode: 0, offset: '0' }]),
+    send: vi
+      .fn()
+      .mockResolvedValue([{ topicName: 'test', partition: 0, errorCode: 0, offset: '0' }]),
+    sendBatch: vi
+      .fn()
+      .mockResolvedValue([{ topicName: 'test', partition: 0, errorCode: 0, offset: '0' }]),
   };
 
   const mockConsumer = {
@@ -103,7 +107,7 @@ describe('KafkaEventProducer', () => {
 
   it('should throw when publishing without connection', async () => {
     await expect(producer.publish(testEvent)).rejects.toThrow(
-      'KafkaEventProducer is not connected'
+      'KafkaEventProducer is not connected',
     );
   });
 
@@ -122,7 +126,7 @@ describe('KafkaEventProducer', () => {
 
   it('should throw when publishing batch without connection', async () => {
     await expect(producer.publishBatch([testEvent])).rejects.toThrow(
-      'KafkaEventProducer is not connected'
+      'KafkaEventProducer is not connected',
     );
   });
 });
@@ -134,7 +138,7 @@ describe('KafkaEventConsumer', () => {
         new KafkaEventConsumer({
           brokers: ['localhost:9092'],
           clientId: 'test-consumer',
-        })
+        }),
     ).toThrow('KafkaEventConsumer requires a groupId');
   });
 
@@ -169,7 +173,7 @@ describe('KafkaEventConsumer', () => {
         tenantId: 'tenant-001',
         aggregateType: 'student',
         handler: async () => {},
-      })
+      }),
     ).rejects.toThrow('KafkaEventConsumer is not connected');
   });
 
@@ -210,9 +214,7 @@ describe('KafkaEventConsumer', () => {
       clientId: 'test-consumer',
       groupId: 'test-group',
     });
-    await expect(consumer.start()).rejects.toThrow(
-      'KafkaEventConsumer is not connected'
-    );
+    await expect(consumer.start()).rejects.toThrow('KafkaEventConsumer is not connected');
   });
 
   it('should disconnect and stop consuming', async () => {

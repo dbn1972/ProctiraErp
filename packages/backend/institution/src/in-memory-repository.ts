@@ -75,11 +75,7 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
     tenantId: string,
   ): Promise<InstitutionEntity | null> {
     for (const entity of this.institutions.values()) {
-      if (
-        entity.name === name &&
-        entity.areaId === areaId &&
-        entity.tenantId === tenantId
-      ) {
+      if (entity.name === name && entity.areaId === areaId && entity.tenantId === tenantId) {
         return entity;
       }
     }

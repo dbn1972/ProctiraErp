@@ -49,8 +49,13 @@ export { CachedAttendanceRepository } from './cached-attendance-repository.js';
 
 // Prisma repository (Postgres + RLS) + factory
 export { PrismaAttendanceRepository } from './prisma-attendance-repository.js';
-export { createAttendanceRepository } from './repository-factory.js';
+export { createAttendanceRepository, createAttendanceOpsStore } from './repository-factory.js';
 export type { AttendanceRepositoryConfig } from './repository-factory.js';
+
+export { AttendanceOpsService, EARLY_DEPARTURE_PRESENT_WEIGHT } from './ops-service.js';
+export { registerAttendanceOpsRoutes } from './ops-routes.js';
+export { InMemoryAttendanceOpsStore, hashDeviceApiKey, mintDeviceApiKey } from './ops-store.js';
+export type { AttendanceOpsStore } from './ops-store.js';
 
 // Bulk attendance producer (queue-first pattern)
 export { BulkAttendanceProducer } from './bulk-attendance-producer.js';

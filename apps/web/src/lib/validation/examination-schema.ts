@@ -8,13 +8,9 @@
 import { z } from 'zod';
 
 /** UUID v4 pattern matching backend Typebox UUID_PATTERN. */
-const UUID_V4 =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const uuid = z
-  .string()
-  .min(1, 'UUID is required')
-  .regex(UUID_V4, 'Must be a valid UUID v4');
+const uuid = z.string().min(1, 'UUID is required').regex(UUID_V4, 'Must be a valid UUID v4');
 
 const isoDate = z
   .string()
@@ -46,9 +42,7 @@ export const examinationGradingSchemeFormSchema = z.object({
   minScore: z.coerce.number().min(0),
   maxScore: z.coerce.number().min(1),
   passThreshold: z.coerce.number().min(0),
-  thresholds: z
-    .array(gradeThresholdFormSchema)
-    .min(1, 'At least one grade threshold is required'),
+  thresholds: z.array(gradeThresholdFormSchema).min(1, 'At least one grade threshold is required'),
 });
 
 export const createExaminationFormSchema = z
@@ -59,12 +53,8 @@ export const createExaminationFormSchema = z
     academicPeriodId: uuid,
     startDate: isoDate,
     endDate: isoDate,
-    subjects: z
-      .array(examinationSubjectFormSchema)
-      .min(1, 'At least one subject is required'),
-    centers: z
-      .array(examinationCenterFormSchema)
-      .min(1, 'At least one center is required'),
+    subjects: z.array(examinationSubjectFormSchema).min(1, 'At least one subject is required'),
+    centers: z.array(examinationCenterFormSchema).min(1, 'At least one center is required'),
     gradingSchemes: z
       .array(examinationGradingSchemeFormSchema)
       .min(1, 'At least one grading scheme is required')
@@ -88,9 +78,7 @@ export const createExaminationFormSchema = z
     },
   );
 
-export type CreateExaminationFormValues = z.infer<
-  typeof createExaminationFormSchema
->;
+export type CreateExaminationFormValues = z.infer<typeof createExaminationFormSchema>;
 
 /** Sensible default grading scheme for the create form. */
 export function defaultGradingScheme(): CreateExaminationFormValues['gradingSchemes'][number] {
@@ -108,9 +96,7 @@ export function defaultGradingScheme(): CreateExaminationFormValues['gradingSche
   };
 }
 
-export function defaultCreateExaminationValues(
-  institutionId = '',
-): CreateExaminationFormValues {
+export function defaultCreateExaminationValues(institutionId = ''): CreateExaminationFormValues {
   const start = new Date();
   start.setUTCDate(start.getUTCDate() + 14);
   const end = new Date();

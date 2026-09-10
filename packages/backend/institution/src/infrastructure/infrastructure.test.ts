@@ -97,7 +97,10 @@ describe('InfrastructureService', () => {
       await service.createLand({ name: 'Land B', institutionId, capacity: 200, condition: 'Fair' });
 
       const result = await service.listLands(institutionId, {
-        page: 1, pageSize: 20, sortBy: 'name', sortOrder: 'asc',
+        page: 1,
+        pageSize: 20,
+        sortBy: 'name',
+        sortOrder: 'asc',
       });
 
       expect(result.data).toHaveLength(2);
@@ -168,11 +171,26 @@ describe('InfrastructureService', () => {
     });
 
     it('should list buildings under a land', async () => {
-      await service.createBuilding({ name: 'B1', institutionId, landId, capacity: 100, condition: 'Good' });
-      await service.createBuilding({ name: 'B2', institutionId, landId, capacity: 200, condition: 'Fair' });
+      await service.createBuilding({
+        name: 'B1',
+        institutionId,
+        landId,
+        capacity: 100,
+        condition: 'Good',
+      });
+      await service.createBuilding({
+        name: 'B2',
+        institutionId,
+        landId,
+        capacity: 200,
+        condition: 'Fair',
+      });
 
       const result = await service.listBuildings(landId, {
-        page: 1, pageSize: 20, sortBy: 'name', sortOrder: 'asc',
+        page: 1,
+        pageSize: 20,
+        sortBy: 'name',
+        sortOrder: 'asc',
       });
 
       expect(result.data).toHaveLength(2);
@@ -185,10 +203,17 @@ describe('InfrastructureService', () => {
 
     beforeEach(async () => {
       const land = await service.createLand({
-        name: 'Campus', institutionId, capacity: 5000, condition: 'Good',
+        name: 'Campus',
+        institutionId,
+        capacity: 5000,
+        condition: 'Good',
       });
       const building = await service.createBuilding({
-        name: 'Block A', institutionId, landId: land.id, capacity: 500, condition: 'Good',
+        name: 'Block A',
+        institutionId,
+        landId: land.id,
+        capacity: 500,
+        condition: 'Good',
       });
       buildingId = building.id;
     });
@@ -209,7 +234,10 @@ describe('InfrastructureService', () => {
 
     it('should reject floor with non-building parent', async () => {
       const land = await service.createLand({
-        name: 'Another Land', institutionId, capacity: 100, condition: 'Good',
+        name: 'Another Land',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
 
       await expect(
@@ -229,13 +257,24 @@ describe('InfrastructureService', () => {
 
     beforeEach(async () => {
       const land = await service.createLand({
-        name: 'Campus', institutionId, capacity: 5000, condition: 'Good',
+        name: 'Campus',
+        institutionId,
+        capacity: 5000,
+        condition: 'Good',
       });
       const building = await service.createBuilding({
-        name: 'Block A', institutionId, landId: land.id, capacity: 500, condition: 'Good',
+        name: 'Block A',
+        institutionId,
+        landId: land.id,
+        capacity: 500,
+        condition: 'Good',
       });
       const floor = await service.createFloor({
-        name: 'Floor 1', institutionId, buildingId: building.id, capacity: 200, condition: 'Good',
+        name: 'Floor 1',
+        institutionId,
+        buildingId: building.id,
+        capacity: 200,
+        condition: 'Good',
       });
       floorId = floor.id;
     });
@@ -256,7 +295,10 @@ describe('InfrastructureService', () => {
 
     it('should reject room with non-floor parent', async () => {
       const land = await service.createLand({
-        name: 'Land X', institutionId, capacity: 100, condition: 'Good',
+        name: 'Land X',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
 
       await expect(
@@ -274,7 +316,10 @@ describe('InfrastructureService', () => {
   describe('Update and Delete', () => {
     it('should update an infrastructure item', async () => {
       const land = await service.createLand({
-        name: 'Old Name', institutionId, capacity: 100, condition: 'Good',
+        name: 'Old Name',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
 
       const updated = await service.update(land.id, {
@@ -291,17 +336,23 @@ describe('InfrastructureService', () => {
       await service.addConditionOption('Fair');
 
       const land = await service.createLand({
-        name: 'Land', institutionId, capacity: 100, condition: 'Good',
+        name: 'Land',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
 
-      await expect(
-        service.update(land.id, { condition: 'Invalid' }),
-      ).rejects.toThrow('Invalid condition');
+      await expect(service.update(land.id, { condition: 'Invalid' })).rejects.toThrow(
+        'Invalid condition',
+      );
     });
 
     it('should delete an item without children', async () => {
       const land = await service.createLand({
-        name: 'Empty Land', institutionId, capacity: 100, condition: 'Good',
+        name: 'Empty Land',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
 
       await service.delete(land.id);
@@ -310,35 +361,57 @@ describe('InfrastructureService', () => {
 
     it('should reject deletion of item with children', async () => {
       const land = await service.createLand({
-        name: 'Land', institutionId, capacity: 100, condition: 'Good',
+        name: 'Land',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
       await service.createBuilding({
-        name: 'Building', institutionId, landId: land.id, capacity: 50, condition: 'Good',
+        name: 'Building',
+        institutionId,
+        landId: land.id,
+        capacity: 50,
+        condition: 'Good',
       });
 
       await expect(service.delete(land.id)).rejects.toThrow('has child items');
     });
 
     it('should throw NotFoundError for non-existent item', async () => {
-      await expect(
-        service.getById('00000000-0000-4000-8000-000000000000'),
-      ).rejects.toThrow('not found');
+      await expect(service.getById('00000000-0000-4000-8000-000000000000')).rejects.toThrow(
+        'not found',
+      );
     });
   });
 
   describe('Hierarchy Tree', () => {
     it('should return full hierarchy for an institution', async () => {
       const land = await service.createLand({
-        name: 'Campus', institutionId, capacity: 5000, condition: 'Good',
+        name: 'Campus',
+        institutionId,
+        capacity: 5000,
+        condition: 'Good',
       });
       const building = await service.createBuilding({
-        name: 'Block A', institutionId, landId: land.id, capacity: 500, condition: 'Good',
+        name: 'Block A',
+        institutionId,
+        landId: land.id,
+        capacity: 500,
+        condition: 'Good',
       });
       const floor = await service.createFloor({
-        name: 'Floor 1', institutionId, buildingId: building.id, capacity: 200, condition: 'Good',
+        name: 'Floor 1',
+        institutionId,
+        buildingId: building.id,
+        capacity: 200,
+        condition: 'Good',
       });
       await service.createRoom({
-        name: 'Room 101', institutionId, floorId: floor.id, capacity: 40, condition: 'Good',
+        name: 'Room 101',
+        institutionId,
+        floorId: floor.id,
+        capacity: 40,
+        condition: 'Good',
       });
 
       const hierarchy = await service.getHierarchy(institutionId);
@@ -360,7 +433,10 @@ describe('InfrastructureService', () => {
     it('should reject building under land from different institution', async () => {
       const otherInstitutionId = '99999999-9999-4999-8999-999999999999';
       const land = await service.createLand({
-        name: 'Land', institutionId, capacity: 100, condition: 'Good',
+        name: 'Land',
+        institutionId,
+        capacity: 100,
+        condition: 'Good',
       });
 
       await expect(
@@ -551,7 +627,13 @@ describe('Infrastructure Routes', () => {
       await app.inject({
         method: 'POST',
         url: '/infrastructure/buildings',
-        payload: { name: 'Building', institutionId, landId: land.id, capacity: 50, condition: 'Good' },
+        payload: {
+          name: 'Building',
+          institutionId,
+          landId: land.id,
+          capacity: 50,
+          condition: 'Good',
+        },
       });
 
       const response = await app.inject({
@@ -576,21 +658,39 @@ describe('Infrastructure Routes', () => {
       const buildingRes = await app.inject({
         method: 'POST',
         url: '/infrastructure/buildings',
-        payload: { name: 'Block A', institutionId, landId: land.id, capacity: 500, condition: 'Good' },
+        payload: {
+          name: 'Block A',
+          institutionId,
+          landId: land.id,
+          capacity: 500,
+          condition: 'Good',
+        },
       });
       const building = JSON.parse(buildingRes.body);
 
       const floorRes = await app.inject({
         method: 'POST',
         url: '/infrastructure/floors',
-        payload: { name: 'Floor 1', institutionId, buildingId: building.id, capacity: 200, condition: 'Good' },
+        payload: {
+          name: 'Floor 1',
+          institutionId,
+          buildingId: building.id,
+          capacity: 200,
+          condition: 'Good',
+        },
       });
       const floor = JSON.parse(floorRes.body);
 
       await app.inject({
         method: 'POST',
         url: '/infrastructure/rooms',
-        payload: { name: 'Room 101', institutionId, floorId: floor.id, capacity: 40, condition: 'Good' },
+        payload: {
+          name: 'Room 101',
+          institutionId,
+          floorId: floor.id,
+          capacity: 40,
+          condition: 'Good',
+        },
       });
 
       const response = await app.inject({

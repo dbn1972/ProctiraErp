@@ -26,9 +26,7 @@ const testColumns: DataGridColumn<TestRow>[] = [
 
 describe('DataGrid', () => {
   it('renders table with data', () => {
-    render(
-      <DataGrid data={testData} columns={testColumns} ariaLabel="Test grid" />
-    );
+    render(<DataGrid data={testData} columns={testColumns} ariaLabel="Test grid" />);
 
     expect(screen.getByRole('table')).toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
@@ -37,9 +35,7 @@ describe('DataGrid', () => {
   });
 
   it('renders column headers', () => {
-    render(
-      <DataGrid data={testData} columns={testColumns} ariaLabel="Test grid" />
-    );
+    render(<DataGrid data={testData} columns={testColumns} ariaLabel="Test grid" />);
 
     expect(screen.getByText('Name')).toBeInTheDocument();
     expect(screen.getByText('Email')).toBeInTheDocument();
@@ -47,17 +43,13 @@ describe('DataGrid', () => {
   });
 
   it('shows empty state when no data', () => {
-    render(
-      <DataGrid data={[]} columns={testColumns} ariaLabel="Test grid" />
-    );
+    render(<DataGrid data={[]} columns={testColumns} ariaLabel="Test grid" />);
 
     expect(screen.getByText('No data available')).toBeInTheDocument();
   });
 
   it('shows loading state', () => {
-    render(
-      <DataGrid data={[]} columns={testColumns} loading ariaLabel="Test grid" />
-    );
+    render(<DataGrid data={[]} columns={testColumns} loading ariaLabel="Test grid" />);
 
     expect(screen.getByText('Loading data...')).toBeInTheDocument();
   });
@@ -71,7 +63,7 @@ describe('DataGrid', () => {
         enableSorting
         onSortingChange={onSortingChange}
         ariaLabel="Test grid"
-      />
+      />,
     );
 
     const sortButton = screen.getByRole('button', { name: /sort by name/i });
@@ -88,7 +80,7 @@ describe('DataGrid', () => {
         enablePagination
         defaultPageSize={2}
         ariaLabel="Test grid"
-      />
+      />,
     );
 
     expect(screen.getByRole('navigation', { name: /table pagination/i })).toBeInTheDocument();
@@ -105,17 +97,20 @@ describe('DataGrid', () => {
         enableExport
         onExport={onExport}
         ariaLabel="Test grid"
-      />
+      />,
     );
 
     const exportBtn = screen.getByRole('button', { name: /export data to excel/i });
     expect(exportBtn).toBeInTheDocument();
 
     fireEvent.click(exportBtn);
-    expect(onExport).toHaveBeenCalledWith(testData, expect.objectContaining({
-      filename: 'export',
-      includeHeaders: true,
-    }));
+    expect(onExport).toHaveBeenCalledWith(
+      testData,
+      expect.objectContaining({
+        filename: 'export',
+        includeHeaders: true,
+      }),
+    );
   });
 
   it('renders filter inputs when filtering is enabled', () => {
@@ -125,7 +120,7 @@ describe('DataGrid', () => {
         columns={testColumns.map((c) => ({ ...c, enableFiltering: true }))}
         enableFiltering
         ariaLabel="Test grid"
-      />
+      />,
     );
 
     expect(screen.getByLabelText(/filter by name/i)).toBeInTheDocument();
@@ -133,9 +128,7 @@ describe('DataGrid', () => {
   });
 
   it('has proper WCAG accessibility attributes', () => {
-    render(
-      <DataGrid data={testData} columns={testColumns} ariaLabel="Student records" />
-    );
+    render(<DataGrid data={testData} columns={testColumns} ariaLabel="Student records" />);
 
     expect(screen.getByRole('region', { name: 'Student records' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Student records' })).toBeInTheDocument();
@@ -148,14 +141,7 @@ describe('DataGrid', () => {
   });
 
   it('provides aria-sort on sorted columns', () => {
-    render(
-      <DataGrid
-        data={testData}
-        columns={testColumns}
-        enableSorting
-        ariaLabel="Test grid"
-      />
-    );
+    render(<DataGrid data={testData} columns={testColumns} enableSorting ariaLabel="Test grid" />);
 
     // Initially no sort
     const headers = screen.getAllByRole('columnheader');
@@ -180,7 +166,7 @@ describe('DataGrid', () => {
         pageSizeOptions={[2, 5, 10]}
         defaultPageSize={2}
         ariaLabel="Test grid"
-      />
+      />,
     );
 
     const select = screen.getByLabelText(/select number of rows per page/i);

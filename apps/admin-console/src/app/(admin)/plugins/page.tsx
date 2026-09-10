@@ -4,13 +4,7 @@ import { Eye } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableBody,
@@ -29,12 +23,8 @@ export default async function PluginsPage() {
   await requireRole('plugins', '/plugins');
   const { plugins, source } = await listPlugins();
 
-  const reviewQueue = plugins.filter(
-    (p) => p.status === 'submitted' || p.status === 'in_review',
-  );
-  const reviewed = plugins.filter(
-    (p) => p.status !== 'submitted' && p.status !== 'in_review',
-  );
+  const reviewQueue = plugins.filter((p) => p.status === 'submitted' || p.status === 'in_review');
+  const reviewed = plugins.filter((p) => p.status !== 'submitted' && p.status !== 'in_review');
 
   return (
     <>
@@ -66,10 +56,7 @@ export default async function PluginsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <CardTitle className="text-base">
-                        <Link
-                          href={`/plugins/${plugin.id}`}
-                          className="hover:underline"
-                        >
+                        <Link href={`/plugins/${plugin.id}`} className="hover:underline">
                           {plugin.name}
                         </Link>{' '}
                         <span className="font-mono text-xs font-normal text-muted-foreground">
@@ -84,9 +71,7 @@ export default async function PluginsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    {plugin.description}
-                  </p>
+                  <p className="text-sm text-muted-foreground">{plugin.description}</p>
                   <div>
                     <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       Requested scopes
@@ -122,8 +107,7 @@ export default async function PluginsPage() {
         <CardHeader>
           <CardTitle>Reviewed plugins</CardTitle>
           <CardDescription>
-            {reviewed.length} submission{reviewed.length === 1 ? '' : 's'} that
-            have been decided.
+            {reviewed.length} submission{reviewed.length === 1 ? '' : 's'} that have been decided.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -144,10 +128,7 @@ export default async function PluginsPage() {
             <TableBody>
               {reviewed.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-12 text-center text-muted-foreground"
-                  >
+                  <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                     No reviewed plugins yet.
                   </TableCell>
                 </TableRow>
@@ -163,9 +144,7 @@ export default async function PluginsPage() {
                     </Link>
                   </TableCell>
                   <TableCell>{plugin.vendor}</TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {plugin.version}
-                  </TableCell>
+                  <TableCell className="font-mono text-xs">{plugin.version}</TableCell>
                   <TableCell>{plugin.category}</TableCell>
                   <TableCell>
                     <StatusBadge status={plugin.status} />
@@ -180,10 +159,7 @@ export default async function PluginsPage() {
                       size="icon"
                       className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                     >
-                      <Link
-                        href={`/plugins/${plugin.id}`}
-                        aria-label={`View ${plugin.name}`}
-                      >
+                      <Link href={`/plugins/${plugin.id}`} aria-label={`View ${plugin.name}`}>
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>

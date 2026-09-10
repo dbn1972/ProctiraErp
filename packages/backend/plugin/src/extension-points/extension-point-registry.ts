@@ -72,9 +72,7 @@ export class ExtensionPointRegistry {
    */
   registerExtensionPoint(definition: ExtensionPointDefinition): void {
     if (this.extensionPoints.has(definition.id)) {
-      throw new BusinessRuleError(
-        `Extension point '${definition.id}' is already registered`,
-      );
+      throw new BusinessRuleError(`Extension point '${definition.id}' is already registered`);
     }
     this.extensionPoints.set(definition.id, definition);
     this.hookRegistrations.set(definition.id, []);
@@ -146,9 +144,7 @@ export class ExtensionPointRegistry {
     if (extensionPoint.stability === 'deprecated') {
       throw new BusinessRuleError(
         `Extension point '${extensionPointId}' is deprecated` +
-          (extensionPoint.replacedBy
-            ? `. Use '${extensionPoint.replacedBy}' instead`
-            : ''),
+          (extensionPoint.replacedBy ? `. Use '${extensionPoint.replacedBy}' instead` : ''),
       );
     }
 
@@ -493,15 +489,8 @@ export class ExtensionPointRegistry {
     filter?: Record<string, unknown>;
     pluginPermissions: string[];
   }): EventSubscription {
-    const {
-      eventType,
-      pluginId,
-      pluginInstallId,
-      tenantId,
-      handler,
-      filter,
-      pluginPermissions,
-    } = params;
+    const { eventType, pluginId, pluginInstallId, tenantId, handler, filter, pluginPermissions } =
+      params;
 
     // Validate event is approved
     const eventDef = this.eventDefinitions.get(eventType);

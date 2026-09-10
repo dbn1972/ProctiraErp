@@ -12,23 +12,13 @@ export { dashboardsPlugin } from './dashboards-plugin.js';
 export type { DashboardsPluginOptions } from './dashboards-plugin.js';
 
 export { DashboardService } from './dashboard-service.js';
-export type {
-  DashboardServiceDeps,
-  DashboardServiceResult,
-} from './dashboard-service.js';
+export type { DashboardServiceDeps, DashboardServiceResult } from './dashboard-service.js';
 
 export { registerDashboardRoutes } from './routes.js';
 export type { DashboardRoutesOptions } from './routes.js';
 
-export {
-  deriveDashboardScope,
-  canAccessVariant,
-} from './scope.js';
-export type {
-  DashboardScope,
-  DashboardScopeLevel,
-  DashboardVariant,
-} from './scope.js';
+export { deriveDashboardScope, canAccessVariant } from './scope.js';
+export type { DashboardScope, DashboardScopeLevel, DashboardVariant } from './scope.js';
 
 export { InMemoryDashboardRepository } from './in-memory-repository.js';
 export type {

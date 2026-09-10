@@ -105,9 +105,9 @@ describe('ETLService', () => {
       const pipeline = await service.createPipeline(tenantId, validPipelineInput);
       const otherTenant = '660e8400-e29b-41d4-a716-446655440000';
 
-      await expect(
-        service.updatePipeline(otherTenant, pipeline.id, { name: 'X' }),
-      ).rejects.toThrow('Pipeline not found');
+      await expect(service.updatePipeline(otherTenant, pipeline.id, { name: 'X' })).rejects.toThrow(
+        'Pipeline not found',
+      );
     });
   });
 
@@ -116,7 +116,9 @@ describe('ETLService', () => {
       const pipeline = await service.createPipeline(tenantId, validPipelineInput);
       await service.deletePipeline(tenantId, pipeline.id);
 
-      await expect(service.getPipeline(tenantId, pipeline.id)).rejects.toThrow('Pipeline not found');
+      await expect(service.getPipeline(tenantId, pipeline.id)).rejects.toThrow(
+        'Pipeline not found',
+      );
     });
 
     it('should throw NotFoundError for non-existent pipeline', async () => {
@@ -165,7 +167,11 @@ describe('ETLService', () => {
 
     it('should filter by enabled status', async () => {
       await service.createPipeline(tenantId, validPipelineInput);
-      await service.createPipeline(tenantId, { ...validPipelineInput, name: 'Disabled', enabled: false });
+      await service.createPipeline(tenantId, {
+        ...validPipelineInput,
+        name: 'Disabled',
+        enabled: false,
+      });
 
       const result = await service.listPipelines(tenantId, { enabled: true }, 1, 20);
 

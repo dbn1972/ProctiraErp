@@ -48,12 +48,7 @@ export interface SeedOptions {
  * All entities are linked together with proper foreign key relationships.
  */
 export function seedTestData(options: SeedOptions = {}): SeedResult {
-  const {
-    studentCount = 10,
-    staffCount = 3,
-    areaDepth = 4,
-    tenantOverrides = {},
-  } = options;
+  const { studentCount = 10, staffCount = 3, areaDepth = 4, tenantOverrides = {} } = options;
 
   // Create tenant
   const tenant = createTenant(tenantOverrides);
@@ -79,9 +74,7 @@ export function seedTestData(options: SeedOptions = {}): SeedResult {
   const students = createStudentList(studentCount, { tenantId: tenant.id });
 
   // Create staff
-  const staff = Array.from({ length: staffCount }, () =>
-    createStaff({ tenantId: tenant.id }),
-  );
+  const staff = Array.from({ length: staffCount }, () => createStaff({ tenantId: tenant.id }));
 
   // Create enrollments linking students to the institution
   const enrollments = students.map((student) =>

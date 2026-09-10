@@ -115,8 +115,7 @@ interface ResultsEntryDraftSnapshot {
   rows: RowDraft[];
 }
 
-const UUID_REGEX =
-  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 function generateRowId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -163,9 +162,7 @@ export function ResultsEntryGrid({
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
   const [subjectId, setSubjectId] = useState(defaultSubjectId);
-  const [academicPeriodId, setAcademicPeriodId] = useState(
-    defaultAcademicPeriodId,
-  );
+  const [academicPeriodId, setAcademicPeriodId] = useState(defaultAcademicPeriodId);
 
   /**
    * Push the subject/period selection to the URL so the server reloads
@@ -191,22 +188,17 @@ export function ResultsEntryGrid({
     setAcademicPeriodId(value);
     if (subjectId && value) pushSelection(subjectId, value);
   }
-  const [rows, setRows] = useState<RowDraft[]>(() =>
-    buildInitialRows(existingResults),
-  );
+  const [rows, setRows] = useState<RowDraft[]>(() => buildInitialRows(existingResults));
   const [isSaving, setIsSaving] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [serverState, setServerState] =
-    useState<ActionState<BulkResultEntryResponse> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<BulkResultEntryResponse> | null>(null);
 
   // Draft autosave (Task 60.5 / Requirement 38.8). Slot keyed by
   // (academicPeriodId, subjectId) so different subject/period
   // combinations do not collide. Empty selectors fall back to
   // `default` so the slot remains stable while the teacher picks the
   // first subject for the day.
-  const draftFormId = `assessment-entry-${
-    academicPeriodId || 'default'
-  }-${subjectId || 'default'}`;
+  const draftFormId = `assessment-entry-${academicPeriodId || 'default'}-${subjectId || 'default'}`;
   const draft = useDraftAutosave<ResultsEntryDraftSnapshot>(draftFormId);
 
   // Hydrate the persisted draft once on mount. The autosave hook
@@ -236,17 +228,13 @@ export function ResultsEntryGrid({
   const maxScore = scheme?.maxValue ?? 100;
 
   function updateRow(id: string, patch: Partial<RowDraft>) {
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-    );
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
   function updateScore(rowId: string, itemId: string, value: string) {
     setRows((prev) =>
       prev.map((r) =>
-        r.id === rowId
-          ? { ...r, scores: { ...r.scores, [itemId]: value }, rowError: null }
-          : r,
+        r.id === rowId ? { ...r, scores: { ...r.scores, [itemId]: value }, rowError: null } : r,
       ),
     );
   }
@@ -330,9 +318,7 @@ export function ResultsEntryGrid({
     }
 
     const { payload, rowErrors } = validateAndCollect();
-    setRows((prev) =>
-      prev.map((r) => ({ ...r, rowError: rowErrors.get(r.id) ?? null })),
-    );
+    setRows((prev) => prev.map((r) => ({ ...r, rowError: rowErrors.get(r.id) ?? null })));
 
     if (payload.length === 0) {
       setServerState({
@@ -381,9 +367,7 @@ export function ResultsEntryGrid({
   }
 
   /** Validate uploaded CSV/XLSX rows by treating them as text/CSV first. */
-  async function validateImportFile(
-    file: File,
-  ): Promise<ImportValidationResult> {
+  async function validateImportFile(file: File): Promise<ImportValidationResult> {
     const text = await file.text();
     const lines = text
       .split(/\r?\n/)
@@ -406,8 +390,7 @@ export function ResultsEntryGrid({
     const itemNameSet = new Set(items.map((i) => i.name));
     const columnMappings: ImportColumnMapping[] = headers.map((h) => ({
       sourceColumn: h,
-      targetField:
-        h === 'studentId' ? 'studentId' : itemNameSet.has(h) ? h : '',
+      targetField: h === 'studentId' ? 'studentId' : itemNameSet.has(h) ? h : '',
       required: h === 'studentId',
       valid: h === 'studentId' || itemNameSet.has(h),
     }));
@@ -467,9 +450,7 @@ export function ResultsEntryGrid({
     };
   }
 
-  async function confirmImport(
-    file: File,
-  ): Promise<{ success: number; failed: number }> {
+  async function confirmImport(file: File): Promise<{ success: number; failed: number }> {
     if (!subjectId || !academicPeriodId) {
       throw new Error('Subject and academic period UUIDs are required.');
     }
@@ -495,7 +476,7 @@ export function ResultsEntryGrid({
 
     for (const line of lines.slice(1)) {
       const cells = line.split(',').map((s) => s.trim());
-      const studentId = studentIdIdx >= 0 ? cells[studentIdIdx] ?? '' : '';
+      const studentId = studentIdIdx >= 0 ? (cells[studentIdIdx] ?? '') : '';
       if (!UUID_REGEX.test(studentId)) continue;
       for (const col of itemColumns) {
         const raw = cells[col.idx];
@@ -534,10 +515,7 @@ export function ResultsEntryGrid({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="subjectId">Subject</Label>
-          <Select
-            value={subjectId || undefined}
-            onValueChange={handleSubjectChange}
-          >
+          <Select value={subjectId || undefined} onValueChange={handleSubjectChange}>
             <SelectTrigger id="subjectId" aria-label="Subject">
               <SelectValue placeholder="Select subject" />
             </SelectTrigger>
@@ -556,20 +534,14 @@ export function ResultsEntryGrid({
         </div>
         <div className="space-y-1">
           <Label htmlFor="academicPeriodId">Academic period</Label>
-          <Select
-            value={academicPeriodId || undefined}
-            onValueChange={handlePeriodChange}
-          >
+          <Select value={academicPeriodId || undefined} onValueChange={handlePeriodChange}>
             <SelectTrigger id="academicPeriodId" aria-label="Academic period">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
-              {academicPeriodId &&
-                !academicPeriods.some((p) => p.id === academicPeriodId) && (
-                  <SelectItem value={academicPeriodId}>
-                    Selected period
-                  </SelectItem>
-                )}
+              {academicPeriodId && !academicPeriods.some((p) => p.id === academicPeriodId) && (
+                <SelectItem value={academicPeriodId}>Selected period</SelectItem>
+              )}
               {academicPeriods.map((period) => (
                 <SelectItem key={period.id} value={period.id}>
                   {period.name}
@@ -582,15 +554,15 @@ export function ResultsEntryGrid({
 
       {scheme && (
         <p className="text-xs text-[hsl(var(--muted-foreground))]">
-          Grading scheme: <span className="font-medium">{scheme.name}</span>{' '}
-          (range {minScore}–{maxScore})
+          Grading scheme: <span className="font-medium">{scheme.name}</span> (range {minScore}–
+          {maxScore})
         </p>
       )}
 
       {!canEdit && (
         <p className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]">
-          Choose a subject and academic period above. Once assessment items
-          are configured for that pair, the entry grid appears here.
+          Choose a subject and academic period above. Once assessment items are configured for that
+          pair, the entry grid appears here.
         </p>
       )}
 
@@ -628,12 +600,7 @@ export function ResultsEntryGrid({
               <Upload className="me-2 h-4 w-4" aria-hidden="true" />
               {showImport ? 'Hide import' : 'Import Excel/CSV'}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving}
-            >
+            <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
               <Save className="me-2 h-4 w-4" aria-hidden="true" />
               {isSaving ? 'Saving…' : 'Save scores'}
             </Button>
@@ -662,16 +629,11 @@ export function ResultsEntryGrid({
                       <Input
                         aria-label={`Student UUID ${row.id}`}
                         value={row.studentId}
-                        onChange={(e) =>
-                          updateRow(row.id, { studentId: e.target.value })
-                        }
+                        onChange={(e) => updateRow(row.id, { studentId: e.target.value })}
                         className="font-mono text-xs"
                       />
                       {row.rowError && (
-                        <p
-                          className="mt-1 text-xs text-[hsl(var(--destructive))]"
-                          role="alert"
-                        >
+                        <p className="mt-1 text-xs text-[hsl(var(--destructive))]" role="alert">
                           {row.rowError}
                         </p>
                       )}
@@ -683,9 +645,7 @@ export function ResultsEntryGrid({
                           step="0.01"
                           aria-label={`${it.name} score for ${row.studentId || 'unnamed student'}`}
                           value={row.scores[it.id] ?? ''}
-                          onChange={(e) =>
-                            updateScore(row.id, it.id, e.target.value)
-                          }
+                          onChange={(e) => updateScore(row.id, it.id, e.target.value)}
                         />
                       </TableCell>
                     ))}

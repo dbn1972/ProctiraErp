@@ -68,7 +68,7 @@ export function StatusForm({ applications }: { applications: AdmissionApplicatio
             <select
               id="status-app"
               name="applicationId"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               disabled={!hydrated || pending || applications.length === 0}
               defaultValue=""
             >
@@ -84,7 +84,7 @@ export function StatusForm({ applications }: { applications: AdmissionApplicatio
             <select
               id="status-value"
               name="status"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               defaultValue="under_review"
               disabled={!hydrated || pending}
             >
@@ -99,7 +99,7 @@ export function StatusForm({ applications }: { applications: AdmissionApplicatio
             <input
               id="status-remarks"
               name="remarks"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               disabled={!hydrated || pending}
             />
           </FormField>

@@ -128,9 +128,7 @@ export class EscalationService {
     }
 
     // Find escalation rules for the current state
-    const rules = definition.escalationRules.filter(
-      (rule) => rule.stateId === currentStateId,
-    );
+    const rules = definition.escalationRules.filter((rule) => rule.stateId === currentStateId);
 
     if (rules.length === 0) {
       return;
@@ -175,7 +173,8 @@ export class EscalationService {
    * @returns true if escalation was performed, false if skipped (state already changed)
    */
   async processEscalation(payload: EscalationTaskPayload): Promise<boolean> {
-    const { tenantId, instanceId, stateId, escalateToStateId, notifyRoleId, durationMinutes } = payload;
+    const { tenantId, instanceId, stateId, escalateToStateId, notifyRoleId, durationMinutes } =
+      payload;
 
     // Fetch the current instance state
     const instance = await this.repository.findInstanceById(instanceId, tenantId);

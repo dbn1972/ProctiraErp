@@ -64,6 +64,12 @@ export type {
 
 export { createNotificationStack } from './create-notification-stack.js';
 export type { NotificationStack } from './create-notification-stack.js';
+export {
+  createPgNotificationRepository,
+  ensureNotificationSchema,
+  HybridNotificationRepository,
+  isPgNotificationEnabled,
+} from './pg-notification-repository.js';
 
 // Schemas
 export {

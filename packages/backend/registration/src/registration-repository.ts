@@ -104,20 +104,27 @@ export interface RegistrationRepository {
     entity: Omit<RegistrationEntity, 'submittedAt' | 'updatedAt'>,
   ): Promise<RegistrationEntity>;
 
-  /** Find a registration by tracking number */
-  findByTrackingNumber(trackingNumber: string): Promise<RegistrationEntity | null>;
+  /**
+   * Find a registration by tracking number. `tenantId` binds the RLS tenant
+   * context (required against Postgres since 021 FORCEs RLS for table owners).
+   */
+  findByTrackingNumber(
+    trackingNumber: string,
+    tenantId?: string,
+  ): Promise<RegistrationEntity | null>;
 
-  /** Find a registration by ID */
-  findById(id: string): Promise<RegistrationEntity | null>;
+  /** Find a registration by ID (see `findByTrackingNumber` for `tenantId`). */
+  findById(id: string, tenantId?: string): Promise<RegistrationEntity | null>;
 
   /** List registrations for a tenant (staff CRM) */
   listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
 
-  /** Update registration status */
+  /** Update registration status (`tenantId` binds RLS context on Postgres). */
   updateStatus(
     id: string,
     status: RegistrationStatus,
     remarks?: string,
+    tenantId?: string,
   ): Promise<RegistrationEntity | null>;
 
   /** Get form configuration for an institution type */

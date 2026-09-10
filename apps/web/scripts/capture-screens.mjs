@@ -10,6 +10,7 @@
  * it does not verify the signature). With no backend, data fetches fail and the
  * pages render their loading/empty/error states — which is still the real screen.
  */
+import { createHmac } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,8 +45,12 @@ const MODULE_FILTER = (process.env.CAPTURE_MODULES ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
-// A far-future, unsigned JWT (alg=none). The middleware/requireSession only
-// base64-decode the payload to read `exp`/`tenantId`; they never verify it.
+// Session token for the captures. Without JWT_SECRET this is a far-future,
+// unsigned JWT (alg=none): the middleware/requireSession only base64-decode the
+// payload to read `exp`/`tenantId`, so shells render but gateway reads fail
+// closed (empty/error states). With JWT_SECRET set (the same value the local
+// gateway runs with) the token is HS256-signed so captures show live data —
+// pair with CAPTURE_TENANT_ID for the seeded E2E tenant.
 // CAPTURE_ROLE=parent|guardian|student|admin (default admin) for shell-accurate demos.
 function mintToken() {
   const roleKey = (process.env.CAPTURE_ROLE ?? 'admin').toLowerCase();
@@ -73,16 +78,24 @@ function mintToken() {
   };
   const identity = roleMap[roleKey] ?? roleMap.admin;
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const header = b64({ alg: 'none', typ: 'JWT' });
+  const secret = process.env.JWT_SECRET?.trim();
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64({ alg: secret ? 'HS256' : 'none', typ: 'JWT' });
   const payload = b64({
-    sub: '00000000-0000-4000-8000-000000000001',
-    tenantId: '00000000-0000-4000-8000-0000000000aa',
+    iss: process.env.JWT_ISSUER ?? 'proctira-platform',
+    aud: process.env.JWT_AUDIENCE ?? 'proctira-api',
+    iat: now,
+    sub: process.env.CAPTURE_SUB ?? '00000000-0000-4000-8000-000000000001',
+    tenantId: process.env.CAPTURE_TENANT_ID ?? '00000000-0000-4000-8000-0000000000aa',
     email: identity.email,
     displayName: identity.displayName,
     roles: identity.roles,
-    exp: Math.floor(Date.now() / 1000) + 86_400,
+    exp: now + 86_400,
   });
-  return `${header}.${payload}.sig`;
+  const signature = secret
+    ? createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url')
+    : 'sig';
+  return `${header}.${payload}.${signature}`;
 }
 
 // module -> [ [screenName, path], ... ]
@@ -268,6 +281,102 @@ const SCREENS = {
     ['roles', '/admin/roles'],
     ['permissions', '/admin/permissions'],
     ['tenant', '/admin/tenant'],
+  ],
+  // Wave 9 gap-closure slice (G-903/904/906/907/908/914/923)
+  wave9: [
+    ['fees-structures', '/fees/structures'],
+    ['fees-reports', '/fees/reports'],
+    ['admissions-enquiries', '/admissions/enquiries'],
+    ['admissions-seat-matrix', '/admissions/seat-matrix'],
+    ['admissions-merit', '/admissions/merit'],
+    ['assessments-outcomes', '/assessments/outcomes'],
+    ['assessments-report-cards', '/assessments/report-cards'],
+    [
+      'institution-gradebook',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/gradebook`,
+    ],
+    [
+      'institution-curriculum',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/curriculum`,
+    ],
+  ],
+  // Portal routes bounce non-matching roles, so capture these with
+  // CAPTURE_ROLE=parent / CAPTURE_ROLE=student and CAPTURE_MODULES=wave9-parent|wave9-student.
+  'wave9-parent': [
+    ['parent-attendance', '/parent/attendance'],
+    ['parent-grades', '/parent/grades'],
+    ['parent-timetable', '/parent/timetable'],
+    ['parent-homework', '/parent/homework'],
+    ['parent-calendar', '/parent/calendar'],
+    ['parent-notices', '/parent/notices'],
+  ],
+  'wave9-student': [
+    ['student-home', '/student'],
+    ['student-attendance', '/student/attendance'],
+    ['student-grades', '/student/grades'],
+    ['student-timetable', '/student/timetable'],
+    ['student-homework', '/student/homework'],
+    ['student-calendar', '/student/calendar'],
+    ['student-notices', '/student/notices'],
+    ['student-pal', '/student/pal'],
+  ],
+  // Wave 9 batch 3 (G-909/915/916/917/918/919/920/921/922)
+  'wave9-b3': [
+    ['reports-catalogue', '/reports'],
+    ['reports-schedules', '/reports/schedules'],
+    ['reports-dashboards', '/reports/dashboards'],
+    ['reports-dashboard', '/reports/dashboard'],
+    ['lms-hub', '/lms'],
+    ['lms-bank', '/lms/bank'],
+    ['lms-rubrics', '/lms/rubrics'],
+    ['lms-discussions', '/lms/discussions'],
+    ['lms-lessons', '/lms/lessons'],
+    ['lms-content', '/lms/content'],
+    ['lms-analytics', '/lms/analytics'],
+    ['library-catalogue', '/library'],
+    ['library-opac', '/library/opac'],
+    ['library-circulation', '/library/circulation'],
+    ['library-holds', '/library/holds'],
+    ['library-fines', '/library/fines'],
+    [
+      'library-detail',
+      `/library/${process.env.LIBRARY_ITEM_ID ?? '00000000-0000-4000-8000-0000000000e1'}`,
+    ],
+    ['hostel-mess', '/hostel/mess'],
+    ['hostel-gate-passes', '/hostel/gate-passes'],
+    ['hostel-fees', '/hostel/fees'],
+    ['hostel-attendance', '/hostel/attendance'],
+    [
+      'timetable-generate',
+      `/institutions/${process.env.INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374'}/timetable/generate`,
+    ],
+    [
+      'timetable-substitutions',
+      `/institutions/${process.env.INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374'}/timetable/substitutions`,
+    ],
+    ['attendance-ops', '/attendance/ops'],
+    ['staff-list', '/staff'],
+    ['staff-attendance', '/staff/attendance'],
+    ['staff-import', '/staff/import'],
+    ['staff-payroll', '/staff/payroll'],
+    ['staff-contracts', '/staff/contracts'],
+    ['communication-hub', '/communication'],
+    ['communication-circulars', '/communication/circulars'],
+    ['communication-circulars-new', '/communication/circulars/new'],
+    ['communication-delivery', '/communication/delivery'],
+    [
+      'communication-circular-detail',
+      `/communication/circulars/${process.env.CIRCULAR_ID ?? '00000000-0000-4000-8000-0000000000c1'}`,
+    ],
+    ['transport-hub', '/transport'],
+    ['transport-live', '/transport/live'],
+    ['transport-attendance', '/transport/attendance'],
+    ['transport-alerts', '/transport/alerts'],
+    ['transport-fees', '/transport/fees'],
+    [
+      'transport-route-stops',
+      `/transport/routes/${process.env.TRANSPORT_ROUTE_ID ?? '00000000-0000-4000-8000-0000000000t1'}/stops`,
+    ],
   ],
   track: [['public-track', '/track']],
 };

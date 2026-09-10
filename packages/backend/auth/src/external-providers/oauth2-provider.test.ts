@@ -13,15 +13,26 @@ import { createMicrosoftProvider, extractMicrosoftUserInfo } from './microsoft-p
 class MockHttpClient implements HttpClient {
   public postResponses: Array<{ data: Record<string, unknown>; status: number }> = [];
   public getResponses: Array<{ data: Record<string, unknown>; status: number }> = [];
-  public postCalls: Array<{ url: string; body: Record<string, string>; headers?: Record<string, string> }> = [];
+  public postCalls: Array<{
+    url: string;
+    body: Record<string, string>;
+    headers?: Record<string, string>;
+  }> = [];
   public getCalls: Array<{ url: string; headers?: Record<string, string> }> = [];
 
-  async post(url: string, body: Record<string, string>, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }> {
+  async post(
+    url: string,
+    body: Record<string, string>,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }> {
     this.postCalls.push({ url, body, headers });
     return this.postResponses.shift() ?? { data: {}, status: 500 };
   }
 
-  async get(url: string, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }> {
+  async get(
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }> {
     this.getCalls.push({ url, headers });
     return this.getResponses.shift() ?? { data: {}, status: 500 };
   }
@@ -51,7 +62,7 @@ describe('OAuth2Provider', () => {
       (data) => ({
         externalId: data['sub'] as string,
         email: data['email'] as string,
-        displayName: data['name'] as string ?? data['email'] as string,
+        displayName: (data['name'] as string) ?? (data['email'] as string),
         rawAttributes: data,
       }),
       httpClient,
@@ -125,15 +136,15 @@ describe('OAuth2Provider', () => {
     });
 
     it('should throw on missing authorization code', async () => {
-      await expect(
-        provider.handleCallback({ state: 'some-state' }, 'tenant-1'),
-      ).rejects.toThrow('Authorization code is missing');
+      await expect(provider.handleCallback({ state: 'some-state' }, 'tenant-1')).rejects.toThrow(
+        'Authorization code is missing',
+      );
     });
 
     it('should throw on missing state parameter', async () => {
-      await expect(
-        provider.handleCallback({ code: 'some-code' }, 'tenant-1'),
-      ).rejects.toThrow('State parameter is missing');
+      await expect(provider.handleCallback({ code: 'some-code' }, 'tenant-1')).rejects.toThrow(
+        'State parameter is missing',
+      );
     });
 
     it('should throw on invalid state (CSRF protection)', async () => {
@@ -159,10 +170,7 @@ describe('OAuth2Provider', () => {
       httpClient.postResponses.push({ data: { error: 'invalid_grant' }, status: 400 });
 
       await expect(
-        provider.handleCallback(
-          { code: 'expired-code', state: initResult.state },
-          'tenant-1',
-        ),
+        provider.handleCallback({ code: 'expired-code', state: initResult.state }, 'tenant-1'),
       ).rejects.toThrow('Token exchange failed');
     });
 
@@ -172,10 +180,7 @@ describe('OAuth2Provider', () => {
       httpClient.postResponses.push({ data: { token_type: 'Bearer' }, status: 200 });
 
       await expect(
-        provider.handleCallback(
-          { code: 'some-code', state: initResult.state },
-          'tenant-1',
-        ),
+        provider.handleCallback({ code: 'some-code', state: initResult.state }, 'tenant-1'),
       ).rejects.toThrow('Failed to obtain access token');
     });
 
@@ -189,10 +194,7 @@ describe('OAuth2Provider', () => {
       httpClient.getResponses.push({ data: {}, status: 401 });
 
       await expect(
-        provider.handleCallback(
-          { code: 'some-code', state: initResult.state },
-          'tenant-1',
-        ),
+        provider.handleCallback({ code: 'some-code', state: initResult.state }, 'tenant-1'),
       ).rejects.toThrow('User info request failed');
     });
   });
@@ -228,9 +230,7 @@ describe('Google Provider', () => {
     });
 
     it('should throw when email is missing', () => {
-      expect(() => extractGoogleUserInfo({ sub: '123' })).toThrow(
-        'missing required fields',
-      );
+      expect(() => extractGoogleUserInfo({ sub: '123' })).toThrow('missing required fields');
     });
 
     it('should use email as displayName when name is missing', () => {

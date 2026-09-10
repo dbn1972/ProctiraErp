@@ -1,16 +1,9 @@
-import { Suspense } from 'react';
-import dynamic from 'next/dynamic';
+import { permanentRedirect } from 'next/navigation';
 
-const MfaSetupClient = dynamic(
-  () => import('../../mfa-setup/mfa-setup-client').then((mod) => mod.MfaSetupClient),
-  { ssr: false },
-);
-
-/** Alternate MFA enrolment path (`/mfa/setup`) probed by E2E specs. */
-export default function MfaSetupNestedPage(): JSX.Element {
-  return (
-    <Suspense fallback={null}>
-      <MfaSetupClient />
-    </Suspense>
-  );
+/**
+ * G-924 — `/mfa/setup` was a duplicate of `/mfa-setup`. Keep the URL alive for
+ * deep links and probes, but serve one canonical enrolment screen.
+ */
+export default function MfaSetupNestedPage(): never {
+  permanentRedirect('/mfa-setup');
 }

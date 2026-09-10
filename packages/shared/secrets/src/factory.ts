@@ -34,7 +34,7 @@ export interface SecretManagerDependencies {
  */
 export function createSecretManager(
   config: SecretManagerConfig,
-  deps: SecretManagerDependencies = {}
+  deps: SecretManagerDependencies = {},
 ): SecretManager {
   switch (config.adapter) {
     case 'env':
@@ -42,13 +42,11 @@ export function createSecretManager(
 
     case 'aws-kms': {
       if (!config.awsKms) {
-        throw new Error(
-          'AWS KMS configuration is required when using the aws-kms adapter'
-        );
+        throw new Error('AWS KMS configuration is required when using the aws-kms adapter');
       }
       if (!deps.awsClient) {
         throw new Error(
-          'AWS Secrets Manager client must be provided in dependencies for the aws-kms adapter'
+          'AWS Secrets Manager client must be provided in dependencies for the aws-kms adapter',
         );
       }
       return new AwsKmsSecretAdapter(config.awsKms, deps.awsClient);
@@ -56,21 +54,15 @@ export function createSecretManager(
 
     case 'vault': {
       if (!config.vault) {
-        throw new Error(
-          'Vault configuration is required when using the vault adapter'
-        );
+        throw new Error('Vault configuration is required when using the vault adapter');
       }
       if (!deps.vaultHttpClient) {
-        throw new Error(
-          'Vault HTTP client must be provided in dependencies for the vault adapter'
-        );
+        throw new Error('Vault HTTP client must be provided in dependencies for the vault adapter');
       }
       return new VaultSecretAdapter(config.vault, deps.vaultHttpClient);
     }
 
     default:
-      throw new Error(
-        `Unsupported secret manager adapter: ${config.adapter as string}`
-      );
+      throw new Error(`Unsupported secret manager adapter: ${config.adapter as string}`);
   }
 }

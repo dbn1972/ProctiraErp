@@ -27,15 +27,19 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import {
   AssignRolesToUserSchema,
   CreateRoleSchema,
+  InviteUserSchema,
   ListUsersQuerySchema,
   RoleParamsSchema,
+  SetUserStatusSchema,
   UpdateRolePermissionsSchema,
   UpdateRoleSchema,
   UserParamsSchema,
   type AssignRolesToUserInput,
   type CreateRoleInput,
+  type InviteUserInput,
   type ListUsersQuery,
   type RoleParams,
+  type SetUserStatusInput,
   type UpdateRoleInput,
   type UpdateRolePermissionsInput,
   type UserParams,
@@ -98,11 +102,7 @@ export async function registerRolesRoutes(
   fastify: FastifyInstance,
   options: RolesRoutesOptions,
 ): Promise<void> {
-  const {
-    rolesService,
-    prefix = '/tenant',
-    getTenantId = defaultTenantIdResolver,
-  } = options;
+  const { rolesService, prefix = '/tenant', getTenantId = defaultTenantIdResolver } = options;
 
   // GET /tenant/roles -----------------------------------------------------
 
@@ -136,10 +136,7 @@ export async function registerRolesRoutes(
 
   fastify.post(
     `${prefix}/roles`,
-    async (
-      request: FastifyRequest<{ Body: CreateRoleInput }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Body: CreateRoleInput }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -170,10 +167,7 @@ export async function registerRolesRoutes(
 
   fastify.get(
     `${prefix}/roles/:id`,
-    async (
-      request: FastifyRequest<{ Params: RoleParams }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: RoleParams }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -287,10 +281,7 @@ export async function registerRolesRoutes(
 
   fastify.delete(
     `${prefix}/roles/:id`,
-    async (
-      request: FastifyRequest<{ Params: RoleParams }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: RoleParams }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -317,10 +308,7 @@ export async function registerRolesRoutes(
 
   fastify.get(
     `${prefix}/users`,
-    async (
-      request: FastifyRequest<{ Querystring: ListUsersQuery }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Querystring: ListUsersQuery }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -358,6 +346,72 @@ export async function registerRolesRoutes(
           data: users.data.map(formatUser),
           meta: users.meta,
         });
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    },
+  );
+
+  // POST /tenant/users — G-910 invite -------------------------------------
+
+  fastify.post(
+    `${prefix}/users`,
+    async (request: FastifyRequest<{ Body: InviteUserInput }>, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const body = validate(InviteUserSchema, request.body);
+      if (!body.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: body.errors,
+        });
+      }
+      try {
+        const user = await rolesService.inviteUser(tenantId, body.data);
+        return reply.status(201).send(formatUser(user));
+      } catch (error) {
+        return handleError(error, reply);
+      }
+    },
+  );
+
+  // PATCH /tenant/users/:userId/status — G-910 suspend / reactivate --------
+
+  fastify.patch(
+    `${prefix}/users/:userId/status`,
+    async (
+      request: FastifyRequest<{ Params: UserParams; Body: SetUserStatusInput }>,
+      reply: FastifyReply,
+    ) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const params = validate(UserParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid user id',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      const body = validate(SetUserStatusSchema, request.body);
+      if (!body.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: body.errors,
+        });
+      }
+      try {
+        const user = await rolesService.setUserStatus(
+          tenantId,
+          params.data.userId,
+          body.data.status,
+        );
+        return reply.status(200).send(formatUser(user));
       } catch (error) {
         return handleError(error, reply);
       }
@@ -418,9 +472,7 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
       code: error.code,
       message: error.message,
       statusCode: error.statusCode,
-      ...('errors' in error
-        ? { errors: (error as { errors: unknown }).errors }
-        : {}),
+      ...('errors' in error ? { errors: (error as { errors: unknown }).errors } : {}),
     });
   }
   throw error as Error;

@@ -1,0 +1,187 @@
+# G-707 — Weekly backup → restore → verify drill.
+#
+# Proves that the exact scripts shipped in the dr-tools image
+# (tools/scripts/pg-backup.sh, pg-restore.sh, restore-drill.sh) take a full
+# logical backup of a schema-complete, seeded Postgres, restore it into a fresh
+# database and read tenant/board/institution rows back. Hard-fails on any step;
+# also builds the dr-tools image so the CronJob runtime is validated in CI.
+name: Restore Drill
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Sundays 04:15 UTC — after the nightly supply-chain and e2e runs.
+    - cron: '15 4 * * 0'
+  pull_request:
+    paths:
+      - 'tools/scripts/pg-backup.sh'
+      - 'tools/scripts/pg-restore.sh'
+      - 'tools/scripts/restore-drill.sh'
+      - 'tools/scripts/phi-retention-job.mjs'
+      - 'infrastructure/docker/Dockerfile.dr-tools'
+      - 'infrastructure/helm/proctira-platform/templates/dr/**'
+      - '.github/workflows/restore-drill.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: restore-drill-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PNPM_VERSION: '10.33.2'
+  NODE_VERSION: '20'
+  DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+  ARTIFACT_DIR: /tmp/restore-drill
+
+jobs:
+  restore-drill:
+    name: backup → restore → verify
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: proctira
+          POSTGRES_PASSWORD: proctira_test
+          POSTGRES_DB: proctira_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # pg_dump/pg_restore must match the server major (16).
+      - name: Install PostgreSQL 16 client
+        run: |
+          sudo apt-get update -qq
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-16
+          pg_dump --version
+          psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+
+      - name: Run database migrations (Prisma)
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+
+      - name: Apply domain SQL schemas + demo seeds
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          APPLY_SEEDS: '1'
+
+      - name: Record source row counts
+        run: |
+          mkdir -p "$ARTIFACT_DIR"
+          psql "$DATABASE_URL" -At -c "
+            SELECT 'tenants', count(*) FROM tenants
+            UNION ALL SELECT 'boards', count(*) FROM boards
+            UNION ALL SELECT 'institutions', count(*) FROM institutions
+            ORDER BY 1;" | tee "$ARTIFACT_DIR/source-counts.txt"
+
+      # restore-drill.sh recreates proctira_restore_drill (CREATEDB is available
+      # for the service superuser), restores the fresh dump and verifies.
+      - name: Backup → restore → verify
+        run: bash tools/scripts/restore-drill.sh
+        env:
+          BACKUP_DIR: /tmp/restore-drill/dumps
+          BACKUP_RETENTION_DAYS: '30'
+
+      - name: Assert full-db mode and row parity
+        run: |
+          set -euo pipefail
+          mode="$(node -p "require('$ARTIFACT_DIR/summary.json').mode")"
+          test "$mode" = "full-db" || { echo "drill ran in fallback mode: $mode"; exit 1; }
+          restored="$(psql "${DATABASE_URL%/*}/proctira_restore_drill" -At -c "
+            SELECT 'tenants', count(*) FROM tenants
+            UNION ALL SELECT 'boards', count(*) FROM boards
+            UNION ALL SELECT 'institutions', count(*) FROM institutions
+            ORDER BY 1;")"
+          echo "$restored" | tee "$ARTIFACT_DIR/restored-counts.txt"
+          diff "$ARTIFACT_DIR/source-counts.txt" "$ARTIFACT_DIR/restored-counts.txt"
+          echo "Row parity OK" >> "$GITHUB_STEP_SUMMARY"
+
+      # G-710 FORCE RLS: an ordinary app role must be refused (exit 2) rather
+      # than produce a partial dump.
+      - name: Backup preflight refuses a non-BYPASSRLS role
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL" -c "CREATE ROLE drill_app LOGIN PASSWORD 'drill_app' NOBYPASSRLS;" \
+                               -c "GRANT ALL ON DATABASE proctira_test TO drill_app;" \
+                               -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO drill_app;"
+          set +e
+          DATABASE_URL="postgresql://drill_app:drill_app@localhost:5432/proctira_test" \
+            bash tools/scripts/pg-backup.sh /tmp/restore-drill/dumps/app-role.dump \
+            > "$ARTIFACT_DIR/app-role-refused.log" 2>&1
+          rc=$?
+          set -e
+          cat "$ARTIFACT_DIR/app-role-refused.log"
+          test "$rc" -eq 2 || { echo "expected exit 2, got $rc"; exit 1; }
+          test ! -e /tmp/restore-drill/dumps/app-role.dump
+          echo "Non-BYPASSRLS role refused OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retention pruning + minimum-size guard
+        run: |
+          set -euo pipefail
+          d=/tmp/restore-drill/dumps
+          mkdir -p "$d"
+          touch -d '40 days ago' "$d/proctira-old.dump"
+          BACKUP_DIR="$d" BACKUP_RETENTION_DAYS=30 bash tools/scripts/pg-backup.sh | tee "$ARTIFACT_DIR/prune.log"
+          test ! -e "$d/proctira-old.dump" || { echo "old dump was not pruned"; exit 1; }
+          echo "Retention pruning OK" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: PHI retention dry-run against the restored copy
+        run: node tools/scripts/phi-retention-job.mjs
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_restore_drill
+          ARTIFACT_DIR: /tmp/restore-drill/phi-retention
+          RETENTION_DRY_RUN: '1'
+
+      - name: Build dr-tools image (CronJob runtime)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.dr-tools
+          push: false
+          load: true
+          tags: proctira/dr-tools:drill
+
+      - name: Smoke the image
+        run: |
+          docker run --rm --network host \
+            -e DATABASE_URL="$DATABASE_URL" -e BACKUP_DIR=/backups \
+            proctira/dr-tools:drill bash tools/scripts/pg-backup.sh /backups/from-image.dump
+          docker run --rm proctira/dr-tools:drill node tools/scripts/phi-retention-job.mjs \
+            | tee "$ARTIFACT_DIR/image-phi-retention-plan.json"
+
+      - name: Upload drill evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-drill
+          path: |
+            /tmp/restore-drill/**
+            !/tmp/restore-drill/dumps/**
+          retention-days: 90
+          if-no-files-found: error

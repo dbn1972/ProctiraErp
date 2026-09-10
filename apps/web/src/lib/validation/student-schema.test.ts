@@ -54,9 +54,7 @@ describe('studentFormSchema', () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.flatten().fieldErrors['dateOfBirth']?.[0]).toMatch(
-        /YYYY-MM-DD/i,
-      );
+      expect(result.error.flatten().fieldErrors['dateOfBirth']?.[0]).toMatch(/YYYY-MM-DD/i);
     }
   });
 

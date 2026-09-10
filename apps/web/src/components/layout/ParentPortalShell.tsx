@@ -2,13 +2,26 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CreditCard, Home, MessageSquare, ShieldCheck, type LucideIcon } from 'lucide-react';
+import {
+  Bell,
+  BookOpen,
+  CalendarDays,
+  ClipboardList,
+  Clock,
+  CreditCard,
+  GraduationCap,
+  Home,
+  Library,
+  MessageSquare,
+  ShieldCheck,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useBrand } from '@/providers/BrandConfigProvider';
 
 interface ParentNavItem {
-  key: 'home' | 'messages' | 'consents' | 'fees';
+  key: string;
   label: string;
   href: string;
   Icon: LucideIcon;
@@ -22,6 +35,55 @@ const PARENT_NAV: readonly ParentNavItem[] = [
     href: '/parent',
     Icon: Home,
     match: (pathname) => pathname === '/parent',
+  },
+  {
+    key: 'attendance',
+    label: 'Attendance',
+    href: '/parent/attendance',
+    Icon: ClipboardList,
+    match: (pathname) => pathname.startsWith('/parent/attendance'),
+  },
+  {
+    key: 'grades',
+    label: 'Grades',
+    href: '/parent/grades',
+    Icon: GraduationCap,
+    match: (pathname) => pathname.startsWith('/parent/grades'),
+  },
+  {
+    key: 'timetable',
+    label: 'Timetable',
+    href: '/parent/timetable',
+    Icon: Clock,
+    match: (pathname) => pathname.startsWith('/parent/timetable'),
+  },
+  {
+    key: 'homework',
+    label: 'Homework',
+    href: '/parent/homework',
+    Icon: BookOpen,
+    match: (pathname) => pathname.startsWith('/parent/homework'),
+  },
+  {
+    key: 'library',
+    label: 'Library',
+    href: '/parent/library',
+    Icon: Library,
+    match: (pathname) => pathname.startsWith('/parent/library'),
+  },
+  {
+    key: 'calendar',
+    label: 'Calendar',
+    href: '/parent/calendar',
+    Icon: CalendarDays,
+    match: (pathname) => pathname.startsWith('/parent/calendar'),
+  },
+  {
+    key: 'notices',
+    label: 'Notices',
+    href: '/parent/notices',
+    Icon: Bell,
+    match: (pathname) => pathname.startsWith('/parent/notices'),
   },
   {
     key: 'messages',
@@ -70,7 +132,7 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
 
       <div className="mx-auto flex w-full max-w-5xl flex-1">
         <nav
-          className="hidden w-52 shrink-0 border-r border-border px-3 py-6 md:block"
+          className="hidden w-52 shrink-0 border-e border-border px-3 py-6 md:block"
           aria-label="Parent portal navigation"
         >
           <ul className="space-y-1" role="list">
@@ -105,12 +167,12 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
         className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
         aria-label="Parent portal navigation"
       >
-        <ul className="mx-auto flex max-w-5xl" role="list">
+        <ul className="mx-auto flex max-w-5xl overflow-x-auto" role="list">
           {PARENT_NAV.map((item) => {
             const active = item.match(pathname);
             const Icon = item.Icon;
             return (
-              <li key={item.key} className="flex-1">
+              <li key={item.key} className="min-w-16 flex-1">
                 <Link
                   href={item.href}
                   className={cn(

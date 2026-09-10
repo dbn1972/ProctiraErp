@@ -43,7 +43,11 @@ export const CreateTranslationSchema = Type.Object({
   entityType: TranslatableEntityTypeSchema,
   entityId: UuidString(),
   language: Type.String({ minLength: 2, maxLength: 10 }),
-  field: Type.String({ minLength: 1, maxLength: 50, description: 'Field name to translate (e.g., "name", "shortName", "info")' }),
+  field: Type.String({
+    minLength: 1,
+    maxLength: 50,
+    description: 'Field name to translate (e.g., "name", "shortName", "info")',
+  }),
   value: Type.String({ minLength: 1, maxLength: 5000 }),
 });
 

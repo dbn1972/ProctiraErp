@@ -15,10 +15,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const returnTo = url.searchParams.get('returnTo') || '/';
 
   if (!provider) {
-    return NextResponse.json(
-      { message: 'OAuth provider is required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'OAuth provider is required.' }, { status: 400 });
   }
 
   // Build the upstream URL that returns a redirect to the provider.

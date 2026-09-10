@@ -21,39 +21,72 @@ export interface Examination {
   endDate?: string;
   registrationStartDate?: string | null;
   registrationEndDate?: string | null;
-  status: 'DRAFT' | 'OPEN' | 'CLOSED' | 'COMPLETED' | 'CANCELLED';
+  status: 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'OPEN' | 'CLOSED' | 'COMPLETED' | 'CANCELLED';
   candidateCount?: number;
   resultsPublished?: boolean;
+  subjects: ExaminationSubject[];
+  centers: ExaminationCenter[];
 }
 
+export interface ExaminationSubject {
+  id: string;
+  name: string;
+  code: string;
+  maxScore: number;
+}
+
+export interface ExaminationCenter {
+  id: string;
+  name: string;
+  code: string;
+  institutionId: string;
+  capacity: number;
+}
+
+/** Candidate registration row (GET /examinations/:id/candidates). */
 export interface ExaminationCandidate {
   id: string;
   examinationId: string;
   studentId: string;
-  studentName: string;
-  registrationNumber: string;
-  registrationDate: string;
+  centerId: string;
+  subjectIds: string[];
   status: 'REGISTERED' | 'CONFIRMED' | 'WITHDRAWN';
+  registeredAt: string;
 }
 
+/** Row on the Results tab, merged from recorded marks and the publication. */
 export interface ExaminationResult {
-  id: string;
   candidateId: string;
-  studentName: string;
-  registrationNumber: string;
+  studentId: string;
+  centerId: string;
+  subjects: Array<{ id: string; code: string; score: number | null; grade: string | null }>;
   totalScore: number | null;
   maxScore: number;
-  grade: string | null;
-  status: 'PENDING' | 'PUBLISHED';
+  status: 'PENDING' | 'INCOMPLETE' | 'PUBLISHED';
 }
 
+export interface ExaminationResultsView {
+  published: boolean;
+  publishedAt: string | null;
+  rows: ExaminationResult[];
+  subjects: ExaminationSubject[];
+}
+
+export type ExaminationDocumentType = 'admit_card' | 'seating_plan' | 'result_certificate';
+
+/** Document generation job (GET /examinations/:id/documents/jobs). */
 export interface ExaminationDocument {
   id: string;
-  type: 'ADMIT_CARD' | 'SEATING_PLAN' | 'CERTIFICATE';
-  title: string;
-  generatedAt: string;
-  downloadUrl: string;
-  format: 'PDF' | 'ZIP';
+  documentType: ExaminationDocumentType;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  totalCandidates: number;
+  processedCount: number;
+  failedCount: number;
+  errorMessage?: string;
+  createdAt: string;
+  completedAt?: string;
+  /** Same-origin download URL, present once the job is completed. */
+  downloadPath: string | null;
 }
 
 /** Payload aligned with backend `CreateExaminationSchema`. */
@@ -98,6 +131,8 @@ interface ExaminationApiRecord {
   status: Examination['status'];
   candidateCount?: number;
   resultsPublished?: boolean;
+  subjects?: ExaminationSubject[];
+  centers?: ExaminationCenter[];
 }
 
 function normalizeExamination(raw: ExaminationApiRecord): Examination {
@@ -114,6 +149,8 @@ function normalizeExamination(raw: ExaminationApiRecord): Examination {
     status: raw.status,
     candidateCount: raw.candidateCount,
     resultsPublished: raw.resultsPublished,
+    subjects: raw.subjects ?? [],
+    centers: raw.centers ?? [],
   };
 }
 
@@ -143,12 +180,11 @@ export function toCreateExaminationInput(
       maxScore: g.maxScore,
       passThreshold: g.passThreshold,
       thresholds: g.thresholds.map((t) => {
-        const row: CreateExaminationInput['gradingSchemes'][number]['thresholds'][number] =
-          {
-            grade: t.grade.trim(),
-            minScore: t.minScore,
-            maxScore: t.maxScore,
-          };
+        const row: CreateExaminationInput['gradingSchemes'][number]['thresholds'][number] = {
+          grade: t.grade.trim(),
+          minScore: t.minScore,
+          maxScore: t.maxScore,
+        };
         if (t.descriptor && t.descriptor.trim()) {
           row.descriptor = t.descriptor.trim();
         }
@@ -164,10 +200,10 @@ export function toCreateExaminationInput(
 
 /** List examinations with optional status filtering. */
 export async function listExaminations(): Promise<Examination[]> {
-  const result = await gatewayFetch<{ data: ExaminationApiRecord[] }>(
-    '/examinations',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: ExaminationApiRecord[] }>('/examinations', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   const rows = result.data?.data ?? [];
   return rows.map(normalizeExamination);
 }
@@ -182,9 +218,7 @@ export async function getExamination(id: string): Promise<Examination | null> {
 }
 
 /** Create an examination via POST /examinations (gateway → examination plugin). */
-export async function createExamination(
-  input: CreateExaminationInput,
-): Promise<Examination> {
+export async function createExamination(input: CreateExaminationInput): Promise<Examination> {
   const result = await gatewayFetch<ExaminationApiRecord>('/examinations', {
     method: 'POST',
     json: input,
@@ -206,24 +240,390 @@ export async function listExaminationCandidates(
   return result.data?.data ?? [];
 }
 
-/** List results for an examination. */
-export async function listExaminationResults(
+export interface RegisterCandidateInput {
+  studentId: string;
+  centerId: string;
+  subjectIds: string[];
+}
+
+/** POST /examinations/:id/candidates — eligibility validated server-side. */
+export async function registerExaminationCandidate(
   examinationId: string,
-): Promise<ExaminationResult[]> {
-  const result = await gatewayFetch<{ data: ExaminationResult[] }>(
-    `/examinations/${examinationId}/results`,
+  input: RegisterCandidateInput,
+): Promise<ExaminationCandidate> {
+  const result = await gatewayFetch<ExaminationCandidate>(
+    `/examinations/${examinationId}/candidates`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+interface MarksCandidateRecord {
+  id: string;
+  studentId: string;
+  centerId: string;
+  subjectResults: Array<{ subjectId: string; score: number | null; isComplete: boolean }>;
+}
+
+interface PublicationRecord {
+  publishedAt: string;
+  gradeResults: Array<{
+    candidateId: string;
+    studentId: string;
+    subjectId: string;
+    score: number;
+    grade: string;
+    passed: boolean;
+  }>;
+  incompleteRecords: Array<{ candidateId: string; studentId: string; subjectId: string }>;
+}
+
+/**
+ * Results tab read model: recorded marks (pre-publication) merged with the
+ * publication (grades) when it exists. `GET /results` is 404 until published.
+ */
+export async function getExaminationResultsView(
+  examination: Examination,
+): Promise<ExaminationResultsView> {
+  const [marks, publication] = await Promise.all([
+    gatewayFetch<{ data: MarksCandidateRecord[] }>(
+      `/examinations/${examination.id}/results/marks`,
+      { throwOnError: false, next: { revalidate: 0 } },
+    ),
+    gatewayFetch<PublicationRecord>(`/examinations/${examination.id}/results`, {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    }),
+  ]);
+  const candidates = marks.data?.data ?? [];
+  const published = publication.data ?? null;
+  const gradeByKey = new Map(
+    (published?.gradeResults ?? []).map((g) => [`${g.studentId}:${g.subjectId}`, g] as const),
+  );
+  const maxScore = examination.subjects.reduce((sum, s) => sum + s.maxScore, 0);
+
+  const rows: ExaminationResult[] = candidates.map((candidate) => {
+    const subjects = examination.subjects.map((subject) => {
+      const recorded = candidate.subjectResults.find((r) => r.subjectId === subject.id);
+      const graded = gradeByKey.get(`${candidate.studentId}:${subject.id}`);
+      return {
+        id: subject.id,
+        code: subject.code,
+        score: graded?.score ?? recorded?.score ?? null,
+        grade: graded?.grade ?? null,
+      };
+    });
+    const complete = subjects.every((s) => s.score !== null);
+    const totalScore = complete ? subjects.reduce((sum, s) => sum + (s.score ?? 0), 0) : null;
+    const hasGrades = subjects.some((s) => s.grade !== null);
+    return {
+      candidateId: candidate.id,
+      studentId: candidate.studentId,
+      centerId: candidate.centerId,
+      subjects,
+      totalScore,
+      maxScore,
+      status: hasGrades ? 'PUBLISHED' : complete ? 'PENDING' : 'INCOMPLETE',
+    };
+  });
+
+  return {
+    published: published !== null,
+    publishedAt: published?.publishedAt ?? null,
+    rows,
+    subjects: examination.subjects,
+  };
+}
+
+export interface RecordMarksInput {
+  entries: Array<{ studentId: string; marks: Array<{ subjectId: string; score: number | null }> }>;
+}
+
+/** POST /examinations/:id/results/marks */
+export async function recordExaminationMarks(
+  examinationId: string,
+  input: RecordMarksInput,
+): Promise<{ candidateCount: number; subjectResultCount: number }> {
+  const result = await gatewayFetch<{ candidateCount: number; subjectResultCount: number }>(
+    `/examinations/${examinationId}/results/marks`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+/** POST /examinations/:id/results/publish */
+export async function publishExaminationResults(
+  examinationId: string,
+): Promise<{ processedCount: number; incompleteCount: number }> {
+  const result = await gatewayFetch<{ processedCount: number; incompleteCount: number }>(
+    `/examinations/${examinationId}/results/publish`,
+    { method: 'POST' },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+interface DocumentJobRecord {
+  id: string;
+  documentType: ExaminationDocumentType;
+  status: ExaminationDocument['status'];
+  totalCandidates: number;
+  processedCount: number;
+  failedCount: number;
+  errorMessage?: string;
+  outputPath?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+function toDocument(examinationId: string, job: DocumentJobRecord): ExaminationDocument {
+  return {
+    id: job.id,
+    documentType: job.documentType,
+    status: job.status,
+    totalCandidates: job.totalCandidates,
+    processedCount: job.processedCount,
+    failedCount: job.failedCount,
+    errorMessage: job.errorMessage,
+    createdAt: job.createdAt,
+    completedAt: job.completedAt,
+    // Same-origin proxy (apps/web/src/app/api/examinations/.../download) that
+    // forwards the session bearer token to the gateway.
+    downloadPath:
+      job.status === 'completed'
+        ? `/api/examinations/${examinationId}/documents/${job.id}/download`
+        : null,
+  };
+}
+
+/** List document generation jobs (GET /examinations/:id/documents/jobs). */
+export async function listExaminationDocuments(
+  examinationId: string,
+): Promise<ExaminationDocument[]> {
+  const result = await gatewayFetch<{ jobs: DocumentJobRecord[] }>(
+    `/examinations/${examinationId}/documents/jobs`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return (result.data?.jobs ?? [])
+    .map((job) => toDocument(examinationId, job))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/**
+ * Generate documents: enqueue the job then process it inline so the tab shows
+ * a completed, downloadable job without a worker (the worker endpoint is the
+ * same one RabbitMQ consumers call).
+ */
+export async function generateExaminationDocuments(
+  examinationId: string,
+  documentType: ExaminationDocumentType,
+): Promise<ExaminationDocument> {
+  const queued = await gatewayFetch<DocumentJobRecord>(
+    `/examinations/${examinationId}/documents/generate`,
+    { method: 'POST', json: { documentType } },
+  );
+  if (!queued.data) throw new Error('Empty response from examination-service');
+  const processed = await gatewayFetch<DocumentJobRecord>(
+    `/examinations/${examinationId}/documents/jobs/${queued.data.id}/process`,
+    { method: 'POST', throwOnError: false },
+  );
+  return toDocument(examinationId, processed.data ?? queued.data);
+}
+
+export interface ExamOpsSession {
+  id: string;
+  examinationId: string;
+  subjectId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  roomId: string;
+  centerId: string | null;
+}
+
+export interface ExamOpsInvigilator {
+  id: string;
+  sessionId: string;
+  staffId: string;
+  allocatedAt: string;
+}
+
+export interface ExamOpsSeat {
+  id: string;
+  candidateId: string;
+  studentName: string;
+  rollNumber: string;
+  centerName: string;
+  roomNumber: string;
+  seatNumber: string;
+}
+
+export interface ExamOpsMarksPair {
+  candidateId: string;
+  subjectId: string;
+  entry1: { marks: number; enteredBy: string } | null;
+  entry2: { marks: number; enteredBy: string } | null;
+  varianceFlag: boolean;
+  variance: number | null;
+  finalMarks: number | null;
+  resolved: boolean;
+}
+
+export interface ExamOpsReevaluation {
+  id: string;
+  candidateId: string;
+  subjectId: string;
+  status: 'requested' | 'assigned' | 'completed' | 'rejected';
+  evaluatorId: string | null;
+  originalMarks: number | null;
+  revisedMarks: number | null;
+  notes: string | null;
+}
+
+export async function listExamSessions(examinationId: string): Promise<ExamOpsSession[]> {
+  const result = await gatewayFetch<{ data: ExamOpsSession[] }>(
+    `/examinations/${examinationId}/sessions`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
 }
 
-/** List generated documents for an examination. */
-export async function listExaminationDocuments(
+export async function createExamSession(
   examinationId: string,
-): Promise<ExaminationDocument[]> {
-  const result = await gatewayFetch<{ data: ExaminationDocument[] }>(
-    `/examinations/${examinationId}/documents`,
+  input: {
+    subjectId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    roomId: string;
+    centerId?: string;
+  },
+): Promise<ExamOpsSession> {
+  const result = await gatewayFetch<ExamOpsSession>(`/examinations/${examinationId}/sessions`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function allocateExamInvigilator(
+  examinationId: string,
+  sessionId: string,
+  staffId: string,
+): Promise<ExamOpsInvigilator> {
+  const result = await gatewayFetch<ExamOpsInvigilator>(
+    `/examinations/${examinationId}/sessions/${sessionId}/invigilators`,
+    { method: 'POST', json: { staffId } },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function listExamInvigilators(
+  examinationId: string,
+  sessionId: string,
+): Promise<ExamOpsInvigilator[]> {
+  const result = await gatewayFetch<{ data: ExamOpsInvigilator[] }>(
+    `/examinations/${examinationId}/sessions/${sessionId}/invigilators`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
+}
+
+export async function listExamSeating(examinationId: string): Promise<ExamOpsSeat[]> {
+  const result = await gatewayFetch<{ data: ExamOpsSeat[] }>(
+    `/examinations/${examinationId}/seating`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function generateExamSeating(examinationId: string): Promise<ExamOpsSeat[]> {
+  const result = await gatewayFetch<{ data: ExamOpsSeat[] }>(
+    `/examinations/${examinationId}/seating/generate`,
+    { method: 'POST', json: {} },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function listExamMarksPairs(examinationId: string): Promise<ExamOpsMarksPair[]> {
+  const result = await gatewayFetch<{ data: ExamOpsMarksPair[] }>(
+    `/examinations/${examinationId}/marks/entries`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function recordExamDoubleEntry(
+  examinationId: string,
+  input: { candidateId: string; subjectId: string; entryNo: 1 | 2; marks: number },
+): Promise<{ varianceFlag: boolean }> {
+  const result = await gatewayFetch<{ varianceFlag: boolean }>(
+    `/examinations/${examinationId}/marks/entries`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function resolveExamMarks(
+  examinationId: string,
+  input: { candidateId: string; subjectId: string; finalMarks: number },
+): Promise<ExamOpsMarksPair> {
+  const result = await gatewayFetch<ExamOpsMarksPair>(
+    `/examinations/${examinationId}/marks/resolve`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function listExamReevaluations(examinationId: string): Promise<ExamOpsReevaluation[]> {
+  const result = await gatewayFetch<{ data: ExamOpsReevaluation[] }>(
+    `/examinations/${examinationId}/reevaluations`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createExamReevaluation(
+  examinationId: string,
+  input: { candidateId: string; subjectId: string; originalMarks?: number; notes?: string },
+): Promise<ExamOpsReevaluation> {
+  const result = await gatewayFetch<ExamOpsReevaluation>(
+    `/examinations/${examinationId}/reevaluations`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function assignExamReevaluation(
+  examinationId: string,
+  requestId: string,
+  evaluatorId: string,
+): Promise<ExamOpsReevaluation> {
+  const result = await gatewayFetch<ExamOpsReevaluation>(
+    `/examinations/${examinationId}/reevaluations/${requestId}/assign`,
+    { method: 'POST', json: { evaluatorId } },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function completeExamReevaluation(
+  examinationId: string,
+  requestId: string,
+  revisedMarks: number,
+  notes?: string,
+): Promise<ExamOpsReevaluation> {
+  const result = await gatewayFetch<ExamOpsReevaluation>(
+    `/examinations/${examinationId}/reevaluations/${requestId}/complete`,
+    { method: 'POST', json: { revisedMarks, notes } },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
 }

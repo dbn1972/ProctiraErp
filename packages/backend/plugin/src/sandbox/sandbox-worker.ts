@@ -80,7 +80,12 @@ function createRestrictedFetch(
       throw new Error(`[Sandbox] Network request quota exceeded (max: ${maxRequests})`);
     }
 
-    const url = typeof input === 'string' ? new URL(input) : input instanceof URL ? input : new URL((input as Request).url);
+    const url =
+      typeof input === 'string'
+        ? new URL(input)
+        : input instanceof URL
+          ? input
+          : new URL((input as Request).url);
     const hostname = url.hostname;
 
     if (!allowedHosts.includes(hostname) && !allowedHosts.includes('*')) {
@@ -110,11 +115,21 @@ function createSandboxGlobals(
   const globals: Record<string, unknown> = {
     // Safe globals
     console: {
-      log: (...args: unknown[]) => { /* no-op in sandbox, or could be captured */ },
-      warn: (...args: unknown[]) => { /* no-op */ },
-      error: (...args: unknown[]) => { /* no-op */ },
-      info: (...args: unknown[]) => { /* no-op */ },
-      debug: (...args: unknown[]) => { /* no-op */ },
+      log: (...args: unknown[]) => {
+        /* no-op in sandbox, or could be captured */
+      },
+      warn: (...args: unknown[]) => {
+        /* no-op */
+      },
+      error: (...args: unknown[]) => {
+        /* no-op */
+      },
+      info: (...args: unknown[]) => {
+        /* no-op */
+      },
+      debug: (...args: unknown[]) => {
+        /* no-op */
+      },
     },
     // Restricted require
     require: restrictedRequire,
@@ -191,7 +206,7 @@ async function executeInSandbox(message: SandboxWorkerMessage): Promise<SandboxW
       name: `plugin-sandbox-${context.pluginId}`,
       codeGeneration: {
         strings: false, // Prevent eval() and new Function()
-        wasm: false,    // Prevent WebAssembly
+        wasm: false, // Prevent WebAssembly
       },
     });
 
@@ -225,7 +240,10 @@ async function executeInSandbox(message: SandboxWorkerMessage): Promise<SandboxW
       (handlerFn as (...a: unknown[]) => unknown)(...args),
       new Promise((_, reject) =>
         setTimeout(
-          () => reject(new Error(`[Sandbox] Execution exceeded wall-time limit (${quota.maxWallTimeMs}ms)`)),
+          () =>
+            reject(
+              new Error(`[Sandbox] Execution exceeded wall-time limit (${quota.maxWallTimeMs}ms)`),
+            ),
           quota.maxWallTimeMs,
         ),
       ),
@@ -259,7 +277,10 @@ async function executeInSandbox(message: SandboxWorkerMessage): Promise<SandboxW
     const stack = err instanceof Error ? err.stack : undefined;
 
     // Determine error type
-    if (errorMessage.includes('Script execution timed out') || errorMessage.includes('exceeded wall-time limit')) {
+    if (
+      errorMessage.includes('Script execution timed out') ||
+      errorMessage.includes('exceeded wall-time limit')
+    ) {
       return {
         type: 'timeout',
         error: errorMessage,

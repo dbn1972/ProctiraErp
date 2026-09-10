@@ -2,12 +2,12 @@
  * Examination candidates tab.
  *
  * Validates: Requirement 10.1 — manage candidate registration.
+ * G-902: reads GET /examinations/:id/candidates and registers via Server Action.
  */
-import { Plus } from 'lucide-react';
+import { notFound } from 'next/navigation';
 
 import {
   Badge,
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -20,14 +20,30 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listExaminationCandidates } from '@/lib/api/examinations';
+import { RegisterCandidateDialog } from '@/components/examinations/exam-ops-controls';
+import { getExamination, listExaminationCandidates } from '@/lib/api/examinations';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function ExaminationCandidatesPage({ params }: PageProps) {
-  const candidates = await listExaminationCandidates(params.id);
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+export default async function ExaminationCandidatesPage(props: PageProps) {
+  const params = await props.params;
+  const [examination, candidates] = await Promise.all([
+    getExamination(params.id),
+    listExaminationCandidates(params.id),
+  ]);
+  if (!examination) notFound();
+
+  const centerName = new Map(examination.centers.map((c) => [c.id, c.name]));
+  const subjectCode = new Map(examination.subjects.map((s) => [s.id, s.code]));
 
   return (
     <Card>
@@ -38,10 +54,7 @@ export default async function ExaminationCandidatesPage({ params }: PageProps) {
             {candidates.length.toLocaleString()} registered candidates.
           </CardDescription>
         </div>
-        <Button>
-          <Plus className="me-2 h-4 w-4" aria-hidden="true" />
-          Register candidate
-        </Button>
+        <RegisterCandidateDialog examination={examination} />
       </CardHeader>
       <CardContent>
         {candidates.length === 0 ? (
@@ -54,6 +67,8 @@ export default async function ExaminationCandidatesPage({ params }: PageProps) {
               <TableRow>
                 <TableHead>Registration #</TableHead>
                 <TableHead>Student</TableHead>
+                <TableHead>Centre</TableHead>
+                <TableHead>Subjects</TableHead>
                 <TableHead>Registered on</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
@@ -63,11 +78,15 @@ export default async function ExaminationCandidatesPage({ params }: PageProps) {
                 <TableRow key={candidate.id}>
                   <TableCell>
                     <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                      {candidate.registrationNumber}
+                      {candidate.id.slice(0, 8).toUpperCase()}
                     </code>
                   </TableCell>
-                  <TableCell className="font-medium">{candidate.studentName}</TableCell>
-                  <TableCell>{candidate.registrationDate}</TableCell>
+                  <TableCell className="font-mono text-xs">{candidate.studentId}</TableCell>
+                  <TableCell>{centerName.get(candidate.centerId) ?? candidate.centerId}</TableCell>
+                  <TableCell className="text-xs">
+                    {candidate.subjectIds.map((id) => subjectCode.get(id) ?? id).join(', ')}
+                  </TableCell>
+                  <TableCell>{formatDateTime(candidate.registeredAt)}</TableCell>
                   <TableCell>
                     <Badge
                       variant={

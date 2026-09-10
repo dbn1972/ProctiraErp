@@ -27,7 +27,6 @@ import type {
   AttendanceRepository,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
-  StudentRosterEntry,
   InstitutionAttendanceConfig,
   RecordingMode,
   AttendancePercentageQuery,
@@ -122,7 +121,7 @@ export class AttendanceService {
     if (period.status !== 'active') {
       throw new BusinessRuleError(
         `The referenced academic period is not currently active. ` +
-        `Only active periods allow attendance operations.`,
+          `Only active periods allow attendance operations.`,
       );
     }
 
@@ -130,7 +129,10 @@ export class AttendanceService {
     this.validateAttendanceDate(input.date, period.startDate, period.endDate);
 
     // Validate recording mode
-    const config = await this.repository.getInstitutionAttendanceConfig(tenantId, input.institutionId);
+    const config = await this.repository.getInstitutionAttendanceConfig(
+      tenantId,
+      input.institutionId,
+    );
     if (config) {
       this.validateRecordingMode(config.recordingMode, input.subjectId, input.periodId);
     }
@@ -157,6 +159,7 @@ export class AttendanceService {
       if (updated && previousStatus !== input.status) {
         await this.repository.createAuditEntry({
           id: uuidv4(),
+          tenantId,
           attendanceId: existing.id,
           previousStatus,
           newStatus: input.status as AttendanceStatus,
@@ -205,7 +208,7 @@ export class AttendanceService {
     if (period.status !== 'active') {
       throw new BusinessRuleError(
         `The referenced academic period is not currently active. ` +
-        `Only active periods allow attendance operations.`,
+          `Only active periods allow attendance operations.`,
       );
     }
 
@@ -213,7 +216,10 @@ export class AttendanceService {
     this.validateAttendanceDate(input.date, period.startDate, period.endDate);
 
     // Validate recording mode
-    const config = await this.repository.getInstitutionAttendanceConfig(tenantId, input.institutionId);
+    const config = await this.repository.getInstitutionAttendanceConfig(
+      tenantId,
+      input.institutionId,
+    );
     if (config) {
       this.validateRecordingMode(config.recordingMode, input.subjectId, input.periodId);
     }
@@ -246,6 +252,7 @@ export class AttendanceService {
           if (updated && previousStatus !== record.status) {
             await this.repository.createAuditEntry({
               id: uuidv4(),
+              tenantId,
               attendanceId: existing.id,
               previousStatus,
               newStatus: record.status as AttendanceStatus,
@@ -302,17 +309,30 @@ export class AttendanceService {
     if (input.status === 'ON_LEAVE') {
       if (!input.leaveTypeId) {
         throw new ValidationError('Leave type is required when status is ON_LEAVE', [
-          { field: 'leaveTypeId', rule: 'required', message: 'Leave type is required when status is ON_LEAVE' },
+          {
+            field: 'leaveTypeId',
+            rule: 'required',
+            message: 'Leave type is required when status is ON_LEAVE',
+          },
         ]);
       }
 
       // Validate leave type exists and is active
-      const config = await this.repository.getInstitutionAttendanceConfig(tenantId, input.institutionId);
+      const config = await this.repository.getInstitutionAttendanceConfig(
+        tenantId,
+        input.institutionId,
+      );
       if (config) {
-        const leaveType = config.leaveTypes.find(lt => lt.id === input.leaveTypeId && lt.isActive);
+        const leaveType = config.leaveTypes.find(
+          (lt) => lt.id === input.leaveTypeId && lt.isActive,
+        );
         if (!leaveType) {
           throw new ValidationError('Invalid or inactive leave type', [
-            { field: 'leaveTypeId', rule: 'invalid', message: 'The specified leave type does not exist or is inactive' },
+            {
+              field: 'leaveTypeId',
+              rule: 'invalid',
+              message: 'The specified leave type does not exist or is inactive',
+            },
           ]);
         }
       }
@@ -378,8 +398,8 @@ export class AttendanceService {
     const existingRecords = await this.repository.listStudentAttendance(tenantId, classId, date);
 
     // Merge roster with existing attendance
-    return roster.map(entry => {
-      const attendanceRecord = existingRecords.find(r => r.studentId === entry.studentId);
+    return roster.map((entry) => {
+      const attendanceRecord = existingRecords.find((r) => r.studentId === entry.studentId);
       return {
         ...entry,
         attendance: attendanceRecord
@@ -442,14 +462,14 @@ export class AttendanceService {
     if (attendanceDate < periodStartDate) {
       throw new BusinessRuleError(
         `Attendance date ${date} is before the academic period start date. ` +
-        `The active period starts on ${periodStartDate.toISOString().split('T')[0]}.`,
+          `The active period starts on ${periodStartDate.toISOString().slice(0, 10)}.`,
       );
     }
 
     if (attendanceDate > periodEndDate) {
       throw new BusinessRuleError(
         `Attendance date ${date} is after the academic period end date. ` +
-        `The active period ends on ${periodEndDate.toISOString().split('T')[0]}.`,
+          `The active period ends on ${periodEndDate.toISOString().slice(0, 10)}.`,
       );
     }
   }
@@ -461,11 +481,7 @@ export class AttendanceService {
    * - subject-level: subjectId required
    * - period-level: periodId required
    */
-  validateRecordingMode(
-    mode: RecordingMode,
-    subjectId?: string,
-    periodId?: string,
-  ): void {
+  validateRecordingMode(mode: RecordingMode, subjectId?: string, periodId?: string): void {
     const errors: FieldError[] = [];
 
     switch (mode) {
@@ -493,10 +509,7 @@ export class AttendanceService {
     }
 
     if (errors.length > 0) {
-      throw new ValidationError(
-        `Recording mode '${mode}' requires additional fields`,
-        errors,
-      );
+      throw new ValidationError(`Recording mode '${mode}' requires additional fields`, errors);
     }
   }
 
@@ -518,8 +531,24 @@ export class AttendanceService {
     // Validate query parameters
     if (query.scope === 'student' && (!query.studentId || !query.classId)) {
       throw new ValidationError('Student scope requires studentId and classId', [
-        ...(!query.studentId ? [{ field: 'studentId', rule: 'required', message: 'studentId is required for student scope' }] : []),
-        ...(!query.classId ? [{ field: 'classId', rule: 'required', message: 'classId is required for student scope' }] : []),
+        ...(!query.studentId
+          ? [
+              {
+                field: 'studentId',
+                rule: 'required',
+                message: 'studentId is required for student scope',
+              },
+            ]
+          : []),
+        ...(!query.classId
+          ? [
+              {
+                field: 'classId',
+                rule: 'required',
+                message: 'classId is required for student scope',
+              },
+            ]
+          : []),
       ]);
     }
     if (query.scope === 'class' && !query.classId) {
@@ -529,13 +558,21 @@ export class AttendanceService {
     }
     if (query.scope === 'institution' && !query.institutionId) {
       throw new ValidationError('Institution scope requires institutionId', [
-        { field: 'institutionId', rule: 'required', message: 'institutionId is required for institution scope' },
+        {
+          field: 'institutionId',
+          rule: 'required',
+          message: 'institutionId is required for institution scope',
+        },
       ]);
     }
 
     if (query.startDate > query.endDate) {
       throw new ValidationError('startDate must be before or equal to endDate', [
-        { field: 'startDate', rule: 'range', message: 'startDate must be before or equal to endDate' },
+        {
+          field: 'startDate',
+          rule: 'range',
+          message: 'startDate must be before or equal to endDate',
+        },
       ]);
     }
 
@@ -551,20 +588,52 @@ export class AttendanceService {
         absentCount: 0,
         excusedCount: 0,
         lateCount: 0,
+        earlyDepartureCount: 0,
         attendancePercentage: 0,
         absencePercentage: 0,
+        studentRows: [],
       };
     }
 
-    const presentCount = records.filter(r => r.status === AttendanceStatus.PRESENT).length;
-    const absentCount = records.filter(r => r.status === AttendanceStatus.ABSENT).length;
-    const excusedCount = records.filter(r => r.status === AttendanceStatus.EXCUSED).length;
-    const lateCount = records.filter(r => r.status === AttendanceStatus.LATE).length;
+    const presentCount = records.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+    const absentCount = records.filter((r) => r.status === AttendanceStatus.ABSENT).length;
+    const excusedCount = records.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
+    const lateCount = records.filter((r) => r.status === AttendanceStatus.LATE).length;
+    const earlyDepartureCount = records.filter(
+      (r) => r.status === AttendanceStatus.EARLY_DEPARTURE,
+    ).length;
 
-    // Attendance percentage: (present + late) / total * 100, rounded to 2 decimal places
-    const attendancePercentage = Math.round(((presentCount + lateCount) / totalRecords) * 10000) / 100;
-    // Absence percentage: absent / total * 100, rounded to 2 decimal places
+    // Present-partial: EARLY_DEPARTURE counts as 0.5 in the numerator (G-919).
+    const attendancePercentage =
+      Math.round(((presentCount + lateCount + 0.5 * earlyDepartureCount) / totalRecords) * 10000) /
+      100;
     const absencePercentage = Math.round((absentCount / totalRecords) * 10000) / 100;
+
+    const byStudent = new Map<string, typeof records>();
+    for (const rec of records) {
+      const list = byStudent.get(rec.studentId) ?? [];
+      list.push(rec);
+      byStudent.set(rec.studentId, list);
+    }
+    const studentRows = [...byStudent.entries()].map(([studentId, rows]) => {
+      const p = rows.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+      const a = rows.filter((r) => r.status === AttendanceStatus.ABSENT).length;
+      const e = rows.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
+      const l = rows.filter((r) => r.status === AttendanceStatus.LATE).length;
+      const ed = rows.filter((r) => r.status === AttendanceStatus.EARLY_DEPARTURE).length;
+      const total = rows.length;
+      return {
+        studentId,
+        totalRecords: total,
+        presentCount: p,
+        absentCount: a,
+        lateCount: l,
+        excusedCount: e,
+        earlyDepartureCount: ed,
+        attendancePercentage:
+          total === 0 ? 0 : Math.round(((p + l + 0.5 * ed) / total) * 10000) / 100,
+      };
+    });
 
     return {
       scope: query.scope,
@@ -573,9 +642,29 @@ export class AttendanceService {
       absentCount,
       excusedCount,
       lateCount,
+      earlyDepartureCount,
       attendancePercentage,
       absencePercentage,
+      studentRows,
     };
+  }
+
+  /**
+   * Daily attendance rows for one student in a date range (G-914 heatmap).
+   * Does not require classId — unlike {@link calculateAttendancePercentage}.
+   */
+  async listStudentAttendanceInRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]> {
+    return this.repository.listStudentAttendanceByStudentDateRange(
+      tenantId,
+      studentId,
+      startDate,
+      endDate,
+    );
   }
 
   /**
@@ -661,9 +750,12 @@ export class AttendanceService {
    */
   async getAttendanceAuditTrail(
     attendanceId: string,
-  ): Promise<Array<{ previousStatus: string | null; newStatus: string; changedBy: string; changedAt: Date }>> {
-    const entries = await this.repository.getAuditEntriesForAttendance(attendanceId);
-    return entries.map(e => ({
+    tenantId?: string,
+  ): Promise<
+    Array<{ previousStatus: string | null; newStatus: string; changedBy: string; changedAt: Date }>
+  > {
+    const entries = await this.repository.getAuditEntriesForAttendance(attendanceId, tenantId);
+    return entries.map((e) => ({
       previousStatus: e.previousStatus,
       newStatus: e.newStatus,
       changedBy: e.changedBy,

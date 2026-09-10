@@ -3,7 +3,17 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Archive, Bell, CalendarClock, CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  Archive,
+  Bell,
+  CalendarClock,
+  CalendarDays,
+  CalendarRange,
+  CornerDownRight,
+  Pencil,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 
 import {
   Button,
@@ -18,10 +28,11 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
 import { cn } from '@/lib/utils';
 import { AcademicPeriodFormDialog } from './academic-period-form-dialog';
 import { deleteAcademicPeriodAction } from '@/lib/institutions/actions';
-import type { AcademicPeriod } from '@/lib/institutions/types';
+import type { AcademicPeriod, AcademicPeriodKind } from '@/lib/institutions/types';
 
 export interface AcademicPeriodsManagerProps {
   periods: AcademicPeriod[];
@@ -51,34 +62,77 @@ function formatDate(d: string): string {
 }
 
 const STATUS_PILL: Record<string, string> = {
-  active:    'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  active: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   scheduled: 'bg-sky-50     text-sky-700     dark:bg-sky-950/40     dark:text-sky-400',
-  draft:     'bg-sky-50     text-sky-700     dark:bg-sky-950/40     dark:text-sky-400',
-  archived:  'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
+  draft: 'bg-sky-50     text-sky-700     dark:bg-sky-950/40     dark:text-sky-400',
+  archived: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
 };
 
 function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-export function AcademicPeriodsManager({
-  periods,
-  loadError,
-}: AcademicPeriodsManagerProps) {
+const KIND_LABELS: Record<AcademicPeriodKind, string> = {
+  year: 'Year',
+  semester: 'Semester',
+  term: 'Term',
+  quarter: 'Quarter',
+};
+
+interface PeriodRow {
+  period: AcademicPeriod;
+  depth: 0 | 1;
+}
+
+/**
+ * G-905 — years first (newest start date first), each followed by its
+ * sub-periods in chronological order. Orphans (parent missing / deleted)
+ * fall back to the top level so nothing disappears from the list.
+ */
+function buildRows(periods: AcademicPeriod[]): PeriodRow[] {
+  const byId = new Map(periods.map((p) => [p.id, p]));
+  const children = new Map<string, AcademicPeriod[]>();
+  const top: AcademicPeriod[] = [];
+  for (const p of periods) {
+    const kind = p.kind ?? 'year';
+    if (kind !== 'year' && p.parentId && byId.has(p.parentId)) {
+      const list = children.get(p.parentId) ?? [];
+      list.push(p);
+      children.set(p.parentId, list);
+    } else {
+      top.push(p);
+    }
+  }
+  top.sort((a, b) => b.startDate.localeCompare(a.startDate));
+  const rows: PeriodRow[] = [];
+  for (const year of top) {
+    rows.push({ period: year, depth: 0 });
+    for (const child of (children.get(year.id) ?? []).sort((a, b) =>
+      a.startDate.localeCompare(b.startDate),
+    )) {
+      rows.push({ period: child, depth: 1 });
+    }
+  }
+  return rows;
+}
+
+export function AcademicPeriodsManager({ periods, loadError }: AcademicPeriodsManagerProps) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [dialogState, setDialogState] = useState<{
     open: boolean;
     initial?: AcademicPeriod;
+    parentId?: string | null;
   }>({ open: false });
+  const years = periods.filter((p) => (p.kind ?? 'year') === 'year');
+  const rows = buildRows(periods);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleDelete = (period: AcademicPeriod) => {
     if (
       typeof window !== 'undefined' &&
-      !window.confirm(
-        `Delete academic period "${period.name}"? This action cannot be undone.`
-      )
+      !window.confirm(`Delete academic period "${period.name}"? This action cannot be undone.`)
     ) {
       return;
     }
@@ -106,6 +160,8 @@ export function AcademicPeriodsManager({
           size="sm"
           onClick={() => setDialogState({ open: true })}
           disabled={isPending}
+          data-testid="new-period"
+          data-hydrated={hydrated ? 'true' : 'false'}
         >
           <Plus className="me-1.5 h-4 w-4" aria-hidden="true" /> New period
         </Button>
@@ -125,8 +181,7 @@ export function AcademicPeriodsManager({
             <CalendarDays className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
             <p className="text-base font-semibold">No academic periods yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Create one to enable enrollment, attendance, and assessments for the
-              school year.
+              Create one to enable enrollment, attendance, and assessments for the school year.
             </p>
           </div>
         ) : (
@@ -141,10 +196,12 @@ export function AcademicPeriodsManager({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {periods.map((period) => {
+              {rows.map(({ period, depth }) => {
                 const status = period.status.toLowerCase();
                 const isActive = status === 'active';
                 const isArchived = status === 'archived';
+                const kind = period.kind ?? 'year';
+                const isYear = kind === 'year';
                 const days = workingDays(period.startDate, period.endDate);
                 const Icon = isActive ? CalendarDays : isArchived ? Archive : CalendarClock;
                 const iconCls = isActive
@@ -153,18 +210,43 @@ export function AcademicPeriodsManager({
                     ? 'bg-muted text-muted-foreground'
                     : 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400';
                 return (
-                  <TableRow key={period.id} className="group">
+                  <TableRow
+                    key={period.id}
+                    className="group"
+                    data-testid="period-row"
+                    data-period-kind={kind}
+                    data-period-code={period.code}
+                  >
                     <TableCell>
-                      <div className="flex items-center gap-3">
-                        <span
-                          aria-hidden="true"
-                          className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', iconCls)}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </span>
+                      <div className={cn('flex items-center gap-3', depth === 1 && 'ps-6')}>
+                        {depth === 1 ? (
+                          <CornerDownRight
+                            className="h-4 w-4 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                              iconCls,
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </span>
+                        )}
                         <div className="min-w-0">
-                          <p className="font-semibold text-foreground">{period.name}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">{period.code}</p>
+                          <p className="font-semibold text-foreground">
+                            {period.name}
+                            {!isYear && (
+                              <span className="ms-2 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                {KIND_LABELS[kind]}
+                              </span>
+                            )}
+                          </p>
+                          <p className="font-mono text-[11px] text-muted-foreground">
+                            {period.code}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
@@ -186,6 +268,29 @@ export function AcademicPeriodsManager({
                     </TableCell>
                     <TableCell className="text-end">
                       <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
+                        {isYear && !isArchived && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 p-0"
+                            onClick={() => setDialogState({ open: true, parentId: period.id })}
+                            disabled={isPending}
+                            aria-label={`Add term to ${period.name}`}
+                            data-testid="add-term"
+                            data-hydrated={hydrated ? 'true' : 'false'}
+                          >
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        )}
+                        <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
+                          <Link
+                            href={`/academic-periods/${period.id}/calendar`}
+                            aria-label={`Calendar for ${period.name}`}
+                            data-testid="open-calendar"
+                          >
+                            <CalendarRange className="h-4 w-4" aria-hidden="true" />
+                          </Link>
+                        </Button>
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
                           <Link
                             href={`/academic-periods/${period.id}/bell-schedules`}
@@ -227,9 +332,15 @@ export function AcademicPeriodsManager({
       <AcademicPeriodFormDialog
         open={dialogState.open}
         onOpenChange={(open) =>
-          setDialogState((prev) => ({ open, initial: open ? prev.initial : undefined }))
+          setDialogState((prev) => ({
+            open,
+            initial: open ? prev.initial : undefined,
+            parentId: open ? prev.parentId : undefined,
+          }))
         }
         initialValue={dialogState.initial}
+        years={years}
+        defaultParentId={dialogState.parentId ?? null}
       />
     </Card>
   );

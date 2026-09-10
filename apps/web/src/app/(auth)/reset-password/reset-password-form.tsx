@@ -201,7 +201,10 @@ export function ResetPasswordForm(): JSX.Element {
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        <Link href="/login" className="inline-flex min-h-12 items-center text-primary hover:underline">
+        <Link
+          href="/login"
+          className="inline-flex min-h-12 items-center text-primary hover:underline"
+        >
           {t('backToSignIn')}
         </Link>
       </p>

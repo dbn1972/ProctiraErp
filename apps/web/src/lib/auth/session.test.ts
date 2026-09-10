@@ -37,10 +37,7 @@ describe('AUTH_COOKIES / AUTH_ENDPOINTS', () => {
 
 describe('OAUTH_PROVIDERS', () => {
   it('lists the configured providers in stable order', () => {
-    expect(OAUTH_PROVIDERS.map((p) => p.id)).toEqual([
-      'microsoft',
-      'google',
-    ]);
+    expect(OAUTH_PROVIDERS.map((p) => p.id)).toEqual(['microsoft', 'google']);
   });
 });
 
@@ -92,9 +89,7 @@ describe('isTokenExpired', () => {
 
 describe('getOAuthAuthorizeUrl', () => {
   it('builds an authorize URL with provider', () => {
-    expect(getOAuthAuthorizeUrl('google')).toBe(
-      '/api/auth/oauth/authorize?provider=google',
-    );
+    expect(getOAuthAuthorizeUrl('google')).toBe('/api/auth/oauth/authorize?provider=google');
   });
 
   it('includes returnTo when provided', () => {

@@ -10,7 +10,13 @@
  * - 22.4: Template-based notifications
  * - 22.5: Track delivery status per notification instance
  */
-import type { DeliveryChannel, DeliveryStatus, Priority, NotificationRuleEvent, RecipientQuery } from './schemas.js';
+import type {
+  DeliveryChannel,
+  DeliveryStatus,
+  Priority,
+  NotificationRuleEvent,
+  RecipientQuery,
+} from './schemas.js';
 
 // ─── Entities ────────────────────────────────────────────────────────────────
 

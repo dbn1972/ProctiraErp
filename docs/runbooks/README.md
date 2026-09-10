@@ -17,6 +17,8 @@ annotation in `infra/observability/alerts/*.yml`.
 
 ## Index
 
+- [database-migration-rollback](./database-migration-rollback.md) — both schema tracks, forward reverts, point-in-time restore
+
 - [api-gateway](./api-gateway.md)
 - [auth](./auth.md)
 - [institution](./institution.md)

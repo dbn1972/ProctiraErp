@@ -51,13 +51,12 @@ describe('DEFAULT_FEATURE_FLAGS', () => {
 describe('useFeatureFlags — outside a provider', () => {
   it('returns the documented defaults so unrelated trees never crash', () => {
     render(<FlagProbe flag={LEGACY_MOBILE_ROUTES_FEATURE_KEY} />);
-    expect(
-      screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent,
-    ).toBe('false');
-    expect(
-      screen.getByTestId(`is-enabled-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`)
-        .textContent,
-    ).toBe('false');
+    expect(screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent).toBe(
+      'false',
+    );
+    expect(screen.getByTestId(`is-enabled-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent).toBe(
+      'false',
+    );
   });
 });
 
@@ -69,9 +68,9 @@ describe('FeatureFlagsProvider', () => {
       </FeatureFlagsProvider>,
     );
 
-    expect(
-      screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent,
-    ).toBe('false');
+    expect(screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent).toBe(
+      'false',
+    );
   });
 
   it('honours an explicit initialFlags map', () => {
@@ -81,13 +80,10 @@ describe('FeatureFlagsProvider', () => {
       </FeatureFlagsProvider>,
     );
 
-    expect(
-      screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent,
-    ).toBe('true');
-    expect(
-      screen.getByTestId(`is-enabled-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`)
-        .textContent,
-    ).toBe('true');
+    expect(screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent).toBe('true');
+    expect(screen.getByTestId(`is-enabled-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent).toBe(
+      'true',
+    );
   });
 
   it('merges partial initialFlags with the documented defaults', () => {
@@ -100,9 +96,9 @@ describe('FeatureFlagsProvider', () => {
 
     const keys = screen.getByTestId('flags-keys').textContent ?? '';
     expect(keys.split(',')).toContain(LEGACY_MOBILE_ROUTES_FEATURE_KEY);
-    expect(
-      screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent,
-    ).toBe('false');
+    expect(screen.getByTestId(`flag-${LEGACY_MOBILE_ROUTES_FEATURE_KEY}`).textContent).toBe(
+      'false',
+    );
   });
 
   it('exposes a frozen flag map so consumers cannot mutate shared state', () => {

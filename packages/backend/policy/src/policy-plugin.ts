@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the policy service and routes.
  */
 export const policyPlugin = fp(
-  async function policyPluginImpl(
-    fastify: FastifyInstance,
-    options: PolicyPluginOptions,
-  ) {
+  async function policyPluginImpl(fastify: FastifyInstance, options: PolicyPluginOptions) {
     const { repository, prefix = '/policies' } = options;
 
     // Create policy service instance
@@ -54,7 +51,7 @@ export const policyPlugin = fp(
   },
   {
     name: '@proctira/backend-policy',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

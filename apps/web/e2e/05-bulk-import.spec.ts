@@ -31,28 +31,35 @@ test.describe('Critical journey: Excel import → error review → confirm impor
 
     // Some UIs auto-process, others have a preview button
     const previewButton = page.getByRole('button', { name: /preview|next|review/i });
-    if (await previewButton.first().isVisible().catch(() => false)) {
+    if (
+      await previewButton
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
       await previewButton.first().click();
     }
 
     // Error preview shows the invalid row
     await expect(page.getByText(invalidRow.lastName)).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page.getByText(/invalid|error|not.*date|required/i).first(),
-    ).toBeVisible();
+    await expect(page.getByText(/invalid|error|not.*date|required/i).first()).toBeVisible();
 
     // Confirm import of the valid rows only
-    await page.getByRole('button', { name: /import valid|confirm|import/i }).first().click();
+    await page
+      .getByRole('button', { name: /import valid|confirm|import/i })
+      .first()
+      .click();
 
     await expect(
-      page
-        .getByText(/imported.*1|1 row imported|success.*1|1 success/i)
-        .first(),
+      page.getByText(/imported.*1|1 row imported|success.*1|1 success/i).first(),
     ).toBeVisible({ timeout: 15_000 });
 
     // The valid row's name should be searchable on the student list
     await page.goto('/students');
-    await page.getByPlaceholder(/search/i).first().fill(validRow.firstName);
+    await page
+      .getByPlaceholder(/search/i)
+      .first()
+      .fill(validRow.firstName);
     await expect(page.getByText(validRow.firstName).first()).toBeVisible({ timeout: 10_000 });
   });
 });

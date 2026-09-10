@@ -31,10 +31,7 @@ interface StudentListFiltersProps {
 // Status is now handled by StudentStatusTabs — not shown here.
 
 /** Client component that synchronizes filters with the URL query string. */
-export function StudentListFilters({
-  filterOptions,
-  initialValues,
-}: StudentListFiltersProps) {
+export function StudentListFilters({ filterOptions, initialValues }: StudentListFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -67,11 +64,7 @@ export function StudentListFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <form
-        onSubmit={onSearchSubmit}
-        role="search"
-        className="min-w-[220px] flex-1"
-      >
+      <form onSubmit={onSearchSubmit} role="search" className="min-w-[220px] flex-1">
         <Label htmlFor="student-search" className="sr-only">
           Search students
         </Label>

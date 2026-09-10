@@ -289,6 +289,16 @@ export const featureRegistry: FeatureModule[] = [
     hasSubRoutes: true,
   },
   {
+    id: 'lms',
+    label: 'Learning',
+    icon: 'book-open',
+    routePrefix: 'lms',
+    lazyImport: () => import('./features/lms/LmsRouter'),
+    requiredPermissions: ['lms.read'],
+    scope: 'app',
+    hasSubRoutes: true,
+  },
+  {
     id: 'health',
     label: 'Health',
     icon: 'heart',

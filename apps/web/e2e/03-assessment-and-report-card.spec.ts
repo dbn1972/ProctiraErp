@@ -27,7 +27,10 @@ test.describe('Critical journey: assessment entry → report card generation', (
       await page.getByRole('option', { name: /numeric/i }).click();
     }
     await page.getByLabel(/min(imum)?/i).fill('0');
-    await page.getByLabel(/max(imum)?|pass.*max/i).first().fill('100');
+    await page
+      .getByLabel(/max(imum)?|pass.*max/i)
+      .first()
+      .fill('100');
     await page.getByRole('button', { name: /create|save/i }).click();
     await expect(page.getByText(/created|saved|success/i)).toBeVisible({ timeout: 10_000 });
 

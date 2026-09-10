@@ -35,7 +35,7 @@ declare module 'fastify' {
 
 const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
   fastify: FastifyInstance,
-  options: LoggingPluginOptions = {}
+  options: LoggingPluginOptions = {},
 ) => {
   const {
     name = 'http',
@@ -62,12 +62,10 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
   // Hook: onRequest - attach IDs and create request-scoped logger
   fastify.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
     // Extract or generate request ID
-    const requestId =
-      (request.headers[requestIdHeader] as string) || uuidv4();
+    const requestId = (request.headers[requestIdHeader] as string) || uuidv4();
 
     // Extract or generate correlation ID
-    const correlationId =
-      (request.headers[correlationIdHeader] as string) || uuidv4();
+    const correlationId = (request.headers[correlationIdHeader] as string) || uuidv4();
 
     // Get tenant ID if already set on request (by tenant resolution plugin)
     const tenantId = (request as unknown as { tenantId?: string }).tenantId;
@@ -129,20 +127,23 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
   });
 
   // Hook: onError - log errors
-  fastify.addHook('onError', async (request: FastifyRequest, _reply: FastifyReply, error: Error) => {
-    request.requestLog.error(
-      {
-        method: request.method,
-        url: request.url,
-        error: {
-          message: error.message,
-          name: error.name,
-          stack: error.stack,
+  fastify.addHook(
+    'onError',
+    async (request: FastifyRequest, _reply: FastifyReply, error: Error) => {
+      request.requestLog.error(
+        {
+          method: request.method,
+          url: request.url,
+          error: {
+            message: error.message,
+            name: error.name,
+            stack: error.stack,
+          },
         },
-      },
-      'request error'
-    );
-  });
+        'request error',
+      );
+    },
+  );
 
   // Set response headers with request/correlation IDs for traceability
   fastify.addHook('onSend', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -163,5 +164,5 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
  */
 export const loggingPlugin = fp(loggingPluginImpl, {
   name: '@proctira/logging',
-  fastify: '4.x',
+  fastify: '5.x',
 });

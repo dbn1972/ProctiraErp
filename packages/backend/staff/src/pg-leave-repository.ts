@@ -5,19 +5,22 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
-import type {
-  StaffLeaveEntity,
-  StaffLeaveRepository,
-  StaffLeaveStatus,
-  StaffLeaveType,
+import {
+  InsufficientLeaveBalanceError,
+  type StaffLeaveBalanceEntity,
+  type StaffLeaveEntity,
+  type StaffLeaveRepository,
+  type StaffLeaveStatus,
+  type StaffLeaveType,
 } from './leave-repository.js';
 
 const { Pool } = pg;
 
-export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'>;
+export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -40,22 +43,30 @@ export function getSharedStaffLeavePool(): pg.Pool | null {
   return sharedPool;
 }
 
-function schemaSqlPath(): string {
+function schemaSqlPaths(): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/013_hr_leave_schema.sql'),
-    join(process.cwd(), 'db/sql/013_hr_leave_schema.sql'),
-    join(process.cwd(), '../../db/sql/013_hr_leave_schema.sql'),
+  const names = ['013_hr_leave_schema.sql', '018_hr_leave_balances_schema.sql'];
+  const roots = [
+    join(here, '../../../../db/sql'),
+    join(process.cwd(), 'db/sql'),
+    join(process.cwd(), '../../db/sql'),
   ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
+  const resolved: string[] = [];
+  for (const name of names) {
+    let found: string | null = null;
+    for (const root of roots) {
+      const path = join(root, name);
+      try {
+        readFileSync(path, 'utf8');
+        found = path;
+        break;
+      } catch {
+        // try next
+      }
     }
+    if (found) resolved.push(found);
   }
-  return candidates[0]!;
+  return resolved;
 }
 
 export async function ensureStaffLeaveSchema(
@@ -64,8 +75,10 @@ export async function ensureStaffLeaveSchema(
   if (!pool) throw new Error('DATABASE_URL is required for staff leave schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
+      for (const path of schemaSqlPaths()) {
+        const sql = readFileSync(path, 'utf8');
+        await pool.query(sql);
+      }
     })();
   }
   await schemaReady;
@@ -93,6 +106,16 @@ function mapLeave(row: Record<string, unknown>): StaffLeaveEntity {
   };
 }
 
+function mapBalance(row: Record<string, unknown>): StaffLeaveBalanceEntity {
+  return {
+    tenantId: String(row.tenant_id),
+    staffId: String(row.staff_id),
+    leaveType: String(row.leave_type) as StaffLeaveType,
+    balanceDays: Number(row.balance_days),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at)),
+  };
+}
+
 export class PgStaffLeaveRepository implements StaffLeaveRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -100,47 +123,58 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
     await ensureStaffLeaveSchema(this.pool);
   }
 
+  /** Bind app.tenant_id for RLS (G-103) before leave queries. */
+  private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
+    return withPgTenant(this.pool, tenantId, fn);
+  }
+
   async createLeave(
     data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<StaffLeaveEntity> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `INSERT INTO staff_leave_requests (
-         id, tenant_id, staff_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at
-       ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10) RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.staffId,
-        data.leaveType,
-        data.startDate,
-        data.endDate,
-        data.reason,
-        data.status,
-        data.decidedBy,
-        data.decidedAt,
-      ],
-    );
-    return mapLeave(result.rows[0] as Record<string, unknown>);
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO staff_leave_requests (
+           id, tenant_id, staff_id, leave_type, start_date, end_date, reason, status, decided_by, decided_at
+         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.staffId,
+          data.leaveType,
+          data.startDate,
+          data.endDate,
+          data.reason,
+          data.status,
+          data.decidedBy,
+          data.decidedAt,
+        ],
+      );
+      return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
   }
 
   async listLeaves(tenantId: string): Promise<StaffLeaveEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM staff_leave_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,
-      [tenantId],
-    );
-    return result.rows.map((row) => mapLeave(row as Record<string, unknown>));
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return result.rows.map((row) => mapLeave(row as Record<string, unknown>));
+    });
   }
 
   async findLeaveById(id: string, tenantId: string): Promise<StaffLeaveEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM staff_leave_requests WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-      [id, tenantId],
-    );
-    if (!result.rows[0]) return null;
-    return mapLeave(result.rows[0] as Record<string, unknown>);
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
+      );
+      if (!result.rows[0]) return null;
+      return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
   }
 
   async updateLeave(
@@ -149,20 +183,105 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
     data: Partial<Pick<StaffLeaveEntity, 'status' | 'decidedBy' | 'decidedAt'>>,
   ): Promise<StaffLeaveEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findLeaveById(id, tenantId);
-    if (!existing) return null;
-    const status = data.status ?? existing.status;
-    const decidedBy = data.decidedBy !== undefined ? data.decidedBy : existing.decidedBy;
-    const decidedAt = data.decidedAt !== undefined ? data.decidedAt : existing.decidedAt;
-    const result = await this.pool.query(
-      `UPDATE staff_leave_requests
-       SET status = $3, decided_by = $4, decided_at = $5, updated_at = now()
-       WHERE id = $1 AND tenant_id = $2
-       RETURNING *`,
-      [id, tenantId, status, decidedBy, decidedAt],
-    );
-    if (!result.rows[0]) return null;
-    return mapLeave(result.rows[0] as Record<string, unknown>);
+    return this.withTenant(tenantId, async (client) => {
+      const existingResult = await client.query(
+        `SELECT * FROM staff_leave_requests WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
+      );
+      if (!existingResult.rows[0]) return null;
+      const existing = mapLeave(existingResult.rows[0] as Record<string, unknown>);
+      const status = data.status ?? existing.status;
+      const decidedBy = data.decidedBy !== undefined ? data.decidedBy : existing.decidedBy;
+      const decidedAt = data.decidedAt !== undefined ? data.decidedAt : existing.decidedAt;
+      const result = await client.query(
+        `UPDATE staff_leave_requests
+         SET status = $3, decided_by = $4, decided_at = $5, updated_at = now()
+         WHERE id = $1 AND tenant_id = $2
+         RETURNING *`,
+        [id, tenantId, status, decidedBy, decidedAt],
+      );
+      if (!result.rows[0]) return null;
+      return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+  ): Promise<StaffLeaveBalanceEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM staff_leave_balances
+         WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3
+         LIMIT 1`,
+        [tenantId, staffId, leaveType],
+      );
+      if (!result.rows[0]) return null;
+      return mapBalance(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async setBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    balanceDays: number,
+  ): Promise<StaffLeaveBalanceEntity> {
+    if (balanceDays < 0) {
+      throw new Error('balanceDays must be >= 0');
+    }
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (tenant_id, staff_id, leave_type) DO UPDATE SET
+           balance_days = EXCLUDED.balance_days,
+           updated_at = now()
+         RETURNING *`,
+        [tenantId, staffId, leaveType, balanceDays],
+      );
+      return mapBalance(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async adjustBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    deltaDays: number,
+  ): Promise<StaffLeaveBalanceEntity> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      // G-718: lock the balance row for the rest of this transaction so two
+      // concurrent approvals serialize instead of both reading the same balance.
+      const existing = await client.query(
+        `SELECT * FROM staff_leave_balances
+         WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3
+         LIMIT 1
+         FOR UPDATE`,
+        [tenantId, staffId, leaveType],
+      );
+      const current = existing.rows[0]
+        ? Number((existing.rows[0] as { balance_days: unknown }).balance_days)
+        : 0;
+      const next = current + deltaDays;
+      if (next < 0) {
+        throw new InsufficientLeaveBalanceError(leaveType, -deltaDays, current);
+      }
+      const result = await client.query(
+        `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (tenant_id, staff_id, leave_type) DO UPDATE SET
+           balance_days = EXCLUDED.balance_days,
+           updated_at = now()
+         RETURNING *`,
+        [tenantId, staffId, leaveType, next],
+      );
+      return mapBalance(result.rows[0] as Record<string, unknown>);
+    });
   }
 }
 

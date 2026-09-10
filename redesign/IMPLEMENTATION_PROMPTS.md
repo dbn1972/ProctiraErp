@@ -87,18 +87,20 @@ Report: what changed, what you intentionally deviated on (and why), test results
 ## 3. Screen-wise Checklist (suggested order)
 
 ### Phase 1 — Web app: auth (mockup → code)
-| # | Mockup | Code route |
-|---|--------|-----------|
-| 1 | redesign/web/auth-login.html | apps/web/src/app/(auth)/login/ ✅ hero done — finish form panel |
-| 2 | redesign/web/auth-signup.html | apps/web/src/app/(auth)/signup/ |
-| 3 | redesign/web/auth-forgot-password.html | apps/web/src/app/(auth)/forgot-password/ |
-| 4 | redesign/web/auth-reset-password.html | apps/web/src/app/(auth)/reset-password/ |
-| 5 | redesign/web/auth-mfa.html | apps/web/src/app/(auth)/mfa/ |
+
+| #   | Mockup                                 | Code route                                                      |
+| --- | -------------------------------------- | --------------------------------------------------------------- |
+| 1   | redesign/web/auth-login.html           | apps/web/src/app/(auth)/login/ ✅ hero done — finish form panel |
+| 2   | redesign/web/auth-signup.html          | apps/web/src/app/(auth)/signup/                                 |
+| 3   | redesign/web/auth-forgot-password.html | apps/web/src/app/(auth)/forgot-password/                        |
+| 4   | redesign/web/auth-reset-password.html  | apps/web/src/app/(auth)/reset-password/                         |
+| 5   | redesign/web/auth-mfa.html             | apps/web/src/app/(auth)/mfa/                                    |
 
 ### Phase 2 — Web app: people
+
 | 6 | redesign/web/students-list.html | apps/web/src/app/(dashboard)/students/page.tsx |
 | 7 | redesign/web/students-detail.html | …/students/[id]/page.tsx |
-| 8 | redesign/web/students-new.html | …/students/new/ (check _components/student-form.tsx) |
+| 8 | redesign/web/students-new.html | …/students/new/ (check \_components/student-form.tsx) |
 | 9 | redesign/web/students-detail-edit.html | …/students/[id]/edit equivalent |
 | 10 | redesign/web/students-import.html | …/students/import/page.tsx |
 | 11 | redesign/web/students-transfer.html | …/students/[id]/transfer/ |
@@ -109,6 +111,7 @@ Report: what changed, what you intentionally deviated on (and why), test results
 | 16 | redesign/web/staff-appraisal-new.html | …/staff/[id]/appraisals/new/ |
 
 ### Phase 3 — Web app: academics
+
 | 17 | redesign/web/institutions-list.html | …/institutions/page.tsx |
 | 18 | redesign/web/institutions-detail.html (+detail-overview) | …/institutions/[id]/ |
 | 19 | redesign/web/institutions-new.html | …/institutions/new/page.tsx |
@@ -131,24 +134,27 @@ Report: what changed, what you intentionally deviated on (and why), test results
 | 36 | redesign/web/examinations-results.html | …/examinations/[id]/results/ |
 
 ### Phase 4 — Web app: services & insights
-| 37–42 | redesign/web/scholarships-*.html | …/scholarships/… |
-| 43–46 | redesign/web/health-*.html | …/health/… |
-| 47–51 | redesign/web/workflows-*.html | …/workflows/… |
-| 52–54 | redesign/web/reports-*.html | …/reports/… |
-| 55–57 | redesign/web/data-warehouse-*.html | …/data-warehouse/… |
-| 58–62 | redesign/web/admin-*.html | …/admin/… |
+
+| 37–42 | redesign/web/scholarships-_.html | …/scholarships/… |
+| 43–46 | redesign/web/health-_.html | …/health/… |
+| 47–51 | redesign/web/workflows-_.html | …/workflows/… |
+| 52–54 | redesign/web/reports-_.html | …/reports/… |
+| 55–57 | redesign/web/data-warehouse-_.html | …/data-warehouse/… |
+| 58–62 | redesign/web/admin-_.html | …/admin/… |
 | 63 | redesign/web/public-track.html | apps/web/src/app/(public)/track/ |
 | 64 | redesign/web/dashboard-overview.html | …/(dashboard)/page.tsx ✅ KPIs done — add trend chart + approvals panel when APIs allow |
 
 ### Phase 5 — Portals
-| 65–77 | redesign/admin-console/*.html | apps/admin-console |
-| 78–84 | redesign/registration/*.html | apps/registration-portal |
-| 85–96 | redesign/website/*.html | apps/public-website |
+
+| 65–77 | redesign/admin-console/_.html | apps/admin-console |
+| 78–84 | redesign/registration/_.html | apps/registration-portal |
+| 85–96 | redesign/website/\*.html | apps/public-website |
 | 97 | redesign/developer-portal/home.html | apps/developer-portal |
 | 98 | redesign/install-wizard/home.html | apps/install-wizard |
 
 ### Phase 6 — Flutter mobile (different template)
-For each of redesign/mobile/*.html (23 screens) → apps/mobile/lib/features/…:
+
+For each of redesign/mobile/\*.html (23 screens) → apps/mobile/lib/features/…:
 
 ```
 Implement Flutter screen: <NAME>

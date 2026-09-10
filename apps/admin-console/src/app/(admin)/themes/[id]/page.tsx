@@ -4,13 +4,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { MissingResource } from '@/components/missing-resource';
 import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Textarea } from '@/components/ui/input';
 import { getTheme } from '@/lib/api/themes';
@@ -19,11 +13,7 @@ import { formatDateTime } from '@/lib/utils';
 
 import { themeDecisionAction } from '../actions';
 
-export default async function ThemeDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function ThemeDetailPage({ params }: { params: { id: string } }) {
   await requireRole('themes', `/themes/${params.id}`);
   const { theme, source } = await getTheme(params.id);
   if (!theme) {
@@ -55,8 +45,7 @@ export default async function ThemeDetailPage({
       <div className="mb-6 flex items-center gap-3">
         <StatusBadge status={theme.status} />
         <span className="text-sm text-muted-foreground">
-          Submitted {formatDateTime(theme.submittedAt)} · {theme.tokenOverrides}{' '}
-          token overrides
+          Submitted {formatDateTime(theme.submittedAt)} · {theme.tokenOverrides} token overrides
         </span>
       </div>
 
@@ -82,29 +71,17 @@ export default async function ThemeDetailPage({
         <Card>
           <CardHeader>
             <CardTitle>Decision</CardTitle>
-            <CardDescription>
-              Reviewer notes are recorded with the decision.
-            </CardDescription>
+            <CardDescription>Reviewer notes are recorded with the decision.</CardDescription>
           </CardHeader>
           <CardContent>
             <form action={themeDecisionAction} className="space-y-3">
               <input type="hidden" name="id" value={theme.id} />
-              <Textarea
-                name="reason"
-                required
-                minLength={10}
-                placeholder="Reviewer notes…"
-              />
+              <Textarea name="reason" required minLength={10} placeholder="Reviewer notes…" />
               <div className="grid grid-cols-2 gap-2">
                 <Button type="submit" name="action" value="approve">
                   Approve
                 </Button>
-                <Button
-                  type="submit"
-                  name="action"
-                  value="reject"
-                  variant="destructive"
-                >
+                <Button type="submit" name="action" value="reject" variant="destructive">
                   Reject
                 </Button>
               </div>

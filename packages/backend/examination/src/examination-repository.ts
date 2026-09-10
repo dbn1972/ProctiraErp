@@ -122,7 +122,13 @@ export interface StudentEnrollment {
   studentId: string;
   status: 'enrolled' | 'transferred' | 'withdrawn' | 'graduated';
   institutionId: string;
-  completedSubjectCodes: string[];
+  /**
+   * Subject codes the student has completed. `null` means the enrollment
+   * source has no transcript data (e.g. the Postgres repository today), in
+   * which case the prerequisite-completion rule is skipped rather than
+   * rejecting every registration.
+   */
+  completedSubjectCodes: string[] | null;
 }
 
 /**
@@ -133,7 +139,11 @@ export interface ExaminationRepository {
   create(data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>): Promise<ExaminationEntity>;
 
   /** Update an existing examination */
-  update(id: string, tenantId: string, data: Partial<ExaminationEntity>): Promise<ExaminationEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<ExaminationEntity>,
+  ): Promise<ExaminationEntity | null>;
 
   /** Find an examination by ID within a tenant */
   findById(id: string, tenantId: string): Promise<ExaminationEntity | null>;
@@ -163,4 +173,10 @@ export interface ExaminationRepository {
     studentId: string,
     tenantId: string,
   ): Promise<CandidateRegistration | null>;
+
+  /** List all candidate registrations for an examination (G-902 candidates tab) */
+  listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]>;
 }

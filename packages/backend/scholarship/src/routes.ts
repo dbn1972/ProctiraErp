@@ -45,6 +45,8 @@ import {
   UtilizationReportQuerySchema,
   ScholarshipParamsSchema,
   ScholarshipListQuerySchema,
+  ApplicationDecisionSchema,
+  type ApplicationDecisionInput,
   type CreateScholarshipProgramInput,
   type UpdateScholarshipProgramInput,
   type CreateApplicationInput,
@@ -70,6 +72,14 @@ export interface ScholarshipRoutesOptions {
  */
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+}
+
+/**
+ * Reviewer identity for approve / reject — the JWT subject, never the body.
+ */
+function getActorId(request: FastifyRequest): string | null {
+  const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
+  return user?.sub ?? user?.userId ?? null;
 }
 
 /**
@@ -173,7 +183,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const program = await scholarshipService.updateProgram(tenantId, paramsResult.data.id, bodyResult.data);
+        const program = await scholarshipService.updateProgram(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...program,
           createdAt: program.createdAt.toISOString(),
@@ -367,7 +381,15 @@ export async function registerScholarshipRoutes(
   fastify.get(
     `${prefix}/applications`,
     async function listApplicationsHandler(
-      request: FastifyRequest<{ Querystring: ScholarshipListQuery & { programId?: string; applicantId?: string; institutionId?: string; areaId?: string; gender?: string } }>,
+      request: FastifyRequest<{
+        Querystring: ScholarshipListQuery & {
+          programId?: string;
+          applicantId?: string;
+          institutionId?: string;
+          areaId?: string;
+          gender?: string;
+        };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
@@ -440,7 +462,10 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.getApplicationById(tenantId, paramsResult.data.id);
+        const application = await scholarshipService.getApplicationById(
+          tenantId,
+          paramsResult.data.id,
+        );
         return reply.status(200).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -463,7 +488,7 @@ export async function registerScholarshipRoutes(
   fastify.post(
     `${prefix}/applications/:id/approve`,
     async function approveApplicationHandler(
-      request: FastifyRequest<{ Params: ScholarshipParams }>,
+      request: FastifyRequest<{ Params: ScholarshipParams; Body?: ApplicationDecisionInput }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
@@ -473,6 +498,15 @@ export async function registerScholarshipRoutes(
           message: 'Invalid ID',
           statusCode: 400,
           errors: paramsResult.errors,
+        });
+      }
+      const bodyResult = validate(ApplicationDecisionSchema, request.body ?? {});
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid decision payload',
+          statusCode: 400,
+          errors: bodyResult.errors,
         });
       }
 
@@ -486,7 +520,15 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.approveApplication(tenantId, paramsResult.data.id);
+        const application = await scholarshipService.approveApplication(
+          tenantId,
+          paramsResult.data.id,
+          {
+            reviewerId: getActorId(request),
+            notes: bodyResult.data.comment ?? null,
+            scheduleFirstDisbursement: bodyResult.data.scheduleFirstDisbursement ?? true,
+          },
+        );
         return reply.status(200).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -509,7 +551,7 @@ export async function registerScholarshipRoutes(
   fastify.post(
     `${prefix}/applications/:id/reject`,
     async function rejectApplicationHandler(
-      request: FastifyRequest<{ Params: ScholarshipParams }>,
+      request: FastifyRequest<{ Params: ScholarshipParams; Body?: ApplicationDecisionInput }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
@@ -519,6 +561,15 @@ export async function registerScholarshipRoutes(
           message: 'Invalid ID',
           statusCode: 400,
           errors: paramsResult.errors,
+        });
+      }
+      const bodyResult = validate(ApplicationDecisionSchema, request.body ?? {});
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid decision payload',
+          statusCode: 400,
+          errors: bodyResult.errors,
         });
       }
 
@@ -532,7 +583,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.rejectApplication(tenantId, paramsResult.data.id);
+        const application = await scholarshipService.rejectApplication(
+          tenantId,
+          paramsResult.data.id,
+          { reviewerId: getActorId(request), notes: bodyResult.data.comment ?? null },
+        );
         return reply.status(200).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -634,7 +689,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const disbursement = await scholarshipService.updateDisbursement(tenantId, paramsResult.data.id, bodyResult.data);
+        const disbursement = await scholarshipService.updateDisbursement(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...disbursement,
           createdAt: disbursement.createdAt.toISOString(),
@@ -655,7 +714,9 @@ export async function registerScholarshipRoutes(
   fastify.get(
     `${prefix}/disbursements`,
     async function listDisbursementsHandler(
-      request: FastifyRequest<{ Querystring: ScholarshipListQuery & { applicationId?: string; paymentStatus?: string } }>,
+      request: FastifyRequest<{
+        Querystring: ScholarshipListQuery & { applicationId?: string; paymentStatus?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);

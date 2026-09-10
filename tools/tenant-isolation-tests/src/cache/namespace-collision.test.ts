@@ -136,9 +136,7 @@ describe('Category 6 — Cache Namespace Collision', () => {
   it('the cache key builder is deterministic and matches the documented format', () => {
     fc.assert(
       fc.property(fc.uuid(), cacheKeyArb, (tenantId, key) => {
-        expect(TenantNamespacedCache.buildKey(tenantId, key)).toBe(
-          `tenant:${tenantId}:${key}`,
-        );
+        expect(TenantNamespacedCache.buildKey(tenantId, key)).toBe(`tenant:${tenantId}:${key}`);
       }),
       { numRuns: 100 },
     );

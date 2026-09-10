@@ -29,7 +29,7 @@ import { TABLE_MAPPINGS } from './table-mappings.js';
 async function validateRowCounts(
   client: PoolClient,
   stagingSchema: string,
-  targetSchema: string
+  targetSchema: string,
 ): Promise<TableValidation[]> {
   const results: TableValidation[] = [];
 
@@ -38,12 +38,12 @@ async function validateRowCounts(
       const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
 
       const sourceResult = await client.query(
-        `SELECT COUNT(*) as count FROM "${stagingSchema}"."${mapping.sourceTable}" ${filterClause}`
+        `SELECT COUNT(*) as count FROM "${stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
       );
       const sourceCount = parseInt(sourceResult.rows[0].count, 10);
 
       const targetResult = await client.query(
-        `SELECT COUNT(*) as count FROM "${targetSchema}"."${mapping.targetTable}"`
+        `SELECT COUNT(*) as count FROM "${targetSchema}"."${mapping.targetTable}"`,
       );
       const targetCount = parseInt(targetResult.rows[0].count, 10);
 
@@ -77,7 +77,7 @@ async function validateRowCounts(
  */
 async function validateReferentialIntegrity(
   client: PoolClient,
-  targetSchema: string
+  targetSchema: string,
 ): Promise<IntegrityError[]> {
   const errors: IntegrityError[] = [];
 
@@ -120,7 +120,7 @@ async function validateReferentialIntegrity(
  */
 async function validateUuidFormat(
   client: PoolClient,
-  targetSchema: string
+  targetSchema: string,
 ): Promise<{ table: string; invalidCount: number }[]> {
   const issues: { table: string; invalidCount: number }[] = [];
   const uuidRegex = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
@@ -152,7 +152,7 @@ async function validateUuidFormat(
  */
 async function validateTenantAssignment(
   client: PoolClient,
-  targetSchema: string
+  targetSchema: string,
 ): Promise<{ table: string; missingCount: number }[]> {
   const issues: { table: string; missingCount: number }[] = [];
 
@@ -201,7 +201,11 @@ export async function validateMigration(config: MigrationConfig): Promise<Migrat
 
     // 1. Row count validation
     console.log(`[validate] Checking row counts...`);
-    const tableValidations = await validateRowCounts(client, config.stagingSchema, config.pg.schema);
+    const tableValidations = await validateRowCounts(
+      client,
+      config.stagingSchema,
+      config.pg.schema,
+    );
     const mismatches = tableValidations.filter((t) => t.status === 'mismatch');
     if (mismatches.length > 0) {
       for (const m of mismatches) {
@@ -210,7 +214,9 @@ export async function validateMigration(config: MigrationConfig): Promise<Migrat
           message: `Row count mismatch: source=${m.sourceRowCount}, target=${m.targetRowCount}, missing=${m.missingRows}`,
           count: m.missingRows,
         });
-        console.warn(`[validate]   ⚠ ${m.targetTable}: ${m.sourceRowCount} → ${m.targetRowCount} (${m.missingRows} missing)`);
+        console.warn(
+          `[validate]   ⚠ ${m.targetTable}: ${m.sourceRowCount} → ${m.targetRowCount} (${m.missingRows} missing)`,
+        );
       }
     } else {
       console.log(`[validate]   ✓ All row counts match`);
@@ -226,7 +232,9 @@ export async function validateMigration(config: MigrationConfig): Promise<Migrat
           column: ie.column,
           message: `${ie.orphanedCount} orphaned references to ${ie.referencedTable}`,
         });
-        console.error(`[validate]   ✗ ${ie.table}.${ie.column} → ${ie.referencedTable}: ${ie.orphanedCount} orphans`);
+        console.error(
+          `[validate]   ✗ ${ie.table}.${ie.column} → ${ie.referencedTable}: ${ie.orphanedCount} orphans`,
+        );
       }
     } else {
       console.log(`[validate]   ✓ Referential integrity preserved`);

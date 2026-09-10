@@ -112,11 +112,7 @@ export interface DashboardRepository {
     query: SchoolDashboardQuery,
   ): Promise<SchoolDashboardAggregate | null>;
 
-  teacherDashboard(
-    scope: RepositoryScope,
-  ): Promise<TeacherDashboardAggregate | null>;
+  teacherDashboard(scope: RepositoryScope): Promise<TeacherDashboardAggregate | null>;
 
-  meDashboard(
-    scope: RepositoryScope,
-  ): Promise<ParentStudentDashboardAggregate | null>;
+  meDashboard(scope: RepositoryScope): Promise<ParentStudentDashboardAggregate | null>;
 }

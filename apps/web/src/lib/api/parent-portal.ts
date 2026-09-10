@@ -136,6 +136,200 @@ export interface CreateInvoiceInput {
   dueAt?: string;
 }
 
+export interface AcademicMeta {
+  source: 'postgres' | 'none';
+  studentId: string;
+}
+
+export interface AttendanceDay {
+  date: string;
+  status: string;
+  classId: string | null;
+  comment: string | null;
+}
+
+export interface AttendancePayload {
+  data: AttendanceDay[];
+  summary: {
+    present: number;
+    absent: number;
+    late: number;
+    excused: number;
+    other: number;
+    percentage: number | null;
+  };
+  meta: AcademicMeta;
+}
+
+export interface PublishedGrade {
+  id: string;
+  sectionId: string | null;
+  assessmentCode: string | null;
+  numericScore: number | null;
+  letterGrade: string | null;
+  workflowStatus: string;
+  lockedAt: string | null;
+  enteredAt: string;
+}
+
+export interface ReportCardSummary {
+  id: string;
+  academicPeriodId: string | null;
+  status: string;
+  outputUrl: string | null;
+  completedAt: string | null;
+}
+
+export interface GradesPayload {
+  data: PublishedGrade[];
+  reportCards: ReportCardSummary[];
+  meta: AcademicMeta;
+}
+
+export interface TimetableSlot {
+  id: string;
+  sectionId: string;
+  sectionName: string | null;
+  dayOfWeek: number;
+  periodName: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  roomName: string | null;
+}
+
+export interface HomeworkItem {
+  id: string;
+  title: string;
+  kind: string;
+  subject: string | null;
+  dueAt: string | null;
+  status: string;
+}
+
+export interface CalendarEventItem {
+  id: string;
+  kind: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  notes: string | null;
+  academicPeriodId: string;
+}
+
+export interface NoticeItem {
+  id: string;
+  title: string;
+  body: string | null;
+  channel: string | null;
+  sentAt: string | null;
+}
+
+export interface PalPlanItem {
+  skillId: string;
+  skillName: string | null;
+  subject: string | null;
+  bucket: 'review' | 'reinforce' | 'introduce';
+  mastery: number | null;
+  dueAt: string | null;
+}
+
+export type AcademicView =
+  | 'attendance'
+  | 'grades'
+  | 'timetable'
+  | 'homework'
+  | 'calendar'
+  | 'notices'
+  | 'pal';
+
+export interface AcademicFetchResult<T> {
+  ok: boolean;
+  status: number;
+  payload: T | null;
+  message?: string;
+}
+
+async function fetchAcademic<T>(path: string): Promise<AcademicFetchResult<T>> {
+  const result = await gatewayFetch<T>(path, { throwOnError: false, next: { revalidate: 0 } });
+  if (result.ok && result.data) {
+    return { ok: true, status: result.status, payload: result.data };
+  }
+  return {
+    ok: false,
+    status: result.status,
+    payload: null,
+    message: result.error?.message ?? 'Unable to load this page.',
+  };
+}
+
+export function childAcademicPath(studentId: string, view: AcademicView): string {
+  return `/parent-portal/children/${studentId}/${view}`;
+}
+
+export async function getChildAttendance(studentId: string) {
+  return fetchAcademic<AttendancePayload>(childAcademicPath(studentId, 'attendance'));
+}
+
+export async function getChildGrades(studentId: string) {
+  return fetchAcademic<GradesPayload>(childAcademicPath(studentId, 'grades'));
+}
+
+export async function getChildTimetable(studentId: string) {
+  return fetchAcademic<{ data: TimetableSlot[]; meta: AcademicMeta }>(
+    childAcademicPath(studentId, 'timetable'),
+  );
+}
+
+export async function getChildHomework(studentId: string) {
+  return fetchAcademic<{ data: HomeworkItem[]; meta: AcademicMeta }>(
+    childAcademicPath(studentId, 'homework'),
+  );
+}
+
+export async function getChildCalendar(studentId: string) {
+  return fetchAcademic<{ data: CalendarEventItem[]; meta: AcademicMeta }>(
+    childAcademicPath(studentId, 'calendar'),
+  );
+}
+
+export async function getChildNotices(studentId: string) {
+  return fetchAcademic<{ data: NoticeItem[]; meta: AcademicMeta }>(
+    childAcademicPath(studentId, 'notices'),
+  );
+}
+
+export async function getSelfAttendance() {
+  return fetchAcademic<AttendancePayload>('/student-portal/me/attendance');
+}
+
+export async function getSelfGrades() {
+  return fetchAcademic<GradesPayload>('/student-portal/me/grades');
+}
+
+export async function getSelfTimetable() {
+  return fetchAcademic<{ data: TimetableSlot[]; meta: AcademicMeta }>(
+    '/student-portal/me/timetable',
+  );
+}
+
+export async function getSelfHomework() {
+  return fetchAcademic<{ data: HomeworkItem[]; meta: AcademicMeta }>('/student-portal/me/homework');
+}
+
+export async function getSelfCalendar() {
+  return fetchAcademic<{ data: CalendarEventItem[]; meta: AcademicMeta }>(
+    '/student-portal/me/calendar',
+  );
+}
+
+export async function getSelfNotices() {
+  return fetchAcademic<{ data: NoticeItem[]; meta: AcademicMeta }>('/student-portal/me/notices');
+}
+
+export async function getSelfPalPlan() {
+  return fetchAcademic<{ data: PalPlanItem[]; meta: AcademicMeta }>('/student-portal/me/pal');
+}
+
 export async function listChildren(): Promise<ParentChildLink[]> {
   const result = await gatewayFetch<{ data: ParentChildLink[] }>('/parent-portal/children', {
     throwOnError: false,

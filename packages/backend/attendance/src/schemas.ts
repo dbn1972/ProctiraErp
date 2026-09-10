@@ -42,24 +42,34 @@ export const RecordStudentAttendanceSchema = Type.Object({
     pattern: DatePattern,
     description: 'Attendance date (YYYY-MM-DD)',
   }),
-  subjectId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Subject UUID (for subject-level recording)',
-  })),
-  periodId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Period UUID (for period-level recording)',
-  })),
-  status: Type.Union([
-    Type.Literal('PRESENT'),
-    Type.Literal('ABSENT'),
-    Type.Literal('LATE'),
-    Type.Literal('EXCUSED'),
-  ], { description: 'Attendance status' }),
-  comment: Type.Optional(Type.String({
-    maxLength: 500,
-    description: 'Optional comment',
-  })),
+  subjectId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Subject UUID (for subject-level recording)',
+    }),
+  ),
+  periodId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Period UUID (for period-level recording)',
+    }),
+  ),
+  status: Type.Union(
+    [
+      Type.Literal('PRESENT'),
+      Type.Literal('ABSENT'),
+      Type.Literal('LATE'),
+      Type.Literal('EXCUSED'),
+      Type.Literal('EARLY_DEPARTURE'),
+    ],
+    { description: 'Attendance status' },
+  ),
+  comment: Type.Optional(
+    Type.String({
+      maxLength: 500,
+      description: 'Optional comment',
+    }),
+  ),
 });
 
 export type RecordStudentAttendanceInput = Static<typeof RecordStudentAttendanceSchema>;
@@ -84,30 +94,40 @@ export const RecordBulkStudentAttendanceSchema = Type.Object({
     pattern: DatePattern,
     description: 'Attendance date (YYYY-MM-DD)',
   }),
-  subjectId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Subject UUID (for subject-level recording)',
-  })),
-  periodId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Period UUID (for period-level recording)',
-  })),
+  subjectId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Subject UUID (for subject-level recording)',
+    }),
+  ),
+  periodId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Period UUID (for period-level recording)',
+    }),
+  ),
   records: Type.Array(
     Type.Object({
       studentId: Type.String({
         pattern: UuidPattern,
         description: 'Student UUID',
       }),
-      status: Type.Union([
-        Type.Literal('PRESENT'),
-        Type.Literal('ABSENT'),
-        Type.Literal('LATE'),
-        Type.Literal('EXCUSED'),
-      ], { description: 'Attendance status' }),
-      comment: Type.Optional(Type.String({
-        maxLength: 500,
-        description: 'Optional comment',
-      })),
+      status: Type.Union(
+        [
+          Type.Literal('PRESENT'),
+          Type.Literal('ABSENT'),
+          Type.Literal('LATE'),
+          Type.Literal('EXCUSED'),
+          Type.Literal('EARLY_DEPARTURE'),
+        ],
+        { description: 'Attendance status' },
+      ),
+      comment: Type.Optional(
+        Type.String({
+          maxLength: 500,
+          description: 'Optional comment',
+        }),
+      ),
     }),
     { minItems: 1, description: 'Array of student attendance records' },
   ),
@@ -131,19 +151,21 @@ export const RecordStaffAttendanceSchema = Type.Object({
     pattern: DatePattern,
     description: 'Attendance date (YYYY-MM-DD)',
   }),
-  status: Type.Union([
-    Type.Literal('PRESENT'),
-    Type.Literal('ABSENT'),
-    Type.Literal('ON_LEAVE'),
-  ], { description: 'Staff attendance status' }),
-  leaveTypeId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Leave type UUID (required when status is ON_LEAVE)',
-  })),
-  comment: Type.Optional(Type.String({
-    maxLength: 500,
-    description: 'Optional comment',
-  })),
+  status: Type.Union([Type.Literal('PRESENT'), Type.Literal('ABSENT'), Type.Literal('ON_LEAVE')], {
+    description: 'Staff attendance status',
+  }),
+  leaveTypeId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Leave type UUID (required when status is ON_LEAVE)',
+    }),
+  ),
+  comment: Type.Optional(
+    Type.String({
+      maxLength: 500,
+      description: 'Optional comment',
+    }),
+  ),
 });
 
 export type RecordStaffAttendanceInput = Static<typeof RecordStaffAttendanceSchema>;
@@ -228,11 +250,13 @@ export const RosterEntryResponseSchema = Type.Object({
   enrollmentId: Type.String({ description: 'Enrollment UUID' }),
   classId: Type.String({ description: 'Class UUID' }),
   gradeId: Type.String({ description: 'Grade UUID' }),
-  attendance: Type.Optional(Type.Object({
-    id: Type.String({ description: 'Existing attendance record UUID' }),
-    status: Type.String({ description: 'Current attendance status' }),
-    comment: Type.Union([Type.String(), Type.Null()], { description: 'Comment' }),
-  })),
+  attendance: Type.Optional(
+    Type.Object({
+      id: Type.String({ description: 'Existing attendance record UUID' }),
+      status: Type.String({ description: 'Current attendance status' }),
+      comment: Type.Union([Type.String(), Type.Null()], { description: 'Comment' }),
+    }),
+  ),
 });
 
 export type RosterEntryResponse = Static<typeof RosterEntryResponseSchema>;
@@ -242,17 +266,18 @@ export type RosterEntryResponse = Static<typeof RosterEntryResponseSchema>;
  */
 export const AttendanceConfigResponseSchema = Type.Object({
   institutionId: Type.String({ description: 'Institution UUID' }),
-  recordingMode: Type.Union([
-    Type.Literal('class'),
-    Type.Literal('subject'),
-    Type.Literal('period'),
-  ], { description: 'Attendance recording mode' }),
-  leaveTypes: Type.Array(Type.Object({
-    id: Type.String({ description: 'Leave type UUID' }),
-    name: Type.String({ description: 'Leave type name' }),
-    code: Type.String({ description: 'Leave type code' }),
-    isActive: Type.Boolean({ description: 'Whether the leave type is active' }),
-  })),
+  recordingMode: Type.Union(
+    [Type.Literal('class'), Type.Literal('subject'), Type.Literal('period')],
+    { description: 'Attendance recording mode' },
+  ),
+  leaveTypes: Type.Array(
+    Type.Object({
+      id: Type.String({ description: 'Leave type UUID' }),
+      name: Type.String({ description: 'Leave type name' }),
+      code: Type.String({ description: 'Leave type code' }),
+      isActive: Type.Boolean({ description: 'Whether the leave type is active' }),
+    }),
+  ),
 });
 
 export type AttendanceConfigResponse = Static<typeof AttendanceConfigResponseSchema>;
@@ -261,23 +286,27 @@ export type AttendanceConfigResponse = Static<typeof AttendanceConfigResponseSch
  * Schema for attendance percentage query parameters.
  */
 export const AttendancePercentageQuerySchema = Type.Object({
-  scope: Type.Union([
-    Type.Literal('student'),
-    Type.Literal('class'),
-    Type.Literal('institution'),
-  ], { description: 'Scope of percentage calculation' }),
-  studentId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Student UUID (required for student scope)',
-  })),
-  classId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Class UUID (required for student and class scope)',
-  })),
-  institutionId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Institution UUID (required for institution scope)',
-  })),
+  scope: Type.Union([Type.Literal('student'), Type.Literal('class'), Type.Literal('institution')], {
+    description: 'Scope of percentage calculation',
+  }),
+  studentId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Student UUID (required for student scope)',
+    }),
+  ),
+  classId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Class UUID (required for student and class scope)',
+    }),
+  ),
+  institutionId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Institution UUID (required for institution scope)',
+    }),
+  ),
   startDate: Type.String({
     pattern: DatePattern,
     description: 'Start date of the range (YYYY-MM-DD)',
@@ -300,8 +329,30 @@ export const AttendancePercentageResponseSchema = Type.Object({
   absentCount: Type.Number({ description: 'Number of ABSENT records' }),
   excusedCount: Type.Number({ description: 'Number of EXCUSED records' }),
   lateCount: Type.Number({ description: 'Number of LATE records' }),
-  attendancePercentage: Type.Number({ description: 'Attendance percentage (present + late) / total, rounded to 2 decimal places' }),
-  absencePercentage: Type.Number({ description: 'Absence percentage (absent / total), rounded to 2 decimal places' }),
+  earlyDepartureCount: Type.Number({
+    description: 'Number of EARLY_DEPARTURE records (present-partial, weight 0.5)',
+  }),
+  attendancePercentage: Type.Number({
+    description:
+      'Attendance percentage (present + late + 0.5*earlyDeparture) / total, rounded to 2 decimal places',
+  }),
+  studentRows: Type.Optional(
+    Type.Array(
+      Type.Object({
+        studentId: Type.String(),
+        totalRecords: Type.Number(),
+        presentCount: Type.Number(),
+        absentCount: Type.Number(),
+        lateCount: Type.Number(),
+        excusedCount: Type.Number(),
+        earlyDepartureCount: Type.Number(),
+        attendancePercentage: Type.Number(),
+      }),
+    ),
+  ),
+  absencePercentage: Type.Number({
+    description: 'Absence percentage (absent / total), rounded to 2 decimal places',
+  }),
 });
 
 export type AttendancePercentageResponse = Static<typeof AttendancePercentageResponseSchema>;
@@ -347,4 +398,3 @@ export const AttendanceAuditQuerySchema = Type.Object({
 });
 
 export type AttendanceAuditQueryInput = Static<typeof AttendanceAuditQuerySchema>;
-

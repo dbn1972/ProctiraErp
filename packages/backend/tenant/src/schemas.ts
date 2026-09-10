@@ -34,9 +34,15 @@ export type TenantStatus = Static<typeof TenantStatusEnum>;
 export const BrandingConfigSchema = Type.Object({
   logoUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'URL to tenant logo' })),
   faviconUrl: Type.Optional(Type.String({ maxLength: 2048, description: 'URL to tenant favicon' })),
-  primaryColor: Type.Optional(Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Primary brand color (hex)' })),
-  secondaryColor: Type.Optional(Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Secondary brand color (hex)' })),
-  organizationName: Type.Optional(Type.String({ maxLength: 255, description: 'Display name for the organization' })),
+  primaryColor: Type.Optional(
+    Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Primary brand color (hex)' }),
+  ),
+  secondaryColor: Type.Optional(
+    Type.String({ pattern: '^#[0-9a-fA-F]{6}$', description: 'Secondary brand color (hex)' }),
+  ),
+  organizationName: Type.Optional(
+    Type.String({ maxLength: 255, description: 'Display name for the organization' }),
+  ),
 });
 
 export type BrandingConfig = Static<typeof BrandingConfigSchema>;
@@ -45,10 +51,23 @@ export type BrandingConfig = Static<typeof BrandingConfigSchema>;
  * Locale and regional settings for a tenant.
  */
 export const LocaleConfigSchema = Type.Object({
-  defaultLocale: Type.String({ minLength: 2, maxLength: 10, description: 'Default locale (e.g., "en", "ar", "fr")' }),
-  supportedLocales: Type.Array(Type.String({ minLength: 2, maxLength: 10 }), { minItems: 1, description: 'Supported locales' }),
-  timezone: Type.String({ minLength: 1, maxLength: 100, description: 'Default timezone (IANA format, e.g., "Asia/Kolkata")' }),
-  dateFormat: Type.Optional(Type.String({ maxLength: 50, description: 'Date format pattern (e.g., "DD/MM/YYYY")' })),
+  defaultLocale: Type.String({
+    minLength: 2,
+    maxLength: 10,
+    description: 'Default locale (e.g., "en", "ar", "fr")',
+  }),
+  supportedLocales: Type.Array(Type.String({ minLength: 2, maxLength: 10 }), {
+    minItems: 1,
+    description: 'Supported locales',
+  }),
+  timezone: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Default timezone (IANA format, e.g., "Asia/Kolkata")',
+  }),
+  dateFormat: Type.Optional(
+    Type.String({ maxLength: 50, description: 'Date format pattern (e.g., "DD/MM/YYYY")' }),
+  ),
   numberFormat: Type.Optional(Type.String({ maxLength: 50, description: 'Number format locale' })),
 });
 
@@ -58,11 +77,21 @@ export type LocaleConfig = Static<typeof LocaleConfigSchema>;
  * Feature flags for a tenant.
  */
 export const FeatureConfigSchema = Type.Object({
-  modules: Type.Record(Type.String(), Type.Boolean(), { description: 'Module enable/disable flags' }),
-  customFields: Type.Optional(Type.Boolean({ default: true, description: 'Whether custom fields are enabled' })),
-  bulkImport: Type.Optional(Type.Boolean({ default: true, description: 'Whether bulk import is enabled' })),
-  apiAccess: Type.Optional(Type.Boolean({ default: true, description: 'Whether API access is enabled' })),
-  webhooks: Type.Optional(Type.Boolean({ default: false, description: 'Whether webhooks are enabled' })),
+  modules: Type.Record(Type.String(), Type.Boolean(), {
+    description: 'Module enable/disable flags',
+  }),
+  customFields: Type.Optional(
+    Type.Boolean({ default: true, description: 'Whether custom fields are enabled' }),
+  ),
+  bulkImport: Type.Optional(
+    Type.Boolean({ default: true, description: 'Whether bulk import is enabled' }),
+  ),
+  apiAccess: Type.Optional(
+    Type.Boolean({ default: true, description: 'Whether API access is enabled' }),
+  ),
+  webhooks: Type.Optional(
+    Type.Boolean({ default: false, description: 'Whether webhooks are enabled' }),
+  ),
 });
 
 export type FeatureConfig = Static<typeof FeatureConfigSchema>;
@@ -71,11 +100,26 @@ export type FeatureConfig = Static<typeof FeatureConfigSchema>;
  * Security settings for a tenant.
  */
 export const SecurityConfigSchema = Type.Object({
-  mfaRequired: Type.Optional(Type.Boolean({ default: false, description: 'Whether MFA is required for all users' })),
-  sessionTimeoutMinutes: Type.Optional(Type.Number({ minimum: 5, maximum: 1440, default: 480, description: 'Session timeout in minutes' })),
-  passwordMinLength: Type.Optional(Type.Number({ minimum: 8, maximum: 128, default: 12, description: 'Minimum password length' })),
-  passwordRequireSpecialChar: Type.Optional(Type.Boolean({ default: true, description: 'Require special characters in passwords' })),
-  ipWhitelist: Type.Optional(Type.Array(Type.String(), { description: 'Allowed IP addresses/CIDRs' })),
+  mfaRequired: Type.Optional(
+    Type.Boolean({ default: false, description: 'Whether MFA is required for all users' }),
+  ),
+  sessionTimeoutMinutes: Type.Optional(
+    Type.Number({
+      minimum: 5,
+      maximum: 1440,
+      default: 480,
+      description: 'Session timeout in minutes',
+    }),
+  ),
+  passwordMinLength: Type.Optional(
+    Type.Number({ minimum: 8, maximum: 128, default: 12, description: 'Minimum password length' }),
+  ),
+  passwordRequireSpecialChar: Type.Optional(
+    Type.Boolean({ default: true, description: 'Require special characters in passwords' }),
+  ),
+  ipWhitelist: Type.Optional(
+    Type.Array(Type.String(), { description: 'Allowed IP addresses/CIDRs' }),
+  ),
 });
 
 export type SecurityConfig = Static<typeof SecurityConfigSchema>;
@@ -88,11 +132,9 @@ export type SecurityConfig = Static<typeof SecurityConfigSchema>;
  * Validation of individual token values (color contrast, asset dimensions)
  * lives at the publish-time guard layer (Task 58.4), not on this schema.
  */
-export const ThemeTokensSchema = Type.Record(
-  Type.String(),
-  Type.Unknown(),
-  { description: 'Tenant theme tokens (free-form JSON, validated at publish time)' },
-);
+export const ThemeTokensSchema = Type.Record(Type.String(), Type.Unknown(), {
+  description: 'Tenant theme tokens (free-form JSON, validated at publish time)',
+});
 
 export type ThemeTokens = Static<typeof ThemeTokensSchema>;
 
@@ -127,14 +169,26 @@ export const CreateTenantSchema = Type.Object({
     description: 'URL-safe slug for subdomain routing (lowercase, alphanumeric, hyphens)',
   }),
   plan: Type.Optional(Type.String({ maxLength: 100, description: 'Plan identifier' })),
-  region: Type.Optional(Type.String({ maxLength: 50, description: 'Deployment region (e.g., "us-east-1", "eu-west-1")' })),
+  region: Type.Optional(
+    Type.String({
+      maxLength: 50,
+      description: 'Deployment region (e.g., "us-east-1", "eu-west-1")',
+    }),
+  ),
   config: Type.Optional(TenantConfigSchema),
-  admin: Type.Object({
-    firstName: Type.String({ minLength: 1, maxLength: 100, description: 'Admin first name' }),
-    lastName: Type.String({ minLength: 1, maxLength: 100, description: 'Admin last name' }),
-    email: Type.String({ pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$', maxLength: 254, description: 'Admin email address' }),
-    password: Type.String({ minLength: 8, maxLength: 128, description: 'Admin password' }),
-  }, { description: 'Initial admin user details' }),
+  admin: Type.Object(
+    {
+      firstName: Type.String({ minLength: 1, maxLength: 100, description: 'Admin first name' }),
+      lastName: Type.String({ minLength: 1, maxLength: 100, description: 'Admin last name' }),
+      email: Type.String({
+        pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+        maxLength: 254,
+        description: 'Admin email address',
+      }),
+      password: Type.String({ minLength: 8, maxLength: 128, description: 'Admin password' }),
+    },
+    { description: 'Initial admin user details' },
+  ),
 });
 
 export type CreateTenantInput = Static<typeof CreateTenantSchema>;
@@ -143,7 +197,9 @@ export type CreateTenantInput = Static<typeof CreateTenantSchema>;
  * Schema for updating an existing tenant.
  */
 export const UpdateTenantSchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Tenant organization name' })),
+  name: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Tenant organization name' }),
+  ),
   plan: Type.Optional(Type.String({ maxLength: 100, description: 'Plan identifier' })),
   region: Type.Optional(Type.String({ maxLength: 50, description: 'Deployment region' })),
   config: Type.Optional(TenantConfigSchema),
@@ -167,13 +223,25 @@ export type TenantParams = Static<typeof TenantParamsSchema>;
  * Schema for tenant list query parameters.
  */
 export const TenantListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   status: Type.Optional(TenantStatusEnum),
   search: Type.Optional(Type.String({ description: 'Search by name or slug' })),
   region: Type.Optional(Type.String({ description: 'Filter by region' })),
-  sortBy: Type.Optional(Type.String({ enum: ['name', 'slug', 'createdAt', 'status'], default: 'createdAt', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' })),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['name', 'slug', 'createdAt', 'status'],
+      default: 'createdAt',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' }),
+  ),
 });
 
 export type TenantListQuery = Static<typeof TenantListQuerySchema>;
@@ -194,8 +262,17 @@ export type SuspendTenantInput = Static<typeof SuspendTenantSchema>;
  */
 export const DecommissionTenantSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 500, description: 'Reason for decommission' }),
-  retainDataDays: Type.Optional(Type.Number({ minimum: 0, maximum: 365, default: 30, description: 'Days to retain data before permanent deletion' })),
-  exportData: Type.Optional(Type.Boolean({ default: true, description: 'Whether to export data before decommission' })),
+  retainDataDays: Type.Optional(
+    Type.Number({
+      minimum: 0,
+      maximum: 365,
+      default: 30,
+      description: 'Days to retain data before permanent deletion',
+    }),
+  ),
+  exportData: Type.Optional(
+    Type.Boolean({ default: true, description: 'Whether to export data before decommission' }),
+  ),
 });
 
 export type DecommissionTenantInput = Static<typeof DecommissionTenantSchema>;
@@ -218,8 +295,14 @@ export type UpdateConfigInput = Static<typeof UpdateConfigSchema>;
  * Schema for adding a custom domain to a tenant.
  */
 export const AddDomainSchema = Type.Object({
-  domain: Type.String({ minLength: 4, maxLength: 253, description: 'Custom domain (e.g., "edu.ministry.gov")' }),
-  primary: Type.Optional(Type.Boolean({ default: false, description: 'Whether this is the primary domain' })),
+  domain: Type.String({
+    minLength: 4,
+    maxLength: 253,
+    description: 'Custom domain (e.g., "edu.ministry.gov")',
+  }),
+  primary: Type.Optional(
+    Type.Boolean({ default: false, description: 'Whether this is the primary domain' }),
+  ),
 });
 
 export type AddDomainInput = Static<typeof AddDomainSchema>;
@@ -317,7 +400,9 @@ export type ActiveBrandingResponse = Static<typeof ActiveBrandingResponseSchema>
 export const TenantThemeVersionResponseSchema = Type.Object({
   id: Type.String({ description: 'Theme version UUID' }),
   tenantId: Type.String({ description: 'Tenant UUID' }),
-  revision: Type.Integer({ description: 'Monotonically increasing revision number for this tenant' }),
+  revision: Type.Integer({
+    description: 'Monotonically increasing revision number for this tenant',
+  }),
   tokens: ThemeTokensSchema,
   publishedAt: Type.String({ description: 'Publish timestamp (ISO 8601)' }),
   publishedBy: Type.String({ description: 'UUID of the publisher' }),
@@ -338,10 +423,16 @@ export const TenantResponseSchema = Type.Object({
   plan: Type.Union([Type.String(), Type.Null()], { description: 'Plan identifier' }),
   region: Type.Union([Type.String(), Type.Null()], { description: 'Deployment region' }),
   config: TenantConfigSchema,
-  suspendedAt: Type.Union([Type.String(), Type.Null()], { description: 'Suspension timestamp (ISO 8601)' }),
+  suspendedAt: Type.Union([Type.String(), Type.Null()], {
+    description: 'Suspension timestamp (ISO 8601)',
+  }),
   suspendedReason: Type.Union([Type.String(), Type.Null()], { description: 'Suspension reason' }),
-  decommissionedAt: Type.Union([Type.String(), Type.Null()], { description: 'Decommission timestamp (ISO 8601)' }),
-  dataRetentionUntil: Type.Union([Type.String(), Type.Null()], { description: 'Data retention deadline (ISO 8601)' }),
+  decommissionedAt: Type.Union([Type.String(), Type.Null()], {
+    description: 'Decommission timestamp (ISO 8601)',
+  }),
+  dataRetentionUntil: Type.Union([Type.String(), Type.Null()], {
+    description: 'Data retention deadline (ISO 8601)',
+  }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
 });

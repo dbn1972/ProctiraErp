@@ -121,18 +121,18 @@ export async function getHealthRecord(studentId: string): Promise<HealthRecord |
 }
 
 export async function listSpecialNeeds(): Promise<SpecialNeedRecord[]> {
-  const result = await gatewayFetch<{ data: SpecialNeedRecord[] }>(
-    '/health/special-needs',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: SpecialNeedRecord[] }>('/health/special-needs', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data?.data ?? [];
 }
 
 export async function listCounsellingSessions(): Promise<CounsellingSession[]> {
-  const result = await gatewayFetch<{ data: CounsellingSession[] }>(
-    '/health/counselling',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: CounsellingSession[] }>('/health/counselling', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data?.data ?? [];
 }
 
@@ -143,10 +143,10 @@ export async function listCounsellingSessions(): Promise<CounsellingSession[]> {
 export async function createCounsellingSession(
   input: CreateCounsellingSessionInput,
 ): Promise<CreatedCounsellingSession> {
-  const result = await gatewayFetch<CreatedCounsellingSession>(
-    '/health/counselling/sessions',
-    { method: 'POST', json: input },
-  );
+  const result = await gatewayFetch<CreatedCounsellingSession>('/health/counselling/sessions', {
+    method: 'POST',
+    json: input,
+  });
   if (!result.data) {
     throw new GatewayError({
       status: result.status,
@@ -158,9 +158,9 @@ export async function createCounsellingSession(
 }
 
 export async function listScreeningPrograms(): Promise<ScreeningProgram[]> {
-  const result = await gatewayFetch<{ data: ScreeningProgram[] }>(
-    '/health/screenings',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: ScreeningProgram[] }>('/health/screenings', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data?.data ?? [];
 }

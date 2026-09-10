@@ -40,23 +40,13 @@ export function OAuthIcon({ provider }: { provider: string }): JSX.Element {
       // adapts to light/dark themes the same way `Sign in with Apple`
       // buttons do in HIG.
       return (
-        <svg
-          className="h-5 w-5"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M16.365 1.43c0 1.14-.493 2.27-1.177 3.08-.744.9-1.99 1.57-2.987 1.57-.12 0-.23-.02-.3-.03-.01-.06-.04-.22-.04-.39 0-1.15.572-2.27 1.206-2.98.804-.94 2.142-1.64 3.248-1.68.03.13.05.28.05.43zm4.565 16.32c-.567 1.31-.84 1.9-1.57 3.06-1.02 1.6-2.46 3.59-4.243 3.59-1.583 0-2-.97-4.15-.97-2.155 0-2.6.97-4.18.97-1.785 0-3.144-1.84-4.165-3.43-2.853-4.46-3.16-9.69-1.394-12.49 1.252-1.99 3.226-3.16 5.083-3.16 1.89 0 3.077 1.04 4.64 1.04 1.515 0 2.435-1.04 4.62-1.04 1.65 0 3.4.9 4.65 2.46-4.087 2.24-3.42 8.07.71 9.97z" />
         </svg>
       );
     default:
       return (
-        <svg
-          className="h-5 w-5"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
-        >
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z" />
         </svg>
       );

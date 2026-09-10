@@ -27,10 +27,10 @@ To enable push notifications on a real device:
 3. Download the platform configuration files and drop them into the
    following locations:
 
-   | Platform | File                          | Destination                                      |
-   |----------|-------------------------------|--------------------------------------------------|
-   | Android  | `google-services.json`        | `apps/mobile/android/app/google-services.json`   |
-   | iOS      | `GoogleService-Info.plist`    | `apps/mobile/ios/Runner/GoogleService-Info.plist`|
+   | Platform | File                       | Destination                                       |
+   | -------- | -------------------------- | ------------------------------------------------- |
+   | Android  | `google-services.json`     | `apps/mobile/android/app/google-services.json`    |
+   | iOS      | `GoogleService-Info.plist` | `apps/mobile/ios/Runner/GoogleService-Info.plist` |
 
 4. **Do not commit these files.** They contain project-specific keys.
    They are listed in `.gitignore` (the platform-specific `.gitignore`

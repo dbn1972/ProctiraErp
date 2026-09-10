@@ -62,10 +62,7 @@ function round(value: number, places: number): number {
 }
 
 /** Resolve band for a percent score (inclusive min, inclusive max). */
-export function resolveBandFromPercent(
-  percent: number,
-  bands: GradeBand[],
-): GradeBand | null {
+export function resolveBandFromPercent(percent: number, bands: GradeBand[]): GradeBand | null {
   if (!Number.isFinite(percent)) return null;
   const sorted = [...bands].sort((a, b) => b.minPercent - a.minPercent);
   for (const band of sorted) {
@@ -80,14 +77,9 @@ export function resolveBandFromPercent(
   return null;
 }
 
-export function resolveBandFromLetter(
-  letter: string,
-  bands: GradeBand[],
-): GradeBand | null {
+export function resolveBandFromLetter(letter: string, bands: GradeBand[]): GradeBand | null {
   const needle = letter.trim().toUpperCase();
-  return (
-    bands.find((b) => b.label.trim().toUpperCase() === needle) ?? null
-  );
+  return bands.find((b) => b.label.trim().toUpperCase() === needle) ?? null;
 }
 
 export function resolveGradePoints(
@@ -108,9 +100,7 @@ export function resolveGradePoints(
   }
   const raw = band.gradePoints;
   const gp =
-    raw == null || !Number.isFinite(raw)
-      ? null
-      : Math.min(maxGp, Math.max(0, Number(raw)));
+    raw == null || !Number.isFinite(raw) ? null : Math.min(maxGp, Math.max(0, Number(raw)));
   return { letterGrade: band.label, gradePoints: gp, band };
 }
 
@@ -133,18 +123,12 @@ export function applyCreditRule(
   const requirePass = rule.metadata?.requirePass !== false;
   const score = opts.numericScore;
   const passed =
-    opts.passed ??
-    (score != null && Number.isFinite(score) ? score >= minPercent : false);
+    opts.passed ?? (score != null && Number.isFinite(score) ? score >= minPercent : false);
 
   if (requirePass && !passed) {
     return { creditsEarned: 0, completed: false };
   }
-  if (
-    rule.metadata?.partialCredit &&
-    score != null &&
-    Number.isFinite(score) &&
-    score < 100
-  ) {
+  if (rule.metadata?.partialCredit && score != null && Number.isFinite(score) && score < 100) {
     const ratio = Math.max(0, Math.min(1, score / 100));
     return {
       creditsEarned: round(rule.credits * ratio, 2),
@@ -181,10 +165,7 @@ export function computeGpaSnapshot(
       },
       { numericScore: course.numericScore, passed },
     );
-    const weight =
-      weightMode === 'EXPLICIT'
-        ? (course.weight ?? course.credits)
-        : course.credits;
+    const weight = weightMode === 'EXPLICIT' ? (course.weight ?? course.credits) : course.credits;
     return {
       courseCode: course.courseCode,
       numericScore: course.numericScore ?? null,
@@ -216,12 +197,85 @@ export function computeGpaSnapshot(
   }
 
   return {
-    unweightedGpa:
-      unweightedDen > 0 ? round(unweightedNum / unweightedDen, roundTo) : null,
-    weightedGpa:
-      weightedDen > 0 ? round(weightedNum / weightedDen, roundTo) : null,
+    unweightedGpa: unweightedDen > 0 ? round(unweightedNum / unweightedDen, roundTo) : null,
+    weightedGpa: weightedDen > 0 ? round(weightedNum / weightedDen, roundTo) : null,
     creditsAttempted: round(creditsAttempted, 2),
     creditsEarned: round(creditsEarned, 2),
     courses: results,
   };
+}
+
+export type ClassRankInput = {
+  studentId: string;
+  /** Term / section GPA used for ranking (nulls sort last). */
+  weightedGpa: number | null;
+  unweightedGpa?: number | null;
+  /** Cumulative GPA across all periods for the student. */
+  cgpa: number | null;
+  creditsEarned?: number | null;
+};
+
+export type ClassRankRow = ClassRankInput & {
+  /**
+   * Competition rank (1224): equal weighted GPA share a rank; the next
+   * distinct GPA takes rank = previous position + 1 (not dense 1223).
+   * Ties do not change rank; studentId ASC is a stable display order only.
+   */
+  classRank: number;
+  tieCount: number;
+};
+
+function gpaKey(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '';
+  return value.toFixed(4);
+}
+
+/**
+ * Rank students in a class by weighted GPA descending.
+ *
+ * Tie handling (deterministic):
+ * - Equal weighted GPA (4 d.p.) share the same `classRank`.
+ * - Next rank skips (competition / "1224"), so two students tied at 1 → next is 3.
+ * - Display order among ties is `studentId` ascending (does not affect rank).
+ * - Null GPA sorts last and shares a rank among other nulls.
+ */
+export function computeClassRanks(rows: ClassRankInput[]): ClassRankRow[] {
+  const sorted = [...rows].sort((a, b) => {
+    const aNull = a.weightedGpa == null || !Number.isFinite(a.weightedGpa);
+    const bNull = b.weightedGpa == null || !Number.isFinite(b.weightedGpa);
+    if (aNull && bNull) return a.studentId.localeCompare(b.studentId);
+    if (aNull) return 1;
+    if (bNull) return -1;
+    if (b.weightedGpa! !== a.weightedGpa!) return b.weightedGpa! - a.weightedGpa!;
+    return a.studentId.localeCompare(b.studentId);
+  });
+
+  const out: ClassRankRow[] = [];
+  let lastKey: string | null = null;
+  let lastRank = 0;
+  for (let i = 0; i < sorted.length; i += 1) {
+    const row = sorted[i]!;
+    const key = gpaKey(row.weightedGpa);
+    const rank = lastKey !== null && key === lastKey ? lastRank : i + 1;
+    lastKey = key;
+    lastRank = rank;
+    out.push({ ...row, classRank: rank, tieCount: 1 });
+  }
+  const counts = new Map<number, number>();
+  for (const row of out) {
+    counts.set(row.classRank, (counts.get(row.classRank) ?? 0) + 1);
+  }
+  for (const row of out) {
+    row.tieCount = counts.get(row.classRank) ?? 1;
+  }
+  return out;
+}
+
+/** CGPA is the GPA snapshot over every course attempt (all periods). */
+export function computeCgpa(
+  courses: CourseGradeInput[],
+  bands: GradeBand[],
+  policy: GpaPolicy = {},
+): GpaSnapshotResult {
+  return computeGpaSnapshot(courses, bands, policy);
 }

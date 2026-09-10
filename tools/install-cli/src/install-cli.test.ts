@@ -110,7 +110,16 @@ describe('parseArgs', () => {
   });
 
   it('parses multiple flags together', () => {
-    const opts = parseArgs(['node', 'script', '--config', 'f.json', '--skip-migrations', '--verbose', '--output', 'json']);
+    const opts = parseArgs([
+      'node',
+      'script',
+      '--config',
+      'f.json',
+      '--skip-migrations',
+      '--verbose',
+      '--output',
+      'json',
+    ]);
     expect(opts.configFile).toBe('f.json');
     expect(opts.skipMigrations).toBe(true);
     expect(opts.verbose).toBe(true);
@@ -352,7 +361,11 @@ describe('Installer', () => {
     const installer = new Installer({
       logger: silentLogger,
       migrationRunner: {
-        runMigrations: async () => ({ success: false, migrationsApplied: 0, error: 'Connection refused' }),
+        runMigrations: async () => ({
+          success: false,
+          migrationsApplied: 0,
+          error: 'Connection refused',
+        }),
       },
     });
 
@@ -460,17 +473,14 @@ describe('run', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     try {
-      const result = await run(
-        ['node', 'script', '--config', tmpFile, '--output', 'json'],
-        {
-          migrationRunner: {
-            runMigrations: async () => ({ success: true, migrationsApplied: 1 }),
-          },
-          adminCreator: {
-            createAdmin: async () => ({ success: true, userId: 'u-1' }),
-          },
+      const result = await run(['node', 'script', '--config', tmpFile, '--output', 'json'], {
+        migrationRunner: {
+          runMigrations: async () => ({ success: true, migrationsApplied: 1 }),
         },
-      );
+        adminCreator: {
+          createAdmin: async () => ({ success: true, userId: 'u-1' }),
+        },
+      });
       expect(result).not.toBeNull();
       expect(result!.success).toBe(true);
     } finally {

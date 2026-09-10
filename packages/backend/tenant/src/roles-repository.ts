@@ -72,9 +72,7 @@ export interface RolesRepository {
   listRoles(tenantId: string): Promise<RoleEntity[]>;
   findRoleById(tenantId: string, id: string): Promise<RoleEntity | null>;
   findRoleByName(tenantId: string, name: string): Promise<RoleEntity | null>;
-  createRole(
-    data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<RoleEntity>;
+  createRole(data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>): Promise<RoleEntity>;
   updateRole(
     tenantId: string,
     id: string,
@@ -89,9 +87,8 @@ export interface RolesRepository {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<UserRecord>>;
   findUserById(tenantId: string, id: string): Promise<UserRecord | null>;
-  setUserRoles(
-    tenantId: string,
-    userId: string,
-    roleIds: string[],
-  ): Promise<UserRecord | null>;
+  findUserByEmail(tenantId: string, email: string): Promise<UserRecord | null>;
+  /** Create or replace a user record (G-910 invite / directory sync). */
+  upsertUser(user: UserRecord): Promise<UserRecord>;
+  setUserRoles(tenantId: string, userId: string, roleIds: string[]): Promise<UserRecord | null>;
 }

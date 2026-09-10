@@ -14,11 +14,7 @@ export const metadata: Metadata = {
  * - RTL/LTR direction based on locale
  * - next-intl provider for client-side translations
  */
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();
   const direction = getDirection(locale);

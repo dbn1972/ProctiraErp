@@ -3,12 +3,7 @@
  */
 import { gatewayFetch } from './gateway';
 
-export type PluginStatus =
-  | 'submitted'
-  | 'in_review'
-  | 'approved'
-  | 'revoked'
-  | 'disabled';
+export type PluginStatus = 'submitted' | 'in_review' | 'approved' | 'revoked' | 'disabled';
 
 export interface PluginSubmission {
   id: string;

@@ -73,9 +73,7 @@ async function setupAuth(page: Page): Promise<void> {
   });
 
   // Set auth cookies before navigating
-  const baseUrl = new URL(
-    page.url() === 'about:blank' ? 'http://localhost:3001' : page.url(),
-  );
+  const baseUrl = new URL(page.url() === 'about:blank' ? 'http://localhost:3001' : page.url());
   await page.context().addCookies([
     {
       name: 'access_token',
@@ -141,9 +139,7 @@ test.describe('Property F-9: Error Boundary Recovery', () => {
     await expect(errorBoundary).toHaveAttribute('aria-live', 'assertive');
   });
 
-  test('sidebar and shell remain mounted when page content throws', async ({
-    page,
-  }) => {
+  test('sidebar and shell remain mounted when page content throws', async ({ page }) => {
     await page.goto('/__tests/error-boundary?throw=1');
     await page.waitForLoadState('domcontentloaded');
 
@@ -177,18 +173,14 @@ test.describe('Property F-9: Error Boundary Recovery', () => {
 
     if (hasMobile) {
       await expect(mobileShell).toBeVisible();
-      const bottomNav = mobileShell.locator(
-        'nav[aria-label="Mobile navigation"]',
-      );
+      const bottomNav = mobileShell.locator('nav[aria-label="Mobile navigation"]');
       if ((await bottomNav.count()) > 0) {
         await expect(bottomNav).toBeVisible();
       }
     }
   });
 
-  test('clicking Retry recovers the page when error condition is resolved', async ({
-    page,
-  }) => {
+  test('clicking Retry recovers the page when error condition is resolved', async ({ page }) => {
     // Navigate with throw=1 to trigger the error
     await page.goto('/__tests/error-boundary?throw=1');
     await page.waitForLoadState('domcontentloaded');
@@ -220,9 +212,7 @@ test.describe('Property F-9: Error Boundary Recovery', () => {
   // Property-based aspect: verify the error boundary is structurally
   // present on multiple authenticated pages
   for (const { name, path } of DASHBOARD_PAGES) {
-    test(`[${name}] page renders inside shell with error boundary protection`, async ({
-      page,
-    }) => {
+    test(`[${name}] page renders inside shell with error boundary protection`, async ({ page }) => {
       await page.goto(path);
       await page.waitForLoadState('domcontentloaded');
 
@@ -232,8 +222,7 @@ test.describe('Property F-9: Error Boundary Recovery', () => {
       // Verify the page loaded inside a shell (not redirected to login)
       const desktopShell = page.locator('[data-shell="desktop"]');
       const mobileShell = page.locator('[data-shell="mobile"]');
-      const hasShell =
-        (await desktopShell.count()) > 0 || (await mobileShell.count()) > 0;
+      const hasShell = (await desktopShell.count()) > 0 || (await mobileShell.count()) > 0;
 
       if (hasShell) {
         // The shell is present — the error boundary is structurally

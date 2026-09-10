@@ -16,14 +16,7 @@
  * change.
  */
 
-import {
-  AlertTriangle,
-  Briefcase,
-  Calendar,
-  School,
-  TrendingUp,
-  Users,
-} from 'lucide-react';
+import { AlertTriangle, Briefcase, Calendar, School, TrendingUp, Users } from 'lucide-react';
 import {
   CartesianGrid,
   Line,
@@ -86,9 +79,7 @@ const REGION_COLUMNS: ReadonlyArray<DataTableCardColumn<RegionRow>> = [
     id: 'states',
     header: 'States',
     cell: (row) => (
-      <span className="text-sm text-[hsl(var(--muted-foreground))]">
-        {row.states}
-      </span>
+      <span className="text-sm text-[hsl(var(--muted-foreground))]">{row.states}</span>
     ),
   },
   {
@@ -151,18 +142,13 @@ interface AffiliationStatusCardProps {
   loading: boolean;
 }
 
-function AffiliationStatusCard({
-  affiliations,
-  loading,
-}: AffiliationStatusCardProps) {
+function AffiliationStatusCard({ affiliations, loading }: AffiliationStatusCardProps) {
   const total = affiliations.reduce((sum, a) => sum + a.count, 0);
   return (
     <Card data-testid="affiliation-status-card">
       <CardHeader>
         <CardTitle>Affiliation Status</CardTitle>
-        <CardDescription>
-          Distribution of affiliated schools by current status
-        </CardDescription>
+        <CardDescription>Distribution of affiliated schools by current status</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -181,14 +167,10 @@ function AffiliationStatusCard({
                   className="flex items-center justify-between gap-3"
                   data-testid={`affiliation-row-${row.status}`}
                 >
-                  <Badge variant={statusVariant(row.status)}>
-                    {STATUS_LABELS[row.status]}
-                  </Badge>
+                  <Badge variant={statusVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
                   <span className="text-sm text-[hsl(var(--foreground))]">
                     {row.count.toLocaleString()}{' '}
-                    <span className="text-[hsl(var(--muted-foreground))]">
-                      ({pct}%)
-                    </span>
+                    <span className="text-[hsl(var(--muted-foreground))]">({pct}%)</span>
                   </span>
                 </li>
               );
@@ -323,10 +305,7 @@ export default function BoardAdminDashboard() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <EnrollmentGrowthCard data={enrollmentGrowth} loading={isLoading} />
-        <AffiliationStatusCard
-          affiliations={affiliations}
-          loading={isLoading}
-        />
+        <AffiliationStatusCard affiliations={affiliations} loading={isLoading} />
       </div>
 
       <ActionItemList

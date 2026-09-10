@@ -28,6 +28,16 @@ export interface ScholarshipApplication {
   submittedAt: string;
   status: 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED';
   totalScore?: number | null;
+  /** ISO timestamp of the approve / reject decision (G-911). */
+  reviewedAt: string | null;
+  reviewerId: string | null;
+  reviewNotes: string | null;
+}
+
+export interface ApplicationDecisionInput {
+  comment?: string;
+  /** Approve only — queue the first instalment today (gateway default: true). */
+  scheduleFirstDisbursement?: boolean;
 }
 
 export interface ScholarshipDisbursement {
@@ -121,6 +131,9 @@ function mapApplication(raw: Record<string, unknown>): ScholarshipApplication {
     status,
     totalScore:
       raw.totalScore === null || raw.totalScore === undefined ? null : Number(raw.totalScore),
+    reviewedAt: raw.reviewedAt ? String(raw.reviewedAt) : null,
+    reviewerId: raw.reviewerId ? String(raw.reviewerId) : null,
+    reviewNotes: raw.reviewNotes ? String(raw.reviewNotes) : null,
   };
 }
 
@@ -229,6 +242,35 @@ export async function getScholarshipApplication(
     next: { revalidate: 0 },
   });
   return result.data ? mapApplication(result.data) : null;
+}
+
+async function decideApplication(
+  id: string,
+  decision: 'approve' | 'reject',
+  input: ApplicationDecisionInput,
+): Promise<ScholarshipApplication> {
+  const result = await gatewayFetch<Record<string, unknown>>(
+    `/scholarships/applications/${encodeURIComponent(id)}/${decision}`,
+    { method: 'POST', json: input, throwOnError: false },
+  );
+  if (!result.ok || !result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'DECISION_FAILED',
+      message: result.error?.message ?? `Failed to ${decision} application`,
+    });
+  }
+  return mapApplication(result.data);
+}
+
+/** `POST /scholarships/applications/:id/approve` — reviewer comes from the session JWT. */
+export function approveScholarshipApplication(id: string, input: ApplicationDecisionInput = {}) {
+  return decideApplication(id, 'approve', input);
+}
+
+/** `POST /scholarships/applications/:id/reject` */
+export function rejectScholarshipApplication(id: string, input: ApplicationDecisionInput = {}) {
+  return decideApplication(id, 'reject', input);
 }
 
 export async function listScholarshipDisbursements(): Promise<ScholarshipDisbursement[]> {

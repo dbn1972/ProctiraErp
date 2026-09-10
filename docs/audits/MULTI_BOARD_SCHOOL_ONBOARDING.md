@@ -10,22 +10,22 @@
 
 ## Profile
 
-| Board | Type | Schools | Students each |
-| --- | --- | --- | ---: |
-| CBSE | NATIONAL | CBSE-DEL-01, CBSE-NOI-02 | 500 |
-| MH-STATE | STATE | MH-PUN-01, MH-MUM-02 | 500 |
-| ICSE | PRIVATE | ICSE-BLR-01, ICSE-HYD-02 | 500 |
+| Board    | Type     | Schools                  | Students each |
+| -------- | -------- | ------------------------ | ------------: |
+| CBSE     | NATIONAL | CBSE-DEL-01, CBSE-NOI-02 |           500 |
+| MH-STATE | STATE    | MH-PUN-01, MH-MUM-02     |           500 |
+| ICSE     | PRIVATE  | ICSE-BLR-01, ICSE-HYD-02 |           500 |
 
 ## Verified counts (live)
 
-| Entity | Count |
-| --- | ---: |
-| Tenants (cert) | 1 |
-| Boards | 3 |
-| Institutions | 6 |
-| Students | 3000 |
-| Staff | 150 |
-| Enrollments | 3000 |
+| Entity         | Count |
+| -------------- | ----: |
+| Tenants (cert) |     1 |
+| Boards         |     3 |
+| Institutions   |     6 |
+| Students       |  3000 |
+| Staff          |   150 |
+| Enrollments    |  3000 |
 
 Evidence: `/opt/cursor/artifacts/multi-board-onboard/summary.json`, `verify-counts.txt`.
 

@@ -71,9 +71,7 @@ export async function listPlans(): Promise<{
   plans: Plan[];
   source: 'gateway' | 'stub';
 }> {
-  const response = await gatewayFetch<{ items?: Plan[]; data?: Plan[] }>(
-    '/plans',
-  );
+  const response = await gatewayFetch<{ items?: Plan[]; data?: Plan[] }>('/plans');
   if (response.ok && response.data) {
     return {
       plans: response.data.items ?? response.data.data ?? [],
@@ -104,10 +102,10 @@ export interface UpdatePlanEntitlementsInput {
 export async function updatePlanEntitlements(
   input: UpdatePlanEntitlementsInput,
 ): Promise<{ ok: boolean; error?: string }> {
-  const response = await gatewayFetch<unknown>(
-    `/plans/${input.planId}/entitlements`,
-    { method: 'PUT', json: { entitlements: input.entitlements } },
-  );
+  const response = await gatewayFetch<unknown>(`/plans/${input.planId}/entitlements`, {
+    method: 'PUT',
+    json: { entitlements: input.entitlements },
+  });
   if (response.ok) return { ok: true };
   if (response.status === 0) return { ok: true };
   return {

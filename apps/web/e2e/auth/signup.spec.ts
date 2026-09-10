@@ -28,9 +28,7 @@ const STRONG_PASSWORD = 'CorrectHorse9!Battery';
 const WEAK_PASSWORD = 'abc';
 
 test.describe('auth — sign-up', () => {
-  test('happy path: posts role + terms acceptance and renders confirmation', async ({
-    page,
-  }) => {
+  test('happy path: posts role + terms acceptance and renders confirmation', async ({ page }) => {
     let signupBody: Record<string, unknown> | null = null;
     await page.route('**/api/tenant/signup-roles', async (route) => {
       await route.fulfill({
@@ -75,9 +73,7 @@ test.describe('auth — sign-up', () => {
     await page.getByRole('option', { name: /teacher/i }).click();
 
     // Strong password.
-    await page
-      .getByLabel('Password', { exact: true })
-      .fill(STRONG_PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(STRONG_PASSWORD);
     await page.getByLabel(/confirm password/i).fill(STRONG_PASSWORD);
 
     // Terms acceptance.
@@ -86,9 +82,7 @@ test.describe('auth — sign-up', () => {
     await page.getByTestId('signup-submit').click();
 
     // Confirmation surface renders.
-    await expect(
-      page.getByTestId('signup-confirmation-message'),
-    ).toBeVisible();
+    await expect(page.getByTestId('signup-confirmation-message')).toBeVisible();
 
     // Body shape: role id + termsAcceptance payload present.
     await expect.poll(() => signupBody).not.toBeNull();
@@ -98,17 +92,17 @@ test.describe('auth — sign-up', () => {
       institutionName: 'Springfield High School',
       roleId: 'teacher',
     });
-    const accepted = (signupBody as unknown as {
-      termsAcceptance: Record<string, string>;
-    }).termsAcceptance;
+    const accepted = (
+      signupBody as unknown as {
+        termsAcceptance: Record<string, string>;
+      }
+    ).termsAcceptance;
     expect(accepted.acceptedAt).toMatch(/\d{4}-\d{2}-\d{2}T/);
     expect(accepted.termsVersion).toBeTruthy();
     expect(accepted.privacyVersion).toBeTruthy();
   });
 
-  test('blocks submission when terms have not been accepted', async ({
-    page,
-  }) => {
+  test('blocks submission when terms have not been accepted', async ({ page }) => {
     await mockSignup(page);
     let signupCalls = 0;
     await page.route('**/api/auth/signup', async (route) => {
@@ -122,9 +116,7 @@ test.describe('auth — sign-up', () => {
     await page.getByLabel(/institution/i).fill('Springfield High School');
     await page.getByTestId('signup-role-trigger').click();
     await page.getByRole('option', { name: /teacher/i }).click();
-    await page
-      .getByLabel('Password', { exact: true })
-      .fill(STRONG_PASSWORD);
+    await page.getByLabel('Password', { exact: true }).fill(STRONG_PASSWORD);
     await page.getByLabel(/confirm password/i).fill(STRONG_PASSWORD);
     // Terms intentionally NOT checked.
 
@@ -163,9 +155,7 @@ test.describe('auth — sign-up', () => {
     expect(signupCalls).toBe(0);
   });
 
-  test('password strength meter renders and reflects the current rating', async ({
-    page,
-  }) => {
+  test('password strength meter renders and reflects the current rating', async ({ page }) => {
     await mockSignup(page);
 
     await page.goto('/signup');

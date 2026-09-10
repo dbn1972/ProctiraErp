@@ -31,18 +31,35 @@ import {
   academicPeriodFormSchema,
   type AcademicPeriodFormValues,
 } from '@/lib/institutions/validation';
-import type { AcademicPeriod, AcademicPeriodStatus } from '@/lib/institutions/types';
+import type {
+  AcademicPeriod,
+  AcademicPeriodKind,
+  AcademicPeriodStatus,
+} from '@/lib/institutions/types';
 
 export interface AcademicPeriodFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialValue?: AcademicPeriod;
+  /** G-905: academic years available as parents for terms / semesters / quarters. */
+  years?: AcademicPeriod[];
+  /** Pre-select a parent year (e.g. "Add term" from a year row). */
+  defaultParentId?: string | null;
 }
+
+const KIND_LABELS: Record<AcademicPeriodKind, string> = {
+  year: 'Academic year',
+  semester: 'Semester',
+  term: 'Term',
+  quarter: 'Quarter',
+};
 
 export function AcademicPeriodFormDialog({
   open,
   onOpenChange,
   initialValue,
+  years = [],
+  defaultParentId = null,
 }: AcademicPeriodFormDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -56,6 +73,8 @@ export function AcademicPeriodFormDialog({
       startDate: '',
       endDate: '',
       status: 'inactive',
+      kind: 'year',
+      parentId: '',
     },
   });
 
@@ -69,19 +88,27 @@ export function AcademicPeriodFormDialog({
   } = form;
 
   const status = watch('status');
+  const kind = watch('kind') ?? 'year';
+  const parentId = watch('parentId') ?? '';
+  const isSubPeriod = kind !== 'year';
+  // A year cannot be its own parent when editing.
+  const parentOptions = years.filter((y) => y.id !== initialValue?.id);
 
   useEffect(() => {
     if (open) {
+      const initialParent = initialValue ? initialValue.parentId : defaultParentId;
       reset({
         name: initialValue?.name ?? '',
         code: initialValue?.code ?? '',
         startDate: initialValue?.startDate ?? '',
         endDate: initialValue?.endDate ?? '',
         status: initialValue?.status ?? 'inactive',
+        kind: initialValue?.kind ?? (defaultParentId ? 'term' : 'year'),
+        parentId: initialParent ?? '',
       });
       setServerError(null);
     }
-  }, [open, initialValue, reset]);
+  }, [open, initialValue, defaultParentId, reset]);
 
   const onSubmit = handleSubmit((values) => {
     setServerError(null);
@@ -102,12 +129,10 @@ export function AcademicPeriodFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {initialValue ? 'Edit academic period' : 'New academic period'}
-          </DialogTitle>
+          <DialogTitle>{initialValue ? 'Edit academic period' : 'New academic period'}</DialogTitle>
           <DialogDescription>
-            Define the academic year or term boundaries used by enrollment,
-            attendance, and assessment workflows.
+            Define the academic year or term boundaries used by enrollment, attendance, and
+            assessment workflows.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,9 +156,7 @@ export function AcademicPeriodFormDialog({
               Name <span className="text-destructive">*</span>
             </Label>
             <Input id="ap-name" {...register('name')} disabled={isPending} />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message}</p>
-            )}
+            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -141,9 +164,65 @@ export function AcademicPeriodFormDialog({
               Code <span className="text-destructive">*</span>
             </Label>
             <Input id="ap-code" {...register('code')} disabled={isPending} />
-            {errors.code && (
-              <p className="text-sm text-destructive">{errors.code.message}</p>
-            )}
+            {errors.code && <p className="text-sm text-destructive">{errors.code.message}</p>}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ap-kind">Kind</Label>
+              <Select
+                value={kind}
+                onValueChange={(value) => {
+                  setValue('kind', value as AcademicPeriodKind, { shouldValidate: true });
+                  if (value === 'year') setValue('parentId', '', { shouldValidate: true });
+                }}
+                disabled={isPending}
+              >
+                <SelectTrigger id="ap-kind" data-testid="period-kind">
+                  <SelectValue placeholder="Select a kind" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(KIND_LABELS) as AcademicPeriodKind[]).map((k) => (
+                    <SelectItem key={k} value={k}>
+                      {KIND_LABELS[k]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="ap-parent">
+                Academic year{isSubPeriod && <span className="text-destructive"> *</span>}
+              </Label>
+              <Select
+                value={parentId || undefined}
+                onValueChange={(value) => setValue('parentId', value, { shouldValidate: true })}
+                disabled={isPending || !isSubPeriod || parentOptions.length === 0}
+              >
+                <SelectTrigger id="ap-parent" data-testid="period-parent">
+                  <SelectValue
+                    placeholder={
+                      !isSubPeriod
+                        ? 'Top-level year'
+                        : parentOptions.length === 0
+                          ? 'Create a year first'
+                          : 'Select a year'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {parentOptions.map((y) => (
+                    <SelectItem key={y.id} value={y.id}>
+                      {y.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.parentId && (
+                <p className="text-sm text-destructive">{errors.parentId.message}</p>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -151,12 +230,7 @@ export function AcademicPeriodFormDialog({
               <Label htmlFor="ap-start">
                 Start <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="ap-start"
-                type="date"
-                {...register('startDate')}
-                disabled={isPending}
-              />
+              <Input id="ap-start" type="date" {...register('startDate')} disabled={isPending} />
               {errors.startDate && (
                 <p className="text-sm text-destructive">{errors.startDate.message}</p>
               )}
@@ -166,12 +240,7 @@ export function AcademicPeriodFormDialog({
               <Label htmlFor="ap-end">
                 End <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="ap-end"
-                type="date"
-                {...register('endDate')}
-                disabled={isPending}
-              />
+              <Input id="ap-end" type="date" {...register('endDate')} disabled={isPending} />
               {errors.endDate && (
                 <p className="text-sm text-destructive">{errors.endDate.message}</p>
               )}

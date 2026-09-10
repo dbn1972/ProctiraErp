@@ -47,7 +47,10 @@ export function LanguageSwitcher() {
 
   return (
     <label className="relative inline-flex items-center">
-      <Globe className="pointer-events-none absolute start-2 h-4 w-4 text-gray-500" aria-hidden="true" />
+      <Globe
+        className="pointer-events-none absolute start-2 h-4 w-4 text-gray-500"
+        aria-hidden="true"
+      />
       <span className="sr-only">{t('language')}</span>
       <select
         value={currentLocale}

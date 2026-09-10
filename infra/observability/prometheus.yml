@@ -1,11 +1,23 @@
-# Prometheus configuration for the ProctiraERP Unified Platform.
+# Prometheus configuration for the ProctiraERP Unified Platform (G-725).
 #
-# - Scrapes every backend service /metrics endpoint every 15s.
-# - Loads alert rules from ./alerts/*.yml.
-# - Forwards firing alerts to the Alertmanager service on port 9093.
+# Honest scrape inventory — every target below is a process that actually
+# registers `@proctira/observability` and serves GET /metrics:
 #
-# When run via docker-compose.observability.yml the service hostnames
-# below resolve through the shared docker network.
+#   - api-gateway (docker-compose.yml)            :3000  — mounts every domain
+#     plugin in-process, so gateway metrics carry `route` labels for all
+#     /api/v1/* domains (fees, health, scholarship, hostel, …).
+#   - etl-worker  (docker-compose.yml)            :3010
+#   - 9 standalone backend services
+#     (infrastructure/docker/docker-compose.services.yml) :3020–3028
+#
+# Next.js apps (web, portals, admin console) expose /api/health only — they are
+# monitored via the gateway's http_* metrics and the availability probes, not
+# scraped. Anything else listed here would be a permanently-down target.
+#
+# Loads alert rules from ./alerts/*.yml and forwards to Alertmanager :9093.
+# Hostnames resolve through the shared `proctira` docker network; Kubernetes
+# deployments swap static_configs for the kubernetes_sd_configs block at the
+# bottom (pods carry prometheus.io/scrape annotations from the Helm chart).
 
 global:
   scrape_interval: 15s
@@ -13,6 +25,8 @@ global:
   scrape_timeout: 10s
   external_labels:
     cluster: proctira
+    # Prometheus has no env expansion; per-environment values are set by the
+    # deployment (kustomize patch / Helm values), not by editing this file.
     env: dev
 
 rule_files:
@@ -21,6 +35,7 @@ rule_files:
   - alerts/error_rate.yml
   - alerts/saturation.yml
   - alerts/queue_lag.yml
+  - alerts/critical_journeys.yml
 
 alerting:
   alertmanagers:
@@ -38,136 +53,7 @@ scrape_configs:
           service: api-gateway
           team: engineering
 
-  # ─── Core domain services ──────────────────────────────────────────────────
-  - job_name: auth
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['auth:3001']
-        labels:
-          service: auth
-          team: security
-
-  - job_name: institution
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['institution:3002']
-        labels:
-          service: institution
-          team: engineering
-
-  - job_name: student
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['student:3003']
-        labels:
-          service: student
-          team: engineering
-
-  - job_name: staff
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['staff:3004']
-        labels:
-          service: staff
-          team: engineering
-
-  - job_name: assessment
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['assessment:3005']
-        labels:
-          service: assessment
-          team: engineering
-
-  - job_name: attendance
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['attendance:3006']
-        labels:
-          service: attendance
-          team: engineering
-
-  - job_name: examination
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['examination:3007']
-        labels:
-          service: examination
-          team: engineering
-
-  - job_name: scholarship
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['scholarship:3008']
-        labels:
-          service: scholarship
-          team: engineering
-
-  - job_name: health
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['health:3009']
-        labels:
-          service: health
-          team: engineering
-
-  - job_name: workflow
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['workflow:3011']
-        labels:
-          service: workflow
-          team: engineering
-
-  - job_name: notification
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['notification:3012']
-        labels:
-          service: notification
-          team: engineering
-
-  - job_name: audit
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['audit:3013']
-        labels:
-          service: audit
-          team: security
-
-  - job_name: custom-field
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['custom-field:3014']
-        labels:
-          service: custom-field
-          team: engineering
-
-  - job_name: survey
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['survey:3015']
-        labels:
-          service: survey
-          team: engineering
-
-  - job_name: report
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['report:3016']
-        labels:
-          service: report
-          team: engineering
-
-  - job_name: transport
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['transport:3017']
-        labels:
-          service: transport
-          team: engineering
-
-  # ─── Data and ETL ──────────────────────────────────────────────────────────
+  # ─── ETL ───────────────────────────────────────────────────────────────────
   - job_name: etl
     metrics_path: /metrics
     static_configs:
@@ -176,111 +62,60 @@ scrape_configs:
           service: etl
           team: ops
 
-  - job_name: data-warehouse
+  # ─── Standalone backend services (docker-compose.services.yml) ─────────────
+  - job_name: institution
     metrics_path: /metrics
     static_configs:
-      - targets: ['data-warehouse:3018']
-        labels:
-          service: data-warehouse
-          team: ops
+      - targets: ['institution-service:3020']
+        labels: { service: institution, team: engineering }
 
-  # ─── Lifecycle services ────────────────────────────────────────────────────
-  - job_name: registration
+  - job_name: student
     metrics_path: /metrics
     static_configs:
-      - targets: ['registration:3019']
-        labels:
-          service: registration
-          team: engineering
+      - targets: ['student-service:3021']
+        labels: { service: student, team: engineering }
 
-  - job_name: plugin
+  - job_name: staff
     metrics_path: /metrics
     static_configs:
-      - targets: ['plugin:3020']
-        labels:
-          service: plugin
-          team: engineering
+      - targets: ['staff-service:3022']
+        labels: { service: staff, team: engineering }
 
-  - job_name: theme
+  - job_name: assessment
     metrics_path: /metrics
     static_configs:
-      - targets: ['theme:3021']
-        labels:
-          service: theme
-          team: engineering
+      - targets: ['assessment-service:3023']
+        labels: { service: assessment, team: engineering }
 
-  - job_name: billing
+  - job_name: attendance
     metrics_path: /metrics
     static_configs:
-      - targets: ['billing:3022']
-        labels:
-          service: billing
-          team: engineering
+      - targets: ['attendance-service:3024']
+        labels: { service: attendance, team: engineering }
 
-  - job_name: policy
+  - job_name: examination
     metrics_path: /metrics
     static_configs:
-      - targets: ['policy:3023']
-        labels:
-          service: policy
-          team: security
+      - targets: ['examination-service:3025']
+        labels: { service: examination, team: engineering }
 
-  - job_name: tenant
+  - job_name: workflow
     metrics_path: /metrics
     static_configs:
-      - targets: ['tenant:3024']
-        labels:
-          service: tenant
-          team: engineering
+      - targets: ['workflow-service:3026']
+        labels: { service: workflow, team: engineering }
 
-  - job_name: install
+  - job_name: notification
     metrics_path: /metrics
     static_configs:
-      - targets: ['install:3025']
-        labels:
-          service: install
-          team: ops
+      - targets: ['notification-service:3027']
+        labels: { service: notification, team: engineering }
 
-  - job_name: developer-portal
+  - job_name: report
     metrics_path: /metrics
     static_configs:
-      - targets: ['developer-portal:3026']
-        labels:
-          service: developer-portal
-          team: engineering
-
-  # ─── Front-end / portal apps ───────────────────────────────────────────────
-  - job_name: web
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['web:3030']
-        labels:
-          service: web
-          team: engineering
-
-  - job_name: registration-portal
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['registration-portal:3031']
-        labels:
-          service: registration-portal
-          team: engineering
-
-  - job_name: public-website
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['public-website:3032']
-        labels:
-          service: public-website
-          team: engineering
-
-  - job_name: admin-console
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['admin-console:3033']
-        labels:
-          service: admin-console
-          team: ops
+      - targets: ['report-service:3028']
+        labels: { service: report, team: engineering }
 
   # ─── Self-monitoring ───────────────────────────────────────────────────────
   - job_name: prometheus
@@ -289,3 +124,32 @@ scrape_configs:
         labels:
           service: prometheus
           team: ops
+
+  # ─── Kubernetes (Helm deployments) ─────────────────────────────────────────
+  # Pods rendered by infrastructure/helm/proctira-service carry
+  # prometheus.io/scrape|port|path annotations (Fastify services only). This
+  # job is inert outside a cluster (no API server → no targets).
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [proctira-staging, proctira-production]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: 'true'
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+        action: replace
+        target_label: service
+      - source_labels: [__meta_kubernetes_namespace]
+        action: replace
+        target_label: namespace

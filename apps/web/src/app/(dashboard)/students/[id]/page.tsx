@@ -43,9 +43,15 @@ import {
 import {
   getEnrollmentHistory,
   getStudent,
+  getStudentAttendanceHeatmap,
   getStudentCustomFields,
   getStudentEnrollments,
   getTransferRecords,
+  listStudentConsents,
+  listStudentDiscipline,
+  listStudentSiblings,
+  studentHasPhoto,
+  type AttendanceHeatmap,
   type CustomFieldDefinition,
   type EnrollmentEntry,
   type EnrollmentHistoryEntry,
@@ -53,18 +59,19 @@ import {
   type TransferRecord,
 } from '@/lib/api/students';
 import { cn } from '@/lib/utils';
+import { Student360Panel } from '../_components/student-360-panel';
 
 export const dynamic = 'force-dynamic';
 
 /* ---------------------------------------------------------------- helpers */
 
 const AVATAR_PALETTES = [
-  { bg: 'bg-teal-100',    text: 'text-teal-700'    },
-  { bg: 'bg-indigo-100',  text: 'text-indigo-700'  },
-  { bg: 'bg-violet-100',  text: 'text-violet-700'  },
+  { bg: 'bg-teal-100', text: 'text-teal-700' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+  { bg: 'bg-violet-100', text: 'text-violet-700' },
   { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  { bg: 'bg-amber-100',   text: 'text-amber-700'   },
-  { bg: 'bg-rose-100',    text: 'text-rose-700'    },
+  { bg: 'bg-amber-100', text: 'text-amber-700' },
+  { bg: 'bg-rose-100', text: 'text-rose-700' },
 ];
 
 function avatarPalette(name: string) {
@@ -76,30 +83,40 @@ function avatarPalette(name: string) {
 function formatDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
     }).format(new Date(iso));
-  } catch { return iso; }
+  } catch {
+    return iso;
+  }
 }
 
 function calcAge(dob: string): number | null {
   try {
     const birth = new Date(dob);
-    const now   = new Date();
+    const now = new Date();
     let age = now.getFullYear() - birth.getFullYear();
     const m = now.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
     return age >= 0 && age < 120 ? age : null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function readStr(cd: Record<string, unknown>, key: string): string {
-  const v = cd[key]; return typeof v === 'string' && v.length > 0 ? v : '';
+  const v = cd[key];
+  return typeof v === 'string' && v.length > 0 ? v : '';
 }
 
 function readNum(cd: Record<string, unknown>, key: string): number | null {
   const v = cd[key];
   if (typeof v === 'number' && Number.isFinite(v)) return v;
-  if (typeof v === 'string') { const n = parseFloat(v); if (Number.isFinite(n)) return n; }
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    if (Number.isFinite(n)) return n;
+  }
   return null;
 }
 
@@ -111,78 +128,94 @@ function titleCase(s: string): string {
 function formatCustomValue(v: unknown): string {
   if (v == null || v === '') return '—';
   if (typeof v === 'boolean') return v ? 'Yes' : 'No';
-  if (typeof v === 'object') { try { return JSON.stringify(v); } catch { return String(v); } }
+  if (typeof v === 'object') {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
   return String(v);
 }
 
-/** Deterministic 30-slot heatmap pattern from student id + attendance pct */
-type HeatSlot = 'present' | 'half' | 'absent' | 'empty';
-function buildHeatmap(studentId: string, attendancePct: number | null): HeatSlot[] {
-  const pct = attendancePct ?? 90;
-  const absent = Math.max(0, Math.round(30 * (1 - pct / 100)));
-  const result: HeatSlot[] = Array(30).fill('present') as HeatSlot[];
-  let seed = 0;
-  for (let i = 0; i < studentId.length; i++) seed = (seed * 31 + studentId.charCodeAt(i)) | 0;
-  const used = new Set<number>();
-  for (let j = 0; j < absent; j++) {
-    seed = (seed * 1664525 + 1013904223) | 0;
-    const pos = Math.abs(seed) % 30;
-    if (!used.has(pos)) { result[pos] = 'absent'; used.add(pos); }
-  }
-  return result;
+interface PageProps {
+  params: Promise<{ id: string }>;
 }
 
-/* ------------------------------------------------------------------ page */
-
-interface PageProps { params: { id: string } }
-
-export default async function StudentProfilePage({ params }: PageProps) {
-  const [student, enrollments, history, transfers, customFields] = await Promise.all([
+export default async function StudentProfilePage(props: PageProps) {
+  const params = await props.params;
+  const [
+    student,
+    enrollments,
+    history,
+    transfers,
+    customFields,
+    heatmap,
+    siblings,
+    consents,
+    incidents,
+    hasPhoto,
+  ] = await Promise.all([
     getStudent(params.id),
     getStudentEnrollments(params.id),
     getEnrollmentHistory(params.id),
     getTransferRecords(params.id),
     getStudentCustomFields(),
+    getStudentAttendanceHeatmap(params.id),
+    listStudentSiblings(params.id),
+    listStudentConsents(params.id),
+    listStudentDiscipline(params.id),
+    studentHasPhoto(params.id),
   ]);
 
   if (!student) notFound();
 
   const cd = student.customData ?? {};
   const currentEnrollment = enrollments.find((e) => e.status === 'ENROLLED') ?? null;
-  const currentStatus = (currentEnrollment?.status ?? readStr(cd, 'enrollmentStatus')) || 'ENROLLED';
+  const currentStatus =
+    (currentEnrollment?.status ?? readStr(cd, 'enrollmentStatus')) || 'ENROLLED';
 
-  const fullName    = `${student.firstName} ${student.lastName}`;
-  const palette     = avatarPalette(fullName);
-  const initials    = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
-  const age         = student.dateOfBirth ? calcAge(student.dateOfBirth) : null;
-  const dob         = student.dateOfBirth ? formatDate(student.dateOfBirth) : null;
-  const genderInit  = student.gender ? student.gender[0]?.toUpperCase() : null;
-  const admNo       = readStr(cd, 'admissionNo') || readStr(cd, 'admissionNumber');
-  const attendance  = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
-  const avgScore    = readNum(cd, 'avgScore') ?? readNum(cd, 'averageScore');
-  const rankBand    = readStr(cd, 'rankBand') || readStr(cd, 'rank');
-  const feeStatus   = readStr(cd, 'feeStatus') || readStr(cd, 'feeClearanceStatus');
-  const heatmap     = buildHeatmap(student.id, attendance);
+  const fullName = `${student.firstName} ${student.lastName}`;
+  const palette = avatarPalette(fullName);
+  const initials = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
+  const age = student.dateOfBirth ? calcAge(student.dateOfBirth) : null;
+  const dob = student.dateOfBirth ? formatDate(student.dateOfBirth) : null;
+  const genderInit = student.gender ? student.gender[0]?.toUpperCase() : null;
+  const admNo = readStr(cd, 'admissionNo') || readStr(cd, 'admissionNumber');
+  const attendance = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
+  const avgScore = readNum(cd, 'avgScore') ?? readNum(cd, 'averageScore');
+  const rankBand = readStr(cd, 'rankBand') || readStr(cd, 'rank');
+  const feeStatus = readStr(cd, 'feeStatus') || readStr(cd, 'feeClearanceStatus');
+  const attendancePct = heatmap?.totalRecords ? heatmap.attendancePercentage : (attendance ?? null);
 
   return (
     <section aria-labelledby="student-profile-heading" className="space-y-0">
-
       {/* ── Profile head ── */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
           {/* XL avatar */}
-          <span
-            aria-hidden="true"
-            className={cn(
-              'flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-bold',
-              palette.bg, palette.text,
-            )}
-          >
-            {initials}
-          </span>
+          {hasPhoto ? (
+            <img
+              alt=""
+              src={`/api/students/${student.id}/photo`}
+              className="h-16 w-16 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-bold',
+                palette.bg,
+                palette.text,
+              )}
+            >
+              {initials}
+            </span>
+          )}
           <div>
             <h1
               id="student-profile-heading"
+              data-testid="student-profile-heading"
               className="text-2xl font-extrabold tracking-tight text-foreground"
             >
               {fullName}
@@ -193,7 +226,9 @@ export default async function StudentProfilePage({ params }: PageProps) {
               )}
               {(genderInit || dob) && <span aria-hidden="true">·</span>}
               {genderInit && dob && age !== null && (
-                <span>{genderInit} · {dob} ({age} y)</span>
+                <span>
+                  {genderInit} · {dob} ({age} y)
+                </span>
               )}
               {admNo && (
                 <>
@@ -227,7 +262,7 @@ export default async function StudentProfilePage({ params }: PageProps) {
           aria-label="Student information sections"
           className="h-auto w-full gap-0 overflow-x-auto rounded-none border-b border-border bg-transparent p-0"
         >
-          {(['overview','attendance','assessments','guardians','history'] as const).map((v) => (
+          {(['overview', 'attendance', 'assessments', 'guardians', 'history'] as const).map((v) => (
             <TabsTrigger
               key={v}
               value={v}
@@ -255,7 +290,6 @@ export default async function StudentProfilePage({ params }: PageProps) {
         {/* ── Overview tab ── */}
         <TabsContent value="overview" className="mt-6">
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
-
             {/* Main column */}
             <div className="space-y-6">
               {/* KPI row */}
@@ -264,8 +298,14 @@ export default async function StudentProfilePage({ params }: PageProps) {
                   icon={<CheckCircle2 className="h-5 w-5" />}
                   iconColors="bg-emerald-50 text-emerald-600"
                   label="Attendance"
-                  value={attendance !== null ? `${Math.round(attendance)}%` : '—'}
-                  foot={attendance !== null && attendance >= 90 ? 'On track this term' : attendance !== null ? 'Needs attention' : undefined}
+                  value={attendancePct !== null ? `${Math.round(attendancePct)}%` : '—'}
+                  foot={
+                    attendancePct !== null && attendancePct >= 90
+                      ? 'On track this term'
+                      : attendancePct !== null
+                        ? 'Needs attention'
+                        : undefined
+                  }
                 />
                 <KpiCard
                   icon={<ClipboardList className="h-5 w-5" />}
@@ -291,21 +331,27 @@ export default async function StudentProfilePage({ params }: PageProps) {
               </div>
 
               {/* Attendance heatmap */}
-              {attendance !== null && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">
-                      Attendance — last 30 school days
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      {Math.round(attendance)}% attendance this term
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AttendanceHeatmap slots={heatmap} />
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Attendance heatmap</CardTitle>
+                  <CardDescription className="text-xs">
+                    {heatmap && heatmap.totalRecords > 0
+                      ? `${heatmap.attendancePercentage}% from ${heatmap.totalRecords} recorded days (${heatmap.from} – ${heatmap.to})`
+                      : 'No attendance recorded in this window yet.'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AttendanceHeatmap heatmap={heatmap} />
+                </CardContent>
+              </Card>
+
+              <Student360Panel
+                studentId={student.id}
+                hasPhoto={hasPhoto}
+                siblings={siblings}
+                consents={consents}
+                incidents={incidents}
+              />
 
               {/* Recent assessments */}
               <RecentAssessmentsCard cd={cd} />
@@ -317,9 +363,7 @@ export default async function StudentProfilePage({ params }: PageProps) {
               <StudentFactsCard student={student} cd={cd} />
 
               {/* Enrollment timeline */}
-              {history.length > 0 && (
-                <EnrollmentTimelineCard history={history} />
-              )}
+              {history.length > 0 && <EnrollmentTimelineCard history={history} />}
 
               {/* Current enrollment stats */}
               {currentEnrollment && (
@@ -335,18 +379,11 @@ export default async function StudentProfilePage({ params }: PageProps) {
             <CardHeader>
               <CardTitle>Attendance</CardTitle>
               <CardDescription>
-                Detailed attendance will populate when the attendance module is connected.
+                Daily records from the attendance service for this student.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {attendance !== null && (
-                <AttendanceHeatmap slots={heatmap} />
-              )}
-              {attendance === null && (
-                <p className="text-sm text-muted-foreground">
-                  No attendance data available for this student yet.
-                </p>
-              )}
+              <AttendanceHeatmap heatmap={heatmap} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -407,7 +444,12 @@ function KpiCard({
           </span>
         </div>
         <p className="mt-3 text-xs font-medium text-muted-foreground">{label}</p>
-        <p className={cn('mt-0.5 text-2xl font-extrabold tracking-tight', valueColor ?? 'text-foreground')}>
+        <p
+          className={cn(
+            'mt-0.5 text-2xl font-extrabold tracking-tight',
+            valueColor ?? 'text-foreground',
+          )}
+        >
           {value}
         </p>
         {foot && <p className="mt-1 text-xs text-muted-foreground">{foot}</p>}
@@ -418,36 +460,56 @@ function KpiCard({
 
 /* --------------------------------------------------------------- heatmap */
 
-function AttendanceHeatmap({ slots }: { slots: HeatSlot[] }) {
+function AttendanceHeatmap({ heatmap }: { heatmap: AttendanceHeatmap | null }) {
+  const days = heatmap?.days ?? [];
+  if (days.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="attendance-heatmap-empty">
+        No attendance days in range.
+      </p>
+    );
+  }
   return (
-    <div>
+    <div data-testid="attendance-heatmap">
       <div
         role="img"
-        aria-label="Attendance for last 30 school days"
-        className="grid grid-cols-[repeat(30,1fr)] gap-1"
+        aria-label={`Attendance from ${heatmap?.from ?? ''} to ${heatmap?.to ?? ''}`}
+        className="grid grid-cols-[repeat(auto-fill,minmax(0.7rem,1fr))] gap-1"
       >
-        {slots.map((slot, i) => (
+        {days.map((day) => (
           <span
-            key={i}
-            aria-hidden="true"
+            key={day.date}
+            data-testid="heatmap-day"
+            data-date={day.date}
+            data-slot={day.slot}
+            title={`${day.date}: ${day.status ?? 'no record'}`}
             className={cn(
               'aspect-square rounded-[3px]',
-              slot === 'present' ? 'bg-emerald-500' :
-              slot === 'half'    ? 'bg-emerald-300' :
-              slot === 'absent'  ? 'bg-red-500' :
-                                   'bg-muted',
+              day.slot === 'present'
+                ? 'bg-emerald-500'
+                : day.slot === 'half'
+                  ? 'bg-emerald-300'
+                  : day.slot === 'absent'
+                    ? 'bg-red-500'
+                    : 'bg-muted',
             )}
           />
         ))}
       </div>
       <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-500" aria-hidden="true" />
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-500"
+            aria-hidden="true"
+          />
           Present
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-300" aria-hidden="true" />
-          Half day
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-300"
+            aria-hidden="true"
+          />
+          Late
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-red-500" aria-hidden="true" />
@@ -468,8 +530,12 @@ function RecentAssessmentsCard({
   expanded?: boolean;
 }) {
   type Assessment = {
-    name: string; subject: string; date?: string;
-    score?: string; grade?: string; classAvg?: string | number;
+    name: string;
+    subject: string;
+    date?: string;
+    score?: string;
+    grade?: string;
+    classAvg?: string | number;
   };
   const raw = cd['recentAssessments'];
   const items: Assessment[] = Array.isArray(raw) ? (raw as Assessment[]) : [];
@@ -506,13 +572,21 @@ function RecentAssessmentsCard({
                     <TableCell className="ps-4 font-medium">{a.name}</TableCell>
                     <TableCell>{a.subject}</TableCell>
                     <TableCell>{a.date ?? '—'}</TableCell>
-                    <TableCell className="text-end font-semibold tabular-nums">{a.score ?? '—'}</TableCell>
+                    <TableCell className="text-end font-semibold tabular-nums">
+                      {a.score ?? '—'}
+                    </TableCell>
                     <TableCell>
                       {a.grade ? (
-                        <Badge variant="success" className="text-xs">{a.grade}</Badge>
-                      ) : '—'}
+                        <Badge variant="success" className="text-xs">
+                          {a.grade}
+                        </Badge>
+                      ) : (
+                        '—'
+                      )}
                     </TableCell>
-                    <TableCell className="pe-4 text-muted-foreground">{a.classAvg ?? '—'}</TableCell>
+                    <TableCell className="pe-4 text-muted-foreground">
+                      {a.classAvg ?? '—'}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -526,17 +600,11 @@ function RecentAssessmentsCard({
 
 /* --------------------------------------------------------------- student facts sidebar */
 
-function StudentFactsCard({
-  student,
-  cd,
-}: {
-  student: Student;
-  cd: Record<string, unknown>;
-}) {
-  const guardian  = student.guardians[0];
-  const address   = readStr(cd, 'address');
+function StudentFactsCard({ student, cd }: { student: Student; cd: Record<string, unknown> }) {
+  const guardian = student.guardians[0];
+  const address = readStr(cd, 'address');
   const bloodGroup = readStr(cd, 'bloodGroup');
-  const category  = readStr(cd, 'category');
+  const category = readStr(cd, 'category');
   const motherTongue = readStr(cd, 'motherTongue');
 
   return (
@@ -557,25 +625,36 @@ function StudentFactsCard({
               )}
               {guardian.contactEmail && (
                 <FactRow label="Guardian email">
-                  <a href={`mailto:${guardian.contactEmail}`} className="text-primary hover:underline">
+                  <a
+                    href={`mailto:${guardian.contactEmail}`}
+                    className="text-primary hover:underline"
+                  >
                     {guardian.contactEmail}
                   </a>
                 </FactRow>
               )}
             </>
           )}
-          {address    && <FactRow label="Address">{address}</FactRow>}
+          {address && <FactRow label="Address">{address}</FactRow>}
           {bloodGroup && <FactRow label="Blood group">{bloodGroup}</FactRow>}
-          {category   && <FactRow label="Category">{category}</FactRow>}
+          {category && <FactRow label="Category">{category}</FactRow>}
           {motherTongue && <FactRow label="Mother tongue">{motherTongue}</FactRow>}
-          {student.contacts.filter(c => c.type === 'phone' || c.type === 'mobile').map((c, i) => (
-            <FactRow key={i} label={titleCase(c.type)}>{c.value}</FactRow>
-          ))}
-          {student.contacts.filter(c => c.type === 'email').map((c, i) => (
-            <FactRow key={i} label="Email">
-              <a href={`mailto:${c.value}`} className="text-primary hover:underline">{c.value}</a>
-            </FactRow>
-          ))}
+          {student.contacts
+            .filter((c) => c.type === 'phone' || c.type === 'mobile')
+            .map((c, i) => (
+              <FactRow key={i} label={titleCase(c.type)}>
+                {c.value}
+              </FactRow>
+            ))}
+          {student.contacts
+            .filter((c) => c.type === 'email')
+            .map((c, i) => (
+              <FactRow key={i} label="Email">
+                <a href={`mailto:${c.value}`} className="text-primary hover:underline">
+                  {c.value}
+                </a>
+              </FactRow>
+            ))}
         </dl>
       </CardContent>
     </Card>
@@ -609,17 +688,21 @@ function EnrollmentTimelineCard({ history }: { history: EnrollmentHistoryEntry[]
                 aria-hidden="true"
                 className={cn(
                   'absolute -start-[21px] flex h-4 w-4 items-center justify-center rounded-full border-2 border-background',
-                  entry.newStatus === 'ENROLLED'   ? 'bg-primary' :
-                  entry.newStatus === 'GRADUATED'  ? 'bg-emerald-500' :
-                  entry.newStatus === 'TRANSFERRED'? 'bg-amber-500' :
-                                                     'bg-muted-foreground',
+                  entry.newStatus === 'ENROLLED'
+                    ? 'bg-primary'
+                    : entry.newStatus === 'GRADUATED'
+                      ? 'bg-emerald-500'
+                      : entry.newStatus === 'TRANSFERRED'
+                        ? 'bg-amber-500'
+                        : 'bg-muted-foreground',
                 )}
               />
               <p className="font-medium leading-tight">
                 {titleCase(entry.newStatus)}
                 {entry.previousStatus && (
                   <span className="font-normal text-muted-foreground">
-                    {' '}(was {entry.previousStatus.toLowerCase()})
+                    {' '}
+                    (was {entry.previousStatus.toLowerCase()})
                   </span>
                 )}
               </p>
@@ -645,8 +728,8 @@ function CurrentEnrollmentCard({
   cd: Record<string, unknown>;
 }) {
   const classTeacher = readStr(cd, 'classTeacher');
-  const rollNumber   = readStr(cd, 'rollNumber');
-  const udise        = readStr(cd, 'udise') || readStr(cd, 'udiseCode');
+  const rollNumber = readStr(cd, 'rollNumber');
+  const udise = readStr(cd, 'udise') || readStr(cd, 'udiseCode');
   const gradeSection = readStr(cd, 'gradeSection') || readStr(cd, 'grade');
 
   return (
@@ -657,10 +740,14 @@ function CurrentEnrollmentCard({
       <CardContent>
         <dl className="space-y-2 text-sm">
           <FactRow label="Institution">{enrollment.institutionId}</FactRow>
-          {udise && <FactRow label="UDISE"><span className="font-mono">{udise}</span></FactRow>}
+          {udise && (
+            <FactRow label="UDISE">
+              <span className="font-mono">{udise}</span>
+            </FactRow>
+          )}
           <FactRow label="Grade / Section">{gradeSection || enrollment.gradeId}</FactRow>
           {classTeacher && <FactRow label="Class teacher">{classTeacher}</FactRow>}
-          {rollNumber   && <FactRow label="Roll number">{rollNumber}</FactRow>}
+          {rollNumber && <FactRow label="Roll number">{rollNumber}</FactRow>}
         </dl>
       </CardContent>
     </Card>
@@ -670,7 +757,9 @@ function CurrentEnrollmentCard({
 /* --------------------------------------------------------------- existing tab content */
 
 function EnrollmentTab({
-  enrollments, history, transfers,
+  enrollments,
+  history,
+  transfers,
 }: {
   enrollments: EnrollmentEntry[];
   history: EnrollmentHistoryEntry[];
@@ -722,8 +811,10 @@ function EnrollmentTab({
             <Table aria-label="Transfer records">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead><TableHead>From</TableHead>
-                  <TableHead>To</TableHead><TableHead>Reason</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>From</TableHead>
+                  <TableHead>To</TableHead>
+                  <TableHead>Reason</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -758,14 +849,18 @@ function GuardiansTab({ student }: { student: Student }) {
           <Table aria-label="Guardians">
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead><TableHead>Relationship</TableHead>
-                <TableHead>Phone</TableHead><TableHead>Email</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Relationship</TableHead>
+                <TableHead>Phone</TableHead>
+                <TableHead>Email</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {student.guardians.map((g, i) => (
                 <TableRow key={g.id ?? `${g.firstName}-${i}`}>
-                  <TableCell className="font-medium">{g.firstName} {g.lastName}</TableCell>
+                  <TableCell className="font-medium">
+                    {g.firstName} {g.lastName}
+                  </TableCell>
                   <TableCell className="capitalize">{g.relationship}</TableCell>
                   <TableCell>{g.contactPhone ?? '—'}</TableCell>
                   <TableCell>{g.contactEmail ?? '—'}</TableCell>
@@ -780,7 +875,8 @@ function GuardiansTab({ student }: { student: Student }) {
 }
 
 function CustomFieldsTab({
-  customFields, student,
+  customFields,
+  student,
 }: {
   customFields: CustomFieldDefinition[];
   student: Student;
@@ -821,11 +917,16 @@ function CustomFieldsTab({
 
 function StatusPill({ status }: { status: string }) {
   switch (status.toUpperCase()) {
-    case 'ENROLLED':    return <Badge variant="success">Enrolled</Badge>;
-    case 'TRANSFERRED': return <Badge variant="warning">Transferred</Badge>;
-    case 'WITHDRAWN':   return <Badge variant="secondary">Withdrawn</Badge>;
-    case 'GRADUATED':   return <Badge variant="outline">Graduated</Badge>;
-    default:            return <Badge variant="outline">{titleCase(status)}</Badge>;
+    case 'ENROLLED':
+      return <Badge variant="success">Enrolled</Badge>;
+    case 'TRANSFERRED':
+      return <Badge variant="warning">Transferred</Badge>;
+    case 'WITHDRAWN':
+      return <Badge variant="secondary">Withdrawn</Badge>;
+    case 'GRADUATED':
+      return <Badge variant="outline">Graduated</Badge>;
+    default:
+      return <Badge variant="outline">{titleCase(status)}</Badge>;
   }
 }
 

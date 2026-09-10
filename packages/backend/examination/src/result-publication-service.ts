@@ -11,7 +11,14 @@
  * - 10.8: Provide result analysis including pass rate, mean score, and score distribution
  *         broken down by subject, center, gender, and area
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { randomUUID } from 'node:crypto';
+
+import {
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+  type FieldError,
+} from '@proctira/common';
 
 import type { ExaminationRepository, ExaminationGradingScheme } from './examination-repository.js';
 import type {
@@ -25,6 +32,16 @@ import type {
   ScoreDistributionBucket,
   AcademicRecordUpdate,
 } from './result-repository.js';
+
+/** Marks entry payload (see RecordMarksSchema). */
+export interface RecordMarksInput {
+  entries: Array<{
+    studentId: string;
+    gender?: ExaminationCandidate['gender'];
+    areaId?: string;
+    marks: Array<{ subjectId: string; score: number | null }>;
+  }>;
+}
 
 /** Maximum allowed publication duration in milliseconds (30 seconds) */
 export const MAX_PUBLICATION_DURATION_MS = 30_000;
@@ -82,9 +99,10 @@ export class ResultPublicationService {
             candidateId: candidate.id,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
-            reason: subjectResult.score === null
-              ? 'Score data is missing'
-              : 'Result data is marked as incomplete',
+            reason:
+              subjectResult.score === null
+                ? 'Score data is missing'
+                : 'Result data is marked as incomplete',
           });
           continue;
         }
@@ -181,7 +199,10 @@ export class ResultPublicationService {
     }
 
     // Fetch publication result
-    const publicationResult = await this.resultRepository.getPublicationResult(examinationId, tenantId);
+    const publicationResult = await this.resultRepository.getPublicationResult(
+      examinationId,
+      tenantId,
+    );
     if (!publicationResult) {
       throw new BusinessRuleError(
         'Results have not been published for this examination. Publish results first.',
@@ -209,7 +230,10 @@ export class ResultPublicationService {
       failCount,
       incompleteCount: incompleteRecords.length,
       passRate: allScores.length > 0 ? roundToTwo((passCount / allScores.length) * 100) : 0,
-      meanScore: allScores.length > 0 ? roundToTwo(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0,
+      meanScore:
+        allScores.length > 0
+          ? roundToTwo(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+          : 0,
       scoreDistribution: this.buildScoreDistribution(allScores, minScore, maxScore),
     };
 
@@ -324,6 +348,114 @@ export class ResultPublicationService {
   }
 
   /**
+   * Marks entry before publication (G-902 Results tab "Upload marks").
+   *
+   * Each entry references a registered candidate; centerId is inferred from
+   * the registration. Scores are range-checked against the subject maxScore.
+   * Rejected once results are published (BusinessRuleError → 422).
+   */
+  async recordMarks(
+    tenantId: string,
+    examinationId: string,
+    input: RecordMarksInput,
+  ): Promise<{ candidateCount: number; subjectResultCount: number }> {
+    const examination = await this.examinationRepository.findById(examinationId, tenantId);
+    if (!examination) {
+      throw new NotFoundError(`Examination with id '${examinationId}' not found`);
+    }
+    if (examination.status === 'CANCELLED') {
+      throw new BusinessRuleError('Cannot record marks for a cancelled examination');
+    }
+    const published = await this.resultRepository.getPublicationResult(examinationId, tenantId);
+    if (published) {
+      throw new BusinessRuleError(
+        'Results are already published for this examination; marks are locked',
+      );
+    }
+
+    const subjectsById = new Map(examination.subjects.map((s) => [s.id, s]));
+    const registrations = await this.examinationRepository.listCandidateRegistrations(
+      examinationId,
+      tenantId,
+    );
+    const registrationByStudent = new Map(registrations.map((r) => [r.studentId, r]));
+    const existing = await this.resultRepository.getCandidates(examinationId, tenantId);
+    const existingByStudent = new Map(existing.map((c) => [c.studentId, c]));
+
+    const errors: FieldError[] = [];
+    const upserts: ExaminationCandidate[] = [];
+    let subjectResultCount = 0;
+
+    input.entries.forEach((entry, entryIndex) => {
+      const registration = registrationByStudent.get(entry.studentId);
+      if (!registration) {
+        errors.push({
+          field: `entries[${entryIndex}].studentId`,
+          rule: 'registered',
+          message: `Student '${entry.studentId}' is not registered for this examination`,
+        });
+        return;
+      }
+      const current = existingByStudent.get(entry.studentId);
+      const candidateId = current?.id ?? randomUUID();
+      const results = new Map(
+        (current?.subjectResults ?? []).map((r) => [r.subjectId, r] as const),
+      );
+      entry.marks.forEach((mark, markIndex) => {
+        const subject = subjectsById.get(mark.subjectId);
+        if (!subject) {
+          errors.push({
+            field: `entries[${entryIndex}].marks[${markIndex}].subjectId`,
+            rule: 'exists',
+            message: `Subject '${mark.subjectId}' is not part of this examination`,
+          });
+          return;
+        }
+        if (mark.score !== null && (mark.score < 0 || mark.score > subject.maxScore)) {
+          errors.push({
+            field: `entries[${entryIndex}].marks[${markIndex}].score`,
+            rule: 'range',
+            message: `Score for ${subject.code} must be between 0 and ${subject.maxScore}`,
+          });
+          return;
+        }
+        results.set(mark.subjectId, {
+          candidateId,
+          subjectId: mark.subjectId,
+          score: mark.score,
+          isComplete: mark.score !== null,
+        });
+        subjectResultCount += 1;
+      });
+      upserts.push({
+        id: candidateId,
+        examinationId,
+        studentId: entry.studentId,
+        centerId: registration.centerId,
+        gender: current?.gender ?? entry.gender ?? 'other',
+        areaId: current?.areaId ?? entry.areaId ?? registration.centerId,
+        subjectResults: [...results.values()],
+      });
+    });
+
+    if (errors.length > 0) {
+      throw new ValidationError('Marks entry failed validation', errors);
+    }
+
+    await this.resultRepository.upsertCandidates(tenantId, upserts);
+    return { candidateCount: upserts.length, subjectResultCount };
+  }
+
+  /** Recorded (pre- or post-publication) marks per candidate. */
+  async getMarks(tenantId: string, examinationId: string): Promise<ExaminationCandidate[]> {
+    const examination = await this.examinationRepository.findById(examinationId, tenantId);
+    if (!examination) {
+      throw new NotFoundError(`Examination with id '${examinationId}' not found`);
+    }
+    return this.resultRepository.getCandidates(examinationId, tenantId);
+  }
+
+  /**
    * Resolve the grading scheme for a subject.
    * If the subject has a specific gradingSchemeId, use that.
    * Otherwise, use the first grading scheme in the examination.
@@ -375,9 +507,8 @@ export class ResultPublicationService {
 
     for (let i = 0; i < SCORE_DISTRIBUTION_BUCKETS; i++) {
       const bucketMin = minScore + i * bucketSize;
-      const bucketMax = i === SCORE_DISTRIBUTION_BUCKETS - 1
-        ? maxScore
-        : minScore + (i + 1) * bucketSize;
+      const bucketMax =
+        i === SCORE_DISTRIBUTION_BUCKETS - 1 ? maxScore : minScore + (i + 1) * bucketSize;
 
       const count = scores.filter((s) => {
         if (i === SCORE_DISTRIBUTION_BUCKETS - 1) {
@@ -435,7 +566,8 @@ export class ResultPublicationService {
         passCount,
         failCount,
         passRate: scores.length > 0 ? roundToTwo((passCount / scores.length) * 100) : 0,
-        meanScore: scores.length > 0 ? roundToTwo(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+        meanScore:
+          scores.length > 0 ? roundToTwo(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
         scoreDistribution: this.buildScoreDistribution(scores, minScore, maxScore),
       });
     }

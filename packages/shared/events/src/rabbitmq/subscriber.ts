@@ -8,13 +8,8 @@ import amqplib from 'amqplib';
 
 import type { TaskMessage, TaskHandler } from '../types';
 
-import type {
-  RabbitMQConfig} from './config';
-import {
-  DEFAULT_RABBITMQ_CONFIG,
-  buildTenantQueue,
-  buildTenantRoutingKey,
-} from './config';
+import type { RabbitMQConfig } from './config';
+import { DEFAULT_RABBITMQ_CONFIG, buildTenantQueue, buildTenantRoutingKey } from './config';
 
 export interface SubscriberOptions {
   /** Tenant ID for queue scoping */
@@ -31,7 +26,16 @@ export interface SubscriberOptions {
 
 export class RabbitMQSubscriber {
   private config: Required<
-    Pick<RabbitMQConfig, 'url' | 'exchange' | 'exchangeType' | 'deadLetterExchange' | 'prefetchCount' | 'durable' | 'heartbeat'>
+    Pick<
+      RabbitMQConfig,
+      | 'url'
+      | 'exchange'
+      | 'exchangeType'
+      | 'deadLetterExchange'
+      | 'prefetchCount'
+      | 'durable'
+      | 'heartbeat'
+    >
   > &
     RabbitMQConfig;
   private connection: ChannelModel | null = null;
@@ -58,18 +62,14 @@ export class RabbitMQSubscriber {
     await this.channel.prefetch(this.config.prefetchCount ?? 10);
 
     // Assert exchanges
-    await this.channel.assertExchange(
-      this.config.exchange,
-      this.config.exchangeType ?? 'topic',
-      { durable: this.config.durable }
-    );
+    await this.channel.assertExchange(this.config.exchange, this.config.exchangeType ?? 'topic', {
+      durable: this.config.durable,
+    });
 
     if (this.config.deadLetterExchange) {
-      await this.channel.assertExchange(
-        this.config.deadLetterExchange,
-        'topic',
-        { durable: this.config.durable }
-      );
+      await this.channel.assertExchange(this.config.deadLetterExchange, 'topic', {
+        durable: this.config.durable,
+      });
     }
 
     this.connected = true;
@@ -122,11 +122,7 @@ export class RabbitMQSubscriber {
       await this.channel.assertQueue(dlqName, {
         durable: this.config.durable,
       });
-      await this.channel.bindQueue(
-        dlqName,
-        this.config.deadLetterExchange,
-        routingKey
-      );
+      await this.channel.bindQueue(dlqName, this.config.deadLetterExchange, routingKey);
     }
 
     // Assert main queue with dead-letter exchange
@@ -144,22 +140,19 @@ export class RabbitMQSubscriber {
 
     // Start consuming
     const channel = this.channel;
-    const { consumerTag } = await channel.consume(
-      fullQueueName,
-      (msg: ConsumeMessage | null) => {
-        if (!msg) return;
+    const { consumerTag } = await channel.consume(fullQueueName, (msg: ConsumeMessage | null) => {
+      if (!msg) return;
 
-        void (async () => {
-          try {
-            const task: TaskMessage = JSON.parse(msg.content.toString()) as TaskMessage;
-            await handler(task);
-            channel.ack(msg);
-          } catch {
-            await this.handleFailure(msg, channel, autoRetry);
-          }
-        })();
-      }
-    );
+      void (async () => {
+        try {
+          const task: TaskMessage = JSON.parse(msg.content.toString()) as TaskMessage;
+          await handler(task);
+          channel.ack(msg);
+        } catch {
+          await this.handleFailure(msg, channel, autoRetry);
+        }
+      })();
+    });
 
     this.consumerTags.push(consumerTag);
     this.consuming = true;
@@ -171,7 +164,7 @@ export class RabbitMQSubscriber {
   private async handleFailure(
     msg: ConsumeMessage,
     channel: Channel,
-    autoRetry: boolean
+    autoRetry: boolean,
   ): Promise<void> {
     if (!autoRetry) {
       // No retry — reject and send to DLQ
@@ -192,7 +185,7 @@ export class RabbitMQSubscriber {
         // Calculate exponential backoff delay
         const backoffDelay = Math.min(
           1000 * Math.pow(2, task.options.retryCount),
-          60000 // Max 60 seconds
+          60000, // Max 60 seconds
         );
         task.options.delay = backoffDelay;
 
@@ -201,23 +194,18 @@ export class RabbitMQSubscriber {
 
         // Republish with updated retry count and delay
         const routingKey = msg.fields.routingKey;
-        channel.publish(
-          this.config.exchange,
-          routingKey,
-          Buffer.from(JSON.stringify(task)),
-          {
-            persistent: true,
-            priority: task.options.priority,
-            headers: {
-              ...(msg.properties.headers as Record<string, unknown>),
-              'x-retry-count': task.options.retryCount,
-              'x-delay': backoffDelay,
-            },
-            expiration: String(backoffDelay),
-            messageId: task.id,
-            contentType: 'application/json',
-          }
-        );
+        channel.publish(this.config.exchange, routingKey, Buffer.from(JSON.stringify(task)), {
+          persistent: true,
+          priority: task.options.priority,
+          headers: {
+            ...(msg.properties.headers as Record<string, unknown>),
+            'x-retry-count': task.options.retryCount,
+            'x-delay': backoffDelay,
+          },
+          expiration: String(backoffDelay),
+          messageId: task.id,
+          contentType: 'application/json',
+        });
       } else {
         // Max retries exceeded — send to DLQ
         channel.nack(msg, false, false);

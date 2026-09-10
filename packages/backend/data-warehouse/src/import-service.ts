@@ -7,12 +7,7 @@
  */
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  DataRecord,
-  DataRecordInput,
-  ImportResult,
-  ImportRowError,
-} from './schemas.js';
+import type { DataRecord, DataRecordInput, ImportResult, ImportRowError } from './schemas.js';
 import type { WarehouseRepository } from './warehouse-repository.js';
 
 /**
@@ -33,14 +28,20 @@ export function parseCsvContent(content: string): DataRecordInput[] {
     if (!line) continue;
     const values = line.split(',').map((v) => v.trim());
     const record: DataRecordInput = {
-      indicatorGid: values[headers.indexOf('indicatorgid')] || values[headers.indexOf('indicator_gid')] || '',
+      indicatorGid:
+        values[headers.indexOf('indicatorgid')] || values[headers.indexOf('indicator_gid')] || '',
       unitGid: values[headers.indexOf('unitgid')] || values[headers.indexOf('unit_gid')] || '',
-      subgroupGid: values[headers.indexOf('subgroupgid')] || values[headers.indexOf('subgroup_gid')] || '',
+      subgroupGid:
+        values[headers.indexOf('subgroupgid')] || values[headers.indexOf('subgroup_gid')] || '',
       areaId: values[headers.indexOf('areaid')] || values[headers.indexOf('area_id')] || '',
-      timePeriod: values[headers.indexOf('timeperiod')] || values[headers.indexOf('time_period')] || '',
+      timePeriod:
+        values[headers.indexOf('timeperiod')] || values[headers.indexOf('time_period')] || '',
     };
 
-    const dataValueIdx = headers.indexOf('datavalue') !== -1 ? headers.indexOf('datavalue') : headers.indexOf('data_value');
+    const dataValueIdx =
+      headers.indexOf('datavalue') !== -1
+        ? headers.indexOf('datavalue')
+        : headers.indexOf('data_value');
     if (dataValueIdx !== -1 && values[dataValueIdx]) {
       const parsed = parseFloat(values[dataValueIdx]);
       if (!isNaN(parsed)) {
@@ -91,14 +92,20 @@ export function parseExcelDesContent(base64Content: string): DataRecordInput[] {
     if (!line) continue;
     const values = line.split('\t').map((v) => v.trim());
     const record: DataRecordInput = {
-      indicatorGid: values[headers.indexOf('indicator')] || values[headers.indexOf('indicatorgid')] || '',
+      indicatorGid:
+        values[headers.indexOf('indicator')] || values[headers.indexOf('indicatorgid')] || '',
       unitGid: values[headers.indexOf('unit')] || values[headers.indexOf('unitgid')] || '',
-      subgroupGid: values[headers.indexOf('subgroup')] || values[headers.indexOf('subgroupgid')] || '',
+      subgroupGid:
+        values[headers.indexOf('subgroup')] || values[headers.indexOf('subgroupgid')] || '',
       areaId: values[headers.indexOf('area')] || values[headers.indexOf('areaid')] || '',
-      timePeriod: values[headers.indexOf('timeperiod')] || values[headers.indexOf('time_period')] || '',
+      timePeriod:
+        values[headers.indexOf('timeperiod')] || values[headers.indexOf('time_period')] || '',
     };
 
-    const dataValueIdx = headers.indexOf('datavalue') !== -1 ? headers.indexOf('datavalue') : headers.indexOf('data_value');
+    const dataValueIdx =
+      headers.indexOf('datavalue') !== -1
+        ? headers.indexOf('datavalue')
+        : headers.indexOf('data_value');
     if (dataValueIdx !== -1 && values[dataValueIdx]) {
       const parsed = parseFloat(values[dataValueIdx]);
       if (!isNaN(parsed)) {
@@ -174,37 +181,65 @@ export async function importDataRecords(
     }
 
     // Validate referential integrity - resolve GIDs to internal IDs
-    const indicator = await repository.findIndicatorByGid(record.indicatorGid, warehouseId, tenantId);
+    const indicator = await repository.findIndicatorByGid(
+      record.indicatorGid,
+      warehouseId,
+      tenantId,
+    );
     if (!indicator) {
-      result.errors.push({ row: rowNum, field: 'indicatorGid', message: `Indicator not found: ${record.indicatorGid}` });
+      result.errors.push({
+        row: rowNum,
+        field: 'indicatorGid',
+        message: `Indicator not found: ${record.indicatorGid}`,
+      });
       result.errorCount++;
       continue;
     }
 
     const unit = await repository.findUnitByGid(record.unitGid, warehouseId, tenantId);
     if (!unit) {
-      result.errors.push({ row: rowNum, field: 'unitGid', message: `Unit not found: ${record.unitGid}` });
+      result.errors.push({
+        row: rowNum,
+        field: 'unitGid',
+        message: `Unit not found: ${record.unitGid}`,
+      });
       result.errorCount++;
       continue;
     }
 
     const subgroup = await repository.findSubgroupByGid(record.subgroupGid, warehouseId, tenantId);
     if (!subgroup) {
-      result.errors.push({ row: rowNum, field: 'subgroupGid', message: `Subgroup not found: ${record.subgroupGid}` });
+      result.errors.push({
+        row: rowNum,
+        field: 'subgroupGid',
+        message: `Subgroup not found: ${record.subgroupGid}`,
+      });
       result.errorCount++;
       continue;
     }
 
     const area = await repository.findAreaByExternalId(record.areaId, warehouseId, tenantId);
     if (!area) {
-      result.errors.push({ row: rowNum, field: 'areaId', message: `Area not found: ${record.areaId}` });
+      result.errors.push({
+        row: rowNum,
+        field: 'areaId',
+        message: `Area not found: ${record.areaId}`,
+      });
       result.errorCount++;
       continue;
     }
 
-    const timePeriod = await repository.findTimePeriodByLabel(record.timePeriod, warehouseId, tenantId);
+    const timePeriod = await repository.findTimePeriodByLabel(
+      record.timePeriod,
+      warehouseId,
+      tenantId,
+    );
     if (!timePeriod) {
-      result.errors.push({ row: rowNum, field: 'timePeriod', message: `Time period not found: ${record.timePeriod}` });
+      result.errors.push({
+        row: rowNum,
+        field: 'timePeriod',
+        message: `Time period not found: ${record.timePeriod}`,
+      });
       result.errorCount++;
       continue;
     }

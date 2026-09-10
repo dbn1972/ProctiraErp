@@ -42,6 +42,24 @@ import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
+const PORTAL_RTL_ROUTES = [
+  '/parent',
+  '/parent/attendance',
+  '/parent/grades',
+  '/parent/timetable',
+  '/parent/homework',
+  '/parent/calendar',
+  '/parent/notices',
+  '/student',
+  '/student/attendance',
+  '/student/grades',
+  '/student/timetable',
+  '/student/homework',
+  '/student/calendar',
+  '/student/notices',
+  '/student/pal',
+] as const;
+
 /**
  * Logical-axis Tailwind utilities mandated by Requirement 18 AC 10. The
  * lint rule from task 48.4 forbids the corresponding physical-axis
@@ -72,9 +90,7 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
     await expect(languageTrigger).toBeVisible();
     await languageTrigger.click();
 
-    const arabicOption = page
-      .getByRole('menuitemradio', { name: /العربية|arabic/i })
-      .first();
+    const arabicOption = page.getByRole('menuitemradio', { name: /العربية|arabic/i }).first();
     await arabicOption.click();
 
     // (2) `<html lang="ar" dir="rtl">` is stamped by `<LanguageProvider>`
@@ -114,6 +130,25 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
     //     `overflow: hidden`, or a label/control swap).
     await runAxe(page, { checkpointLabel: 'RTL /students' });
   });
+
+  test('parent and student academic pages keep RTL direction', async ({ page }) => {
+    await loginAsTenantAdmin(page);
+
+    const languageTrigger = page.getByRole('button', { name: /select language/i });
+    await expect(languageTrigger).toBeVisible();
+    await languageTrigger.click();
+    await page
+      .getByRole('menuitemradio', { name: /العربية|arabic/i })
+      .first()
+      .click();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl', { timeout: 10_000 });
+
+    for (const path of PORTAL_RTL_ROUTES) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+    }
+  });
 });
 
 // ─── Assertion helpers ──────────────────────────────────────────────────────
@@ -133,10 +168,7 @@ async function assertSidebarOnRight(page: Page): Promise<void> {
     .first();
   await expect(sidebar).toBeVisible({ timeout: 10_000 });
 
-  const [sidebarBox, viewport] = await Promise.all([
-    sidebar.boundingBox(),
-    page.viewportSize(),
-  ]);
+  const [sidebarBox, viewport] = await Promise.all([sidebar.boundingBox(), page.viewportSize()]);
   expect(sidebarBox).not.toBeNull();
   expect(viewport).not.toBeNull();
   if (!sidebarBox || !viewport) return;
@@ -180,9 +212,9 @@ async function assertChevronFlipped(page: Page): Promise<void> {
   // rule that becomes active once `<html dir="rtl">` is set, so the
   // computed `transform` should include a 180° rotation.
   expect(breadcrumbCount).toBeGreaterThan(0);
-  const transform = await breadcrumbChevrons.first().evaluate(
-    (node) => window.getComputedStyle(node).transform,
-  );
+  const transform = await breadcrumbChevrons
+    .first()
+    .evaluate((node) => window.getComputedStyle(node).transform);
   // `matrix(-1, 0, 0, -1, 0, 0)` is the canonical 180° rotation matrix.
   // Allow either `rotate(180deg)` or the matrix form depending on the
   // browser's serialization.

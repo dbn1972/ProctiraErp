@@ -19,31 +19,20 @@ import React from 'react';
 
 import { LanguageProvider } from '@/providers/LanguageProvider';
 import enMessages from '@/messages/en.json';
-import {
-  ApplicationTracking,
-  type TrackingFetcher,
-} from './application-tracking';
+import { ApplicationTracking, type TrackingFetcher } from './application-tracking';
 
-const messages = enMessages as unknown as Record<
-  string,
-  Record<string, string>
->;
+const messages = enMessages as unknown as Record<string, Record<string, string>>;
 
 function renderWithLang(node: React.ReactNode) {
   return render(
-    <LanguageProvider
-      defaultLocale="en"
-      messagesByLocale={{ en: messages }}
-    >
+    <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
       {node}
     </LanguageProvider>,
   );
 }
 
 function fillAndSubmit(value: string) {
-  const input = screen.getByLabelText(
-    messages.tracking!.trackingNumberLabel!,
-  );
+  const input = screen.getByLabelText(messages.tracking!.trackingNumberLabel!);
   // fireEvent.change updates `input.value` and dispatches the synthetic
   // event React expects, without us having to poke the value setter
   // ourselves (which trips the unbound-method lint rule).
@@ -61,9 +50,7 @@ function fillAndSubmit(value: string) {
 describe('ApplicationTracking — form validation', () => {
   it('rejects an empty tracking number without invoking the fetcher', async () => {
     const fetcher = vi.fn();
-    renderWithLang(
-      <ApplicationTracking fetcher={fetcher as unknown as TrackingFetcher} />,
-    );
+    renderWithLang(<ApplicationTracking fetcher={fetcher as unknown as TrackingFetcher} />);
 
     const submit = screen.getByRole('button', {
       name: messages.tracking!.checkStatus!,
@@ -73,9 +60,7 @@ describe('ApplicationTracking — form validation', () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByText(messages.tracking!.trackingNumberRequired!),
-      ).toBeTruthy();
+      expect(screen.getByText(messages.tracking!.trackingNumberRequired!)).toBeTruthy();
     });
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -90,9 +75,7 @@ describe('ApplicationTracking — form validation', () => {
     );
     fillAndSubmit('   ');
     await waitFor(() => {
-      expect(
-        screen.getByText(messages.tracking!.trackingNumberRequired!),
-      ).toBeTruthy();
+      expect(screen.getByText(messages.tracking!.trackingNumberRequired!)).toBeTruthy();
     });
     expect(fetcher).not.toHaveBeenCalled();
   });
@@ -153,9 +136,7 @@ describe('ApplicationTracking — successful lookup', () => {
     expect(screen.getByText('Documents being verified')).toBeTruthy();
 
     // Follow-up action message is visible.
-    expect(
-      screen.getByText('Please upload a birth certificate'),
-    ).toBeTruthy();
+    expect(screen.getByText('Please upload a birth certificate')).toBeTruthy();
 
     // The fetcher was called with the tracking number from the form.
     expect(fetcher).toHaveBeenCalledWith('REG-A1B2C3D4');
@@ -193,9 +174,7 @@ describe('ApplicationTracking — error handling', () => {
     await waitFor(() => {
       expect(screen.getByTestId('tracking-not-found')).toBeTruthy();
     });
-    expect(
-      screen.getByText(messages.tracking!.notFoundTitle!),
-    ).toBeTruthy();
+    expect(screen.getByText(messages.tracking!.notFoundTitle!)).toBeTruthy();
     // The user-supplied tracking number is shown so they can correct it.
     expect(screen.getByText('#REG-MISSING')).toBeTruthy();
   });

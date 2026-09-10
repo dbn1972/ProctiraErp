@@ -32,6 +32,16 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryWorkflowRepository } from './in-memory-repository.js';
 
+// Postgres repositories + factory (G-715)
+export {
+  PgWorkflowRepository,
+  PgCaseRepository,
+  ensureWorkflowEngineSchema,
+} from './pg-workflow-repository.js';
+export type { WorkflowPgPool } from './pg-workflow-repository.js';
+export { createWorkflowRepositories } from './create-workflow-repositories.js';
+export type { WorkflowRepositories } from './create-workflow-repositories.js';
+
 // Cached repository decorator
 export { CachedWorkflowRepository } from './cached-workflow-repository.js';
 
@@ -86,11 +96,7 @@ export type {
 
 export { CaseService } from './case-service.js';
 
-export type {
-  CaseRepository,
-  CaseEntity,
-  CaseFilter,
-} from './case-repository.js';
+export type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 
 export { InMemoryCaseRepository } from './in-memory-case-repository.js';
 

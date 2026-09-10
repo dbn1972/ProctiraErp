@@ -25,17 +25,14 @@ import {
 } from '@proctira/ui/components';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { cn } from '@/lib/utils';
-import {
-  getReportTemplate,
-  listReportRuns,
-  type ReportRun,
-} from '@/lib/api/reports';
+import { getReportTemplate, listReportRuns, type ReportRun } from '@/lib/api/reports';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function ReportResultsPage({ params }: PageProps) {
+export default async function ReportResultsPage(props: PageProps) {
+  const params = await props.params;
   const [templateResult, runsResult] = await Promise.all([
     getReportTemplate(params.id),
     listReportRuns(params.id),
@@ -43,9 +40,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
   const { template, source: templateSource } = templateResult;
   const { runs, source: runsSource } = runsResult;
   const source =
-    templateSource === 'scaffold' || runsSource === 'scaffold'
-      ? 'scaffold'
-      : 'gateway';
+    templateSource === 'scaffold' || runsSource === 'scaffold' ? 'scaffold' : 'gateway';
 
   if (!template) {
     return (
@@ -64,8 +59,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
             Report results
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Template unavailable for id{' '}
-            <code className="font-mono text-xs">{params.id}</code>.
+            Template unavailable for id <code className="font-mono text-xs">{params.id}</code>.
           </p>
         </div>
         <ScaffoldModeBanner
@@ -77,8 +71,8 @@ export default async function ReportResultsPage({ params }: PageProps) {
         <Alert variant="warning">
           <AlertTitle>Template not found</AlertTitle>
           <AlertDescription>
-            No live template matched this id. Connect the reports service or pick a
-            template from the catalog.
+            No live template matched this id. Connect the reports service or pick a template from
+            the catalog.
           </AlertDescription>
         </Alert>
       </section>
@@ -119,8 +113,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
             <CardTitle className="text-base">{template.name} results</CardTitle>
             <CardDescription>
               {template.module} · {runs.length.toLocaleString()} run
-              {runs.length === 1 ? '' : 's'} · {readyRuns.toLocaleString()} ready to
-              download
+              {runs.length === 1 ? '' : 's'} · {readyRuns.toLocaleString()} ready to download
             </CardDescription>
           </div>
         </CardHeader>
@@ -141,9 +134,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
             <div>
               <dt className="text-xs text-muted-foreground">Output formats</dt>
               <dd className="mt-0.5 text-sm font-semibold text-foreground">
-                {template.format.length > 0
-                  ? template.format.join(', ')
-                  : 'Currently unavailable'}
+                {template.format.length > 0 ? template.format.join(', ') : 'Currently unavailable'}
               </dd>
             </div>
           </dl>
@@ -169,6 +160,8 @@ export default async function ReportResultsPage({ params }: PageProps) {
                   <TableHead className="font-semibold">Format</TableHead>
                   <TableHead className="text-end font-semibold">Size</TableHead>
                   <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold">Trigger</TableHead>
+                  <TableHead className="font-mono text-xs font-semibold">SHA-256</TableHead>
                   <TableHead className="text-end font-semibold">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -180,11 +173,18 @@ export default async function ReportResultsPage({ params }: PageProps) {
                     </TableCell>
                     <TableCell>{run.generatedBy}</TableCell>
                     <TableCell className="font-mono text-xs">{run.format}</TableCell>
-                    <TableCell className="text-end tabular-nums">
-                      {run.fileSizeKb} KB
-                    </TableCell>
+                    <TableCell className="text-end tabular-nums">{run.fileSizeKb} KB</TableCell>
                     <TableCell>
                       <RunStatus status={run.status} />
+                    </TableCell>
+                    <TableCell className="text-xs" data-testid="run-trigger">
+                      {run.trigger ?? 'manual'}
+                    </TableCell>
+                    <TableCell
+                      className="max-w-[12rem] truncate font-mono text-[11px]"
+                      title={run.sha256 ?? undefined}
+                    >
+                      {run.sha256 ?? '—'}
                     </TableCell>
                     <TableCell className="text-end">
                       {run.downloadUrl && run.status === 'READY' ? (
@@ -212,8 +212,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
 const STATUS_STYLES: Record<ReportRun['status'], { label: string; className: string }> = {
   READY: {
     label: 'Ready',
-    className:
-      'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
+    className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
   },
   RUNNING: {
     label: 'Running',

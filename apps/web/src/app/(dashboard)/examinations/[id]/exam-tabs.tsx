@@ -25,6 +25,7 @@ export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
     { key: 'candidates', href: `${base}/candidates`, label: 'Candidates', count: candidateCount },
     { key: 'results', href: `${base}/results`, label: 'Results' },
     { key: 'documents', href: `${base}/documents`, label: 'Documents' },
+    { key: 'ops', href: `${base}/ops`, label: 'Exam ops' },
   ];
 
   return (
@@ -34,9 +35,7 @@ export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
       className="-mb-px flex flex-wrap gap-0 border-b border-border"
     >
       {tabs.map((tab) => {
-        const isActive = tab.exact
-          ? pathname === tab.href
-          : pathname.startsWith(tab.href);
+        const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
         const count = tab.count;
         return (
           <Link

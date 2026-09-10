@@ -55,11 +55,9 @@ export type ApiKeyParams = Static<typeof ApiKeyParamsSchema>;
 export const ApiKeyListQuerySchema = Type.Object({
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
-  status: Type.Optional(Type.Union([
-    Type.Literal('active'),
-    Type.Literal('revoked'),
-    Type.Literal('expired'),
-  ])),
+  status: Type.Optional(
+    Type.Union([Type.Literal('active'), Type.Literal('revoked'), Type.Literal('expired')]),
+  ),
 });
 
 export type ApiKeyListQuery = Static<typeof ApiKeyListQuerySchema>;
@@ -78,7 +76,9 @@ export type CreateWebhookInput = Static<typeof CreateWebhookSchema>;
 
 export const UpdateWebhookSchema = Type.Object({
   url: Type.Optional(Type.String({ format: 'uri', maxLength: 2048 })),
-  events: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 1, maxItems: 50 })),
+  events: Type.Optional(
+    Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 1, maxItems: 50 }),
+  ),
   secret: Type.Optional(Type.String({ minLength: 16, maxLength: 256 })),
   description: Type.Optional(Type.String({ maxLength: 500 })),
   active: Type.Optional(Type.Boolean()),
@@ -103,11 +103,9 @@ export type WebhookListQuery = Static<typeof WebhookListQuerySchema>;
 export const WebhookDeliveryQuerySchema = Type.Object({
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
-  status: Type.Optional(Type.Union([
-    Type.Literal('pending'),
-    Type.Literal('delivered'),
-    Type.Literal('failed'),
-  ])),
+  status: Type.Optional(
+    Type.Union([Type.Literal('pending'), Type.Literal('delivered'), Type.Literal('failed')]),
+  ),
 });
 
 export type WebhookDeliveryQuery = Static<typeof WebhookDeliveryQuerySchema>;
@@ -117,11 +115,9 @@ export type WebhookDeliveryQuery = Static<typeof WebhookDeliveryQuerySchema>;
 export const CreateSandboxSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 128 }),
   description: Type.Optional(Type.String({ maxLength: 500 })),
-  seedData: Type.Optional(Type.Union([
-    Type.Literal('minimal'),
-    Type.Literal('sample'),
-    Type.Literal('full'),
-  ])),
+  seedData: Type.Optional(
+    Type.Union([Type.Literal('minimal'), Type.Literal('sample'), Type.Literal('full')]),
+  ),
 });
 
 export type CreateSandboxInput = Static<typeof CreateSandboxSchema>;
@@ -217,7 +213,6 @@ export const SandboxResponseSchema = Type.Object({
 
 export type SandboxResponse = Static<typeof SandboxResponseSchema>;
 
-
 // ─── Plugin Submission Schemas ────────────────────────────────────────────────
 
 export const SubmitPluginSchema = Type.Object({
@@ -237,11 +232,16 @@ export const SubmitPluginSchema = Type.Object({
     Type.Literal('developer-tooling'),
   ]),
   supportedProductVersions: Type.String({ minLength: 1, maxLength: 100 }),
-  requiredPermissions: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { minItems: 0, maxItems: 50 }),
+  requiredPermissions: Type.Array(Type.String({ minLength: 1, maxLength: 128 }), {
+    minItems: 0,
+    maxItems: 50,
+  }),
   sourceUrl: Type.Optional(Type.String({ format: 'uri', maxLength: 2048 })),
   documentationUrl: Type.Optional(Type.String({ format: 'uri', maxLength: 2048 })),
   iconUrl: Type.Optional(Type.String({ format: 'uri', maxLength: 2048 })),
-  screenshots: Type.Optional(Type.Array(Type.String({ format: 'uri', maxLength: 2048 }), { maxItems: 10 })),
+  screenshots: Type.Optional(
+    Type.Array(Type.String({ format: 'uri', maxLength: 2048 }), { maxItems: 10 }),
+  ),
   tags: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 64 }), { maxItems: 20 })),
   license: Type.Optional(Type.String({ maxLength: 128 })),
 });
@@ -269,12 +269,14 @@ export const MarketplaceSearchQuerySchema = Type.Object({
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
   search: Type.Optional(Type.String({ maxLength: 255 })),
   category: Type.Optional(Type.String()),
-  sortBy: Type.Optional(Type.Union([
-    Type.Literal('name'),
-    Type.Literal('installs'),
-    Type.Literal('rating'),
-    Type.Literal('publishedAt'),
-  ])),
+  sortBy: Type.Optional(
+    Type.Union([
+      Type.Literal('name'),
+      Type.Literal('installs'),
+      Type.Literal('rating'),
+      Type.Literal('publishedAt'),
+    ]),
+  ),
   sortOrder: Type.Optional(Type.Union([Type.Literal('asc'), Type.Literal('desc')])),
   tags: Type.Optional(Type.String({ description: 'Comma-separated tags' })),
 });
@@ -321,18 +323,20 @@ export type CreateDocPageInput = Static<typeof CreateDocPageSchema>;
 export const UpdateDocPageSchema = Type.Object({
   title: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   content: Type.Optional(Type.String({ minLength: 1, maxLength: 100000 })),
-  category: Type.Optional(Type.Union([
-    Type.Literal('getting-started'),
-    Type.Literal('authentication'),
-    Type.Literal('api-reference'),
-    Type.Literal('webhooks'),
-    Type.Literal('plugins'),
-    Type.Literal('themes'),
-    Type.Literal('sdks'),
-    Type.Literal('errors'),
-    Type.Literal('rate-limits'),
-    Type.Literal('changelog'),
-  ])),
+  category: Type.Optional(
+    Type.Union([
+      Type.Literal('getting-started'),
+      Type.Literal('authentication'),
+      Type.Literal('api-reference'),
+      Type.Literal('webhooks'),
+      Type.Literal('plugins'),
+      Type.Literal('themes'),
+      Type.Literal('sdks'),
+      Type.Literal('errors'),
+      Type.Literal('rate-limits'),
+      Type.Literal('changelog'),
+    ]),
+  ),
   order: Type.Optional(Type.Number({ minimum: 0, maximum: 9999 })),
   published: Type.Optional(Type.Boolean()),
 });
@@ -357,11 +361,9 @@ export type DocListQuery = Static<typeof DocListQuerySchema>;
 export const AnalyticsQuerySchema = Type.Object({
   startDate: Type.Optional(Type.String({ format: 'date' })),
   endDate: Type.Optional(Type.String({ format: 'date' })),
-  granularity: Type.Optional(Type.Union([
-    Type.Literal('day'),
-    Type.Literal('week'),
-    Type.Literal('month'),
-  ])),
+  granularity: Type.Optional(
+    Type.Union([Type.Literal('day'), Type.Literal('week'), Type.Literal('month')]),
+  ),
 });
 
 export type AnalyticsQuery = Static<typeof AnalyticsQuerySchema>;
@@ -437,13 +439,15 @@ export const PluginAnalyticsResponseSchema = Type.Object({
   totalErrors: Type.Number(),
   averageRating: Type.Number(),
   ratingCount: Type.Number(),
-  timeSeries: Type.Array(Type.Object({
-    date: Type.String(),
-    installs: Type.Number(),
-    uninstalls: Type.Number(),
-    apiCalls: Type.Number(),
-    errors: Type.Number(),
-  })),
+  timeSeries: Type.Array(
+    Type.Object({
+      date: Type.String(),
+      installs: Type.Number(),
+      uninstalls: Type.Number(),
+      apiCalls: Type.Number(),
+      errors: Type.Number(),
+    }),
+  ),
 });
 
 export type PluginAnalyticsResponse = Static<typeof PluginAnalyticsResponseSchema>;

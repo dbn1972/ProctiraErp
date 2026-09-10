@@ -7,8 +7,11 @@ describe('i18n config', () => {
       expect(getDirection('ar')).toBe('rtl');
     });
 
-    it('returns rtl for Hebrew', () => {
-      expect(getDirection('he')).toBe('rtl');
+    it('returns ltr for Hebrew — not a supported messages locale (G-721)', () => {
+      // Direction for experimental RTL scripts is handled by LanguageProvider.
+      // i18n/config only marks locales that have messages/<locale>.json.
+      expect(getDirection('he')).toBe('ltr');
+      expect(locales.includes('he' as (typeof locales)[number])).toBe(false);
     });
 
     it('returns ltr for English', () => {

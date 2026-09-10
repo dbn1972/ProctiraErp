@@ -22,7 +22,10 @@ import {
   InMemoryReportCardJobRepository,
 } from './in-memory-report-card-repository.js';
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
-import { InMemoryAssessmentItemRepository, InMemoryGradingSchemeRepository } from './in-memory-repository.js';
+import {
+  InMemoryAssessmentItemRepository,
+  InMemoryGradingSchemeRepository,
+} from './in-memory-repository.js';
 import { ResultService } from './result-service.js';
 import { MAX_COMMENT_LENGTH } from './report-card-schemas.js';
 
@@ -109,9 +112,7 @@ describe('ReportCardService', () => {
     });
 
     it('should throw NotFoundError for non-existent template', async () => {
-      await expect(
-        service.getTemplate(tenantId, uuidv4()),
-      ).rejects.toThrow('not found');
+      await expect(service.getTemplate(tenantId, uuidv4())).rejects.toThrow('not found');
     });
 
     it('should list all templates for a tenant', async () => {
@@ -151,9 +152,7 @@ describe('ReportCardService', () => {
 
       await service.deleteTemplate(tenantId, created.id);
 
-      await expect(
-        service.getTemplate(tenantId, created.id),
-      ).rejects.toThrow('not found');
+      await expect(service.getTemplate(tenantId, created.id)).rejects.toThrow('not found');
     });
 
     it('should apply default values for optional fields', async () => {
@@ -401,9 +400,7 @@ describe('ReportCardService', () => {
     });
 
     it('should throw NotFoundError for non-existent job', async () => {
-      await expect(
-        service.getJobStatus(tenantId, uuidv4()),
-      ).rejects.toThrow('not found');
+      await expect(service.getJobStatus(tenantId, uuidv4())).rejects.toThrow('not found');
     });
   });
 

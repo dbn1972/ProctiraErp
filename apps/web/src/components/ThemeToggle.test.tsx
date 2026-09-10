@@ -14,14 +14,7 @@
  * exercise the same `useTheme()` contract the production header does.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { NextIntlClientProvider } from 'next-intl';
@@ -42,9 +35,7 @@ function installMatchMedia(initial = false): void {
     removeListener: vi.fn(),
     dispatchEvent: () => true,
   };
-  vi.spyOn(window, 'matchMedia').mockImplementation(
-    () => mql as unknown as MediaQueryList,
-  );
+  vi.spyOn(window, 'matchMedia').mockImplementation(() => mql as unknown as MediaQueryList);
 }
 
 // ─── i18n harness ────────────────────────────────────────────────────────────
@@ -238,29 +229,21 @@ describe('<ThemeToggle> — click cycle (Requirement 36 AC 1)', () => {
     );
     const button = screen.getByTestId('theme-toggle');
 
-    expect((button.querySelector('svg')!.getAttribute('class') || '')).toMatch(
-      /lucide-sun/i,
-    );
+    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-sun/i);
 
     act(() => {
       fireEvent.click(button);
     });
-    expect((button.querySelector('svg')!.getAttribute('class') || '')).toMatch(
-      /lucide-moon/i,
-    );
+    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-moon/i);
 
     act(() => {
       fireEvent.click(button);
     });
-    expect((button.querySelector('svg')!.getAttribute('class') || '')).toMatch(
-      /lucide-monitor/i,
-    );
+    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-monitor/i);
 
     act(() => {
       fireEvent.click(button);
     });
-    expect((button.querySelector('svg')!.getAttribute('class') || '')).toMatch(
-      /lucide-sun/i,
-    );
+    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-sun/i);
   });
 });

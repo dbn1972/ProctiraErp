@@ -310,4 +310,78 @@ test.describe('Transport — live writes (E2E_BACKEND_READY)', () => {
     expect(second.status(), JSON.stringify(body)).toBe(422);
     expect(String(body.code)).toMatch(/BUSINESS_RULE/i);
   });
+
+  test('G-602 GPS ping + attendance-on-bus stubs', async ({ request }) => {
+    const vehicleRes = await request.post(`${GATEWAY_URL}/api/v1/transport/vehicles`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: {
+        registrationNumber: `GPS-${Date.now()}`,
+        capacity: 40,
+      },
+    });
+    const vehicle = await vehicleRes.json();
+    expect(vehicleRes.status(), JSON.stringify(vehicle)).toBe(201);
+
+    const gps = await request.post(`${GATEWAY_URL}/api/v1/transport/vehicles/${vehicle.id}/gps`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: { latitude: 19.076, longitude: 72.877, speedKph: 28 },
+    });
+    const ping = await gps.json();
+    expect(gps.status(), JSON.stringify(ping)).toBe(201);
+    expect(ping.mode).toBe('sandbox');
+    expect(String(ping.honestyNote)).toMatch(/GPS/i);
+
+    const board = await request.post(`${GATEWAY_URL}/api/v1/transport/attendance-on-bus`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: {
+        vehicleId: vehicle.id,
+        studentId: STUDENT_ID,
+        eventType: 'board',
+      },
+    });
+    const event = await board.json();
+    expect(board.status(), JSON.stringify(event)).toBe(201);
+    expect(event.eventType).toBe('board');
+    expect(event.mode).toBe('sandbox');
+  });
+});
+
+test.describe('Library fines → fees (G-603) + Comms send (G-604)', () => {
+  test.skip(
+    !BACKEND_READY,
+    'Requires E2E_BACKEND_READY=1 and live gateway (JWT uses JWT_SECRET or gateway default)',
+  );
+
+  test('library: assess fine posts fees invoice', async ({ request }) => {
+    const assess = await request.post(`${GATEWAY_URL}/api/v1/library/fines/assess`, {
+      headers: gatewayAuthHeaders('librarian-a'),
+      data: { loanId: OVERDUE_LOAN_ID, amountCents: 2500 },
+    });
+    const body = await assess.json();
+    expect(assess.status(), JSON.stringify(body)).toBe(201);
+    expect(body.amountCents).toBe(2500);
+    expect(body.invoice?.status).toBe('open');
+  });
+
+  test('communication: admin can sandbox-send campaign', async ({ request }) => {
+    const create = await request.post(`${GATEWAY_URL}/api/v1/communication/campaigns`, {
+      headers: gatewayAuthHeaders('comms-admin'),
+      data: {
+        name: `E2E Campaign ${Date.now()}`,
+        channels: ['email'],
+        body: 'Hello parents',
+      },
+    });
+    const campaign = await create.json();
+    expect(create.status(), JSON.stringify(campaign)).toBe(201);
+
+    const send = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/campaigns/${campaign.id}/send`,
+      { headers: gatewayAuthHeaders('comms-admin') },
+    );
+    const sent = await send.json();
+    expect(send.status(), JSON.stringify(sent)).toBe(200);
+    expect(sent.status).toBe('sent');
+    expect(sent.delivery?.mode).toBe('sandbox');
+  });
 });

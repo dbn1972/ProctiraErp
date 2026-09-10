@@ -20,11 +20,41 @@ function createDefinitionWithEscalation(): CreateWorkflowDefinitionInput {
     name: 'Approval with Escalation',
     entityType: 'leave_request',
     states: [
-      { id: 'submitted', name: 'Submitted', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
-      { id: 'pending_approval', name: 'Pending Approval', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'manager' },
-      { id: 'escalated_review', name: 'Escalated Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'director' },
-      { id: 'approved', name: 'Approved', type: 'FINAL', assigneeType: 'role', assigneeId: 'manager' },
-      { id: 'rejected', name: 'Rejected', type: 'FINAL', assigneeType: 'role', assigneeId: 'manager' },
+      {
+        id: 'submitted',
+        name: 'Submitted',
+        type: 'INITIAL',
+        assigneeType: 'user',
+        assigneeId: 'creator',
+      },
+      {
+        id: 'pending_approval',
+        name: 'Pending Approval',
+        type: 'INTERMEDIATE',
+        assigneeType: 'role',
+        assigneeId: 'manager',
+      },
+      {
+        id: 'escalated_review',
+        name: 'Escalated Review',
+        type: 'INTERMEDIATE',
+        assigneeType: 'role',
+        assigneeId: 'director',
+      },
+      {
+        id: 'approved',
+        name: 'Approved',
+        type: 'FINAL',
+        assigneeType: 'role',
+        assigneeId: 'manager',
+      },
+      {
+        id: 'rejected',
+        name: 'Rejected',
+        type: 'FINAL',
+        assigneeType: 'role',
+        assigneeId: 'manager',
+      },
     ],
     transitions: [
       { id: 't1', fromStateId: 'submitted', toStateId: 'pending_approval', action: 'submit' },
@@ -60,7 +90,10 @@ describe('EscalationService', () => {
 
   describe('scheduleEscalation', () => {
     it('should publish a delayed escalation task when state has escalation rules', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       await escalationService.scheduleEscalation(
         TENANT_ID,
@@ -82,7 +115,10 @@ describe('EscalationService', () => {
     });
 
     it('should not publish tasks when state has no escalation rules', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       await escalationService.scheduleEscalation(
         TENANT_ID,
@@ -123,7 +159,10 @@ describe('EscalationService', () => {
 
   describe('processEscalation', () => {
     it('should escalate instance when still in expected state', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       // Create instance and transition to pending_approval
       const instance = await workflowService.createInstance(TENANT_ID, {
@@ -170,7 +209,10 @@ describe('EscalationService', () => {
     });
 
     it('should skip escalation when instance has already moved to a different state', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       const instance = await workflowService.createInstance(TENANT_ID, {
         workflowDefinitionId: definition.id,
@@ -222,7 +264,10 @@ describe('EscalationService', () => {
     });
 
     it('should skip escalation when instance is completed', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       const instance = await workflowService.createInstance(TENANT_ID, {
         workflowDefinitionId: definition.id,
@@ -256,7 +301,10 @@ describe('EscalationService', () => {
     });
 
     it('should record audit entry when escalation occurs', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       const instance = await workflowService.createInstance(TENANT_ID, {
         workflowDefinitionId: definition.id,
@@ -294,7 +342,10 @@ describe('EscalationService', () => {
 
   describe('getEscalationRulesForState', () => {
     it('should return escalation rules for a specific state', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       const rules = await escalationService.getEscalationRulesForState(
         TENANT_ID,
@@ -308,7 +359,10 @@ describe('EscalationService', () => {
     });
 
     it('should return empty array for state without escalation rules', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       const rules = await escalationService.getEscalationRulesForState(
         TENANT_ID,
@@ -328,15 +382,32 @@ describe('EscalationService', () => {
         entityType: 'complaint',
         states: [
           { id: 'new', name: 'New', type: 'INITIAL', assigneeType: 'role', assigneeId: 'support' },
-          { id: 'escalated', name: 'Escalated', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'supervisor' },
-          { id: 'resolved', name: 'Resolved', type: 'FINAL', assigneeType: 'role', assigneeId: 'support' },
+          {
+            id: 'escalated',
+            name: 'Escalated',
+            type: 'INTERMEDIATE',
+            assigneeType: 'role',
+            assigneeId: 'supervisor',
+          },
+          {
+            id: 'resolved',
+            name: 'Resolved',
+            type: 'FINAL',
+            assigneeType: 'role',
+            assigneeId: 'support',
+          },
         ],
         transitions: [
           { id: 't1', fromStateId: 'new', toStateId: 'resolved', action: 'resolve' },
           { id: 't2', fromStateId: 'escalated', toStateId: 'resolved', action: 'resolve' },
         ],
         escalationRules: [
-          { stateId: 'new', durationMinutes: 30, escalateToStateId: 'escalated', notifyRoleId: 'supervisor' },
+          {
+            stateId: 'new',
+            durationMinutes: 30,
+            escalateToStateId: 'escalated',
+            notifyRoleId: 'supervisor',
+          },
         ],
       };
 
@@ -357,7 +428,10 @@ describe('EscalationService', () => {
     });
 
     it('should schedule escalation when instance transitions to a state with rules', async () => {
-      const definition = await workflowService.createDefinition(TENANT_ID, createDefinitionWithEscalation());
+      const definition = await workflowService.createDefinition(
+        TENANT_ID,
+        createDefinitionWithEscalation(),
+      );
 
       const instance = await workflowService.createInstance(TENANT_ID, {
         workflowDefinitionId: definition.id,

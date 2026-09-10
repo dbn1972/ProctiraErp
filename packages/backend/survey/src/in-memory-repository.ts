@@ -123,7 +123,8 @@ export class InMemoryDistributionRepository implements DistributionRepository {
   ): Promise<DistributionRecordEntity | null> {
     return (
       this.records.find(
-        (r) => r.tenantId === tenantId && r.surveyId === surveyId && r.institutionId === institutionId,
+        (r) =>
+          r.tenantId === tenantId && r.surveyId === surveyId && r.institutionId === institutionId,
       ) ?? null
     );
   }
@@ -132,7 +133,10 @@ export class InMemoryDistributionRepository implements DistributionRepository {
     return this.records.filter((r) => r.tenantId === tenantId && r.surveyId === surveyId);
   }
 
-  async findIncompleteBySurvey(tenantId: string, surveyId: string): Promise<DistributionRecordEntity[]> {
+  async findIncompleteBySurvey(
+    tenantId: string,
+    surveyId: string,
+  ): Promise<DistributionRecordEntity[]> {
     return this.records.filter(
       (r) => r.tenantId === tenantId && r.surveyId === surveyId && r.status !== 'completed',
     );
@@ -160,9 +164,7 @@ export class InMemoryDistributionRepository implements DistributionRepository {
     tenantId: string,
     surveyId: string,
   ): Promise<Record<CompletionStatus, number>> {
-    const records = this.records.filter(
-      (r) => r.tenantId === tenantId && r.surveyId === surveyId,
-    );
+    const records = this.records.filter((r) => r.tenantId === tenantId && r.surveyId === surveyId);
     return {
       pending: records.filter((r) => r.status === 'pending').length,
       in_progress: records.filter((r) => r.status === 'in_progress').length,
@@ -186,9 +188,7 @@ export class InMemorySubmissionRepository implements SubmissionRepository {
   }
 
   async findBySurvey(tenantId: string, surveyId: string): Promise<SubmissionEntity[]> {
-    return this.submissions.filter(
-      (s) => s.tenantId === tenantId && s.surveyId === surveyId,
-    );
+    return this.submissions.filter((s) => s.tenantId === tenantId && s.surveyId === surveyId);
   }
 
   async findBySurveyAndInstitution(
@@ -198,7 +198,8 @@ export class InMemorySubmissionRepository implements SubmissionRepository {
   ): Promise<SubmissionEntity | null> {
     return (
       this.submissions.find(
-        (s) => s.tenantId === tenantId && s.surveyId === surveyId && s.institutionId === institutionId,
+        (s) =>
+          s.tenantId === tenantId && s.surveyId === surveyId && s.institutionId === institutionId,
       ) ?? null
     );
   }

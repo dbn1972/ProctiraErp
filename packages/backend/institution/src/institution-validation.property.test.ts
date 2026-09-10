@@ -29,9 +29,7 @@ const uuidV4Arb: fc.Arbitrary<string> = fc
     fc.hexaString({ minLength: 3, maxLength: 3 }),
     fc.hexaString({ minLength: 12, maxLength: 12 }),
   )
-  .map(([p1, p2, p3, variant, p4, p5]) =>
-    `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`,
-  );
+  .map(([p1, p2, p3, variant, p4, p5]) => `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`);
 
 /**
  * Generates a valid institution name (non-empty, max 255 chars).
@@ -150,7 +148,17 @@ describe('Property 8: Institution Validation Without Persistence', () => {
         uuidV4Arb,
         uuidV4Arb,
         uuidV4Arb,
-        async (tenantId, sharedName, code1, code2, sharedAreaId, typeId, sectorId, ownershipId, typeId2) => {
+        async (
+          tenantId,
+          sharedName,
+          code1,
+          code2,
+          sharedAreaId,
+          typeId,
+          sectorId,
+          ownershipId,
+          typeId2,
+        ) => {
           // Reset repository for each test case
           repository.clear();
 
@@ -400,8 +408,14 @@ describe('Property 32: Deactivated Institution Prevents Operations', () => {
           repository.clear();
 
           // Ensure distinct codes
-          const activeInst: CreateInstitutionInput = { ...activeInput, code: activeInput.code + '-ACT' };
-          const inactiveInst: CreateInstitutionInput = { ...inactiveInput, code: inactiveInput.code + '-INACT' };
+          const activeInst: CreateInstitutionInput = {
+            ...activeInput,
+            code: activeInput.code + '-ACT',
+          };
+          const inactiveInst: CreateInstitutionInput = {
+            ...inactiveInput,
+            code: inactiveInput.code + '-INACT',
+          };
 
           // Create two institutions
           const active = await service.create(tenantId, activeInst);

@@ -5,7 +5,14 @@ import { AppError } from '@proctira/common';
 
 export type TimetableAction = 'schedule.write' | 'schedule.publish';
 
-const ADMIN_ROLES = ['admin', 'super-admin', 'system_admin', 'principal', 'school_admin'] as const;
+const ADMIN_ROLES = [
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'principal',
+  'school_admin',
+] as const;
 
 const SCHEDULER_ROLES = ['registrar', 'scheduler', 'timetable_officer', ...ADMIN_ROLES] as const;
 

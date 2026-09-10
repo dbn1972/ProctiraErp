@@ -1,0 +1,284 @@
+/**
+ * G-905 — academic calendar service.
+ *
+ *  - Calendar events (holidays / breaks / grading & exam windows) attached to
+ *    a period and constrained to its date range.
+ *  - Year-end rollover: clone class sections from a source period into a
+ *    target period and (optionally) promote ENROLLED students one grade up.
+ *    Idempotent — existing target sections / enrollments are skipped, so a
+ *    partially-applied run can simply be re-executed.
+ */
+import { randomUUID } from 'node:crypto';
+
+import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import type { PrismaClient } from '@proctira/database';
+
+import type { CalendarEventRecord, CalendarStore } from './calendar-store.js';
+import type { CreateCalendarEventDto, RolloverRequestDto, RolloverSummary } from './schemas.js';
+
+export interface AcademicCalendarServiceDeps {
+  prisma: PrismaClient;
+  store: CalendarStore;
+}
+
+interface PeriodRow {
+  id: string;
+  tenantId: string;
+  name: string;
+  status: string;
+  startDate: Date;
+  endDate: Date;
+}
+
+interface ClassRow {
+  id: string;
+  institutionId: string;
+  gradeId: string;
+  name: string;
+  capacity: number | null;
+}
+
+interface EnrollmentRow {
+  id: string;
+  studentId: string;
+  institutionId: string;
+  gradeId: string;
+  classId: string | null;
+  status: string;
+}
+
+interface GradeRow {
+  id: string;
+  order: number;
+}
+
+function isoDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+export class AcademicCalendarService {
+  private readonly prisma: PrismaClient;
+  private readonly store: CalendarStore;
+
+  constructor(deps: AcademicCalendarServiceDeps) {
+    this.prisma = deps.prisma;
+    this.store = deps.store;
+  }
+
+  private async requirePeriod(tenantId: string, id: string): Promise<PeriodRow> {
+    const period = (await this.prisma.academicPeriod.findFirst({
+      where: { id, tenantId, deletedAt: null },
+    })) as PeriodRow | null;
+    if (!period) throw new NotFoundError(`Academic period '${id}' not found`);
+    return period;
+  }
+
+  // ─── Calendar events ──────────────────────────────────────────────────────
+
+  async listEvents(tenantId: string, periodId: string): Promise<CalendarEventRecord[]> {
+    await this.requirePeriod(tenantId, periodId);
+    return this.store.listByPeriod(tenantId, periodId);
+  }
+
+  async addEvent(
+    tenantId: string,
+    periodId: string,
+    dto: CreateCalendarEventDto,
+  ): Promise<CalendarEventRecord> {
+    const period = await this.requirePeriod(tenantId, periodId);
+    if (period.status === 'archived') {
+      throw new BusinessRuleError('Cannot add calendar events to an archived period');
+    }
+    if (dto.endDate < dto.startDate) {
+      throw new ValidationError('End date must be on or after start date', [
+        { field: 'endDate', rule: 'dateRange', message: 'End date must be on or after start date' },
+      ]);
+    }
+    const periodStart = isoDate(period.startDate);
+    const periodEnd = isoDate(period.endDate);
+    if (dto.startDate < periodStart || dto.endDate > periodEnd) {
+      throw new ValidationError('Event must fall inside the academic period', [
+        {
+          field: 'startDate',
+          rule: 'withinPeriod',
+          message: `Event must fall between ${periodStart} and ${periodEnd}`,
+        },
+      ]);
+    }
+    return this.store.create({
+      id: randomUUID(),
+      tenantId,
+      academicPeriodId: periodId,
+      institutionId: dto.institutionId ?? null,
+      kind: dto.kind,
+      name: dto.name.trim(),
+      startDate: dto.startDate,
+      endDate: dto.endDate,
+      notes: dto.notes?.trim() || null,
+      createdAt: new Date(),
+    });
+  }
+
+  async removeEvent(tenantId: string, periodId: string, eventId: string): Promise<void> {
+    const existing = await this.store.findById(tenantId, eventId);
+    if (!existing || existing.academicPeriodId !== periodId) {
+      throw new NotFoundError(`Calendar event '${eventId}' not found`);
+    }
+    await this.store.delete(tenantId, eventId);
+  }
+
+  // ─── Rollover ─────────────────────────────────────────────────────────────
+
+  async rollover(
+    tenantId: string,
+    sourcePeriodId: string,
+    dto: RolloverRequestDto,
+  ): Promise<RolloverSummary> {
+    const dryRun = dto.dryRun ?? true;
+    if (dto.targetPeriodId === sourcePeriodId) {
+      throw new ValidationError('Target period must differ from the source period', [
+        { field: 'targetPeriodId', rule: 'distinct', message: 'Target must differ from source' },
+      ]);
+    }
+    const [source, target] = await Promise.all([
+      this.requirePeriod(tenantId, sourcePeriodId),
+      this.requirePeriod(tenantId, dto.targetPeriodId),
+    ]);
+    if (target.status === 'archived') {
+      throw new BusinessRuleError('Cannot roll over into an archived period');
+    }
+    if (target.startDate <= source.startDate) {
+      throw new BusinessRuleError('Target period must start after the source period');
+    }
+
+    const institutionFilter = dto.institutionId ? { institutionId: dto.institutionId } : {};
+
+    // ── Classes ──
+    const [sourceClasses, targetClasses] = await Promise.all([
+      this.prisma.class.findMany({
+        where: { tenantId, academicPeriodId: source.id, deletedAt: null, ...institutionFilter },
+      }) as Promise<ClassRow[]>,
+      this.prisma.class.findMany({
+        where: { tenantId, academicPeriodId: target.id, deletedAt: null, ...institutionFilter },
+      }) as Promise<ClassRow[]>,
+    ]);
+    const classKey = (c: ClassRow) => `${c.institutionId}|${c.gradeId}|${c.name.toLowerCase()}`;
+    const targetByKey = new Map(targetClasses.map((c) => [classKey(c), c]));
+    const classesToCreate = sourceClasses.filter((c) => !targetByKey.has(classKey(c)));
+
+    const summary: RolloverSummary = {
+      dryRun,
+      sourcePeriodId: source.id,
+      targetPeriodId: target.id,
+      classes: {
+        toCreate: classesToCreate.length,
+        existing: sourceClasses.length - classesToCreate.length,
+        created: 0,
+      },
+      enrollments: { considered: 0, toPromote: 0, promoted: 0, graduating: 0, alreadyInTarget: 0 },
+    };
+
+    if (!dryRun) {
+      for (const c of classesToCreate) {
+        const created = (await this.prisma.class.create({
+          data: {
+            tenantId,
+            institutionId: c.institutionId,
+            gradeId: c.gradeId,
+            academicPeriodId: target.id,
+            name: c.name,
+            capacity: c.capacity,
+          },
+        })) as ClassRow;
+        targetByKey.set(classKey(created), created);
+        summary.classes.created += 1;
+      }
+    }
+
+    if (!dto.promoteEnrollments) return summary;
+
+    // ── Enrollments ──
+    const grades = (await this.prisma.grade.findMany({
+      where: { tenantId, deletedAt: null },
+      orderBy: { order: 'asc' },
+    })) as GradeRow[];
+    const gradeOrder = new Map(grades.map((g) => [g.id, g.order]));
+    const gradeByOrder = new Map(grades.map((g) => [g.order, g.id]));
+
+    const [sourceEnrollments, targetEnrollments] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { tenantId, academicPeriodId: source.id, status: 'ENROLLED', ...institutionFilter },
+      }) as Promise<EnrollmentRow[]>,
+      this.prisma.enrollment.findMany({
+        where: { tenantId, academicPeriodId: target.id, ...institutionFilter },
+      }) as Promise<EnrollmentRow[]>,
+    ]);
+    const inTarget = new Set(targetEnrollments.map((e) => e.studentId));
+    const sourceClassById = new Map(sourceClasses.map((c) => [c.id, c]));
+
+    // Sections are named per grade ("7-A" → "8-A"), so carry a student into
+    // the section holding the same ordinal position in the next grade: the
+    // n-th source section of grade N maps to the n-th target section of N+1.
+    const byInstitutionGrade = (rows: ClassRow[]) => {
+      const groups = new Map<string, ClassRow[]>();
+      for (const c of rows) {
+        const key = `${c.institutionId}|${c.gradeId}`;
+        const group = groups.get(key) ?? [];
+        group.push(c);
+        groups.set(key, group);
+      }
+      for (const group of groups.values()) {
+        group.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      }
+      return groups;
+    };
+    const sourceSections = byInstitutionGrade(sourceClasses);
+    const targetSections = byInstitutionGrade(Array.from(targetByKey.values()));
+
+    summary.enrollments.considered = sourceEnrollments.length;
+    const plan: Array<{ e: EnrollmentRow; nextGradeId: string; nextClassId: string | null }> = [];
+    for (const e of sourceEnrollments) {
+      if (inTarget.has(e.studentId)) {
+        summary.enrollments.alreadyInTarget += 1;
+        continue;
+      }
+      const order = gradeOrder.get(e.gradeId);
+      const nextGradeId = order === undefined ? undefined : gradeByOrder.get(order + 1);
+      if (!nextGradeId) {
+        summary.enrollments.graduating += 1;
+        continue;
+      }
+      let nextClassId: string | null = null;
+      const sourceClass = e.classId ? sourceClassById.get(e.classId) : undefined;
+      if (sourceClass) {
+        const siblings = sourceSections.get(`${e.institutionId}|${e.gradeId}`) ?? [];
+        const position = siblings.findIndex((c) => c.id === sourceClass.id);
+        const candidates = targetSections.get(`${e.institutionId}|${nextGradeId}`) ?? [];
+        // In a dry run the target sections may not exist yet (created on
+        // execute), so this reports null there.
+        nextClassId = candidates[position]?.id ?? null;
+      }
+      plan.push({ e, nextGradeId, nextClassId });
+    }
+    summary.enrollments.toPromote = plan.length;
+
+    if (dryRun) return summary;
+
+    for (const { e, nextGradeId, nextClassId } of plan) {
+      await this.prisma.enrollment.create({
+        data: {
+          tenantId,
+          studentId: e.studentId,
+          institutionId: e.institutionId,
+          gradeId: nextGradeId,
+          classId: nextClassId,
+          academicPeriodId: target.id,
+          status: 'ENROLLED',
+          enrolledAt: target.startDate,
+        },
+      });
+      summary.enrollments.promoted += 1;
+    }
+    return summary;
+  }
+}

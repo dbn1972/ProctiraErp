@@ -19,7 +19,9 @@ import { Route, Routes } from 'react-router-dom';
 const ScholarshipPrograms = lazy(() => import('./pages/ScholarshipPrograms'));
 const ScholarshipApplication = lazy(() => import('./pages/ScholarshipApplication'));
 const ScholarshipReviewQueue = lazy(() => import('./pages/ScholarshipReviewQueue'));
-const ScholarshipDisbursementSchedule = lazy(() => import('./pages/ScholarshipDisbursementSchedule'));
+const ScholarshipDisbursementSchedule = lazy(
+  () => import('./pages/ScholarshipDisbursementSchedule'),
+);
 
 export default function ScholarshipsRouter() {
   return (

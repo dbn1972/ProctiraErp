@@ -9,11 +9,7 @@
  * - 6.5: Support Custom_Fields to extend student profiles without database schema changes
  * - 7.6: Support Custom_Fields to extend staff profiles without database schema changes
  */
-import {
-  ConflictError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -190,11 +186,13 @@ export class CustomFieldService {
     if (definition.entityType !== entityType) {
       throw new ValidationError(
         `Field '${definition.fieldKey}' is defined for '${definition.entityType}', not '${entityType}'`,
-        [{
-          field: 'entityType',
-          message: `Field '${definition.fieldKey}' is defined for '${definition.entityType}', not '${entityType}'`,
-          rule: 'entityType',
-        }],
+        [
+          {
+            field: 'entityType',
+            message: `Field '${definition.fieldKey}' is defined for '${definition.entityType}', not '${entityType}'`,
+            rule: 'entityType',
+          },
+        ],
       );
     }
 

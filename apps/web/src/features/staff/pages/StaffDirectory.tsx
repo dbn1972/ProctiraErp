@@ -54,9 +54,7 @@ export default function StaffDirectory() {
     try {
       const params = new URLSearchParams({ page: String(page), pageSize: '20' });
       if (query) params.set('search', query);
-      const result = await browserGatewayFetch<StaffListResponse>(
-        `/staff?${params.toString()}`,
-      );
+      const result = await browserGatewayFetch<StaffListResponse>(`/staff?${params.toString()}`);
       setStaff(result.data);
       setMeta(result.meta);
     } catch (err) {

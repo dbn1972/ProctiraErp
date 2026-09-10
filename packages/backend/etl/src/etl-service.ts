@@ -20,9 +20,18 @@ import type { PipelineRepository, PipelineListFilter } from './pipeline-reposito
 import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
 import { transformRows } from './transformations/index.js';
 import { ExecutionLogger, type LogSink } from './execution-logger.js';
-import { RetryExecutor, TestableRetryExecutor, type AdminNotifier, InMemoryAdminNotifier } from './retry-executor.js';
+import {
+  RetryExecutor,
+  TestableRetryExecutor,
+  type AdminNotifier,
+  InMemoryAdminNotifier,
+} from './retry-executor.js';
 import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
-import { type PipelineEventPublisher, InMemoryEventPublisher, createPipelineEvent } from './pipeline-events.js';
+import {
+  type PipelineEventPublisher,
+  InMemoryEventPublisher,
+  createPipelineEvent,
+} from './pipeline-events.js';
 
 export interface ETLServiceConfig {
   /** Default retry policy for pipelines without explicit config */
@@ -125,7 +134,11 @@ export class ETLService {
   /**
    * Update an existing pipeline definition.
    */
-  async updatePipeline(tenantId: string, pipelineId: string, input: UpdatePipelineInput): Promise<Pipeline> {
+  async updatePipeline(
+    tenantId: string,
+    pipelineId: string,
+    input: UpdatePipelineInput,
+  ): Promise<Pipeline> {
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Pipeline not found: ${pipelineId}`);
@@ -204,7 +217,12 @@ export class ETLService {
   /**
    * List pipelines with filtering and pagination.
    */
-  async listPipelines(tenantId: string, filter: PipelineListFilter, page: number, pageSize: number) {
+  async listPipelines(
+    tenantId: string,
+    filter: PipelineListFilter,
+    page: number,
+    pageSize: number,
+  ) {
     return this.repository.list(tenantId, filter, page, pageSize);
   }
 
@@ -226,7 +244,11 @@ export class ETLService {
    * Execute a pipeline with retry logic based on its configured retry policy.
    * Publishes events and notifies administrators on final failure.
    */
-  async executePipelineWithRetry(tenantId: string, pipelineId: string, scheduledExecution: boolean = false): Promise<PipelineExecution> {
+  async executePipelineWithRetry(
+    tenantId: string,
+    pipelineId: string,
+    scheduledExecution: boolean = false,
+  ): Promise<PipelineExecution> {
     const pipeline = await this.getPipeline(tenantId, pipelineId);
 
     if (!pipeline.enabled) {
@@ -237,11 +259,17 @@ export class ETLService {
 
     // Publish execution started event
     await this.eventPublisher.publish(
-      createPipelineEvent('pipeline.execution.started', tenantId, pipelineId, {
-        pipelineName: pipeline.name,
-        attempt: 0,
-        scheduledExecution,
-      } satisfies Record<string, unknown>, executionId),
+      createPipelineEvent(
+        'pipeline.execution.started',
+        tenantId,
+        pipelineId,
+        {
+          pipelineName: pipeline.name,
+          attempt: 0,
+          scheduledExecution,
+        } satisfies Record<string, unknown>,
+        executionId,
+      ),
     );
 
     const retryResult = await this.retryExecutor.executeWithRetry(
@@ -254,12 +282,18 @@ export class ETLService {
         if (attempt > 0) {
           // Publish retrying event
           await this.eventPublisher.publish(
-            createPipelineEvent('pipeline.execution.retrying', tenantId, pipelineId, {
-              pipelineName: pipeline.name,
-              attempt,
-              maxRetries: pipeline.retryPolicy.maxRetries,
-              lastError: this.retryExecutor.getRetryState(executionId)?.lastError ?? 'Unknown',
-            } satisfies Record<string, unknown>, executionId),
+            createPipelineEvent(
+              'pipeline.execution.retrying',
+              tenantId,
+              pipelineId,
+              {
+                pipelineName: pipeline.name,
+                attempt,
+                maxRetries: pipeline.retryPolicy.maxRetries,
+                lastError: this.retryExecutor.getRetryState(executionId)?.lastError ?? 'Unknown',
+              } satisfies Record<string, unknown>,
+              executionId,
+            ),
           );
         }
 
@@ -270,16 +304,22 @@ export class ETLService {
     if (retryResult.success && retryResult.result) {
       // Publish completion event
       await this.eventPublisher.publish(
-        createPipelineEvent('pipeline.execution.completed', tenantId, pipelineId, {
-          pipelineName: pipeline.name,
-          extractedCount: retryResult.result.extractedCount,
-          transformedCount: retryResult.result.transformedCount,
-          loadedCount: retryResult.result.loadedCount,
-          errorCount: retryResult.result.errorCount,
-          durationMs: retryResult.result.completedAt
-            ? retryResult.result.completedAt.getTime() - retryResult.result.startedAt.getTime()
-            : 0,
-        } satisfies Record<string, unknown>, executionId),
+        createPipelineEvent(
+          'pipeline.execution.completed',
+          tenantId,
+          pipelineId,
+          {
+            pipelineName: pipeline.name,
+            extractedCount: retryResult.result.extractedCount,
+            transformedCount: retryResult.result.transformedCount,
+            loadedCount: retryResult.result.loadedCount,
+            errorCount: retryResult.result.errorCount,
+            durationMs: retryResult.result.completedAt
+              ? retryResult.result.completedAt.getTime() - retryResult.result.startedAt.getTime()
+              : 0,
+          } satisfies Record<string, unknown>,
+          executionId,
+        ),
       );
 
       return retryResult.result;
@@ -287,12 +327,18 @@ export class ETLService {
 
     // All retries exhausted - publish failure event
     await this.eventPublisher.publish(
-      createPipelineEvent('pipeline.execution.failed', tenantId, pipelineId, {
-        pipelineName: pipeline.name,
-        error: retryResult.lastError ?? 'Unknown error',
-        attempt: retryResult.attempts,
-        retriesExhausted: true,
-      } satisfies Record<string, unknown>, executionId),
+      createPipelineEvent(
+        'pipeline.execution.failed',
+        tenantId,
+        pipelineId,
+        {
+          pipelineName: pipeline.name,
+          error: retryResult.lastError ?? 'Unknown error',
+          attempt: retryResult.attempts,
+          retriesExhausted: true,
+        } satisfies Record<string, unknown>,
+        executionId,
+      ),
     );
 
     // Create a failed execution record
@@ -307,12 +353,14 @@ export class ETLService {
       transformedCount: 0,
       loadedCount: 0,
       errorCount: 1,
-      errors: [{
-        row: -1,
-        field: null,
-        message: `Pipeline failed after ${retryResult.attempts} attempts: ${retryResult.lastError}`,
-        data: null,
-      }],
+      errors: [
+        {
+          row: -1,
+          field: null,
+          message: `Pipeline failed after ${retryResult.attempts} attempts: ${retryResult.lastError}`,
+          data: null,
+        },
+      ],
     };
 
     await this.repository.createExecution(failedExecution);

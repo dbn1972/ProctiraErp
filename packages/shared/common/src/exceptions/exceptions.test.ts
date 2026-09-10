@@ -35,9 +35,7 @@ describe('AppError', () => {
   });
 
   it('should serialize to JSON with errors field when field errors present', () => {
-    const fieldErrors = [
-      { field: 'email', rule: 'format', message: 'Invalid email format' },
-    ];
+    const fieldErrors = [{ field: 'email', rule: 'format', message: 'Invalid email format' }];
     const error = new AppError('Validation failed', 'VALIDATION_ERROR', 400, fieldErrors);
     const json = error.toJSON();
 

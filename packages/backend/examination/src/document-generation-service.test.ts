@@ -19,7 +19,11 @@ import {
   MAX_BATCH_SIZE,
   NoOpDocumentTaskQueue,
 } from './document-generation-service.js';
-import type { DocumentCandidate, SeatingAssignment, CandidateResultData } from './document-repository.js';
+import type {
+  DocumentCandidate,
+  SeatingAssignment,
+  CandidateResultData,
+} from './document-repository.js';
 import type { ExaminationEntity } from './examination-repository.js';
 
 describe('DocumentGenerationService', () => {
@@ -49,16 +53,50 @@ describe('DocumentGenerationService', () => {
       endDate: endDate.toISOString().split('T')[0]!,
       status: 'SCHEDULED',
       subjects: [
-        { id: 'sub-001', examinationId: 'exam-001', name: 'Mathematics', code: 'MATH', maxScore: 100 },
+        {
+          id: 'sub-001',
+          examinationId: 'exam-001',
+          name: 'Mathematics',
+          code: 'MATH',
+          maxScore: 100,
+        },
         { id: 'sub-002', examinationId: 'exam-001', name: 'Science', code: 'SCI', maxScore: 100 },
       ],
       centers: [
-        { id: 'center-001', examinationId: 'exam-001', name: 'Center A', code: 'CA', institutionId: 'inst-001', capacity: 200 },
-        { id: 'center-002', examinationId: 'exam-001', name: 'Center B', code: 'CB', institutionId: 'inst-002', capacity: 150 },
+        {
+          id: 'center-001',
+          examinationId: 'exam-001',
+          name: 'Center A',
+          code: 'CA',
+          institutionId: 'inst-001',
+          capacity: 200,
+        },
+        {
+          id: 'center-002',
+          examinationId: 'exam-001',
+          name: 'Center B',
+          code: 'CB',
+          institutionId: 'inst-002',
+          capacity: 150,
+        },
       ],
       sessions: [
-        { id: 'sess-001', examinationId: 'exam-001', subjectId: 'sub-001', date: futureDate.toISOString().split('T')[0]!, startTime: '09:00', endTime: '12:00' },
-        { id: 'sess-002', examinationId: 'exam-001', subjectId: 'sub-002', date: endDate.toISOString().split('T')[0]!, startTime: '09:00', endTime: '12:00' },
+        {
+          id: 'sess-001',
+          examinationId: 'exam-001',
+          subjectId: 'sub-001',
+          date: futureDate.toISOString().split('T')[0]!,
+          startTime: '09:00',
+          endTime: '12:00',
+        },
+        {
+          id: 'sess-002',
+          examinationId: 'exam-001',
+          subjectId: 'sub-002',
+          date: endDate.toISOString().split('T')[0]!,
+          startTime: '09:00',
+          endTime: '12:00',
+        },
       ],
       gradingSchemes: [
         {
@@ -319,9 +357,7 @@ describe('DocumentGenerationService', () => {
     });
 
     it('should throw NotFoundError for non-existent job', async () => {
-      await expect(
-        service.processJob(tenantId, 'non-existent-job'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.processJob(tenantId, 'non-existent-job')).rejects.toThrow(NotFoundError);
     });
 
     it('should handle processing failure gracefully', async () => {
@@ -378,9 +414,7 @@ describe('DocumentGenerationService', () => {
     });
 
     it('should throw NotFoundError for non-existent job', async () => {
-      await expect(
-        service.getJobStatus(tenantId, 'non-existent'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getJobStatus(tenantId, 'non-existent')).rejects.toThrow(NotFoundError);
     });
   });
 
@@ -404,9 +438,7 @@ describe('DocumentGenerationService', () => {
     });
 
     it('should throw NotFoundError for non-existent examination', async () => {
-      await expect(
-        service.listJobs(tenantId, 'non-existent'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.listJobs(tenantId, 'non-existent')).rejects.toThrow(NotFoundError);
     });
   });
 

@@ -28,5 +28,9 @@ export type { KafkaConfig } from './kafka/config';
 export { RabbitMQPublisher } from './rabbitmq/publisher';
 export { RabbitMQSubscriber } from './rabbitmq/subscriber';
 export type { SubscriberOptions } from './rabbitmq/subscriber';
-export { buildTenantQueue, buildTenantRoutingKey, DEFAULT_RABBITMQ_CONFIG } from './rabbitmq/config';
+export {
+  buildTenantQueue,
+  buildTenantRoutingKey,
+  DEFAULT_RABBITMQ_CONFIG,
+} from './rabbitmq/config';
 export type { RabbitMQConfig } from './rabbitmq/config';

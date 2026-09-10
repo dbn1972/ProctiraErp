@@ -62,9 +62,7 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async findPlanByName(name: string): Promise<PlanEntity | null> {
-    return this.plans.find(
-      (p) => p.name.toLowerCase() === name.toLowerCase(),
-    ) ?? null;
+    return this.plans.find((p) => p.name.toLowerCase() === name.toLowerCase()) ?? null;
   }
 
   async listPlans(
@@ -126,7 +124,9 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   // ─── Subscription CRUD ───────────────────────────────────────────────────
 
-  async createSubscription(data: Omit<SubscriptionEntity, 'createdAt' | 'updatedAt'>): Promise<SubscriptionEntity> {
+  async createSubscription(
+    data: Omit<SubscriptionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<SubscriptionEntity> {
     const now = new Date();
     const entity: SubscriptionEntity = {
       ...data,
@@ -137,7 +137,10 @@ export class InMemoryBillingRepository implements BillingRepository {
     return entity;
   }
 
-  async updateSubscription(id: string, data: Partial<SubscriptionEntity>): Promise<SubscriptionEntity | null> {
+  async updateSubscription(
+    id: string,
+    data: Partial<SubscriptionEntity>,
+  ): Promise<SubscriptionEntity | null> {
     const index = this.subscriptions.findIndex((s) => s.id === id);
     if (index === -1) return null;
 
@@ -151,7 +154,8 @@ export class InMemoryBillingRepository implements BillingRepository {
       currentPeriodStart: data.currentPeriodStart ?? existing.currentPeriodStart,
       currentPeriodEnd: data.currentPeriodEnd ?? existing.currentPeriodEnd,
       cancelledAt: data.cancelledAt !== undefined ? data.cancelledAt : existing.cancelledAt,
-      previousPlanId: data.previousPlanId !== undefined ? data.previousPlanId : existing.previousPlanId,
+      previousPlanId:
+        data.previousPlanId !== undefined ? data.previousPlanId : existing.previousPlanId,
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
@@ -164,9 +168,13 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async findActiveSubscription(tenantId: string): Promise<SubscriptionEntity | null> {
-    return this.subscriptions.find(
-      (s) => s.tenantId === tenantId && (s.status === 'active' || s.status === 'trial' || s.status === 'suspended'),
-    ) ?? null;
+    return (
+      this.subscriptions.find(
+        (s) =>
+          s.tenantId === tenantId &&
+          (s.status === 'active' || s.status === 'trial' || s.status === 'suspended'),
+      ) ?? null
+    );
   }
 
   async findSubscriptionsByTenant(tenantId: string): Promise<SubscriptionEntity[]> {
@@ -175,7 +183,9 @@ export class InMemoryBillingRepository implements BillingRepository {
 
   // ─── Entitlements ────────────────────────────────────────────────────────
 
-  async upsertEntitlements(entitlements: Omit<EntitlementEntity, 'createdAt' | 'updatedAt'>[]): Promise<EntitlementEntity[]> {
+  async upsertEntitlements(
+    entitlements: Omit<EntitlementEntity, 'createdAt' | 'updatedAt'>[],
+  ): Promise<EntitlementEntity[]> {
     const now = new Date();
     const results: EntitlementEntity[] = [];
 
@@ -214,9 +224,9 @@ export class InMemoryBillingRepository implements BillingRepository {
   }
 
   async findEntitlement(tenantId: string, featureKey: string): Promise<EntitlementEntity | null> {
-    return this.entitlements.find(
-      (e) => e.tenantId === tenantId && e.featureKey === featureKey,
-    ) ?? null;
+    return (
+      this.entitlements.find((e) => e.tenantId === tenantId && e.featureKey === featureKey) ?? null
+    );
   }
 
   async deleteEntitlementsBySubscription(subscriptionId: string): Promise<void> {
@@ -274,17 +284,28 @@ export class InMemoryBillingRepository implements BillingRepository {
     return updated;
   }
 
-  async getUsage(tenantId: string, metric: string, periodStart: Date, periodEnd: Date): Promise<UsageEntity | null> {
-    return this.usageRecords.find(
-      (u) =>
-        u.tenantId === tenantId &&
-        u.metric === metric &&
-        u.periodStart.getTime() >= periodStart.getTime() &&
-        u.periodEnd.getTime() <= periodEnd.getTime(),
-    ) ?? null;
+  async getUsage(
+    tenantId: string,
+    metric: string,
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<UsageEntity | null> {
+    return (
+      this.usageRecords.find(
+        (u) =>
+          u.tenantId === tenantId &&
+          u.metric === metric &&
+          u.periodStart.getTime() >= periodStart.getTime() &&
+          u.periodEnd.getTime() <= periodEnd.getTime(),
+      ) ?? null
+    );
   }
 
-  async getUsageByTenant(tenantId: string, periodStart: Date, periodEnd: Date): Promise<UsageEntity[]> {
+  async getUsageByTenant(
+    tenantId: string,
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<UsageEntity[]> {
     return this.usageRecords.filter(
       (u) =>
         u.tenantId === tenantId &&

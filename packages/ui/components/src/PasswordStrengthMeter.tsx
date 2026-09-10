@@ -94,83 +94,62 @@ function ratingTone(rating: PasswordRating): { bar: string; label: string } {
   }
 }
 
-export const PasswordStrengthMeter = React.forwardRef<
-  HTMLDivElement,
-  PasswordStrengthMeterProps
->(function PasswordStrengthMeter(
-  {
-    grade,
-    rules,
-    ratingLabel,
-    id,
-    className,
-    'data-testid': testId = 'password-meter',
-    ...rest
-  },
-  ref,
-) {
-  if (!grade) return null;
+export const PasswordStrengthMeter = React.forwardRef<HTMLDivElement, PasswordStrengthMeterProps>(
+  function PasswordStrengthMeter(
+    { grade, rules, ratingLabel, id, className, 'data-testid': testId = 'password-meter', ...rest },
+    ref,
+  ) {
+    if (!grade) return null;
 
-  const tone = ratingTone(grade.rating);
+    const tone = ratingTone(grade.rating);
 
-  return (
-    <div
-      ref={ref}
-      id={id}
-      role="status"
-      aria-live="polite"
-      className={cn('space-y-2', className)}
-      data-testid={testId}
-      {...rest}
-    >
-      <div className="flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-          <div
-            className={cn(
-              'h-full transition-[width] duration-200',
-              tone.bar,
-            )}
-            style={{ width: `${Math.max(0, Math.min(100, grade.percent))}%` }}
-            data-testid={`${testId}-bar`}
-            data-rating={grade.rating}
-          />
+    return (
+      <div
+        ref={ref}
+        id={id}
+        role="status"
+        aria-live="polite"
+        className={cn('space-y-2', className)}
+        data-testid={testId}
+        {...rest}
+      >
+        <div className="flex items-center gap-3">
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+            <div
+              className={cn('h-full transition-[width] duration-200', tone.bar)}
+              style={{ width: `${Math.max(0, Math.min(100, grade.percent))}%` }}
+              data-testid={`${testId}-bar`}
+              data-rating={grade.rating}
+            />
+          </div>
+          <span className={cn('text-xs font-medium', tone.label)} data-testid={`${testId}-label`}>
+            {ratingLabel}
+          </span>
         </div>
-        <span
-          className={cn('text-xs font-medium', tone.label)}
-          data-testid={`${testId}-label`}
-        >
-          {ratingLabel}
-        </span>
-      </div>
-      {rules && rules.length > 0 && (
-        <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-          {rules.map((rule) => (
-            <li
-              key={rule.key}
-              className="flex items-center gap-2 text-xs"
-              data-testid={`${testId}-rule-${rule.key}`}
-              data-satisfied={rule.satisfied ? 'true' : 'false'}
-            >
-              <CheckCircle2
-                aria-hidden="true"
-                className={cn(
-                  'h-4 w-4',
-                  rule.satisfied
-                    ? 'text-emerald-600'
-                    : 'text-muted-foreground/50',
-                )}
-              />
-              <span
-                className={
-                  rule.satisfied ? 'text-foreground' : 'text-muted-foreground'
-                }
+        {rules && rules.length > 0 && (
+          <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {rules.map((rule) => (
+              <li
+                key={rule.key}
+                className="flex items-center gap-2 text-xs"
+                data-testid={`${testId}-rule-${rule.key}`}
+                data-satisfied={rule.satisfied ? 'true' : 'false'}
               >
-                {rule.label}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-});
+                <CheckCircle2
+                  aria-hidden="true"
+                  className={cn(
+                    'h-4 w-4',
+                    rule.satisfied ? 'text-emerald-600' : 'text-muted-foreground/50',
+                  )}
+                />
+                <span className={rule.satisfied ? 'text-foreground' : 'text-muted-foreground'}>
+                  {rule.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  },
+);

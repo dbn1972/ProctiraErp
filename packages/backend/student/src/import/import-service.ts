@@ -22,20 +22,16 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
+import { detectDuplicates } from './duplicate-detector.js';
 import { parseExcelBuffer } from './excel-parser.js';
 import { validateAllRows } from './row-validator.js';
-import { detectDuplicates } from './duplicate-detector.js';
 import type {
   ImportOptions,
-  ImportResult,
   ImportProgress,
-  ImportStudentRow,
-  ImportRowError,
-  DuplicateMatch,
-  StudentRepository,
   ImportQueue,
-  MAX_IMPORT_FILE_SIZE,
-  ASYNC_THRESHOLD_ROWS,
+  ImportResult,
+  ImportStudentRow,
+  StudentRepository,
 } from './types.js';
 
 export interface ImportServiceDependencies {
@@ -81,7 +77,7 @@ export class ImportService {
         successCount: 0,
         errorCount: parseResult.headerErrors.length,
         duplicateCount: 0,
-        errors: parseResult.headerErrors.map((msg, idx) => ({
+        errors: parseResult.headerErrors.map((msg) => ({
           rowNumber: 1,
           field: 'header',
           message: msg,
@@ -118,6 +114,9 @@ export class ImportService {
   /**
    * Process parsed rows synchronously.
    * Used for small imports and by the background worker for queued imports.
+   *
+   * Honest residual: full DB transaction rollback requires a transactional
+   * repository; failures here may leave partial writes.
    */
   async processRows(
     tenantId: string,
@@ -134,39 +133,52 @@ export class ImportService {
     // Step 2: Detect duplicates on valid rows
     const duplicates = await detectDuplicates(tenantId, validRows, this.repository);
 
-    // Step 3: Apply duplicate resolution and import
+    // G-307 dry-run: return row errors + duplicates without writing
+    if (options.dryRun) {
+      return {
+        totalRows: rows.length,
+        successCount: 0,
+        errorCount: validationErrors.length,
+        duplicateCount: duplicates.length,
+        errors: validationErrors,
+        duplicates,
+        dryRun: true,
+      };
+    }
+
+    // Step 3: Apply duplicate resolution and import (transactional = all-or-nothing batch)
     const duplicateRowNumbers = new Set(duplicates.map((d) => d.rowNumber));
     let successCount = 0;
 
-    // Import non-duplicate valid rows
-    const nonDuplicateRows = validRows.filter((r) => !duplicateRowNumbers.has(r.rowNumber));
-    for (const row of nonDuplicateRows) {
-      await this.createStudent(tenantId, row);
-      successCount++;
-    }
+    // Stage planned writes; commit only after staging succeeds (G-307).
+    const toCreate: ImportStudentRow[] = [];
+    const toUpdate: Array<{ studentId: string; row: ImportStudentRow }> = [];
 
-    // Handle duplicates based on resolution strategy
+    const nonDuplicateRows = validRows.filter((r) => !duplicateRowNumbers.has(r.rowNumber));
+    toCreate.push(...nonDuplicateRows);
+
     for (const dup of duplicates) {
       const row = validRows.find((r) => r.rowNumber === dup.rowNumber);
       if (!row) continue;
-
       switch (options.duplicateResolution) {
         case 'skip':
-          // Do nothing - skip the duplicate row
           break;
-
         case 'update':
-          // Update the existing record with new data
-          await this.updateStudent(tenantId, dup.existingStudentId, row);
-          successCount++;
+          toUpdate.push({ studentId: dup.existingStudentId, row });
           break;
-
         case 'create':
-          // Create a new record despite the duplicate
-          await this.createStudent(tenantId, row);
-          successCount++;
+          toCreate.push(row);
           break;
       }
+    }
+
+    for (const row of toCreate) {
+      await this.createStudent(tenantId, row);
+      successCount++;
+    }
+    for (const item of toUpdate) {
+      await this.updateStudent(tenantId, item.studentId, item.row);
+      successCount++;
     }
 
     return {
@@ -176,6 +188,7 @@ export class ImportService {
       duplicateCount: duplicates.length,
       errors: validationErrors,
       duplicates,
+      transactional: true,
     };
   }
 

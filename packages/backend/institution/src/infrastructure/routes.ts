@@ -523,10 +523,7 @@ export async function registerInfrastructureRoutes(
    */
   fastify.get(
     `${prefix}/condition-options`,
-    async function listConditionOptionsHandler(
-      _request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listConditionOptionsHandler(_request: FastifyRequest, reply: FastifyReply) {
       const options = await infrastructureService.listConditionOptions();
       return reply.status(200).send(options);
     },

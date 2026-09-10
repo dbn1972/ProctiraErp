@@ -34,11 +34,7 @@ const STATS = [
   { value: '99.95%', label: 'uptime this year' },
 ] as const;
 
-export function AuthShell({
-  children,
-}: {
-  children: React.ReactNode;
-}): JSX.Element {
+export function AuthShell({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="flex min-h-screen flex-col bg-white lg:flex-row">
       {/* Brand panel — visible on lg+ */}
@@ -61,9 +57,8 @@ export function AuthShell({
             <span className="text-[var(--color-primary-400)]">one platform.</span>
           </h2>
           <p className="mb-8 text-base leading-relaxed text-[#AEB9D6]">
-            Unified administration for enrollment, attendance, assessments,
-            scholarships, and analytics — from a single classroom to an entire
-            state.
+            Unified administration for enrollment, attendance, assessments, scholarships, and
+            analytics — from a single classroom to an entire state.
           </p>
           <div className="flex flex-col gap-3.5">
             {POINTS.map(({ Icon, title, body }) => (
@@ -83,9 +78,7 @@ export function AuthShell({
         <div className="relative z-10 flex gap-7">
           {STATS.map(({ value, label }) => (
             <div key={label}>
-              <b className="block text-[1.375rem] font-extrabold tracking-tight">
-                {value}
-              </b>
+              <b className="block text-[1.375rem] font-extrabold tracking-tight">{value}</b>
               <span className="text-xs text-[#8B97B8]">{label}</span>
             </div>
           ))}

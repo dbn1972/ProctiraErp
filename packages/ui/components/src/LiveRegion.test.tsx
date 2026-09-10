@@ -1,11 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act, renderHook } from '@testing-library/react';
-import {
-  LiveRegion,
-  announce,
-  useAnnounce,
-  __resetLiveRegionListeners,
-} from './LiveRegion';
+import { LiveRegion, announce, useAnnounce, __resetLiveRegionListeners } from './LiveRegion';
 
 describe('<LiveRegion />', () => {
   beforeEach(() => {
@@ -171,9 +166,7 @@ describe('useAnnounce()', () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(screen.getByTestId('live-region-polite').textContent).toBe(
-      'Filter updated: 24 results',
-    );
+    expect(screen.getByTestId('live-region-polite').textContent).toBe('Filter updated: 24 results');
   });
 
   it('forwards the assertive priority to the assertive region', () => {
@@ -185,9 +178,7 @@ describe('useAnnounce()', () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(screen.getByTestId('live-region-assertive').textContent).toBe(
-      'Validation failed',
-    );
+    expect(screen.getByTestId('live-region-assertive').textContent).toBe('Validation failed');
   });
 
   it('returns a stable reference across renders', () => {

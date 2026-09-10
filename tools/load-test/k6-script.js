@@ -31,19 +31,19 @@ const AUTH_TOKEN = __ENV.AUTH_TOKEN || '';
 
 export const options = {
   stages: [
-    { duration: '30s', target: 200 },   // Ramp up to 200 VUs
-    { duration: '1m', target: 1000 },    // Ramp up to 1,000 VUs
-    { duration: '3m', target: 1000 },    // Hold at 1,000 VUs
-    { duration: '30s', target: 0 },      // Ramp down
+    { duration: '30s', target: 200 }, // Ramp up to 200 VUs
+    { duration: '1m', target: 1000 }, // Ramp up to 1,000 VUs
+    { duration: '3m', target: 1000 }, // Hold at 1,000 VUs
+    { duration: '30s', target: 0 }, // Ramp down
   ],
   thresholds: {
     // p95 latency must be under 500ms
-    'http_req_duration': ['p(95)<500'],
-    'institution_list_latency': ['p(95)<500'],
-    'student_get_latency': ['p(95)<500'],
-    'bulk_attendance_latency': ['p(95)<500'],
+    http_req_duration: ['p(95)<500'],
+    institution_list_latency: ['p(95)<500'],
+    student_get_latency: ['p(95)<500'],
+    bulk_attendance_latency: ['p(95)<500'],
     // Error rate must be under 1%
-    'errors': ['rate<0.01'],
+    errors: ['rate<0.01'],
   },
 };
 
@@ -196,7 +196,9 @@ export function handleSummary(data) {
   console.log('  ProctiraERP Load Test Summary');
   console.log('═══════════════════════════════════════════════════════');
   console.log(`  p95 Latency:  ${p95.toFixed(2)}ms (threshold: <500ms) ${p95 < 500 ? '✓' : '✗'}`);
-  console.log(`  Error Rate:   ${(errRate * 100).toFixed(3)}% (threshold: <1%) ${errRate < 0.01 ? '✓' : '✗'}`);
+  console.log(
+    `  Error Rate:   ${(errRate * 100).toFixed(3)}% (threshold: <1%) ${errRate < 0.01 ? '✓' : '✗'}`,
+  );
   console.log('═══════════════════════════════════════════════════════');
 
   return {};

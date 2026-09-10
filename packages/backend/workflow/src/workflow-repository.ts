@@ -82,17 +82,37 @@ export interface WorkflowInstanceFilter {
 
 export interface WorkflowRepository {
   // Workflow Definition operations
-  createDefinition(entity: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'>): Promise<WorkflowDefinitionEntity>;
+  createDefinition(
+    entity: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<WorkflowDefinitionEntity>;
   findDefinitionById(id: string, tenantId: string): Promise<WorkflowDefinitionEntity | null>;
-  updateDefinition(id: string, tenantId: string, data: Partial<WorkflowDefinitionEntity>): Promise<WorkflowDefinitionEntity | null>;
+  updateDefinition(
+    id: string,
+    tenantId: string,
+    data: Partial<WorkflowDefinitionEntity>,
+  ): Promise<WorkflowDefinitionEntity | null>;
   deleteDefinition(id: string, tenantId: string): Promise<boolean>;
-  listDefinitions(tenantId: string, filter: WorkflowDefinitionFilter, pagination: PaginationOptions): Promise<PaginatedResult<WorkflowDefinitionEntity>>;
+  listDefinitions(
+    tenantId: string,
+    filter: WorkflowDefinitionFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<WorkflowDefinitionEntity>>;
 
   // Workflow Instance operations
-  createInstance(entity: Omit<WorkflowInstanceEntity, 'createdAt' | 'updatedAt'>): Promise<WorkflowInstanceEntity>;
+  createInstance(
+    entity: Omit<WorkflowInstanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<WorkflowInstanceEntity>;
   findInstanceById(id: string, tenantId: string): Promise<WorkflowInstanceEntity | null>;
-  updateInstance(id: string, tenantId: string, data: Partial<WorkflowInstanceEntity>): Promise<WorkflowInstanceEntity | null>;
-  listInstances(tenantId: string, filter: WorkflowInstanceFilter, pagination: PaginationOptions): Promise<PaginatedResult<WorkflowInstanceEntity>>;
+  updateInstance(
+    id: string,
+    tenantId: string,
+    data: Partial<WorkflowInstanceEntity>,
+  ): Promise<WorkflowInstanceEntity | null>;
+  listInstances(
+    tenantId: string,
+    filter: WorkflowInstanceFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<WorkflowInstanceEntity>>;
 
   // Transition Audit operations
   createAuditRecord(entity: TransitionAuditEntity): Promise<TransitionAuditEntity>;

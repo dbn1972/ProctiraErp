@@ -41,9 +41,7 @@ export class InMemoryAppraisalTemplateRepository implements AppraisalTemplateRep
     tenantId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<AppraisalTemplateEntity>> {
-    const items = Array.from(this.templates.values()).filter(
-      (e) => e.tenantId === tenantId,
-    );
+    const items = Array.from(this.templates.values()).filter((e) => e.tenantId === tenantId);
 
     const totalItems = items.length;
     const totalPages = Math.ceil(totalItems / pagination.pageSize);
@@ -64,9 +62,7 @@ export class InMemoryAppraisalTemplateRepository implements AppraisalTemplateRep
 export class InMemoryAppraisalRepository implements AppraisalRepository {
   private appraisals: Map<string, AppraisalEntity> = new Map();
 
-  async create(
-    data: Omit<AppraisalEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<AppraisalEntity> {
+  async create(data: Omit<AppraisalEntity, 'createdAt' | 'updatedAt'>): Promise<AppraisalEntity> {
     const now = new Date();
     const entity: AppraisalEntity = {
       ...data,
@@ -112,9 +108,7 @@ export class InMemoryAppraisalRepository implements AppraisalRepository {
     filter: AppraisalFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<AppraisalEntity>> {
-    let items = Array.from(this.appraisals.values()).filter(
-      (e) => e.tenantId === tenantId,
-    );
+    let items = Array.from(this.appraisals.values()).filter((e) => e.tenantId === tenantId);
 
     if (filter.staffId) {
       items = items.filter((e) => e.staffId === filter.staffId);

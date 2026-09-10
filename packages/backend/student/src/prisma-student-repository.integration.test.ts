@@ -76,98 +76,89 @@ function sampleStudent(tenantId: string, overrides: Partial<StudentEntity> = {})
   };
 }
 
-describe.skipIf(!TEST_DATABASE_URL)(
-  'PrismaStudentRepository (RLS integration)',
-  () => {
-    let prisma: PrismaClient;
-    let repo: PrismaStudentRepository;
-    let tenantA: string;
-    let tenantB: string;
-    let studentA: StudentEntity;
-    let studentB: StudentEntity;
+describe.skipIf(!TEST_DATABASE_URL)('PrismaStudentRepository (RLS integration)', () => {
+  let prisma: PrismaClient;
+  let repo: PrismaStudentRepository;
+  let tenantA: string;
+  let tenantB: string;
+  let studentA: StudentEntity;
+  let studentB: StudentEntity;
 
-    beforeAll(async () => {
-      prisma = createPrismaClient({ datasourceUrl: TEST_DATABASE_URL });
-      await prisma.$connect();
-      await applyStudentRls(prisma);
+  beforeAll(async () => {
+    prisma = createPrismaClient({ datasourceUrl: TEST_DATABASE_URL });
+    await prisma.$connect();
+    await applyStudentRls(prisma);
 
-      // `tenants` has no RLS policy, so seed tenants directly.
-      const suffix = randomUUID().slice(0, 8);
-      const a = await prisma.tenant.create({
-        data: { name: 'Tenant A', slug: `rls-test-a-${suffix}` },
-      });
-      const b = await prisma.tenant.create({
-        data: { name: 'Tenant B', slug: `rls-test-b-${suffix}` },
-      });
-      tenantA = a.id;
-      tenantB = b.id;
+    // `tenants` has no RLS policy, so seed tenants directly.
+    const suffix = randomUUID().slice(0, 8);
+    const a = await prisma.tenant.create({
+      data: { name: 'Tenant A', slug: `rls-test-a-${suffix}` },
+    });
+    const b = await prisma.tenant.create({
+      data: { name: 'Tenant B', slug: `rls-test-b-${suffix}` },
+    });
+    tenantA = a.id;
+    tenantB = b.id;
 
-      repo = new PrismaStudentRepository(prisma);
-      // create() binds the tenant via withTenantTransaction, satisfying the
-      // INSERT policy — proving writes are tenant-scoped too.
-      studentA = await repo.create(sampleStudent(tenantA, { firstName: 'Alice' }));
-      studentB = await repo.create(sampleStudent(tenantB, { firstName: 'Bob' }));
-    }, 30_000);
+    repo = new PrismaStudentRepository(prisma);
+    // create() binds the tenant via withTenantTransaction, satisfying the
+    // INSERT policy — proving writes are tenant-scoped too.
+    studentA = await repo.create(sampleStudent(tenantA, { firstName: 'Alice' }));
+    studentB = await repo.create(sampleStudent(tenantB, { firstName: 'Bob' }));
+  }, 30_000);
 
-    afterAll(async () => {
-      if (!prisma) return;
-      // Deletes are RLS-scoped, so remove each tenant's rows in its own context.
-      for (const t of [tenantA, tenantB]) {
-        if (t) {
-          await withTenantTransaction(prisma, t, (tx) =>
-            tx.student.deleteMany({ where: { tenantId: t } }),
-          );
-        }
+  afterAll(async () => {
+    if (!prisma) return;
+    // Deletes are RLS-scoped, so remove each tenant's rows in its own context.
+    for (const t of [tenantA, tenantB]) {
+      if (t) {
+        await withTenantTransaction(prisma, t, (tx) =>
+          tx.student.deleteMany({ where: { tenantId: t } }),
+        );
       }
-      if (tenantA) await prisma.tenant.delete({ where: { id: tenantA } }).catch(() => {});
-      if (tenantB) await prisma.tenant.delete({ where: { id: tenantB } }).catch(() => {});
-      await prisma.$disconnect();
-    });
+    }
+    if (tenantA) await prisma.tenant.delete({ where: { id: tenantA } }).catch(() => {});
+    if (tenantB) await prisma.tenant.delete({ where: { id: tenantB } }).catch(() => {});
+    await prisma.$disconnect();
+  });
 
-    it('a tenant-bound transaction sees only its own rows', async () => {
-      const rowsA = await withTenantTransaction(prisma, tenantA, (tx) =>
-        tx.student.findMany(),
-      );
-      expect(rowsA).toHaveLength(1);
-      expect(rowsA[0]?.id).toBe(studentA.id);
-      expect(rowsA.every((r) => r.tenantId === tenantA)).toBe(true);
+  it('a tenant-bound transaction sees only its own rows', async () => {
+    const rowsA = await withTenantTransaction(prisma, tenantA, (tx) => tx.student.findMany());
+    expect(rowsA).toHaveLength(1);
+    expect(rowsA[0]?.id).toBe(studentA.id);
+    expect(rowsA.every((r) => r.tenantId === tenantA)).toBe(true);
 
-      const rowsB = await withTenantTransaction(prisma, tenantB, (tx) =>
-        tx.student.findMany(),
-      );
-      expect(rowsB).toHaveLength(1);
-      expect(rowsB[0]?.id).toBe(studentB.id);
-    });
+    const rowsB = await withTenantTransaction(prisma, tenantB, (tx) => tx.student.findMany());
+    expect(rowsB).toHaveLength(1);
+    expect(rowsB[0]?.id).toBe(studentB.id);
+  });
 
-    it('repository lookups are tenant-scoped (no cross-tenant access)', async () => {
-      // Own tenant: found.
-      expect(await repo.findById(studentA.id, tenantA)).not.toBeNull();
-      // Other tenant: must not see A's student even with the correct id.
-      expect(await repo.findById(studentA.id, tenantB)).toBeNull();
-    });
+  it('repository lookups are tenant-scoped (no cross-tenant access)', async () => {
+    // Own tenant: found.
+    expect(await repo.findById(studentA.id, tenantA)).not.toBeNull();
+    // Other tenant: must not see A's student even with the correct id.
+    expect(await repo.findById(studentA.id, tenantB)).toBeNull();
+  });
 
-    it('list returns only the requested tenant', async () => {
-      const page = await repo.list(tenantB, {}, { page: 1, pageSize: 50 });
-      expect(page.meta.totalItems).toBe(1);
-      expect(page.data.every((s) => s.tenantId === tenantB)).toBe(true);
-    });
+  it('list returns only the requested tenant', async () => {
+    const page = await repo.list(tenantB, {}, { page: 1, pageSize: 50 });
+    expect(page.meta.totalItems).toBe(1);
+    expect(page.data.every((s) => s.tenantId === tenantB)).toBe(true);
+  });
 
-    it('soft delete is tenant-scoped and hides the row from reads', async () => {
-      const victim = await repo.create(
-        sampleStudent(tenantA, { firstName: 'Carol' }),
-      );
-      // Wrong tenant cannot delete it.
-      expect(await repo.delete(victim.id, tenantB)).toBe(false);
-      // Correct tenant can, and it then disappears from reads.
-      expect(await repo.delete(victim.id, tenantA)).toBe(true);
-      expect(await repo.findById(victim.id, tenantA)).toBeNull();
-    });
+  it('soft delete is tenant-scoped and hides the row from reads', async () => {
+    const victim = await repo.create(sampleStudent(tenantA, { firstName: 'Carol' }));
+    // Wrong tenant cannot delete it.
+    expect(await repo.delete(victim.id, tenantB)).toBe(false);
+    // Correct tenant can, and it then disappears from reads.
+    expect(await repo.delete(victim.id, tenantA)).toBe(true);
+    expect(await repo.findById(victim.id, tenantA)).toBeNull();
+  });
 
-    it('a query that does NOT bind the tenant is rejected by RLS (helper is mandatory)', async () => {
-      // No set_config on this connection → the policy's current_setting() lookup
-      // fails, so RLS rejects the query rather than leaking rows. This is the
-      // failure mode the whole withTenantTransaction design exists to prevent.
-      await expect(prisma.student.findMany()).rejects.toThrow();
-    });
-  },
-);
+  it('a query that does NOT bind the tenant is rejected by RLS (helper is mandatory)', async () => {
+    // No set_config on this connection → the policy's current_setting() lookup
+    // fails, so RLS rejects the query rather than leaking rows. This is the
+    // failure mode the whole withTenantTransaction design exists to prevent.
+    await expect(prisma.student.findMany()).rejects.toThrow();
+  });
+});

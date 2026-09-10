@@ -71,27 +71,33 @@ describe('Tenant Config Cache', () => {
   });
 
   it('returns DEFAULT_TENANT_CONFIG when fetch returns 404', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+      }),
+    );
 
     const config = await getTenantConfig('nonexistent');
     expect(config).toEqual(DEFAULT_TENANT_CONFIG);
   });
 
   it('normalizes tenant slug to lowercase', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'uuid-123',
-        slug: 'myschool',
-        name: 'My School',
-        primaryColor: 'hsl(200, 50%, 50%)',
-        accentColor: 'hsl(100, 50%, 50%)',
-        active: true,
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'uuid-123',
+          slug: 'myschool',
+          name: 'My School',
+          primaryColor: 'hsl(200, 50%, 50%)',
+          accentColor: 'hsl(100, 50%, 50%)',
+          active: true,
+        }),
       }),
-    }));
+    );
 
     const config = await getTenantConfig('MySchool');
     expect(config.slug).toBe('myschool');
@@ -197,9 +203,7 @@ describe('Public Path Matching', () => {
   const PUBLIC_PATHS = ['/login', '/callback', '/forgot-password', '/health', '/track'];
 
   function isPublicPath(pathname: string): boolean {
-    return PUBLIC_PATHS.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`)
-    );
+    return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   }
 
   it('identifies login as public', () => {
@@ -224,5 +228,129 @@ describe('Public Path Matching', () => {
     expect(isPublicPath('/')).toBe(false);
     expect(isPublicPath('/institutions')).toBe(false);
     expect(isPublicPath('/students')).toBe(false);
+  });
+});
+
+// ─── G-719: CSRF gate on /api/* + double-submit cookie issuance ──────────────
+
+describe('API CSRF gate (G-719)', () => {
+  const token = 'a'.repeat(64);
+
+  async function api(
+    method: string,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; body: unknown }> {
+    const { NextRequest } = await import('next/server');
+    const { handleApiRequest } = await import('./middleware');
+    const req = new NextRequest('https://app.proctira.io/api/auth/login', {
+      method,
+      headers: { host: 'app.proctira.io', ...headers },
+    });
+    const res = handleApiRequest(req);
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    return { status: res.status, body };
+  }
+
+  it('lets GET through untouched', async () => {
+    const { status } = await api('GET', { origin: 'https://evil.example' });
+    expect(status).toBe(200);
+  });
+
+  it('rejects a cross-site POST with 403 + CSRF_REJECTED', async () => {
+    const { status, body } = await api('POST', {
+      origin: 'https://evil.example',
+      cookie: `csrf_token=${token}`,
+      'x-csrf-token': token,
+    });
+    expect(status).toBe(403);
+    expect(body).toMatchObject({ code: 'CSRF_REJECTED', reason: 'origin-mismatch' });
+  });
+
+  it('rejects a same-origin POST that lacks the double-submit header', async () => {
+    const { status, body } = await api('POST', {
+      origin: 'https://app.proctira.io',
+      cookie: `csrf_token=${token}`,
+    });
+    expect(status).toBe(403);
+    expect(body).toMatchObject({ reason: 'missing-header' });
+  });
+
+  it('accepts a same-origin POST carrying a matching cookie + header', async () => {
+    const { status } = await api('POST', {
+      origin: 'https://app.proctira.io',
+      cookie: `csrf_token=${token}`,
+      'x-csrf-token': token,
+    });
+    expect(status).toBe(200);
+  });
+
+  it('issues the csrf_token cookie on page navigations when absent', async () => {
+    const { NextRequest, NextResponse } = await import('next/server');
+    const { ensureCsrfCookie } = await import('./middleware');
+    const req = new NextRequest('https://app.proctira.io/login', {
+      headers: { host: 'app.proctira.io', 'x-forwarded-proto': 'https' },
+    });
+    const res = NextResponse.next();
+    ensureCsrfCookie(req, res);
+    const cookie = res.cookies.get('csrf_token');
+    expect(cookie?.value).toMatch(/^[0-9a-f]{64}$/);
+    expect(cookie?.httpOnly).toBeFalsy();
+    expect(cookie?.secure).toBe(true);
+    expect(cookie?.sameSite).toBe('lax');
+  });
+
+  it('does not rotate an existing csrf_token cookie', async () => {
+    const { NextRequest, NextResponse } = await import('next/server');
+    const { ensureCsrfCookie } = await import('./middleware');
+    const req = new NextRequest('https://app.proctira.io/dashboard', {
+      headers: { host: 'app.proctira.io', cookie: `csrf_token=${token}` },
+    });
+    const res = NextResponse.next();
+    ensureCsrfCookie(req, res);
+    expect(res.cookies.get('csrf_token')).toBeUndefined();
+  });
+});
+
+describe('G-904 portal role bounce', () => {
+  it('sends a student-only JWT from /parent to /student', async () => {
+    const { portalRoleRedirect, jwtRoleIds, isStudentOnlyRoles } = await import('./middleware');
+    const roles = jwtRoleIds({
+      roles: [{ roleId: 'student', roleName: 'Student', areaId: null }],
+    });
+    expect(isStudentOnlyRoles(roles)).toBe(true);
+    expect(portalRoleRedirect('/parent', roles)).toBe('/student');
+    expect(portalRoleRedirect('/parent/attendance', roles)).toBe('/student');
+  });
+
+  it('sends a parent-only JWT from /student to /parent', async () => {
+    const { portalRoleRedirect, jwtRoleIds, isParentOnlyRoles } = await import('./middleware');
+    const roles = jwtRoleIds({
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    });
+    expect(isParentOnlyRoles(roles)).toBe(true);
+    expect(portalRoleRedirect('/student', roles)).toBe('/parent');
+    expect(portalRoleRedirect('/student/pal', roles)).toBe('/parent');
+    expect(portalRoleRedirect('/parent/grades', roles)).toBeNull();
+  });
+
+  it('lets staff and admin keep /parent and /student for a11y scans', async () => {
+    const { portalRoleRedirect, jwtRoleIds } = await import('./middleware');
+    const admin = jwtRoleIds({
+      roles: [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }],
+    });
+    expect(portalRoleRedirect('/parent', admin)).toBeNull();
+    expect(portalRoleRedirect('/student', admin)).toBeNull();
+    const mixed = jwtRoleIds({
+      roles: [
+        { roleId: 'parent', roleName: 'Parent', areaId: null },
+        { roleId: 'teacher', roleName: 'Teacher', areaId: null },
+      ],
+    });
+    expect(portalRoleRedirect('/student', mixed)).toBeNull();
   });
 });

@@ -7,18 +7,18 @@ metadata:
     app.kubernetes.io/part-of: proctira-platform
   annotations:
     # NGINX Ingress Controller annotations
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '60'
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/use-regex: 'true'
     # Rate limiting at ingress level
-    nginx.ingress.kubernetes.io/limit-rps: "50"
-    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/limit-rps: '50'
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: '5'
     # Enable CORS
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-Tenant-ID,X-Correlation-ID"
+    nginx.ingress.kubernetes.io/enable-cors: 'true'
+    nginx.ingress.kubernetes.io/cors-allow-methods: 'GET, POST, PUT, PATCH, DELETE, OPTIONS'
+    nginx.ingress.kubernetes.io/cors-allow-headers: 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization,X-Tenant-ID,X-Correlation-ID'
     # Compression negotiation (Task 55.6 / Requirement 39):
     # The web app and api-gateway emit pre-compressed `.br` and `.gz`
     # siblings during build and the upstream (Next.js standalone /
@@ -38,17 +38,17 @@ metadata:
       proxy_set_header Accept-Encoding $http_accept_encoding;
       add_header Vary "Accept-Encoding" always;
     # TLS via cert-manager
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    cert-manager.io/cluster-issuer: 'letsencrypt-prod'
 spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - "*.proctira.io"
-        - "proctira.io"
+        - '*.proctira.io'
+        - 'proctira.io'
       secretName: proctira-tls
   rules:
     # API Gateway — handles all /api/* traffic
-    - host: "*.proctira.io"
+    - host: '*.proctira.io'
       http:
         paths:
           - path: /api
@@ -59,7 +59,7 @@ spec:
                 port:
                   name: http
     # Web application — main authenticated app
-    - host: "*.proctira.io"
+    - host: '*.proctira.io'
       http:
         paths:
           - path: /
@@ -70,7 +70,7 @@ spec:
                 port:
                   name: http
     # Registration portal — public registration
-    - host: "register.proctira.io"
+    - host: 'register.proctira.io'
       http:
         paths:
           - path: /
@@ -81,7 +81,7 @@ spec:
                 port:
                   name: http
     # Public website — marketing/landing pages
-    - host: "proctira.io"
+    - host: 'proctira.io'
       http:
         paths:
           - path: /
@@ -92,7 +92,7 @@ spec:
                 port:
                   name: http
     # Admin console
-    - host: "admin.proctira.io"
+    - host: 'admin.proctira.io'
       http:
         paths:
           - path: /
@@ -103,7 +103,7 @@ spec:
                 port:
                   name: http
     # Developer portal
-    - host: "developers.proctira.io"
+    - host: 'developers.proctira.io'
       http:
         paths:
           - path: /

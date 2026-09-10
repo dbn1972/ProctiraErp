@@ -11,12 +11,12 @@
  *      regressions are caught even on a vanilla `pnpm test:e2e`.
  *
  *   2. Surfaces that require an authenticated session (dashboard,
- *      students list, registration wizard step 1, mobile shell home).
- *      They are gated on `E2E_BACKEND_READY=1`, matching every other
- *      authenticated spec in this directory. When the gate is unset
- *      Playwright still parses the suite (verifying the helper
- *      compiles), so `pnpm playwright test --list` keeps working in
- *      CI without a live API.
+ *      students list, registration wizard step 1, mobile shell home,
+ *      Health, Scholarships, …). They are gated on `E2E_BACKEND_READY=1`
+ *      (G-401 / G-402). Live scans mint HS256 cookies via
+ *      `setupGatewayTenantSession` so they do **not** need seeded
+ *      password login / IdP secrets — matching the backend-ready harness.
+ *      When the gate is unset Playwright still parses the suite.
  *
  * Each surface uses {@link runAxe} from `./helpers/axe`, which fails
  * the test on any violation and pretty-prints the offending rule(s) +
@@ -29,10 +29,12 @@
 
 import { expect, test } from '@playwright/test';
 
-import { loginAsTenantAdmin } from './fixtures/auth';
+import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
+const E2E_INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
 // ────────────────────────────────────────────────────────────────────
 // Surfaces that do not require a live backend.
@@ -105,24 +107,64 @@ test.describe('a11y — public surfaces (no backend required)', () => {
 test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
   test.skip(
     !BACKEND_READY,
-    'E2E_BACKEND_READY is not set; skipping live-backend a11y scans. See e2e/README.md.',
+    'E2E_BACKEND_READY is not set; skipping live-backend a11y scans. See e2e/README.md / G-401 harness.',
   );
 
   test('signed-in dashboard landing is WCAG 2.1 AA clean', async ({ page }) => {
-    await loginAsTenantAdmin(page);
+    await setupGatewayTenantSession(page);
+    await page.goto('/');
     await expect(page.getByRole('main')).toBeVisible();
     await runAxe(page, { checkpointLabel: 'dashboard /' });
   });
 
   test('students list is WCAG 2.1 AA clean', async ({ page }) => {
-    await loginAsTenantAdmin(page);
+    await setupGatewayTenantSession(page);
     await page.goto('/students');
     await expect(page.getByRole('heading', { name: /students/i })).toBeVisible();
     await runAxe(page, { checkpointLabel: '/students' });
   });
 
+  // G-402 + G-722: the full authenticated module matrix (Health, Scholarships,
+  // campus, fees, admissions, attendance, workflows, assessments, examinations,
+  // staff, academic periods, platform surfaces, help). HS256 session via
+  // setupGatewayTenantSession — no seeded password login.
   for (const path of [
+    // '/students' covered by dedicated test above
+    '/students/new',
+    '/students/import',
+    '/admissions',
+    '/staff',
+    '/staff/new',
+    '/staff/leaves',
+    '/staff/substitutions',
+    '/academic-periods',
+    '/attendance',
+    '/attendance/reports',
+    '/assessments',
+    '/assessments/items',
+    '/assessments/results',
+    '/assessments/schemes/new',
+    '/examinations',
+    '/examinations/new',
+    '/examinations/board-exports',
+    '/fees',
+    '/fees/plans',
+    '/fees/invoices',
+    '/fees/receipts',
+    '/workflows',
+    '/workflows/approvals',
+    '/workflows/instances',
+    '/workflows/definitions/new',
+    '/billing',
+    '/audit-logs',
+    '/tenant-lifecycle',
+    '/help',
+    '/admin/users',
+    '/admin/roles',
+    '/admin/permissions',
+    '/admin/tenant',
     '/reports',
+    '/reports/new',
     '/data-warehouse',
     '/data-warehouse/import',
     '/data-warehouse/field-mapping',
@@ -134,6 +176,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/health/counselling/new',
     '/health/special-needs',
     '/notifications',
+    '/notifications/preferences',
     '/transport',
     '/transport/routes',
     '/transport/vehicles',
@@ -151,21 +194,114 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/parent/messages',
     '/parent/consents',
     '/parent/fees',
+    '/parent/attendance',
+    '/parent/grades',
+    '/parent/timetable',
+    '/parent/homework',
+    '/parent/calendar',
+    '/parent/notices',
+    '/student',
+    '/student/attendance',
+    '/student/grades',
+    '/student/timetable',
+    '/student/homework',
+    '/student/calendar',
+    '/student/notices',
+    '/student/pal',
     '/scholarships',
     '/scholarships/programs/new',
     '/scholarships/applications',
     '/scholarships/disbursements',
+    '/lms',
+    '/lms/assignments/new',
+    '/lms/assignments/new?kind=quiz',
+    // Wave 9 (G-903 fees structures/reports, G-906 admissions CRM, G-907 gradebook surfaces)
+    '/fees/structures',
+    '/fees/reports',
+    '/admissions/enquiries',
+    '/admissions/seat-matrix',
+    '/admissions/merit',
+    '/assessments/outcomes',
+    '/assessments/report-cards',
+    '/lms/pal',
+    '/hostel/leaves',
+    '/hostel/visitors',
+    '/transport/routes/new',
+    '/communication/campaigns/new',
+    // Wave 9 batch 3 (G-909 reports/BI, G-915 LMS depth, G-916 library, G-919 attendance ops,
+    // G-918 staff HR, G-920 transport, G-921 hostel, G-922 circulars)
+    '/reports/dashboard',
+    '/reports/schedules',
+    '/reports/dashboards',
+    '/lms/bank',
+    '/lms/rubrics',
+    '/lms/discussions',
+    '/lms/lessons',
+    '/lms/content',
+    '/lms/analytics',
+    '/library/opac',
+    '/library/holds',
+    '/library/fines',
+    '/hostel/mess',
+    '/hostel/gate-passes',
+    '/hostel/fees',
+    '/hostel/attendance',
+    '/attendance/ops',
+    '/staff/attendance',
+    '/staff/import',
+    '/staff/payroll',
+    '/staff/contracts',
+    '/communication/circulars',
+    '/communication/circulars/new',
+    '/communication/delivery',
+    '/transport/live',
+    '/transport/attendance',
+    '/transport/alerts',
+    '/transport/fees',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
-      await loginAsTenantAdmin(page);
-      await page.goto(path);
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await setupGatewayTenantSession(page);
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+      await runAxe(page, { checkpointLabel: path });
+    });
+  }
+
+  // G-722: institution-scoped surfaces (timetable, gradebook, master schedule)
+  // against the fixture institution seeded by tools/e2e/seed-e2e-tenants.sql.
+  for (const suffix of [
+    '',
+    '/overview',
+    '/classes',
+    '/grades',
+    '/gradebook',
+    '/curriculum',
+    '/timetable',
+    '/timetable/generate',
+    '/timetable/substitutions',
+    '/schedule',
+    '/infrastructure',
+  ] as const) {
+    const path = `/institutions/${E2E_INSTITUTION_ID}${suffix}`;
+    test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
+      await setupGatewayTenantSession(page);
+      const response = await page.goto(path, { waitUntil: 'domcontentloaded' });
+      expect(response?.status(), `${path} must resolve (seeded institution)`).toBeLessThan(400);
+      if (suffix === '') {
+        // The bare detail route `redirect()`s to /overview after the layout
+        // shell has streamed; settle on the final URL before scanning so the
+        // client-side hop cannot tear down axe's execution context.
+        await page.waitForURL(`**/institutions/${E2E_INSTITUTION_ID}/overview`, {
+          timeout: 20_000,
+        });
+      }
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
       await runAxe(page, { checkpointLabel: path });
     });
   }
 
   test('institutions list is WCAG 2.1 AA clean', async ({ page }) => {
-    await loginAsTenantAdmin(page);
+    await setupGatewayTenantSession(page);
     await page.goto('/institutions');
     await expect(page.getByRole('heading', { name: /institutions/i })).toBeVisible();
     await runAxe(page, { checkpointLabel: '/institutions' });
@@ -176,7 +312,9 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     // PLAYWRIGHT_BASE_URL escape hatch so this test points at it when
     // the orchestrator boots both servers.
     const base = process.env.E2E_REGISTRATION_BASE_URL ?? 'http://localhost:3002';
-    const response = await page.goto(`${base}/apply`);
+    // A refused connection throws rather than returning a response; both mean
+    // the portal is not part of this run and the scan is skipped explicitly.
+    const response = await page.goto(`${base}/apply`).catch(() => null);
     test.skip(
       !response || response.status() >= 500,
       'registration portal not running on E2E_REGISTRATION_BASE_URL',
@@ -196,7 +334,8 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     });
     const page = await context.newPage();
     try {
-      await loginAsTenantAdmin(page);
+      await setupGatewayTenantSession(page);
+      await page.goto('/');
       await expect(page.getByRole('main')).toBeVisible();
       await runAxe(page, { checkpointLabel: 'mobile shell /' });
     } finally {

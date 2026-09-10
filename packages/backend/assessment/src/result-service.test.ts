@@ -41,17 +41,9 @@ describe('ResultService', () => {
     outcomeRepo = new InMemoryOutcomeRepository();
     resultRepo = new InMemoryAssessmentResultRepository();
 
-    assessmentService = new AssessmentService(
-      gradingSchemeRepo,
-      assessmentItemRepo,
-      outcomeRepo,
-    );
+    assessmentService = new AssessmentService(gradingSchemeRepo, assessmentItemRepo, outcomeRepo);
 
-    resultService = new ResultService(
-      resultRepo,
-      assessmentItemRepo,
-      gradingSchemeRepo,
-    );
+    resultService = new ResultService(resultRepo, assessmentItemRepo, gradingSchemeRepo);
 
     // Set up a grading scheme with thresholds
     const scheme = await assessmentService.createGradingScheme(tenantId, {
@@ -224,20 +216,32 @@ describe('ResultService', () => {
     it('should calculate weighted average and assign correct grade (Requirement 8.4)', async () => {
       // Enter scores: Midterm=90, Final=80, Homework=40 (out of 50)
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[0]!.id, score: 90,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[0]!.id,
+        score: 90,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[1]!.id, score: 80,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[1]!.id,
+        score: 80,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[2]!.id, score: 40, // 40/50 = 80%
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[2]!.id,
+        score: 40, // 40/50 = 80%
       });
 
       const result = await resultService.calculateStudentGrade(
-        tenantId, studentId, subjectId, academicPeriodId,
+        tenantId,
+        studentId,
+        subjectId,
+        academicPeriodId,
       );
 
       expect(result.studentId).toBe(studentId);
@@ -256,20 +260,32 @@ describe('ResultService', () => {
 
     it('should assign A grade for high scores', async () => {
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[0]!.id, score: 95,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[0]!.id,
+        score: 95,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[1]!.id, score: 92,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[1]!.id,
+        score: 92,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[2]!.id, score: 48, // 48/50 = 96%
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[2]!.id,
+        score: 48, // 48/50 = 96%
       });
 
       const result = await resultService.calculateStudentGrade(
-        tenantId, studentId, subjectId, academicPeriodId,
+        tenantId,
+        studentId,
+        subjectId,
+        academicPeriodId,
       );
 
       // Midterm: 95% * 30/100 = 28.5
@@ -282,20 +298,32 @@ describe('ResultService', () => {
 
     it('should assign F grade for low scores', async () => {
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[0]!.id, score: 30,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[0]!.id,
+        score: 30,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[1]!.id, score: 40,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[1]!.id,
+        score: 40,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[2]!.id, score: 10, // 10/50 = 20%
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[2]!.id,
+        score: 10, // 10/50 = 20%
       });
 
       const result = await resultService.calculateStudentGrade(
-        tenantId, studentId, subjectId, academicPeriodId,
+        tenantId,
+        studentId,
+        subjectId,
+        academicPeriodId,
       );
 
       // Midterm: 30% * 30/100 = 9
@@ -309,12 +337,18 @@ describe('ResultService', () => {
     it('should handle partial results (not all items scored)', async () => {
       // Only enter Midterm score
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[0]!.id, score: 90,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[0]!.id,
+        score: 90,
       });
 
       const result = await resultService.calculateStudentGrade(
-        tenantId, studentId, subjectId, academicPeriodId,
+        tenantId,
+        studentId,
+        subjectId,
+        academicPeriodId,
       );
 
       // Only Midterm: 90% * 30/100 = 27
@@ -463,7 +497,10 @@ describe('ResultService', () => {
       ];
 
       const response = await resultService.importFromExcel(
-        tenantId, subjectId, academicPeriodId, rows,
+        tenantId,
+        subjectId,
+        academicPeriodId,
+        rows,
       );
 
       expect(response.totalRows).toBe(2);
@@ -479,7 +516,10 @@ describe('ResultService', () => {
       ] as Array<{ studentId: string; assessmentItemId: string; score: number }>;
 
       const response = await resultService.importFromExcel(
-        tenantId, subjectId, academicPeriodId, rows,
+        tenantId,
+        subjectId,
+        academicPeriodId,
+        rows,
       );
 
       expect(response.totalRows).toBe(3);
@@ -507,7 +547,10 @@ describe('ResultService', () => {
       ] as Array<{ studentId: string; assessmentItemId: string; score: number }>;
 
       const response = await resultService.importFromExcel(
-        tenantId, subjectId, academicPeriodId, rows,
+        tenantId,
+        subjectId,
+        academicPeriodId,
+        rows,
       );
 
       expect(response.totalRows).toBe(3);
@@ -524,35 +567,51 @@ describe('ResultService', () => {
 
       // Student 1 scores
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[0]!.id, score: 90,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[0]!.id,
+        score: 90,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[1]!.id, score: 85,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[1]!.id,
+        score: 85,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[2]!.id, score: 45,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[2]!.id,
+        score: 45,
       });
 
       // Student 2 scores
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId: student2,
-        assessmentItemId: items[0]!.id, score: 60,
+        subjectId,
+        academicPeriodId,
+        studentId: student2,
+        assessmentItemId: items[0]!.id,
+        score: 60,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId: student2,
-        assessmentItemId: items[1]!.id, score: 55,
+        subjectId,
+        academicPeriodId,
+        studentId: student2,
+        assessmentItemId: items[1]!.id,
+        score: 55,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId: student2,
-        assessmentItemId: items[2]!.id, score: 20,
+        subjectId,
+        academicPeriodId,
+        studentId: student2,
+        assessmentItemId: items[2]!.id,
+        score: 20,
       });
 
-      const grades = await resultService.calculateAllGrades(
-        tenantId, subjectId, academicPeriodId,
-      );
+      const grades = await resultService.calculateAllGrades(tenantId, subjectId, academicPeriodId);
 
       expect(grades).toHaveLength(2);
 

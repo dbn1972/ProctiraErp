@@ -77,7 +77,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
     await registerTenantRoutes(app, { tenantService: service });
     await registerBrandingRoutes(app, {
       tenantService: service,
-      getTenantId: (req) => (req.headers['x-tenant-id'] as string | undefined),
+      getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
     });
     await app.ready();
 
@@ -282,12 +282,7 @@ describe('Tenant Branding Routes (Task 58.2 — rollback round-trip)', () => {
         revision: number;
         tokens: ThemeTokens;
       }>;
-      expect(versions.map((v) => v.tokens)).toEqual([
-        tokensV1,
-        tokensV2,
-        tokensV1,
-        tokensV2,
-      ]);
+      expect(versions.map((v) => v.tokens)).toEqual([tokensV1, tokensV2, tokensV1, tokensV2]);
     });
 
     it('a rollback followed by a fresh publish keeps the audit trail intact', async () => {

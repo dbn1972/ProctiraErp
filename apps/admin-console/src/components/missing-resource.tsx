@@ -26,9 +26,8 @@ export function MissingResource({
       <Alert variant="warning" className="mb-6" data-testid="missing-resource">
         <AlertTitle>Not found</AlertTitle>
         <AlertDescription>
-          No {resourceLabel.toLowerCase()} matches{' '}
-          <code className="font-mono text-xs">{id}</code>. The gateway may be
-          offline, or the id is outside the stub fixture set.
+          No {resourceLabel.toLowerCase()} matches <code className="font-mono text-xs">{id}</code>.
+          The gateway may be offline, or the id is outside the stub fixture set.
         </AlertDescription>
       </Alert>
       <Button asChild variant="outline">

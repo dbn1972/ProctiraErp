@@ -8,7 +8,7 @@ import { Kafka } from 'kafkajs';
 
 import type { DomainEvent } from '../types';
 
-import type { KafkaConfig} from './config';
+import type { KafkaConfig } from './config';
 import { DEFAULT_KAFKA_CONFIG, buildTenantTopic } from './config';
 
 export class KafkaEventProducer {

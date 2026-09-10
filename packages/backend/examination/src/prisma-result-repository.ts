@@ -36,10 +36,7 @@ function toJsonPayload(value: unknown): Prisma.InputJsonValue {
 export class PrismaResultRepository implements ResultRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getCandidates(
-    examinationId: string,
-    tenantId: string,
-  ): Promise<ExaminationCandidate[]> {
+  async getCandidates(examinationId: string, tenantId: string): Promise<ExaminationCandidate[]> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const rows = await tx.examinationCandidate.findMany({
         where: { examinationId, tenantId },
@@ -55,6 +52,40 @@ export class PrismaResultRepository implements ResultRepository {
           ? (row.subjectResults as unknown as CandidateSubjectResult[])
           : [],
       }));
+    });
+  }
+
+  async upsertCandidates(tenantId: string, candidates: ExaminationCandidate[]): Promise<void> {
+    if (candidates.length === 0) return;
+    await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      for (const candidate of candidates) {
+        const subjectResults = toJsonPayload(candidate.subjectResults);
+        await tx.examinationCandidate.upsert({
+          where: {
+            tenantId_examinationId_studentId: {
+              tenantId,
+              examinationId: candidate.examinationId,
+              studentId: candidate.studentId,
+            },
+          },
+          create: {
+            id: candidate.id,
+            tenantId,
+            examinationId: candidate.examinationId,
+            studentId: candidate.studentId,
+            centerId: candidate.centerId,
+            gender: candidate.gender,
+            areaId: candidate.areaId,
+            subjectResults,
+          },
+          update: {
+            centerId: candidate.centerId,
+            gender: candidate.gender,
+            areaId: candidate.areaId,
+            subjectResults,
+          },
+        });
+      }
     });
   }
 
@@ -96,10 +127,7 @@ export class PrismaResultRepository implements ResultRepository {
     });
   }
 
-  async updateAcademicRecords(
-    tenantId: string,
-    updates: AcademicRecordUpdate[],
-  ): Promise<void> {
+  async updateAcademicRecords(tenantId: string, updates: AcademicRecordUpdate[]): Promise<void> {
     if (updates.length === 0) return;
     await withTenantTransaction(this.prisma, tenantId, async (tx) => {
       await tx.examinationAcademicRecord.createMany({
@@ -141,10 +169,7 @@ export class PrismaResultRepository implements ResultRepository {
     });
   }
 
-  async getResultAnalysis(
-    examinationId: string,
-    tenantId: string,
-  ): Promise<ResultAnalysis | null> {
+  async getResultAnalysis(examinationId: string, tenantId: string): Promise<ResultAnalysis | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const row = await tx.examinationResultAnalysis.findFirst({
         where: { examinationId, tenantId },

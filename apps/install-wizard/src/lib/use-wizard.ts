@@ -2,14 +2,7 @@
 
 import { useState, useCallback } from 'react';
 
-export type WizardStep =
-  | 'database'
-  | 'storage'
-  | 'cache'
-  | 'queue'
-  | 'cdn'
-  | 'admin'
-  | 'complete';
+export type WizardStep = 'database' | 'storage' | 'cache' | 'queue' | 'cdn' | 'admin' | 'complete';
 
 export type StepStatus = 'pending' | 'active' | 'completed' | 'failed';
 
@@ -95,9 +88,7 @@ export function useWizard(): UseWizardReturn {
       setCurrentStepIndex((prev) => prev + 1);
     } else {
       // All steps done, move to complete
-      setSteps((prev) =>
-        prev.map((step) => ({ ...step, status: 'completed' })),
-      );
+      setSteps((prev) => prev.map((step) => ({ ...step, status: 'completed' })));
     }
   }, [currentStepIndex, steps.length]);
 

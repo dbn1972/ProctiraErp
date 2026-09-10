@@ -12,15 +12,7 @@
  *   • Module evaluation tolerates a missing `window` (AC 4)
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type Mock,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { act, render, renderHook } from '@testing-library/react';
 import React from 'react';
 
@@ -59,8 +51,12 @@ function installMatchMedia(initial = false): FakeMediaQueryList {
     removeEventListener: vi.fn((event: string, cb: (e: MediaQueryListEvent) => void) => {
       if (event === 'change') listeners.delete(cb);
     }) as unknown as Mock,
-    addListener: vi.fn((cb: (e: MediaQueryListEvent) => void) => listeners.add(cb)) as unknown as Mock,
-    removeListener: vi.fn((cb: (e: MediaQueryListEvent) => void) => listeners.delete(cb)) as unknown as Mock,
+    addListener: vi.fn((cb: (e: MediaQueryListEvent) => void) =>
+      listeners.add(cb),
+    ) as unknown as Mock,
+    removeListener: vi.fn((cb: (e: MediaQueryListEvent) => void) =>
+      listeners.delete(cb),
+    ) as unknown as Mock,
     dispatchEvent: () => true,
     fire(matches: boolean) {
       this.matches = matches;
@@ -204,19 +200,18 @@ describe('ThemeProvider — system mode tracks prefers-color-scheme', () => {
 });
 
 describe('ThemeProvider — brand-aware storage key resolution', () => {
-  function CustomBrandProvider({
-    brand,
-    children,
-  }: {
-    brand: Brand;
-    children: React.ReactNode;
-  }) {
+  function CustomBrandProvider({ brand, children }: { brand: Brand; children: React.ReactNode }) {
     return <BrandConfigProvider initialBrand={brand}>{children}</BrandConfigProvider>;
   }
 
   it('uses `${brand.slug}-theme` when wrapped in a BrandConfigProvider', () => {
     installMatchMedia(false);
-    const eduzoBrand: Brand = { ...DEFAULT_BRAND, name: 'EduZo', shortName: 'eduzo', slug: 'eduzo' };
+    const eduzoBrand: Brand = {
+      ...DEFAULT_BRAND,
+      name: 'EduZo',
+      shortName: 'eduzo',
+      slug: 'eduzo',
+    };
 
     const { result } = renderHook(() => useTheme(), {
       wrapper: ({ children }) => (
@@ -314,11 +309,9 @@ describe('ThemeProvider — boot script', () => {
 describe('ThemeProvider — SSR safety', () => {
   it('renders without crashing when localStorage throws (private mode simulation)', () => {
     installMatchMedia(false);
-    const setItemSpy = vi
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation(() => {
-        throw new Error('QuotaExceededError');
-      });
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
 
     const { result } = consume();
     expect(() => act(() => result.current.setMode('dark'))).not.toThrow();

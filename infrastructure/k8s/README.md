@@ -58,12 +58,14 @@ kubectl apply -k overlays/production/
 ## Service Architecture
 
 All backend services are Fastify-based and expose:
+
 - `/health` — Liveness probe (is the process alive?)
 - `/ready` — Readiness probe (is the service ready to accept traffic?)
 
 ### Deployment Strategy
 
 All services use **RollingUpdate** with:
+
 - `maxUnavailable: 0` — No pods are removed before new ones are ready
 - `maxSurge: 1` — One extra pod is created during rollout
 
@@ -72,6 +74,7 @@ This ensures zero-downtime deployments.
 ### Horizontal Pod Autoscaling
 
 Stateless API services have HPA configured with:
+
 - CPU target: 70% utilization
 - Memory target: 80% utilization
 - Scale-up: 2 pods per 60s (stabilization: 60s)
@@ -91,18 +94,18 @@ kubectl apply -k base/ -n proctira-tenant-abc
 
 ## Port Assignments
 
-| Service              | Container Port | Description                    |
-|---------------------|---------------|--------------------------------|
-| api-gateway         | 3000          | API Gateway / Router           |
-| web                 | 3001          | Web frontend (Next.js)         |
-| registration-portal | 3002          | Public registration            |
-| etl-worker          | 3010          | ETL pipeline worker            |
-| institution         | 3020          | Institution management         |
-| student             | 3021          | Student lifecycle              |
-| staff               | 3022          | Staff management               |
-| assessment          | 3023          | Assessment & grading           |
-| attendance          | 3024          | Attendance tracking            |
-| examination         | 3025          | Examination management         |
-| workflow            | 3026          | Workflow engine                 |
-| notification        | 3027          | Notification service           |
-| report              | 3028          | Report engine                  |
+| Service             | Container Port | Description            |
+| ------------------- | -------------- | ---------------------- |
+| api-gateway         | 3000           | API Gateway / Router   |
+| web                 | 3001           | Web frontend (Next.js) |
+| registration-portal | 3002           | Public registration    |
+| etl-worker          | 3010           | ETL pipeline worker    |
+| institution         | 3020           | Institution management |
+| student             | 3021           | Student lifecycle      |
+| staff               | 3022           | Staff management       |
+| assessment          | 3023           | Assessment & grading   |
+| attendance          | 3024           | Attendance tracking    |
+| examination         | 3025           | Examination management |
+| workflow            | 3026           | Workflow engine        |
+| notification        | 3027           | Notification service   |
+| report              | 3028           | Report engine          |

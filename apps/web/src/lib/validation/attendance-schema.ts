@@ -19,6 +19,7 @@ export const attendanceStatusSchema = z.enum([
   'ABSENT',
   'LATE',
   'EXCUSED',
+  'EARLY_DEPARTURE',
 ]);
 
 export type AttendanceStatusValue = z.infer<typeof attendanceStatusSchema>;
@@ -48,9 +49,7 @@ export const attendanceMarkingFormSchema = z
     { message: 'Attendance date cannot be in the future', path: ['date'] },
   );
 
-export type AttendanceMarkingFormValues = z.infer<
-  typeof attendanceMarkingFormSchema
->;
+export type AttendanceMarkingFormValues = z.infer<typeof attendanceMarkingFormSchema>;
 
 export const attendanceReportFiltersSchema = z
   .object({
@@ -66,6 +65,4 @@ export const attendanceReportFiltersSchema = z
     path: ['endDate'],
   });
 
-export type AttendanceReportFiltersValues = z.infer<
-  typeof attendanceReportFiltersSchema
->;
+export type AttendanceReportFiltersValues = z.infer<typeof attendanceReportFiltersSchema>;

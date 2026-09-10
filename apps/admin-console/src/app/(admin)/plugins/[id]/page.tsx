@@ -5,13 +5,7 @@ import { MissingResource } from '@/components/missing-resource';
 import { StubDataBanner } from '@/components/stub-data-banner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { getPlugin } from '@/lib/api/plugins';
 import { requireRole } from '@/lib/auth/server';
@@ -19,11 +13,7 @@ import { formatDateTime } from '@/lib/utils';
 
 import { PluginDecisionForm } from './decision-form';
 
-export default async function PluginDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function PluginDetailPage({ params }: { params: { id: string } }) {
   await requireRole('plugins', `/plugins/${params.id}`);
   const { plugin, source } = await getPlugin(params.id);
   if (!plugin) {
@@ -101,9 +91,7 @@ export default async function PluginDetailPage({
         <Card>
           <CardHeader>
             <CardTitle>Decision</CardTitle>
-            <CardDescription>
-              Provide a justification — recorded in the audit log.
-            </CardDescription>
+            <CardDescription>Provide a justification — recorded in the audit log.</CardDescription>
           </CardHeader>
           <CardContent>
             <PluginDecisionForm pluginId={plugin.id} />

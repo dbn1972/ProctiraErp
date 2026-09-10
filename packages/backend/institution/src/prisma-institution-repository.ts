@@ -270,10 +270,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
    * No staff-assignment table exists in the current schema; deactivation is not
    * blocked on staff assignments until that table lands.
    */
-  async countActiveStaffAssignments(
-    _institutionId: string,
-    _tenantId: string,
-  ): Promise<number> {
+  async countActiveStaffAssignments(_institutionId: string, _tenantId: string): Promise<number> {
     return 0;
   }
 }

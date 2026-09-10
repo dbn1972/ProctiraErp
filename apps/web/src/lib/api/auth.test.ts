@@ -24,20 +24,22 @@ type FetchFn = typeof fetch;
 type FetchMock = ReturnType<typeof vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>>;
 
 function mockFetchOk(body: unknown): FetchMock {
-  return vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>(async () =>
-    new Response(JSON.stringify(body), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }),
+  return vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>(
+    async () =>
+      new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
   );
 }
 
 function mockFetchError(status: number, body: unknown): FetchMock {
-  return vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>(async () =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { 'Content-Type': 'application/json' },
-    }),
+  return vi.fn<Parameters<FetchFn>, ReturnType<FetchFn>>(
+    async () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      }),
   );
 }
 

@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the ETL service and routes.
  */
 export const etlPlugin = fp(
-  async function etlPluginImpl(
-    fastify: FastifyInstance,
-    options: ETLPluginOptions,
-  ) {
+  async function etlPluginImpl(fastify: FastifyInstance, options: ETLPluginOptions) {
     const { repository, config, prefix = '/pipelines' } = options;
 
     // Create ETL service instance
@@ -54,7 +51,7 @@ export const etlPlugin = fp(
   },
   {
     name: '@proctira/backend-etl',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

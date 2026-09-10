@@ -21,7 +21,7 @@ export interface RateLimitPluginOptions {
 
 async function rateLimitPlugin(
   app: FastifyInstance,
-  options: RateLimitPluginOptions
+  options: RateLimitPluginOptions,
 ): Promise<void> {
   const { max = 100, timeWindow = 60_000, redisUrl } = options;
 
@@ -91,5 +91,5 @@ async function rateLimitPlugin(
 
 export default fp(rateLimitPlugin, {
   name: 'rate-limit-redis',
-  fastify: '4.x',
+  fastify: '5.x',
 });

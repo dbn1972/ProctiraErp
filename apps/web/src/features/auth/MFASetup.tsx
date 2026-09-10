@@ -31,12 +31,7 @@
  * backup codes for account recovery).
  */
 
-import {
-  useEffect,
-  useId,
-  useState,
-  type ReactElement,
-} from 'react';
+import { useEffect, useId, useState, type ReactElement } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { Download, Loader2, Printer, ShieldCheck } from 'lucide-react';
@@ -53,10 +48,7 @@ import {
 import { DocumentTitle } from '@/components/DocumentTitle';
 import { useLanguage } from '@/providers/LanguageProvider';
 import { useBrand } from '@/providers/BrandConfigProvider';
-import {
-  setupMfa,
-  type MfaSetupSuccess,
-} from '@/lib/api/auth';
+import { setupMfa, type MfaSetupSuccess } from '@/lib/api/auth';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -153,13 +145,8 @@ export default function MFASetup(): ReactElement {
         <DocumentTitle pageTitle={t('auth.mfaSetupTitle')} />
         <Card className="w-full max-w-md border-none shadow-sm">
           <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
-            <Loader2
-              className="h-8 w-8 animate-spin text-muted-foreground"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-muted-foreground">
-              {t('auth.mfaSetupLoading')}
-            </p>
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">{t('auth.mfaSetupLoading')}</p>
           </CardContent>
         </Card>
       </div>
@@ -247,9 +234,7 @@ export default function MFASetup(): ReactElement {
             <h1 className="text-2xl font-semibold tracking-tight text-primary">
               {t('auth.mfaSetupTitle')}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {t('auth.mfaSetupSubtitle')}
-            </p>
+            <p className="text-sm text-muted-foreground">{t('auth.mfaSetupSubtitle')}</p>
           </header>
 
           {/* ─── QR + secret ───────────────────────────────────────────── */}
@@ -258,15 +243,10 @@ export default function MFASetup(): ReactElement {
             className="space-y-4 rounded-lg border border-border bg-card p-6"
           >
             <div className="space-y-1">
-              <h2
-                id={`${reactId}-qr-heading`}
-                className="text-base font-semibold text-foreground"
-              >
+              <h2 id={`${reactId}-qr-heading`} className="text-base font-semibold text-foreground">
                 {t('auth.mfaScanHeading')}
               </h2>
-              <p className="text-sm text-muted-foreground">
-                {t('auth.mfaScanDescription')}
-              </p>
+              <p className="text-sm text-muted-foreground">{t('auth.mfaScanDescription')}</p>
             </div>
 
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
@@ -275,20 +255,13 @@ export default function MFASetup(): ReactElement {
                 data-testid="mfa-setup-qr"
                 aria-label={t('auth.mfaQrAlt')}
               >
-                <QRCodeSVG
-                  value={otpauthUri}
-                  size={192}
-                  level="M"
-                  includeMargin={false}
-                />
+                <QRCodeSVG value={otpauthUri} size={192} level="M" includeMargin={false} />
               </div>
 
               <div className="flex-1 space-y-3">
                 <div className="space-y-1">
                   <Label htmlFor={secretId}>{t('auth.mfaSecretLabel')}</Label>
-                  <p className="text-xs text-muted-foreground">
-                    {t('auth.mfaSecretHelp')}
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t('auth.mfaSecretHelp')}</p>
                   <code
                     id={secretId}
                     data-testid="mfa-setup-secret"
@@ -313,9 +286,7 @@ export default function MFASetup(): ReactElement {
               >
                 {t('auth.mfaBackupCodesHeading')}
               </h2>
-              <p className="text-sm text-muted-foreground">
-                {t('auth.mfaBackupCodesDescription')}
-              </p>
+              <p className="text-sm text-muted-foreground">{t('auth.mfaBackupCodesDescription')}</p>
             </div>
 
             <ul
@@ -377,13 +348,8 @@ export default function MFASetup(): ReactElement {
                 aria-describedby={`${ackId}-help`}
               />
               <span className="space-y-1">
-                <span className="font-medium">
-                  {t('auth.mfaAcknowledgement')}
-                </span>
-                <span
-                  id={`${ackId}-help`}
-                  className="block text-xs text-muted-foreground"
-                >
+                <span className="font-medium">{t('auth.mfaAcknowledgement')}</span>
+                <span id={`${ackId}-help`} className="block text-xs text-muted-foreground">
                   {t('auth.mfaAcknowledgementHelp')}
                 </span>
               </span>
@@ -400,10 +366,7 @@ export default function MFASetup(): ReactElement {
                 data-testid="mfa-setup-finish"
               >
                 {isFinishing && (
-                  <Loader2
-                    className="me-2 h-4 w-4 animate-spin"
-                    aria-hidden="true"
-                  />
+                  <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
                 )}
                 {t('auth.mfaFinishSetup')}
               </Button>

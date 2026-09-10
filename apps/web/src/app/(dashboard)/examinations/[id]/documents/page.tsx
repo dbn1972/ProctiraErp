@@ -2,8 +2,10 @@
  * Examination documents tab — admit cards, seating plans, certificates.
  *
  * Validates: Requirement 10.1 — generate and download examination documents.
+ * G-902: lists document jobs (GET /documents/jobs) and generates via Server
+ * Action; completed jobs download through the authenticated proxy route.
  */
-import { Download, FileText } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 import {
   Badge,
@@ -20,19 +22,38 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listExaminationDocuments } from '@/lib/api/examinations';
+import { GenerateDocumentButtons } from '@/components/examinations/exam-ops-controls';
+import { listExaminationDocuments, type ExaminationDocument } from '@/lib/api/examinations';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-const documentLabels: Record<string, string> = {
-  ADMIT_CARD: 'Admit cards',
-  SEATING_PLAN: 'Seating plan',
-  CERTIFICATE: 'Certificates',
+const DOCUMENT_LABELS: Record<ExaminationDocument['documentType'], string> = {
+  admit_card: 'Admit cards',
+  seating_plan: 'Seating plan',
+  result_certificate: 'Result certificates',
 };
 
-export default async function ExaminationDocumentsPage({ params }: PageProps) {
+const STATUS_VARIANT: Record<
+  ExaminationDocument['status'],
+  'success' | 'warning' | 'destructive' | 'secondary'
+> = {
+  completed: 'success',
+  processing: 'warning',
+  queued: 'secondary',
+  failed: 'destructive',
+};
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+export default async function ExaminationDocumentsPage(props: PageProps) {
+  const params = await props.params;
   const documents = await listExaminationDocuments(params.id);
 
   return (
@@ -44,23 +65,15 @@ export default async function ExaminationDocumentsPage({ params }: PageProps) {
             Produce admit cards, seating plans, or certificates for this examination.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          {(['ADMIT_CARD', 'SEATING_PLAN', 'CERTIFICATE'] as const).map((type) => (
-            <Button key={type} variant="outline" className="h-auto flex-col items-start py-4">
-              <FileText className="mb-2 h-4 w-4" aria-hidden="true" />
-              <span className="font-semibold">{documentLabels[type]}</span>
-              <span className="text-xs text-muted-foreground">Generate &amp; download</span>
-            </Button>
-          ))}
+        <CardContent>
+          <GenerateDocumentButtons examinationId={params.id} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Generated documents</CardTitle>
-          <CardDescription>
-            {documents.length.toLocaleString()} files available for download.
-          </CardDescription>
+          <CardDescription>{documents.length.toLocaleString()} generation jobs.</CardDescription>
         </CardHeader>
         <CardContent>
           {documents.length === 0 ? (
@@ -71,29 +84,40 @@ export default async function ExaminationDocumentsPage({ params }: PageProps) {
             <Table aria-label="Documents">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Title</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Candidates</TableHead>
                   <TableHead>Generated</TableHead>
-                  <TableHead>Format</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="text-end">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {documents.map((doc) => (
                   <TableRow key={doc.id}>
-                    <TableCell className="font-medium">{doc.title}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{documentLabels[doc.type] ?? doc.type}</Badge>
+                    <TableCell className="font-medium">
+                      {DOCUMENT_LABELS[doc.documentType] ?? doc.documentType}
                     </TableCell>
-                    <TableCell>{doc.generatedAt}</TableCell>
-                    <TableCell>{doc.format}</TableCell>
+                    <TableCell>
+                      {doc.processedCount} / {doc.totalCandidates}
+                    </TableCell>
+                    <TableCell>{formatDateTime(doc.completedAt ?? doc.createdAt)}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[doc.status]}>{doc.status}</Badge>
+                      {doc.errorMessage && (
+                        <span className="ms-2 text-xs text-destructive">{doc.errorMessage}</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-end">
-                      <Button asChild variant="ghost" size="sm">
-                        <a href={doc.downloadUrl} download>
-                          <Download className="me-1 h-4 w-4" aria-hidden="true" />
-                          Download
-                        </a>
-                      </Button>
+                      {doc.downloadPath ? (
+                        <Button asChild variant="ghost" size="sm">
+                          <a href={doc.downloadPath} download data-testid={`download-${doc.id}`}>
+                            <Download className="me-1 h-4 w-4" aria-hidden="true" />
+                            Download PDF
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

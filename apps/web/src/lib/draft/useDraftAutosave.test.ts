@@ -44,9 +44,7 @@ afterEach(() => {
 
 describe('useDraftAutosave — storage key', () => {
   it('matches the documented `<brand>-draft:<route>:<formId>` pattern', () => {
-    expect(buildDraftKey(FORM_ID)).toBe(
-      'proctira-draft:/registration/form:registration-draft',
-    );
+    expect(buildDraftKey(FORM_ID)).toBe('proctira-draft:/registration/form:registration-draft');
   });
 });
 
@@ -131,9 +129,7 @@ describe('useDraftAutosave — restore on remount', () => {
 
   it('returns null when the persisted envelope is malformed', () => {
     window.localStorage.setItem(buildDraftKey(FORM_ID), '{not json');
-    const { result } = renderHook(() =>
-      useDraftAutosave<SampleDraft>(FORM_ID, 30_000),
-    );
+    const { result } = renderHook(() => useDraftAutosave<SampleDraft>(FORM_ID, 30_000));
     expect(result.current.values).toBeNull();
   });
 
@@ -143,9 +139,7 @@ describe('useDraftAutosave — restore on remount', () => {
       buildDraftKey(FORM_ID),
       JSON.stringify({ v: 0, savedAt: '2025-01-01T00:00:00Z', values: { name: 'old', step: 1 } }),
     );
-    const { result } = renderHook(() =>
-      useDraftAutosave<SampleDraft>(FORM_ID, 30_000),
-    );
+    const { result } = renderHook(() => useDraftAutosave<SampleDraft>(FORM_ID, 30_000));
     expect(result.current.values).toBeNull();
     // The malformed slot is also wiped so future reads do not retry.
     expect(window.localStorage.getItem(buildDraftKey(FORM_ID))).toBeNull();
@@ -170,9 +164,7 @@ describe('useDraftAutosave — clear', () => {
 
 describe('useDraftAutosave — interval ceiling', () => {
   it('clamps a > 30 s interval down to 30 s so AC 8 always holds', () => {
-    const { result } = renderHook(() =>
-      useDraftAutosave<SampleDraft>(FORM_ID, 5 * 60_000),
-    );
+    const { result } = renderHook(() => useDraftAutosave<SampleDraft>(FORM_ID, 5 * 60_000));
 
     act(() => {
       result.current.save({ name: 'Clamped', step: 1 });

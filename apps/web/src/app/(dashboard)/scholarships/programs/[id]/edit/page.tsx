@@ -23,10 +23,11 @@ import { EditProgramForm } from '../../../_components/edit-program-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditScholarshipProgramPage({ params }: PageProps) {
+export default async function EditScholarshipProgramPage(props: PageProps) {
+  const params = await props.params;
   const program = await getScholarshipProgram(params.id);
   if (!program) notFound();
 

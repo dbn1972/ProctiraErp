@@ -1,7 +1,8 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { inspectPdf } from '@proctira/pdf-lite';
 import { describe, expect, it } from 'vitest';
 
 import { assertGradebookAccess, hasGradebookAccess } from './gradebook-access.js';
@@ -86,8 +87,20 @@ describe('GradebookService', () => {
     expect(t1.version).toBe(1);
     expect(t1.status).toBe('ISSUED');
     expect(t1.checksumSha256).toHaveLength(64);
-    expect(t1.artifactUri).toContain('transcript.pdf-lite.html');
+    expect(t1.artifactUri).toMatch(/transcript\.pdf$/);
+    expect(t1.metadata.artifactKind).toBe('pdf');
     expect(t1.metadata.pdfLitePath).toBeTruthy();
+    const pdfBytes = readFileSync(t1.artifactUri!);
+    expect(pdfBytes.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');
+    const pdfInfo = inspectPdf(pdfBytes);
+    expect(pdfInfo.pageCount).toBe(1);
+    expect(pdfInfo.startXrefValid).toBe(true);
+    expect(pdfInfo.literalStrings).toContain('Official Transcript');
+    expect(pdfInfo.literalStrings).toContain(t1.checksumSha256);
+    const download = await service.downloadTranscript(TENANT, t1.id);
+    expect(download.contentType).toBe('application/pdf');
+    expect(download.body.equals(pdfBytes)).toBe(true);
+    expect(download.filename).toBe(`transcript-${STUDENT}-v1.pdf`);
 
     const t2 = await service.issueTranscript(TENANT, { studentId: STUDENT });
     expect(t2.version).toBe(2);
@@ -150,5 +163,189 @@ describe('gradebook access', () => {
   it('allows registrar transcript issue', () => {
     expect(hasGradebookAccess([{ roleId: 'registrar' }], 'transcript.issue')).toBe(true);
     expect(hasGradebookAccess(['super-admin'], 'transcript.issue')).toBe(true);
+  });
+
+  it('allows teacher submit but denies moderate/lock', () => {
+    expect(hasGradebookAccess(['teacher'], 'grade.entry')).toBe(true);
+    expect(hasGradebookAccess(['teacher'], 'grade.moderate')).toBe(false);
+    expect(hasGradebookAccess(['registrar'], 'grade.moderate')).toBe(true);
+  });
+});
+
+describe('GradebookService G-303 workflow + signing', () => {
+  function setup() {
+    process.env.SIS_TRANSCRIPT_DIR = mkdtempSync(join(tmpdir(), 'sis-transcripts-'));
+    const repo = new InMemoryGradebookRepository();
+    repo.seedSection({
+      id: SECTION,
+      tenantId: TENANT,
+      institutionId: '66666666-6666-4666-8666-666666666666',
+      academicPeriodId: '77777777-7777-4777-8777-777777777777',
+      code: '10-A',
+      name: 'Class 10-A',
+      status: 'PUBLISHED',
+    });
+    repo.seedScale({
+      id: SCALE,
+      tenantId: TENANT,
+      boardId: BOARD,
+      code: 'CBSE-9PT',
+      name: 'CBSE 9-point',
+      scaleType: 'PERCENT_BAND',
+      isDefault: true,
+      bands: [
+        { label: 'A1', minPercent: 91, maxPercent: 100, gradePoints: 10 },
+        { label: 'A2', minPercent: 81, maxPercent: 90.99, gradePoints: 9 },
+        { label: 'E', minPercent: 0, maxPercent: 32.99, gradePoints: 0 },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { service: new GradebookService(repo), repo };
+  }
+
+  it('runs draft → submit → approve → lock and blocks edits while locked', async () => {
+    const { service } = setup();
+    const entry = await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+    });
+    expect(entry.metadata.workflowStatus).toBe('DRAFT');
+
+    const submitted = await service.transitionGradeEntry(TENANT, entry.id, 'submit');
+    expect(submitted.metadata.workflowStatus).toBe('SUBMITTED');
+
+    await expect(
+      service.upsertGradeEntry(TENANT, {
+        sectionId: SECTION,
+        studentId: STUDENT,
+        assessmentCode: 'MATH',
+        numericScore: 90,
+      }),
+    ).rejects.toThrow(/SUBMITTED/);
+
+    const approved = await service.transitionGradeEntry(TENANT, entry.id, 'approve');
+    expect(approved.metadata.workflowStatus).toBe('APPROVED');
+
+    const locked = await service.transitionGradeEntry(TENANT, entry.id, 'lock');
+    expect(locked.metadata.workflowStatus).toBe('LOCKED');
+    expect(locked.lockedAt).toBeTruthy();
+
+    await expect(
+      service.upsertGradeEntry(TENANT, {
+        sectionId: SECTION,
+        studentId: STUDENT,
+        assessmentCode: 'MATH',
+        numericScore: 88,
+      }),
+    ).rejects.toThrow(/locked/i);
+
+    const audits = service.listAudits(TENANT);
+    expect(audits.some((a) => a.action === 'grade.submit')).toBe(true);
+    expect(audits.some((a) => a.action === 'grade.lock')).toBe(true);
+  });
+
+  it('embeds HMAC signature on issued transcripts', async () => {
+    const { service } = setup();
+    await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+    });
+    await service.computeGpa(TENANT, { studentId: STUDENT, boardId: BOARD });
+    const t = await service.issueTranscript(TENANT, { studentId: STUDENT });
+    expect(t.metadata.signatureAlg).toBe('HMAC-SHA256');
+    expect(typeof t.metadata.signature).toBe('string');
+    expect(String(t.metadata.signature)).toHaveLength(64);
+  });
+});
+
+describe('GradebookService G-907 rank / comments / publish / audit', () => {
+  function setup() {
+    const repo = new InMemoryGradebookRepository();
+    repo.seedSection({
+      id: SECTION,
+      tenantId: TENANT,
+      institutionId: '66666666-6666-4666-8666-666666666666',
+      academicPeriodId: '77777777-7777-4777-8777-777777777777',
+      code: '10-A',
+      name: 'Class 10-A',
+      status: 'PUBLISHED',
+    });
+    repo.seedScale({
+      id: SCALE,
+      tenantId: TENANT,
+      boardId: BOARD,
+      code: 'CBSE-9PT',
+      name: 'CBSE 9-point',
+      scaleType: 'PERCENT_BAND',
+      isDefault: true,
+      bands: [
+        { label: 'A1', minPercent: 91, maxPercent: 100, gradePoints: 10 },
+        { label: 'A2', minPercent: 81, maxPercent: 90.99, gradePoints: 9 },
+        { label: 'E', minPercent: 0, maxPercent: 32.99, gradePoints: 0 },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return new GradebookService(repo);
+  }
+
+  it('publishes grades and lists them for parent reads', async () => {
+    const service = setup();
+    const entry = await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+      remark: 'Excellent work',
+    });
+    await service.transitionGradeEntry(TENANT, entry.id, 'submit');
+    await service.transitionGradeEntry(TENANT, entry.id, 'approve');
+    await service.transitionGradeEntry(TENANT, entry.id, 'lock');
+    const published = await service.transitionGradeEntry(TENANT, entry.id, 'publish');
+    expect(published.metadata.published).toBe(true);
+    expect(published.publishedAt).toBeTruthy();
+    const visible = await service.listPublishedGradeEntries(TENANT, { studentId: STUDENT });
+    expect(visible).toHaveLength(1);
+    expect(visible[0]!.id).toBe(entry.id);
+    const audits = await service.listGradeChangeAudits(TENANT, entry.id);
+    expect(audits.some((a) => a.action === 'grade.publish')).toBe(true);
+  });
+
+  it('CRUD comments bank and ranks a section with CGPA', async () => {
+    const service = setup();
+    const comment = await service.createCommentsBank(TENANT, {
+      gradeBand: 'A1',
+      label: 'Outstanding',
+      body: 'Consistently exceeds expectations.',
+    });
+    const listed = await service.listCommentsBank(TENANT, { gradeBand: 'A1' });
+    expect(listed.map((c) => c.id)).toContain(comment.id);
+
+    const other = '88888888-8888-4888-8888-888888888888';
+    await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+    });
+    await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: other,
+      assessmentCode: 'MATH',
+      numericScore: 85,
+    });
+    const ranked = await service.computeClassRank(TENANT, { sectionId: SECTION, boardId: BOARD });
+    expect(ranked.ranks).toHaveLength(2);
+    expect(ranked.ranks[0]!.studentId).toBe(STUDENT);
+    expect(ranked.ranks[0]!.classRank).toBe(1);
+    expect(ranked.ranks[0]!.cgpa).toBe(10);
+    expect(ranked.ranks[1]!.classRank).toBe(2);
+    const stored = await service.listClassRanks(TENANT, SECTION);
+    expect(stored).toHaveLength(2);
   });
 });

@@ -32,6 +32,8 @@ export interface StaffFilter {
   status?: 'ACTIVE' | 'INACTIVE';
   position?: string;
   search?: string; // Full-text search on name and identity number
+  /** When set, only staff with an assignment at this institution are returned. */
+  institutionId?: string;
 }
 
 /**

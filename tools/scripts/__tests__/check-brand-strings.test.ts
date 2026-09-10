@@ -32,11 +32,7 @@ async function writeFixture(root: string, relPath: string, content: string): Pro
 
 async function writeAllowlist(root: string, globs: string[]): Promise<string> {
   const file = join(root, 'allowlist.json');
-  await writeFile(
-    file,
-    JSON.stringify({ categories: { test: globs } }, null, 2),
-    'utf8',
-  );
+  await writeFile(file, JSON.stringify({ categories: { test: globs } }, null, 2), 'utf8');
   return file;
 }
 
@@ -47,13 +43,7 @@ function runCli(
 ): { status: number; stdout: string; stderr: string } {
   const result = spawnSync(
     process.execPath,
-    [
-      scriptPath,
-      `--root=${root}`,
-      `--allowlist=${allowlistPath}`,
-      '--force-node',
-      ...extraArgs,
-    ],
+    [scriptPath, `--root=${root}`, `--allowlist=${allowlistPath}`, '--force-node', ...extraArgs],
     { encoding: 'utf8' },
   );
   return {
@@ -163,11 +153,7 @@ describe('check-brand-strings CLI', () => {
     await writeFixture(
       root,
       'page.html',
-      [
-        '<h1>ProctiraERP</h1>',
-        '<p>safe line</p>',
-        '<footer>Powered by EduZo</footer>',
-      ].join('\n'),
+      ['<h1>ProctiraERP</h1>', '<p>safe line</p>', '<footer>Powered by EduZo</footer>'].join('\n'),
     );
     const allow = await writeAllowlist(root, []);
     const out = runCli(root, allow);
@@ -177,11 +163,7 @@ describe('check-brand-strings CLI', () => {
   });
 
   it('honors --brands to override the default brand list', async () => {
-    await writeFixture(
-      root,
-      'docs/note.md',
-      'Acme Corp ships great software.\n',
-    );
+    await writeFixture(root, 'docs/note.md', 'Acme Corp ships great software.\n');
     const allow = await writeAllowlist(root, []);
 
     // With default brands the file is clean.
@@ -211,11 +193,7 @@ describe('check-brand-strings CLI', () => {
 
   it('skips file extensions outside the scanner whitelist', async () => {
     // .ts files are explicitly NOT scanned (covered by the ESLint rule).
-    await writeFixture(
-      root,
-      'src/widget.ts',
-      'export const APP = "ProctiraERP";\n',
-    );
+    await writeFixture(root, 'src/widget.ts', 'export const APP = "ProctiraERP";\n');
     const allow = await writeAllowlist(root, []);
     const out = runCli(root, allow);
     expect(out.status).toBe(0);

@@ -32,13 +32,7 @@ describe('<Button /> — axe-core WCAG 2.1 AA gate', () => {
     // of that contract — a missing label here would fire `button-name`.
     const { container } = render(
       <Button size="icon" aria-label="Open settings">
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          width="16"
-          height="16"
-          fill="currentColor"
-        >
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
           <circle cx="12" cy="12" r="3" />
         </svg>
       </Button>,
@@ -48,9 +42,7 @@ describe('<Button /> — axe-core WCAG 2.1 AA gate', () => {
   });
 
   it('disabled button retains an accessible name', async () => {
-    const { container } = render(
-      <Button disabled>Submit application</Button>,
-    );
+    const { container } = render(<Button disabled>Submit application</Button>);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
@@ -59,9 +51,7 @@ describe('<Button /> — axe-core WCAG 2.1 AA gate', () => {
     // The destructive variant uses red as its primary cue; pairing it
     // with the literal "Delete" label keeps it WCAG 2.1 AA compliant
     // (no color-only meaning per AC 7).
-    const { container } = render(
-      <Button variant="destructive">Delete record</Button>,
-    );
+    const { container } = render(<Button variant="destructive">Delete record</Button>);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

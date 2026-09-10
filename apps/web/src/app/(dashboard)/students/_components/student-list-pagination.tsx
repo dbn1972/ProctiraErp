@@ -3,9 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import {
-  Button,
-} from '@proctira/ui/components';
+import { Button } from '@proctira/ui/components';
 
 interface StudentListPaginationProps {
   page: number;

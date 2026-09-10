@@ -103,7 +103,10 @@ function getCurrentVersion(projectRoot: string): string {
   return '0.0.0';
 }
 
-function checkPluginCompatibility(projectRoot: string, targetVersion: string): CompatibilityCheck[] {
+function checkPluginCompatibility(
+  projectRoot: string,
+  targetVersion: string,
+): CompatibilityCheck[] {
   const results: CompatibilityCheck[] = [];
   const pluginsDir = join(projectRoot, 'plugins');
 
@@ -238,11 +241,15 @@ export async function runUpgradeCheck(opts: UpgradeCheckOptions = {}): Promise<U
   // Version validation
   const versionValid = targetVersion === 'latest' || isUpgradePath(currentVersion, targetVersion);
   if (!versionValid && targetVersion !== 'latest') {
-    blockers.push(`Target version ${targetVersion} is not an upgrade from current ${currentVersion}`);
+    blockers.push(
+      `Target version ${targetVersion} is not an upgrade from current ${currentVersion}`,
+    );
   }
 
   if (isMajorUpgrade(currentVersion, targetVersion)) {
-    warnings.push(`Major version upgrade (${currentVersion} → ${targetVersion}) — review breaking changes`);
+    warnings.push(
+      `Major version upgrade (${currentVersion} → ${targetVersion}) — review breaking changes`,
+    );
     migrationNotes.push('Major upgrades may include breaking schema changes');
     migrationNotes.push('Review CHANGELOG.md for migration guides');
     recommendations.push('Test upgrade in staging environment first');

@@ -14,7 +14,7 @@ import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gate
 
 /* ------------------------------------------------------------------ Types */
 
-type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'EARLY_DEPARTURE';
 
 interface RosterEntry {
   studentId: string;
@@ -118,19 +118,16 @@ export default function AttendanceMarking() {
       for (const [studentId, status] of records) {
         attendanceRecords.push({ studentId, status });
       }
-      const result = await browserGatewayFetch<BulkAttendanceResponse>(
-        '/attendance/student/bulk',
-        {
-          method: 'POST',
-          json: {
-            institutionId: 'current',
-            classId,
-            academicPeriodId: 'current',
-            date,
-            records: attendanceRecords,
-          },
+      const result = await browserGatewayFetch<BulkAttendanceResponse>('/attendance/student/bulk', {
+        method: 'POST',
+        json: {
+          institutionId: 'current',
+          classId,
+          academicPeriodId: 'current',
+          date,
+          records: attendanceRecords,
         },
-      );
+      });
       setSuccess(
         `Attendance saved: ${result.summary.totalRecorded} recorded, ${result.summary.totalUpdated} updated.`,
       );
@@ -145,7 +142,7 @@ export default function AttendanceMarking() {
     }
   };
 
-  const statuses: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
+  const statuses: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'EARLY_DEPARTURE'];
 
   return (
     <div className="p-6 space-y-6">

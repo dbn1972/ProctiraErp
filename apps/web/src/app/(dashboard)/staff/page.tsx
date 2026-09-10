@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { EmptyState } from '@/components/page';
 import { cn } from '@/lib/utils';
 
 import { StaffListFilters as Filters } from './_components/staff-list-filters';
@@ -38,10 +39,10 @@ import { StaffTypeTabs } from './_components/staff-type-tabs';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readStr(params: PageProps['searchParams'], key: string, fallback = ''): string {
+function readStr(params: Awaited<PageProps['searchParams']>, key: string, fallback = ''): string {
   if (!params) return fallback;
   const v = params[key];
   if (typeof v === 'string') return v;
@@ -49,7 +50,11 @@ function readStr(params: PageProps['searchParams'], key: string, fallback = ''):
   return fallback;
 }
 
-function readNum(params: PageProps['searchParams'], key: string, fallback: number): number {
+function readNum(
+  params: Awaited<PageProps['searchParams']>,
+  key: string,
+  fallback: number,
+): number {
   const raw = readStr(params, key);
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -272,7 +277,8 @@ function StaffRow({ member }: { member: StaffMember }) {
 
 /* ──────────────────────────────────────────────── Page ── */
 
-export default async function StaffListPage({ searchParams }: PageProps) {
+export default async function StaffListPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const search = readStr(searchParams, 'search');
   const institutionId = readStr(searchParams, 'institutionId');
   const position = readStr(searchParams, 'position');
@@ -310,10 +316,23 @@ export default async function StaffListPage({ searchParams }: PageProps) {
             Staff
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totalAll.toLocaleString()} staff · records, teaching assignments, appraisals, and leave
+            {totalAll.toLocaleString()} staff · records, assignments, leave, contracts, attendance,
+            payroll
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/attendance">Attendance</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/contracts">Contracts</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/import">Bulk import</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/payroll">Payroll CSV</Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/staff/leaves">Leave requests</Link>
           </Button>
@@ -350,7 +369,18 @@ export default async function StaffListPage({ searchParams }: PageProps) {
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           {staffResponse.data.length === 0 ? (
-            <EmptyState />
+            <EmptyState
+              title="No staff found"
+              description="Try adjusting your filters, or add a new staff member."
+              action={
+                <Button asChild size="sm">
+                  <Link href="/staff/new">
+                    <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+                    Add staff
+                  </Link>
+                </Button>
+              }
+            />
           ) : (
             <>
               <Table aria-label="Staff records">
@@ -384,24 +414,5 @@ export default async function StaffListPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
     </section>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-      <p className="text-base font-semibold">No staff found</p>
-      <p className="text-sm text-muted-foreground">
-        Try adjusting your filters, or add a new staff member.
-      </p>
-      <div className="mt-2 flex gap-2">
-        <Button asChild size="sm">
-          <Link href="/staff/new">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Add staff
-          </Link>
-        </Button>
-      </div>
-    </div>
   );
 }

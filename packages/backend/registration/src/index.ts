@@ -16,7 +16,12 @@ export { registrationPlugin } from './registration-plugin.js';
 export type { RegistrationPluginOptions } from './registration-plugin.js';
 
 // Service
-export { RegistrationService, generateTrackingNumber, validateDocuments, validateCustomFields } from './registration-service.js';
+export {
+  RegistrationService,
+  generateTrackingNumber,
+  validateDocuments,
+  validateCustomFields,
+} from './registration-service.js';
 
 // Repository
 export type {
@@ -31,6 +36,35 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryRegistrationRepository, haversineKm } from './in-memory-repository.js';
 export type { InMemoryInstitution } from './in-memory-repository.js';
+
+// Postgres factory (G-205)
+export {
+  createRegistrationRepository,
+  createAdmissionsCrmStore,
+  createAdmissionsPipelineStore,
+  isPgRegistrationEnabled,
+} from './create-registration-repository.js';
+export { InMemoryAdmissionsCrmStore } from './admissions-crm-store.js';
+export type {
+  AdmissionsCrmStore,
+  WaitlistEntry,
+  InterviewSlot,
+  InterviewBooking,
+} from './admissions-crm-store.js';
+export { PgAdmissionsCrmStore } from './pg-admissions-crm-store.js';
+export {
+  PgRegistrationRepository,
+  getSharedRegistrationPool,
+  ensureRegistrationSchema,
+} from './pg-registration-repository.js';
+
+export { AdmissionsPipelineService } from './pipeline/pipeline-service.js';
+export type { EnrolOnAccept, EnrolOnAcceptInput } from './pipeline/pipeline-service.js';
+export { InMemoryAdmissionsPipelineStore } from './pipeline/pipeline-store.js';
+export type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
+export { PgAdmissionsPipelineStore } from './pipeline/pg-pipeline-store.js';
+export { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
+export { rankCandidates } from './pipeline/ranking.js';
 
 // Schemas
 export {

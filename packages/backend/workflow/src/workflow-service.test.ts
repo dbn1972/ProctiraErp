@@ -13,16 +13,36 @@ import type { CreateWorkflowDefinitionInput, CreateWorkflowInstanceInput } from 
 
 const TENANT_ID = 'tenant-001';
 
-function createValidDefinitionInput(overrides?: Partial<CreateWorkflowDefinitionInput>): CreateWorkflowDefinitionInput {
+function createValidDefinitionInput(
+  overrides?: Partial<CreateWorkflowDefinitionInput>,
+): CreateWorkflowDefinitionInput {
   return {
     name: 'Student Transfer Approval',
     entityType: 'student_transfer',
     description: 'Workflow for approving student transfers',
     states: [
       { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
-      { id: 'pending_review', name: 'Pending Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'school_admin' },
-      { id: 'approved', name: 'Approved', type: 'FINAL', assigneeType: 'role', assigneeId: 'district_admin' },
-      { id: 'rejected', name: 'Rejected', type: 'FINAL', assigneeType: 'role', assigneeId: 'school_admin' },
+      {
+        id: 'pending_review',
+        name: 'Pending Review',
+        type: 'INTERMEDIATE',
+        assigneeType: 'role',
+        assigneeId: 'school_admin',
+      },
+      {
+        id: 'approved',
+        name: 'Approved',
+        type: 'FINAL',
+        assigneeType: 'role',
+        assigneeId: 'district_admin',
+      },
+      {
+        id: 'rejected',
+        name: 'Rejected',
+        type: 'FINAL',
+        assigneeType: 'role',
+        assigneeId: 'school_admin',
+      },
     ],
     transitions: [
       { id: 't1', fromStateId: 'draft', toStateId: 'pending_review', action: 'submit' },
@@ -30,7 +50,12 @@ function createValidDefinitionInput(overrides?: Partial<CreateWorkflowDefinition
       { id: 't3', fromStateId: 'pending_review', toStateId: 'rejected', action: 'reject' },
     ],
     escalationRules: [
-      { stateId: 'pending_review', durationMinutes: 1440, escalateToStateId: 'approved', notifyRoleId: 'district_admin' },
+      {
+        stateId: 'pending_review',
+        durationMinutes: 1440,
+        escalateToStateId: 'approved',
+        notifyRoleId: 'district_admin',
+      },
     ],
     ...overrides,
   };
@@ -66,12 +91,16 @@ describe('WorkflowService', () => {
     it('should throw ValidationError when no INITIAL state exists', async () => {
       const input = createValidDefinitionInput({
         states: [
-          { id: 'pending', name: 'Pending', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
+          {
+            id: 'pending',
+            name: 'Pending',
+            type: 'INTERMEDIATE',
+            assigneeType: 'role',
+            assigneeId: 'admin',
+          },
           { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
         ],
-        transitions: [
-          { id: 't1', fromStateId: 'pending', toStateId: 'done', action: 'complete' },
-        ],
+        transitions: [{ id: 't1', fromStateId: 'pending', toStateId: 'done', action: 'complete' }],
       });
 
       await expect(service.createDefinition(TENANT_ID, input)).rejects.toThrow(ValidationError);
@@ -80,13 +109,23 @@ describe('WorkflowService', () => {
     it('should throw ValidationError when multiple INITIAL states exist', async () => {
       const input = createValidDefinitionInput({
         states: [
-          { id: 'start1', name: 'Start 1', type: 'INITIAL', assigneeType: 'user', assigneeId: 'u1' },
-          { id: 'start2', name: 'Start 2', type: 'INITIAL', assigneeType: 'user', assigneeId: 'u2' },
+          {
+            id: 'start1',
+            name: 'Start 1',
+            type: 'INITIAL',
+            assigneeType: 'user',
+            assigneeId: 'u1',
+          },
+          {
+            id: 'start2',
+            name: 'Start 2',
+            type: 'INITIAL',
+            assigneeType: 'user',
+            assigneeId: 'u2',
+          },
           { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
         ],
-        transitions: [
-          { id: 't1', fromStateId: 'start1', toStateId: 'done', action: 'complete' },
-        ],
+        transitions: [{ id: 't1', fromStateId: 'start1', toStateId: 'done', action: 'complete' }],
       });
 
       await expect(service.createDefinition(TENANT_ID, input)).rejects.toThrow(ValidationError);
@@ -96,11 +135,15 @@ describe('WorkflowService', () => {
       const input = createValidDefinitionInput({
         states: [
           { id: 'start', name: 'Start', type: 'INITIAL', assigneeType: 'user', assigneeId: 'u1' },
-          { id: 'middle', name: 'Middle', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
+          {
+            id: 'middle',
+            name: 'Middle',
+            type: 'INTERMEDIATE',
+            assigneeType: 'role',
+            assigneeId: 'admin',
+          },
         ],
-        transitions: [
-          { id: 't1', fromStateId: 'start', toStateId: 'middle', action: 'submit' },
-        ],
+        transitions: [{ id: 't1', fromStateId: 'start', toStateId: 'middle', action: 'submit' }],
       });
 
       await expect(service.createDefinition(TENANT_ID, input)).rejects.toThrow(ValidationError);
@@ -119,8 +162,20 @@ describe('WorkflowService', () => {
     it('should throw ValidationError when duplicate state IDs exist', async () => {
       const input = createValidDefinitionInput({
         states: [
-          { id: 'same_id', name: 'State 1', type: 'INITIAL', assigneeType: 'user', assigneeId: 'u1' },
-          { id: 'same_id', name: 'State 2', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
+          {
+            id: 'same_id',
+            name: 'State 1',
+            type: 'INITIAL',
+            assigneeType: 'user',
+            assigneeId: 'u1',
+          },
+          {
+            id: 'same_id',
+            name: 'State 2',
+            type: 'FINAL',
+            assigneeType: 'role',
+            assigneeId: 'admin',
+          },
         ],
         transitions: [
           { id: 't1', fromStateId: 'same_id', toStateId: 'same_id', action: 'complete' },
@@ -180,8 +235,20 @@ describe('WorkflowService', () => {
       await expect(
         service.updateDefinition(TENANT_ID, created.id, {
           states: [
-            { id: 'only_intermediate', name: 'Only', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
-            { id: 'final', name: 'Final', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
+            {
+              id: 'only_intermediate',
+              name: 'Only',
+              type: 'INTERMEDIATE',
+              assigneeType: 'role',
+              assigneeId: 'admin',
+            },
+            {
+              id: 'final',
+              name: 'Final',
+              type: 'FINAL',
+              assigneeType: 'role',
+              assigneeId: 'admin',
+            },
           ],
         }),
       ).rejects.toThrow(ValidationError);
@@ -223,8 +290,14 @@ describe('WorkflowService', () => {
     });
 
     it('should filter by entityType', async () => {
-      await service.createDefinition(TENANT_ID, createValidDefinitionInput({ entityType: 'student_transfer' }));
-      await service.createDefinition(TENANT_ID, createValidDefinitionInput({ entityType: 'staff_leave' }));
+      await service.createDefinition(
+        TENANT_ID,
+        createValidDefinitionInput({ entityType: 'student_transfer' }),
+      );
+      await service.createDefinition(
+        TENANT_ID,
+        createValidDefinitionInput({ entityType: 'staff_leave' }),
+      );
 
       const result = await service.listDefinitions(
         TENANT_ID,
@@ -367,13 +440,37 @@ describe('WorkflowService', () => {
         name: 'Parallel Approval Workflow',
         entityType: 'staff_leave',
         states: [
-          { id: 'submitted', name: 'Submitted', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
-          { id: 'under_review', name: 'Under Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'reviewer' },
-          { id: 'approved', name: 'Approved', type: 'FINAL', assigneeType: 'role', assigneeId: 'hr' },
+          {
+            id: 'submitted',
+            name: 'Submitted',
+            type: 'INITIAL',
+            assigneeType: 'user',
+            assigneeId: 'creator',
+          },
+          {
+            id: 'under_review',
+            name: 'Under Review',
+            type: 'INTERMEDIATE',
+            assigneeType: 'role',
+            assigneeId: 'reviewer',
+          },
+          {
+            id: 'approved',
+            name: 'Approved',
+            type: 'FINAL',
+            assigneeType: 'role',
+            assigneeId: 'hr',
+          },
         ],
         transitions: [
           { id: 't1', fromStateId: 'submitted', toStateId: 'under_review', action: 'submit' },
-          { id: 't2', fromStateId: 'under_review', toStateId: 'approved', action: 'approve', requiredApprovals: 3 },
+          {
+            id: 't2',
+            fromStateId: 'under_review',
+            toStateId: 'approved',
+            action: 'approve',
+            requiredApprovals: 3,
+          },
         ],
       };
     }
@@ -424,7 +521,10 @@ describe('WorkflowService', () => {
 
       await service.transition(TENANT_ID, instance.id, { action: 'submit', actorId: 'user-001' });
       await service.transition(TENANT_ID, instance.id, { action: 'approve', actorId: 'r1' });
-      const result = await service.transition(TENANT_ID, instance.id, { action: 'approve', actorId: 'r2' });
+      const result = await service.transition(TENANT_ID, instance.id, {
+        action: 'approve',
+        actorId: 'r2',
+      });
 
       // Should have 3 approvals total (submit + 2 approves)
       expect(result.approvals).toHaveLength(3);

@@ -11,12 +11,7 @@
  * - 11.4: Track disbursement schedules, payment status, and recipient compliance
  * - 11.5: Generate reports on scholarship utilization by program, area, gender, and institution
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -62,6 +57,23 @@ export interface WorkflowEngineClient {
 }
 
 /**
+ * Reviewer context attached to an approve / reject decision (G-911).
+ */
+export interface ApplicationDecision {
+  /** JWT `sub` of the deciding user; null / omitted for system decisions. */
+  reviewerId?: string | null;
+  /** Free-text note for the school coordinator (trimmed; blank → null). */
+  notes?: string | null;
+  /** Approve only: queue the first instalment for today at the program amount. */
+  scheduleFirstDisbursement?: boolean;
+}
+
+function normaliseNotes(notes: string | null | undefined): string | null {
+  const trimmed = notes?.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
  * Options for the ScholarshipService.
  */
 export interface ScholarshipServiceOptions {
@@ -98,7 +110,11 @@ export class ScholarshipService {
     // Validate date range
     if (input.applicationStartDate >= input.applicationEndDate) {
       throw new ValidationError('Application start date must be before end date', [
-        { field: 'applicationEndDate', rule: 'dateRange', message: 'End date must be after start date' },
+        {
+          field: 'applicationEndDate',
+          rule: 'dateRange',
+          message: 'End date must be after start date',
+        },
       ]);
     }
 
@@ -149,21 +165,31 @@ export class ScholarshipService {
     const endDate = input.applicationEndDate ?? existing.applicationEndDate;
     if (startDate >= endDate) {
       throw new ValidationError('Application start date must be before end date', [
-        { field: 'applicationEndDate', rule: 'dateRange', message: 'End date must be after start date' },
+        {
+          field: 'applicationEndDate',
+          rule: 'dateRange',
+          message: 'End date must be after start date',
+        },
       ]);
     }
 
     const updateData: Partial<ScholarshipProgramEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
-    if (input.applicationStartDate !== undefined) updateData.applicationStartDate = input.applicationStartDate;
-    if (input.applicationEndDate !== undefined) updateData.applicationEndDate = input.applicationEndDate;
+    if (input.applicationStartDate !== undefined)
+      updateData.applicationStartDate = input.applicationStartDate;
+    if (input.applicationEndDate !== undefined)
+      updateData.applicationEndDate = input.applicationEndDate;
     if (input.totalSlots !== undefined) updateData.totalSlots = input.totalSlots;
-    if (input.amountPerRecipient !== undefined) updateData.amountPerRecipient = input.amountPerRecipient;
+    if (input.amountPerRecipient !== undefined)
+      updateData.amountPerRecipient = input.amountPerRecipient;
     if (input.currency !== undefined) updateData.currency = input.currency;
-    if (input.disbursementFrequency !== undefined) updateData.disbursementFrequency = input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];
+    if (input.disbursementFrequency !== undefined)
+      updateData.disbursementFrequency =
+        input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];
     if (input.eligibility !== undefined) updateData.eligibility = input.eligibility;
-    if (input.status !== undefined) updateData.status = input.status as ScholarshipProgramEntity['status'];
+    if (input.status !== undefined)
+      updateData.status = input.status as ScholarshipProgramEntity['status'];
     if (input.academicPeriodId !== undefined) updateData.academicPeriodId = input.academicPeriodId;
     if (input.fundingSourceId !== undefined) updateData.fundingSourceId = input.fundingSourceId;
 
@@ -302,6 +328,8 @@ export class ScholarshipService {
       workflowInstanceId: null,
       submittedAt: new Date(),
       reviewedAt: null,
+      reviewerId: null,
+      reviewNotes: null,
     };
 
     const created = await this.repository.createApplication(application);
@@ -357,11 +385,19 @@ export class ScholarshipService {
   /**
    * Approve an application.
    *
+   * With `scheduleFirstDisbursement` the first instalment (program amount per
+   * recipient, due today) is queued in the same call so the approval → payout
+   * chain is one decision rather than two screens (G-911).
+   *
    * @throws NotFoundError if application not found
    * @throws BusinessRuleError if application is not in a reviewable state
    * @throws BusinessRuleError if no slots available
    */
-  async approveApplication(tenantId: string, id: string): Promise<ScholarshipApplicationEntity> {
+  async approveApplication(
+    tenantId: string,
+    id: string,
+    decision: ApplicationDecision = {},
+  ): Promise<ScholarshipApplicationEntity> {
     const application = await this.repository.findApplicationById(id, tenantId);
     if (!application) {
       throw new NotFoundError(`Scholarship application with id '${id}' not found`);
@@ -387,12 +423,29 @@ export class ScholarshipService {
     const updated = await this.repository.updateApplication(id, tenantId, {
       status: 'approved' as ApplicationStatus,
       reviewedAt: new Date(),
+      reviewerId: decision.reviewerId ?? null,
+      reviewNotes: normaliseNotes(decision.notes),
     });
 
     // Increment used slots
     await this.repository.updateProgram(application.programId, tenantId, {
       usedSlots: program.usedSlots + 1,
     });
+
+    if (decision.scheduleFirstDisbursement) {
+      await this.repository.createDisbursement({
+        id: uuidv4(),
+        tenantId,
+        applicationId: id,
+        amount: program.amountPerRecipient,
+        scheduledDate: new Date().toISOString().slice(0, 10),
+        paidDate: null,
+        paymentStatus: 'scheduled',
+        paymentMethod: null,
+        transactionReference: null,
+        notes: 'Scheduled on approval',
+      });
+    }
 
     return updated!;
   }
@@ -403,7 +456,11 @@ export class ScholarshipService {
    * @throws NotFoundError if application not found
    * @throws BusinessRuleError if application is not in a reviewable state
    */
-  async rejectApplication(tenantId: string, id: string): Promise<ScholarshipApplicationEntity> {
+  async rejectApplication(
+    tenantId: string,
+    id: string,
+    decision: ApplicationDecision = {},
+  ): Promise<ScholarshipApplicationEntity> {
     const application = await this.repository.findApplicationById(id, tenantId);
     if (!application) {
       throw new NotFoundError(`Scholarship application with id '${id}' not found`);
@@ -418,6 +475,8 @@ export class ScholarshipService {
     const updated = await this.repository.updateApplication(id, tenantId, {
       status: 'rejected' as ApplicationStatus,
       reviewedAt: new Date(),
+      reviewerId: decision.reviewerId ?? null,
+      reviewNotes: normaliseNotes(decision.notes),
     });
 
     return updated!;
@@ -480,7 +539,8 @@ export class ScholarshipService {
       paymentStatus: input.paymentStatus as DisbursementEntity['paymentStatus'],
     };
     if (input.paidDate !== undefined) updateData.paidDate = input.paidDate;
-    if (input.transactionReference !== undefined) updateData.transactionReference = input.transactionReference;
+    if (input.transactionReference !== undefined)
+      updateData.transactionReference = input.transactionReference;
     if (input.notes !== undefined) updateData.notes = input.notes;
 
     const updated = await this.repository.updateDisbursement(id, tenantId, updateData);

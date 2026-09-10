@@ -158,7 +158,9 @@ describe('ReportService', () => {
     it('should queue report when queuePublisher is provided', async () => {
       const queued: ReportJobEntity[] = [];
       const queuePublisher = {
-        queueReportJob: async (job: ReportJobEntity) => { queued.push(job); },
+        queueReportJob: async (job: ReportJobEntity) => {
+          queued.push(job);
+        },
         queueScheduledReport: async () => {},
       };
 
@@ -260,7 +262,8 @@ describe('ReportService', () => {
         name: 'Student Report Card',
         type: 'report_card',
         format: 'pdf',
-        layout: 'Name: {{studentName}}\nScore: {{score}}\n{{#section honors}}Honors Student{{/section honors}}',
+        layout:
+          'Name: {{studentName}}\nScore: {{score}}\n{{#section honors}}Honors Student{{/section honors}}',
         mergeFields: [
           { name: 'studentName', source: 'name' },
           { name: 'score', source: 'score' },
@@ -537,9 +540,9 @@ describe('ReportService', () => {
         userContext,
       );
 
-      await expect(
-        serviceWithQueue.downloadReport(TENANT_ID, job.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(serviceWithQueue.downloadReport(TENANT_ID, job.id)).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 });

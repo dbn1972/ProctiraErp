@@ -7,6 +7,8 @@
  * client-side helpers that call those route handlers.
  */
 
+import { withCsrfHeader } from '@/lib/auth/csrf';
+
 /** Cookie names used for authentication. */
 export const AUTH_COOKIES = {
   ACCESS_TOKEN: 'access_token',
@@ -102,10 +104,7 @@ export function isTokenExpired(token: string): boolean {
  * Builds the OAuth authorization URL for a given provider.
  * The route handler will redirect to the upstream OAuth provider.
  */
-export function getOAuthAuthorizeUrl(
-  provider: OAuthProvider,
-  returnTo?: string,
-): string {
+export function getOAuthAuthorizeUrl(provider: OAuthProvider, returnTo?: string): string {
   const params = new URLSearchParams({
     provider,
     ...(returnTo && { returnTo }),
@@ -117,15 +116,12 @@ export function getOAuthAuthorizeUrl(
  * Submits credentials to the login route. Returns a structured result that
  * tells the caller whether MFA is required.
  */
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<SignInResult> {
+export async function signIn(email: string, password: string): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.LOGIN, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ email, password }),
     });
 
@@ -158,15 +154,12 @@ export async function signIn(
 /**
  * Verifies an MFA challenge code (TOTP or SMS).
  */
-export async function verifyMfa(
-  mfaToken: string,
-  code: string,
-): Promise<SignInResult> {
+export async function verifyMfa(mfaToken: string, code: string): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.VERIFY_MFA, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ mfaToken, code }),
     });
     const data: { message?: string } = await safeJson(response);
@@ -191,7 +184,7 @@ export async function refreshAccessToken(): Promise<boolean> {
     const response = await fetch(AUTH_ENDPOINTS.REFRESH, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
     });
     return response.ok;
   } catch {
@@ -209,7 +202,7 @@ export async function signOut(redirectTo: string = '/login'): Promise<void> {
     await fetch(AUTH_ENDPOINTS.LOGOUT, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
     });
   } catch {
     // Even if the API call fails, we redirect to login.
@@ -252,7 +245,7 @@ export async function requestPasswordReset(
     const response = await fetch(AUTH_ENDPOINTS.FORGOT_PASSWORD, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ email }),
     });
 
@@ -281,7 +274,7 @@ export async function resetPassword(
     const response = await fetch(AUTH_ENDPOINTS.RESET_PASSWORD, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ token, newPassword }),
     });
 
@@ -300,9 +293,7 @@ export async function resetPassword(
 }
 
 /** Reads JSON from a Response without throwing on empty body. */
-async function safeJson<T = Record<string, unknown>>(
-  response: Response,
-): Promise<T> {
+async function safeJson<T = Record<string, unknown>>(response: Response): Promise<T> {
   try {
     const text = await response.text();
     return text ? (JSON.parse(text) as T) : ({} as T);

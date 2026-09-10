@@ -289,10 +289,13 @@ export function useDraftAutosave<T>(
     [safeInterval],
   );
 
-  const flush = useCallback((next: T) => {
-    pendingRef.current = next;
-    flushPending();
-  }, [flushPending]);
+  const flush = useCallback(
+    (next: T) => {
+      pendingRef.current = next;
+      flushPending();
+    },
+    [flushPending],
+  );
 
   const clear = useCallback(() => {
     if (timerRef.current !== null) {

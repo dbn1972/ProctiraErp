@@ -17,12 +17,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import {
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { SchoolFinder } from './SchoolFinder';
 import type { SchoolFinderResult } from '@/lib/api/registration';
@@ -99,12 +94,7 @@ describe('<SchoolFinder>', () => {
   });
 
   it('renders the geolocation prompt and the manual filter form', () => {
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={() => undefined}
-      />,
-    );
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} />);
     expect(screen.getByTestId('school-finder-use-location')).toBeTruthy();
     expect(screen.getByTestId('school-finder-search')).toBeTruthy();
     expect(screen.getByTestId('school-finder-area')).toBeTruthy();
@@ -113,16 +103,8 @@ describe('<SchoolFinder>', () => {
   });
 
   it('runs a search on submit and renders the result rows', async () => {
-    const { fn, calls } = makeFetcher([
-      { data: [ALPHA, BETA], totalItems: 2, totalPages: 1 },
-    ]);
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={() => undefined}
-        fetcher={fn}
-      />,
-    );
+    const { fn, calls } = makeFetcher([{ data: [ALPHA, BETA], totalItems: 2, totalPages: 1 }]);
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} fetcher={fn} />);
 
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
 
@@ -135,23 +117,17 @@ describe('<SchoolFinder>', () => {
     expect(calls[0]).toContain('/api/v1/registration/schools/search');
     expect(calls[0]).toContain('page=1');
     expect(calls[0]).toContain('pageSize=10');
-    expect(screen.getByTestId('school-finder-distance-a').textContent).toContain(
-      '1.2 km',
-    );
+    expect(screen.getByTestId('school-finder-distance-a').textContent).toContain('1.2 km');
   });
 
   it('forwards manual filters to the query string', async () => {
-    const { fn, calls } = makeFetcher([
-      { data: [], totalItems: 0, totalPages: 0 },
-    ]);
+    const { fn, calls } = makeFetcher([{ data: [], totalItems: 0, totalPages: 0 }]);
     render(
       <SchoolFinder
         selectedIds={[]}
         onAddPreference={() => undefined}
         areaOptions={[{ value: 'area-north', label: 'North' }]}
-        schoolTypeOptions={[
-          { value: 'type-secondary', label: 'Secondary' },
-        ]}
+        schoolTypeOptions={[{ value: 'type-secondary', label: 'Secondary' }]}
         gradeOptions={[{ value: 'grade-9', label: 'Grade 9' }]}
         fetcher={fn}
       />,
@@ -180,29 +156,17 @@ describe('<SchoolFinder>', () => {
   });
 
   it('emits onAddPreference when the Add button is clicked', async () => {
-    const { fn } = makeFetcher([
-      { data: [ALPHA], totalItems: 1, totalPages: 1 },
-    ]);
+    const { fn } = makeFetcher([{ data: [ALPHA], totalItems: 1, totalPages: 1 }]);
     const onAdd = vi.fn();
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={onAdd}
-        fetcher={fn}
-      />,
-    );
+    render(<SchoolFinder selectedIds={[]} onAddPreference={onAdd} fetcher={fn} />);
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-result-a')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-result-a')).toBeTruthy());
     fireEvent.click(screen.getByTestId('school-finder-add-a'));
     expect(onAdd).toHaveBeenCalledWith(ALPHA);
   });
 
   it('renders Added pill and disables Add when school already in selection', async () => {
-    const { fn } = makeFetcher([
-      { data: [ALPHA, BETA], totalItems: 2, totalPages: 1 },
-    ]);
+    const { fn } = makeFetcher([{ data: [ALPHA, BETA], totalItems: 2, totalPages: 1 }]);
     render(
       <SchoolFinder
         selectedIds={['a']}
@@ -212,18 +176,14 @@ describe('<SchoolFinder>', () => {
       />,
     );
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-remove-a')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-remove-a')).toBeTruthy());
     expect(screen.queryByTestId('school-finder-add-a')).toBeNull();
     // Beta is still addable.
     expect(screen.getByTestId('school-finder-add-b')).toBeTruthy();
   });
 
   it('disables Add for new rows when max preferences is reached', async () => {
-    const { fn } = makeFetcher([
-      { data: [ALPHA, BETA], totalItems: 2, totalPages: 1 },
-    ]);
+    const { fn } = makeFetcher([{ data: [ALPHA, BETA], totalItems: 2, totalPages: 1 }]);
     render(
       <SchoolFinder
         selectedIds={['x', 'y', 'z']}
@@ -233,9 +193,7 @@ describe('<SchoolFinder>', () => {
       />,
     );
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-result-a')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-result-a')).toBeTruthy());
     const addA = screen.getByTestId('school-finder-add-a') as HTMLButtonElement;
     const addB = screen.getByTestId('school-finder-add-b') as HTMLButtonElement;
     expect(addA.disabled).toBe(true);
@@ -244,43 +202,31 @@ describe('<SchoolFinder>', () => {
 
   it('captures geolocation and includes lat/lng/radius in the query', async () => {
     // Stub navigator.geolocation
-    const getCurrentPosition = vi.fn(
-      (success: PositionCallback) => {
-        success({
-          coords: {
-            latitude: 12.95,
-            longitude: 77.59,
-            accuracy: 10,
-            altitude: null,
-            altitudeAccuracy: null,
-            heading: null,
-            speed: null,
-          },
-          timestamp: Date.now(),
-        } as GeolocationPosition);
-      },
-    );
+    const getCurrentPosition = vi.fn((success: PositionCallback) => {
+      success({
+        coords: {
+          latitude: 12.95,
+          longitude: 77.59,
+          accuracy: 10,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        },
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+    });
     Object.defineProperty(globalThis, 'navigator', {
       value: { geolocation: { getCurrentPosition } },
       writable: true,
       configurable: true,
     });
 
-    const { fn, calls } = makeFetcher([
-      { data: [ALPHA], totalItems: 1, totalPages: 1 },
-    ]);
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={() => undefined}
-        fetcher={fn}
-      />,
-    );
+    const { fn, calls } = makeFetcher([{ data: [ALPHA], totalItems: 1, totalPages: 1 }]);
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} fetcher={fn} />);
 
     fireEvent.click(screen.getByTestId('school-finder-use-location'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-clear-location')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-clear-location')).toBeTruthy());
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
     await waitFor(() => expect(calls.length).toBeGreaterThan(0));
 
@@ -303,14 +249,10 @@ describe('<SchoolFinder>', () => {
       configurable: true,
     });
 
-    render(
-      <SchoolFinder selectedIds={[]} onAddPreference={() => undefined} />,
-    );
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} />);
     fireEvent.click(screen.getByTestId('school-finder-use-location'));
     await waitFor(() => {
-      expect(screen.getByRole('alert').textContent ?? '').toContain(
-        'denied',
-      );
+      expect(screen.getByRole('alert').textContent ?? '').toContain('denied');
     });
     // Manual filter form remains the fallback path.
     expect(screen.getByTestId('school-finder-filters')).toBeTruthy();
@@ -321,54 +263,26 @@ describe('<SchoolFinder>', () => {
       { data: [ALPHA], totalItems: 25, totalPages: 3 },
       { data: [BETA], totalItems: 25, totalPages: 3 },
     ]);
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={() => undefined}
-        fetcher={fn}
-      />,
-    );
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} fetcher={fn} />);
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-pagination')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-pagination')).toBeTruthy());
     fireEvent.click(screen.getByTestId('school-finder-next'));
     await waitFor(() => expect(calls.length).toBeGreaterThanOrEqual(2));
     expect(calls[1]).toContain('page=2');
   });
 
   it('shows the empty-state hint when zero results match', async () => {
-    const { fn } = makeFetcher([
-      { data: [], totalItems: 0, totalPages: 0 },
-    ]);
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={() => undefined}
-        fetcher={fn}
-      />,
-    );
+    const { fn } = makeFetcher([{ data: [], totalItems: 0, totalPages: 0 }]);
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} fetcher={fn} />);
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-empty')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-empty')).toBeTruthy());
   });
 
   it('navigates the results list with arrow keys', async () => {
-    const { fn } = makeFetcher([
-      { data: [ALPHA, BETA], totalItems: 2, totalPages: 1 },
-    ]);
-    render(
-      <SchoolFinder
-        selectedIds={[]}
-        onAddPreference={() => undefined}
-        fetcher={fn}
-      />,
-    );
+    const { fn } = makeFetcher([{ data: [ALPHA, BETA], totalItems: 2, totalPages: 1 }]);
+    render(<SchoolFinder selectedIds={[]} onAddPreference={() => undefined} fetcher={fn} />);
     fireEvent.submit(screen.getByTestId('school-finder-filters'));
-    await waitFor(() =>
-      expect(screen.getByTestId('school-finder-result-a')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('school-finder-result-a')).toBeTruthy());
 
     const list = screen.getByTestId('school-finder-results-list');
     const rowA = screen.getByTestId('school-finder-result-a');

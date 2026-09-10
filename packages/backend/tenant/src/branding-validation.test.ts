@@ -33,25 +33,13 @@ function buildPng(width: number, height: number): Uint8Array {
   const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
   const length = [0, 0, 0, 13];
   const ihdr = [0x49, 0x48, 0x44, 0x52];
-  const w = [
-    (width >>> 24) & 0xff,
-    (width >>> 16) & 0xff,
-    (width >>> 8) & 0xff,
-    width & 0xff,
-  ];
-  const h = [
-    (height >>> 24) & 0xff,
-    (height >>> 16) & 0xff,
-    (height >>> 8) & 0xff,
-    height & 0xff,
-  ];
+  const w = [(width >>> 24) & 0xff, (width >>> 16) & 0xff, (width >>> 8) & 0xff, width & 0xff];
+  const h = [(height >>> 24) & 0xff, (height >>> 16) & 0xff, (height >>> 8) & 0xff, height & 0xff];
   // 5 trailing IHDR fields: bit depth, color type, compression, filter, interlace
   const trailing = [8, 6, 0, 0, 0];
   // 4-byte placeholder CRC (the validator never verifies CRC).
   const crc = [0, 0, 0, 0];
-  return Uint8Array.from([
-    ...sig, ...length, ...ihdr, ...w, ...h, ...trailing, ...crc,
-  ]);
+  return Uint8Array.from([...sig, ...length, ...ihdr, ...w, ...h, ...trailing, ...crc]);
 }
 
 /**
@@ -65,10 +53,7 @@ function buildIco(width: number, height: number): Uint8Array {
   const header = [0, 0, 1, 0, 1, 0];
   // ICONDIRENTRY: width, height, color count, reserved, planes(2), bitcount(2),
   // bytes-in-resource(4), image-offset(4)
-  const entry = [
-    widthByte, heightByte, 0, 0, 1, 0, 32, 0,
-    0, 0, 0, 0, 0x16, 0, 0, 0,
-  ];
+  const entry = [widthByte, heightByte, 0, 0, 1, 0, 32, 0, 0, 0, 0, 0, 0x16, 0, 0, 0];
   return Uint8Array.from([...header, ...entry]);
 }
 
@@ -255,10 +240,7 @@ describe('validateBrandingTokens — accent color', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       const fields = result.errors.map((e) => e.field).sort();
-      expect(fields).toEqual([
-        'tokens.--tenant-accent',
-        'tokens.--tenant-primary',
-      ]);
+      expect(fields).toEqual(['tokens.--tenant-accent', 'tokens.--tenant-primary']);
     }
   });
 });
@@ -267,8 +249,7 @@ describe('validateBrandingTokens — accent color', () => {
 
 describe('validateBrandingTokens — logo', () => {
   it('accepts an SVG logo within 200×60', () => {
-    const svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="48"><rect/></svg>';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="48"><rect/></svg>';
     const tokens: ThemeTokens = {
       '--tenant-logo': urlToken(dataUri('image/svg+xml', new TextEncoder().encode(svg))),
     };

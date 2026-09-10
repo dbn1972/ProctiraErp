@@ -1,5 +1,11 @@
 /**
- * Admissions CRM store — waitlist + interview slots (in-memory v1).
+ * Admissions CRM store — waitlist + interview slots.
+ *
+ * `AdmissionsCrmStore` is the async contract used by RegistrationService.
+ * `InMemoryAdmissionsCrmStore` backs unit tests / no-database dev;
+ * `PgAdmissionsCrmStore` (see pg-admissions-crm-store.ts) persists to the
+ * `admission_waitlist_entries` / `admission_interview_*` tables from
+ * db/sql/014_admissions_crm_schema.sql under RLS (G-717).
  */
 import { v4 as uuidv4 } from 'uuid';
 
@@ -37,12 +43,45 @@ export interface InterviewBooking {
   updatedAt: Date;
 }
 
-export class InMemoryAdmissionsCrmStore {
+export interface EnqueueWaitlistInput {
+  tenantId: string;
+  applicationId: string;
+  institutionId: string;
+  notes?: string | null;
+}
+
+export interface CreateSlotInput {
+  tenantId: string;
+  institutionId: string;
+  startsAt: string;
+  endsAt: string;
+  capacity?: number;
+  location?: string | null;
+}
+
+export interface BookSlotInput {
+  tenantId: string;
+  slotId: string;
+  applicationId: string;
+}
+
+export interface AdmissionsCrmStore {
+  listWaitlist(tenantId: string, institutionId?: string): Promise<WaitlistEntry[]>;
+  enqueueWaitlist(input: EnqueueWaitlistInput): Promise<WaitlistEntry>;
+  createSlot(input: CreateSlotInput): Promise<InterviewSlot>;
+  listSlots(tenantId: string, institutionId?: string): Promise<InterviewSlot[]>;
+  findSlot(id: string, tenantId: string): Promise<InterviewSlot | null>;
+  listBookingsForSlot(tenantId: string, slotId: string): Promise<InterviewBooking[]>;
+  bookSlot(input: BookSlotInput): Promise<InterviewBooking>;
+  listBookingsForApplication(tenantId: string, applicationId: string): Promise<InterviewBooking[]>;
+}
+
+export class InMemoryAdmissionsCrmStore implements AdmissionsCrmStore {
   private waitlist: WaitlistEntry[] = [];
   private slots: InterviewSlot[] = [];
   private bookings: InterviewBooking[] = [];
 
-  listWaitlist(tenantId: string, institutionId?: string): WaitlistEntry[] {
+  async listWaitlist(tenantId: string, institutionId?: string): Promise<WaitlistEntry[]> {
     return this.waitlist
       .filter(
         (row) =>
@@ -51,12 +90,7 @@ export class InMemoryAdmissionsCrmStore {
       .sort((a, b) => a.position - b.position);
   }
 
-  enqueueWaitlist(input: {
-    tenantId: string;
-    applicationId: string;
-    institutionId: string;
-    notes?: string | null;
-  }): WaitlistEntry {
+  async enqueueWaitlist(input: EnqueueWaitlistInput): Promise<WaitlistEntry> {
     const existing = this.waitlist.find(
       (row) => row.tenantId === input.tenantId && row.applicationId === input.applicationId,
     );
@@ -65,7 +99,7 @@ export class InMemoryAdmissionsCrmStore {
     const peers = this.waitlist.filter(
       (row) => row.tenantId === input.tenantId && row.institutionId === input.institutionId,
     );
-    const position = peers.length + 1;
+    const position = peers.reduce((max, row) => Math.max(max, row.position), 0) + 1;
     const now = new Date();
     const entry: WaitlistEntry = {
       id: uuidv4(),
@@ -81,14 +115,7 @@ export class InMemoryAdmissionsCrmStore {
     return entry;
   }
 
-  createSlot(input: {
-    tenantId: string;
-    institutionId: string;
-    startsAt: string;
-    endsAt: string;
-    capacity?: number;
-    location?: string | null;
-  }): InterviewSlot {
+  async createSlot(input: CreateSlotInput): Promise<InterviewSlot> {
     const now = new Date();
     const slot: InterviewSlot = {
       id: uuidv4(),
@@ -106,7 +133,7 @@ export class InMemoryAdmissionsCrmStore {
     return slot;
   }
 
-  listSlots(tenantId: string, institutionId?: string): InterviewSlot[] {
+  async listSlots(tenantId: string, institutionId?: string): Promise<InterviewSlot[]> {
     return this.slots
       .filter(
         (row) =>
@@ -115,17 +142,17 @@ export class InMemoryAdmissionsCrmStore {
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
   }
 
-  findSlot(id: string, tenantId: string): InterviewSlot | null {
+  async findSlot(id: string, tenantId: string): Promise<InterviewSlot | null> {
     return this.slots.find((row) => row.id === id && row.tenantId === tenantId) ?? null;
   }
 
-  listBookingsForSlot(tenantId: string, slotId: string): InterviewBooking[] {
+  async listBookingsForSlot(tenantId: string, slotId: string): Promise<InterviewBooking[]> {
     return this.bookings.filter(
       (row) => row.tenantId === tenantId && row.slotId === slotId && row.status === 'booked',
     );
   }
 
-  bookSlot(input: { tenantId: string; slotId: string; applicationId: string }): InterviewBooking {
+  async bookSlot(input: BookSlotInput): Promise<InterviewBooking> {
     const now = new Date();
     const booking: InterviewBooking = {
       id: uuidv4(),
@@ -140,7 +167,10 @@ export class InMemoryAdmissionsCrmStore {
     return booking;
   }
 
-  listBookingsForApplication(tenantId: string, applicationId: string): InterviewBooking[] {
+  async listBookingsForApplication(
+    tenantId: string,
+    applicationId: string,
+  ): Promise<InterviewBooking[]> {
     return this.bookings.filter(
       (row) => row.tenantId === tenantId && row.applicationId === applicationId,
     );

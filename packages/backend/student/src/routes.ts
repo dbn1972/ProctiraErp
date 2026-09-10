@@ -208,11 +208,7 @@ export async function registerStudentRoutes(
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
-      const result = await studentService.search(
-        tenantId,
-        query.q.trim(),
-        { page, pageSize },
-      );
+      const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
 
       return reply.status(200).send({
         data: result.data.map(formatStudentResponse),
@@ -251,6 +247,7 @@ export async function registerStudentRoutes(
         {
           gender: query.gender,
           search: query.search,
+          institutionId: query.institutionId,
         },
         { page, pageSize, sortBy, sortOrder },
       );

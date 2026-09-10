@@ -187,8 +187,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   async getEnrollment(tenantId: string, sectionId: string, studentId: string) {
     return (
       [...this.enrollments.values()].find(
-        (e) =>
-          e.tenantId === tenantId && e.sectionId === sectionId && e.studentId === studentId,
+        (e) => e.tenantId === tenantId && e.sectionId === sectionId && e.studentId === studentId,
       ) ?? null
     );
   }
@@ -198,11 +197,7 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
-  async updateEnrollment(
-    tenantId: string,
-    id: string,
-    patch: Partial<SectionEnrollmentEntity>,
-  ) {
+  async updateEnrollment(tenantId: string, id: string, patch: Partial<SectionEnrollmentEntity>) {
     const cur = this.enrollments.get(id);
     if (!cur || cur.tenantId !== tenantId) return null;
     const next = {
@@ -311,6 +306,8 @@ export class InMemoryTimetableRepository implements TimetableRepository {
         teacherStaffId: meeting.staffId || null,
       });
     }
-    return slots.sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
+    return slots.sort(
+      (a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime),
+    );
   }
 }

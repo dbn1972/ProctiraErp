@@ -34,7 +34,9 @@ function uuid(): string {
 
 const TENANT_ID = uuid();
 
-function validTemplateInput(overrides: Partial<CreateAppraisalTemplateInput> = {}): CreateAppraisalTemplateInput {
+function validTemplateInput(
+  overrides: Partial<CreateAppraisalTemplateInput> = {},
+): CreateAppraisalTemplateInput {
   return {
     name: 'Annual Performance Review',
     academicPeriodId: uuid(),
@@ -330,11 +332,7 @@ describe('AppraisalService', () => {
         createInstance: vi.fn().mockResolvedValue('workflow-instance-123'),
       };
 
-      const serviceWithWorkflow = new AppraisalService(
-        templateRepo,
-        appraisalRepo,
-        mockWorkflow,
-      );
+      const serviceWithWorkflow = new AppraisalService(templateRepo, appraisalRepo, mockWorkflow);
 
       const appraisal = await serviceWithWorkflow.createAppraisal(TENANT_ID, {
         staffId: uuid(),

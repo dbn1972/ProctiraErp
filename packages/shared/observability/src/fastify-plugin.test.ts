@@ -43,7 +43,9 @@ describe('observabilityPlugin', () => {
     await app.inject({ method: 'GET', url: '/hello' });
     const res = await app.inject({ method: 'GET', url: '/metrics' });
     expect(res.body).toContain('http_requests_total');
-    expect(res.body).toMatch(/http_requests_total\{[^}]*route="\/hello"[^}]*status_code="200"[^}]*\} 2/);
+    expect(res.body).toMatch(
+      /http_requests_total\{[^}]*route="\/hello"[^}]*status_code="200"[^}]*\} 2/,
+    );
   });
 
   it('records request duration histogram', async () => {
@@ -68,5 +70,35 @@ describe('observabilityPlugin', () => {
   it('decorates the fastify instance with a metrics registry', () => {
     expect(app.metrics).toBeInstanceOf(MetricsRegistry);
     expect(app.metrics.serviceName).toBe('test-svc');
+  });
+});
+
+describe('observabilityPlugin enabled switch (G-725)', () => {
+  it('registers no /metrics route when enabled=false but still decorates fastify.metrics', async () => {
+    const app = Fastify();
+    await app.register(observabilityPlugin, { serviceName: 'off-svc', enabled: false });
+    app.get('/ping', async () => ({ ok: true }));
+    await app.ready();
+
+    expect(app.metrics).toBeDefined();
+    const res = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(res.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('honours METRICS_ENABLED=false from the environment by default', async () => {
+    const prev = process.env['METRICS_ENABLED'];
+    process.env['METRICS_ENABLED'] = 'false';
+    try {
+      const app = Fastify();
+      await app.register(observabilityPlugin, { serviceName: 'env-off' });
+      await app.ready();
+      const res = await app.inject({ method: 'GET', url: '/metrics' });
+      expect(res.statusCode).toBe(404);
+      await app.close();
+    } finally {
+      if (prev === undefined) delete process.env['METRICS_ENABLED'];
+      else process.env['METRICS_ENABLED'] = prev;
+    }
   });
 });

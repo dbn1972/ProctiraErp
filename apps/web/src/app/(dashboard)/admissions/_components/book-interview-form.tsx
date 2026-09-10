@@ -64,7 +64,7 @@ export function BookInterviewForm({
             <select
               id="book-app"
               name="applicationId"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               disabled={!hydrated || pending || applications.length === 0}
               defaultValue=""
             >
@@ -80,7 +80,7 @@ export function BookInterviewForm({
             <select
               id="book-slot"
               name="slotId"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               disabled={!hydrated || pending || slots.length === 0}
               defaultValue=""
             >

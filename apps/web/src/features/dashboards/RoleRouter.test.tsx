@@ -59,6 +59,7 @@ function renderRouter(user: AuthUser | null) {
           />
           <Route path="/app/dashboard/me" element={<div data-testid="me-page">me</div>} />
           <Route path="/parent" element={<div data-testid="parent-portal-page">parent</div>} />
+          <Route path="/student" element={<div data-testid="student-portal-page">student</div>} />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -103,9 +104,9 @@ describe('<RoleRouter> — scope→route mapping (Task 52.1)', () => {
     expect(screen.getByTestId('parent-portal-page')).toBeTruthy();
   });
 
-  it('routes a student role to the parent portal', () => {
+  it('routes a student role to the student portal', () => {
     renderRouter(makeUser({ scope: { level: 'school' }, roles: ['student'] }));
-    expect(screen.getByTestId('parent-portal-page')).toBeTruthy();
+    expect(screen.getByTestId('student-portal-page')).toBeTruthy();
   });
 });
 

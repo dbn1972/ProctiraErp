@@ -33,15 +33,21 @@ export const CreateInstitutionSchema = Type.Object({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Ownership UUID',
   }),
-  latitude: Type.Optional(Type.Number({ minimum: -90, maximum: 90, description: 'Latitude coordinate' })),
-  longitude: Type.Optional(Type.Number({ minimum: -180, maximum: 180, description: 'Longitude coordinate' })),
+  latitude: Type.Optional(
+    Type.Number({ minimum: -90, maximum: 90, description: 'Latitude coordinate' }),
+  ),
+  longitude: Type.Optional(
+    Type.Number({ minimum: -180, maximum: 180, description: 'Longitude coordinate' }),
+  ),
   address: Type.Optional(Type.String({ maxLength: 500, description: 'Physical address' })),
   contactPhone: Type.Optional(Type.String({ maxLength: 50, description: 'Contact phone number' })),
-  contactEmail: Type.Optional(Type.String({
-    pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-    maxLength: 254,
-    description: 'Contact email address',
-  })),
+  contactEmail: Type.Optional(
+    Type.String({
+      pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+      maxLength: 254,
+      description: 'Contact email address',
+    }),
+  ),
 });
 
 export type CreateInstitutionInput = Static<typeof CreateInstitutionSchema>;
@@ -51,33 +57,51 @@ export type CreateInstitutionInput = Static<typeof CreateInstitutionSchema>;
  * All fields are optional — only provided fields are updated.
  */
 export const UpdateInstitutionSchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Institution name' })),
-  code: Type.Optional(Type.String({ minLength: 1, maxLength: 50, description: 'Unique institution code' })),
-  areaId: Type.Optional(Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Area hierarchy node UUID',
-  })),
-  typeId: Type.Optional(Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Institution type UUID',
-  })),
-  sectorId: Type.Optional(Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Sector UUID',
-  })),
-  ownershipId: Type.Optional(Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Ownership UUID',
-  })),
-  latitude: Type.Optional(Type.Number({ minimum: -90, maximum: 90, description: 'Latitude coordinate' })),
-  longitude: Type.Optional(Type.Number({ minimum: -180, maximum: 180, description: 'Longitude coordinate' })),
+  name: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Institution name' }),
+  ),
+  code: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 50, description: 'Unique institution code' }),
+  ),
+  areaId: Type.Optional(
+    Type.String({
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      description: 'Area hierarchy node UUID',
+    }),
+  ),
+  typeId: Type.Optional(
+    Type.String({
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      description: 'Institution type UUID',
+    }),
+  ),
+  sectorId: Type.Optional(
+    Type.String({
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      description: 'Sector UUID',
+    }),
+  ),
+  ownershipId: Type.Optional(
+    Type.String({
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      description: 'Ownership UUID',
+    }),
+  ),
+  latitude: Type.Optional(
+    Type.Number({ minimum: -90, maximum: 90, description: 'Latitude coordinate' }),
+  ),
+  longitude: Type.Optional(
+    Type.Number({ minimum: -180, maximum: 180, description: 'Longitude coordinate' }),
+  ),
   address: Type.Optional(Type.String({ maxLength: 500, description: 'Physical address' })),
   contactPhone: Type.Optional(Type.String({ maxLength: 50, description: 'Contact phone number' })),
-  contactEmail: Type.Optional(Type.String({
-    pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-    maxLength: 254,
-    description: 'Contact email address',
-  })),
+  contactEmail: Type.Optional(
+    Type.String({
+      pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+      maxLength: 254,
+      description: 'Contact email address',
+    }),
+  ),
 });
 
 export type UpdateInstitutionInput = Static<typeof UpdateInstitutionSchema>;
@@ -95,13 +119,27 @@ export type DeactivateInstitutionInput = Static<typeof DeactivateInstitutionSche
  * Schema for institution list query parameters.
  */
 export const InstitutionListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   areaId: Type.Optional(Type.String({ description: 'Filter by area ID' })),
-  status: Type.Optional(Type.String({ enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status' })),
+  status: Type.Optional(
+    Type.String({ enum: ['ACTIVE', 'INACTIVE'], description: 'Filter by status' }),
+  ),
   search: Type.Optional(Type.String({ description: 'Search by name or code' })),
-  sortBy: Type.Optional(Type.String({ enum: ['name', 'code', 'createdAt'], default: 'name', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' })),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['name', 'code', 'createdAt'],
+      default: 'name',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+  ),
 });
 
 export type InstitutionListQuery = Static<typeof InstitutionListQuerySchema>;
@@ -135,7 +173,9 @@ export const InstitutionResponseSchema = Type.Object({
   address: Type.Union([Type.String(), Type.Null()], { description: 'Physical address' }),
   contactPhone: Type.Union([Type.String(), Type.Null()], { description: 'Contact phone number' }),
   contactEmail: Type.Union([Type.String(), Type.Null()], { description: 'Contact email address' }),
-  deactivationReason: Type.Union([Type.String(), Type.Null()], { description: 'Reason for deactivation' }),
+  deactivationReason: Type.Union([Type.String(), Type.Null()], {
+    description: 'Reason for deactivation',
+  }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
 });

@@ -23,7 +23,10 @@ import {
   InMemoryReportCardJobRepository,
 } from './in-memory-report-card-repository.js';
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
-import { InMemoryAssessmentItemRepository, InMemoryGradingSchemeRepository } from './in-memory-repository.js';
+import {
+  InMemoryAssessmentItemRepository,
+  InMemoryGradingSchemeRepository,
+} from './in-memory-repository.js';
 import { ResultService } from './result-service.js';
 import { registerReportCardRoutes } from './report-card-routes.js';
 

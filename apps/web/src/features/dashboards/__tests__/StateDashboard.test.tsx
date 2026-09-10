@@ -23,16 +23,9 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     ResizeObserverStub as unknown as typeof globalThis.ResizeObserver;
 }
 
-import {
-  STATE_DASHBOARD_MOCK,
-  type DashboardQueryResult,
-  type StateDashboardData,
-} from '../api';
+import { STATE_DASHBOARD_MOCK, type DashboardQueryResult, type StateDashboardData } from '../api';
 
-const useStateDashboardDataMock = vi.fn<
-  [string?],
-  DashboardQueryResult<StateDashboardData>
->();
+const useStateDashboardDataMock = vi.fn<[string?], DashboardQueryResult<StateDashboardData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
@@ -76,9 +69,7 @@ describe('<StateDashboard>', () => {
     expect(screen.getByTestId('state-kpi-attendance')).toBeTruthy();
     expect(screen.getByTestId('state-kpi-pass-rate')).toBeTruthy();
 
-    expect(
-      within(screen.getByTestId('state-kpi-schools')).getByText('Schools'),
-    ).toBeTruthy();
+    expect(within(screen.getByTestId('state-kpi-schools')).getByText('Schools')).toBeTruthy();
   });
 
   it('renders the district drill-down table with the mocked rows', async () => {
@@ -110,9 +101,7 @@ describe('<StateDashboard>', () => {
     expect(row).not.toBeNull();
     fireEvent.click(row!);
 
-    await waitFor(() =>
-      expect(screen.getByTestId('district-page')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('district-page')).toBeTruthy());
   });
 
   it('navigates back to the country dashboard via the breadcrumb', async () => {
@@ -125,8 +114,6 @@ describe('<StateDashboard>', () => {
     await renderPage();
 
     fireEvent.click(screen.getByTestId('state-breadcrumb-country'));
-    await waitFor(() =>
-      expect(screen.getByTestId('country-page')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('country-page')).toBeTruthy());
   });
 });

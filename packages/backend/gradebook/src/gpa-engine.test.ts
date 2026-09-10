@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyCreditRule,
+  computeClassRanks,
+  computeCgpa,
   computeGpaSnapshot,
   resolveBandFromPercent,
   resolveGradePoints,
@@ -43,9 +45,10 @@ describe('resolveGradePoints', () => {
 
 describe('applyCreditRule', () => {
   it('awards full credits on pass', () => {
-    expect(
-      applyCreditRule({ credits: 1 }, { numericScore: 40 }),
-    ).toEqual({ creditsEarned: 1, completed: true });
+    expect(applyCreditRule({ credits: 1 }, { numericScore: 40 })).toEqual({
+      creditsEarned: 1,
+      completed: true,
+    });
   });
 
   it('awards zero on fail', () => {
@@ -102,5 +105,47 @@ describe('computeGpaSnapshot', () => {
     );
     expect(snap.unweightedGpa).toBe(10);
     expect(snap.creditsEarned).toBe(2);
+  });
+});
+
+describe('computeClassRanks', () => {
+  it('uses competition ranking (1224) and studentId only for display order', () => {
+    const ranks = computeClassRanks([
+      { studentId: 's-c', weightedGpa: 8, cgpa: 8 },
+      { studentId: 's-a', weightedGpa: 9.5, cgpa: 9 },
+      { studentId: 's-b', weightedGpa: 9.5, cgpa: 9.1 },
+      { studentId: 's-d', weightedGpa: 7, cgpa: 7 },
+    ]);
+    expect(ranks.map((r) => ({ id: r.studentId, rank: r.classRank, ties: r.tieCount }))).toEqual([
+      { id: 's-a', rank: 1, ties: 2 },
+      { id: 's-b', rank: 1, ties: 2 },
+      { id: 's-c', rank: 3, ties: 1 },
+      { id: 's-d', rank: 4, ties: 1 },
+    ]);
+  });
+
+  it('sorts null GPA last and shares a rank', () => {
+    const ranks = computeClassRanks([
+      { studentId: 'z', weightedGpa: null, cgpa: null },
+      { studentId: 'a', weightedGpa: 10, cgpa: 10 },
+      { studentId: 'm', weightedGpa: null, cgpa: null },
+    ]);
+    expect(ranks[0]).toMatchObject({ studentId: 'a', classRank: 1 });
+    expect(ranks[1]).toMatchObject({ studentId: 'm', classRank: 2, tieCount: 2 });
+    expect(ranks[2]).toMatchObject({ studentId: 'z', classRank: 2, tieCount: 2 });
+  });
+});
+
+describe('computeCgpa', () => {
+  it('is the GPA over every course attempt', () => {
+    const snap = computeCgpa(
+      [
+        { courseCode: 'MATH', numericScore: 95, credits: 1 },
+        { courseCode: 'SCI', numericScore: 85, credits: 1 },
+      ],
+      CBSE_BANDS,
+    );
+    expect(snap.unweightedGpa).toBe(9.5);
+    expect(snap.weightedGpa).toBe(9.5);
   });
 });

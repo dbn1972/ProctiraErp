@@ -28,12 +28,7 @@ export function Header({ email, role }: HeaderProps) {
 
       <div className="flex items-center gap-3">
         <span className="text-sm text-foreground">{email}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => signOut('/login')}
-        >
+        <Button type="button" variant="outline" size="sm" onClick={() => signOut('/login')}>
           <LogOut className="me-2 h-4 w-4" aria-hidden="true" />
           Sign out
         </Button>

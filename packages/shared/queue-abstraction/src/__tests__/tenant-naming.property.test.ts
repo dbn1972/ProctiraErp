@@ -20,8 +20,8 @@ describe('buildTenantName - Property Tests', () => {
         (tenantId, name) => {
           const result = buildTenantName(tenantId, name);
           expect(result.startsWith('tenant.')).toBe(true);
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -33,8 +33,8 @@ describe('buildTenantName - Property Tests', () => {
         (tenantId, name) => {
           const result = buildTenantName(tenantId, name);
           expect(result).toContain(tenantId);
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -46,8 +46,8 @@ describe('buildTenantName - Property Tests', () => {
         (tenantId, name) => {
           const result = buildTenantName(tenantId, name);
           expect(result).toContain(name);
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -60,8 +60,8 @@ describe('buildTenantName - Property Tests', () => {
           const result1 = buildTenantName(tenantId, name);
           const result2 = buildTenantName(tenantId, name);
           expect(result1).toBe(result2);
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -77,8 +77,8 @@ describe('buildTenantName - Property Tests', () => {
           const result1 = buildTenantName(tenantId1, name);
           const result2 = buildTenantName(tenantId2, name);
           expect(result1).not.toBe(result2);
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -91,8 +91,8 @@ describe('buildTenantName - Property Tests', () => {
           fc.pre(tenantId.length > 0 && name.length > 0);
           const result = buildTenantName(tenantId, name);
           expect(result).toBe(`tenant.${tenantId}.${name}`);
-        }
-      )
+        },
+      ),
     );
   });
 
@@ -105,8 +105,8 @@ describe('buildTenantName - Property Tests', () => {
           const result = buildTenantName(tenantId, name);
           const expectedLength = 'tenant.'.length + tenantId.length + '.'.length + name.length;
           expect(result.length).toBe(expectedLength);
-        }
-      )
+        },
+      ),
     );
   });
 });

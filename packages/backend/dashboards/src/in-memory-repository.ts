@@ -51,10 +51,8 @@ export class InMemoryDashboardRepository implements DashboardRepository {
   private boardAggregates: Map<string, ScopedAggregate<BoardAdminDashboardAggregate>> = new Map();
   private schoolAggregates: Map<string, ScopedAggregate<SchoolDashboardAggregate>> = new Map();
   private teacherAggregates: Map<string, ScopedAggregate<TeacherDashboardAggregate>> = new Map();
-  private parentStudentAggregates: Map<
-    string,
-    ScopedAggregate<ParentStudentDashboardAggregate>
-  > = new Map();
+  private parentStudentAggregates: Map<string, ScopedAggregate<ParentStudentDashboardAggregate>> =
+    new Map();
 
   // ─── Seeders ────────────────────────────────────────────────────────────
 
@@ -62,11 +60,7 @@ export class InMemoryDashboardRepository implements DashboardRepository {
     this.countryAggregates.set(tenantId, aggregate);
   }
 
-  setStateAggregate(
-    tenantId: string,
-    stateId: string,
-    aggregate: StateDashboardAggregate,
-  ): void {
+  setStateAggregate(tenantId: string, stateId: string, aggregate: StateDashboardAggregate): void {
     this.stateAggregates.set(this.key(tenantId, stateId), {
       tenantId,
       areaId: stateId,
@@ -186,17 +180,13 @@ export class InMemoryDashboardRepository implements DashboardRepository {
     return row.data;
   }
 
-  async teacherDashboard(
-    scope: RepositoryScope,
-  ): Promise<TeacherDashboardAggregate | null> {
+  async teacherDashboard(scope: RepositoryScope): Promise<TeacherDashboardAggregate | null> {
     const row = this.teacherAggregates.get(this.key(scope.tenantId, scope.userId));
     if (!row) return null;
     return row.data;
   }
 
-  async meDashboard(
-    scope: RepositoryScope,
-  ): Promise<ParentStudentDashboardAggregate | null> {
+  async meDashboard(scope: RepositoryScope): Promise<ParentStudentDashboardAggregate | null> {
     const row = this.parentStudentAggregates.get(this.key(scope.tenantId, scope.userId));
     if (!row) return null;
     return row.data;
@@ -216,10 +206,7 @@ export class InMemoryDashboardRepository implements DashboardRepository {
     return scope.containsArea(areaId);
   }
 
-  private isWithinBoardScope(
-    boardId: string | undefined,
-    scope: RepositoryScope,
-  ): boolean {
+  private isWithinBoardScope(boardId: string | undefined, scope: RepositoryScope): boolean {
     if (scope.isCountryScope) return true;
     if (!boardId) return false;
     return scope.boardIds.includes(boardId);

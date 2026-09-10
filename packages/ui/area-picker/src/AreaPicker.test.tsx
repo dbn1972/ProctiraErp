@@ -39,7 +39,7 @@ describe('AreaPicker', () => {
         onSelect={vi.fn()}
         ariaLabel="Select area"
         placeholder="Choose an area"
-      />
+      />,
     );
 
     expect(screen.getByRole('button', { name: /select area/i })).toBeInTheDocument();
@@ -47,9 +47,7 @@ describe('AreaPicker', () => {
   });
 
   it('opens dropdown on trigger click', () => {
-    render(
-      <AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />);
 
     const trigger = screen.getByRole('button', { name: /select area/i });
     fireEvent.click(trigger);
@@ -59,9 +57,7 @@ describe('AreaPicker', () => {
   });
 
   it('expands tree nodes on expand button click', () => {
-    render(
-      <AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />);
 
     // Open dropdown
     fireEvent.click(screen.getByRole('button', { name: /select area/i }));
@@ -76,9 +72,7 @@ describe('AreaPicker', () => {
 
   it('calls onSelect when a node is selected', () => {
     const onSelect = vi.fn();
-    render(
-      <AreaPicker areas={testAreas} onSelect={onSelect} ariaLabel="Select area" />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={onSelect} ariaLabel="Select area" />);
 
     // Open dropdown
     fireEvent.click(screen.getByRole('button', { name: /select area/i }));
@@ -89,7 +83,7 @@ describe('AreaPicker', () => {
 
     expect(onSelect).toHaveBeenCalledWith(
       ['country-1'],
-      [expect.objectContaining({ id: 'country-1', name: 'Country A' })]
+      [expect.objectContaining({ id: 'country-1', name: 'Country A' })],
     );
   });
 
@@ -100,7 +94,7 @@ describe('AreaPicker', () => {
         selectedIds={['country-1']}
         onSelect={vi.fn()}
         ariaLabel="Select area"
-      />
+      />,
     );
 
     expect(screen.getByText('Country A')).toBeInTheDocument();
@@ -115,7 +109,7 @@ describe('AreaPicker', () => {
         onSelect={onSelect}
         multiple
         ariaLabel="Select area"
-      />
+      />,
     );
 
     // Open dropdown
@@ -125,58 +119,32 @@ describe('AreaPicker', () => {
     fireEvent.click(screen.getByRole('button', { name: /expand country a/i }));
     fireEvent.click(screen.getByRole('button', { name: /select region 1/i }));
 
-    expect(onSelect).toHaveBeenCalledWith(
-      ['country-1', 'region-1'],
-      expect.any(Array)
-    );
+    expect(onSelect).toHaveBeenCalledWith(['country-1', 'region-1'], expect.any(Array));
   });
 
   it('shows search input when searchable', () => {
-    render(
-      <AreaPicker
-        areas={testAreas}
-        onSelect={vi.fn()}
-        ariaLabel="Select area"
-        searchable
-      />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" searchable />);
 
     fireEvent.click(screen.getByRole('button', { name: /select area/i }));
     expect(screen.getByLabelText(/search areas/i)).toBeInTheDocument();
   });
 
   it('disables interaction when disabled', () => {
-    render(
-      <AreaPicker
-        areas={testAreas}
-        onSelect={vi.fn()}
-        ariaLabel="Select area"
-        disabled
-      />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" disabled />);
 
     const trigger = screen.getByRole('button', { name: /select area/i });
     expect(trigger).toBeDisabled();
   });
 
   it('shows loading state', () => {
-    render(
-      <AreaPicker
-        areas={testAreas}
-        onSelect={vi.fn()}
-        ariaLabel="Select area"
-        loading
-      />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" loading />);
 
     fireEvent.click(screen.getByRole('button', { name: /select area/i }));
     expect(screen.getByText('Loading areas...')).toBeInTheDocument();
   });
 
   it('has proper WCAG tree role attributes', () => {
-    render(
-      <AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />
-    );
+    render(<AreaPicker areas={testAreas} onSelect={vi.fn()} ariaLabel="Select area" />);
 
     const trigger = screen.getByRole('button', { name: /select area/i });
     expect(trigger).toHaveAttribute('aria-haspopup', 'tree');

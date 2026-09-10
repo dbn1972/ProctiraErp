@@ -56,10 +56,9 @@ function assertSkeletonsHaveExplicitDimensions(container: HTMLElement): void {
       hasHeight,
       `Skeleton #${index} missing explicit height class. Classes: "${classes}"`,
     ).toBe(true);
-    expect(
-      hasWidth,
-      `Skeleton #${index} missing explicit width class. Classes: "${classes}"`,
-    ).toBe(true);
+    expect(hasWidth, `Skeleton #${index} missing explicit width class. Classes: "${classes}"`).toBe(
+      true,
+    );
   });
 }
 
@@ -95,13 +94,7 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
           // Render in loading state
           const { container: loadingWrapper } = render(
-            <KpiCard
-              label={label}
-              value={value}
-              icon={icon}
-              loading
-              data-testid={testId}
-            />,
+            <KpiCard label={label} value={value} icon={icon} loading data-testid={testId} />,
           );
 
           const loadingCard = loadingWrapper.querySelector(
@@ -121,12 +114,7 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
           // Render in loaded state
           const { container: loadedWrapper } = render(
-            <KpiCard
-              label={label}
-              value={value}
-              icon={icon}
-              data-testid={testId}
-            />,
+            <KpiCard label={label} value={value} icon={icon} data-testid={testId} />,
           );
 
           const loadedCard = loadedWrapper.querySelector(
@@ -299,59 +287,45 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
   it('MapDrillDown: skeleton has explicit dimensions for any title', () => {
     fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 80 }),
-        (title) => {
-          cleanup();
+      fc.property(fc.string({ minLength: 1, maxLength: 80 }), (title) => {
+        cleanup();
 
-          const testId = 'map-cls-test';
+        const testId = 'map-cls-test';
 
-          // Render in loading state
-          const { container: loadingWrapper } = render(
-            <MapDrillDown
-              title={title}
-              regions={[]}
-              loading
-              data-testid={testId}
-            />,
-          );
+        // Render in loading state
+        const { container: loadingWrapper } = render(
+          <MapDrillDown title={title} regions={[]} loading data-testid={testId} />,
+        );
 
-          const loadingCard = loadingWrapper.querySelector(
-            `[data-testid="${testId}"]`,
-          ) as HTMLElement;
+        const loadingCard = loadingWrapper.querySelector(
+          `[data-testid="${testId}"]`,
+        ) as HTMLElement;
 
-          // PROPERTY 1: Skeleton elements have explicit dimensions
-          assertSkeletonsHaveExplicitDimensions(loadingCard);
+        // PROPERTY 1: Skeleton elements have explicit dimensions
+        assertSkeletonsHaveExplicitDimensions(loadingCard);
 
-          // PROPERTY 2: Loading state signals aria-busy
-          expect(loadingCard.getAttribute('aria-busy')).toBe('true');
+        // PROPERTY 2: Loading state signals aria-busy
+        expect(loadingCard.getAttribute('aria-busy')).toBe('true');
 
-          // PROPERTY 3: data-state is "loading"
-          expect(loadingCard.getAttribute('data-state')).toBe('loading');
+        // PROPERTY 3: data-state is "loading"
+        expect(loadingCard.getAttribute('data-state')).toBe('loading');
 
-          cleanup();
+        cleanup();
 
-          // Render in loaded state
-          const regions = [{ id: 'r1', name: 'Region 1', value: 100 }];
-          const { container: loadedWrapper } = render(
-            <MapDrillDown
-              title={title}
-              regions={regions}
-              data-testid={testId}
-            />,
-          );
+        // Render in loaded state
+        const regions = [{ id: 'r1', name: 'Region 1', value: 100 }];
+        const { container: loadedWrapper } = render(
+          <MapDrillDown title={title} regions={regions} data-testid={testId} />,
+        );
 
-          const loadedCard = loadedWrapper.querySelector(
-            `[data-testid="${testId}"]`,
-          ) as HTMLElement;
+        const loadedCard = loadedWrapper.querySelector(`[data-testid="${testId}"]`) as HTMLElement;
 
-          // PROPERTY 4: Container structural consistency
-          assertContainerStructuralConsistency(loadingCard, loadedCard);
+        // PROPERTY 4: Container structural consistency
+        assertContainerStructuralConsistency(loadingCard, loadedCard);
 
-          // PROPERTY 5: Loaded state has data-state="ready"
-          expect(loadedCard.getAttribute('data-state')).toBe('ready');
-        },
-      ),
+        // PROPERTY 5: Loaded state has data-state="ready"
+        expect(loadedCard.getAttribute('data-state')).toBe('ready');
+      }),
       { numRuns: 50 },
     );
   });
@@ -421,12 +395,7 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
   it('all widgets: skeleton outer container class includes "overflow-hidden" to prevent CLS bleed', () => {
     fc.assert(
       fc.property(
-        fc.constantFrom(
-          'KpiCard',
-          'DataTableCard',
-          'MapDrillDown',
-          'WelcomeBanner',
-        ),
+        fc.constantFrom('KpiCard', 'DataTableCard', 'MapDrillDown', 'WelcomeBanner'),
         fc.string({ minLength: 1, maxLength: 40 }),
         (widgetType, label) => {
           cleanup();
@@ -436,9 +405,7 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
           switch (widgetType) {
             case 'KpiCard':
-              element = (
-                <KpiCard label={label} value="0" loading data-testid={testId} />
-              );
+              element = <KpiCard label={label} value="0" loading data-testid={testId} />;
               break;
             case 'DataTableCard':
               element = (
@@ -453,14 +420,7 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
               );
               break;
             case 'MapDrillDown':
-              element = (
-                <MapDrillDown
-                  title={label}
-                  regions={[]}
-                  loading
-                  data-testid={testId}
-                />
-              );
+              element = <MapDrillDown title={label} regions={[]} loading data-testid={testId} />;
               break;
             case 'WelcomeBanner':
               element = (
@@ -473,15 +433,11 @@ describe('Property F-8: Loading-State Skeleton and CLS', () => {
               );
               break;
             default:
-              element = (
-                <KpiCard label={label} value="0" loading data-testid={testId} />
-              );
+              element = <KpiCard label={label} value="0" loading data-testid={testId} />;
           }
 
           const { container } = render(element);
-          const card = container.querySelector(
-            `[data-testid="${testId}"]`,
-          ) as HTMLElement;
+          const card = container.querySelector(`[data-testid="${testId}"]`) as HTMLElement;
 
           // PROPERTY: The outer card container includes overflow-hidden
           // to prevent skeleton animation from bleeding outside bounds

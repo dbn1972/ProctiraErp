@@ -96,8 +96,8 @@ export function FileUploadStep({
       <div className="space-y-2">
         <h3 className="text-lg font-medium">Upload File</h3>
         <p className="text-sm text-muted-foreground">
-          Select an Excel (.xlsx, .xls) or CSV file containing student records to import.
-          Maximum file size: {formatFileSize(maxFileSize)}.
+          Select an Excel (.xlsx, .xls) or CSV file containing student records to import. Maximum
+          file size: {formatFileSize(maxFileSize)}.
         </p>
       </div>
 
@@ -122,7 +122,9 @@ export function FileUploadStep({
           }
         }}
       >
-        <span className="mb-3 text-4xl" aria-hidden="true">📄</span>
+        <span className="mb-3 text-4xl" aria-hidden="true">
+          📄
+        </span>
         <p className="text-sm font-medium">
           {dragOver ? 'Drop file here' : 'Click to browse or drag a file here'}
         </p>
@@ -159,7 +161,10 @@ export function FileUploadStep({
       {/* Processing indicator */}
       {isProcessing && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground" aria-live="polite">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
+          <span
+            className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+            aria-hidden="true"
+          />
           Analyzing file...
         </div>
       )}

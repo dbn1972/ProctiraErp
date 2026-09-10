@@ -137,8 +137,7 @@ function cronToHumanReadable(cron: string): string {
     return 'Runs weekly on Monday at midnight';
   if (hour !== '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*')
     return `Runs daily at ${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
-  if (minute !== '*' && hour === '*')
-    return `Runs every hour at minute ${minute}`;
+  if (minute !== '*' && hour === '*') return `Runs every hour at minute ${minute}`;
 
   return `Cron: ${cron}`;
 }
@@ -160,7 +159,13 @@ const INITIAL_FORM_DATA: PipelineFormData = {
     table: '',
   },
   fieldMappings: [
-    { id: generateMappingId(), sourceField: '', destinationField: '', transformation: 'none', transformConfig: '' },
+    {
+      id: generateMappingId(),
+      sourceField: '',
+      destinationField: '',
+      transformation: 'none',
+      transformConfig: '',
+    },
   ],
   schedule: '',
   schedulePreset: 'manual',
@@ -188,9 +193,7 @@ export default function PipelineBuilder() {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await browserGatewayFetch<PipelineResponse>(
-        `/etl/pipelines/${pipelineId}`,
-      );
+      const result = await browserGatewayFetch<PipelineResponse>(`/etl/pipelines/${pipelineId}`);
 
       // Determine schedule preset from cron
       let schedulePreset: SchedulePreset = 'custom';
@@ -280,9 +283,7 @@ export default function PipelineBuilder() {
   const handleMappingChange = (id: string, field: keyof FieldMapping, value: string) => {
     setFormData((prev) => ({
       ...prev,
-      fieldMappings: prev.fieldMappings.map((m) =>
-        m.id === id ? { ...m, [field]: value } : m,
-      ),
+      fieldMappings: prev.fieldMappings.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
     }));
   };
 
@@ -291,7 +292,13 @@ export default function PipelineBuilder() {
       ...prev,
       fieldMappings: [
         ...prev.fieldMappings,
-        { id: generateMappingId(), sourceField: '', destinationField: '', transformation: 'none', transformConfig: '' },
+        {
+          id: generateMappingId(),
+          sourceField: '',
+          destinationField: '',
+          transformation: 'none',
+          transformConfig: '',
+        },
       ],
     }));
   };
@@ -362,9 +369,7 @@ export default function PipelineBuilder() {
     <div className="p-6 space-y-6 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">
-          {isEditing ? 'Edit Pipeline' : 'New Pipeline'}
-        </h1>
+        <h1 className="text-2xl font-semibold">{isEditing ? 'Edit Pipeline' : 'New Pipeline'}</h1>
         <button
           onClick={() => navigate('/app/etl/pipelines')}
           className="rounded-md border border-input bg-background px-3 py-2 text-sm font-medium hover:bg-accent"
@@ -489,14 +494,18 @@ export default function PipelineBuilder() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">
-              {formData.destination.type === 'postgresql' ? 'Target Table' : 'Target Path / Endpoint'}
+              {formData.destination.type === 'postgresql'
+                ? 'Target Table'
+                : 'Target Path / Endpoint'}
             </label>
             <input
               type="text"
               value={formData.destination.table}
               onChange={(e) => handleDestinationChange('table', e.target.value)}
               placeholder={
-                formData.destination.type === 'postgresql' ? 'public.students_staging' : '/api/v1/import'
+                formData.destination.type === 'postgresql'
+                  ? 'public.students_staging'
+                  : '/api/v1/import'
               }
               required
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -535,7 +544,9 @@ export default function PipelineBuilder() {
                       <input
                         type="text"
                         value={mapping.sourceField}
-                        onChange={(e) => handleMappingChange(mapping.id, 'sourceField', e.target.value)}
+                        onChange={(e) =>
+                          handleMappingChange(mapping.id, 'sourceField', e.target.value)
+                        }
                         placeholder="source_column"
                         className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         aria-label="Source field name"
@@ -545,7 +556,9 @@ export default function PipelineBuilder() {
                       <input
                         type="text"
                         value={mapping.destinationField}
-                        onChange={(e) => handleMappingChange(mapping.id, 'destinationField', e.target.value)}
+                        onChange={(e) =>
+                          handleMappingChange(mapping.id, 'destinationField', e.target.value)
+                        }
                         placeholder="dest_column"
                         className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                         aria-label="Destination field name"
@@ -554,7 +567,9 @@ export default function PipelineBuilder() {
                     <td className="px-3 py-2">
                       <select
                         value={mapping.transformation}
-                        onChange={(e) => handleMappingChange(mapping.id, 'transformation', e.target.value)}
+                        onChange={(e) =>
+                          handleMappingChange(mapping.id, 'transformation', e.target.value)
+                        }
                         className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
                         aria-label="Transformation type"
                       >
@@ -570,7 +585,9 @@ export default function PipelineBuilder() {
                         <input
                           type="text"
                           value={mapping.transformConfig}
-                          onChange={(e) => handleMappingChange(mapping.id, 'transformConfig', e.target.value)}
+                          onChange={(e) =>
+                            handleMappingChange(mapping.id, 'transformConfig', e.target.value)
+                          }
                           placeholder='{"targetType": "integer"}'
                           className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                           aria-label="Transformation configuration"
@@ -658,7 +675,9 @@ export default function PipelineBuilder() {
                 max={60000}
                 step={100}
                 value={formData.retryPolicy.backoffMs}
-                onChange={(e) => handleRetryChange('backoffMs', parseInt(e.target.value, 10) || 1000)}
+                onChange={(e) =>
+                  handleRetryChange('backoffMs', parseInt(e.target.value, 10) || 1000)
+                }
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 aria-label="Backoff duration in milliseconds"
               />
@@ -666,7 +685,8 @@ export default function PipelineBuilder() {
           </div>
           <p className="text-sm text-muted-foreground">
             On failure, the pipeline will retry up to {formData.retryPolicy.maxRetries} time
-            {formData.retryPolicy.maxRetries !== 1 ? 's' : ''} with {formData.retryPolicy.backoffMs}ms exponential backoff.
+            {formData.retryPolicy.maxRetries !== 1 ? 's' : ''} with {formData.retryPolicy.backoffMs}
+            ms exponential backoff.
           </p>
         </section>
 

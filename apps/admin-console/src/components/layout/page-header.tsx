@@ -9,12 +9,7 @@ interface PageHeaderProps {
 }
 
 /** Standard page heading: title + optional subtitle + right-aligned actions. */
-export function PageHeader({
-  title,
-  description,
-  actions,
-  className,
-}: PageHeaderProps) {
+export function PageHeader({ title, description, actions, className }: PageHeaderProps) {
   return (
     <div
       className={cn(
@@ -23,12 +18,8 @@ export function PageHeader({
       )}
     >
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          {title}
-        </h1>
-        {description && (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        )}
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

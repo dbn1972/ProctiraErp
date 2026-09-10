@@ -15,10 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
-import {
-  InMemoryRolesRepository,
-  type BuiltInRoleSeed,
-} from './in-memory-roles-repository.js';
+import { InMemoryRolesRepository, type BuiltInRoleSeed } from './in-memory-roles-repository.js';
 import { RolesService, type RolesAuditEvent } from './roles-service.js';
 
 const BUILT_IN_SEED: BuiltInRoleSeed[] = [
@@ -142,9 +139,9 @@ describe('RolesService', () => {
     it('blocks updates to built-in roles', async () => {
       const { service, repo } = setup();
       const builtIn = (await repo.listRoles(TENANT)).find((r) => r.builtIn)!;
-      await expect(
-        service.updateRolePermissions(TENANT, builtIn.id, []),
-      ).rejects.toBeInstanceOf(BusinessRuleError);
+      await expect(service.updateRolePermissions(TENANT, builtIn.id, [])).rejects.toBeInstanceOf(
+        BusinessRuleError,
+      );
     });
 
     it('persists permission changes and emits a high-risk UPDATE event with full diff', async () => {
@@ -258,9 +255,9 @@ describe('RolesService', () => {
 
     it('throws NotFoundError when the user does not exist', async () => {
       const { service } = setup();
-      await expect(
-        service.assignRolesToUser(TENANT, 'ghost-user', []),
-      ).rejects.toBeInstanceOf(NotFoundError);
+      await expect(service.assignRolesToUser(TENANT, 'ghost-user', [])).rejects.toBeInstanceOf(
+        NotFoundError,
+      );
     });
   });
 

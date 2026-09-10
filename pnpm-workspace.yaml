@@ -1,11 +1,11 @@
 packages:
-  - "apps/*"
-  - "packages/shared/*"
-  - "packages/backend/*"
-  - "packages/ui/*"
-  - "packages/flutter-core/*"
-  - "packages/eslint-plugin-openemis"
+  - 'apps/*'
+  - 'packages/shared/*'
+  - 'packages/backend/*'
+  - 'packages/ui/*'
+  - 'packages/flutter-core/*'
+  - 'packages/eslint-plugin-openemis'
   # Note: directory kept as eslint-plugin-openemis, npm package renamed to eslint-plugin-proctira
-  - "plugins/*"
-  - "themes/*"
-  - "tools/*"
+  - 'plugins/*'
+  - 'themes/*'
+  - 'tools/*'

@@ -111,7 +111,10 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
                   name="queue-backend"
                   value={b}
                   checked={backend === b}
-                  onChange={() => { setBackend(b); setResult(null); }}
+                  onChange={() => {
+                    setBackend(b);
+                    setResult(null);
+                  }}
                   className="text-primary-700 focus:ring-primary-500"
                 />
                 <span className="text-sm font-medium">
@@ -126,7 +129,9 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
         {backend === 'kafka' && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor="kafka-brokers" className="label">Brokers (comma-separated)</label>
+              <label htmlFor="kafka-brokers" className="label">
+                Brokers (comma-separated)
+              </label>
               <input
                 id="kafka-brokers"
                 type="text"
@@ -137,7 +142,9 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="kafka-client" className="label">Client ID</label>
+              <label htmlFor="kafka-client" className="label">
+                Client ID
+              </label>
               <input
                 id="kafka-client"
                 type="text"
@@ -148,7 +155,9 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="kafka-group" className="label">Consumer Group ID</label>
+              <label htmlFor="kafka-group" className="label">
+                Consumer Group ID
+              </label>
               <input
                 id="kafka-group"
                 type="text"
@@ -174,7 +183,9 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
         {backend === 'rabbitmq' && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor="rmq-url" className="label">Connection URL</label>
+              <label htmlFor="rmq-url" className="label">
+                Connection URL
+              </label>
               <input
                 id="rmq-url"
                 type="text"
@@ -185,23 +196,34 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="rmq-exchange" className="label">Exchange Name</label>
+              <label htmlFor="rmq-exchange" className="label">
+                Exchange Name
+              </label>
               <input
                 id="rmq-exchange"
                 type="text"
                 className="input-field"
                 value={rabbitmqConfig.exchange}
-                onChange={(e) => setRabbitmqConfig((prev) => ({ ...prev, exchange: e.target.value }))}
+                onChange={(e) =>
+                  setRabbitmqConfig((prev) => ({ ...prev, exchange: e.target.value }))
+                }
                 placeholder="proctira"
               />
             </div>
             <div>
-              <label htmlFor="rmq-type" className="label">Exchange Type</label>
+              <label htmlFor="rmq-type" className="label">
+                Exchange Type
+              </label>
               <select
                 id="rmq-type"
                 className="select-field"
                 value={rabbitmqConfig.exchangeType}
-                onChange={(e) => setRabbitmqConfig((prev) => ({ ...prev, exchangeType: e.target.value as 'direct' | 'topic' | 'fanout' | 'headers' }))}
+                onChange={(e) =>
+                  setRabbitmqConfig((prev) => ({
+                    ...prev,
+                    exchangeType: e.target.value as 'direct' | 'topic' | 'fanout' | 'headers',
+                  }))
+                }
               >
                 <option value="topic">Topic</option>
                 <option value="direct">Direct</option>
@@ -216,7 +238,9 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
         {backend === 'sqs' && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="sqs-region" className="label">AWS Region</label>
+              <label htmlFor="sqs-region" className="label">
+                AWS Region
+              </label>
               <input
                 id="sqs-region"
                 type="text"
@@ -227,18 +251,24 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="sqs-prefix" className="label">Queue URL Prefix</label>
+              <label htmlFor="sqs-prefix" className="label">
+                Queue URL Prefix
+              </label>
               <input
                 id="sqs-prefix"
                 type="text"
                 className="input-field"
                 value={sqsConfig.queueUrlPrefix}
-                onChange={(e) => setSqsConfig((prev) => ({ ...prev, queueUrlPrefix: e.target.value }))}
+                onChange={(e) =>
+                  setSqsConfig((prev) => ({ ...prev, queueUrlPrefix: e.target.value }))
+                }
                 placeholder="https://sqs.us-east-1.amazonaws.com/..."
               />
             </div>
             <div>
-              <label htmlFor="sqs-key" className="label">Access Key ID (optional)</label>
+              <label htmlFor="sqs-key" className="label">
+                Access Key ID (optional)
+              </label>
               <input
                 id="sqs-key"
                 type="text"
@@ -249,18 +279,24 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="sqs-secret" className="label">Secret Access Key (optional)</label>
+              <label htmlFor="sqs-secret" className="label">
+                Secret Access Key (optional)
+              </label>
               <input
                 id="sqs-secret"
                 type="password"
                 className="input-field"
                 value={sqsConfig.secretAccessKey}
-                onChange={(e) => setSqsConfig((prev) => ({ ...prev, secretAccessKey: e.target.value }))}
+                onChange={(e) =>
+                  setSqsConfig((prev) => ({ ...prev, secretAccessKey: e.target.value }))
+                }
                 placeholder="••••••••"
               />
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="sqs-endpoint" className="label">Custom Endpoint (optional, for LocalStack)</label>
+              <label htmlFor="sqs-endpoint" className="label">
+                Custom Endpoint (optional, for LocalStack)
+              </label>
               <input
                 id="sqs-endpoint"
                 type="text"
@@ -289,12 +325,7 @@ export function QueueStep({ onComplete, onBack }: QueueStepProps) {
           <button type="button" onClick={onBack} className="btn-secondary">
             Back
           </button>
-          <button
-            type="button"
-            onClick={handleTest}
-            disabled={testing}
-            className="btn-primary"
-          >
+          <button type="button" onClick={handleTest} disabled={testing} className="btn-primary">
             {testing ? (
               <>
                 <LoadingSpinner />
@@ -314,7 +345,11 @@ function LoadingSpinner() {
   return (
     <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }

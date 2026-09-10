@@ -56,7 +56,12 @@ export function CreateThreadForm({ studentIds }: { studentIds: string[] }) {
         <CardDescription>Start a conversation with school staff.</CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" noValidate onSubmit={onSubmit} aria-label="Create message thread">
+        <form
+          className="space-y-4"
+          noValidate
+          onSubmit={onSubmit}
+          aria-label="Create message thread"
+        >
           <FormField id="thread-student" label="Student ID" required>
             {studentIds.length > 0 ? (
               <select

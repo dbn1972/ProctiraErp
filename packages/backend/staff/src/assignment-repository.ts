@@ -45,10 +45,16 @@ export interface StaffAssignmentFilter {
  */
 export interface StaffAssignmentRepository {
   /** Create a new staff assignment */
-  create(data: Omit<StaffAssignmentEntity, 'createdAt' | 'updatedAt'>): Promise<StaffAssignmentEntity>;
+  create(
+    data: Omit<StaffAssignmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StaffAssignmentEntity>;
 
   /** Update an existing staff assignment */
-  update(id: string, tenantId: string, data: Partial<StaffAssignmentEntity>): Promise<StaffAssignmentEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<StaffAssignmentEntity>,
+  ): Promise<StaffAssignmentEntity | null>;
 
   /** Find an assignment by ID within a tenant */
   findById(id: string, tenantId: string): Promise<StaffAssignmentEntity | null>;

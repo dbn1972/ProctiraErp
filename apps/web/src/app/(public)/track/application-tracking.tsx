@@ -80,9 +80,7 @@ export function ApplicationTracking({
       setValidationError(null);
       setView({ kind: 'loading' });
 
-      const call = fetcher
-        ? fetcher(trimmed)
-        : getApplicationByTrackingNumber(trimmed);
+      const call = fetcher ? fetcher(trimmed) : getApplicationByTrackingNumber(trimmed);
       const result = await call;
 
       if (result.kind === 'ok') {
@@ -122,9 +120,7 @@ export function ApplicationTracking({
             data-testid="tracking-form"
           >
             <div className="space-y-2">
-              <Label htmlFor={inputId}>
-                {t('tracking.trackingNumberLabel')}
-              </Label>
+              <Label htmlFor={inputId}>{t('tracking.trackingNumberLabel')}</Label>
               <Input
                 id={inputId}
                 name="trackingNumber"
@@ -138,33 +134,20 @@ export function ApplicationTracking({
                 required
                 aria-required="true"
                 aria-invalid={validationError !== null}
-                aria-describedby={
-                  validationError ? `${inputId}-error` : undefined
-                }
+                aria-describedby={validationError ? `${inputId}-error` : undefined}
                 disabled={isLoading}
                 className="h-12 min-h-12"
               />
               {validationError !== null && (
-                <p
-                  id={`${inputId}-error`}
-                  role="alert"
-                  className="text-sm text-destructive"
-                >
+                <p id={`${inputId}-error`} role="alert" className="text-sm text-destructive">
                   {validationError}
                 </p>
               )}
             </div>
 
-            <Button
-              type="submit"
-              className="mt-4 w-full"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="mt-4 w-full" disabled={isLoading}>
               {isLoading ? (
-                <Loader2
-                  className="me-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
+                <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
               ) : (
                 <Search className="me-2 h-4 w-4" aria-hidden="true" />
               )}
@@ -201,9 +184,7 @@ function ResultView({ data }: { data: ApplicationTrackingResult }): JSX.Element 
       <CardContent className="space-y-6 p-6">
         <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-mono text-xs text-muted-foreground">
-              #{data.trackingNumber}
-            </p>
+            <p className="font-mono text-xs text-muted-foreground">#{data.trackingNumber}</p>
             <h2 className="mt-1 text-xl font-semibold text-foreground">
               {t('tracking.currentStatus')}
             </h2>
@@ -212,23 +193,12 @@ function ResultView({ data }: { data: ApplicationTrackingResult }): JSX.Element 
         </header>
 
         <dl className="grid gap-4 text-sm sm:grid-cols-2">
-          {data.currentStep && (
-            <Field
-              label={t('tracking.currentStep')}
-              value={data.currentStep}
-            />
-          )}
+          {data.currentStep && <Field label={t('tracking.currentStep')} value={data.currentStep} />}
           {data.submittedAt && (
-            <Field
-              label={t('tracking.submittedAt')}
-              value={formatTimestamp(data.submittedAt)}
-            />
+            <Field label={t('tracking.submittedAt')} value={formatTimestamp(data.submittedAt)} />
           )}
           {data.updatedAt && (
-            <Field
-              label={t('tracking.lastUpdated')}
-              value={formatTimestamp(data.updatedAt)}
-            />
+            <Field label={t('tracking.lastUpdated')} value={formatTimestamp(data.updatedAt)} />
           )}
           {data.expectedCompletionAt && (
             <Field
@@ -250,13 +220,7 @@ function ResultView({ data }: { data: ApplicationTrackingResult }): JSX.Element 
   );
 }
 
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}): JSX.Element {
+function Section({ title, children }: { title: string; children: React.ReactNode }): JSX.Element {
   return (
     <section>
       <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -270,9 +234,7 @@ function Section({
 function Field({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
+      <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-sm text-foreground">{value}</dd>
     </div>
   );
@@ -296,9 +258,7 @@ const STATUS_VARIANTS: Record<string, StatusVariant> = {
 function StatusBadge({ status }: { status: ApplicationStatus }): JSX.Element {
   const { t } = useLanguage();
   const variant = STATUS_VARIANTS[status];
-  const label = variant
-    ? t(variant.labelKey)
-    : t('tracking.statusUnknown', { status });
+  const label = variant ? t(variant.labelKey) : t('tracking.statusUnknown', { status });
   return (
     <Badge variant={variant?.variant ?? 'outline'} data-testid="status-badge">
       {label}
@@ -308,11 +268,7 @@ function StatusBadge({ status }: { status: ApplicationStatus }): JSX.Element {
 
 // ─── Timeline ──────────────────────────────────────────────────────────────
 
-function Timeline({
-  entries,
-}: {
-  entries: ApplicationStatusHistoryEntry[];
-}): JSX.Element {
+function Timeline({ entries }: { entries: ApplicationStatusHistoryEntry[] }): JSX.Element {
   const { t } = useLanguage();
 
   // Sort newest → oldest for display so the most recent change is at top.
@@ -329,20 +285,14 @@ function Timeline({
 
   if (entries.length === 0) {
     return (
-      <p
-        className="text-sm text-muted-foreground"
-        data-testid="history-empty"
-      >
+      <p className="text-sm text-muted-foreground" data-testid="history-empty">
         {t('tracking.historyEmpty')}
       </p>
     );
   }
 
   return (
-    <ol
-      className="relative space-y-4 border-s border-border ps-6"
-      data-testid="history-timeline"
-    >
+    <ol className="relative space-y-4 border-s border-border ps-6" data-testid="history-timeline">
       {sorted.map((entry, index) => (
         <TimelineItem
           // Timestamp + status is sufficiently unique within an applicant's
@@ -355,11 +305,7 @@ function Timeline({
   );
 }
 
-function TimelineItem({
-  entry,
-}: {
-  entry: ApplicationStatusHistoryEntry;
-}): JSX.Element {
+function TimelineItem({ entry }: { entry: ApplicationStatusHistoryEntry }): JSX.Element {
   const { t } = useLanguage();
   const variant = STATUS_VARIANTS[entry.status];
   const label = variant
@@ -375,21 +321,12 @@ function TimelineItem({
       <div className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">{label}</span>
-          {entry.actor && (
-            <span className="text-xs text-muted-foreground">
-              · {entry.actor}
-            </span>
-          )}
+          {entry.actor && <span className="text-xs text-muted-foreground">· {entry.actor}</span>}
         </div>
-        <time
-          dateTime={entry.timestamp}
-          className="text-xs text-muted-foreground"
-        >
+        <time dateTime={entry.timestamp} className="text-xs text-muted-foreground">
           {formatTimestamp(entry.timestamp)}
         </time>
-        {entry.note && (
-          <p className="text-sm text-muted-foreground">{entry.note}</p>
-        )}
+        {entry.note && <p className="text-sm text-muted-foreground">{entry.note}</p>}
       </div>
     </li>
   );
@@ -397,19 +334,12 @@ function TimelineItem({
 
 // ─── Follow-up actions ─────────────────────────────────────────────────────
 
-function FollowUpList({
-  actions,
-}: {
-  actions: ApplicationFollowUpAction[];
-}): JSX.Element {
+function FollowUpList({ actions }: { actions: ApplicationFollowUpAction[] }): JSX.Element {
   const { t } = useLanguage();
 
   if (actions.length === 0) {
     return (
-      <p
-        className="text-sm text-muted-foreground"
-        data-testid="follow-up-empty"
-      >
+      <p className="text-sm text-muted-foreground" data-testid="follow-up-empty">
         {t('tracking.followUpEmpty')}
       </p>
     );
@@ -424,10 +354,7 @@ function FollowUpList({
         >
           <p className="font-medium">{action.message}</p>
           {action.dueAt && (
-            <time
-              dateTime={action.dueAt}
-              className="mt-1 block text-xs text-amber-700"
-            >
+            <time dateTime={action.dueAt} className="mt-1 block text-xs text-amber-700">
               {formatTimestamp(action.dueAt)}
             </time>
           )}

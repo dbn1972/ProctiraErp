@@ -1,0 +1,54 @@
+# =============================================================================
+# CODEOWNERS — ProctiraERP (G-726)
+# =============================================================================
+# Later rules win. Every path below requires a review from the listed team
+# before merge once branch protection enables "Require review from Code Owners".
+# Teams are GitHub teams under the repository owner's org; adjust slugs when the
+# org is created. Until then the repository owner is the fallback.
+# =============================================================================
+
+*                                         @dbn1972
+
+# ---- Platform / security-sensitive ------------------------------------------
+apps/api-gateway/                         @dbn1972
+packages/shared/auth/                     @dbn1972
+packages/shared/tenant/                   @dbn1972
+packages/shared/secrets/                  @dbn1972
+packages/backend/auth/                    @dbn1972
+packages/backend/tenant/                  @dbn1972
+packages/backend/policy/                  @dbn1972
+packages/backend/audit/                   @dbn1972
+
+# ---- Data layer (schema, RLS, migrations) -----------------------------------
+db/sql/                                   @dbn1972
+packages/shared/database/                 @dbn1972
+tools/scripts/apply-sql.sh                @dbn1972
+tools/scripts/pg-backup.sh                @dbn1972
+tools/scripts/pg-restore.sh               @dbn1972
+tools/scripts/restore-drill.sh            @dbn1972
+
+# ---- PHI / regulated domains -------------------------------------------------
+packages/backend/health/                  @dbn1972
+packages/backend/fees/                    @dbn1972
+packages/backend/billing/                 @dbn1972
+packages/backend/scholarship/             @dbn1972
+
+# ---- CI / CD / infrastructure -------------------------------------------------
+.github/                                  @dbn1972
+infrastructure/                           @dbn1972
+tools/supply-chain/                       @dbn1972
+tools/scripts/audit-gate.mjs              @dbn1972
+
+# ---- Product surfaces ---------------------------------------------------------
+apps/web/                                 @dbn1972
+apps/admin-console/                       @dbn1972
+apps/registration-portal/                 @dbn1972
+apps/public-website/                      @dbn1972
+apps/developer-portal/                    @dbn1972
+apps/install-wizard/                      @dbn1972
+apps/mobile/                              @dbn1972
+
+# ---- Governance docs ----------------------------------------------------------
+docs/audits/                              @dbn1972
+docs/runbooks/                            @dbn1972
+CHANGELOG.md                              @dbn1972

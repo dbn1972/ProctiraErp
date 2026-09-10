@@ -38,10 +38,7 @@ import {
 // Stub the query hook with a synchronous response so the page renders the
 // loaded state on first paint. Each test re-imports the page via
 // `await import()` so this mock applies before module evaluation.
-const useCountryDashboardDataMock = vi.fn<
-  [],
-  DashboardQueryResult<CountryDashboardData>
->();
+const useCountryDashboardDataMock = vi.fn<[], DashboardQueryResult<CountryDashboardData>>();
 
 vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
@@ -52,9 +49,7 @@ vi.mock('../api', async (importActual) => {
 });
 
 async function renderPage() {
-  const { default: CountryDashboard } = await import(
-    '../pages/CountryDashboard'
-  );
+  const { default: CountryDashboard } = await import('../pages/CountryDashboard');
   return render(
     <MemoryRouter initialEntries={['/app/dashboard/country']}>
       <Routes>
@@ -88,17 +83,11 @@ describe('<CountryDashboard>', () => {
     expect(screen.getByTestId('country-kpi-pass-rate')).toBeTruthy();
     expect(screen.getByTestId('country-kpi-gpi')).toBeTruthy();
 
+    expect(within(screen.getByTestId('country-kpi-schools')).getByText('Schools')).toBeTruthy();
     expect(
-      within(screen.getByTestId('country-kpi-schools')).getByText('Schools'),
+      within(screen.getByTestId('country-kpi-attendance')).getByText('Attendance'),
     ).toBeTruthy();
-    expect(
-      within(screen.getByTestId('country-kpi-attendance')).getByText(
-        'Attendance',
-      ),
-    ).toBeTruthy();
-    expect(
-      within(screen.getByTestId('country-kpi-gpi')).getByText('GPI'),
-    ).toBeTruthy();
+    expect(within(screen.getByTestId('country-kpi-gpi')).getByText('GPI')).toBeTruthy();
   });
 
   it('renders the board-wise summary and state drill-down tables', async () => {
@@ -135,9 +124,7 @@ describe('<CountryDashboard>', () => {
     expect(row).not.toBeNull();
     fireEvent.click(row!);
 
-    await waitFor(() =>
-      expect(screen.getByTestId('state-page')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('state-page')).toBeTruthy());
   });
 
   it('shows skeleton placeholders while the query is loading', async () => {
@@ -151,9 +138,7 @@ describe('<CountryDashboard>', () => {
 
     // The DashboardSection paints a `data-state="loading"` skeleton row
     // until the query resolves; assert the section element flips state.
-    const sections = document.querySelectorAll(
-      '[data-testid="dashboard-section-skeleton"]',
-    );
+    const sections = document.querySelectorAll('[data-testid="dashboard-section-skeleton"]');
     expect(sections.length).toBeGreaterThan(0);
   });
 });

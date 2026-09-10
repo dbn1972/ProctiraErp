@@ -22,18 +22,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
   const { email, password } = body;
   if (!email || !password) {
-    return NextResponse.json(
-      { message: 'Email and password are required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Email and password are required.' }, { status: 400 });
   }
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';
@@ -52,8 +46,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json(
       {
-        message:
-          'The authentication service is currently unavailable. Please try again shortly.',
+        message: 'The authentication service is currently unavailable. Please try again shortly.',
       },
       { status: 503 },
     );
@@ -97,18 +90,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn),
+    accessTokenCookieOptions(data.tokens.expiresIn, request),
   );
   response.cookies.set(
     AUTH_COOKIES.REFRESH_TOKEN,
     data.tokens.refreshToken,
-    refreshTokenCookieOptions(),
+    refreshTokenCookieOptions(undefined, request),
   );
   if (data.session?.id) {
     response.cookies.set(
       AUTH_COOKIES.SESSION_ID,
       data.session.id,
-      accessTokenCookieOptions(),
+      accessTokenCookieOptions(undefined, request),
     );
   }
   return response;

@@ -7,7 +7,7 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey, listKey } from '@proctira/cache';
+import { tenantKey, listKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
@@ -25,7 +25,9 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     private readonly cache?: CacheClient,
   ) {}
 
-  async create(data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>): Promise<InstitutionEntity> {
+  async create(
+    data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<InstitutionEntity> {
     const result = await this.delegate.create(data);
     if (this.cache) {
       // Invalidate area-based list caches for this tenant
@@ -34,7 +36,11 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     return result;
   }
 
-  async update(id: string, tenantId: string, data: Partial<InstitutionEntity>): Promise<InstitutionEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<InstitutionEntity>,
+  ): Promise<InstitutionEntity | null> {
     const result = await this.delegate.update(id, tenantId, data);
     if (result && this.cache) {
       // Invalidate the entity cache and area-based list caches
@@ -51,11 +57,12 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     }
 
     const key = tenantKey(tenantId, 'institution', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findById(id, tenantId),
       INSTITUTION_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async findByCode(code: string): Promise<InstitutionEntity | null> {
@@ -63,7 +70,11 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     return this.delegate.findByCode(code);
   }
 
-  async findByNameInArea(name: string, areaId: string, tenantId: string): Promise<InstitutionEntity | null> {
+  async findByNameInArea(
+    name: string,
+    areaId: string,
+    tenantId: string,
+  ): Promise<InstitutionEntity | null> {
     // Name-in-area lookups are not cached (used for uniqueness checks during writes)
     return this.delegate.findByNameInArea(name, areaId, tenantId);
   }
@@ -80,11 +91,12 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     // Cache area-filtered list queries with a deterministic hash
     const filterHash = JSON.stringify({ ...filter, ...pagination });
     const key = listKey(tenantId, 'institution', filterHash);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.list(tenantId, filter, pagination),
       INSTITUTION_TTL_SECONDS,
     );
+    return { ...cached, data: reviveDates(cached.data) };
   }
 
   async countActiveEnrollments(institutionId: string, tenantId: string): Promise<number> {

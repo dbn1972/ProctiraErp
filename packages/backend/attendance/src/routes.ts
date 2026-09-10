@@ -25,14 +25,12 @@ import {
   ClassRosterQuerySchema,
   AttendancePercentageQuerySchema,
   AbsenceThresholdCheckQuerySchema,
-  AttendanceAuditQuerySchema,
   type RecordStudentAttendanceInput,
   type RecordBulkStudentAttendanceInput,
   type RecordStaffAttendanceInput,
   type ClassRosterQuery,
   type AttendancePercentageQueryInput,
   type AbsenceThresholdCheckQueryInput,
-  type AttendanceAuditQueryInput,
 } from './schemas.js';
 
 /**
@@ -147,7 +145,8 @@ export async function registerAttendanceRoutes(
       }
 
       // Use authenticated user ID or fallback
-      const recordedBy = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
+      const recordedBy =
+        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
 
       try {
         const record = await attendanceService.recordStudentAttendance(
@@ -194,7 +193,8 @@ export async function registerAttendanceRoutes(
         });
       }
 
-      const recordedBy = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
+      const recordedBy =
+        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
 
       try {
         const bulkResult = await attendanceService.recordBulkStudentAttendance(
@@ -250,7 +250,8 @@ export async function registerAttendanceRoutes(
         });
       }
 
-      const recordedBy = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
+      const recordedBy =
+        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'system';
 
       try {
         const record = await attendanceService.recordStaffAttendance(
@@ -465,7 +466,7 @@ export async function registerAttendanceRoutes(
       const { attendanceId } = request.params;
 
       try {
-        const auditTrail = await attendanceService.getAttendanceAuditTrail(attendanceId);
+        const auditTrail = await attendanceService.getAttendanceAuditTrail(attendanceId, tenantId);
         return reply.status(200).send({ data: auditTrail });
       } catch (error: unknown) {
         if (error instanceof AppError) {

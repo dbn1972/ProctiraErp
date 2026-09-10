@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type {
@@ -19,7 +20,7 @@ import type {
 
 const { Pool } = pg;
 
-export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'>;
+export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -131,6 +132,15 @@ function mapEmergencyRow(row: Record<string, unknown>): EmergencyBlastEntity {
 export class PgCommunicationRepository implements CommunicationRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
+  /** G-710: every query runs with the tenant GUC bound so RLS applies. */
+  private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
+    return withPgTenant(
+      this.pool,
+      tenantId,
+      (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    );
+  }
+
   async ensureSchema(): Promise<void> {
     await ensureCommunicationSchema(this.pool);
   }
@@ -139,7 +149,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
     data: Omit<CampaignEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<CampaignEntity> {
     await this.ensureSchema();
-    const result = await this.pool.query(
+    const result = await this.query(
+      data.tenantId,
       `INSERT INTO comms_campaigns (
          id, tenant_id, name, status, channels, body, audience_json,
          scheduled_at, sent_at, created_by
@@ -163,7 +174,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
 
   async listCampaigns(tenantId: string): Promise<CampaignEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
+    const result = await this.query(
+      tenantId,
       `SELECT * FROM comms_campaigns WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
@@ -172,7 +184,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
 
   async findCampaignById(id: string, tenantId: string): Promise<CampaignEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
+    const result = await this.query(
+      tenantId,
       `SELECT * FROM comms_campaigns WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
@@ -210,7 +223,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
     sets.push(`updated_at = now()`);
     values.push(id, tenantId);
 
-    const result = await this.pool.query(
+    const result = await this.query(
+      tenantId,
       `UPDATE comms_campaigns
        SET ${sets.join(', ')}
        WHERE id = $${i++} AND tenant_id = $${i}
@@ -225,7 +239,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
     data: Omit<EmergencyBlastEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<EmergencyBlastEntity> {
     await this.ensureSchema();
-    const result = await this.pool.query(
+    const result = await this.query(
+      data.tenantId,
       `INSERT INTO comms_emergency_blasts (
          id, tenant_id, reason, channels, status,
          confirm_actor_1, confirm_actor_2, confirmed_at, created_by
@@ -248,7 +263,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
 
   async listEmergencyBlasts(tenantId: string): Promise<EmergencyBlastEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
+    const result = await this.query(
+      tenantId,
       `SELECT * FROM comms_emergency_blasts WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
@@ -257,7 +273,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
 
   async findEmergencyBlastById(id: string, tenantId: string): Promise<EmergencyBlastEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
+    const result = await this.query(
+      tenantId,
       `SELECT * FROM comms_emergency_blasts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
@@ -301,7 +318,8 @@ export class PgCommunicationRepository implements CommunicationRepository {
     sets.push(`updated_at = now()`);
     values.push(id, tenantId);
 
-    const result = await this.pool.query(
+    const result = await this.query(
+      tenantId,
       `UPDATE comms_emergency_blasts
        SET ${sets.join(', ')}
        WHERE id = $${i++} AND tenant_id = $${i}

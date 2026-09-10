@@ -67,10 +67,10 @@ const authUserArb: fc.Arbitrary<AuthUser> = fc.record({
   roles: fc.array(
     fc.record({
       roleId: fc.uuid(),
-      roleName: fc.stringOf(
-        fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz_'.split('')),
-        { minLength: 3, maxLength: 15 },
-      ),
+      roleName: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz_'.split('')), {
+        minLength: 3,
+        maxLength: 15,
+      }),
       areaId: fc.uuid(),
     }),
     { minLength: 0, maxLength: 3 },
@@ -112,7 +112,9 @@ function createTestJwtSigner(): JwtSigner {
 /**
  * In-memory refresh token store for property testing.
  */
-function createInMemoryRefreshTokenStore(): RefreshTokenStore & { tokens: Map<string, RefreshToken> } {
+function createInMemoryRefreshTokenStore(): RefreshTokenStore & {
+  tokens: Map<string, RefreshToken>;
+} {
   const tokens = new Map<string, RefreshToken>();
 
   return {
@@ -259,7 +261,14 @@ describe('Property 5: Account Lockout on Consecutive Failures', () => {
         userIdArb,
         tenantIdArb,
         fc.integer({ min: 1, max: 9 }),
-        async (threshold, windowSeconds, durationSeconds, userId, tenantId, failuresBeforeSuccess) => {
+        async (
+          threshold,
+          windowSeconds,
+          durationSeconds,
+          userId,
+          tenantId,
+          failuresBeforeSuccess,
+        ) => {
           // Ensure failuresBeforeSuccess is less than threshold
           const actualFailures = Math.min(failuresBeforeSuccess, threshold - 1);
 
@@ -416,216 +425,197 @@ describe('Property 7: Session Invalidation on Logout or Token Revocation', () =>
 
   it('after logout, the session is invalidated and refresh tokens are revoked', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        sessionIdArb,
-        async (user, sessionId) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTestJwtSigner();
-          const refreshStore = createInMemoryRefreshTokenStore();
-          const sessionStore = createInMemorySessionStore();
-          const tokenService = new TokenService(config, jwtSigner, refreshStore);
-          const sessionService = new SessionService(config, sessionStore);
+      fc.asyncProperty(authUserArb, sessionIdArb, async (user, sessionId) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTestJwtSigner();
+        const refreshStore = createInMemoryRefreshTokenStore();
+        const sessionStore = createInMemorySessionStore();
+        const tokenService = new TokenService(config, jwtSigner, refreshStore);
+        const sessionService = new SessionService(config, sessionStore);
 
-          // Create a session and issue tokens
-          const session = await sessionService.createSession(user.userId, user.tenantId);
-          const tokenPair = await tokenService.issueTokenPair(user, session.id);
+        // Create a session and issue tokens
+        const session = await sessionService.createSession(user.userId, user.tenantId);
+        const tokenPair = await tokenService.issueTokenPair(user, session.id);
 
-          // Verify session is active before logout
-          const validatedBefore = await sessionService.validateSession(session.id);
-          expect(validatedBefore).not.toBeNull();
-          expect(validatedBefore!.isActive).toBe(true);
+        // Verify session is active before logout
+        const validatedBefore = await sessionService.validateSession(session.id);
+        expect(validatedBefore).not.toBeNull();
+        expect(validatedBefore!.isActive).toBe(true);
 
-          // Perform logout: invalidate session and revoke all session tokens
-          await sessionService.invalidateSession(session.id);
-          await tokenService.revokeAllSessionTokens(session.id, 'User logout');
+        // Perform logout: invalidate session and revoke all session tokens
+        await sessionService.invalidateSession(session.id);
+        await tokenService.revokeAllSessionTokens(session.id, 'User logout');
 
-          // Session should be invalidated
-          const validatedAfter = await sessionService.validateSession(session.id);
-          expect(validatedAfter).toBeNull();
+        // Session should be invalidated
+        const validatedAfter = await sessionService.validateSession(session.id);
+        expect(validatedAfter).toBeNull();
 
-          // Refresh token should be revoked
-          const storedRefreshToken = refreshStore.tokens.get(tokenPair.refreshToken);
-          expect(storedRefreshToken).toBeDefined();
-          expect(storedRefreshToken!.revoked).toBe(true);
-          expect(storedRefreshToken!.revokedReason).toBe('User logout');
-        },
-      ),
+        // Refresh token should be revoked
+        const storedRefreshToken = refreshStore.tokens.get(tokenPair.refreshToken);
+        expect(storedRefreshToken).toBeDefined();
+        expect(storedRefreshToken!.revoked).toBe(true);
+        expect(storedRefreshToken!.revokedReason).toBe('User logout');
+      }),
       { numRuns: 100 },
     );
   });
 
   it('after logout, attempting to refresh with the revoked token fails', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        async (user) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTestJwtSigner();
-          const refreshStore = createInMemoryRefreshTokenStore();
-          const sessionStore = createInMemorySessionStore();
-          const tokenService = new TokenService(config, jwtSigner, refreshStore);
-          const sessionService = new SessionService(config, sessionStore);
+      fc.asyncProperty(authUserArb, async (user) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTestJwtSigner();
+        const refreshStore = createInMemoryRefreshTokenStore();
+        const sessionStore = createInMemorySessionStore();
+        const tokenService = new TokenService(config, jwtSigner, refreshStore);
+        const sessionService = new SessionService(config, sessionStore);
 
-          // Create session and issue tokens
-          const session = await sessionService.createSession(user.userId, user.tenantId);
-          const tokenPair = await tokenService.issueTokenPair(user, session.id);
+        // Create session and issue tokens
+        const session = await sessionService.createSession(user.userId, user.tenantId);
+        const tokenPair = await tokenService.issueTokenPair(user, session.id);
 
-          // Logout
-          await sessionService.invalidateSession(session.id);
-          await tokenService.revokeAllSessionTokens(session.id, 'User logout');
+        // Logout
+        await sessionService.invalidateSession(session.id);
+        await tokenService.revokeAllSessionTokens(session.id, 'User logout');
 
-          // Attempting to refresh with the revoked token must fail
-          await expect(
-            tokenService.refreshTokenPair(tokenPair.refreshToken, user),
-          ).rejects.toThrow(InvalidRefreshTokenError);
-        },
-      ),
+        // Attempting to refresh with the revoked token must fail
+        await expect(tokenService.refreshTokenPair(tokenPair.refreshToken, user)).rejects.toThrow(
+          InvalidRefreshTokenError,
+        );
+      }),
       { numRuns: 100 },
     );
   });
 
   it('expired refresh token triggers rejection and invalidation of all session tokens', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        sessionIdArb,
-        async (user, sessionId) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTestJwtSigner();
-          const refreshStore = createInMemoryRefreshTokenStore();
-          const tokenService = new TokenService(config, jwtSigner, refreshStore);
+      fc.asyncProperty(authUserArb, sessionIdArb, async (user, sessionId) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTestJwtSigner();
+        const refreshStore = createInMemoryRefreshTokenStore();
+        const tokenService = new TokenService(config, jwtSigner, refreshStore);
 
-          // Issue a token pair
-          const tokenPair = await tokenService.issueTokenPair(user, sessionId);
+        // Issue a token pair
+        const tokenPair = await tokenService.issueTokenPair(user, sessionId);
 
-          // Issue a second token pair for the same session (simulating a refresh)
-          const secondPair = await tokenService.issueTokenPair(user, sessionId);
+        // Issue a second token pair for the same session (simulating a refresh)
+        const secondPair = await tokenService.issueTokenPair(user, sessionId);
 
-          // Manually expire the first refresh token
-          const storedToken = refreshStore.tokens.get(tokenPair.refreshToken);
-          storedToken!.expiresAt = new Date(Date.now() - 1000);
+        // Manually expire the first refresh token
+        const storedToken = refreshStore.tokens.get(tokenPair.refreshToken);
+        storedToken!.expiresAt = new Date(Date.now() - 1000);
 
-          // Attempting to refresh with the expired token must fail
-          await expect(
-            tokenService.refreshTokenPair(tokenPair.refreshToken, user),
-          ).rejects.toThrow(InvalidRefreshTokenError);
+        // Attempting to refresh with the expired token must fail
+        await expect(tokenService.refreshTokenPair(tokenPair.refreshToken, user)).rejects.toThrow(
+          InvalidRefreshTokenError,
+        );
 
-          // All tokens for that session should be revoked
-          for (const [, token] of refreshStore.tokens) {
-            if (token.sessionId === sessionId) {
-              expect(token.revoked).toBe(true);
-            }
+        // All tokens for that session should be revoked
+        for (const [, token] of refreshStore.tokens) {
+          if (token.sessionId === sessionId) {
+            expect(token.revoked).toBe(true);
           }
-        },
-      ),
+        }
+      }),
       { numRuns: 100 },
     );
   });
 
   it('revoked refresh token triggers rejection and invalidation of all session tokens', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        sessionIdArb,
-        async (user, sessionId) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTestJwtSigner();
-          const refreshStore = createInMemoryRefreshTokenStore();
-          const tokenService = new TokenService(config, jwtSigner, refreshStore);
+      fc.asyncProperty(authUserArb, sessionIdArb, async (user, sessionId) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTestJwtSigner();
+        const refreshStore = createInMemoryRefreshTokenStore();
+        const tokenService = new TokenService(config, jwtSigner, refreshStore);
 
-          // Issue initial token pair and then refresh (creating a rotated token)
-          const original = await tokenService.issueTokenPair(user, sessionId);
-          const refreshed = await tokenService.refreshTokenPair(original.refreshToken, user);
+        // Issue initial token pair and then refresh (creating a rotated token)
+        const original = await tokenService.issueTokenPair(user, sessionId);
+        const refreshed = await tokenService.refreshTokenPair(original.refreshToken, user);
 
-          // The original refresh token is now revoked (rotated)
-          // Attempting to reuse it should fail and invalidate all session tokens
-          await expect(
-            tokenService.refreshTokenPair(original.refreshToken, user),
-          ).rejects.toThrow(InvalidRefreshTokenError);
+        // The original refresh token is now revoked (rotated)
+        // Attempting to reuse it should fail and invalidate all session tokens
+        await expect(tokenService.refreshTokenPair(original.refreshToken, user)).rejects.toThrow(
+          InvalidRefreshTokenError,
+        );
 
-          // All tokens for the session should be revoked (including the new one)
-          for (const [, token] of refreshStore.tokens) {
-            if (token.sessionId === sessionId) {
-              expect(token.revoked).toBe(true);
-            }
+        // All tokens for the session should be revoked (including the new one)
+        for (const [, token] of refreshStore.tokens) {
+          if (token.sessionId === sessionId) {
+            expect(token.revoked).toBe(true);
           }
-        },
-      ),
+        }
+      }),
       { numRuns: 100 },
     );
   });
 
   it('multiple sessions for the same user are all invalidated on invalidateAllUserSessions', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        fc.integer({ min: 2, max: 5 }),
-        async (user, sessionCount) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const sessionStore = createInMemorySessionStore();
-          const sessionService = new SessionService(config, sessionStore);
+      fc.asyncProperty(authUserArb, fc.integer({ min: 2, max: 5 }), async (user, sessionCount) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const sessionStore = createInMemorySessionStore();
+        const sessionService = new SessionService(config, sessionStore);
 
-          // Create multiple sessions
-          const sessions: Session[] = [];
-          for (let i = 0; i < sessionCount; i++) {
-            const session = await sessionService.createSession(user.userId, user.tenantId);
-            sessions.push(session);
-          }
+        // Create multiple sessions
+        const sessions: Session[] = [];
+        for (let i = 0; i < sessionCount; i++) {
+          const session = await sessionService.createSession(user.userId, user.tenantId);
+          sessions.push(session);
+        }
 
-          // All sessions should be active
-          const activeBefore = await sessionService.getActiveSessions(user.userId, user.tenantId);
-          expect(activeBefore).toHaveLength(sessionCount);
+        // All sessions should be active
+        const activeBefore = await sessionService.getActiveSessions(user.userId, user.tenantId);
+        expect(activeBefore).toHaveLength(sessionCount);
 
-          // Invalidate all sessions for the user
-          await sessionService.invalidateAllUserSessions(user.userId, user.tenantId);
+        // Invalidate all sessions for the user
+        await sessionService.invalidateAllUserSessions(user.userId, user.tenantId);
 
-          // All sessions should now be invalidated
-          for (const session of sessions) {
-            const validated = await sessionService.validateSession(session.id);
-            expect(validated).toBeNull();
-          }
+        // All sessions should now be invalidated
+        for (const session of sessions) {
+          const validated = await sessionService.validateSession(session.id);
+          expect(validated).toBeNull();
+        }
 
-          // No active sessions should remain
-          const activeAfter = await sessionService.getActiveSessions(user.userId, user.tenantId);
-          expect(activeAfter).toHaveLength(0);
-        },
-      ),
+        // No active sessions should remain
+        const activeAfter = await sessionService.getActiveSessions(user.userId, user.tenantId);
+        expect(activeAfter).toHaveLength(0);
+      }),
       { numRuns: 50 },
     );
   });

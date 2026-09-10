@@ -45,14 +45,14 @@ groups:
           severity: critical
           team: engineering
           slo: availability
-          burn_rate: "14.4x"
+          burn_rate: '14.4x'
         annotations:
-          summary: "{{ $labels.service }} burning error budget at 14.4x"
+          summary: '{{ $labels.service }} burning error budget at 14.4x'
           description: |
             Service {{ $labels.service }} is consuming the 30-day availability error
             budget at 14.4x. At this rate the budget is exhausted in ~2 days.
-          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-budget-burn"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-slo-tracking"
+          runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-budget-burn'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-slo-tracking'
 
       - alert: ErrorBudgetBurnSlow
         # Slow burn: alert (not page) when both 30m and 6h windows exceed 6x.
@@ -65,11 +65,11 @@ groups:
           severity: warning
           team: engineering
           slo: availability
-          burn_rate: "6x"
+          burn_rate: '6x'
         annotations:
-          summary: "{{ $labels.service }} burning error budget at 6x"
+          summary: '{{ $labels.service }} burning error budget at 6x'
           description: |
             Service {{ $labels.service }} is consuming error budget at 6x for the
             last 6 hours. At this rate budget is exhausted in ~5 days.
-          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-budget-burn"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-slo-tracking"
+          runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-budget-burn'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-slo-tracking'

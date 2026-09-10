@@ -85,9 +85,9 @@ describe('GradeService', () => {
     it('should throw NotFoundError if grade does not exist', async () => {
       prisma.grade.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.update(TENANT_ID, 'nonexistent', { name: 'X' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(TENANT_ID, 'nonexistent', { name: 'X' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw ConflictError if new code already exists', async () => {
@@ -102,9 +102,9 @@ describe('GradeService', () => {
       prisma.grade.findFirst.mockResolvedValue(existing);
       prisma.grade.findUnique.mockResolvedValue({ id: 'other-grade' });
 
-      await expect(
-        service.update(TENANT_ID, 'grade-1', { code: 'G2' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.update(TENANT_ID, 'grade-1', { code: 'G2' })).rejects.toThrow(
+        ConflictError,
+      );
     });
   });
 

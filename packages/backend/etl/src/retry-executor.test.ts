@@ -125,9 +125,9 @@ describe('TestableRetryExecutor', () => {
 
     // Should have 3 sleep calls (for retries 1, 2, 3)
     expect(executor.sleepCalls).toHaveLength(3);
-    expect(executor.sleepCalls[0]).toBe(1000);  // 1000 * 2^0
-    expect(executor.sleepCalls[1]).toBe(2000);  // 1000 * 2^1
-    expect(executor.sleepCalls[2]).toBe(4000);  // 1000 * 2^2
+    expect(executor.sleepCalls[0]).toBe(1000); // 1000 * 2^0
+    expect(executor.sleepCalls[1]).toBe(2000); // 1000 * 2^1
+    expect(executor.sleepCalls[2]).toBe(4000); // 1000 * 2^2
   });
 
   it('should track retry state', async () => {

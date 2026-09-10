@@ -31,16 +31,13 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 const proto = Element.prototype as unknown as Record<string, unknown>;
 if (!('hasPointerCapture' in proto)) proto['hasPointerCapture'] = () => false;
-if (!('releasePointerCapture' in proto))
-  proto['releasePointerCapture'] = () => undefined;
+if (!('releasePointerCapture' in proto)) proto['releasePointerCapture'] = () => undefined;
 if (!('scrollIntoView' in proto)) proto['scrollIntoView'] = () => undefined;
 
 // ─── Mocks ───────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/api/admin', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api/admin')>(
-    '@/lib/api/admin',
-  );
+  const actual = await vi.importActual<typeof import('@/lib/api/admin')>('@/lib/api/admin');
   return {
     ...actual,
     getTenantGeneralSettings: vi.fn(),
@@ -58,8 +55,7 @@ const settingsGeneralMessages = {
   settings: {
     general: {
       title: 'General Settings',
-      description:
-        'Tenant preferences shared across every user in this tenant.',
+      description: 'Tenant preferences shared across every user in this tenant.',
       save: 'Save changes',
       saving: 'Saving…',
       saveSuccess: 'Settings saved.',
@@ -82,12 +78,9 @@ const settingsGeneralMessages = {
       hints: {
         brandName: 'Used in page titles and notification email signatures.',
         defaultLanguage: 'New users start in this language.',
-        defaultThemeMode:
-          'New users start in this theme; they can switch later.',
-        notificationsEmail:
-          'System notifications and audit alerts go to this address.',
-        tenantTimezone:
-          'Used for attendance windows, scheduling, and audit timestamps.',
+        defaultThemeMode: 'New users start in this theme; they can switch later.',
+        notificationsEmail: 'System notifications and audit alerts go to this address.',
+        tenantTimezone: 'Used for attendance windows, scheduling, and audit timestamps.',
       },
       themeMode: { light: 'Light', dark: 'Dark', system: 'System' },
       locales: {
@@ -125,10 +118,7 @@ const SAMPLE_SETTINGS: TenantGeneralSettings = {
 // Wrap the page in `<LanguageProvider>` so `useLanguage().t()` resolves.
 function renderPage() {
   return render(
-    <LanguageProvider
-      defaultLocale="en"
-      messagesByLocale={{ en: settingsGeneralMessages }}
-    >
+    <LanguageProvider defaultLocale="en" messagesByLocale={{ en: settingsGeneralMessages }}>
       <SettingsGeneral />
     </LanguageProvider>,
   );
@@ -136,9 +126,10 @@ function renderPage() {
 
 beforeEach(() => {
   vi.mocked(adminApi.getTenantGeneralSettings).mockResolvedValue({ ...SAMPLE_SETTINGS });
-  vi.mocked(adminApi.updateTenantGeneralSettings).mockImplementation(
-    async (patch) => ({ ...SAMPLE_SETTINGS, ...patch }),
-  );
+  vi.mocked(adminApi.updateTenantGeneralSettings).mockImplementation(async (patch) => ({
+    ...SAMPLE_SETTINGS,
+    ...patch,
+  }));
 });
 
 afterEach(() => {
@@ -157,9 +148,7 @@ describe('<SettingsGeneral>', () => {
     expect(screen.getByTestId('settings-general-form')).toBeTruthy();
 
     // Each user-editable input is hydrated.
-    const brandInput = screen.getByTestId(
-      'settings-general-brandName',
-    ) as HTMLInputElement;
+    const brandInput = screen.getByTestId('settings-general-brandName') as HTMLInputElement;
     const emailInput = screen.getByTestId(
       'settings-general-notificationsEmail',
     ) as HTMLInputElement;
@@ -180,9 +169,7 @@ describe('<SettingsGeneral>', () => {
       expect(screen.queryByRole('status', { name: /loading/i })).toBeNull();
     });
 
-    const brandInput = screen.getByTestId(
-      'settings-general-brandName',
-    ) as HTMLInputElement;
+    const brandInput = screen.getByTestId('settings-general-brandName') as HTMLInputElement;
 
     // Clear the brand name and blur to trigger validation.
     act(() => {
@@ -192,18 +179,14 @@ describe('<SettingsGeneral>', () => {
 
     // Submit button is enabled (the form is dirty), but submitting
     // surfaces the validation error instead of calling the mutation.
-    const submitBtn = screen.getByTestId(
-      'settings-general-submit',
-    ) as HTMLButtonElement;
+    const submitBtn = screen.getByTestId('settings-general-submit') as HTMLButtonElement;
     await act(async () => {
       fireEvent.click(submitBtn);
     });
 
     await waitFor(() => {
       expect(
-        screen.getByText(
-          settingsGeneralMessages.settings.general.errors.brandNameRequired,
-        ),
+        screen.getByText(settingsGeneralMessages.settings.general.errors.brandNameRequired),
       ).toBeTruthy();
     });
     expect(adminApi.updateTenantGeneralSettings).not.toHaveBeenCalled();
@@ -216,17 +199,13 @@ describe('<SettingsGeneral>', () => {
       expect(screen.queryByRole('status', { name: /loading/i })).toBeNull();
     });
 
-    const brandInput = screen.getByTestId(
-      'settings-general-brandName',
-    ) as HTMLInputElement;
+    const brandInput = screen.getByTestId('settings-general-brandName') as HTMLInputElement;
 
     act(() => {
       fireEvent.change(brandInput, { target: { value: 'EduZo' } });
     });
 
-    const submitBtn = screen.getByTestId(
-      'settings-general-submit',
-    ) as HTMLButtonElement;
+    const submitBtn = screen.getByTestId('settings-general-submit') as HTMLButtonElement;
     expect(submitBtn.disabled).toBe(false);
 
     await act(async () => {

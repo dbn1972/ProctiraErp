@@ -109,16 +109,26 @@ export interface CustomFieldDefinitionFilter {
  */
 export interface CustomFieldDefinitionRepository {
   /** Create a new custom field definition */
-  create(data: Omit<CustomFieldDefinition, 'createdAt' | 'updatedAt'>): Promise<CustomFieldDefinition>;
+  create(
+    data: Omit<CustomFieldDefinition, 'createdAt' | 'updatedAt'>,
+  ): Promise<CustomFieldDefinition>;
 
   /** Update an existing custom field definition */
-  update(id: string, tenantId: string, data: Partial<CustomFieldDefinition>): Promise<CustomFieldDefinition | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<CustomFieldDefinition>,
+  ): Promise<CustomFieldDefinition | null>;
 
   /** Find a definition by ID within a tenant */
   findById(id: string, tenantId: string): Promise<CustomFieldDefinition | null>;
 
   /** Find a definition by field key within a tenant and entity type */
-  findByFieldKey(fieldKey: string, entityType: CustomFieldEntityType, tenantId: string): Promise<CustomFieldDefinition | null>;
+  findByFieldKey(
+    fieldKey: string,
+    entityType: CustomFieldEntityType,
+    tenantId: string,
+  ): Promise<CustomFieldDefinition | null>;
 
   /** List definitions with pagination and filtering */
   list(

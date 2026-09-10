@@ -37,8 +37,7 @@ const isoDate = z
   .min(1, 'Date is required')
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format');
 
-const trimmedNonEmpty = (max: number, msg: string) =>
-  z.string().trim().min(1, msg).max(max);
+const trimmedNonEmpty = (max: number, msg: string) => z.string().trim().min(1, msg).max(max);
 
 // Phone is intentionally permissive here. The Authentication service
 // runs the strict E.164 / national-format check on submit; the
@@ -72,10 +71,9 @@ export const personalInfoSchema = z.object({
   firstName: trimmedNonEmpty(100, 'First name is required'),
   lastName: trimmedNonEmpty(100, 'Last name is required'),
   dateOfBirth: isoDate,
-  gender: z
-    .enum(['male', 'female', 'other'], {
-      message: 'Select a gender',
-    }),
+  gender: z.enum(['male', 'female', 'other'], {
+    message: 'Select a gender',
+  }),
   /**
    * National identifier (Aadhaar / SSN / equivalent). Optional at
    * the wizard level — some institutions require it, others do not,
@@ -201,9 +199,7 @@ export type DocumentRef = z.infer<typeof documentRefSchema>;
  */
 export const documentsSchema = z
   .object({
-    documents: z
-      .array(documentRefSchema)
-      .min(1, 'Attach at least one supporting document'),
+    documents: z.array(documentRefSchema).min(1, 'Attach at least one supporting document'),
   })
   .superRefine((value, ctx) => {
     const seen = new Set<string>();

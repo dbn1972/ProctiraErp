@@ -46,7 +46,11 @@ function extractRule(message: string): string {
 /**
  * Generates a human-readable error message from a Typebox validation error.
  */
-function formatMessage(error: { path: string; message: string; schema: Record<string, unknown> }): string {
+function formatMessage(error: {
+  path: string;
+  message: string;
+  schema: Record<string, unknown>;
+}): string {
   const field = formatFieldPath(error.path) || 'value';
   const message = error.message;
 
@@ -100,6 +104,33 @@ function formatMessage(error: { path: string; message: string; schema: Record<st
 }
 
 /**
+ * Fastify 5 hands `request.query` / `request.params` to handlers as objects
+ * whose prototype is not `Object.prototype`; TypeBox's `Value.Clone` only
+ * accepts "standard" objects and otherwise throws "Unable to clone value".
+ * Re-home any record-like object (recursively) onto `Object.prototype`
+ * before cloning, leaving arrays, dates, buffers and other exotic values alone.
+ */
+function normaliseForClone(data: unknown): unknown {
+  if (Array.isArray(data)) return data.map(normaliseForClone);
+  if (data === null || typeof data !== 'object') return data;
+  if (
+    data instanceof Date ||
+    data instanceof RegExp ||
+    data instanceof Map ||
+    data instanceof Set ||
+    ArrayBuffer.isView(data) ||
+    data instanceof ArrayBuffer
+  ) {
+    return data;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    out[key] = normaliseForClone(value);
+  }
+  return out;
+}
+
+/**
  * Validates data against a Typebox schema.
  *
  * Returns either the validated data (with defaults applied) or
@@ -109,9 +140,27 @@ function formatMessage(error: { path: string; message: string; schema: Record<st
  * @param data - The data to validate
  * @returns ValidationResult with either validated data or field-level errors
  */
-export function validate<T extends TSchema>(schema: T, data: unknown): ValidationResult<T> {
+export interface ValidateOptions {
+  /**
+   * Coerce string scalars ("42", "true") into the schema's declared primitive
+   * before validating. Intended for query strings / path params, where every
+   * value arrives as a string. Never use for JSON bodies — a client must not
+   * be able to satisfy `Type.Number()` with `"42"` there.
+   */
+  convert?: boolean;
+}
+
+export function validate<T extends TSchema>(
+  schema: T,
+  data: unknown,
+  options: ValidateOptions = {},
+): ValidationResult<T> {
   // Apply defaults first, then validate
-  const withDefaults = Value.Default(schema, Value.Clone(data));
+  const cloned = Value.Clone(normaliseForClone(data));
+  const withDefaults = Value.Default(
+    schema,
+    options.convert ? Value.Convert(schema, cloned) : cloned,
+  );
   const errors = [...Value.Errors(schema, withDefaults)];
 
   if (errors.length === 0) {
@@ -125,4 +174,9 @@ export function validate<T extends TSchema>(schema: T, data: unknown): Validatio
   }));
 
   return { success: false, errors: fieldErrors };
+}
+
+/** `validate` with `convert: true` — for query strings and path params. */
+export function validateQuery<T extends TSchema>(schema: T, data: unknown): ValidationResult<T> {
+  return validate(schema, data, { convert: true });
 }

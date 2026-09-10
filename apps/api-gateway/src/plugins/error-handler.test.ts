@@ -127,7 +127,7 @@ describe('errorHandlerPlugin', () => {
         },
         async () => {
           return { ok: true };
-        }
+        },
       );
 
       const response = await app.inject({
@@ -166,7 +166,7 @@ describe('errorHandlerPlugin', () => {
         },
         async () => {
           return { ok: true };
-        }
+        },
       );
 
       const response = await app.inject({
@@ -197,7 +197,7 @@ describe('errorHandlerPlugin', () => {
         },
         async () => {
           return { ok: true };
-        }
+        },
       );
 
       const response = await app.inject({

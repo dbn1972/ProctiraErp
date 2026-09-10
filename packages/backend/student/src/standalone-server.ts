@@ -15,6 +15,7 @@
  *   RABBITMQ_URL  - RabbitMQ connection string
  *   JWT_SECRET    - JWT verification secret
  */
+import { observabilityPlugin } from '@proctira/observability';
 import Fastify from 'fastify';
 
 import { createStudentRepository } from './repository-factory.js';
@@ -29,13 +30,17 @@ async function start() {
   const app = Fastify({
     logger: {
       level: LOG_LEVEL,
-      transport:
-        process.env['NODE_ENV'] === 'development'
-          ? { target: 'pino-pretty' }
-          : undefined,
+      transport: process.env['NODE_ENV'] === 'development' ? { target: 'pino-pretty' } : undefined,
     },
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
+  });
+
+  // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
+  // standalone deployments are scraped by infra/observability/prometheus.yml.
+  await app.register(observabilityPlugin, {
+    serviceName: SERVICE_NAME,
+    ignorePaths: ['/health', '/ready'],
   });
 
   // Health check endpoint (liveness)
@@ -62,10 +67,7 @@ async function start() {
   // Selects Prisma (+ optional Redis cache) when DATABASE_URL is configured,
   // otherwise an in-memory store for local development.
   const repository = createStudentRepository();
-  app.log.info(
-    { repository: repository.constructor.name },
-    'Student repository initialized',
-  );
+  app.log.info({ repository: repository.constructor.name }, 'Student repository initialized');
   await app.register(studentPlugin, {
     prefix: '/students',
     repository,

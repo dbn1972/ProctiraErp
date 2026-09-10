@@ -154,7 +154,13 @@ export class CDCProducer {
             `INSERT INTO migration_sync_positions (table_name, last_synced_at, last_sequence, last_legacy_id, status)
              VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (table_name) DO NOTHING`,
-            [position.table, position.lastSyncedAt, position.lastSequence, position.lastLegacyId, position.status]
+            [
+              position.table,
+              position.lastSyncedAt,
+              position.lastSequence,
+              position.lastLegacyId,
+              position.status,
+            ],
           );
         }
       }
@@ -167,10 +173,7 @@ export class CDCProducer {
    * Captures changes from a single table since the last sync position.
    * Returns CDC events ready for publishing to Kafka.
    */
-  async captureChanges(
-    mysqlPool: Pool,
-    mapping: TableMapping
-  ): Promise<CDCEvent[]> {
+  async captureChanges(mysqlPool: Pool, mapping: TableMapping): Promise<CDCEvent[]> {
     const position = this.syncPositions.get(mapping.sourceTable);
     if (!position || position.status !== 'active') return [];
 
@@ -186,7 +189,7 @@ export class CDCProducer {
          WHERE "modified" > $1 ${filterClause}
          ORDER BY "modified" ASC, "${mapping.legacyPkColumn}" ASC
          LIMIT $2`,
-        [position.lastSyncedAt, this.config.batchSize]
+        [position.lastSyncedAt, this.config.batchSize],
       );
 
       let sequence = position.lastSequence;
@@ -196,11 +199,7 @@ export class CDCProducer {
         const legacyId = row[mapping.legacyPkColumn];
 
         // Determine if this is an INSERT or UPDATE by checking target
-        const operation: CDCOperation = await this.determineOperation(
-          client,
-          mapping,
-          legacyId
-        );
+        const operation: CDCOperation = await this.determineOperation(client, mapping, legacyId);
 
         const event: CDCEvent = {
           id: `cdc_${mapping.sourceTable}_${legacyId}_${sequence}`,
@@ -239,7 +238,7 @@ export class CDCProducer {
   private async determineOperation(
     _client: PoolClient,
     _mapping: TableMapping,
-    _legacyId: number
+    _legacyId: number,
   ): Promise<CDCOperation> {
     // In a real implementation, this would check the UUID mapping table
     // For now, we treat all captured changes as UPSERTs
@@ -251,7 +250,7 @@ export class CDCProducer {
    */
   private mapRowData(
     row: Record<string, unknown>,
-    columns: ColumnMapping[]
+    columns: ColumnMapping[],
   ): Record<string, unknown> {
     const mapped: Record<string, unknown> = {};
     for (const col of columns) {
@@ -286,7 +285,13 @@ export class CDCProducer {
         `UPDATE migration_sync_positions
          SET last_synced_at = $1, last_sequence = $2, last_legacy_id = $3, status = $4, updated_at = NOW()
          WHERE table_name = $5`,
-        [position.lastSyncedAt, position.lastSequence, position.lastLegacyId, position.status, table]
+        [
+          position.lastSyncedAt,
+          position.lastSequence,
+          position.lastLegacyId,
+          position.status,
+          table,
+        ],
       );
     } finally {
       client.release();
@@ -408,10 +413,7 @@ export class CDCConsumer {
   /**
    * Processes a single CDC event.
    */
-  private async processEvent(
-    client: PoolClient,
-    event: CDCEvent
-  ): Promise<CDCEventResult> {
+  private async processEvent(client: PoolClient, event: CDCEvent): Promise<CDCEventResult> {
     const schema = this.migrationConfig.pg.schema;
 
     switch (event.operation) {
@@ -422,7 +424,11 @@ export class CDCConsumer {
       case 'DELETE':
         return this.applyDelete(client, event, schema);
       default:
-        return { eventId: event.id, status: 'skipped', error: `Unknown operation: ${event.operation}` };
+        return {
+          eventId: event.id,
+          status: 'skipped',
+          error: `Unknown operation: ${event.operation}`,
+        };
     }
   }
 
@@ -432,7 +438,7 @@ export class CDCConsumer {
   private async applyInsert(
     client: PoolClient,
     event: CDCEvent,
-    schema: string
+    schema: string,
   ): Promise<CDCEventResult> {
     const columns = Object.keys(event.data);
     const values = Object.values(event.data);
@@ -443,7 +449,7 @@ export class CDCConsumer {
       `INSERT INTO "${schema}"."${event.targetTable}" (${columnList})
        VALUES (${placeholders})
        ON CONFLICT DO NOTHING`,
-      values
+      values,
     );
 
     return { eventId: event.id, status: 'applied' };
@@ -455,14 +461,14 @@ export class CDCConsumer {
   private async applyUpsert(
     client: PoolClient,
     event: CDCEvent,
-    schema: string
+    schema: string,
   ): Promise<CDCEventResult> {
     if (!event.newId) {
       // Look up the UUID from the legacy ID mapping
       const lookupResult = await client.query(
         `SELECT new_uuid FROM migration_uuid_mappings
          WHERE legacy_table = $1 AND legacy_id = $2`,
-        [event.sourceTable, event.legacyId]
+        [event.sourceTable, event.legacyId],
       );
 
       if (lookupResult.rows.length === 0) {
@@ -478,14 +484,18 @@ export class CDCConsumer {
       // Check if target has a more recent modification
       const targetResult = await client.query(
         `SELECT updated_at FROM "${schema}"."${event.targetTable}" WHERE id = $1`,
-        [event.newId]
+        [event.newId],
       );
 
       if (targetResult.rows.length > 0) {
         const targetUpdatedAt = new Date(targetResult.rows[0].updated_at);
         const sourceTimestamp = new Date(event.sourceTimestamp);
         if (targetUpdatedAt > sourceTimestamp) {
-          return { eventId: event.id, status: 'skipped', error: 'Target has newer data (latest_wins)' };
+          return {
+            eventId: event.id,
+            status: 'skipped',
+            error: 'Target has newer data (latest_wins)',
+          };
         }
       }
     }
@@ -503,7 +513,7 @@ export class CDCConsumer {
       `UPDATE "${schema}"."${event.targetTable}"
        SET ${setClause}
        WHERE id = $${values.length + 1}`,
-      [...values, event.newId]
+      [...values, event.newId],
     );
 
     return { eventId: event.id, status: 'applied' };
@@ -515,13 +525,13 @@ export class CDCConsumer {
   private async applyDelete(
     client: PoolClient,
     event: CDCEvent,
-    schema: string
+    schema: string,
   ): Promise<CDCEventResult> {
     if (!event.newId) {
       const lookupResult = await client.query(
         `SELECT new_uuid FROM migration_uuid_mappings
          WHERE legacy_table = $1 AND legacy_id = $2`,
-        [event.sourceTable, event.legacyId]
+        [event.sourceTable, event.legacyId],
       );
 
       if (lookupResult.rows.length === 0) {
@@ -535,7 +545,7 @@ export class CDCConsumer {
       `UPDATE "${schema}"."${event.targetTable}"
        SET deleted_at = NOW()
        WHERE id = $1 AND deleted_at IS NULL`,
-      [event.newId]
+      [event.newId],
     );
 
     return { eventId: event.id, status: 'applied' };
@@ -592,7 +602,7 @@ export interface CDCBatchResult {
  */
 export async function runIncrementalSync(
   config: MigrationConfig,
-  cdcConfig: CDCSyncConfig
+  cdcConfig: CDCSyncConfig,
 ): Promise<MigrationStepResult> {
   const startTime = Date.now();
   const errors: MigrationStepResult['errors'] = [];
@@ -653,7 +663,7 @@ export async function runIncrementalSync(
           await producer.commitPosition(pgPool, mapping.sourceTable, position);
 
           console.log(
-            `[cdc-sync]   ${mapping.sourceTable}: captured=${events.length}, applied=${batchResult.applied}, errors=${batchResult.errors}`
+            `[cdc-sync]   ${mapping.sourceTable}: captured=${events.length}, applied=${batchResult.applied}, errors=${batchResult.errors}`,
           );
         }
 
@@ -667,7 +677,9 @@ export async function runIncrementalSync(
       }
     }
 
-    console.log(`\n[cdc-sync] Sync cycle complete: captured=${totalCaptured}, applied=${totalApplied}`);
+    console.log(
+      `\n[cdc-sync] Sync cycle complete: captured=${totalCaptured}, applied=${totalApplied}`,
+    );
 
     return {
       step: 'incremental_sync',

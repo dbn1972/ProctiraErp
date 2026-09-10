@@ -9,20 +9,12 @@
  * - 7.6: Support custom fields via JSONB custom_data column
  * - 7.7: Validate required fields (name, DOB, identity number, contact, position); unique identity number
  */
-import {
-  ConflictError,
-  NotFoundError,
-  EntityStatus,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, EntityStatus } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  StaffEntity,
-  StaffFilter,
-  StaffRepository,
-} from './staff-repository.js';
 import type { CreateStaffInput, UpdateStaffInput } from './schemas.js';
+import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
 
 /**
  * Service handling staff business logic.
@@ -74,11 +66,7 @@ export class StaffService {
    * @throws NotFoundError if staff not found
    * @throws ConflictError if identity number uniqueness violated
    */
-  async update(
-    tenantId: string,
-    id: string,
-    input: UpdateStaffInput,
-  ): Promise<StaffEntity> {
+  async update(tenantId: string, id: string, input: UpdateStaffInput): Promise<StaffEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Staff with id '${id}' not found`);

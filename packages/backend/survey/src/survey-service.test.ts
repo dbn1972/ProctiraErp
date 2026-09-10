@@ -7,12 +7,7 @@
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 
 import { SurveyService } from './survey-service.js';
 import type { NotificationPublisher } from './survey-service.js';
@@ -184,9 +179,9 @@ describe('SurveyService', () => {
 
       await service.updateSurvey(tenantId, survey.id, { status: 'closed' });
 
-      await expect(
-        service.updateSurvey(tenantId, survey.id, { name: 'New Name' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.updateSurvey(tenantId, survey.id, { name: 'New Name' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should throw NotFoundError for non-existent survey', async () => {
@@ -277,8 +272,13 @@ describe('SurveyService', () => {
         name: 'Submission Test',
         questions: [
           { label: 'School Name', type: 'text' as const, required: true, order: 0 },
-          { label: 'Student Count', type: 'number' as const, required: true, order: 1,
-            validation: { min: 0, max: 10000 } },
+          {
+            label: 'Student Count',
+            type: 'number' as const,
+            required: true,
+            order: 1,
+            validation: { min: 0, max: 10000 },
+          },
           {
             label: 'School Type',
             type: 'dropdown' as const,
@@ -432,12 +432,24 @@ describe('SurveyService', () => {
       await service.updateSurvey(tenantId, survey.id, { status: 'published' });
 
       institutionLookup.addInstitution({
-        id: 'inst-001', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S1',
+        id: 'inst-001',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S1',
       });
       institutionLookup.addInstitution({
-        id: 'inst-002', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S2',
+        id: 'inst-002',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S2',
       });
 
       await service.distributeSurvey(tenantId, {
@@ -469,12 +481,24 @@ describe('SurveyService', () => {
       await service.updateSurvey(tenantId, survey.id, { status: 'published' });
 
       institutionLookup.addInstitution({
-        id: 'inst-001', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S1',
+        id: 'inst-001',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S1',
       });
       institutionLookup.addInstitution({
-        id: 'inst-002', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S2',
+        id: 'inst-002',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S2',
       });
 
       await service.distributeSurvey(tenantId, {
@@ -494,8 +518,14 @@ describe('SurveyService', () => {
       await service.updateSurvey(tenantId, survey.id, { status: 'published' });
 
       institutionLookup.addInstitution({
-        id: 'inst-001', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S1',
+        id: 'inst-001',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S1',
       });
 
       await service.distributeSurvey(tenantId, {
@@ -536,12 +566,24 @@ describe('SurveyService', () => {
       await service.updateSurvey(tenantId, survey.id, { status: 'published' });
 
       institutionLookup.addInstitution({
-        id: 'inst-001', tenantId, areaId: 'area-001', areaName: 'District A',
-        typeId: 'type-001', typeName: 'Primary', classificationId: 'c1', name: 'School 1',
+        id: 'inst-001',
+        tenantId,
+        areaId: 'area-001',
+        areaName: 'District A',
+        typeId: 'type-001',
+        typeName: 'Primary',
+        classificationId: 'c1',
+        name: 'School 1',
       });
       institutionLookup.addInstitution({
-        id: 'inst-002', tenantId, areaId: 'area-002', areaName: 'District B',
-        typeId: 'type-001', typeName: 'Primary', classificationId: 'c1', name: 'School 2',
+        id: 'inst-002',
+        tenantId,
+        areaId: 'area-002',
+        areaName: 'District B',
+        typeId: 'type-001',
+        typeName: 'Primary',
+        classificationId: 'c1',
+        name: 'School 2',
       });
 
       await service.distributeSurvey(tenantId, { surveyId: survey.id, filters: {} });
@@ -577,19 +619,29 @@ describe('SurveyService', () => {
     it('should aggregate number questions with statistics', async () => {
       const survey = await service.createSurvey(tenantId, {
         name: 'Number Aggregation',
-        questions: [
-          { label: 'Count', type: 'number' as const, order: 0 },
-        ],
+        questions: [{ label: 'Count', type: 'number' as const, order: 0 }],
       });
       await service.updateSurvey(tenantId, survey.id, { status: 'published' });
 
       institutionLookup.addInstitution({
-        id: 'inst-001', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S1',
+        id: 'inst-001',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S1',
       });
       institutionLookup.addInstitution({
-        id: 'inst-002', tenantId, areaId: 'a1', areaName: 'A',
-        typeId: 't1', typeName: 'T', classificationId: 'c1', name: 'S2',
+        id: 'inst-002',
+        tenantId,
+        areaId: 'a1',
+        areaName: 'A',
+        typeId: 't1',
+        typeName: 'T',
+        classificationId: 'c1',
+        name: 'S2',
       });
 
       await service.distributeSurvey(tenantId, { surveyId: survey.id, filters: {} });

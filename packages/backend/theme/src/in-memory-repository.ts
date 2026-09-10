@@ -51,9 +51,7 @@ export class InMemoryThemeRepository implements ThemeRepository {
     page: number,
     pageSize: number,
   ): Promise<{ data: ThemeEntity[]; total: number }> {
-    let results = Array.from(this.themes.values()).filter(
-      (t) => t.tenantId === tenantId,
-    );
+    let results = Array.from(this.themes.values()).filter((t) => t.tenantId === tenantId);
 
     if (filter.level) {
       results = results.filter((t) => t.level === filter.level);
@@ -79,7 +77,9 @@ export class InMemoryThemeRepository implements ThemeRepository {
 
   async updateTheme(
     id: string,
-    updates: Partial<Pick<ThemeEntity, 'name' | 'description' | 'tokens' | 'assets' | 'status' | 'currentRevision'>>,
+    updates: Partial<
+      Pick<ThemeEntity, 'name' | 'description' | 'tokens' | 'assets' | 'status' | 'currentRevision'>
+    >,
   ): Promise<ThemeEntity> {
     const theme = this.themes.get(id);
     if (!theme) throw new Error(`Theme not found: ${id}`);

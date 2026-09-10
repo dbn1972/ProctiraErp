@@ -11,8 +11,8 @@ export default function StudentRecords() {
     <div className="space-y-4 p-6">
       <h1 className="text-2xl font-semibold tracking-tight">Student Records</h1>
       <p className="text-muted-foreground max-w-2xl text-sm">
-        Official transcripts, GPA snapshots, and report-card jobs are served from the redesign
-        App Router against the live gradebook API (raw Postgres — no placeholder stub).
+        Official transcripts, GPA snapshots, and report-card jobs are served from the redesign App
+        Router against the live gradebook API (raw Postgres — no placeholder stub).
       </p>
       <p>
         <Link

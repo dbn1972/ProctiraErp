@@ -37,6 +37,40 @@ export { CachedStudentRepository } from './cached-student-repository.js';
 export { studentPlugin } from './student-plugin.js';
 export type { StudentPluginOptions } from './student-plugin.js';
 
+// Enrollment module (G-701: mounted by studentPlugin under /enrollments)
+export {
+  EnrollmentService,
+  InMemoryEnrollmentRepository,
+  registerEnrollmentRoutes,
+} from './enrollment/index.js';
+export type {
+  EnrollmentEntity,
+  EnrollmentHistoryEntity,
+  TransferRecordEntity,
+  EnrollmentFilter,
+  EnrollmentRepository,
+  EnrollmentRoutesOptions,
+} from './enrollment/index.js';
+export { PgEnrollmentRepository } from './enrollment/pg-enrollment-repository.js';
+export { createEnrollmentRepository } from './enrollment/create-enrollment-repository.js';
+
+export {
+  Students360Service,
+  registerStudents360Routes,
+  InMemoryStudents360Store,
+  PgStudents360Store,
+  createStudents360Store,
+  InMemoryStudentBlobStore,
+  createStudentBlobStore,
+  aggregateAttendanceHeatmap,
+  bindAttendanceHeatmapSource,
+} from './students-360/index.js';
+export type {
+  AttendanceHeatmapSource,
+  Students360Store,
+  StudentBlobStore,
+} from './students-360/index.js';
+
 // Import module
 export {
   ImportService,

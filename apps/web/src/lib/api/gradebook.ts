@@ -5,21 +5,20 @@
  */
 import { GatewayError, gatewayFetch } from './gateway';
 
-export interface GradeEntry {
-  id: string;
-  tenantId: string;
-  sectionId: string | null;
-  studentId: string;
-  assessmentCode: string | null;
-  numericScore: number | null;
-  letterGrade: string | null;
-  enteredBy: string | null;
-  enteredAt: string;
-  lockedAt: string | null;
-  metadata: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
+export type {
+  ClassRankSnapshot,
+  CommentsBankItem,
+  GradeEntry,
+  GradeWorkflowAction,
+  GradeWorkflowStatus,
+} from '@/lib/gradebook/workflow-status';
+export { readGradeWorkflowStatus } from '@/lib/gradebook/workflow-status';
+import type {
+  ClassRankSnapshot,
+  CommentsBankItem,
+  GradeEntry,
+  GradeWorkflowAction,
+} from '@/lib/gradebook/workflow-status';
 
 export interface SectionSummary {
   id: string;
@@ -161,6 +160,8 @@ export async function upsertGradeEntry(input: {
   numericScore?: number | null;
   letterGrade?: string | null;
   creditRuleCode?: string | null;
+  remark?: string | null;
+  commentBankId?: string | null;
 }): Promise<GradeEntry> {
   const result = await gatewayFetch<GradeEntry>('/gradebook/entries', {
     method: 'PUT',
@@ -295,10 +296,9 @@ export async function listGradingScales(
 ): Promise<GradebookLoadResult<GradingScale[]>> {
   try {
     const qs = boardId ? `?boardId=${encodeURIComponent(boardId)}` : '';
-    const result = await gatewayFetch<{ data: GradingScale[] }>(
-      `/gradebook/grading-scales${qs}`,
-      { next: { revalidate: 0 } },
-    );
+    const result = await gatewayFetch<{ data: GradingScale[] }>(`/gradebook/grading-scales${qs}`, {
+      next: { revalidate: 0 },
+    });
     return { ok: true, data: result.data?.data ?? [] };
   } catch (error) {
     return { ok: false, ...mapError(error) };
@@ -378,9 +378,7 @@ export async function createBoardExportJob(input: {
   return result.data;
 }
 
-export async function getBoardExportJob(
-  id: string,
-): Promise<GradebookLoadResult<BoardExportJob>> {
+export async function getBoardExportJob(id: string): Promise<GradebookLoadResult<BoardExportJob>> {
   try {
     const result = await gatewayFetch<BoardExportJob>(`/gradebook/board-exports/${id}`, {
       next: { revalidate: 0 },
@@ -389,6 +387,134 @@ export async function getBoardExportJob(
       return { ok: false, error: 'Board export job not found', status: 404 };
     }
     return { ok: true, data: result.data };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function listPublishedGradeEntries(filters?: {
+  sectionId?: string;
+  studentId?: string;
+}): Promise<GradebookLoadResult<GradeEntry[]>> {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.sectionId) params.set('sectionId', filters.sectionId);
+    if (filters?.studentId) params.set('studentId', filters.studentId);
+    const qs = params.toString();
+    const result = await gatewayFetch<{ data: GradeEntry[] }>(
+      `/gradebook/published${qs ? `?${qs}` : ''}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function transitionGradeEntry(
+  id: string,
+  action: GradeWorkflowAction,
+): Promise<GradeEntry> {
+  const result = await gatewayFetch<GradeEntry>(`/gradebook/entries/${id}/transition`, {
+    method: 'POST',
+    json: { action },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from grade transition',
+    });
+  }
+  return result.data;
+}
+
+export async function bulkTransitionGradeEntries(
+  ids: string[],
+  action: GradeWorkflowAction,
+): Promise<GradeEntry[]> {
+  const result = await gatewayFetch<{ data: GradeEntry[] }>('/gradebook/entries/bulk-transition', {
+    method: 'POST',
+    json: { ids, action },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function listCommentsBank(filters?: {
+  subjectId?: string;
+  gradeBand?: string;
+  institutionId?: string;
+}): Promise<GradebookLoadResult<CommentsBankItem[]>> {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.subjectId) params.set('subjectId', filters.subjectId);
+    if (filters?.gradeBand) params.set('gradeBand', filters.gradeBand);
+    if (filters?.institutionId) params.set('institutionId', filters.institutionId);
+    const qs = params.toString();
+    const result = await gatewayFetch<{ data: CommentsBankItem[] }>(
+      `/gradebook/comments-bank${qs ? `?${qs}` : ''}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function createCommentsBank(input: {
+  institutionId?: string | null;
+  subjectId?: string | null;
+  gradeBand?: string | null;
+  label: string;
+  body: string;
+}): Promise<CommentsBankItem> {
+  const result = await gatewayFetch<CommentsBankItem>('/gradebook/comments-bank', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from comments bank create',
+    });
+  }
+  return result.data;
+}
+
+export async function computeClassRank(input: {
+  sectionId: string;
+  academicPeriodId?: string | null;
+  boardId?: string | null;
+  persist?: boolean;
+}): Promise<{ batchId: string; computedAt: string; ranks: ClassRankSnapshot[] }> {
+  const result = await gatewayFetch<{
+    batchId: string;
+    computedAt: string;
+    ranks: ClassRankSnapshot[];
+  }>('/gradebook/rank/compute', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from class rank compute',
+    });
+  }
+  return result.data;
+}
+
+export async function listClassRanks(
+  sectionId: string,
+): Promise<GradebookLoadResult<ClassRankSnapshot[]>> {
+  try {
+    const result = await gatewayFetch<{ data: ClassRankSnapshot[] }>(
+      `/gradebook/rank?sectionId=${encodeURIComponent(sectionId)}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
   } catch (error) {
     return { ok: false, ...mapError(error) };
   }

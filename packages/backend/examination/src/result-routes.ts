@@ -3,6 +3,8 @@
  *
  * POST   /examinations/:examinationId/results/publish   - Publish results (trigger grade calculation)
  * GET    /examinations/:examinationId/results           - Get publication result
+ * POST   /examinations/:examinationId/results/marks     - Record marks before publication (G-902)
+ * GET    /examinations/:examinationId/results/marks     - Recorded marks per candidate (G-902)
  * POST   /examinations/:examinationId/results/analysis  - Generate result analysis
  * GET    /examinations/:examinationId/results/analysis  - Get result analysis
  *
@@ -17,7 +19,9 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { ResultPublicationService } from './result-publication-service.js';
 import {
+  RecordMarksSchema,
   ResultExaminationParamsSchema,
+  type RecordMarksBody,
   type ResultExaminationParams,
 } from './result-schemas.js';
 
@@ -138,6 +142,100 @@ export async function registerResultRoutes(
           gradeResults: result.gradeResults,
           incompleteRecords: result.incompleteRecords,
         });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /examinations/:examinationId/results/marks
+   * Record marks for registered candidates (pre-publication).
+   */
+  fastify.post(
+    `${prefix}/:examinationId/results/marks`,
+    async function recordMarksHandler(
+      request: FastifyRequest<{ Params: ResultExaminationParams; Body: RecordMarksBody }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ResultExaminationParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid examination ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const bodyResult = validate(RecordMarksSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const summary = await resultPublicationService.recordMarks(
+          tenantId,
+          paramsResult.data.examinationId,
+          bodyResult.data,
+        );
+        return reply.status(200).send(summary);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /examinations/:examinationId/results/marks
+   * Recorded marks per candidate (drives the Results tab before publication).
+   */
+  fastify.get(
+    `${prefix}/:examinationId/results/marks`,
+    async function getMarksHandler(
+      request: FastifyRequest<{ Params: ResultExaminationParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ResultExaminationParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid examination ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const candidates = await resultPublicationService.getMarks(
+          tenantId,
+          paramsResult.data.examinationId,
+        );
+        return reply.status(200).send({ data: candidates, meta: { total: candidates.length } });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

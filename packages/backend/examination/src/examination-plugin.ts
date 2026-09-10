@@ -15,17 +15,20 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { ExaminationRepository } from './examination-repository.js';
-import type { ResultRepository } from './result-repository.js';
-import type { DocumentRepository } from './document-repository.js';
-import type { PdfGenerator } from './pdf-generator.js';
 import type { DocumentTaskQueue } from './document-generation-service.js';
-import { ExaminationService } from './examination-service.js';
-import { ResultPublicationService } from './result-publication-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
-import { registerExaminationRoutes } from './routes.js';
-import { registerResultRoutes } from './result-routes.js';
+import type { DocumentRepository } from './document-repository.js';
 import { registerDocumentRoutes } from './document-routes.js';
+import type { ExaminationRepository } from './examination-repository.js';
+import { ExaminationService } from './examination-service.js';
+import { registerExamOpsRoutes } from './ops-routes.js';
+import { ExamOpsService } from './ops-service.js';
+import type { ExamOpsStore } from './ops-store.js';
+import type { PdfGenerator } from './pdf-generator.js';
+import { ResultPublicationService } from './result-publication-service.js';
+import type { ResultRepository } from './result-repository.js';
+import { registerResultRoutes } from './result-routes.js';
+import { registerExaminationRoutes } from './routes.js';
 
 /**
  * Options for the examination plugin.
@@ -41,6 +44,8 @@ export interface ExaminationPluginOptions {
   pdfGenerator?: PdfGenerator;
   /** Document task queue implementation (optional — for RabbitMQ background processing) */
   documentTaskQueue?: DocumentTaskQueue;
+  /** G-908 ops store (sessions / invigilators / seating / double-entry / re-eval) */
+  examOpsStore?: ExamOpsStore;
   /** Route prefix for examinations (default: '/examinations') */
   prefix?: string;
 }
@@ -51,6 +56,7 @@ declare module 'fastify' {
     examinationService: ExaminationService;
     resultPublicationService?: ResultPublicationService;
     documentGenerationService?: DocumentGenerationService;
+    examOpsService?: ExamOpsService;
   }
 }
 
@@ -68,6 +74,7 @@ export const examinationPlugin = fp(
       documentRepository,
       pdfGenerator,
       documentTaskQueue,
+      examOpsStore,
       prefix = '/examinations',
     } = options;
 
@@ -109,10 +116,20 @@ export const examinationPlugin = fp(
         prefix,
       });
     }
+
+    if (examOpsStore) {
+      const examOpsService = new ExamOpsService({
+        store: examOpsStore,
+        examinations: repository,
+        documents: documentRepository,
+      });
+      fastify.decorate('examOpsService', examOpsService);
+      await registerExamOpsRoutes(fastify, { examOpsService, prefix });
+    }
   },
   {
     name: '@proctira/backend-examination',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

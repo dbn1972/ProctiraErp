@@ -15,12 +15,25 @@ export const AcademicPeriodStatus = Type.Union(
 );
 export type AcademicPeriodStatusType = Static<typeof AcademicPeriodStatus>;
 
+/**
+ * G-905 — period hierarchy. `year` is the top level; the others nest under a
+ * year via `parentId` and must fall inside its date range.
+ */
+export const AcademicPeriodKind = Type.Union(
+  [Type.Literal('year'), Type.Literal('semester'), Type.Literal('term'), Type.Literal('quarter')],
+  { description: 'Academic period kind' },
+);
+export type AcademicPeriodKindType = Static<typeof AcademicPeriodKind>;
+
 export const CreateAcademicPeriodSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 100 }),
   code: Type.String({ minLength: 1, maxLength: 50 }),
   startDate: Type.String({ format: 'date', description: 'ISO date (YYYY-MM-DD)' }),
   endDate: Type.String({ format: 'date', description: 'ISO date (YYYY-MM-DD)' }),
   status: Type.Optional(AcademicPeriodStatus),
+  kind: Type.Optional(AcademicPeriodKind),
+  /** Owning academic year — required for every kind except `year`. */
+  parentId: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
 });
 export type CreateAcademicPeriodDto = Static<typeof CreateAcademicPeriodSchema>;
 
@@ -30,6 +43,8 @@ export const UpdateAcademicPeriodSchema = Type.Object({
   startDate: Type.Optional(Type.String({ format: 'date' })),
   endDate: Type.Optional(Type.String({ format: 'date' })),
   status: Type.Optional(AcademicPeriodStatus),
+  kind: Type.Optional(AcademicPeriodKind),
+  parentId: Type.Optional(Type.Union([Type.String({ format: 'uuid' }), Type.Null()])),
 });
 export type UpdateAcademicPeriodDto = Static<typeof UpdateAcademicPeriodSchema>;
 
@@ -41,6 +56,8 @@ export const AcademicPeriodResponseSchema = Type.Object({
   startDate: Type.String(),
   endDate: Type.String(),
   status: Type.String(),
+  kind: Type.String(),
+  parentId: Type.Union([Type.String(), Type.Null()]),
   createdAt: Type.String(),
   updatedAt: Type.String(),
 });

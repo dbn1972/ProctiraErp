@@ -81,7 +81,7 @@ describe('Notification Templates - {{brand_name}} substitution', () => {
     }
 
     // Email templates should also use {{brand_name}} in subject
-    const emailTemplates = DEFAULT_TEMPLATES.filter(t => t.channel === 'email');
+    const emailTemplates = DEFAULT_TEMPLATES.filter((t) => t.channel === 'email');
     for (const template of emailTemplates) {
       it(`"${template.name}" subject should contain {{brand_name}}`, () => {
         expect(template.subject).toContain('{{brand_name}}');
@@ -89,7 +89,7 @@ describe('Notification Templates - {{brand_name}} substitution', () => {
     }
 
     // Push templates should use {{brand_name}} in subject (title)
-    const pushTemplates = DEFAULT_TEMPLATES.filter(t => t.channel === 'push');
+    const pushTemplates = DEFAULT_TEMPLATES.filter((t) => t.channel === 'push');
     for (const template of pushTemplates) {
       it(`"${template.name}" subject (title) should contain {{brand_name}}`, () => {
         expect(template.subject).toContain('{{brand_name}}');
@@ -131,12 +131,15 @@ describe('Notification Templates - {{brand_name}} substitution', () => {
     });
 
     it('Enrollment Confirmation Email renders brand_name', () => {
-      const { renderedBody, renderedSubject } = renderWithBrand(enrollmentConfirmationEmailTemplate, {
-        recipient_name: 'Parent',
-        student_name: 'Alice',
-        institution_name: 'Springfield School',
-        academic_period: '2024-2025',
-      });
+      const { renderedBody, renderedSubject } = renderWithBrand(
+        enrollmentConfirmationEmailTemplate,
+        {
+          recipient_name: 'Parent',
+          student_name: 'Alice',
+          institution_name: 'Springfield School',
+          academic_period: '2024-2025',
+        },
+      );
       expect(renderedSubject).toBe(`${brandNameA} - Enrollment Confirmed`);
       expect(renderedBody).toContain(`logging into ${brandNameA}`);
       expect(renderedBody).toContain(`The ${brandNameA} Team`);
@@ -254,12 +257,15 @@ describe('Notification Templates - {{brand_name}} substitution', () => {
     });
 
     it('Enrollment Confirmation Email renders brand_name', () => {
-      const { renderedBody, renderedSubject } = renderWithBrand(enrollmentConfirmationEmailTemplate, {
-        recipient_name: 'Parent',
-        student_name: 'Alice',
-        institution_name: 'Springfield School',
-        academic_period: '2024-2025',
-      });
+      const { renderedBody, renderedSubject } = renderWithBrand(
+        enrollmentConfirmationEmailTemplate,
+        {
+          recipient_name: 'Parent',
+          student_name: 'Alice',
+          institution_name: 'Springfield School',
+          academic_period: '2024-2025',
+        },
+      );
       expect(renderedSubject).toBe(`${brandNameB} - Enrollment Confirmed`);
       expect(renderedBody).toContain(`logging into ${brandNameB}`);
       expect(renderedBody).toContain(`The ${brandNameB} Team`);
@@ -354,9 +360,7 @@ describe('Notification Templates - {{brand_name}} substitution', () => {
       const repo = new InMemoryNotificationRepository();
       const svc = new NotificationService(repo);
 
-      repo.seedUsers([
-        { id: userId, roleIds: [], areaIds: [], institutionIds: [] },
-      ]);
+      repo.seedUsers([{ id: userId, roleIds: [], areaIds: [], institutionIds: [] }]);
 
       // Create template using the welcome email template content
       await repo.createTemplate({

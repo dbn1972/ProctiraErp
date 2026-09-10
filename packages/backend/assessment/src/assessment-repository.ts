@@ -42,7 +42,11 @@ export interface GradingSchemeRepository {
   create(data: Omit<GradingSchemeEntity, 'createdAt' | 'updatedAt'>): Promise<GradingSchemeEntity>;
 
   /** Update an existing grading scheme */
-  update(id: string, tenantId: string, data: Partial<GradingSchemeEntity>): Promise<GradingSchemeEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<GradingSchemeEntity>,
+  ): Promise<GradingSchemeEntity | null>;
 
   /** Find a grading scheme by ID within a tenant */
   findById(id: string, tenantId: string): Promise<GradingSchemeEntity | null>;

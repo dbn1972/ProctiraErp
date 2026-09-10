@@ -48,27 +48,25 @@ describe('createQueueAdapter', () => {
   });
 
   it('should throw when kafka config is missing for kafka backend', () => {
-    expect(() =>
-      createQueueAdapter({ backend: 'kafka' })
-    ).toThrow('Kafka configuration is required');
+    expect(() => createQueueAdapter({ backend: 'kafka' })).toThrow(
+      'Kafka configuration is required',
+    );
   });
 
   it('should throw when rabbitmq config is missing for rabbitmq backend', () => {
-    expect(() =>
-      createQueueAdapter({ backend: 'rabbitmq' })
-    ).toThrow('RabbitMQ configuration is required');
+    expect(() => createQueueAdapter({ backend: 'rabbitmq' })).toThrow(
+      'RabbitMQ configuration is required',
+    );
   });
 
   it('should throw when sqs config is missing for sqs backend', () => {
-    expect(() =>
-      createQueueAdapter({ backend: 'sqs' })
-    ).toThrow('SQS configuration is required');
+    expect(() => createQueueAdapter({ backend: 'sqs' })).toThrow('SQS configuration is required');
   });
 
   it('should throw for unsupported backend', () => {
-    expect(() =>
-      createQueueAdapter({ backend: 'redis' as never })
-    ).toThrow('Unsupported queue backend');
+    expect(() => createQueueAdapter({ backend: 'redis' as never })).toThrow(
+      'Unsupported queue backend',
+    );
   });
 });
 
@@ -86,7 +84,9 @@ describe('createQueueAdapterFromEnv', () => {
 
   it('should throw when QUEUE_BACKEND is not set', () => {
     delete process.env['QUEUE_BACKEND'];
-    expect(() => createQueueAdapterFromEnv()).toThrow('QUEUE_BACKEND environment variable is required');
+    expect(() => createQueueAdapterFromEnv()).toThrow(
+      'QUEUE_BACKEND environment variable is required',
+    );
   });
 
   it('should create KafkaAdapter from env vars', () => {
@@ -105,7 +105,7 @@ describe('createQueueAdapterFromEnv', () => {
     delete process.env['KAFKA_CLIENT_ID'];
 
     expect(() => createQueueAdapterFromEnv()).toThrow(
-      'KAFKA_BROKERS and KAFKA_CLIENT_ID environment variables are required'
+      'KAFKA_BROKERS and KAFKA_CLIENT_ID environment variables are required',
     );
   });
 
@@ -124,7 +124,7 @@ describe('createQueueAdapterFromEnv', () => {
     delete process.env['RABBITMQ_EXCHANGE'];
 
     expect(() => createQueueAdapterFromEnv()).toThrow(
-      'RABBITMQ_URL and RABBITMQ_EXCHANGE environment variables are required'
+      'RABBITMQ_URL and RABBITMQ_EXCHANGE environment variables are required',
     );
   });
 
@@ -143,7 +143,7 @@ describe('createQueueAdapterFromEnv', () => {
     delete process.env['SQS_QUEUE_URL_PREFIX'];
 
     expect(() => createQueueAdapterFromEnv()).toThrow(
-      'SQS_REGION and SQS_QUEUE_URL_PREFIX environment variables are required'
+      'SQS_REGION and SQS_QUEUE_URL_PREFIX environment variables are required',
     );
   });
 

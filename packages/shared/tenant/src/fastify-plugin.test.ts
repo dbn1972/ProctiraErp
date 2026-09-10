@@ -33,9 +33,10 @@ describe('tenantPlugin', () => {
     expect(body.tenantId).toBe(tenantId);
     expect(body.source).toBe('header');
 
-    // Verify PostgreSQL session variable was set
+    // Verify PostgreSQL session variable was set via a bound parameter (G-720)
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
-      `SELECT set_config('app.current_tenant_id', '${tenantId}', true)`,
+      expect.stringContaining("set_config('app.current_tenant_id', $1, true)"),
+      tenantId,
     );
   });
 
@@ -201,7 +202,36 @@ describe('tenantPlugin', () => {
     });
 
     expect(customExecute).toHaveBeenCalledWith(
-      `SELECT set_config('app.current_tenant_id', '${tenantId}', true)`,
+      expect.stringContaining("set_config('app.current_tenant_id', $1, true)"),
+      tenantId,
     );
+  });
+});
+
+describe('G-720 — tenant GUC is bound, never interpolated', () => {
+  it('passes a tenant id containing a quote as a parameter, not SQL text', async () => {
+    const execute = vi.fn().mockResolvedValue(1);
+    const app = Fastify();
+    await app.register(tenantPlugin, {
+      baseDomain: 'proctira.org',
+      getDbClient: () => ({ $executeRawUnsafe: execute }),
+      resolveSlugToId: false,
+      // UUID validation normally rejects this header up-front; disable it so the
+      // test exercises the SQL binding path itself.
+      requireUuid: false,
+    });
+    app.get('/test', async (request) => ({ tenantId: request.tenantId }));
+
+    const hostile = "abc'); DROP TABLE students; --";
+    const response = await app.inject({
+      method: 'GET',
+      url: '/test',
+      headers: { 'x-tenant-id': hostile },
+    });
+    expect(response.statusCode).toBe(200);
+    const [sql, param] = execute.mock.calls[0] as [string, string];
+    expect(sql).not.toContain(hostile);
+    expect(param).toBe(hostile);
+    await app.close();
   });
 });

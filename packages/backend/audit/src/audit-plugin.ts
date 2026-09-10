@@ -49,10 +49,7 @@ declare module 'fastify' {
  * ```
  */
 export const auditPlugin = fp(
-  async function auditPluginImpl(
-    fastify: FastifyInstance,
-    options: AuditPluginOptions,
-  ) {
+  async function auditPluginImpl(fastify: FastifyInstance, options: AuditPluginOptions) {
     const { repository, prefix = '/audit' } = options;
 
     // Create audit service instance
@@ -69,7 +66,7 @@ export const auditPlugin = fp(
   },
   {
     name: '@proctira/backend-audit',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

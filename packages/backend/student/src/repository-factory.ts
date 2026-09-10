@@ -13,7 +13,7 @@
  * config instead of relying on process env.
  */
 import { CacheClient } from '@proctira/cache';
-import { createPrismaClient } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/database';
 
 import { CachedStudentRepository } from './cached-student-repository.js';
 import { InMemoryStudentRepository } from './in-memory-repository.js';
@@ -30,14 +30,13 @@ export interface StudentRepositoryConfig {
 /**
  * Builds the student repository appropriate for the current configuration.
  */
-export function createStudentRepository(
-  config: StudentRepositoryConfig = {},
-): StudentRepository {
+export function createStudentRepository(config: StudentRepositoryConfig = {}): StudentRepository {
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
   const redisUrl = config.redisUrl ?? process.env['REDIS_URL'];
 
   // No database configured → in-memory store (development / unit tests).
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('student');
     return new InMemoryStudentRepository();
   }
 

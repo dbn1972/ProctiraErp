@@ -10,12 +10,7 @@
  *
  * Requirements: 23.1, 23.2, 23.3, 23.4, 23.5
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -67,16 +62,11 @@ export class SurveyService {
    * @throws ConflictError if name already exists within tenant
    * @throws BusinessRuleError if questions are invalid
    */
-  async createSurvey(
-    tenantId: string,
-    input: CreateSurveyInput,
-  ): Promise<SurveyEntity> {
+  async createSurvey(tenantId: string, input: CreateSurveyInput): Promise<SurveyEntity> {
     // Check name uniqueness within tenant
     const existing = await this.surveyRepo.findByName(input.name, tenantId);
     if (existing) {
-      throw new ConflictError(
-        `Survey with name '${input.name}' already exists`,
-      );
+      throw new ConflictError(`Survey with name '${input.name}' already exists`);
     }
 
     // Validate questions
@@ -140,9 +130,7 @@ export class SurveyService {
     if (input.name && input.name !== existing.name) {
       const byName = await this.surveyRepo.findByName(input.name, tenantId);
       if (byName) {
-        throw new ConflictError(
-          `Survey with name '${input.name}' already exists`,
-        );
+        throw new ConflictError(`Survey with name '${input.name}' already exists`);
       }
     }
 
@@ -151,7 +139,8 @@ export class SurveyService {
       this.validateQuestions(input.questions);
     }
 
-    const updateData: Partial<Omit<SurveyEntity, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>> = {};
+    const updateData: Partial<Omit<SurveyEntity, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>> =
+      {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
     if (input.academicPeriodId !== undefined) updateData.academicPeriodId = input.academicPeriodId;
@@ -238,26 +227,19 @@ export class SurveyService {
     }
 
     if (survey.status !== 'published') {
-      throw new BusinessRuleError(
-        'Survey must be published before distribution',
-      );
+      throw new BusinessRuleError('Survey must be published before distribution');
     }
 
     // Find institutions matching filters
-    const institutionIds = await this.institutionLookup.findByFilters(
-      tenantId,
-      input.filters,
-    );
+    const institutionIds = await this.institutionLookup.findByFilters(tenantId, input.filters);
 
     if (institutionIds.length === 0) {
-      throw new BusinessRuleError(
-        'No institutions match the specified filters',
-      );
+      throw new BusinessRuleError('No institutions match the specified filters');
     }
 
     // Create distribution records
-    const records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[] =
-      institutionIds.map((institutionId) => ({
+    const records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[] = institutionIds.map(
+      (institutionId) => ({
         id: uuidv4(),
         tenantId,
         surveyId: input.surveyId,
@@ -267,7 +249,8 @@ export class SurveyService {
         submittedAt: null,
         remindersSent: 0,
         reminderDays: input.reminderDays ?? [],
-      }));
+      }),
+    );
 
     return this.distributionRepo.createMany(records);
   }
@@ -282,10 +265,7 @@ export class SurveyService {
    * @throws ValidationError if required fields missing or data types invalid
    * @throws BusinessRuleError if already submitted
    */
-  async submitSurvey(
-    tenantId: string,
-    input: SubmitSurveyInput,
-  ): Promise<SubmissionEntity> {
+  async submitSurvey(tenantId: string, input: SubmitSurveyInput): Promise<SubmissionEntity> {
     const survey = await this.surveyRepo.findById(input.surveyId, tenantId);
     if (!survey) {
       throw new NotFoundError(`Survey with id '${input.surveyId}' not found`);
@@ -298,15 +278,11 @@ export class SurveyService {
       input.institutionId,
     );
     if (!distribution) {
-      throw new NotFoundError(
-        `Survey not distributed to institution '${input.institutionId}'`,
-      );
+      throw new NotFoundError(`Survey not distributed to institution '${input.institutionId}'`);
     }
 
     if (distribution.status === 'completed') {
-      throw new BusinessRuleError(
-        'Survey has already been submitted for this institution',
-      );
+      throw new BusinessRuleError('Survey has already been submitted for this institution');
     }
 
     // Validate answers against questions
@@ -352,17 +328,12 @@ export class SurveyService {
       throw new NotFoundError(`Survey with id '${surveyId}' not found`);
     }
 
-    let incompleteRecords = await this.distributionRepo.findIncompleteBySurvey(
-      tenantId,
-      surveyId,
-    );
+    let incompleteRecords = await this.distributionRepo.findIncompleteBySurvey(tenantId, surveyId);
 
     // Filter to specific institutions if provided
     if (institutionIds && institutionIds.length > 0) {
       const idSet = new Set(institutionIds);
-      incompleteRecords = incompleteRecords.filter((r) =>
-        idSet.has(r.institutionId),
-      );
+      incompleteRecords = incompleteRecords.filter((r) => idSet.has(r.institutionId));
     }
 
     if (incompleteRecords.length === 0) {
@@ -372,11 +343,7 @@ export class SurveyService {
     // Send notifications if publisher is available
     const targetInstitutionIds = incompleteRecords.map((r) => r.institutionId);
     if (this.notificationPublisher) {
-      await this.notificationPublisher.sendReminder(
-        tenantId,
-        surveyId,
-        targetInstitutionIds,
-      );
+      await this.notificationPublisher.sendReminder(tenantId, surveyId, targetInstitutionIds);
     }
 
     // Update reminder counts
@@ -405,9 +372,7 @@ export class SurveyService {
   }> {
     const counts = await this.distributionRepo.countByStatus(tenantId, surveyId);
     const total = counts.pending + counts.in_progress + counts.completed;
-    const completionRate = total > 0
-      ? Math.round((counts.completed / total) * 10000) / 100
-      : 0;
+    const completionRate = total > 0 ? Math.round((counts.completed / total) * 10000) / 100 : 0;
 
     return {
       total,
@@ -448,9 +413,8 @@ export class SurveyService {
 
     const totalDistributed = distributions.length;
     const totalCompleted = distributions.filter((d) => d.status === 'completed').length;
-    const completionRate = totalDistributed > 0
-      ? Math.round((totalCompleted / totalDistributed) * 10000) / 100
-      : 0;
+    const completionRate =
+      totalDistributed > 0 ? Math.round((totalCompleted / totalDistributed) * 10000) / 100 : 0;
 
     // Aggregate per question
     const questionSummaries = survey.questions.map((question) => {
@@ -496,9 +460,10 @@ export class SurveyService {
         groupLabel: group.label,
         totalDistributed: group.distributed,
         totalCompleted: group.completed,
-        completionRate: group.distributed > 0
-          ? Math.round((group.completed / group.distributed) * 10000) / 100
-          : 0,
+        completionRate:
+          group.distributed > 0
+            ? Math.round((group.completed / group.distributed) * 10000) / 100
+            : 0,
       }));
     }
 
@@ -524,7 +489,10 @@ export class SurveyService {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i]!;
 
-      if ((q.type === 'dropdown' || q.type === 'checkbox') && (!q.options || q.options.length === 0)) {
+      if (
+        (q.type === 'dropdown' || q.type === 'checkbox') &&
+        (!q.options || q.options.length === 0)
+      ) {
         errors.push({
           field: `questions[${i}].options`,
           rule: 'required',

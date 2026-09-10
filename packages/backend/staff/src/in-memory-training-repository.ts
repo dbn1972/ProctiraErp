@@ -60,9 +60,7 @@ export class InMemoryTrainingProgramRepository implements TrainingProgramReposit
     search: string | undefined,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<TrainingProgramEntity>> {
-    let items = Array.from(this.programs.values()).filter(
-      (e) => e.tenantId === tenantId,
-    );
+    let items = Array.from(this.programs.values()).filter((e) => e.tenantId === tenantId);
 
     if (search) {
       const searchLower = search.toLowerCase();
@@ -216,9 +214,7 @@ export class InMemoryCertificationRepository implements CertificationRepository 
     filter: CertificationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<CertificationEntity>> {
-    let items = Array.from(this.certifications.values()).filter(
-      (e) => e.tenantId === tenantId,
-    );
+    let items = Array.from(this.certifications.values()).filter((e) => e.tenantId === tenantId);
 
     if (filter.staffId) {
       items = items.filter((e) => e.staffId === filter.staffId);

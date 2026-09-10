@@ -49,17 +49,14 @@ test.describe('Public Application Tracking page', () => {
     // Intercept the public read-only endpoint and reply with the sample
     // payload. We match by URL path so the test does not care which port
     // the dev server is on.
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        requestedUrl = route.request().url();
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(SAMPLE_RESPONSE),
-        });
-      },
-    );
+    await page.route('**/api/v1/registration/applications/**', async (route) => {
+      requestedUrl = route.request().url();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(SAMPLE_RESPONSE),
+      });
+    });
 
     await page.goto('/track');
 
@@ -82,9 +79,7 @@ test.describe('Public Application Tracking page', () => {
     await expect(items).toHaveCount(2);
 
     // The follow-up section shows the action message.
-    await expect(
-      page.getByText(/please upload a birth certificate/i),
-    ).toBeVisible();
+    await expect(page.getByText(/please upload a birth certificate/i)).toBeVisible();
 
     // The status badge shows the localized "Under review" label.
     await expect(page.getByTestId('status-badge')).toHaveText(/under review/i);
@@ -92,9 +87,7 @@ test.describe('Public Application Tracking page', () => {
     // The browser actually called the public registration endpoint with
     // the encoded tracking number from the form.
     expect(requestedUrl).not.toBeNull();
-    expect(requestedUrl).toContain(
-      `/api/v1/registration/applications/${TRACKING_NUMBER}`,
-    );
+    expect(requestedUrl).toContain(`/api/v1/registration/applications/${TRACKING_NUMBER}`);
 
     // Task 56.7 — populated result state must also pass WCAG 2.1 AA.
     // The badge, timeline, and follow-up alert each introduce
@@ -104,16 +97,13 @@ test.describe('Public Application Tracking page', () => {
   });
 
   test('shows the friendly "not found" alert on a 404', async ({ page }) => {
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        await route.fulfill({
-          status: 404,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'NOT_FOUND' }),
-        });
-      },
-    );
+    await page.route('**/api/v1/registration/applications/**', async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'NOT_FOUND' }),
+      });
+    });
 
     await page.goto('/track');
     await page.getByLabel(/tracking number/i).fill('REG-MISSING');
@@ -125,13 +115,10 @@ test.describe('Public Application Tracking page', () => {
 
   test('rejects an empty tracking number client-side', async ({ page }) => {
     let networkCalls = 0;
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        networkCalls += 1;
-        await route.fulfill({ status: 200, body: '{}' });
-      },
-    );
+    await page.route('**/api/v1/registration/applications/**', async (route) => {
+      networkCalls += 1;
+      await route.fulfill({ status: 200, body: '{}' });
+    });
 
     await page.goto('/track');
     await page.getByRole('button', { name: /check status/i }).click();

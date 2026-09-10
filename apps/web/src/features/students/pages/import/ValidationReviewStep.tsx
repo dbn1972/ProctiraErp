@@ -33,8 +33,7 @@ export function ValidationReviewStep({
   onContinue,
   onBack,
 }: ValidationReviewStepProps) {
-  const { totalRows, validRows, errorRows, warningRows, errors, preview } =
-    validationResult;
+  const { totalRows, validRows, errorRows, warningRows, errors, preview } = validationResult;
 
   const errorsByRow = useMemo(() => {
     const map = new Map<number, typeof errors>();
@@ -46,15 +45,9 @@ export function ValidationReviewStep({
     return map;
   }, [errors]);
 
-  const criticalErrors = useMemo(
-    () => errors.filter((e) => e.severity === 'error'),
-    [errors],
-  );
+  const criticalErrors = useMemo(() => errors.filter((e) => e.severity === 'error'), [errors]);
 
-  const warnings = useMemo(
-    () => errors.filter((e) => e.severity === 'warning'),
-    [errors],
-  );
+  const warnings = useMemo(() => errors.filter((e) => e.severity === 'warning'), [errors]);
 
   const canProceed = validRows > 0;
 
@@ -63,8 +56,8 @@ export function ValidationReviewStep({
       <div className="space-y-2">
         <h3 className="text-lg font-medium">Validation Review</h3>
         <p className="text-sm text-muted-foreground">
-          Review the validation results below. Rows with errors will not be imported.
-          You can download the error report, fix the file, and re-upload.
+          Review the validation results below. Rows with errors will not be imported. You can
+          download the error report, fix the file, and re-upload.
         </p>
       </div>
 
@@ -80,21 +73,15 @@ export function ValidationReviewStep({
           <p className="text-xs text-muted-foreground">Total Rows</p>
         </div>
         <div className="rounded-md border border-green-200 bg-green-50 p-3 text-center dark:border-green-900 dark:bg-green-950/30">
-          <p className="text-2xl font-semibold text-green-700 dark:text-green-400">
-            {validRows}
-          </p>
+          <p className="text-2xl font-semibold text-green-700 dark:text-green-400">{validRows}</p>
           <p className="text-xs text-green-600 dark:text-green-500">Valid</p>
         </div>
         <div className="rounded-md border border-red-200 bg-red-50 p-3 text-center dark:border-red-900 dark:bg-red-950/30">
-          <p className="text-2xl font-semibold text-red-700 dark:text-red-400">
-            {errorRows}
-          </p>
+          <p className="text-2xl font-semibold text-red-700 dark:text-red-400">{errorRows}</p>
           <p className="text-xs text-red-600 dark:text-red-500">Errors</p>
         </div>
         <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-center dark:border-amber-900 dark:bg-amber-950/30">
-          <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">
-            {warningRows}
-          </p>
+          <p className="text-2xl font-semibold text-amber-700 dark:text-amber-400">{warningRows}</p>
           <p className="text-xs text-amber-600 dark:text-amber-500">Warnings</p>
         </div>
       </div>
@@ -120,10 +107,7 @@ export function ValidationReviewStep({
             role="region"
             aria-label="Validation errors"
           >
-            <table
-              className="w-full text-sm"
-              aria-label="Row-level validation errors"
-            >
+            <table className="w-full text-sm" aria-label="Row-level validation errors">
               <thead className="sticky top-0 bg-background">
                 <tr className="border-b bg-muted/50">
                   <th className="px-3 py-2 text-left font-medium" scope="col">
@@ -145,9 +129,7 @@ export function ValidationReviewStep({
                   <tr key={`${err.row}-${err.field}-${idx}`} className="border-b">
                     <td className="px-3 py-2 font-mono text-xs">{err.row}</td>
                     <td className="px-3 py-2">{err.field}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {err.value ?? '—'}
-                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">{err.value ?? '—'}</td>
                     <td className="px-3 py-2 text-destructive">{err.message}</td>
                   </tr>
                 ))}
@@ -155,8 +137,8 @@ export function ValidationReviewStep({
             </table>
             {criticalErrors.length > 100 && (
               <p className="border-t px-3 py-2 text-xs text-muted-foreground">
-                Showing first 100 of {criticalErrors.length} errors.
-                Download the full report for all errors.
+                Showing first 100 of {criticalErrors.length} errors. Download the full report for
+                all errors.
               </p>
             )}
           </div>
@@ -193,9 +175,7 @@ export function ValidationReviewStep({
                   <tr key={`${w.row}-${w.field}-${idx}`} className="border-b">
                     <td className="px-3 py-2 font-mono text-xs">{w.row}</td>
                     <td className="px-3 py-2">{w.field}</td>
-                    <td className="px-3 py-2 text-amber-700 dark:text-amber-300">
-                      {w.message}
-                    </td>
+                    <td className="px-3 py-2 text-amber-700 dark:text-amber-300">{w.message}</td>
                   </tr>
                 ))}
               </tbody>
@@ -207,9 +187,7 @@ export function ValidationReviewStep({
       {/* Data preview */}
       {preview.length > 0 && (
         <div className="space-y-2">
-          <h4 className="text-sm font-medium">
-            Data Preview (first {preview.length} rows)
-          </h4>
+          <h4 className="text-sm font-medium">Data Preview (first {preview.length} rows)</h4>
           <div
             className="max-h-48 overflow-auto rounded-md border"
             role="region"
@@ -223,11 +201,7 @@ export function ValidationReviewStep({
                   </th>
                   {preview[0] &&
                     Object.keys(preview[0].data).map((key) => (
-                      <th
-                        key={key}
-                        className="px-3 py-2 text-left font-medium"
-                        scope="col"
-                      >
+                      <th key={key} className="px-3 py-2 text-left font-medium" scope="col">
                         {key}
                       </th>
                     ))}
@@ -242,9 +216,7 @@ export function ValidationReviewStep({
                     key={row.rowNumber}
                     className={`border-b ${row.hasErrors ? 'bg-red-50/50 dark:bg-red-950/10' : ''}`}
                   >
-                    <td className="px-3 py-2 font-mono text-xs">
-                      {row.rowNumber}
-                    </td>
+                    <td className="px-3 py-2 font-mono text-xs">{row.rowNumber}</td>
                     {Object.values(row.data).map((value, i) => (
                       <td key={i} className="px-3 py-2">
                         {String(value ?? '')}
@@ -299,9 +271,7 @@ export function ValidationReviewStep({
               : `Confirm import of ${validRows} valid rows`
           }
         >
-          {hasDuplicates
-            ? 'Resolve Duplicates'
-            : `Import ${validRows} Valid Rows`}
+          {hasDuplicates ? 'Resolve Duplicates' : `Import ${validRows} Valid Rows`}
         </button>
       </div>
     </div>

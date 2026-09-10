@@ -62,7 +62,10 @@ export interface SAMLParsedResponse {
  * For production, use @node-saml/node-saml for full signature validation.
  */
 export class DefaultSAMLResponseParser implements SAMLResponseParser {
-  async parseResponse(samlResponse: string, config: SAMLProviderConfig): Promise<SAMLParsedResponse> {
+  async parseResponse(
+    samlResponse: string,
+    config: SAMLProviderConfig,
+  ): Promise<SAMLParsedResponse> {
     // Decode base64 SAML response
     const xml = Buffer.from(samlResponse, 'base64').toString('utf-8');
 
@@ -126,10 +129,7 @@ export class DefaultSAMLResponseParser implements SAMLResponseParser {
    * Extract an attribute value from an XML element.
    */
   private extractAttribute(xml: string, elementName: string, attrName: string): string | null {
-    const regex = new RegExp(
-      `<(?:[\\w]+:)?${elementName}[^>]*${attrName}="([^"]*)"`,
-      'i',
-    );
+    const regex = new RegExp(`<(?:[\\w]+:)?${elementName}[^>]*${attrName}="([^"]*)"`, 'i');
     const match = xml.match(regex);
     return match?.[1] ?? null;
   }
@@ -141,7 +141,8 @@ export class DefaultSAMLResponseParser implements SAMLResponseParser {
     const attributes: Record<string, string | string[]> = {};
 
     // Match Attribute elements with Name and AttributeValue
-    const attrRegex = /<(?:[\w]+:)?Attribute\s+Name="([^"]+)"[^>]*>([\s\S]*?)<\/(?:[\w]+:)?Attribute>/gi;
+    const attrRegex =
+      /<(?:[\w]+:)?Attribute\s+Name="([^"]+)"[^>]*>([\s\S]*?)<\/(?:[\w]+:)?Attribute>/gi;
     let attrMatch: RegExpExecArray | null;
 
     while ((attrMatch = attrRegex.exec(xml)) !== null) {
@@ -315,7 +316,8 @@ export class SAMLProvider implements ExternalAuthProvider {
    */
   private generateAuthnRequest(requestId: string): string {
     const issueInstant = new Date().toISOString();
-    const nameIdFormat = this.config.nameIdFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
+    const nameIdFormat =
+      this.config.nameIdFormat ?? 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress';
 
     return `<samlp:AuthnRequest
   xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"

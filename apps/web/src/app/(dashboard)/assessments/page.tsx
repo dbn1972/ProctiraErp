@@ -23,10 +23,10 @@ import { listGradingSchemes } from '@/lib/api/assessments';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readStr(params: PageProps['searchParams'], key: string, fallback = ''): string {
+function readStr(params: Awaited<PageProps['searchParams']>, key: string, fallback = ''): string {
   if (!params) return fallback;
   const v = params[key];
   if (typeof v === 'string') return v;
@@ -34,14 +34,18 @@ function readStr(params: PageProps['searchParams'], key: string, fallback = ''):
   return fallback;
 }
 
-function readNum(params: PageProps['searchParams'], key: string, fallback: number): number {
+function readNum(
+  params: Awaited<PageProps['searchParams']>,
+  key: string,
+  fallback: number,
+): number {
   const parsed = Number.parseInt(readStr(params, key), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 const TYPE_PILL: Record<string, string> = {
-  numeric:    'bg-blue-50   text-blue-700   dark:bg-blue-950/40   dark:text-blue-400',
-  letter:     'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400',
+  numeric: 'bg-blue-50   text-blue-700   dark:bg-blue-950/40   dark:text-blue-400',
+  letter: 'bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400',
   competency: 'bg-teal-50   text-teal-700   dark:bg-teal-950/40   dark:text-teal-400',
 };
 
@@ -49,15 +53,15 @@ function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-export default async function AssessmentsPage({ searchParams }: PageProps) {
+export default async function AssessmentsPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const search = readStr(searchParams, 'search');
   const type = readStr(searchParams, 'type');
   const page = readNum(searchParams, 'page', 1);
 
   const response = await listGradingSchemes({
     search: search || undefined,
-    type:
-      type === 'numeric' || type === 'letter' || type === 'competency' ? type : undefined,
+    type: type === 'numeric' || type === 'letter' || type === 'competency' ? type : undefined,
     page,
     pageSize: 25,
   });
@@ -66,7 +70,6 @@ export default async function AssessmentsPage({ searchParams }: PageProps) {
 
   return (
     <section aria-labelledby="assessments-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -77,8 +80,8 @@ export default async function AssessmentsPage({ searchParams }: PageProps) {
             Assessment schemes
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total.toLocaleString()} grading {total === 1 ? 'scheme' : 'schemes'} ·
-            numeric, letter, and competency scales supported
+            {total.toLocaleString()} grading {total === 1 ? 'scheme' : 'schemes'} · numeric, letter,
+            and competency scales supported
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -87,6 +90,12 @@ export default async function AssessmentsPage({ searchParams }: PageProps) {
               <ListChecks className="me-1.5 h-4 w-4" aria-hidden="true" />
               Assessment items
             </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/assessments/outcomes">Outcomes</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/assessments/report-cards">Report cards</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/assessments/results">Enter results</Link>
@@ -128,8 +137,9 @@ export default async function AssessmentsPage({ searchParams }: PageProps) {
                         {scheme.name}
                       </Link>
                       <p className="text-[11px] text-muted-foreground">
-                        {scheme.thresholds.length} grade {scheme.thresholds.length === 1 ? 'band' : 'bands'} ·
-                        {' '}{titleCase(scheme.type)} scale
+                        {scheme.thresholds.length} grade{' '}
+                        {scheme.thresholds.length === 1 ? 'band' : 'bands'} ·{' '}
+                        {titleCase(scheme.type)} scale
                       </p>
                     </TableCell>
                     <TableCell>
@@ -150,22 +160,35 @@ export default async function AssessmentsPage({ searchParams }: PageProps) {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(scheme.updatedAt).toLocaleDateString('en-GB', {
-                        day: 'numeric', month: 'short', year: 'numeric',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
                       })}
                     </TableCell>
                     <TableCell className="text-end">
                       <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-                          <Link href="/assessments/items" aria-label={`View items for ${scheme.name}`}>
+                          <Link
+                            href="/assessments/items"
+                            aria-label={`View items for ${scheme.name}`}
+                          >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Link>
                         </Button>
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-                          <Link href={`/assessments/schemes/${scheme.id}/edit`} aria-label={`Edit ${scheme.name}`}>
+                          <Link
+                            href={`/assessments/schemes/${scheme.id}/edit`}
+                            aria-label={`Edit ${scheme.name}`}
+                          >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 p-0"
+                          aria-label="More actions"
+                        >
                           <MoreVertical className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </div>

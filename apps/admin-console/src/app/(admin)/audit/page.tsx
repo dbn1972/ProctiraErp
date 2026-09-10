@@ -2,13 +2,7 @@ import { ShieldCheck } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { StubDataBanner } from '@/components/stub-data-banner';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Table,
@@ -63,8 +57,8 @@ export default async function AuditPage({
         <ShieldCheck className="h-4 w-4" />
         <AlertTitle>Immutable by design</AlertTitle>
         <AlertDescription>
-          Entries are append-only. Nothing on this page can be edited or deleted
-          — including by platform operators.
+          Entries are append-only. Nothing on this page can be edited or deleted — including by
+          platform operators.
         </AlertDescription>
       </Alert>
 
@@ -72,8 +66,7 @@ export default async function AuditPage({
         <CardHeader>
           <CardTitle>Events</CardTitle>
           <CardDescription>
-            {entries.length} event{entries.length === 1 ? '' : 's'} · newest
-            first.
+            {entries.length} event{entries.length === 1 ? '' : 's'} · newest first.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -111,9 +104,7 @@ export default async function AuditPage({
                   <TableCell>
                     <div className="text-xs">{entry.actor}</div>
                     {entry.actorRole && (
-                      <div className="text-xs text-muted-foreground">
-                        {entry.actorRole}
-                      </div>
+                      <div className="text-xs text-muted-foreground">{entry.actorRole}</div>
                     )}
                   </TableCell>
                   <TableCell>
@@ -127,9 +118,7 @@ export default async function AuditPage({
                       {entry.resourceType}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs">
-                    {resolveTenant(entry.tenantId)}
-                  </TableCell>
+                  <TableCell className="text-xs">{resolveTenant(entry.tenantId)}</TableCell>
                   <TableCell>
                     <StatusBadge status={entry.outcome} />
                   </TableCell>

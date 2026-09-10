@@ -57,6 +57,12 @@ describe('PgPhiStore', () => {
 
     const screeningsB = await store!.listScreeningPrograms(tenantB, { page: 1, pageSize: 20 });
     expect(screeningsB.data.some((row) => row.id === screeningId)).toBe(false);
+
+    // G-912 tenant-wide reads behind the /health list aggregates.
+    const allA = await store!.listAllAllergies(tenantA);
+    expect(allA.some((row) => row.id === allergyId)).toBe(true);
+    const allB = await store!.listAllAllergies(tenantB);
+    expect(allB.some((row) => row.id === allergyId)).toBe(false);
   });
 });
 

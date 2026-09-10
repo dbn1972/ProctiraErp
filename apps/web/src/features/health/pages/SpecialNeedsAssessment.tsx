@@ -174,8 +174,8 @@ export default function SpecialNeedsAssessment() {
         <div className="text-5xl">🔒</div>
         <h1 className="text-2xl font-semibold">Access Denied</h1>
         <p className="text-muted-foreground text-center max-w-md">
-          You do not have permission to view special needs records. Only authorized
-          health personnel and the student&apos;s guardian may access this information.
+          You do not have permission to view special needs records. Only authorized health personnel
+          and the student&apos;s guardian may access this information.
         </p>
       </div>
     );
@@ -306,13 +306,17 @@ function DiagnosesSection({ data }: { data: Diagnosis[] }) {
               <td className="px-4 py-3 font-medium">{d.condition}</td>
               <td className="px-4 py-3 text-xs capitalize">{d.category}</td>
               <td className="px-4 py-3">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLES[d.severity] ?? ''}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLES[d.severity] ?? ''}`}
+                >
                   {d.severity}
                 </span>
               </td>
               <td className="px-4 py-3 text-xs">{d.diagnosedBy}</td>
               <td className="px-4 py-3 text-xs">{formatDate(d.diagnosisDate)}</td>
-              <td className="px-4 py-3 text-xs text-muted-foreground line-clamp-1">{d.notes ?? '—'}</td>
+              <td className="px-4 py-3 text-xs text-muted-foreground line-clamp-1">
+                {d.notes ?? '—'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -331,7 +335,9 @@ function AccommodationPlansSection({ data }: { data: AccommodationPlan[] }) {
         <div key={plan.id} className="rounded-md border p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="font-medium">{plan.planName}</div>
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PLAN_STATUS_STYLES[plan.status] ?? ''}`}>
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PLAN_STATUS_STYLES[plan.status] ?? ''}`}
+            >
               {plan.status}
             </span>
           </div>
@@ -350,9 +356,7 @@ function AccommodationPlansSection({ data }: { data: AccommodationPlan[] }) {
               ))}
             </ul>
           </div>
-          {plan.notes && (
-            <div className="text-xs text-muted-foreground">Notes: {plan.notes}</div>
-          )}
+          {plan.notes && <div className="text-xs text-muted-foreground">Notes: {plan.notes}</div>}
         </div>
       ))}
     </div>
@@ -360,7 +364,5 @@ function AccommodationPlansSection({ data }: { data: AccommodationPlan[] }) {
 }
 
 function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="text-center py-12 text-muted-foreground text-sm">{message}</div>
-  );
+  return <div className="text-center py-12 text-muted-foreground text-sm">{message}</div>;
 }

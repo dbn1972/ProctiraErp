@@ -114,9 +114,7 @@ export class InMemoryGradebookRepository implements GradebookRepository {
 
   async getCreditRuleByCode(tenantId: string, code: string) {
     return (
-      [...this.creditRules.values()].find(
-        (r) => r.tenantId === tenantId && r.code === code,
-      ) ?? null
+      [...this.creditRules.values()].find((r) => r.tenantId === tenantId && r.code === code) ?? null
     );
   }
 
@@ -143,9 +141,7 @@ export class InMemoryGradebookRepository implements GradebookRepository {
       [...this.scales.values()].find(
         (s) => s.tenantId === tenantId && s.boardId === boardId && s.isDefault,
       ) ??
-      [...this.scales.values()].find(
-        (s) => s.tenantId === tenantId && s.boardId === boardId,
-      ) ??
+      [...this.scales.values()].find((s) => s.tenantId === tenantId && s.boardId === boardId) ??
       null
     );
   }
@@ -267,10 +263,7 @@ export class InMemoryGradebookRepository implements GradebookRepository {
       .sort((a, b) => a.code.localeCompare(b.code));
   }
 
-  async listBoardCodes(
-    tenantId: string,
-    filter: { institutionId: string; boardId?: string },
-  ) {
+  async listBoardCodes(tenantId: string, filter: { institutionId: string; boardId?: string }) {
     return [...this.boardCodes.values()].filter((c) => {
       if (c.tenantId !== tenantId) return false;
       if (c.institutionId !== filter.institutionId) return false;
@@ -279,10 +272,7 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     });
   }
 
-  async listBoardExportCandidates(
-    tenantId: string,
-    filter: ListBoardExportCandidatesFilter,
-  ) {
+  async listBoardExportCandidates(tenantId: string, filter: ListBoardExportCandidatesFilter) {
     const limit = Math.min(Math.max(filter.limit ?? 50, 1), 500);
     // Prefer explicit seed candidates; fall back to synthesizing from grade entries.
     let rows = [...this.candidates.values()].filter((c) => {

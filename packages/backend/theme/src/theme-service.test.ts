@@ -155,24 +155,29 @@ describe('ThemeService', () => {
       const badTokens = validTokens();
       badTokens.typography.baseFontSize = 8;
 
-      await expect(
-        service.update(tenantId, theme.id, { tokens: badTokens }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.update(tenantId, theme.id, { tokens: badTokens })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should reject update for wrong tenant', async () => {
       const theme = await service.create(tenantId, validCreateInput());
 
-      await expect(
-        service.update('other-tenant', theme.id, { name: 'Hacked' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update('other-tenant', theme.id, { name: 'Hacked' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
   describe('publish', () => {
     it('should publish a theme and create a revision', async () => {
       const theme = await service.create(tenantId, validCreateInput());
-      const revision = await service.publish(tenantId, theme.id, { commitMessage: 'Initial release' }, 'admin');
+      const revision = await service.publish(
+        tenantId,
+        theme.id,
+        { commitMessage: 'Initial release' },
+        'admin',
+      );
 
       expect(revision.revisionNumber).toBe(1);
       expect(revision.themeId).toBe(theme.id);
@@ -192,7 +197,12 @@ describe('ThemeService', () => {
       newTokens.colors.primary = '#2563eb';
       await service.update(tenantId, theme.id, { tokens: newTokens });
 
-      const rev2 = await service.publish(tenantId, theme.id, { commitMessage: 'Color update' }, 'admin');
+      const rev2 = await service.publish(
+        tenantId,
+        theme.id,
+        { commitMessage: 'Color update' },
+        'admin',
+      );
       expect(rev2.revisionNumber).toBe(2);
     });
 
@@ -213,9 +223,9 @@ describe('ThemeService', () => {
       const theme = await lenientService.create(tenantId, validCreateInput({ tokens }));
 
       // Publishing always validates accessibility
-      await expect(
-        lenientService.publish(tenantId, theme.id, {}, 'admin'),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(lenientService.publish(tenantId, theme.id, {}, 'admin')).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 

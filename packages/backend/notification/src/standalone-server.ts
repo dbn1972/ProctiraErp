@@ -21,9 +21,11 @@
  *   SMTP_FROM     - Default sender email
  *   FCM_PROJECT_ID - Firebase Cloud Messaging project ID
  */
+import { observabilityPlugin } from '@proctira/observability';
 import Fastify from 'fastify';
-import { notificationPlugin } from './notification-plugin.js';
+
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
+import { notificationPlugin } from './notification-plugin.js';
 
 const PORT = parseInt(process.env['PORT'] || '3027', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -34,13 +36,17 @@ async function start() {
   const app = Fastify({
     logger: {
       level: LOG_LEVEL,
-      transport:
-        process.env['NODE_ENV'] === 'development'
-          ? { target: 'pino-pretty' }
-          : undefined,
+      transport: process.env['NODE_ENV'] === 'development' ? { target: 'pino-pretty' } : undefined,
     },
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
+  });
+
+  // Prometheus metrics + GET /metrics (G-725): same plugin the gateway uses so
+  // standalone deployments are scraped by infra/observability/prometheus.yml.
+  await app.register(observabilityPlugin, {
+    serviceName: SERVICE_NAME,
+    ignorePaths: ['/health', '/ready'],
   });
 
   // Health check endpoint (liveness)
@@ -81,10 +87,15 @@ async function start() {
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   for (const signal of signals) {
-    process.on(signal, async () => {
+    process.on(signal, () => {
       app.log.info(`Received ${signal}, shutting down gracefully...`);
-      await app.close();
-      process.exit(0);
+      void app.close().then(
+        () => process.exit(0),
+        (err: unknown) => {
+          app.log.error(err);
+          process.exit(1);
+        },
+      );
     });
   }
 }

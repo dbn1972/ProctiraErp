@@ -426,13 +426,189 @@ describe('TimetableService', () => {
     expect(actions).toContain('substitution.create');
     expect(service.listAudits(tenantB)).toEqual([]);
   });
-});
 
+  it('bulkEnrollStudents enrolls many and reports capacity failures (G-304)', async () => {
+    const service = new TimetableService(new InMemoryTimetableRepository());
+    const section = await service.createSection(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Bulk Math',
+      code: 'BULK-M',
+      capacity: 2,
+      primaryTeacherId: staffA,
+    });
+
+    const result = await service.bulkEnrollStudents(tenantId, section.id, [
+      studentA,
+      studentB,
+      studentC,
+      studentA,
+    ]);
+    expect(result.enrolled).toHaveLength(2);
+    expect(result.failed).toHaveLength(1);
+    expect(result.failed[0]?.studentId).toBe(studentC);
+    expect(result.failed[0]?.code).toBe('VALIDATION_ERROR');
+    expect(service.listAudits(tenantId).some((a) => a.action === 'section.bulk_enroll')).toBe(true);
+  });
+
+  it('listConflicts surfaces staff double-book on the institution grid (G-304)', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day2',
+      code: 'DAY2',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    const now = new Date().toISOString();
+    await repo.createMeeting({
+      id: 'm-conflict-1',
+      tenantId,
+      institutionId,
+      academicPeriodId,
+      sectionId: sectionA,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period.id,
+      roomId: 'room-x',
+      dayOfWeek: 2,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+    await repo.createMeeting({
+      id: 'm-conflict-2',
+      tenantId,
+      institutionId,
+      academicPeriodId,
+      sectionId: sectionB,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period.id,
+      roomId: 'room-x',
+      dayOfWeek: 2,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const conflicts = await service.listConflicts(tenantId, { institutionId });
+    expect(conflicts.some((c) => c.reason === 'staff')).toBe(true);
+    expect(conflicts.some((c) => c.reason === 'room')).toBe(true);
+  });
+});
 describe('timetable access', () => {
   it('allows registrar write/publish and denies teacher publish', () => {
     expect(hasTimetableAccess(['registrar'], 'schedule.write')).toBe(true);
     expect(hasTimetableAccess(['registrar'], 'schedule.publish')).toBe(true);
     expect(hasTimetableAccess(['teacher'], 'schedule.publish')).toBe(false);
     expect(() => assertTimetableAccess(['teacher'], 'schedule.write')).toThrow(/Forbidden/);
+  });
+});
+
+describe('G-917 generation jobs + absences', () => {
+  it('runs a generation job to done with 0 hard clashes', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Gen day',
+      code: 'GEN',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P2',
+      periodOrder: 2,
+      startTime: '09:00',
+      endTime: '09:45',
+    });
+    await service.createRoom(tenantId, {
+      institutionId,
+      code: 'R1',
+      name: 'Room 1',
+      capacity: 40,
+      roomType: 'CLASSROOM',
+      status: 'active',
+    });
+    const job = await service.runGenerationJob(
+      tenantId,
+      {
+        institutionId,
+        academicPeriodId,
+        bellScheduleId: schedule.id,
+        persistMeetings: false,
+        demands: [
+          {
+            sectionId: sectionA,
+            subjectId: 'subj-math',
+            staffId: staffA,
+            periodsPerWeek: 2,
+            enrollmentCount: 20,
+          },
+        ],
+      },
+      'tester',
+    );
+    expect(job.status).toBe('done');
+    expect(job.clashCount).toBe(0);
+    expect(job.assignedCount).toBe(2);
+  });
+
+  it('lists affected periods after marking a teacher absent', async () => {
+    const repo = new InMemoryTimetableRepository();
+    const service = new TimetableService(repo);
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'DAYA',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    await service.createMeeting(tenantId, {
+      institutionId,
+      academicPeriodId,
+      sectionId: sectionA,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+    });
+    // 2026-09-07 is a Monday (ISO 1)
+    const { affected } = await service.markTeacherAbsent(
+      tenantId,
+      { institutionId, staffId: staffA, absenceDate: '2026-09-07', reason: 'sick' },
+      'tester',
+    );
+    expect(affected).toHaveLength(1);
+    expect(affected[0]?.staffId).toBe(staffA);
   });
 });

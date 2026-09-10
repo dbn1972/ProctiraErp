@@ -5,6 +5,11 @@ import { expect, test } from '@playwright/test';
 
 const NOTIFICATION_ROUTES = [
   { id: 'inbox', path: '/notifications', heading: /notification/i },
+  {
+    id: 'preferences',
+    path: '/notifications/preferences',
+    heading: /notification preferences|notifications/i,
+  },
   { id: 'rules', path: '/admin/notification-rules', heading: /notification rules/i },
 ] as const;
 

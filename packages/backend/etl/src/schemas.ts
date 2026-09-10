@@ -43,25 +43,28 @@ export type PostgresSourceConfig = Static<typeof PostgresSourceConfigSchema>;
 export const RestApiSourceConfigSchema = Type.Object({
   type: Type.Literal('rest_api'),
   url: Type.String({ minLength: 1, description: 'API endpoint URL' }),
-  method: Type.Optional(Type.Union([
-    Type.Literal('GET'),
-    Type.Literal('POST'),
-  ], { default: 'GET' })),
+  method: Type.Optional(
+    Type.Union([Type.Literal('GET'), Type.Literal('POST')], { default: 'GET' }),
+  ),
   headers: Type.Optional(Type.Record(Type.String(), Type.String())),
   body: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  authType: Type.Optional(Type.Union([
-    Type.Literal('none'),
-    Type.Literal('bearer'),
-    Type.Literal('basic'),
-    Type.Literal('api_key'),
-  ])),
+  authType: Type.Optional(
+    Type.Union([
+      Type.Literal('none'),
+      Type.Literal('bearer'),
+      Type.Literal('basic'),
+      Type.Literal('api_key'),
+    ]),
+  ),
   authConfig: Type.Optional(Type.Record(Type.String(), Type.String())),
-  paginationType: Type.Optional(Type.Union([
-    Type.Literal('none'),
-    Type.Literal('offset'),
-    Type.Literal('cursor'),
-    Type.Literal('page'),
-  ])),
+  paginationType: Type.Optional(
+    Type.Union([
+      Type.Literal('none'),
+      Type.Literal('offset'),
+      Type.Literal('cursor'),
+      Type.Literal('page'),
+    ]),
+  ),
   paginationConfig: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   dataPath: Type.Optional(Type.String({ description: 'JSON path to data array in response' })),
 });
@@ -130,12 +133,14 @@ export const PostgresDestinationConfigSchema = Type.Object({
   password: Type.String({ minLength: 1 }),
   schema: Type.Optional(Type.String({ default: 'public' })),
   table: Type.String({ minLength: 1, description: 'Target table name' }),
-  writeMode: Type.Optional(Type.Union([
-    Type.Literal('insert'),
-    Type.Literal('upsert'),
-    Type.Literal('replace'),
-  ], { default: 'insert' })),
-  upsertKey: Type.Optional(Type.Array(Type.String(), { description: 'Columns for upsert conflict resolution' })),
+  writeMode: Type.Optional(
+    Type.Union([Type.Literal('insert'), Type.Literal('upsert'), Type.Literal('replace')], {
+      default: 'insert',
+    }),
+  ),
+  upsertKey: Type.Optional(
+    Type.Array(Type.String(), { description: 'Columns for upsert conflict resolution' }),
+  ),
 });
 
 export type PostgresDestinationConfig = Static<typeof PostgresDestinationConfigSchema>;
@@ -146,18 +151,20 @@ export type PostgresDestinationConfig = Static<typeof PostgresDestinationConfigS
 export const RestApiDestinationConfigSchema = Type.Object({
   type: Type.Literal('rest_api'),
   url: Type.String({ minLength: 1, description: 'API endpoint URL' }),
-  method: Type.Optional(Type.Union([
-    Type.Literal('POST'),
-    Type.Literal('PUT'),
-    Type.Literal('PATCH'),
-  ], { default: 'POST' })),
+  method: Type.Optional(
+    Type.Union([Type.Literal('POST'), Type.Literal('PUT'), Type.Literal('PATCH')], {
+      default: 'POST',
+    }),
+  ),
   headers: Type.Optional(Type.Record(Type.String(), Type.String())),
-  authType: Type.Optional(Type.Union([
-    Type.Literal('none'),
-    Type.Literal('bearer'),
-    Type.Literal('basic'),
-    Type.Literal('api_key'),
-  ])),
+  authType: Type.Optional(
+    Type.Union([
+      Type.Literal('none'),
+      Type.Literal('bearer'),
+      Type.Literal('basic'),
+      Type.Literal('api_key'),
+    ]),
+  ),
   authConfig: Type.Optional(Type.Record(Type.String(), Type.String())),
   batchSize: Type.Optional(Type.Number({ minimum: 1, maximum: 1000, default: 100 })),
 });
@@ -209,7 +216,9 @@ export const LookupConfigSchema = Type.Object({
   lookupTable: Type.Record(Type.String(), Type.Unknown(), {
     description: 'Key-value mapping for lookup replacement',
   }),
-  defaultValue: Type.Optional(Type.Unknown({ description: 'Default value if lookup key not found' })),
+  defaultValue: Type.Optional(
+    Type.Unknown({ description: 'Default value if lookup key not found' }),
+  ),
 });
 
 export type LookupConfig = Static<typeof LookupConfigSchema>;

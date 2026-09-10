@@ -74,7 +74,8 @@ const ALLOWLISTED_FILES = new Set([
  */
 
 /** CSS declaration patterns (used in .css files and style strings) */
-const CSS_PHYSICAL_PROPS = /(?:^|[;\s{])(?:margin-left|margin-right|padding-left|padding-right|border-left|border-right)\s*:/gm;
+const CSS_PHYSICAL_PROPS =
+  /(?:^|[;\s{])(?:margin-left|margin-right|padding-left|padding-right|border-left|border-right)\s*:/gm;
 
 /**
  * Standalone `left:` and `right:` in CSS — these are positional properties.
@@ -101,7 +102,8 @@ const TAILWIND_LEFT_RIGHT = /(?<![a-z-])(?:left|right)-(?:\[.*?\]|\d+(?:\/\d+)?(
 const TAILWIND_BORDER_LR = /(?<![a-z-])border-(?:l|r)(?:-(?:\[.*?\]|\d+)|(?=\s|"|'|`|$))/g;
 
 /** Inline style object camelCase physical properties */
-const INLINE_STYLE_PHYSICAL = /\b(?:marginLeft|marginRight|paddingLeft|paddingRight|borderLeft|borderRight)\b/g;
+const INLINE_STYLE_PHYSICAL =
+  /\b(?:marginLeft|marginRight|paddingLeft|paddingRight|borderLeft|borderRight)\b/g;
 
 // ─── File Discovery ──────────────────────────────────────────────────────────
 
@@ -308,10 +310,7 @@ describe('Property F-3: RTL Safety', () => {
 
         if (violations.length > 0) {
           const summary = violations
-            .map(
-              (v) =>
-                `  ${v.file}:${v.line}:${v.column} — ${v.type}: "${v.match}"`,
-            )
+            .map((v) => `  ${v.file}:${v.line}:${v.column} — ${v.type}: "${v.match}"`)
             .join('\n');
 
           // Fail with a descriptive message showing all violations in this file
@@ -359,10 +358,7 @@ describe('Property F-3: RTL Safety', () => {
           ([file, violations]) =>
             `\n  ${file} (${violations.length} violation${violations.length > 1 ? 's' : ''}):\n` +
             violations
-              .map(
-                (v) =>
-                  `    L${v.line}:${v.column} — ${v.type}: "${v.match}"`,
-              )
+              .map((v) => `    L${v.line}:${v.column} — ${v.type}: "${v.match}"`)
               .join('\n'),
         )
         .join('');

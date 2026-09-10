@@ -75,12 +75,7 @@ const NETWORK_FIRST_TIMEOUT_MS = 3000;
 // Hand-curated precache. Hashed JS/CSS chunks are intentionally
 // excluded — they cannot be hardcoded across builds and are picked up
 // by the runtime cache-first handler on first fetch.
-const PRECACHE_URLS = [
-  '/',
-  '/manifest.json',
-  '/favicon.ico',
-  '/logo.svg',
-];
+const PRECACHE_URLS = ['/', '/manifest.json', '/favicon.ico', '/logo.svg'];
 
 // ─── Strategy classifier — mirror of src/lib/sw/pickStrategy.ts ────────
 //
@@ -96,10 +91,7 @@ const SWR_API_PREFIXES = [
   '/api/v1/staff',
 ];
 
-const NETWORK_FIRST_API_PREFIXES = [
-  '/api/v1/auth/',
-  '/api/v1/tenant/branding',
-];
+const NETWORK_FIRST_API_PREFIXES = ['/api/v1/auth/', '/api/v1/tenant/branding'];
 
 const STATIC_PREFIXES = ['/_next/static/', '/static/'];
 
@@ -301,9 +293,7 @@ self.addEventListener('install', (event) => {
       // (e.g. /logo.svg before brand assets are uploaded) does not
       // block the SW from installing.
       await Promise.allSettled(
-        PRECACHE_URLS.map((url) =>
-          cache.add(new Request(url, { cache: 'reload' })),
-        ),
+        PRECACHE_URLS.map((url) => cache.add(new Request(url, { cache: 'reload' }))),
       );
       await self.skipWaiting();
     })(),

@@ -13,10 +13,7 @@ const UuidString = () => Type.String({ pattern: UUID_PATTERN, description: 'UUID
 
 // ─── GIS Layer Types ──────────────────────────────────────────────────────────
 
-export const GISLayerTypeSchema = Type.Union([
-  Type.Literal('shapefile'),
-  Type.Literal('geojson'),
-]);
+export const GISLayerTypeSchema = Type.Union([Type.Literal('shapefile'), Type.Literal('geojson')]);
 
 export type GISLayerType = Static<typeof GISLayerTypeSchema>;
 
@@ -54,8 +51,16 @@ export const CreateGISLayerSchema = Type.Object({
   areaId: UuidString(),
   name: Type.String({ minLength: 1, maxLength: 255 }),
   layerType: GISLayerTypeSchema,
-  data: Type.Optional(Type.String({ description: 'Base64-encoded layer data or raw GeoJSON string' })),
-  crs: Type.Optional(Type.String({ maxLength: 50, default: 'EPSG:4326', description: 'Coordinate Reference System' })),
+  data: Type.Optional(
+    Type.String({ description: 'Base64-encoded layer data or raw GeoJSON string' }),
+  ),
+  crs: Type.Optional(
+    Type.String({
+      maxLength: 50,
+      default: 'EPSG:4326',
+      description: 'Coordinate Reference System',
+    }),
+  ),
   metadata: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
@@ -66,7 +71,9 @@ export type GISLayerInput = Static<typeof CreateGISLayerSchema>;
 export const UpdateGISLayerSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
   layerType: Type.Optional(GISLayerTypeSchema),
-  data: Type.Optional(Type.String({ description: 'Base64-encoded layer data or raw GeoJSON string' })),
+  data: Type.Optional(
+    Type.String({ description: 'Base64-encoded layer data or raw GeoJSON string' }),
+  ),
   crs: Type.Optional(Type.String({ maxLength: 50 })),
   metadata: Type.Optional(Type.Record(Type.String(), Type.String())),
   isActive: Type.Optional(Type.Boolean()),

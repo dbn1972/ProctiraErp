@@ -12,24 +12,19 @@
  *         per subject, teacher comments (up to 500 chars), overall grade summary,
  *         and institution logo and name
  */
-import {
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
-import type { FieldError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
+import type { ReportCardArtifactStore } from './report-card-artifact-store.js';
 import type {
   ReportCardTemplateEntity,
   ReportCardTemplateRepository,
   TeacherCommentEntity,
   TeacherCommentRepository,
-  InstitutionBrandingEntity,
   InstitutionBrandingRepository,
   ReportCardJobEntity,
   ReportCardJobRepository,
-  ReportCardJobStatus,
 } from './report-card-repository.js';
 import type {
   CreateReportCardTemplateInput,
@@ -39,9 +34,8 @@ import type {
   BulkGenerateReportCardInput,
 } from './report-card-schemas.js';
 import { MAX_COMMENT_LENGTH } from './report-card-schemas.js';
+import type { AssessmentResultRepository, StudentSubjectResult } from './result-repository.js';
 import type { ResultService } from './result-service.js';
-import type { AssessmentItemEntity, AssessmentItemRepository } from './assessment-repository.js';
-import type { StudentSubjectResult } from './result-repository.js';
 
 /**
  * Interface for the task queue publisher (RabbitMQ).
@@ -98,10 +92,30 @@ export interface ReportCardData {
  * Interface for PDF generation (allows swapping implementations).
  */
 export interface PdfGenerator {
-  generateReportCardPdf(
-    templateContent: string,
-    data: ReportCardData,
-  ): Promise<Buffer>;
+  generateReportCardPdf(templateContent: string, data: ReportCardData): Promise<Buffer>;
+}
+
+/** Optional collaborators for the report-card service (G-716). */
+export interface ReportCardServiceOptions {
+  /** Persists generated PDF bytes so they can be downloaded later. */
+  artifactStore?: ReportCardArtifactStore;
+  /**
+   * Used to discover which subjects a student has results in for the period,
+   * so report cards contain every graded subject rather than an empty list.
+   */
+  resultRepository?: AssessmentResultRepository;
+  /**
+   * When true (and no task-queue publisher is configured) jobs are processed
+   * immediately after being queued instead of waiting for a worker.
+   */
+  processInline?: boolean;
+}
+
+/** A generated report card ready to be streamed to a client. */
+export interface ReportCardPdfArtifact {
+  filename: string;
+  contentType: 'application/pdf';
+  bytes: Buffer;
 }
 
 /**
@@ -117,6 +131,7 @@ export class ReportCardService {
     private readonly assessmentItemRepo: AssessmentItemRepository,
     private readonly taskQueuePublisher: TaskQueuePublisher | null,
     private readonly pdfGenerator: PdfGenerator | null,
+    private readonly options: ReportCardServiceOptions = {},
   ) {}
 
   // ─── Template Operations ─────────────────────────────────────────────────
@@ -298,6 +313,8 @@ export class ReportCardService {
           retryCount: 0,
         },
       });
+    } else if (this.options.processInline) {
+      return this.processReportCardJob(tenantId, job.id);
     }
 
     return job;
@@ -364,6 +381,9 @@ export class ReportCardService {
             retryCount: 0,
           },
         });
+      } else if (this.options.processInline) {
+        jobs.push(await this.processReportCardJob(tenantId, job.id));
+        continue;
       }
 
       jobs.push(job);
@@ -400,10 +420,7 @@ export class ReportCardService {
    *
    * Requirement 8.7: Full report card generation.
    */
-  async processReportCardJob(
-    tenantId: string,
-    jobId: string,
-  ): Promise<ReportCardJobEntity> {
+  async processReportCardJob(tenantId: string, jobId: string): Promise<ReportCardJobEntity> {
     const job = await this.jobRepo.findById(jobId, tenantId);
     if (!job) {
       throw new NotFoundError(`Report card job with id '${jobId}' not found`);
@@ -431,7 +448,11 @@ export class ReportCardService {
 
       // Get teacher comments
       const comments = template.includeComments
-        ? await this.commentRepo.findByStudentAndPeriod(tenantId, job.studentId, job.academicPeriodId)
+        ? await this.commentRepo.findByStudentAndPeriod(
+            tenantId,
+            job.studentId,
+            job.academicPeriodId,
+          )
         : [];
 
       // Build comment map (subjectId -> comment)
@@ -443,11 +464,22 @@ export class ReportCardService {
       // Calculate overall grade summary
       const overallSummary = this.calculateOverallSummary(subjectResults);
 
+      // Resolve assessment item names / max scores for every item referenced.
+      const itemIds = new Set<string>();
+      for (const result of subjectResults) {
+        for (const item of result.itemScores) itemIds.add(item.assessmentItemId);
+      }
+      const itemsById = new Map<string, AssessmentItemEntity>();
+      for (const itemId of itemIds) {
+        const entity = await this.assessmentItemRepo.findById(itemId, tenantId);
+        if (entity) itemsById.set(itemId, entity);
+      }
+
       // Assemble report card data
       const reportCardData: ReportCardData = {
         student: {
           id: job.studentId,
-          name: '', // Would be populated from student service in production
+          name: '', // Student directory lookup is owned by the student service
         },
         institution: {
           name: branding?.name ?? '',
@@ -457,14 +489,17 @@ export class ReportCardService {
         academicPeriodId: job.academicPeriodId,
         subjects: subjectResults.map((result) => ({
           subjectId: result.subjectId,
-          subjectName: '', // Would be populated from institution service in production
-          items: result.itemScores.map((item) => ({
-            name: '', // Would be populated from assessment item name
-            score: item.score,
-            maxScore: 0, // Would be populated from assessment item
-            weight: item.weight,
-            weightedScore: item.weightedScore,
-          })),
+          subjectName: '', // Subject catalogue lookup is owned by the institution service
+          items: result.itemScores.map((item) => {
+            const entity = itemsById.get(item.assessmentItemId);
+            return {
+              name: entity?.name ?? item.assessmentItemId,
+              score: item.score,
+              maxScore: entity?.maxScore ?? 0,
+              weight: item.weight,
+              weightedScore: item.weightedScore,
+            };
+          }),
           weightedAverage: result.weightedAverage,
           grade: result.grade,
           gradeDescriptor: result.gradeDescriptor,
@@ -474,15 +509,17 @@ export class ReportCardService {
         generatedAt: new Date().toISOString(),
       };
 
-      // Generate PDF
+      // Generate PDF and persist the bytes under a tenant-scoped key.
       let outputUrl: string | null = null;
       if (this.pdfGenerator) {
         const pdfBuffer = await this.pdfGenerator.generateReportCardPdf(
           template.templateContent,
           reportCardData,
         );
-        // In production, this would upload to S3/MinIO and return the URL
-        outputUrl = `report-cards/${tenantId}/${job.studentId}/${job.academicPeriodId}/${job.id}.pdf`;
+        outputUrl = ReportCardService.artifactKey(tenantId, job);
+        if (this.options.artifactStore) {
+          await this.options.artifactStore.put(outputUrl, pdfBuffer);
+        }
       }
 
       // Mark as completed
@@ -494,12 +531,49 @@ export class ReportCardService {
       return completedJob!;
     } catch (error: unknown) {
       // Mark as failed
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error during PDF generation';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error during PDF generation';
       const failedJob = await this.jobRepo.updateStatus(jobId, tenantId, 'failed', {
         errorMessage,
       });
       return failedJob!;
     }
+  }
+
+  /** Storage key for a job's PDF: `report-cards/<tenant>/<student>/<period>/<job>.pdf`. */
+  static artifactKey(
+    tenantId: string,
+    job: Pick<ReportCardJobEntity, 'id' | 'studentId' | 'academicPeriodId'>,
+  ): string {
+    return `report-cards/${tenantId}/${job.studentId}/${job.academicPeriodId}/${job.id}.pdf`;
+  }
+
+  /**
+   * Returns the generated PDF for a completed job.
+   *
+   * @throws NotFoundError when the job or its artifact does not exist
+   * @throws BusinessRuleError when the job has not completed successfully
+   */
+  async getReportCardPdf(tenantId: string, jobId: string): Promise<ReportCardPdfArtifact> {
+    const job = await this.jobRepo.findById(jobId, tenantId);
+    if (!job) {
+      throw new NotFoundError(`Report card job with id '${jobId}' not found`);
+    }
+    if (job.status !== 'completed' || !job.outputUrl) {
+      throw new BusinessRuleError(
+        `Report card job '${jobId}' is ${job.status}; the PDF is not available yet`,
+      );
+    }
+    const store = this.options.artifactStore;
+    const bytes = store ? await store.get(job.outputUrl) : null;
+    if (!bytes) {
+      throw new NotFoundError(`Report card artifact for job '${jobId}' is not available`);
+    }
+    return {
+      filename: `report-card-${job.studentId}-${job.academicPeriodId}.pdf`,
+      contentType: 'application/pdf',
+      bytes,
+    };
   }
 
   // ─── Private Helpers ─────────────────────────────────────────────────────
@@ -512,10 +586,30 @@ export class ReportCardService {
     studentId: string,
     academicPeriodId: string,
   ): Promise<StudentSubjectResult[]> {
-    // In a full implementation, we would query all subjects the student is enrolled in
-    // For now, we use the result service to get calculated grades for known subjects
-    // This would be enhanced with a student enrollment lookup
-    return [];
+    const resultRepo = this.options.resultRepository;
+    if (!resultRepo) return [];
+
+    const rows = await resultRepo.findByStudentPeriod(tenantId, studentId, academicPeriodId);
+    const subjectIds = [...new Set(rows.map((r) => r.subjectId))].sort();
+
+    const results: StudentSubjectResult[] = [];
+    for (const subjectId of subjectIds) {
+      try {
+        results.push(
+          await this.resultService.calculateStudentGrade(
+            tenantId,
+            studentId,
+            subjectId,
+            academicPeriodId,
+          ),
+        );
+      } catch (error) {
+        // A subject whose assessment items or grading scheme were removed
+        // cannot be graded; skip it rather than failing the whole card.
+        if (!(error instanceof NotFoundError)) throw error;
+      }
+    }
+    return results;
   }
 
   /**

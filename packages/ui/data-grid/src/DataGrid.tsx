@@ -68,11 +68,12 @@ export function DataGrid<TData>({
           enableColumnFilter: col.enableFiltering ?? enableFiltering,
         };
         if (col.cell) {
-          colDef.cell = (info: { getValue: () => unknown; row: { original: TData } }) => col.cell!(info);
+          colDef.cell = (info: { getValue: () => unknown; row: { original: TData } }) =>
+            col.cell!(info);
         }
         return colDef;
       }),
-    [columns, enableSorting, enableFiltering]
+    [columns, enableSorting, enableFiltering],
   );
 
   const handleSortingChange = useCallback(
@@ -83,7 +84,7 @@ export function DataGrid<TData>({
         return next;
       });
     },
-    [onSortingChange]
+    [onSortingChange],
   );
 
   const handleFilterChange = useCallback(
@@ -94,18 +95,22 @@ export function DataGrid<TData>({
         return next;
       });
     },
-    [onFilterChange]
+    [onFilterChange],
   );
 
   const handlePaginationChange = useCallback(
-    (updater: TanStackPaginationState | ((prev: TanStackPaginationState) => TanStackPaginationState)) => {
+    (
+      updater:
+        | TanStackPaginationState
+        | ((prev: TanStackPaginationState) => TanStackPaginationState),
+    ) => {
       setPagination((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
         onPaginationChange?.({ pageIndex: next.pageIndex, pageSize: next.pageSize });
         return next;
       });
     },
-    [onPaginationChange]
+    [onPaginationChange],
   );
 
   const table = useReactTable({
@@ -151,22 +156,28 @@ export function DataGrid<TData>({
         <div className="proctira-data-grid__toolbar" role="toolbar" aria-label="Data grid controls">
           {enableFiltering && (
             <div className="proctira-data-grid__filters">
-              {table.getAllColumns().filter((col) => col.getCanFilter()).map((column) => (
-                <div key={column.id} className="proctira-data-grid__filter-field">
-                  <label htmlFor={`filter-${column.id}`} className="proctira-data-grid__filter-label">
-                    {String(column.columnDef.header)}
-                  </label>
-                  <input
-                    id={`filter-${column.id}`}
-                    type="text"
-                    value={(column.getFilterValue() as string) ?? ''}
-                    onChange={(e) => column.setFilterValue(e.target.value || undefined)}
-                    placeholder={`Filter ${String(column.columnDef.header)}...`}
-                    className="proctira-data-grid__filter-input"
-                    aria-label={`Filter by ${String(column.columnDef.header)}`}
-                  />
-                </div>
-              ))}
+              {table
+                .getAllColumns()
+                .filter((col) => col.getCanFilter())
+                .map((column) => (
+                  <div key={column.id} className="proctira-data-grid__filter-field">
+                    <label
+                      htmlFor={`filter-${column.id}`}
+                      className="proctira-data-grid__filter-label"
+                    >
+                      {String(column.columnDef.header)}
+                    </label>
+                    <input
+                      id={`filter-${column.id}`}
+                      type="text"
+                      value={(column.getFilterValue() as string) ?? ''}
+                      onChange={(e) => column.setFilterValue(e.target.value || undefined)}
+                      placeholder={`Filter ${String(column.columnDef.header)}...`}
+                      className="proctira-data-grid__filter-input"
+                      aria-label={`Filter by ${String(column.columnDef.header)}`}
+                    />
+                  </div>
+                ))}
             </div>
           )}
           {enableExport && (
@@ -216,7 +227,7 @@ export function DataGrid<TData>({
                           className="proctira-data-grid__sort-btn"
                           aria-label={getSortAriaLabel(
                             String(header.column.columnDef.header),
-                            isSorted
+                            isSorted,
                           )}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}

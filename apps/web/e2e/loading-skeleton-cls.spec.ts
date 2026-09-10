@@ -58,6 +58,84 @@ const DASHBOARD_VIEWS = [
     skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
     readySelector: '[data-state="ready"], [data-testid*="attendance"]',
   },
+  {
+    name: 'Parent attendance',
+    route: '/parent/attendance',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="parent-attendance"]',
+  },
+  {
+    name: 'Parent grades',
+    route: '/parent/grades',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="parent-grades"]',
+  },
+  {
+    name: 'Parent timetable',
+    route: '/parent/timetable',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="parent-timetable"]',
+  },
+  {
+    name: 'Parent homework',
+    route: '/parent/homework',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="parent-homework"]',
+  },
+  {
+    name: 'Parent calendar',
+    route: '/parent/calendar',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="parent-calendar"]',
+  },
+  {
+    name: 'Parent notices',
+    route: '/parent/notices',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="parent-notices"]',
+  },
+  {
+    name: 'Student attendance',
+    route: '/student/attendance',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-attendance"]',
+  },
+  {
+    name: 'Student grades',
+    route: '/student/grades',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-grades"]',
+  },
+  {
+    name: 'Student timetable',
+    route: '/student/timetable',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-timetable"]',
+  },
+  {
+    name: 'Student homework',
+    route: '/student/homework',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-homework"]',
+  },
+  {
+    name: 'Student calendar',
+    route: '/student/calendar',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-calendar"]',
+  },
+  {
+    name: 'Student notices',
+    route: '/student/notices',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-notices"]',
+  },
+  {
+    name: 'Student PAL',
+    route: '/student/pal',
+    skeletonSelector: '[data-state="loading"], [data-testid*="skeleton"]',
+    readySelector: '[data-testid="student-pal"]',
+  },
 ] as const;
 
 /** Maximum acceptable CLS score per the property definition. */
@@ -190,11 +268,9 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
           // Wait for data to load (skeleton disappears or ready state appears)
           const readyLocator = page.locator(view.readySelector).first();
-          await readyLocator
-            .waitFor({ state: 'visible', timeout: 30_000 })
-            .catch(() => {
-              // May timeout on very slow connections — acceptable
-            });
+          await readyLocator.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {
+            // May timeout on very slow connections — acceptable
+          });
 
           const dataArrivedAt = Date.now();
           const skeletonDuration = dataArrivedAt - skeletonAppearedAt;
@@ -226,9 +302,7 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
       }
     });
 
-    test(`${view.name} — skeleton matches loaded layout grid (no CLS > 0.1)`, async ({
-      page,
-    }) => {
+    test(`${view.name} — skeleton matches loaded layout grid (no CLS > 0.1)`, async ({ page }) => {
       // Enable network throttling via CDP to simulate slow 3G
       const cdpSession = await enableNetworkThrottling(page);
 
@@ -239,19 +313,15 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
         // Wait for the skeleton to appear
         const skeletonLocator = page.locator(view.skeletonSelector).first();
-        await skeletonLocator
-          .waitFor({ state: 'visible', timeout: 15_000 })
-          .catch(() => {
-            // Skeleton may not appear if data loads instantly from cache
-          });
+        await skeletonLocator.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {
+          // Skeleton may not appear if data loads instantly from cache
+        });
 
         // Wait for the page to fully load and stabilize
         const readyLocator = page.locator(view.readySelector).first();
-        await readyLocator
-          .waitFor({ state: 'visible', timeout: 30_000 })
-          .catch(() => {
-            // Timeout is acceptable — we still measure CLS
-          });
+        await readyLocator.waitFor({ state: 'visible', timeout: 30_000 }).catch(() => {
+          // Timeout is acceptable — we still measure CLS
+        });
 
         // Allow additional time for any post-load layout shifts
         await page.waitForTimeout(2000);
@@ -277,9 +347,7 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
     });
   }
 
-  test('skeleton grid structure matches loaded content dimensions', async ({
-    page,
-  }) => {
+  test('skeleton grid structure matches loaded content dimensions', async ({ page }) => {
     // This test validates that the skeleton placeholder occupies the same
     // grid area as the loaded content, ensuring visual stability.
     // We use the School Dashboard as the reference view since it has the
@@ -292,7 +360,8 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
       // Wait for skeleton to appear
       const skeletonCards = page.locator('[data-state="loading"]');
-      const hasSkeletons = await skeletonCards.first()
+      const hasSkeletons = await skeletonCards
+        .first()
         .isVisible({ timeout: 15_000 })
         .catch(() => false);
 
@@ -317,7 +386,8 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
 
       // Wait for data to load
       const readyCards = page.locator('[data-state="ready"]');
-      await readyCards.first()
+      await readyCards
+        .first()
         .waitFor({ state: 'visible', timeout: 30_000 })
         .catch(() => {});
 

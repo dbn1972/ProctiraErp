@@ -6,27 +6,22 @@
  */
 import { IssueTranscriptForm } from '@/components/gradebook/issue-transcript-form';
 import { Card, CardContent } from '@proctira/ui/components';
-import {
-  listGpaSnapshots,
-  listReportCardJobs,
-  listTranscripts,
-} from '@/lib/api/gradebook';
+import { listGpaSnapshots, listReportCardJobs, listTranscripts } from '@/lib/api/gradebook';
 
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: { studentId?: string };
+  searchParams?: Promise<{ studentId?: string }>;
 }
 
-export default async function StudentRecordsPage({ searchParams }: PageProps) {
+export default async function StudentRecordsPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const studentId = searchParams?.studentId?.trim() || '';
 
   const [transcriptsResult, jobsResult, gpaResult] = await Promise.all([
     listTranscripts(studentId ? { studentId } : undefined),
     listReportCardJobs(),
-    studentId
-      ? listGpaSnapshots(studentId)
-      : Promise.resolve({ ok: true as const, data: [] }),
+    studentId ? listGpaSnapshots(studentId) : Promise.resolve({ ok: true as const, data: [] }),
   ]);
 
   const apiError = !transcriptsResult.ok

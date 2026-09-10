@@ -133,11 +133,7 @@ interface StateStepperProps {
   completedStateIds: ReadonlyArray<TransferStateId>;
 }
 
-function StateStepper({
-  states,
-  currentStateId,
-  completedStateIds,
-}: StateStepperProps) {
+function StateStepper({ states, currentStateId, completedStateIds }: StateStepperProps) {
   return (
     <ol
       className="flex flex-wrap items-start gap-4"
@@ -145,11 +141,7 @@ function StateStepper({
       aria-label="Transfer state machine"
     >
       {states.map((state, idx) => {
-        const status = statusForState(
-          state.id,
-          currentStateId,
-          completedStateIds,
-        );
+        const status = statusForState(state.id, currentStateId, completedStateIds);
         const isLast = idx === states.length - 1;
         return (
           <li
@@ -181,22 +173,16 @@ function StateStepper({
               {!isLast ? (
                 <div
                   className={`mt-1 h-px w-px ${
-                    status === 'completed'
-                      ? 'bg-[hsl(var(--success))]'
-                      : 'bg-[hsl(var(--border))]'
+                    status === 'completed' ? 'bg-[hsl(var(--success))]' : 'bg-[hsl(var(--border))]'
                   }`}
                   aria-hidden="true"
                 />
               ) : null}
             </div>
             <div className="space-y-0.5 pt-1">
-              <p className="text-sm font-medium text-[hsl(var(--foreground))]">
-                {state.label}
-              </p>
+              <p className="text-sm font-medium text-[hsl(var(--foreground))]">{state.label}</p>
               {state.description ? (
-                <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                  {state.description}
-                </p>
+                <p className="text-xs text-[hsl(var(--muted-foreground))]">{state.description}</p>
               ) : null}
             </div>
           </li>
@@ -217,31 +203,21 @@ interface InstitutionCardProps {
   variant: 'source' | 'destination';
 }
 
-function InstitutionCard({
-  title,
-  testId,
-  institution,
-  variant,
-}: InstitutionCardProps) {
+function InstitutionCard({ title, testId, institution, variant }: InstitutionCardProps) {
   const Icon = variant === 'source' ? School : Building;
   return (
     <Card data-testid={testId}>
       <CardHeader className="pb-3">
         <CardDescription>{title}</CardDescription>
         <CardTitle className="flex items-center gap-2 text-base">
-          <Icon
-            className="h-5 w-5 text-[hsl(var(--muted-foreground))]"
-            aria-hidden="true"
-          />
+          <Icon className="h-5 w-5 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
           {institution.name}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 pt-0">
         <Badge variant="secondary">{institution.board}</Badge>
         {institution.address ? (
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {institution.address}
-          </p>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">{institution.address}</p>
         ) : null}
       </CardContent>
     </Card>
@@ -261,15 +237,10 @@ function ApprovalList({ approvals }: ApprovalListProps) {
     <Card data-testid="cross-board-transfer-approvals-card">
       <CardHeader>
         <CardTitle>Approval Steps</CardTitle>
-        <CardDescription>
-          Configured approval chain for this transfer
-        </CardDescription>
+        <CardDescription>Configured approval chain for this transfer</CardDescription>
       </CardHeader>
       <CardContent>
-        <ul
-          className="space-y-3"
-          data-testid="cross-board-transfer-approvals-list"
-        >
+        <ul className="space-y-3" data-testid="cross-board-transfer-approvals-list">
           {approvals.map((step) => (
             <li
               key={step.id}
@@ -278,17 +249,13 @@ function ApprovalList({ approvals }: ApprovalListProps) {
               data-status={step.status}
             >
               <div className="space-y-1">
-                <p className="text-sm font-medium text-[hsl(var(--foreground))]">
-                  {step.name}
-                </p>
+                <p className="text-sm font-medium text-[hsl(var(--foreground))]">{step.name}</p>
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">
                   {step.approver}
                   {step.updatedAt ? ` • ${step.updatedAt}` : ''}
                 </p>
                 {step.note ? (
-                  <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                    {step.note}
-                  </p>
+                  <p className="text-xs text-[hsl(var(--muted-foreground))]">{step.note}</p>
                 ) : null}
               </div>
               <Badge variant={approvalBadgeVariant(step.status)}>
@@ -315,9 +282,7 @@ function EquivalencyTable({ rows }: EquivalencyTableProps) {
     <Card data-testid="cross-board-transfer-equivalency-card">
       <CardHeader>
         <CardTitle>Grade Equivalency</CardTitle>
-        <CardDescription>
-          Curriculum mapping between source and destination boards
-        </CardDescription>
+        <CardDescription>Curriculum mapping between source and destination boards</CardDescription>
       </CardHeader>
       <CardContent>
         <Table data-testid="cross-board-transfer-equivalency-table">
@@ -331,10 +296,7 @@ function EquivalencyTable({ rows }: EquivalencyTableProps) {
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-testid={`cross-board-transfer-equivalency-row-${row.id}`}
-              >
+              <TableRow key={row.id} data-testid={`cross-board-transfer-equivalency-row-${row.id}`}>
                 <TableCell>{row.sourceSubject}</TableCell>
                 <TableCell aria-hidden="true">
                   <ArrowRight
@@ -342,16 +304,11 @@ function EquivalencyTable({ rows }: EquivalencyTableProps) {
                     aria-hidden="true"
                   />
                 </TableCell>
-                <TableCell className="font-medium">
-                  {row.destinationSubject}
-                </TableCell>
+                <TableCell className="font-medium">{row.destinationSubject}</TableCell>
                 <TableCell className="text-end">
                   <Badge variant={equivalencyBadgeVariant(row.status)}>
                     {row.status === 'bridge' ? (
-                      <AlertTriangle
-                        className="me-1 h-3 w-3"
-                        aria-hidden="true"
-                      />
+                      <AlertTriangle className="me-1 h-3 w-3" aria-hidden="true" />
                     ) : row.status === 'mapped' ? (
                       <CheckCheck className="me-1 h-3 w-3" aria-hidden="true" />
                     ) : (
@@ -466,26 +423,18 @@ export default function CrossBoardTransferDashboard() {
   const transfer: CrossBoardTransferData = data;
   const activeStep = transfer.approvals.find((s) => s.status === 'current');
   const actionsEnabled = Boolean(
-    activeStep &&
-      transfer.currentApprover &&
-      transfer.currentApprover === activeStep.id,
+    activeStep && transfer.currentApprover && transfer.currentApprover === activeStep.id,
   );
-  const currentStepIndex =
-    transfer.states.findIndex((s) => s.id === transfer.currentStateId) + 1;
+  const currentStepIndex = transfer.states.findIndex((s) => s.id === transfer.currentStateId) + 1;
 
-  const documentTasks: ReadonlyArray<ChecklistTask> = transfer.documents.map(
-    (doc) => ({
-      id: doc.id,
-      title: doc.name,
-      completed: doc.uploaded,
-    }),
-  );
+  const documentTasks: ReadonlyArray<ChecklistTask> = transfer.documents.map((doc) => ({
+    id: doc.id,
+    title: doc.name,
+    completed: doc.uploaded,
+  }));
 
   return (
-    <div
-      className="space-y-6 p-6"
-      data-testid="cross-board-transfer-dashboard"
-    >
+    <div className="space-y-6 p-6" data-testid="cross-board-transfer-dashboard">
       <header className="space-y-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">
@@ -506,9 +455,7 @@ export default function CrossBoardTransferDashboard() {
       <Card data-testid="cross-board-transfer-state-card">
         <CardHeader>
           <CardTitle>Transfer Workflow</CardTitle>
-          <CardDescription>
-            Current state in the transfer state machine
-          </CardDescription>
+          <CardDescription>Current state in the transfer state machine</CardDescription>
         </CardHeader>
         <CardContent>
           <StateStepper
@@ -550,10 +497,7 @@ export default function CrossBoardTransferDashboard() {
       <EquivalencyTable rows={transfer.equivalency} />
 
       {/* Approver actions */}
-      <ApproverActions
-        enabled={actionsEnabled}
-        activeStepName={activeStep?.name}
-      />
+      <ApproverActions enabled={actionsEnabled} activeStepName={activeStep?.name} />
     </div>
   );
 }

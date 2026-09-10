@@ -37,88 +37,72 @@ export default function TermsOfService() {
         </header>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            1. Acceptance of terms
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">1. Acceptance of terms</h2>
           <p className="text-base leading-relaxed text-foreground">
-            These terms govern access to and use of the ProctiraERP marketing site
-            and the public demo tenant. By using the site you agree to be bound
-            by these terms together with the linked Privacy Policy. Production
-            tenants operated by ministries or boards have their own terms that
-            supersede these for the operational platform.
+            These terms govern access to and use of the ProctiraERP marketing site and the public
+            demo tenant. By using the site you agree to be bound by these terms together with the
+            linked Privacy Policy. Production tenants operated by ministries or boards have their
+            own terms that supersede these for the operational platform.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            2. Use of the platform
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">2. Use of the platform</h2>
           <p className="text-base leading-relaxed text-foreground">
-            You agree to use the site lawfully and not to attempt to disrupt,
-            reverse engineer, or scrape the platform beyond what the public APIs
-            permit. The ProctiraERP source code is licensed under its own open
-            source license, which governs reuse and modification of the code
-            itself.
+            You agree to use the site lawfully and not to attempt to disrupt, reverse engineer, or
+            scrape the platform beyond what the public APIs permit. The ProctiraERP source code is
+            licensed under its own open source license, which governs reuse and modification of the
+            code itself.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            3. Intellectual property
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">3. Intellectual property</h2>
           <p className="text-base leading-relaxed text-foreground">
-            The ProctiraERP name, logo, and marketing copy are the property of the
-            ProctiraERP project. The platform source code is licensed separately
-            under the terms in the public repository. Tenant content remains the
-            property of the operating ministry, board, or institution.
+            The ProctiraERP name, logo, and marketing copy are the property of the ProctiraERP
+            project. The platform source code is licensed separately under the terms in the public
+            repository. Tenant content remains the property of the operating ministry, board, or
+            institution.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            4. Disclaimer of warranties
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">4. Disclaimer of warranties</h2>
           <p className="text-base leading-relaxed text-foreground">
-            The marketing site and the public demo are provided on an "as is"
-            and "as available" basis without warranties of any kind, whether
-            express or implied. The ProctiraERP project does not warrant that the
-            site will be uninterrupted, error-free, or that demo data will be
-            preserved between releases.
+            The marketing site and the public demo are provided on an "as is" and "as available"
+            basis without warranties of any kind, whether express or implied. The ProctiraERP
+            project does not warrant that the site will be uninterrupted, error-free, or that demo
+            data will be preserved between releases.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            5. Limitation of liability
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">5. Limitation of liability</h2>
           <p className="text-base leading-relaxed text-foreground">
-            To the maximum extent permitted by law, the ProctiraERP project is not
-            liable for indirect, incidental, special, consequential, or punitive
-            damages arising from use of the marketing site or the public demo.
-            Production tenants address liability through their own contracts
-            with the operating ministry or board.
+            To the maximum extent permitted by law, the ProctiraERP project is not liable for
+            indirect, incidental, special, consequential, or punitive damages arising from use of
+            the marketing site or the public demo. Production tenants address liability through
+            their own contracts with the operating ministry or board.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            6. Changes
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">6. Changes</h2>
           <p className="text-base leading-relaxed text-foreground">
-            We may update these terms from time to time. Material changes are
-            announced in the public source repository and the "Last updated"
-            date above is revised accordingly. Continued use of the site after
-            an update constitutes acceptance of the revised terms.
+            We may update these terms from time to time. Material changes are announced in the
+            public source repository and the "Last updated" date above is revised accordingly.
+            Continued use of the site after an update constitutes acceptance of the revised terms.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-xl font-semibold text-foreground">
-            7. Contact
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">7. Contact</h2>
           <p className="text-base leading-relaxed text-foreground">
             Questions about these terms can be sent to{' '}
-            <a href="mailto:legal@proctira.org" className="font-medium text-foreground underline-offset-4 hover:underline">
+            <a
+              href="mailto:legal@proctira.org"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
               legal@proctira.org
             </a>
             .

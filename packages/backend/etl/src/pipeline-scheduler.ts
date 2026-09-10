@@ -58,7 +58,8 @@ export function isValidCronExpression(expression: string): boolean {
   }
 
   // Pattern matches: *, */n, n, n-m, n,m, n-m/s, and combinations
-  const fieldPattern = /^(\*|\d{1,2}(-\d{1,2})?)(\/\d{1,2})?(,(\*|\d{1,2}(-\d{1,2})?)(\/\d{1,2})?)*$/;
+  const fieldPattern =
+    /^(\*|\d{1,2}(-\d{1,2})?)(\/\d{1,2})?(,(\*|\d{1,2}(-\d{1,2})?)(\/\d{1,2})?)*$/;
 
   for (let i = 0; i < 5; i++) {
     if (!fieldPattern.test(parts[i]!)) {
@@ -188,7 +189,12 @@ export class PipelineScheduler {
   /**
    * Add or update a schedule entry for a pipeline.
    */
-  registerSchedule(pipelineId: string, tenantId: string, cronExpression: string, enabled: boolean = true): ScheduleEntry {
+  registerSchedule(
+    pipelineId: string,
+    tenantId: string,
+    cronExpression: string,
+    enabled: boolean = true,
+  ): ScheduleEntry {
     if (!isValidCronExpression(cronExpression)) {
       throw new Error(`Invalid cron expression: ${cronExpression}`);
     }

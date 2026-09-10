@@ -11,6 +11,7 @@ import { InMemoryGradebookRepository } from './in-memory-repository.js';
 import { GradebookService } from './gradebook-service.js';
 
 const TENANT = '11111111-1111-4111-8111-111111111111';
+const TENANT_B = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const BOARD = '22222222-2222-4222-8222-222222222222';
 const INST = '66666666-6666-4666-8666-666666666666';
 const STUDENT = '33333333-3333-4333-8333-333333333333';
@@ -145,5 +146,34 @@ describe('GradebookService board exports', () => {
         studentIds: [STUDENT_BAD],
       }),
     ).rejects.toBeInstanceOf(BusinessRuleError);
+  });
+
+  it('queues async jobs and processes later; signed download is tenant-bound', async () => {
+    const { service } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    expect(queued.status).toBe('QUEUED');
+
+    const done = await service.processBoardExportJob(TENANT, queued.id);
+    expect(done.status).toBe('SUCCEEDED');
+
+    const signed = service.issueBoardExportDownloadToken(TENANT, done.id, 120);
+    const file = await service.downloadBoardExport(TENANT, done.id, 'csv', {
+      downloadToken: signed.token,
+      actorId: 'registrar-1',
+    });
+    expect(file.body.toString('utf8')).toContain('NID-1');
+
+    await expect(service.downloadBoardExport(TENANT_B, done.id, 'csv')).rejects.toThrow(
+      /not found/i,
+    );
+
+    const audits = service.listAudits(TENANT);
+    expect(audits.some((a) => a.action === 'board_export.create')).toBe(true);
+    expect(audits.some((a) => a.action === 'board_export.download')).toBe(true);
   });
 });

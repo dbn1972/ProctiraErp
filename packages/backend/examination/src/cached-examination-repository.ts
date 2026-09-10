@@ -7,7 +7,7 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
@@ -27,11 +27,17 @@ export class CachedExaminationRepository implements ExaminationRepository {
     private readonly cache?: CacheClient,
   ) {}
 
-  async create(data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>): Promise<ExaminationEntity> {
+  async create(
+    data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ExaminationEntity> {
     return this.delegate.create(data);
   }
 
-  async update(id: string, tenantId: string, data: Partial<ExaminationEntity>): Promise<ExaminationEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<ExaminationEntity>,
+  ): Promise<ExaminationEntity | null> {
     const result = await this.delegate.update(id, tenantId, data);
     if (result && this.cache) {
       const key = tenantKey(tenantId, 'examination', id);
@@ -46,11 +52,12 @@ export class CachedExaminationRepository implements ExaminationRepository {
     }
 
     const key = tenantKey(tenantId, 'examination', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findById(id, tenantId),
       EXAMINATION_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async findByCode(code: string, tenantId: string): Promise<ExaminationEntity | null> {
@@ -75,7 +82,10 @@ export class CachedExaminationRepository implements ExaminationRepository {
     return result;
   }
 
-  async getStudentEnrollment(studentId: string, tenantId: string): Promise<StudentEnrollment | null> {
+  async getStudentEnrollment(
+    studentId: string,
+    tenantId: string,
+  ): Promise<StudentEnrollment | null> {
     return this.delegate.getStudentEnrollment(studentId, tenantId);
   }
 
@@ -89,5 +99,12 @@ export class CachedExaminationRepository implements ExaminationRepository {
     tenantId: string,
   ): Promise<CandidateRegistration | null> {
     return this.delegate.findCandidateRegistration(examinationId, studentId, tenantId);
+  }
+
+  async listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]> {
+    return this.delegate.listCandidateRegistrations(examinationId, tenantId);
   }
 }

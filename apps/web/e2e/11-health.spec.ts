@@ -8,14 +8,10 @@ import { loginAsTenantAdmin } from './fixtures/auth';
  * Screens: list, student profile, screenings, counselling, special needs.
  */
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
-const STUDENT_ID =
-  process.env.HEALTH_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+const STUDENT_ID = process.env.HEALTH_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
 
 test.describe('Health E2E', () => {
-  test.skip(
-    !BACKEND_READY,
-    'E2E_BACKEND_READY is not set; skipping live-backend health e2e.',
-  );
+  test.skip(!BACKEND_READY, 'E2E_BACKEND_READY is not set; skipping live-backend health e2e.');
 
   test.beforeEach(async ({ page }) => {
     await loginAsTenantAdmin(page);

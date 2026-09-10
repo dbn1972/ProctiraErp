@@ -99,10 +99,7 @@ export function MapDrillDown({
     >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <MapIcon
-            className="h-5 w-5 text-[hsl(var(--muted-foreground))]"
-            aria-hidden="true"
-          />
+          <MapIcon className="h-5 w-5 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
           {title}
         </CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
@@ -117,10 +114,7 @@ export function MapDrillDown({
             Unable to load the regional map.
           </p>
         ) : loading ? (
-          <Skeleton
-            className="h-64 w-full rounded-md"
-            data-testid="map-drill-down-skeleton"
-          />
+          <Skeleton className="h-64 w-full rounded-md" data-testid="map-drill-down-skeleton" />
         ) : regions.length === 0 ? (
           <p
             className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]"
@@ -136,9 +130,8 @@ export function MapDrillDown({
             className="rounded-md border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--muted))] p-4"
           >
             <p className="mb-3 text-sm text-[hsl(var(--muted-foreground))]">
-              Map placeholder — full GeoJSON choropleth ships in a follow-up
-              task. The drill-down list below remains the source of truth
-              for assistive-tech users.
+              Map placeholder — full GeoJSON choropleth ships in a follow-up task. The drill-down
+              list below remains the source of truth for assistive-tech users.
             </p>
             <ul
               className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3"
@@ -149,9 +142,7 @@ export function MapDrillDown({
                 const content = (
                   <span className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium">{region.name}</span>
-                    <span className="text-[hsl(var(--muted-foreground))]">
-                      {region.value}
-                    </span>
+                    <span className="text-[hsl(var(--muted-foreground))]">{region.value}</span>
                   </span>
                 );
                 return (

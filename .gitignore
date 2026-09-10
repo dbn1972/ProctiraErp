@@ -50,3 +50,6 @@ tools/scripts/.lighthouseci/
 .dart_tool/
 playwright-report/
 test-results/
+
+# Local DB backup dumps (G-503)
+.backups/

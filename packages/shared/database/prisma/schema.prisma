@@ -402,18 +402,25 @@ model AcademicPeriod {
   startDate DateTime @map("start_date") @db.Date
   endDate   DateTime @map("end_date") @db.Date
   status    String   @default("active") @db.VarChar(20)
+  /// G-905: `year` (top level) or a sub-period — `term`, `semester`, `quarter`.
+  kind      String   @default("year") @db.VarChar(20)
+  /// G-905: owning academic year for sub-periods; null for years.
+  parentId  String?  @map("parent_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
   // Relations
-  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  parent      AcademicPeriod?  @relation("AcademicPeriodHierarchy", fields: [parentId], references: [id])
+  children    AcademicPeriod[] @relation("AcademicPeriodHierarchy")
   enrollments Enrollment[]
   classes     Class[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
+  @@index([tenantId, parentId])
   @@map("academic_periods")
 }
 

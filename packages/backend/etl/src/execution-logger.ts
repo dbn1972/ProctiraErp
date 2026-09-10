@@ -131,7 +131,12 @@ export class ExecutionLogger {
   /**
    * Log the start of a pipeline execution.
    */
-  logExecutionStart(executionId: string, pipelineId: string, tenantId: string, retryAttempt: number = 0): void {
+  logExecutionStart(
+    executionId: string,
+    pipelineId: string,
+    tenantId: string,
+    retryAttempt: number = 0,
+  ): void {
     const entry: ExecutionLogEntry = {
       timestamp: new Date(),
       level: 'info',
@@ -148,7 +153,12 @@ export class ExecutionLogger {
   /**
    * Log extraction phase results.
    */
-  logExtraction(executionId: string, pipelineId: string, tenantId: string, data: ExtractionLogData): void {
+  logExtraction(
+    executionId: string,
+    pipelineId: string,
+    tenantId: string,
+    data: ExtractionLogData,
+  ): void {
     const entry: ExecutionLogEntry = {
       timestamp: new Date(),
       level: 'info',
@@ -165,7 +175,12 @@ export class ExecutionLogger {
   /**
    * Log transformation phase results.
    */
-  logTransformation(executionId: string, pipelineId: string, tenantId: string, data: TransformationLogData): void {
+  logTransformation(
+    executionId: string,
+    pipelineId: string,
+    tenantId: string,
+    data: TransformationLogData,
+  ): void {
     const level = data.errorCount > 0 ? 'warn' : 'info';
     const entry: ExecutionLogEntry = {
       timestamp: new Date(),
@@ -175,7 +190,11 @@ export class ExecutionLogger {
       executionId,
       tenantId,
       message: `Transformed ${data.transformedCount} rows with ${data.errorCount} errors in ${data.durationMs}ms`,
-      metadata: { transformedCount: data.transformedCount, errorCount: data.errorCount, durationMs: data.durationMs },
+      metadata: {
+        transformedCount: data.transformedCount,
+        errorCount: data.errorCount,
+        durationMs: data.durationMs,
+      },
     };
 
     if (level === 'warn') {
@@ -215,7 +234,12 @@ export class ExecutionLogger {
       executionId,
       tenantId,
       message: `Loaded ${data.loadedCount} rows to ${data.destinationType} with ${data.errorCount} errors in ${data.durationMs}ms`,
-      metadata: { loadedCount: data.loadedCount, errorCount: data.errorCount, durationMs: data.durationMs, destinationType: data.destinationType },
+      metadata: {
+        loadedCount: data.loadedCount,
+        errorCount: data.errorCount,
+        durationMs: data.durationMs,
+        destinationType: data.destinationType,
+      },
     };
 
     if (level === 'warn') {
@@ -277,7 +301,13 @@ export class ExecutionLogger {
   /**
    * Log a pipeline execution failure.
    */
-  logExecutionFailure(executionId: string, pipelineId: string, tenantId: string, error: string, retryAttempt: number = 0): void {
+  logExecutionFailure(
+    executionId: string,
+    pipelineId: string,
+    tenantId: string,
+    error: string,
+    retryAttempt: number = 0,
+  ): void {
     const entry: ExecutionLogEntry = {
       timestamp: new Date(),
       level: 'error',

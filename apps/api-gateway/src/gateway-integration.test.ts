@@ -38,7 +38,8 @@ function createTestJwtPayload(overrides?: Record<string, unknown>) {
     tenantId: '550e8400-e29b-41d4-a716-446655440000',
     email: 'test@example.com',
     displayName: 'Test User',
-    roles: [],
+    // G-712: reads are RBAC-gated; default test principal is a tenant admin.
+    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
     areas: [],
     institutions: [],
     jti: 'test-jti-123',
@@ -321,7 +322,12 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
   describe('Unregistered routes', () => {
     it('returns 404 for routes not matching any service prefix', async () => {
-      const token = app.jwt.sign(createTestJwtPayload());
+      // G-702 default-deny: only platform admins reach the 404 for unmapped segments.
+      const token = app.jwt.sign(
+        createTestJwtPayload({
+          roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
+        }),
+      );
 
       const response = await app.inject({
         method: 'GET',
@@ -373,10 +379,16 @@ describe('API Gateway Integration: Route Forwarding', () => {
   });
 
   describe('Service registry endpoint', () => {
-    it('lists all registered services with their prefixes', async () => {
+    it('lists all registered services with their prefixes (targets only for platform admin)', async () => {
+      const token = app.jwt.sign(
+        createTestJwtPayload({
+          roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
+        }),
+      );
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/services',
+        headers: { authorization: `Bearer ${token}` },
       });
 
       expect(response.statusCode).toBe(200);
@@ -393,14 +405,14 @@ describe('API Gateway Integration: Route Forwarding', () => {
       }
     });
 
-    it('services endpoint does not require authentication', async () => {
+    it('services endpoint requires authentication (G-713)', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/services',
         // No authorization header
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(401);
     });
   });
 });
@@ -496,14 +508,18 @@ describe('API Gateway Integration: Rate Limiting Enforcement', () => {
     await app.ready();
 
     try {
-      const token1 = app.jwt.sign(createTestJwtPayload({
-        sub: 'user-1',
-        tenantId: tenantA,
-      }));
-      const token2 = app.jwt.sign(createTestJwtPayload({
-        sub: 'user-2',
-        tenantId: tenantB,
-      }));
+      const token1 = app.jwt.sign(
+        createTestJwtPayload({
+          sub: 'user-1',
+          tenantId: tenantA,
+        }),
+      );
+      const token2 = app.jwt.sign(
+        createTestJwtPayload({
+          sub: 'user-2',
+          tenantId: tenantB,
+        }),
+      );
 
       // Exhaust rate limit for tenantA/user-1
       for (let i = 0; i < 2; i++) {
@@ -591,18 +607,22 @@ describe('API Gateway Integration: Structured Error Responses', () => {
 
   describe('Payload validation with field-level errors', () => {
     it('returns 400 with field-level errors for missing required fields', async () => {
-      app.post('/api/v1/institutions', {
-        schema: {
-          body: Type.Object({
-            name: Type.String({ minLength: 1, maxLength: 255 }),
-            code: Type.String({ minLength: 1, maxLength: 50 }),
-            areaId: Type.String({ format: 'uuid' }),
-            typeId: Type.String({ format: 'uuid' }),
-            sectorId: Type.String({ format: 'uuid' }),
-            ownershipId: Type.String({ format: 'uuid' }),
-          }),
+      app.post(
+        '/api/v1/institutions',
+        {
+          schema: {
+            body: Type.Object({
+              name: Type.String({ minLength: 1, maxLength: 255 }),
+              code: Type.String({ minLength: 1, maxLength: 50 }),
+              areaId: Type.String({ format: 'uuid' }),
+              typeId: Type.String({ format: 'uuid' }),
+              sectorId: Type.String({ format: 'uuid' }),
+              ownershipId: Type.String({ format: 'uuid' }),
+            }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'POST',
@@ -633,22 +653,26 @@ describe('API Gateway Integration: Structured Error Responses', () => {
     });
 
     it('returns field-level errors for invalid field types', async () => {
-      app.post('/api/v1/students', {
-        schema: {
-          body: Type.Object({
-            name: Type.String({ minLength: 1 }),
-            age: Type.Number({ minimum: 0, maximum: 150 }),
-            email: Type.String({ format: 'email' }),
-          }),
+      app.post(
+        '/api/v1/students',
+        {
+          schema: {
+            body: Type.Object({
+              name: Type.String({ minLength: 1 }),
+              age: Type.Number({ minimum: 0, maximum: 150 }),
+              email: Type.String({ format: 'email' }),
+            }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/students',
         payload: {
-          name: '',        // violates minLength
-          age: -5,         // violates minimum
+          name: '', // violates minLength
+          age: -5, // violates minimum
           email: 'not-an-email', // violates format
         },
       });
@@ -663,24 +687,28 @@ describe('API Gateway Integration: Structured Error Responses', () => {
       const fields = body.errors.map((e: { field: string }) => e.field);
       // At least one of the invalid fields should be reported
       const hasRelevantField = fields.some(
-        (f: string) => f.includes('name') || f.includes('age') || f.includes('email')
+        (f: string) => f.includes('name') || f.includes('age') || f.includes('email'),
       );
       expect(hasRelevantField).toBe(true);
     });
 
     it('returns field-level errors for invalid nested object fields', async () => {
-      app.post('/api/v1/institutions', {
-        schema: {
-          body: Type.Object({
-            name: Type.String(),
-            address: Type.Object({
-              street: Type.String({ minLength: 1 }),
-              city: Type.String({ minLength: 1 }),
-              zipCode: Type.String({ pattern: '^[0-9]{5}$' }),
+      app.post(
+        '/api/v1/institutions',
+        {
+          schema: {
+            body: Type.Object({
+              name: Type.String(),
+              address: Type.Object({
+                street: Type.String({ minLength: 1 }),
+                city: Type.String({ minLength: 1 }),
+                zipCode: Type.String({ pattern: '^[0-9]{5}$' }),
+              }),
             }),
-          }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'POST',
@@ -704,32 +732,39 @@ describe('API Gateway Integration: Structured Error Responses', () => {
       // Nested field paths should use dot notation
       const fields = body.errors.map((e: { field: string }) => e.field);
       const hasNestedField = fields.some(
-        (f: string) => f.includes('address') || f.includes('street') ||
-                       f.includes('city') || f.includes('zipCode')
+        (f: string) =>
+          f.includes('address') ||
+          f.includes('street') ||
+          f.includes('city') ||
+          f.includes('zipCode'),
       );
       expect(hasNestedField).toBe(true);
     });
 
     it('returns field-level errors for invalid array items', async () => {
-      app.post('/api/v1/assessments/bulk', {
-        schema: {
-          body: Type.Object({
-            results: Type.Array(
-              Type.Object({
-                studentId: Type.String({ format: 'uuid' }),
-                score: Type.Number({ minimum: 0, maximum: 100 }),
-              }),
-              { minItems: 1 }
-            ),
-          }),
+      app.post(
+        '/api/v1/assessments/bulk',
+        {
+          schema: {
+            body: Type.Object({
+              results: Type.Array(
+                Type.Object({
+                  studentId: Type.String({ format: 'uuid' }),
+                  score: Type.Number({ minimum: 0, maximum: 100 }),
+                }),
+                { minItems: 1 },
+              ),
+            }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'POST',
         url: '/api/v1/assessments/bulk',
         payload: {
-          results: [],  // violates minItems
+          results: [], // violates minItems
         },
       });
 
@@ -741,14 +776,18 @@ describe('API Gateway Integration: Structured Error Responses', () => {
     });
 
     it('returns field-level errors for invalid query parameters', async () => {
-      app.get('/api/v1/institutions', {
-        schema: {
-          querystring: Type.Object({
-            page: Type.Number({ minimum: 1 }),
-            limit: Type.Number({ minimum: 1, maximum: 100 }),
-          }),
+      app.get(
+        '/api/v1/institutions',
+        {
+          schema: {
+            querystring: Type.Object({
+              page: Type.Number({ minimum: 1 }),
+              limit: Type.Number({ minimum: 1, maximum: 100 }),
+            }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'GET',
@@ -766,13 +805,17 @@ describe('API Gateway Integration: Structured Error Responses', () => {
 
   describe('Error response structure consistency', () => {
     it('all error responses contain code, message, and statusCode', async () => {
-      app.post('/validate', {
-        schema: {
-          body: Type.Object({
-            required_field: Type.String(),
-          }),
+      app.post(
+        '/validate',
+        {
+          schema: {
+            body: Type.Object({
+              required_field: Type.String(),
+            }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'POST',
@@ -793,14 +836,18 @@ describe('API Gateway Integration: Structured Error Responses', () => {
     });
 
     it('validation errors include the errors array with field details', async () => {
-      app.post('/validate', {
-        schema: {
-          body: Type.Object({
-            name: Type.String({ minLength: 3 }),
-            email: Type.String({ format: 'email' }),
-          }),
+      app.post(
+        '/validate',
+        {
+          schema: {
+            body: Type.Object({
+              name: Type.String({ minLength: 3 }),
+              email: Type.String({ format: 'email' }),
+            }),
+          },
         },
-      }, async () => ({ ok: true }));
+        async () => ({ ok: true }),
+      );
 
       const response = await app.inject({
         method: 'POST',
@@ -860,20 +907,29 @@ describe('API Gateway Integration: Structured Error Responses', () => {
       const gatewayApp = await buildApp({ config: createTestConfig() });
 
       // Add a test route with schema validation to simulate a service endpoint
-      gatewayApp.post('/api/v1/test/validated', {
-        schema: {
-          body: Type.Object({
-            name: Type.String({ minLength: 1, maxLength: 100 }),
-            code: Type.String({ minLength: 1, maxLength: 20 }),
-            areaId: Type.String({ format: 'uuid' }),
-          }),
+      gatewayApp.post(
+        '/api/v1/test/validated',
+        {
+          schema: {
+            body: Type.Object({
+              name: Type.String({ minLength: 1, maxLength: 100 }),
+              code: Type.String({ minLength: 1, maxLength: 20 }),
+              areaId: Type.String({ format: 'uuid' }),
+            }),
+          },
         },
-      }, async () => ({ created: true }));
+        async () => ({ created: true }),
+      );
 
       await gatewayApp.ready();
 
       try {
-        const token = gatewayApp.jwt.sign(createTestJwtPayload());
+        // Ad-hoc `/api/v1/test` segment is unmapped → only platform admins pass G-702.
+        const token = gatewayApp.jwt.sign(
+          createTestJwtPayload({
+            roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
+          }),
+        );
 
         // Send invalid payload
         const response = await gatewayApp.inject({
@@ -885,7 +941,7 @@ describe('API Gateway Integration: Structured Error Responses', () => {
             'content-type': 'application/json',
           },
           payload: {
-            name: '',           // violates minLength
+            name: '', // violates minLength
             code: 'x'.repeat(25), // violates maxLength
             areaId: 'not-a-uuid', // violates format
           },
@@ -905,19 +961,28 @@ describe('API Gateway Integration: Structured Error Responses', () => {
     it('valid payloads pass validation and reach the handler', async () => {
       const gatewayApp = await buildApp({ config: createTestConfig() });
 
-      gatewayApp.post('/api/v1/test/validated', {
-        schema: {
-          body: Type.Object({
-            name: Type.String({ minLength: 1, maxLength: 100 }),
-            code: Type.String({ minLength: 1, maxLength: 20 }),
-          }),
+      gatewayApp.post(
+        '/api/v1/test/validated',
+        {
+          schema: {
+            body: Type.Object({
+              name: Type.String({ minLength: 1, maxLength: 100 }),
+              code: Type.String({ minLength: 1, maxLength: 20 }),
+            }),
+          },
         },
-      }, async () => ({ created: true }));
+        async () => ({ created: true }),
+      );
 
       await gatewayApp.ready();
 
       try {
-        const token = gatewayApp.jwt.sign(createTestJwtPayload());
+        // Ad-hoc `/api/v1/test` segment is unmapped → only platform admins pass G-702.
+        const token = gatewayApp.jwt.sign(
+          createTestJwtPayload({
+            roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
+          }),
+        );
 
         const response = await gatewayApp.inject({
           method: 'POST',

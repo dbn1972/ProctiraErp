@@ -11,11 +11,7 @@
  * - 21.4: Support filtering by entity type, user, date range, operation type.
  * - 21.5: Configurable retention with automated archival of expired entries.
  */
-import {
-  BusinessRuleError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -27,6 +23,7 @@ import type {
   AuditOperation,
   AuditRetentionConfig,
   ArchivalResult,
+  ChainVerification,
   CreateAuditLogInput,
 } from './audit-repository.js';
 
@@ -149,7 +146,7 @@ export class AuditService {
    * Useful for bulk operations that affect multiple entities.
    */
   async recordAuditBatch(inputs: RecordAuditInput[]): Promise<AuditLogEntry[]> {
-    const createInputs: CreateAuditLogInput[] = inputs.map(input => {
+    const createInputs: CreateAuditLogInput[] = inputs.map((input) => {
       this.validateAuditInput(input);
       return {
         id: uuidv4(),
@@ -182,7 +179,11 @@ export class AuditService {
       const end = new Date(input.endDate);
       if (start > end) {
         throw new ValidationError('startDate must be before or equal to endDate', [
-          { field: 'startDate', rule: 'range', message: 'startDate must be before or equal to endDate' },
+          {
+            field: 'startDate',
+            rule: 'range',
+            message: 'startDate must be before or equal to endDate',
+          },
         ]);
       }
     }
@@ -242,19 +243,31 @@ export class AuditService {
   async setRetentionConfig(input: SetRetentionInput): Promise<AuditRetentionConfig> {
     if (input.retentionMonths < 1) {
       throw new ValidationError('Retention period must be at least 1 month', [
-        { field: 'retentionMonths', rule: 'minimum', message: 'Retention period must be at least 1 month' },
+        {
+          field: 'retentionMonths',
+          rule: 'minimum',
+          message: 'Retention period must be at least 1 month',
+        },
       ]);
     }
 
     if (input.retentionMonths > 120) {
       throw new ValidationError('Retention period cannot exceed 120 months (10 years)', [
-        { field: 'retentionMonths', rule: 'maximum', message: 'Retention period cannot exceed 120 months (10 years)' },
+        {
+          field: 'retentionMonths',
+          rule: 'maximum',
+          message: 'Retention period cannot exceed 120 months (10 years)',
+        },
       ]);
     }
 
     if (input.archivalEnabled && !input.archivalDestination) {
       throw new ValidationError('Archival destination is required when archival is enabled', [
-        { field: 'archivalDestination', rule: 'required', message: 'Archival destination is required when archival is enabled' },
+        {
+          field: 'archivalDestination',
+          rule: 'required',
+          message: 'Archival destination is required when archival is enabled',
+        },
       ]);
     }
 
@@ -298,6 +311,113 @@ export class AuditService {
    */
   async getArchivalCandidateCount(tenantId: string): Promise<number> {
     return this.repository.getArchivalCandidateCount(tenantId);
+  }
+
+  /**
+   * G-913 — recompute the tenant's hash chain and report integrity.
+   */
+  async verifyChain(tenantId: string): Promise<ChainVerification> {
+    if (!tenantId?.trim()) {
+      throw new ValidationError('tenantId is required', [
+        { field: 'tenantId', rule: 'required', message: 'tenantId is required' },
+      ]);
+    }
+    return this.repository.verifyChain(tenantId);
+  }
+
+  /**
+   * G-913 — runtime retention sweep: archive expired rows for every tenant
+   * that enabled archival. Failures are isolated per tenant so one bad
+   * tenant never blocks the others.
+   */
+  async runRetentionSweep(): Promise<{
+    tenants: number;
+    archived: number;
+    failures: { tenantId: string; error: string }[];
+  }> {
+    const tenants = await this.repository.listTenantsWithArchivalEnabled();
+    let archived = 0;
+    const failures: { tenantId: string; error: string }[] = [];
+    for (const tenantId of tenants) {
+      try {
+        const result = await this.repository.archiveExpiredEntries(tenantId);
+        archived += result.archivedCount;
+      } catch (error) {
+        failures.push({ tenantId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { tenants: tenants.length, archived, failures };
+  }
+
+  /**
+   * G-734 — Data Subject Access Request (DSAR) export.
+   *
+   * Collects every audit entry for a subject within the tenant where the
+   * subject appears as the entity id or as the acting user. Pages through
+   * the repository so the package is complete up to the configured ceiling.
+   */
+  async exportDataSubjectPackage(
+    tenantId: string,
+    subjectId: string,
+    options: { maxEntries?: number } = {},
+  ): Promise<{
+    subjectId: string;
+    tenantId: string;
+    exportedAt: string;
+    entryCount: number;
+    truncated: boolean;
+    entries: AuditLogEntry[];
+  }> {
+    if (!tenantId?.trim()) {
+      throw new ValidationError('tenantId is required', [
+        { field: 'tenantId', rule: 'required', message: 'tenantId is required' },
+      ]);
+    }
+    if (!subjectId?.trim()) {
+      throw new ValidationError('subjectId is required', [
+        { field: 'subjectId', rule: 'required', message: 'subjectId is required' },
+      ]);
+    }
+
+    const maxEntries = Math.min(Math.max(options.maxEntries ?? 5_000, 1), 10_000);
+    const pageSize = 100;
+    const byId = new Map<string, AuditLogEntry>();
+
+    const collect = async (filter: { entityId?: string; userId?: string }) => {
+      let page = 1;
+      for (;;) {
+        if (byId.size >= maxEntries) return;
+        const result = await this.repository.query({
+          tenantId,
+          ...filter,
+          page,
+          pageSize,
+          sortOrder: 'desc',
+        });
+        for (const entry of result.data) {
+          byId.set(entry.id, entry);
+          if (byId.size >= maxEntries) return;
+        }
+        if (page >= result.meta.totalPages || result.data.length === 0) return;
+        page += 1;
+      }
+    };
+
+    await collect({ entityId: subjectId });
+    await collect({ userId: subjectId });
+
+    const entries = Array.from(byId.values()).sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
+
+    return {
+      subjectId,
+      tenantId,
+      exportedAt: new Date().toISOString(),
+      entryCount: entries.length,
+      truncated: entries.length >= maxEntries,
+      entries,
+    };
   }
 
   /**

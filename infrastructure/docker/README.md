@@ -92,24 +92,24 @@ docker build \
 ## Service Port Assignments
 
 | Service              | Port |
-|---------------------|------|
-| API Gateway         | 3000 |
-| Web App             | 3001 |
-| Registration Portal | 3002 |
-| Public Website      | 3003 |
-| Admin Console       | 3004 |
-| Developer Portal    | 3005 |
-| ETL Worker          | 3010 |
-| Institution Service | 3020 |
-| Student Service     | 3021 |
-| Staff Service       | 3022 |
-| Assessment Service  | 3023 |
-| Attendance Service  | 3024 |
-| Examination Service | 3025 |
-| Workflow Service    | 3026 |
-| Notification Service| 3027 |
-| Report Service      | 3028 |
-| Install Wizard      | 3100 |
+| -------------------- | ---- |
+| API Gateway          | 3000 |
+| Web App              | 3001 |
+| Registration Portal  | 3002 |
+| Public Website       | 3003 |
+| Admin Console        | 3004 |
+| Developer Portal     | 3005 |
+| ETL Worker           | 3010 |
+| Institution Service  | 3020 |
+| Student Service      | 3021 |
+| Staff Service        | 3022 |
+| Assessment Service   | 3023 |
+| Attendance Service   | 3024 |
+| Examination Service  | 3025 |
+| Workflow Service     | 3026 |
+| Notification Service | 3027 |
+| Report Service       | 3028 |
+| Install Wizard       | 3100 |
 
 ## Environment Variables
 
@@ -132,6 +132,7 @@ All service containers include Docker HEALTHCHECK instructions:
 - **Readiness probe**: `GET /ready` — confirms service can accept traffic
 
 Health check configuration:
+
 - Interval: 30s
 - Timeout: 5s
 - Start period: 15-20s
@@ -147,6 +148,7 @@ All Dockerfiles use multi-stage builds:
 4. **runner** — Lean runtime with only production artifacts
 
 This approach ensures:
+
 - Small final images (Alpine-based)
 - Efficient Docker layer caching
 - No dev dependencies in production

@@ -60,15 +60,11 @@ const DEFAULT_BRAND: Brand = {
   favicon: '/favicon.ico',
   primary_color: 'hsl(222, 47%, 31%)',
   accent_color: 'hsl(174, 62%, 40%)',
-  login_background:
-    'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
+  login_background: 'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
   document_title_template: '{page} | {brand}',
 };
 
-function pickString(
-  obj: Record<string, unknown>,
-  keys: string[],
-): string | undefined {
+function pickString(obj: Record<string, unknown>, keys: string[]): string | undefined {
   for (const key of keys) {
     const value = obj[key];
     if (typeof value === 'string' && value.length > 0) return value;
@@ -82,8 +78,7 @@ function normalizeBrandResponse(payload: unknown): Brand {
   const p = payload as Record<string, unknown>;
 
   const name =
-    pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']) ??
-    DEFAULT_BRAND.name;
+    pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']) ?? DEFAULT_BRAND.name;
   const shortName =
     pickString(p, ['shortName', 'short_name']) ??
     pickString(p, ['slug']) ??
@@ -99,12 +94,9 @@ function normalizeBrandResponse(payload: unknown): Brand {
     (typeof p['logo'] === 'object' && p['logo'] !== null
       ? pickString(p['logo'] as Record<string, unknown>, ['alt'])
       : undefined) ?? name;
-  const favicon =
-    pickString(p, ['favicon', 'faviconUrl', 'favicon_url']) ??
-    DEFAULT_BRAND.favicon;
+  const favicon = pickString(p, ['favicon', 'faviconUrl', 'favicon_url']) ?? DEFAULT_BRAND.favicon;
   const primary_color =
-    pickString(p, ['primary_color', 'primaryColor', 'primary']) ??
-    DEFAULT_BRAND.primary_color;
+    pickString(p, ['primary_color', 'primaryColor', 'primary']) ?? DEFAULT_BRAND.primary_color;
   const accent_color =
     pickString(p, ['accent_color', 'accentColor', 'accent', 'secondaryColor']) ??
     DEFAULT_BRAND.accent_color;
@@ -139,9 +131,7 @@ export const SSR_THEME_CACHE_TTL_MS = 60 * 1000;
 /** Base URL for outbound calls to the Theme Service via the API gateway. */
 function getGatewayBaseUrl(): string {
   return (
-    process.env['NEXT_PUBLIC_GATEWAY_URL'] ??
-    process.env['GATEWAY_URL'] ??
-    'http://localhost:3000'
+    process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? process.env['GATEWAY_URL'] ?? 'http://localhost:3000'
   );
 }
 
@@ -230,9 +220,7 @@ function escapeCss(value: string | null | undefined): string {
  * Test seam: lets unit tests inject a fake fetcher that resolves to the
  * normalized `Brand`. In production this is `fetchPublishedThemeFromGateway`.
  */
-export type PublishedThemeFetcher = (
-  tenantSlug: string,
-) => Promise<Brand>;
+export type PublishedThemeFetcher = (tenantSlug: string) => Promise<Brand>;
 
 /**
  * Default fetcher: GETs `/api/v1/tenant/theme/published` from the API
@@ -241,9 +229,7 @@ export type PublishedThemeFetcher = (
  * error, or malformed payload — the SSR head must always render *some*
  * branded baseline, even when the Theme Service is unreachable.
  */
-export async function fetchPublishedThemeFromGateway(
-  tenantSlug: string,
-): Promise<Brand> {
+export async function fetchPublishedThemeFromGateway(tenantSlug: string): Promise<Brand> {
   const url = `${getGatewayBaseUrl()}${PUBLISHED_THEME_PATH}`;
   try {
     const response = await fetch(url, {
@@ -328,13 +314,10 @@ export async function getPublishedTenantTheme(
  * Server-only: relies on `next/headers` which throws when called outside a
  * Server Component / Route Handler.
  */
-export async function resolveRequestTenantSlug(
-  headerStore: { get(name: string): string | null | undefined },
-): Promise<string> {
-  const slug =
-    headerStore.get('x-tenant-slug') ||
-    headerStore.get('x-tenant-id') ||
-    'default';
+export async function resolveRequestTenantSlug(headerStore: {
+  get(name: string): string | null | undefined;
+}): Promise<string> {
+  const slug = headerStore.get('x-tenant-slug') || headerStore.get('x-tenant-id') || 'default';
   return String(slug).toLowerCase();
 }
 

@@ -9,14 +9,10 @@ import { loginAsTenantAdmin } from './fixtures/auth';
  * Intended to run headless on the cloud agent / CI host (no laptop dependency).
  */
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
-const DEFINITION_ID =
-  process.env.WORKFLOW_DEFINITION_ID ?? 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
+const DEFINITION_ID = process.env.WORKFLOW_DEFINITION_ID ?? 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
 
 test.describe('Workflows E2E', () => {
-  test.skip(
-    !BACKEND_READY,
-    'E2E_BACKEND_READY is not set; skipping live-backend workflows e2e.',
-  );
+  test.skip(!BACKEND_READY, 'E2E_BACKEND_READY is not set; skipping live-backend workflows e2e.');
 
   test.beforeEach(async ({ page }) => {
     await loginAsTenantAdmin(page);

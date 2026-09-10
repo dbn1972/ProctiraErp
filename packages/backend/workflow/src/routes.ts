@@ -35,7 +35,11 @@ import {
   type WorkflowDefinitionListQuery,
   type WorkflowInstanceListQuery,
 } from './schemas.js';
-import type { WorkflowDefinitionEntity, WorkflowInstanceEntity, TransitionAuditEntity } from './workflow-repository.js';
+import type {
+  WorkflowDefinitionEntity,
+  WorkflowInstanceEntity,
+  TransitionAuditEntity,
+} from './workflow-repository.js';
 
 /**
  * Options for registering workflow routes.
@@ -246,7 +250,10 @@ export async function registerWorkflowRoutes(
   fastify.put(
     `${prefix}/:id`,
     async function updateDefinitionHandler(
-      request: FastifyRequest<{ Params: WorkflowDefinitionParams; Body: UpdateWorkflowDefinitionInput }>,
+      request: FastifyRequest<{
+        Params: WorkflowDefinitionParams;
+        Body: UpdateWorkflowDefinitionInput;
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(WorkflowDefinitionParamsSchema, request.params);

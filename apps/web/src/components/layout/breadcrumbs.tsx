@@ -30,10 +30,13 @@ export function Breadcrumbs() {
 
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex items-center text-sm text-gray-500" role="list">
+      <ol className="flex items-center text-sm text-muted-foreground" role="list">
         {/* Home link */}
         <li>
-          <Link href="/" className="hover:text-gray-700">
+          <Link
+            href="/"
+            className="inline-flex min-h-12 min-w-12 items-center justify-center hover:text-foreground"
+          >
             {t('home')}
           </Link>
         </li>
@@ -43,11 +46,14 @@ export function Breadcrumbs() {
           <li key={crumb.href} className="flex items-center">
             <BreadcrumbSeparator />
             {crumb.isLast ? (
-              <span className="font-medium text-gray-900" aria-current="page">
+              <span className="font-medium text-foreground" aria-current="page">
                 {crumb.label}
               </span>
             ) : (
-              <Link href={crumb.href} className="hover:text-gray-700">
+              <Link
+                href={crumb.href}
+                className="inline-flex min-h-12 min-w-12 items-center justify-center hover:text-foreground"
+              >
                 {crumb.label}
               </Link>
             )}
@@ -77,11 +83,16 @@ function BreadcrumbSeparator() {
   );
 }
 
+const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Formats a URL segment into a human-readable label.
- * Converts kebab-case to Title Case.
+ * UUIDs are shortened (G-1004 / B3-004, B3-011); kebab-case becomes Title Case.
  */
 function formatSegmentLabel(segment: string): string {
+  if (UUID_SEGMENT.test(segment)) {
+    return `${segment.slice(0, 8)}…`;
+  }
   return segment
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

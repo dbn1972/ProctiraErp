@@ -21,10 +21,7 @@ export function createBoard(overrides: Partial<Board> = {}): Board {
   };
 }
 
-export function createBoardList(
-  count: number,
-  overrides: Partial<Board> = {},
-): Board[] {
+export function createBoardList(count: number, overrides: Partial<Board> = {}): Board[] {
   return Array.from({ length: count }, (_, i) =>
     createBoard({
       ...overrides,

@@ -33,7 +33,11 @@ import {
   type PolicyEvaluationRequest,
   type CreatePolicyAssignmentInput,
 } from './schemas.js';
-import type { PolicyEntity, PolicyVersionEntity, PolicyAssignmentEntity } from './policy-repository.js';
+import type {
+  PolicyEntity,
+  PolicyVersionEntity,
+  PolicyAssignmentEntity,
+} from './policy-repository.js';
 
 /**
  * Options for registering policy routes.

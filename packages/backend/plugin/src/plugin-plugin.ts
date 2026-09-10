@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the plugin service and routes.
  */
 export const pluginPlugin = fp(
-  async function pluginPluginImpl(
-    fastify: FastifyInstance,
-    options: PluginPluginOptions,
-  ) {
+  async function pluginPluginImpl(fastify: FastifyInstance, options: PluginPluginOptions) {
     const { repository, config, prefix = '/plugins' } = options;
 
     // Create plugin service instance
@@ -54,7 +51,7 @@ export const pluginPlugin = fp(
   },
   {
     name: '@proctira/backend-plugin',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

@@ -61,7 +61,11 @@ export class DataWarehouseService {
     return this.repository.createWarehouse(warehouse);
   }
 
-  async updateWarehouse(tenantId: string, warehouseId: string, input: UpdateWarehouseInput): Promise<Warehouse> {
+  async updateWarehouse(
+    tenantId: string,
+    warehouseId: string,
+    input: UpdateWarehouseInput,
+  ): Promise<Warehouse> {
     const existing = await this.repository.findWarehouseById(warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Warehouse not found: ${warehouseId}`);
@@ -95,11 +99,19 @@ export class DataWarehouseService {
 
   // ─── Indicator Operations ───────────────────────────────────────────────────
 
-  async createIndicator(tenantId: string, warehouseId: string, input: CreateIndicatorInput): Promise<Indicator> {
+  async createIndicator(
+    tenantId: string,
+    warehouseId: string,
+    input: CreateIndicatorInput,
+  ): Promise<Indicator> {
     await this.getWarehouse(tenantId, warehouseId);
 
     // Check GID uniqueness within warehouse
-    const existingByGid = await this.repository.findIndicatorByGid(input.gid, warehouseId, tenantId);
+    const existingByGid = await this.repository.findIndicatorByGid(
+      input.gid,
+      warehouseId,
+      tenantId,
+    );
     if (existingByGid) {
       throw new ConflictError(`Indicator with GID '${input.gid}' already exists in this warehouse`);
     }
@@ -121,7 +133,12 @@ export class DataWarehouseService {
     return this.repository.createIndicator(indicator);
   }
 
-  async updateIndicator(tenantId: string, warehouseId: string, indicatorId: string, input: UpdateIndicatorInput): Promise<Indicator> {
+  async updateIndicator(
+    tenantId: string,
+    warehouseId: string,
+    indicatorId: string,
+    input: UpdateIndicatorInput,
+  ): Promise<Indicator> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findIndicatorById(indicatorId, warehouseId, tenantId);
     if (!existing) {
@@ -145,7 +162,11 @@ export class DataWarehouseService {
     await this.repository.deleteIndicator(indicatorId, warehouseId, tenantId);
   }
 
-  async getIndicator(tenantId: string, warehouseId: string, indicatorId: string): Promise<Indicator> {
+  async getIndicator(
+    tenantId: string,
+    warehouseId: string,
+    indicatorId: string,
+  ): Promise<Indicator> {
     await this.getWarehouse(tenantId, warehouseId);
     const indicator = await this.repository.findIndicatorById(indicatorId, warehouseId, tenantId);
     if (!indicator) {
@@ -154,7 +175,13 @@ export class DataWarehouseService {
     return indicator;
   }
 
-  async listIndicators(tenantId: string, warehouseId: string, filter: ListFilter, page: number, pageSize: number) {
+  async listIndicators(
+    tenantId: string,
+    warehouseId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ) {
     await this.getWarehouse(tenantId, warehouseId);
     return this.repository.listIndicators(warehouseId, tenantId, filter, page, pageSize);
   }
@@ -182,7 +209,12 @@ export class DataWarehouseService {
     return this.repository.createUnit(unit);
   }
 
-  async updateUnit(tenantId: string, warehouseId: string, unitId: string, input: UpdateUnitInput): Promise<Unit> {
+  async updateUnit(
+    tenantId: string,
+    warehouseId: string,
+    unitId: string,
+    input: UpdateUnitInput,
+  ): Promise<Unit> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findUnitById(unitId, warehouseId, tenantId);
     if (!existing) {
@@ -211,14 +243,24 @@ export class DataWarehouseService {
     return unit;
   }
 
-  async listUnits(tenantId: string, warehouseId: string, filter: ListFilter, page: number, pageSize: number) {
+  async listUnits(
+    tenantId: string,
+    warehouseId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ) {
     await this.getWarehouse(tenantId, warehouseId);
     return this.repository.listUnits(warehouseId, tenantId, filter, page, pageSize);
   }
 
   // ─── Subgroup Operations ────────────────────────────────────────────────────
 
-  async createSubgroup(tenantId: string, warehouseId: string, input: CreateSubgroupInput): Promise<Subgroup> {
+  async createSubgroup(
+    tenantId: string,
+    warehouseId: string,
+    input: CreateSubgroupInput,
+  ): Promise<Subgroup> {
     await this.getWarehouse(tenantId, warehouseId);
 
     const existingByGid = await this.repository.findSubgroupByGid(input.gid, warehouseId, tenantId);
@@ -240,7 +282,12 @@ export class DataWarehouseService {
     return this.repository.createSubgroup(subgroup);
   }
 
-  async updateSubgroup(tenantId: string, warehouseId: string, subgroupId: string, input: UpdateSubgroupInput): Promise<Subgroup> {
+  async updateSubgroup(
+    tenantId: string,
+    warehouseId: string,
+    subgroupId: string,
+    input: UpdateSubgroupInput,
+  ): Promise<Subgroup> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findSubgroupById(subgroupId, warehouseId, tenantId);
     if (!existing) {
@@ -270,17 +317,31 @@ export class DataWarehouseService {
     return subgroup;
   }
 
-  async listSubgroups(tenantId: string, warehouseId: string, filter: ListFilter, page: number, pageSize: number) {
+  async listSubgroups(
+    tenantId: string,
+    warehouseId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ) {
     await this.getWarehouse(tenantId, warehouseId);
     return this.repository.listSubgroups(warehouseId, tenantId, filter, page, pageSize);
   }
 
   // ─── Time Period Operations ─────────────────────────────────────────────────
 
-  async createTimePeriod(tenantId: string, warehouseId: string, input: CreateTimePeriodInput): Promise<TimePeriod> {
+  async createTimePeriod(
+    tenantId: string,
+    warehouseId: string,
+    input: CreateTimePeriodInput,
+  ): Promise<TimePeriod> {
     await this.getWarehouse(tenantId, warehouseId);
 
-    const existingByLabel = await this.repository.findTimePeriodByLabel(input.timePeriod, warehouseId, tenantId);
+    const existingByLabel = await this.repository.findTimePeriodByLabel(
+      input.timePeriod,
+      warehouseId,
+      tenantId,
+    );
     if (existingByLabel) {
       throw new ConflictError(`Time period '${input.timePeriod}' already exists in this warehouse`);
     }
@@ -300,20 +361,31 @@ export class DataWarehouseService {
     return this.repository.createTimePeriod(timePeriod);
   }
 
-  async updateTimePeriod(tenantId: string, warehouseId: string, timePeriodId: string, input: UpdateTimePeriodInput): Promise<TimePeriod> {
+  async updateTimePeriod(
+    tenantId: string,
+    warehouseId: string,
+    timePeriodId: string,
+    input: UpdateTimePeriodInput,
+  ): Promise<TimePeriod> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findTimePeriodById(timePeriodId, warehouseId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Time period not found: ${timePeriodId}`);
     }
     const updates: Partial<TimePeriod> = {};
-    if (input.startDate !== undefined) updates.startDate = input.startDate ? new Date(input.startDate) : null;
-    if (input.endDate !== undefined) updates.endDate = input.endDate ? new Date(input.endDate) : null;
+    if (input.startDate !== undefined)
+      updates.startDate = input.startDate ? new Date(input.startDate) : null;
+    if (input.endDate !== undefined)
+      updates.endDate = input.endDate ? new Date(input.endDate) : null;
     if (input.periodicity !== undefined) updates.periodicity = input.periodicity ?? null;
     return this.repository.updateTimePeriod(timePeriodId, warehouseId, tenantId, updates);
   }
 
-  async deleteTimePeriod(tenantId: string, warehouseId: string, timePeriodId: string): Promise<void> {
+  async deleteTimePeriod(
+    tenantId: string,
+    warehouseId: string,
+    timePeriodId: string,
+  ): Promise<void> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findTimePeriodById(timePeriodId, warehouseId, tenantId);
     if (!existing) {
@@ -322,7 +394,11 @@ export class DataWarehouseService {
     await this.repository.deleteTimePeriod(timePeriodId, warehouseId, tenantId);
   }
 
-  async getTimePeriod(tenantId: string, warehouseId: string, timePeriodId: string): Promise<TimePeriod> {
+  async getTimePeriod(
+    tenantId: string,
+    warehouseId: string,
+    timePeriodId: string,
+  ): Promise<TimePeriod> {
     await this.getWarehouse(tenantId, warehouseId);
     const tp = await this.repository.findTimePeriodById(timePeriodId, warehouseId, tenantId);
     if (!tp) {
@@ -331,7 +407,13 @@ export class DataWarehouseService {
     return tp;
   }
 
-  async listTimePeriods(tenantId: string, warehouseId: string, filter: ListFilter, page: number, pageSize: number) {
+  async listTimePeriods(
+    tenantId: string,
+    warehouseId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ) {
     await this.getWarehouse(tenantId, warehouseId);
     return this.repository.listTimePeriods(warehouseId, tenantId, filter, page, pageSize);
   }
@@ -342,7 +424,11 @@ export class DataWarehouseService {
     await this.getWarehouse(tenantId, warehouseId);
 
     // Check external area ID uniqueness within warehouse
-    const existingByAreaId = await this.repository.findAreaByExternalId(input.areaId, warehouseId, tenantId);
+    const existingByAreaId = await this.repository.findAreaByExternalId(
+      input.areaId,
+      warehouseId,
+      tenantId,
+    );
     if (existingByAreaId) {
       throw new ConflictError(`Area with ID '${input.areaId}' already exists in this warehouse`);
     }
@@ -371,7 +457,12 @@ export class DataWarehouseService {
     return this.repository.createArea(area);
   }
 
-  async updateArea(tenantId: string, warehouseId: string, areaId: string, input: UpdateAreaInput): Promise<Area> {
+  async updateArea(
+    tenantId: string,
+    warehouseId: string,
+    areaId: string,
+    input: UpdateAreaInput,
+  ): Promise<Area> {
     await this.getWarehouse(tenantId, warehouseId);
     const existing = await this.repository.findAreaById(areaId, warehouseId, tenantId);
     if (!existing) {
@@ -410,7 +501,13 @@ export class DataWarehouseService {
     return area;
   }
 
-  async listAreas(tenantId: string, warehouseId: string, filter: ListFilter, page: number, pageSize: number) {
+  async listAreas(
+    tenantId: string,
+    warehouseId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ) {
     await this.getWarehouse(tenantId, warehouseId);
     return this.repository.listAreas(warehouseId, tenantId, filter, page, pageSize);
   }
@@ -469,7 +566,9 @@ export class DataWarehouseService {
             successCount: 0,
             errorCount: 1,
             duplicateCount: 0,
-            errors: [{ row: 0, field: null, message: 'File content is required for Excel DES import' }],
+            errors: [
+              { row: 0, field: null, message: 'File content is required for Excel DES import' },
+            ],
           };
         }
         break;
@@ -483,7 +582,14 @@ export class DataWarehouseService {
             successCount: 0,
             errorCount: 1,
             duplicateCount: 0,
-            errors: [{ row: 0, field: null, message: 'Database import requires a live database connection (not yet implemented for in-memory mode)' }],
+            errors: [
+              {
+                row: 0,
+                field: null,
+                message:
+                  'Database import requires a live database connection (not yet implemented for in-memory mode)',
+              },
+            ],
           };
         } else {
           return {
@@ -491,7 +597,13 @@ export class DataWarehouseService {
             successCount: 0,
             errorCount: 1,
             duplicateCount: 0,
-            errors: [{ row: 0, field: null, message: 'Database connection configuration is required for db import' }],
+            errors: [
+              {
+                row: 0,
+                field: null,
+                message: 'Database connection configuration is required for db import',
+              },
+            ],
           };
         }
       }
@@ -501,7 +613,9 @@ export class DataWarehouseService {
           successCount: 0,
           errorCount: 1,
           duplicateCount: 0,
-          errors: [{ row: 0, field: null, message: `Unsupported import format: ${format as string}` }],
+          errors: [
+            { row: 0, field: null, message: `Unsupported import format: ${format as string}` },
+          ],
         };
     }
 
@@ -512,18 +626,17 @@ export class DataWarehouseService {
         successCount: 0,
         errorCount: 1,
         duplicateCount: 0,
-        errors: [{
-          row: 0,
-          field: null,
-          message: `Import batch size ${records.length} exceeds maximum of ${this.config.maxImportBatchSize}`,
-        }],
+        errors: [
+          {
+            row: 0,
+            field: null,
+            message: `Import batch size ${records.length} exceeds maximum of ${this.config.maxImportBatchSize}`,
+          },
+        ],
       };
     }
 
-    return importDataRecords(
-      { warehouseId, tenantId, repository: this.repository },
-      records,
-    );
+    return importDataRecords({ warehouseId, tenantId, repository: this.repository }, records);
   }
 
   // ─── Data Query ─────────────────────────────────────────────────────────────

@@ -47,13 +47,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import {
-  useCallback,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent } from 'react';
 
 import type { SchoolPreference } from '../schemas';
 
@@ -118,14 +112,10 @@ function SortableRow({
   onMove,
   onCancelGrab,
 }: SortableRowProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: preference.schoolId, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: preference.schoolId,
+    disabled,
+  });
 
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
@@ -278,9 +268,7 @@ export function RankedPreference({
       onChange(next);
       const moved = next[newIndex];
       if (moved) {
-        setLastAnnouncement(
-          `Moved ${moved.schoolName} to ${RANK_LABELS[moved.rank]}.`,
-        );
+        setLastAnnouncement(`Moved ${moved.schoolName} to ${RANK_LABELS[moved.rank]}.`);
       }
     },
     [preferences, onChange],
@@ -305,9 +293,7 @@ export function RankedPreference({
         setGrabbedId(null);
         const item = preferences.find((p) => p.schoolId === schoolId);
         if (item) {
-          setLastAnnouncement(
-            `Dropped ${item.schoolName} at ${RANK_LABELS[item.rank]}.`,
-          );
+          setLastAnnouncement(`Dropped ${item.schoolName} at ${RANK_LABELS[item.rank]}.`);
         }
       } else {
         setGrabbedId(schoolId);
@@ -343,40 +329,25 @@ export function RankedPreference({
       onChange(next);
       const moved = next[newIndex];
       if (moved) {
-        setLastAnnouncement(
-          `Moved ${moved.schoolName} to ${RANK_LABELS[moved.rank]}.`,
-        );
+        setLastAnnouncement(`Moved ${moved.schoolName} to ${RANK_LABELS[moved.rank]}.`);
       }
     },
     [onChange, preferences],
   );
 
   return (
-    <section
-      aria-label={heading ?? 'Ranked school preferences'}
-      data-testid="ranked-preference"
-    >
-      {heading ? (
-        <h3 className="mb-2 text-sm font-medium">{heading}</h3>
-      ) : null}
+    <section aria-label={heading ?? 'Ranked school preferences'} data-testid="ranked-preference">
+      {heading ? <h3 className="mb-2 text-sm font-medium">{heading}</h3> : null}
       {preferences.length === 0 ? (
         <p
           className="rounded-md border border-dashed p-3 text-sm text-muted-foreground"
           data-testid="ranked-preference-empty"
         >
-          Add schools from the search results to rank up to{' '}
-          {MAX_RANKED_PREFERENCES} choices.
+          Add schools from the search results to rank up to {MAX_RANKED_PREFERENCES} choices.
         </p>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={ids}
-            strategy={verticalListSortingStrategy}
-          >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             <ol
               className="space-y-2"
               aria-label="Ranked school preferences"

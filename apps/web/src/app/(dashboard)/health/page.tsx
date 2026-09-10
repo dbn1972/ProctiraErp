@@ -16,6 +16,7 @@
  *    last updated, icon actions
  */
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import {
   Eye,
   HeartPulse,
@@ -42,11 +43,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import {
-  canAccessHealthRecords,
-  listHealthRecords,
-  type HealthRecord,
-} from '@/lib/api/health';
+import { canAccessHealthRecords, listHealthRecords, type HealthRecord } from '@/lib/api/health';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -74,7 +71,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -82,18 +79,17 @@ function initialsOf(name: string): string {
 
 export default async function HealthRecordsPage() {
   const session = await requireSession('/health');
+  const t = await getTranslations('health');
 
   if (!canAccessHealthRecords(session.user.roles)) {
-    return <AccessDeniedCard />;
+    return <AccessDeniedCard t={t} />;
   }
 
   const records = await listHealthRecords();
 
   const total = records.length;
   const withAllergies = records.filter((r) => (r.allergies?.length ?? 0) > 0).length;
-  const withChronic = records.filter(
-    (r) => (r.chronicConditions?.length ?? 0) > 0,
-  ).length;
+  const withChronic = records.filter((r) => (r.chronicConditions?.length ?? 0) > 0).length;
 
   return (
     <section aria-labelledby="health-heading" className="space-y-6">
@@ -104,31 +100,29 @@ export default async function HealthRecordsPage() {
             id="health-heading"
             className="text-3xl font-extrabold tracking-tight text-foreground"
           >
-            Health records
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {total > 0
-              ? `${total.toLocaleString()} confidential records · all access is audited`
-              : 'Confidential medical information. All access is audited.'}
+            {total > 0 ? t('subtitleWithCount', { count: total }) : t('subtitle')}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
             <Link href="/health/screenings">
               <HeartPulse className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Screenings
+              {t('screenings')}
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/health/special-needs">
               <Users className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Special needs
+              {t('specialNeeds')}
             </Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/health/counselling">
               <Activity className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Counselling
+              {t('counselling')}
             </Link>
           </Button>
         </div>
@@ -139,26 +133,26 @@ export default async function HealthRecordsPage() {
         <KpiCard
           icon={<HeartPulse className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
-          label="Health records"
+          label={t('kpiRecords')}
           value={total.toLocaleString()}
         />
         <KpiCard
           icon={<TriangleAlert className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-          label="Allergies flagged"
+          label={t('kpiAllergies')}
           value={withAllergies.toLocaleString()}
         />
         <KpiCard
           icon={<Activity className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
-          label="Chronic conditions"
+          label={t('kpiChronic')}
           value={withChronic.toLocaleString()}
         />
         <KpiCard
           icon={<Users className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
-          label="Special-needs register"
-          value="Currently unavailable"
+          label={t('kpiSpecialNeeds')}
+          value={t('unavailable')}
           valueClass="text-base font-semibold text-muted-foreground"
         />
       </div>
@@ -168,44 +162,41 @@ export default async function HealthRecordsPage() {
         role="note"
         className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
       >
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+        <Info
+          className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400"
+          aria-hidden="true"
+        />
         <p>
-          <span className="font-semibold">Confidential health information. </span>
-          Findings and follow-up details are restricted to Health Officers and the
-          school&apos;s medical staff. Class teachers see only the follow-up status,
-          never the diagnosis.
+          <span className="font-semibold">{t('noticeTitle')} </span>
+          {t('noticeBody')}
         </p>
       </div>
 
       {/* ── Table card ── */}
       <Card className="overflow-hidden">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Student health records</CardTitle>
-          <CardDescription>
-            {total.toLocaleString()} records accessible.
-          </CardDescription>
+          <CardTitle className="text-base">{t('tableTitle')}</CardTitle>
+          <CardDescription>{t('tableDescription', { count: total })}</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {total === 0 ? (
-            <p className="border-t py-12 text-center text-sm text-muted-foreground">
-              No health records available.
-            </p>
+            <p className="border-t py-12 text-center text-sm text-muted-foreground">{t('empty')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <Table aria-label="Health records">
+              <Table aria-label={t('tableAriaLabel')}>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30">
-                    <TableHead className="ps-4 font-semibold">Student</TableHead>
-                    <TableHead className="font-semibold">Blood type</TableHead>
-                    <TableHead className="font-semibold">Allergies</TableHead>
-                    <TableHead className="font-semibold">Chronic conditions</TableHead>
-                    <TableHead className="font-semibold">Last updated</TableHead>
-                    <TableHead className="pe-4 text-end font-semibold">Actions</TableHead>
+                    <TableHead className="ps-4 font-semibold">{t('colStudent')}</TableHead>
+                    <TableHead className="font-semibold">{t('colBloodType')}</TableHead>
+                    <TableHead className="font-semibold">{t('colAllergies')}</TableHead>
+                    <TableHead className="font-semibold">{t('colChronic')}</TableHead>
+                    <TableHead className="font-semibold">{t('colLastUpdated')}</TableHead>
+                    <TableHead className="pe-4 text-end font-semibold">{t('colActions')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {records.map((record) => (
-                    <HealthRow key={record.id} record={record} />
+                    <HealthRow key={record.id} record={record} t={t} />
                   ))}
                 </TableBody>
               </Table>
@@ -219,7 +210,9 @@ export default async function HealthRecordsPage() {
 
 /* --------------------------------------------------------------- row */
 
-function HealthRow({ record }: { record: HealthRecord }) {
+type HealthT = Awaited<ReturnType<typeof getTranslations<'health'>>>;
+
+function HealthRow({ record, t }: { record: HealthRecord; t: HealthT }) {
   const palette = avatarPalette(record.studentName);
   const allergyCount = record.allergies?.length ?? 0;
   const chronicCount = record.chronicConditions?.length ?? 0;
@@ -248,15 +241,13 @@ function HealthRow({ record }: { record: HealthRecord }) {
       </TableCell>
 
       {/* Blood type */}
-      <TableCell className="font-mono text-sm text-foreground">
-        {record.bloodType ?? '—'}
-      </TableCell>
+      <TableCell className="font-mono text-sm text-foreground">{record.bloodType ?? '—'}</TableCell>
 
       {/* Allergies */}
       <TableCell>
         {allergyCount > 0 ? (
           <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-            {allergyCount} flagged
+            {t('flagged', { count: allergyCount })}
           </span>
         ) : (
           '—'
@@ -267,7 +258,7 @@ function HealthRow({ record }: { record: HealthRecord }) {
       <TableCell>
         {chronicCount > 0 ? (
           <span className="inline-flex items-center rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400">
-            {chronicCount} on record
+            {t('onRecord', { count: chronicCount })}
           </span>
         ) : (
           '—'
@@ -275,9 +266,7 @@ function HealthRow({ record }: { record: HealthRecord }) {
       </TableCell>
 
       {/* Last updated */}
-      <TableCell className="text-sm text-muted-foreground">
-        {record.lastUpdated || '—'}
-      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{record.lastUpdated || '—'}</TableCell>
 
       {/* Actions */}
       <TableCell className="pe-4">
@@ -287,7 +276,7 @@ function HealthRow({ record }: { record: HealthRecord }) {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            aria-label={`View ${record.studentName}`}
+            aria-label={t('view', { name: record.studentName })}
           >
             <Link href={`/health/${record.studentId}`}>
               <Eye className="h-4 w-4" aria-hidden="true" />
@@ -298,7 +287,7 @@ function HealthRow({ record }: { record: HealthRecord }) {
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
-            aria-label={`Edit ${record.studentName}`}
+            aria-label={t('edit', { name: record.studentName })}
           >
             <Link href={`/health/${record.studentId}`}>
               <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -340,10 +329,7 @@ function KpiCard({
           <span className="text-sm font-medium text-muted-foreground">{label}</span>
         </div>
         <div
-          className={cn(
-            'mt-3 text-3xl font-extrabold tabular-nums text-foreground',
-            valueClass,
-          )}
+          className={cn('mt-3 text-3xl font-extrabold tabular-nums text-foreground', valueClass)}
         >
           {value}
         </div>
@@ -352,7 +338,7 @@ function KpiCard({
   );
 }
 
-function AccessDeniedCard() {
+function AccessDeniedCard({ t }: { t: HealthT }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-start gap-3 space-y-0">
@@ -360,16 +346,15 @@ function AccessDeniedCard() {
           <ShieldAlert className="h-6 w-6" aria-hidden="true" />
         </div>
         <div>
-          <CardTitle className="text-base">Access denied</CardTitle>
+          <CardTitle className="text-base">{t('accessDeniedTitle')}</CardTitle>
           <CardDescription>
-            Your role does not have permission to access health records. Contact your
-            administrator if you believe you should have access.
+            {t('accessDenied')} {t('accessDeniedHelp')}
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <Button asChild variant="outline">
-          <Link href="/">Return to dashboard</Link>
+          <Link href="/">{t('returnToDashboard')}</Link>
         </Button>
       </CardContent>
     </Card>

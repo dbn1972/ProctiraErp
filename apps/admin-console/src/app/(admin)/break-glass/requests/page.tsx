@@ -5,12 +5,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { listBreakGlassRequests } from '@/lib/api/break-glass';
 import { listTenants } from '@/lib/api/tenants';
@@ -32,10 +27,7 @@ export default async function BreakGlassRequestsPage({
 }) {
   const session = await requireRole('breakGlassRequest', '/break-glass/requests');
   const canDecide = hasRole(session.user.platformRole, 'breakGlassApprove');
-  const [bg, tenantsResult] = await Promise.all([
-    listBreakGlassRequests(),
-    listTenants(),
-  ]);
+  const [bg, tenantsResult] = await Promise.all([listBreakGlassRequests(), listTenants()]);
   const { requests, source } = bg;
   const { tenants } = tenantsResult;
 
@@ -72,8 +64,8 @@ export default async function BreakGlassRequestsPage({
       {searchParams?.submitted && (
         <Alert variant="success" className="mb-6">
           <AlertDescription>
-            Request <code>{searchParams.submitted}</code> submitted. The security
-            team has been notified for approval.
+            Request <code>{searchParams.submitted}</code> submitted. The security team has been
+            notified for approval.
           </AlertDescription>
         </Alert>
       )}
@@ -82,8 +74,8 @@ export default async function BreakGlassRequestsPage({
         <Info className="h-4 w-4" />
         <AlertTitle>Approval policy</AlertTitle>
         <AlertDescription>
-          You cannot approve your own request. Approvals require a second
-          operator and every decision is recorded in the audit log.
+          You cannot approve your own request. Approvals require a second operator and every
+          decision is recorded in the audit log.
         </AlertDescription>
       </Alert>
 
@@ -106,9 +98,7 @@ export default async function BreakGlassRequestsPage({
               <CardHeader>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="space-y-1">
-                    <CardTitle className="text-base">
-                      {request.requester}
-                    </CardTitle>
+                    <CardTitle className="text-base">{request.requester}</CardTitle>
                     <div className="text-sm text-muted-foreground">
                       {resolveTenant(request.targetTenantId)} ·{' '}
                       <span className="capitalize">{request.scope}</span> scope ·{' '}
@@ -117,19 +107,14 @@ export default async function BreakGlassRequestsPage({
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={request.status} />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {request.id}
-                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">{request.id}</span>
                   </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
                   <Detail label="Use case" value={request.useCase} />
-                  <Detail
-                    label="Requested"
-                    value={formatDateTime(request.createdAt)}
-                  />
+                  <Detail label="Requested" value={formatDateTime(request.createdAt)} />
                 </dl>
                 <blockquote className="border-s-2 border-border ps-3 text-sm italic text-muted-foreground">
                   {request.justification}
@@ -164,8 +149,7 @@ export default async function BreakGlassRequestsPage({
                 <div className="text-sm font-medium">{request.requester}</div>
                 <div className="text-xs text-muted-foreground">
                   {resolveTenant(request.targetTenantId)} ·{' '}
-                  <span className="capitalize">{request.scope}</span> ·{' '}
-                  {request.useCase}
+                  <span className="capitalize">{request.scope}</span> · {request.useCase}
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -175,9 +159,7 @@ export default async function BreakGlassRequestsPage({
                     : formatDateTime(request.createdAt)}
                 </span>
                 <StatusBadge status={request.status} />
-                {canDecide && (
-                  <ApprovalActions id={request.id} status={request.status} />
-                )}
+                {canDecide && <ApprovalActions id={request.id} status={request.status} />}
               </div>
             </div>
           ))}
@@ -190,9 +172,7 @@ export default async function BreakGlassRequestsPage({
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <dt className="text-xs uppercase tracking-wider text-muted-foreground">
-        {label}
-      </dt>
+      <dt className="text-xs uppercase tracking-wider text-muted-foreground">{label}</dt>
       <dd className="text-sm font-medium">{value}</dd>
     </div>
   );

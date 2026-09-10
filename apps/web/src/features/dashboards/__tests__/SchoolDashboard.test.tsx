@@ -74,9 +74,7 @@ afterEach(() => {
 describe('<SchoolDashboard> — Task 52.4 / Req 40.6', () => {
   it('renders the page heading', () => {
     renderDashboard();
-    expect(
-      screen.getByRole('heading', { level: 1, name: /school dashboard/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: /school dashboard/i })).toBeTruthy();
   });
 
   it('renders all four headline KPI labels', () => {
@@ -91,24 +89,18 @@ describe('<SchoolDashboard> — Task 52.4 / Req 40.6', () => {
     renderDashboard();
     const { kpis } = __SCHOOL_DASHBOARD_MOCK__;
     // 1,247 — formatted via Intl.NumberFormat
-    expect(screen.getByTestId('kpi-total-students').textContent).toMatch(
-      /1,247/,
-    );
+    expect(screen.getByTestId('kpi-total-students').textContent).toMatch(/1,247/);
     // 94.2% — one decimal place
-    expect(
-      screen.getByTestId('kpi-attendance').textContent,
-    ).toMatch(/94\.0%|94\.2%/);
-    expect(
-      screen.getByTestId('kpi-pending-approvals').textContent,
-    ).toMatch(String(kpis.pendingApprovals));
+    expect(screen.getByTestId('kpi-attendance').textContent).toMatch(/94\.0%|94\.2%/);
+    expect(screen.getByTestId('kpi-pending-approvals').textContent).toMatch(
+      String(kpis.pendingApprovals),
+    );
   });
 
   it('mounts the persistent <ConnectivityIndicator> in the header', () => {
     renderDashboard();
     expect(screen.getByTestId('connectivity-indicator')).toBeTruthy();
-    expect(
-      screen.getByTestId('school-dashboard-connectivity'),
-    ).toBeTruthy();
+    expect(screen.getByTestId('school-dashboard-connectivity')).toBeTruthy();
   });
 
   it('renders the "Mark attendance" quick action linking to /app/attendance/today', () => {
@@ -130,9 +122,7 @@ describe('<SchoolDashboard> — Task 52.4 / Req 40.6', () => {
   it('renders a recent activity feed and a pending tasks list', () => {
     renderDashboard();
     expect(screen.getByTestId('recent-activity')).toBeTruthy();
-    expect(
-      screen.getAllByTestId('recent-activity-item').length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('recent-activity-item').length).toBeGreaterThan(0);
     expect(screen.getByTestId('pending-tasks')).toBeTruthy();
   });
 });

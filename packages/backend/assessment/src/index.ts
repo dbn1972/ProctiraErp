@@ -21,7 +21,11 @@ export { assessmentPlugin } from './assessment-plugin.js';
 export type { AssessmentPluginOptions } from './assessment-plugin.js';
 
 // Service
-export { AssessmentService, MAX_ITEMS_PER_SUBJECT_PERIOD, REQUIRED_WEIGHT_TOTAL } from './assessment-service.js';
+export {
+  AssessmentService,
+  MAX_ITEMS_PER_SUBJECT_PERIOD,
+  REQUIRED_WEIGHT_TOTAL,
+} from './assessment-service.js';
 export { ResultService } from './result-service.js';
 
 // Repository interfaces
@@ -62,7 +66,19 @@ export {
   createAssessmentItemRepository,
   createOutcomeRepository,
   createAssessmentResultRepository,
+  createReportCardTemplateRepository,
+  createTeacherCommentRepository,
+  createInstitutionBrandingRepository,
+  createReportCardJobRepository,
 } from './repository-factory.js';
+export {
+  PgReportCardTemplateRepository,
+  PgTeacherCommentRepository,
+  PgInstitutionBrandingRepository,
+  PgReportCardJobRepository,
+  ensureReportCardSchema,
+} from './pg-report-card-repository.js';
+export type { ReportCardPgPool } from './pg-report-card-repository.js';
 export type { AssessmentRepositoryConfig } from './repository-factory.js';
 
 // Schemas
@@ -134,7 +150,21 @@ export type { ResultRoutesOptions } from './result-routes.js';
 
 // Report Card Service
 export { ReportCardService } from './report-card-service.js';
-export type { TaskQueuePublisher, PdfGenerator, ReportCardData } from './report-card-service.js';
+export type {
+  TaskQueuePublisher,
+  PdfGenerator,
+  ReportCardData,
+  ReportCardServiceOptions,
+  ReportCardPdfArtifact,
+} from './report-card-service.js';
+export { ReportCardPdfGenerator, templateHeading } from './report-card-pdf-generator.js';
+export {
+  InMemoryReportCardArtifactStore,
+  FilesystemReportCardArtifactStore,
+  createReportCardArtifactStore,
+  defaultReportCardArtifactDir,
+} from './report-card-artifact-store.js';
+export type { ReportCardArtifactStore } from './report-card-artifact-store.js';
 
 // Report Card Repository interfaces
 export type {

@@ -124,7 +124,7 @@ describe('MotionGate', () => {
     render(
       <MotionGate>
         <Probe />
-      </MotionGate>
+      </MotionGate>,
     );
 
     const probe = screen.getByTestId('probe');
@@ -142,7 +142,7 @@ describe('MotionGate', () => {
     render(
       <MotionGate>
         <Probe />
-      </MotionGate>
+      </MotionGate>,
     );
 
     const probe = screen.getByTestId('probe');
@@ -166,7 +166,7 @@ describe('MotionGate', () => {
     render(
       <MotionGate forceReduce>
         <Probe />
-      </MotionGate>
+      </MotionGate>,
     );
 
     expect(screen.getByTestId('probe')).toHaveAttribute('data-disable-motion', 'true');
@@ -178,7 +178,7 @@ describe('MotionGate', () => {
     render(
       <MotionGate forceMotion>
         <Probe />
-      </MotionGate>
+      </MotionGate>,
     );
 
     expect(screen.getByTestId('probe')).toHaveAttribute('data-disable-motion', 'false');
@@ -190,7 +190,7 @@ describe('MotionGate', () => {
     render(
       <MotionGate>
         <Probe />
-      </MotionGate>
+      </MotionGate>,
     );
 
     expect(screen.getByTestId('probe')).toHaveAttribute('data-disable-motion', 'false');

@@ -34,14 +34,22 @@ export const CustomFieldEntityTypeSchema = Type.Union([
  */
 export const ValidationRulesSchema = Type.Object({
   required: Type.Optional(Type.Boolean({ description: 'Whether the field is required' })),
-  minLength: Type.Optional(Type.Number({ minimum: 0, description: 'Minimum length for text/textarea' })),
-  maxLength: Type.Optional(Type.Number({ minimum: 1, description: 'Maximum length for text/textarea' })),
+  minLength: Type.Optional(
+    Type.Number({ minimum: 0, description: 'Minimum length for text/textarea' }),
+  ),
+  maxLength: Type.Optional(
+    Type.Number({ minimum: 1, description: 'Maximum length for text/textarea' }),
+  ),
   min: Type.Optional(Type.Number({ description: 'Minimum value for number fields' })),
   max: Type.Optional(Type.Number({ description: 'Maximum value for number fields' })),
   pattern: Type.Optional(Type.String({ description: 'Regex pattern for text fields' })),
-  allowedExtensions: Type.Optional(Type.Array(Type.String(), { description: 'Allowed file extensions' })),
+  allowedExtensions: Type.Optional(
+    Type.Array(Type.String(), { description: 'Allowed file extensions' }),
+  ),
   maxFileSize: Type.Optional(Type.Number({ minimum: 1, description: 'Max file size in bytes' })),
-  options: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { description: 'Dropdown options' })),
+  options: Type.Optional(
+    Type.Array(Type.String({ minLength: 1 }), { description: 'Dropdown options' }),
+  ),
 });
 
 /**
@@ -56,14 +64,19 @@ export const CreateCustomFieldDefinitionSchema = Type.Object({
     description: 'Machine-readable field key (lowercase, underscores, starts with letter)',
   }),
   label: Type.String({ minLength: 1, maxLength: 255, description: 'Human-readable label' }),
-  description: Type.Optional(Type.Union([
-    Type.String({ maxLength: 1000 }),
-    Type.Null(),
-  ], { description: 'Optional description/help text' })),
+  description: Type.Optional(
+    Type.Union([Type.String({ maxLength: 1000 }), Type.Null()], {
+      description: 'Optional description/help text',
+    }),
+  ),
   fieldType: CustomFieldTypeSchema,
   validationRules: Type.Optional(ValidationRulesSchema),
-  displayOrder: Type.Optional(Type.Number({ minimum: 0, default: 0, description: 'Display order' })),
-  isActive: Type.Optional(Type.Boolean({ default: true, description: 'Whether the field is active' })),
+  displayOrder: Type.Optional(
+    Type.Number({ minimum: 0, default: 0, description: 'Display order' }),
+  ),
+  isActive: Type.Optional(
+    Type.Boolean({ default: true, description: 'Whether the field is active' }),
+  ),
 });
 
 export type CreateCustomFieldDefinitionInput = Static<typeof CreateCustomFieldDefinitionSchema>;
@@ -72,11 +85,14 @@ export type CreateCustomFieldDefinitionInput = Static<typeof CreateCustomFieldDe
  * Schema for updating a custom field definition.
  */
 export const UpdateCustomFieldDefinitionSchema = Type.Object({
-  label: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Human-readable label' })),
-  description: Type.Optional(Type.Union([
-    Type.String({ maxLength: 1000 }),
-    Type.Null(),
-  ], { description: 'Optional description/help text' })),
+  label: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Human-readable label' }),
+  ),
+  description: Type.Optional(
+    Type.Union([Type.String({ maxLength: 1000 }), Type.Null()], {
+      description: 'Optional description/help text',
+    }),
+  ),
   validationRules: Type.Optional(ValidationRulesSchema),
   displayOrder: Type.Optional(Type.Number({ minimum: 0, description: 'Display order' })),
   isActive: Type.Optional(Type.Boolean({ description: 'Whether the field is active' })),
@@ -123,7 +139,9 @@ export type BulkSetCustomFieldValuesInput = Static<typeof BulkSetCustomFieldValu
  */
 export const CustomFieldDefinitionListQuerySchema = Type.Object({
   page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   entityType: Type.Optional(CustomFieldEntityTypeSchema),
   isActive: Type.Optional(Type.Boolean({ description: 'Filter by active status' })),
   search: Type.Optional(Type.String({ description: 'Search by label or field key' })),

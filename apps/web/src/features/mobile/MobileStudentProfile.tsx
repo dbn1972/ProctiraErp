@@ -162,11 +162,9 @@ export default function MobileStudentProfile() {
   const { previousLabel, nextLabel } = useMemo(() => {
     const index = TAB_LABELS.findIndex((tab) => tab.key === activeTab);
     return {
-      previousLabel: index > 0 ? TAB_LABELS[index - 1]?.label ?? null : null,
+      previousLabel: index > 0 ? (TAB_LABELS[index - 1]?.label ?? null) : null,
       nextLabel:
-        index >= 0 && index < TAB_LABELS.length - 1
-          ? TAB_LABELS[index + 1]?.label ?? null
-          : null,
+        index >= 0 && index < TAB_LABELS.length - 1 ? (TAB_LABELS[index + 1]?.label ?? null) : null,
     };
   }, [activeTab]);
 
@@ -188,27 +186,16 @@ export default function MobileStudentProfile() {
           className="h-20 w-20 bg-primary text-primary-foreground"
           data-testid="student-avatar"
         >
-          <AvatarFallback className="text-2xl font-bold">
-            {data.initials}
-          </AvatarFallback>
+          <AvatarFallback className="text-2xl font-bold">{data.initials}</AvatarFallback>
         </Avatar>
         <div className="flex flex-col gap-0.5">
-          <h1
-            className="truncate text-lg font-semibold"
-            data-testid="student-full-name"
-          >
+          <h1 className="truncate text-lg font-semibold" data-testid="student-full-name">
             {data.fullName}
           </h1>
-          <p
-            className="text-sm text-muted-foreground"
-            data-testid="student-grade-section"
-          >
+          <p className="text-sm text-muted-foreground" data-testid="student-grade-section">
             {data.gradeSection}
           </p>
-          <p
-            className="font-mono text-xs text-muted-foreground"
-            data-testid="student-number"
-          >
+          <p className="font-mono text-xs text-muted-foreground" data-testid="student-number">
             {data.studentNumber}
           </p>
         </div>
@@ -218,9 +205,7 @@ export default function MobileStudentProfile() {
         <dl className="mt-3 grid w-full grid-cols-3 gap-2" aria-label="Quick stats">
           <div className="flex flex-col items-center" data-testid="kpi-attendance">
             <dt className="text-[11px] text-muted-foreground">Attendance</dt>
-            <dd className="text-lg font-bold text-success">
-              {data.attendanceRate}
-            </dd>
+            <dd className="text-lg font-bold text-success">{data.attendanceRate}</dd>
           </div>
           <div className="flex flex-col items-center" data-testid="kpi-grade">
             <dt className="text-[11px] text-muted-foreground">Grade</dt>
@@ -272,11 +257,7 @@ export default function MobileStudentProfile() {
             <span className="flex min-w-0 items-center gap-1">
               <DirectionalIcon
                 icon={ChevronLeft}
-                className={
-                  previousLabel
-                    ? 'h-3 w-3 shrink-0'
-                    : 'h-3 w-3 shrink-0 opacity-30'
-                }
+                className={previousLabel ? 'h-3 w-3 shrink-0' : 'h-3 w-3 shrink-0 opacity-30'}
                 data-testid="tab-prev-chevron"
               />
               <span className="truncate">{previousLabel ?? '—'}</span>
@@ -285,11 +266,7 @@ export default function MobileStudentProfile() {
               <span className="truncate">{nextLabel ?? '—'}</span>
               <DirectionalIcon
                 icon={ChevronRight}
-                className={
-                  nextLabel
-                    ? 'h-3 w-3 shrink-0'
-                    : 'h-3 w-3 shrink-0 opacity-30'
-                }
+                className={nextLabel ? 'h-3 w-3 shrink-0' : 'h-3 w-3 shrink-0 opacity-30'}
                 data-testid="tab-next-chevron"
               />
             </span>
@@ -297,11 +274,7 @@ export default function MobileStudentProfile() {
         </div>
 
         {/* ── Personal Info ── */}
-        <TabsContent
-          value="info"
-          className="mt-0 px-4 py-4"
-          data-testid="tab-content-info"
-        >
+        <TabsContent value="info" className="mt-0 px-4 py-4" data-testid="tab-content-info">
           <h2 className="mb-2 text-sm font-semibold">Personal Information</h2>
           <Card className="border-none shadow-sm">
             <CardContent className="p-0">
@@ -309,14 +282,10 @@ export default function MobileStudentProfile() {
                 <div
                   key={item.label}
                   className={
-                    index === data.personalInfo.length - 1
-                      ? 'p-3'
-                      : 'border-b border-border p-3'
+                    index === data.personalInfo.length - 1 ? 'p-3' : 'border-b border-border p-3'
                   }
                 >
-                  <p className="text-[11px] text-muted-foreground">
-                    {item.label}
-                  </p>
+                  <p className="text-[11px] text-muted-foreground">{item.label}</p>
                   <p className="mt-0.5 break-words text-sm">{item.value}</p>
                 </div>
               ))}
@@ -336,10 +305,7 @@ export default function MobileStudentProfile() {
               <AttendanceStat label="Present" value={data.attendance.presentDays} />
               <AttendanceStat label="Absent" value={data.attendance.absentDays} />
               <AttendanceStat label="Late" value={data.attendance.lateDays} />
-              <AttendanceStat
-                label="Excused"
-                value={data.attendance.excusedDays}
-              />
+              <AttendanceStat label="Excused" value={data.attendance.excusedDays} />
             </CardContent>
           </Card>
 
@@ -356,9 +322,7 @@ export default function MobileStudentProfile() {
                   }
                 >
                   <span className="text-sm">{entry.date}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {entry.status}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{entry.status}</span>
                 </div>
               ))}
             </CardContent>
@@ -366,11 +330,7 @@ export default function MobileStudentProfile() {
         </TabsContent>
 
         {/* ── Results ── */}
-        <TabsContent
-          value="results"
-          className="mt-0 px-4 py-4"
-          data-testid="tab-content-results"
-        >
+        <TabsContent value="results" className="mt-0 px-4 py-4" data-testid="tab-content-results">
           <h2 className="mb-2 text-sm font-semibold">Recent Results</h2>
           <Card className="border-none shadow-sm">
             <CardContent className="p-0">
@@ -383,13 +343,9 @@ export default function MobileStudentProfile() {
                       : 'flex items-center justify-between border-b border-border p-3'
                   }
                 >
-                  <span className="min-w-0 truncate text-sm">
-                    {result.subject}
-                  </span>
+                  <span className="min-w-0 truncate text-sm">{result.subject}</span>
                   <span className="ms-2 flex shrink-0 items-baseline gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {result.score}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{result.score}</span>
                     <span className="text-sm font-semibold">{result.grade}</span>
                   </span>
                 </div>

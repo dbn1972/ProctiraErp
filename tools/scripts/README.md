@@ -6,17 +6,19 @@ script is a single `.mjs` file with no compile step so it runs without
 
 ## Scripts
 
-| Command                    | Script                               | Purpose                                                                              |
-| -------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| `pnpm lint:a11y`           | `check-icon-only-button.mjs`         | Standalone scan for the `proctira/icon-only-button-requires-aria-label` ESLint rule. |
-| `pnpm check:contrast`      | `check-contrast.mjs`                 | Semantic-token contrast gate (≥ 7:1 in light + dark per Requirement 37 AC 2).        |
-| `pnpm check:bundle`        | `check-bundle.mjs`                   | Bundle-size gate (≤ 500 KB gzip per named route per Requirement 39 AC 1).            |
-| `pnpm check:lighthouse`    | `check-lighthouse.mjs`               | Lighthouse gate (Property F-10 — desktop + 3G mobile, four category thresholds).     |
+| Command                    | Script                               | Purpose                                                                                 |
+| -------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------- |
+| `pnpm lint:a11y`           | `check-icon-only-button.mjs`         | Standalone scan for the `proctira/icon-only-button-requires-aria-label` ESLint rule.    |
+| `pnpm check:contrast`      | `check-contrast.mjs`                 | Semantic-token contrast gate (≥ 7:1 in light + dark per Requirement 37 AC 2).           |
+| `pnpm check:bundle`        | `check-bundle.mjs`                   | Bundle-size gate (≤ 500 KB gzip per named route per Requirement 39 AC 1).               |
+| `pnpm check:lighthouse`    | `check-lighthouse.mjs`               | Lighthouse gate (Property F-10 — desktop + 3G mobile, four category thresholds).        |
 | `pnpm check:brand-strings` | `check-brand-strings.mjs`            | Grep gate for hardcoded brand names (ProctiraERP / EduZo) in non-TypeScript assets.     |
-| `pnpm dod:check`           | `definition-of-done-checks.mjs`      | Charter §32 release-gate checks.                                                     |
-| `pnpm dod:test`            | `definition-of-done-checks.test.mjs` | Unit tests for the DoD checks.                                                       |
-| (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                       |
-| (internal)                 | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules.                                     |
+| `pnpm dod:check`           | `definition-of-done-checks.mjs`      | Charter §32 release-gate checks.                                                        |
+| `pnpm dod:test`            | `definition-of-done-checks.test.mjs` | Unit tests for the DoD checks.                                                          |
+| (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                          |
+| (internal)                 | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules.                                        |
+| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002).                                 |
+| (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset. |
 
 ## `check:brand-strings` (task 57.4 / Design M)
 

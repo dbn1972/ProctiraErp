@@ -25,9 +25,9 @@
  *   }
  */
 
-"use strict";
+'use strict';
 
-const DEFAULT_ELEMENT_NAMES = ["img", "Img"];
+const DEFAULT_ELEMENT_NAMES = ['img', 'Img'];
 
 /**
  * Walk a JSX element's attributes into a lookup of name → AST node.
@@ -38,15 +38,11 @@ function indexAttributes(opening) {
   const map = new Map();
   let hasSpread = false;
   for (const attr of opening.attributes) {
-    if (attr.type === "JSXSpreadAttribute") {
+    if (attr.type === 'JSXSpreadAttribute') {
       hasSpread = true;
       continue;
     }
-    if (
-      attr.type === "JSXAttribute" &&
-      attr.name &&
-      attr.name.type === "JSXIdentifier"
-    ) {
+    if (attr.type === 'JSXAttribute' && attr.name && attr.name.type === 'JSXIdentifier') {
       map.set(attr.name.name, attr);
     }
   }
@@ -60,15 +56,15 @@ function indexAttributes(opening) {
 function attributeHasValue(attr) {
   if (!attr || !attr.value) return false;
   const value = attr.value;
-  if (value.type === "Literal") {
-    return value.value !== "" && value.value !== false && value.value !== null;
+  if (value.type === 'Literal') {
+    return value.value !== '' && value.value !== false && value.value !== null;
   }
   // JSXExpressionContainer: trust that the expression provides a value.
-  if (value.type === "JSXExpressionContainer") {
+  if (value.type === 'JSXExpressionContainer') {
     if (
       value.expression &&
-      value.expression.type === "Literal" &&
-      (value.expression.value === "" ||
+      value.expression.type === 'Literal' &&
+      (value.expression.value === '' ||
         value.expression.value === null ||
         value.expression.value === undefined)
     ) {
@@ -87,13 +83,13 @@ function extractStyleObject(attr) {
   if (
     !attr ||
     !attr.value ||
-    attr.value.type !== "JSXExpressionContainer" ||
+    attr.value.type !== 'JSXExpressionContainer' ||
     !attr.value.expression
   ) {
     return null;
   }
   const expr = attr.value.expression;
-  if (expr.type === "ObjectExpression") return expr;
+  if (expr.type === 'ObjectExpression') return expr;
   return null;
 }
 
@@ -104,19 +100,14 @@ function extractStyleObject(attr) {
 function styleHasProperty(objectExpression, propName) {
   if (!objectExpression) return false;
   for (const prop of objectExpression.properties) {
-    if (prop.type !== "Property" && prop.type !== "ObjectProperty") continue;
+    if (prop.type !== 'Property' && prop.type !== 'ObjectProperty') continue;
     const key = prop.key;
     let keyName = null;
-    if (key.type === "Identifier") keyName = key.name;
-    else if (key.type === "Literal" && typeof key.value === "string")
-      keyName = key.value;
+    if (key.type === 'Identifier') keyName = key.name;
+    else if (key.type === 'Literal' && typeof key.value === 'string') keyName = key.value;
     if (keyName === propName) {
       // Reject empty string literal explicitly; otherwise assume valid.
-      if (
-        prop.value &&
-        prop.value.type === "Literal" &&
-        prop.value.value === ""
-      ) {
+      if (prop.value && prop.value.type === 'Literal' && prop.value.value === '') {
         return false;
       }
       return true;
@@ -131,13 +122,13 @@ function styleHasProperty(objectExpression, propName) {
  */
 function attributeEquals(attr, expected) {
   if (!attr || !attr.value) return false;
-  if (attr.value.type === "Literal") {
+  if (attr.value.type === 'Literal') {
     return attr.value.value === expected;
   }
   if (
-    attr.value.type === "JSXExpressionContainer" &&
+    attr.value.type === 'JSXExpressionContainer' &&
     attr.value.expression &&
-    attr.value.expression.type === "Literal"
+    attr.value.expression.type === 'Literal'
   ) {
     return attr.value.expression.value === expected;
   }
@@ -152,9 +143,9 @@ function attributeEquals(attr, expected) {
  *   - `data-hero`
  */
 function isHero(attrs) {
-  if (attrs.has("priority")) return true;
-  if (attributeEquals(attrs.get("fetchpriority"), "high")) return true;
-  if (attrs.has("data-hero")) return true;
+  if (attrs.has('priority')) return true;
+  if (attributeEquals(attrs.get('fetchpriority'), 'high')) return true;
+  if (attrs.has('data-hero')) return true;
   return false;
 }
 
@@ -163,14 +154,14 @@ function isHero(attrs) {
  * `aria-hidden` boolean shorthand which evaluates to true in JSX).
  */
 function isAriaHidden(attrs) {
-  const attr = attrs.get("aria-hidden");
+  const attr = attrs.get('aria-hidden');
   if (!attr) return false;
   if (!attr.value) return true; // <img aria-hidden /> shorthand
   return (
-    attributeEquals(attr, "true") ||
-    (attr.value.type === "JSXExpressionContainer" &&
+    attributeEquals(attr, 'true') ||
+    (attr.value.type === 'JSXExpressionContainer' &&
       attr.value.expression &&
-      attr.value.expression.type === "Literal" &&
+      attr.value.expression.type === 'Literal' &&
       attr.value.expression.value === true)
   );
 }
@@ -178,24 +169,24 @@ function isAriaHidden(attrs) {
 /** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
-    type: "problem",
+    type: 'problem',
     docs: {
       description:
-        "Require explicit width/height on <img> elements to prevent layout shift; warn when below-the-fold images are missing loading=\"lazy\".",
-      category: "Best Practices",
+        'Require explicit width/height on <img> elements to prevent layout shift; warn when below-the-fold images are missing loading="lazy".',
+      category: 'Best Practices',
       recommended: true,
     },
     schema: [
       {
-        type: "object",
+        type: 'object',
         properties: {
           elementNames: {
-            type: "array",
-            items: { type: "string" },
+            type: 'array',
+            items: { type: 'string' },
             uniqueItems: true,
           },
           allowAriaHiddenDecorative: {
-            type: "boolean",
+            type: 'boolean',
           },
         },
         additionalProperties: false,
@@ -203,24 +194,23 @@ module.exports = {
     ],
     messages: {
       missingWidth:
-        "<{{name}}> is missing an explicit `width` attribute. Specify width and height to prevent layout shift (CLS).",
+        '<{{name}}> is missing an explicit `width` attribute. Specify width and height to prevent layout shift (CLS).',
       missingHeight:
-        "<{{name}}> is missing an explicit `height` attribute. Specify width and height to prevent layout shift (CLS).",
+        '<{{name}}> is missing an explicit `height` attribute. Specify width and height to prevent layout shift (CLS).',
       missingLoading:
-        "<{{name}}> is missing `loading=\"lazy\"`. Add it for below-the-fold images, or mark the element as `priority` / `fetchpriority=\"high\"` / `data-hero` if it is above the fold.",
+        '<{{name}}> is missing `loading="lazy"`. Add it for below-the-fold images, or mark the element as `priority` / `fetchpriority="high"` / `data-hero` if it is above the fold.',
     },
   },
 
   create(context) {
     const options = context.options[0] || {};
     const elementNames = options.elementNames || DEFAULT_ELEMENT_NAMES;
-    const allowAriaHiddenDecorative =
-      options.allowAriaHiddenDecorative !== false;
+    const allowAriaHiddenDecorative = options.allowAriaHiddenDecorative !== false;
 
     return {
       JSXOpeningElement(node) {
         // Only check JSX elements with a plain identifier name we recognise.
-        if (!node.name || node.name.type !== "JSXIdentifier") return;
+        if (!node.name || node.name.type !== 'JSXIdentifier') return;
         if (!elementNames.includes(node.name.name)) return;
 
         const elementName = node.name.name;
@@ -232,37 +222,35 @@ module.exports = {
         // Decorative images can opt out.
         if (allowAriaHiddenDecorative && isAriaHidden(attrs)) return;
 
-        const styleObject = extractStyleObject(attrs.get("style"));
+        const styleObject = extractStyleObject(attrs.get('style'));
 
         const widthOk =
-          attributeHasValue(attrs.get("width")) ||
-          styleHasProperty(styleObject, "width");
+          attributeHasValue(attrs.get('width')) || styleHasProperty(styleObject, 'width');
         const heightOk =
-          attributeHasValue(attrs.get("height")) ||
-          styleHasProperty(styleObject, "height");
+          attributeHasValue(attrs.get('height')) || styleHasProperty(styleObject, 'height');
 
         if (!widthOk) {
           context.report({
             node,
-            messageId: "missingWidth",
+            messageId: 'missingWidth',
             data: { name: elementName },
           });
         }
         if (!heightOk) {
           context.report({
             node,
-            messageId: "missingHeight",
+            messageId: 'missingHeight',
             data: { name: elementName },
           });
         }
 
         // Loading check: skip hero / above-the-fold images.
         if (!isHero(attrs)) {
-          const hasLoading = attributeHasValue(attrs.get("loading"));
+          const hasLoading = attributeHasValue(attrs.get('loading'));
           if (!hasLoading) {
             context.report({
               node,
-              messageId: "missingLoading",
+              messageId: 'missingLoading',
               data: { name: elementName },
             });
           }

@@ -123,11 +123,7 @@ export function WelcomeBanner({
   });
 
   return (
-    <Card
-      className={cn('overflow-hidden', className)}
-      data-testid={dataTestId}
-      data-state="ready"
-    >
+    <Card className={cn('overflow-hidden', className)} data-testid={dataTestId} data-state="ready">
       <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <p
@@ -154,9 +150,7 @@ export function WelcomeBanner({
         {(attentionSummary || cta) && (
           <div className="flex flex-col items-start gap-2 sm:items-end">
             {attentionSummary ? (
-              <div data-testid="welcome-banner-attention">
-                {attentionSummary}
-              </div>
+              <div data-testid="welcome-banner-attention">{attentionSummary}</div>
             ) : null}
             {cta ? <div data-testid="welcome-banner-cta">{cta}</div> : null}
           </div>

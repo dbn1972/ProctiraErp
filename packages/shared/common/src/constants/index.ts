@@ -54,6 +54,8 @@ export enum AttendanceStatus {
   ABSENT = 'ABSENT',
   LATE = 'LATE',
   EXCUSED = 'EXCUSED',
+  /** Present-partial: 0.5 weight in attendance % numerator (G-919). */
+  EARLY_DEPARTURE = 'EARLY_DEPARTURE',
 }
 
 /**

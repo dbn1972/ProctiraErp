@@ -8,6 +8,8 @@
  */
 import { Type, type Static } from '@sinclair/typebox';
 
+const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
 /**
  * Schema for document generation request body.
  */
@@ -18,9 +20,9 @@ export const GenerateDocumentsSchema = Type.Object({
     Type.Literal('result_certificate'),
   ]),
   candidateIds: Type.Optional(
-    Type.Array(Type.String({ format: 'uuid' }), { maxItems: 500 }),
+    Type.Array(Type.String({ pattern: UUID_PATTERN }), { maxItems: 500 }),
   ),
-  centerId: Type.Optional(Type.String({ format: 'uuid' })),
+  centerId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
 });
 
 export type GenerateDocumentsInput = Static<typeof GenerateDocumentsSchema>;
@@ -29,8 +31,8 @@ export type GenerateDocumentsInput = Static<typeof GenerateDocumentsSchema>;
  * Schema for document generation job params.
  */
 export const DocumentJobParamsSchema = Type.Object({
-  examinationId: Type.String({ format: 'uuid' }),
-  jobId: Type.String({ format: 'uuid' }),
+  examinationId: Type.String({ pattern: UUID_PATTERN }),
+  jobId: Type.String({ pattern: UUID_PATTERN }),
 });
 
 export type DocumentJobParams = Static<typeof DocumentJobParamsSchema>;
@@ -39,7 +41,7 @@ export type DocumentJobParams = Static<typeof DocumentJobParamsSchema>;
  * Schema for examination params (reused from result schemas).
  */
 export const DocumentExaminationParamsSchema = Type.Object({
-  examinationId: Type.String({ format: 'uuid' }),
+  examinationId: Type.String({ pattern: UUID_PATTERN }),
 });
 
 export type DocumentExaminationParams = Static<typeof DocumentExaminationParamsSchema>;
@@ -48,8 +50,8 @@ export type DocumentExaminationParams = Static<typeof DocumentExaminationParamsS
  * Schema for document generation job response.
  */
 export const DocumentJobResponseSchema = Type.Object({
-  id: Type.String({ format: 'uuid' }),
-  examinationId: Type.String({ format: 'uuid' }),
+  id: Type.String({ pattern: UUID_PATTERN }),
+  examinationId: Type.String({ pattern: UUID_PATTERN }),
   documentType: Type.Union([
     Type.Literal('admit_card'),
     Type.Literal('seating_plan'),

@@ -19,6 +19,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // CI runs `next dev` on a 2-core runner shared with the gateway, Postgres and
+  // Redis: first visits compile routes and server actions, so a chain of 5–7
+  // page loads regularly needs more than the 30s local budget.
+  timeout: process.env.CI ? 90_000 : 30_000,
+  expect: { timeout: process.env.CI ? 20_000 : 5_000 },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,
@@ -54,10 +59,15 @@ export default defineConfig({
           name: 'mobile-safari',
           use: { ...devices['iPhone 13'] },
         },
-        // Tablet (Volume 12 §3.2 — iPad-size)
+        // Tablet (Volume 12 §3.2 — iPad-size). Force Chromium so CI does not
+        // need a WebKit install (device preset defaults to webkit).
         {
           name: 'tablet',
-          use: { ...devices['iPad (gen 7)'] },
+          use: {
+            ...devices['iPad (gen 7)'],
+            defaultBrowserType: 'chromium',
+            browserName: 'chromium',
+          },
         },
       ]
     : [
@@ -65,15 +75,25 @@ export default defineConfig({
           name: 'chromium',
           use: { ...devices['Desktop Chrome'] },
         },
+        // G-723 — always register tablet + Pixel so visual-regression.yml can
+        // capture iPad / phone baselines without PLAYWRIGHT_ALL_BROWSERS.
         {
           name: 'mobile-chrome',
           use: { ...devices['Pixel 5'] },
+        },
+        {
+          name: 'tablet',
+          use: {
+            ...devices['iPad (gen 7)'],
+            defaultBrowserType: 'chromium',
+            browserName: 'chromium',
+          },
         },
       ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: 'pnpm --filter @proctira/web dev',
+        command: `pnpm --filter @proctira/web exec next dev --port ${PORT}`,
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

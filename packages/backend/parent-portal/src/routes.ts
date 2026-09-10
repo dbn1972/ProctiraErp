@@ -1,6 +1,7 @@
 /**
  * Parent portal routes — child links, messaging, consents, fees.
  */
+import { getActor } from '@proctira/backend-auth';
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -19,6 +20,7 @@ import {
   PayInvoiceSchema,
   ReceiptParamsSchema,
   ThreadParamsSchema,
+  ChildParamsSchema,
   type AddMessageInput,
   type CreateConsentInput,
   type CreateFeePlanInput,
@@ -31,22 +33,23 @@ import {
   type ConsentParams,
   type InvoiceParams,
   type ReceiptParams,
+  type ChildParams,
 } from './schemas.js';
 
 export interface ParentPortalRoutesOptions {
   parentPortalService: ParentPortalService;
   prefix?: string;
+  studentPrefix?: string;
 }
 
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
+/** Actor from verified JWT only (G-102 / G-306 — never trust x-user-id headers). */
 function getActorId(request: FastifyRequest): string {
-  const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
-  const headerUserId = request.headers['x-user-id'];
-  const fromHeader = Array.isArray(headerUserId) ? headerUserId[0] : headerUserId;
-  return user?.sub ?? fromHeader ?? 'anonymous';
+  const actor = getActor(request);
+  return actor.userId || 'anonymous';
 }
 
 function formatLink(entity: {
@@ -257,7 +260,11 @@ export async function registerParentPortalRoutes(
   fastify: FastifyInstance,
   options: ParentPortalRoutesOptions,
 ): Promise<void> {
-  const { parentPortalService, prefix = '/parent-portal' } = options;
+  const {
+    parentPortalService,
+    prefix = '/parent-portal',
+    studentPrefix = '/student-portal',
+  } = options;
 
   fastify.get(
     `${prefix}/children`,
@@ -302,7 +309,8 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = result.data.parentUserId ?? getActorId(request);
+      // G-306: parent identity from JWT only — ignore forgeable body.parentUserId.
+      const parentUserId = getActorId(request);
 
       try {
         const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data);
@@ -888,6 +896,124 @@ export async function registerParentPortalRoutes(
         }
         throw error;
       }
+    },
+  );
+
+  function actorEmail(request: FastifyRequest): string | null {
+    const user = (request as FastifyRequest & { user?: { email?: string } }).user;
+    return typeof user?.email === 'string' ? user.email : null;
+  }
+
+  async function requireTenant(
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<string | null> {
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      await reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+      return null;
+    }
+    return tenantId;
+  }
+
+  async function sendOrAppError(reply: FastifyReply, run: () => Promise<unknown>) {
+    try {
+      const payload = await run();
+      return reply.status(200).send(payload);
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      throw error;
+    }
+  }
+
+  const childViews = [
+    {
+      path: 'attendance',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildAttendance(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfAttendance(tenantId, actor),
+    },
+    {
+      path: 'grades',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildGrades(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfGrades(tenantId, actor),
+    },
+    {
+      path: 'timetable',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildTimetable(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfTimetable(tenantId, actor),
+    },
+    {
+      path: 'homework',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildHomework(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfHomework(tenantId, actor),
+    },
+    {
+      path: 'calendar',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildCalendar(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfCalendar(tenantId, actor),
+    },
+    {
+      path: 'notices',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildNotices(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfNotices(tenantId, actor),
+    },
+  ] as const;
+
+  for (const view of childViews) {
+    fastify.get(
+      `${prefix}/children/:studentId/${view.path}`,
+      async (request: FastifyRequest<{ Params: ChildParams }>, reply: FastifyReply) => {
+        const paramsResult = validate(ChildParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid student ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = await requireTenant(request, reply);
+        if (!tenantId) return;
+        const parentUserId = getActorId(request);
+        return sendOrAppError(reply, () =>
+          view.parent(tenantId, parentUserId, paramsResult.data.studentId),
+        );
+      },
+    );
+
+    fastify.get(`${studentPrefix}/me/${view.path}`, async (request, reply) => {
+      const tenantId = await requireTenant(request, reply);
+      if (!tenantId) return;
+      const actor = { userId: getActorId(request), email: actorEmail(request) };
+      return sendOrAppError(reply, () => view.self(tenantId, actor));
+    });
+  }
+
+  fastify.get(
+    `${studentPrefix}/me/pal`,
+    async function studentPalHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = await requireTenant(request, reply);
+      if (!tenantId) return;
+      const actor = { userId: getActorId(request), email: actorEmail(request) };
+      return sendOrAppError(reply, () => parentPortalService.getSelfPalPlan(tenantId, actor));
     },
   );
 }

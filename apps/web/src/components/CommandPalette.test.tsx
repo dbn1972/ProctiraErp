@@ -81,13 +81,7 @@ vi.mock('@proctira/ui/components', () => {
     <div data-testid="command-empty">{children}</div>
   );
 
-  const CommandGroup = ({
-    children,
-    heading,
-  }: {
-    children: React.ReactNode;
-    heading?: string;
-  }) => (
+  const CommandGroup = ({ children, heading }: { children: React.ReactNode; heading?: string }) => (
     <div data-testid="command-group" data-heading={heading}>
       {children}
     </div>
@@ -104,19 +98,12 @@ vi.mock('@proctira/ui/components', () => {
     value?: string;
     'data-testid'?: string;
   }) => (
-    <div
-      data-testid={props['data-testid']}
-      data-value={value}
-      onClick={onSelect}
-      role="option"
-    >
+    <div data-testid={props['data-testid']} data-value={value} onClick={onSelect} role="option">
       {children}
     </div>
   );
 
-  const CommandShortcut = ({ children }: { children: React.ReactNode }) => (
-    <span>{children}</span>
-  );
+  const CommandShortcut = ({ children }: { children: React.ReactNode }) => <span>{children}</span>;
 
   const CommandSeparator = () => <hr />;
 
@@ -223,7 +210,7 @@ describe('CommandPalette', () => {
       fireEvent.click(item);
     });
 
-    expect(mockPush).toHaveBeenCalledWith('/app/institutions');
+    expect(mockPush).toHaveBeenCalledWith('/institutions');
   });
 
   it('closes the dialog after navigation', () => {
@@ -239,6 +226,19 @@ describe('CommandPalette', () => {
     });
 
     expect(screen.queryByTestId('command-dialog')).toBeNull();
+  });
+
+  it('includes campus deep links (G-406)', () => {
+    render(<CommandPalette />);
+
+    act(() => {
+      fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    });
+
+    expect(screen.queryByTestId('command-palette-item-hostel')).not.toBeNull();
+    expect(screen.queryByTestId('command-palette-item-transport')).not.toBeNull();
+    expect(screen.queryByTestId('command-palette-item-library')).not.toBeNull();
+    expect(screen.queryByTestId('command-palette-item-fees')).not.toBeNull();
   });
 
   it('does not open on plain K key without modifier', () => {

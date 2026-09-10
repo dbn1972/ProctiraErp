@@ -22,10 +22,11 @@ import { GradingSchemeForm } from '../../../_components/grading-scheme-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditGradingSchemePage({ params }: PageProps) {
+export default async function EditGradingSchemePage(props: PageProps) {
+  const params = await props.params;
   const scheme = await getGradingScheme(params.id);
   if (!scheme) {
     notFound();
@@ -61,24 +62,18 @@ export default async function EditGradingSchemePage({ params }: PageProps) {
           Edit {scheme.name}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Update scheme range and grade thresholds. Existing assessment items
-          referencing this scheme will continue to use the new bounds.
+          Update scheme range and grade thresholds. Existing assessment items referencing this
+          scheme will continue to use the new bounds.
         </p>
       </div>
 
       <Card className="max-w-[860px]">
         <CardHeader>
           <CardTitle className="text-base">Scheme definition</CardTitle>
-          <CardDescription>
-            Scale type, value range, and grade bands.
-          </CardDescription>
+          <CardDescription>Scale type, value range, and grade bands.</CardDescription>
         </CardHeader>
         <CardContent>
-          <GradingSchemeForm
-            mode="edit"
-            schemeId={scheme.id}
-            initialValues={initialValues}
-          />
+          <GradingSchemeForm mode="edit" schemeId={scheme.id} initialValues={initialValues} />
         </CardContent>
       </Card>
     </section>

@@ -92,9 +92,7 @@ describe('detectClashes', () => {
       },
     ];
     const clashes = detectClashes(meetings);
-    expect(clashes.some((c) => c.kind === 'STUDENT_OVERLOAD' && c.resourceId === 's2')).toBe(
-      true,
-    );
+    expect(clashes.some((c) => c.kind === 'STUDENT_OVERLOAD' && c.resourceId === 's2')).toBe(true);
   });
 
   it('detectRoomAndTeacherClashes omits student overload', () => {

@@ -122,9 +122,9 @@ describe('TenantService', () => {
       const tenant = await service.createTenant(validCreateInput);
       await service.decommissionTenant(tenant.id, { reason: 'Test', retainDataDays: 0 });
 
-      await expect(
-        service.updateTenant(tenant.id, { name: 'Updated' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.updateTenant(tenant.id, { name: 'Updated' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 
@@ -140,9 +140,9 @@ describe('TenantService', () => {
     });
 
     it('should throw NotFoundError for non-existent tenant', async () => {
-      await expect(
-        service.getTenantById('00000000-0000-4000-8000-000000000000'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getTenantById('00000000-0000-4000-8000-000000000000')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
@@ -172,10 +172,7 @@ describe('TenantService', () => {
       });
       await service.suspendTenant(tenant.id, { reason: 'Test' });
 
-      const result = await service.listTenants(
-        { status: 'suspended' },
-        { page: 1, pageSize: 10 },
-      );
+      const result = await service.listTenants({ status: 'suspended' }, { page: 1, pageSize: 10 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.status).toBe('suspended');
@@ -189,10 +186,7 @@ describe('TenantService', () => {
         slug: 'school-district',
       });
 
-      const result = await service.listTenants(
-        { search: 'ministry' },
-        { page: 1, pageSize: 10 },
-      );
+      const result = await service.listTenants({ search: 'ministry' }, { page: 1, pageSize: 10 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.name).toBe('Ministry of Education');
@@ -215,9 +209,9 @@ describe('TenantService', () => {
       const tenant = await service.createTenant(validCreateInput);
       await service.suspendTenant(tenant.id, { reason: 'Test' });
 
-      await expect(
-        service.suspendTenant(tenant.id, { reason: 'Again' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.suspendTenant(tenant.id, { reason: 'Again' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should throw NotFoundError for non-existent tenant', async () => {
@@ -243,9 +237,7 @@ describe('TenantService', () => {
     it('should throw BusinessRuleError if tenant is not suspended', async () => {
       const tenant = await service.createTenant(validCreateInput);
 
-      await expect(
-        service.reactivateTenant(tenant.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.reactivateTenant(tenant.id)).rejects.toThrow(BusinessRuleError);
     });
   });
 
@@ -368,9 +360,9 @@ describe('TenantService', () => {
     });
 
     it('should throw NotFoundError for non-existent tenant', async () => {
-      await expect(
-        service.getConfig('00000000-0000-4000-8000-000000000000'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getConfig('00000000-0000-4000-8000-000000000000')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
@@ -394,18 +386,18 @@ describe('TenantService', () => {
       const tenant = await service.createTenant(validCreateInput);
       await service.addDomain(tenant.id, { domain: 'edu.ministry.gov' });
 
-      await expect(
-        service.addDomain(tenant.id, { domain: 'edu.ministry.gov' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.addDomain(tenant.id, { domain: 'edu.ministry.gov' })).rejects.toThrow(
+        ConflictError,
+      );
     });
 
     it('should throw BusinessRuleError for decommissioned tenant', async () => {
       const tenant = await service.createTenant(validCreateInput);
       await service.decommissionTenant(tenant.id, { reason: 'Test', retainDataDays: 0 });
 
-      await expect(
-        service.addDomain(tenant.id, { domain: 'test.com' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.addDomain(tenant.id, { domain: 'test.com' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 
@@ -455,9 +447,9 @@ describe('TenantService', () => {
     });
 
     it('should throw NotFoundError for non-existent tenant', async () => {
-      await expect(
-        service.getUsage('00000000-0000-4000-8000-000000000000'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getUsage('00000000-0000-4000-8000-000000000000')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 

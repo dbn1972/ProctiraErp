@@ -14,4 +14,6 @@ if (result.status === 'error') {
   process.exit(1);
 }
 
-console.log(`Tenant assignment complete: ${result.tablesProcessed} tables, ${result.rowsProcessed} rows`);
+console.log(
+  `Tenant assignment complete: ${result.tablesProcessed} tables, ${result.rowsProcessed} rows`,
+);

@@ -4,11 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-import {
-  createTenant,
-  tenantAction,
-  type TenantLifecycleAction,
-} from '@/lib/api/tenants';
+import { createTenant, tenantAction, type TenantLifecycleAction } from '@/lib/api/tenants';
 import { requireRole } from '@/lib/auth/server';
 
 const createTenantSchema = z.object({

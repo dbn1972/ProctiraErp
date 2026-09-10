@@ -23,7 +23,9 @@ export function createStorageAdapter(config: StorageAdapterConfig): StorageAdapt
       return new MinIOAdapter(config.config);
     default: {
       const exhaustiveCheck: never = config;
-      throw new Error(`Unsupported storage adapter: ${(exhaustiveCheck as { adapter: string }).adapter}`);
+      throw new Error(
+        `Unsupported storage adapter: ${(exhaustiveCheck as { adapter: string }).adapter}`,
+      );
     }
   }
 }

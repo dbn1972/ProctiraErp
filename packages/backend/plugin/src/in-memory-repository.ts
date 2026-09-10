@@ -40,7 +40,11 @@ export class InMemoryPluginRepository implements PluginRepository {
     return null;
   }
 
-  async listPlugins(filter: PluginFilter, page: number, pageSize: number): Promise<{ data: PluginEntity[]; total: number }> {
+  async listPlugins(
+    filter: PluginFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: PluginEntity[]; total: number }> {
     let results = Array.from(this.plugins.values());
 
     if (filter.category) {
@@ -52,7 +56,9 @@ export class InMemoryPluginRepository implements PluginRepository {
     if (filter.search) {
       const search = filter.search.toLowerCase();
       results = results.filter(
-        (p) => p.name.toLowerCase().includes(search) || (p.description?.toLowerCase().includes(search) ?? false),
+        (p) =>
+          p.name.toLowerCase().includes(search) ||
+          (p.description?.toLowerCase().includes(search) ?? false),
       );
     }
 
@@ -63,7 +69,10 @@ export class InMemoryPluginRepository implements PluginRepository {
     return { data, total };
   }
 
-  async updatePlugin(id: string, updates: Partial<Pick<PluginEntity, 'status' | 'version' | 'description' | 'category'>>): Promise<PluginEntity> {
+  async updatePlugin(
+    id: string,
+    updates: Partial<Pick<PluginEntity, 'status' | 'version' | 'description' | 'category'>>,
+  ): Promise<PluginEntity> {
     const plugin = this.plugins.get(id);
     if (!plugin) throw new Error(`Plugin not found: ${id}`);
     const updated: PluginEntity = { ...plugin, ...updates, updatedAt: new Date() };
@@ -73,13 +82,18 @@ export class InMemoryPluginRepository implements PluginRepository {
 
   // ─── Manifests ────────────────────────────────────────────────────────────
 
-  async createManifest(entity: Omit<PluginManifestEntity, 'createdAt'>): Promise<PluginManifestEntity> {
+  async createManifest(
+    entity: Omit<PluginManifestEntity, 'createdAt'>,
+  ): Promise<PluginManifestEntity> {
     const manifest: PluginManifestEntity = { ...entity, createdAt: new Date() };
     this.manifests.set(manifest.id, manifest);
     return manifest;
   }
 
-  async findManifestByPluginAndVersion(pluginId: string, version: string): Promise<PluginManifestEntity | null> {
+  async findManifestByPluginAndVersion(
+    pluginId: string,
+    version: string,
+  ): Promise<PluginManifestEntity | null> {
     for (const manifest of this.manifests.values()) {
       if (manifest.pluginId === pluginId && manifest.version === version) return manifest;
     }
@@ -88,7 +102,12 @@ export class InMemoryPluginRepository implements PluginRepository {
 
   // ─── Installs ─────────────────────────────────────────────────────────────
 
-  async createInstall(entity: Omit<PluginInstallEntity, 'installedAt' | 'enabledAt' | 'disabledAt' | 'uninstalledAt' | 'updatedAt'>): Promise<PluginInstallEntity> {
+  async createInstall(
+    entity: Omit<
+      PluginInstallEntity,
+      'installedAt' | 'enabledAt' | 'disabledAt' | 'uninstalledAt' | 'updatedAt'
+    >,
+  ): Promise<PluginInstallEntity> {
     const now = new Date();
     const install: PluginInstallEntity = {
       ...entity,
@@ -106,9 +125,16 @@ export class InMemoryPluginRepository implements PluginRepository {
     return this.installs.get(id) ?? null;
   }
 
-  async findInstallByPluginAndTenant(pluginId: string, tenantId: string): Promise<PluginInstallEntity | null> {
+  async findInstallByPluginAndTenant(
+    pluginId: string,
+    tenantId: string,
+  ): Promise<PluginInstallEntity | null> {
     for (const install of this.installs.values()) {
-      if (install.pluginId === pluginId && install.tenantId === tenantId && install.status !== 'uninstalled') {
+      if (
+        install.pluginId === pluginId &&
+        install.tenantId === tenantId &&
+        install.status !== 'uninstalled'
+      ) {
         return install;
       }
     }
@@ -121,7 +147,15 @@ export class InMemoryPluginRepository implements PluginRepository {
     );
   }
 
-  async updateInstall(id: string, updates: Partial<Pick<PluginInstallEntity, 'status' | 'configuration' | 'enabledAt' | 'disabledAt' | 'uninstalledAt'>>): Promise<PluginInstallEntity> {
+  async updateInstall(
+    id: string,
+    updates: Partial<
+      Pick<
+        PluginInstallEntity,
+        'status' | 'configuration' | 'enabledAt' | 'disabledAt' | 'uninstalledAt'
+      >
+    >,
+  ): Promise<PluginInstallEntity> {
     const install = this.installs.get(id);
     if (!install) throw new Error(`Install not found: ${id}`);
     const updated: PluginInstallEntity = { ...install, ...updates, updatedAt: new Date() };
@@ -131,7 +165,9 @@ export class InMemoryPluginRepository implements PluginRepository {
 
   // ─── Permissions ──────────────────────────────────────────────────────────
 
-  async createPermissions(entities: Omit<PluginPermissionEntity, 'revokedAt' | 'revokedBy'>[]): Promise<PluginPermissionEntity[]> {
+  async createPermissions(
+    entities: Omit<PluginPermissionEntity, 'revokedAt' | 'revokedBy'>[],
+  ): Promise<PluginPermissionEntity[]> {
     const results: PluginPermissionEntity[] = [];
     for (const entity of entities) {
       const permission: PluginPermissionEntity = { ...entity, revokedAt: null, revokedBy: null };

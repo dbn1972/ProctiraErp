@@ -14,20 +14,25 @@ import type {
   AssessmentItemRepository,
   OutcomeRepository,
 } from './assessment-repository.js';
-import type { AssessmentResultRepository } from './result-repository.js';
+import { AssessmentService } from './assessment-service.js';
+import {
+  createReportCardArtifactStore,
+  type ReportCardArtifactStore,
+} from './report-card-artifact-store.js';
+import { ReportCardPdfGenerator } from './report-card-pdf-generator.js';
 import type {
   ReportCardTemplateRepository,
   TeacherCommentRepository,
   InstitutionBrandingRepository,
   ReportCardJobRepository,
 } from './report-card-repository.js';
-import { AssessmentService } from './assessment-service.js';
-import { ResultService } from './result-service.js';
+import { registerReportCardRoutes } from './report-card-routes.js';
 import { ReportCardService } from './report-card-service.js';
 import type { TaskQueuePublisher, PdfGenerator } from './report-card-service.js';
-import { registerAssessmentRoutes } from './routes.js';
+import type { AssessmentResultRepository } from './result-repository.js';
 import { registerResultRoutes } from './result-routes.js';
-import { registerReportCardRoutes } from './report-card-routes.js';
+import { ResultService } from './result-service.js';
+import { registerAssessmentRoutes } from './routes.js';
 
 /**
  * Options for the assessment plugin.
@@ -51,8 +56,10 @@ export interface AssessmentPluginOptions {
   reportCardJobRepository?: ReportCardJobRepository;
   /** Task queue publisher for background processing (RabbitMQ) */
   taskQueuePublisher?: TaskQueuePublisher;
-  /** PDF generator implementation */
+  /** PDF generator implementation (defaults to the pdf-lite ReportCardPdfGenerator) */
   pdfGenerator?: PdfGenerator;
+  /** Where generated PDFs are kept for download (defaults from env: filesystem) */
+  reportCardArtifactStore?: ReportCardArtifactStore;
   /** Route prefix for grading schemes (default: '/grading-schemes') */
   gradingSchemesPrefix?: string;
   /** Route prefix for assessment items (default: '/assessment-items') */
@@ -78,10 +85,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the assessment service and routes.
  */
 export const assessmentPlugin = fp(
-  async function assessmentPluginImpl(
-    fastify: FastifyInstance,
-    options: AssessmentPluginOptions,
-  ) {
+  async function assessmentPluginImpl(fastify: FastifyInstance, options: AssessmentPluginOptions) {
     const {
       gradingSchemeRepository,
       assessmentItemRepository,
@@ -93,6 +97,7 @@ export const assessmentPlugin = fp(
       reportCardJobRepository,
       taskQueuePublisher,
       pdfGenerator,
+      reportCardArtifactStore,
       gradingSchemesPrefix = '/grading-schemes',
       assessmentItemsPrefix = '/assessment-items',
       outcomesPrefix = '/outcomes',
@@ -151,7 +156,13 @@ export const assessmentPlugin = fp(
         resultService,
         assessmentItemRepository,
         taskQueuePublisher ?? null,
-        pdfGenerator ?? null,
+        pdfGenerator ?? new ReportCardPdfGenerator(),
+        {
+          artifactStore: reportCardArtifactStore ?? createReportCardArtifactStore(),
+          resultRepository,
+          // Without a queue there is no worker, so finish the job in-request.
+          processInline: !taskQueuePublisher,
+        },
       );
 
       fastify.decorate('reportCardService', reportCardService);
@@ -164,7 +175,7 @@ export const assessmentPlugin = fp(
   },
   {
     name: '@proctira/backend-assessment',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

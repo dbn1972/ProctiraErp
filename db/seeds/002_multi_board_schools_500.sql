@@ -1,8 +1,17 @@
 -- Live multi-board / multi-school onboarding seed
 -- Profile: 3 boards × 2 schools × 500 students = 3000 enrollments
 -- Idempotent for slug 'proctira-multiboard-cert' (deletes prior cert tenant cascade manually)
+--
+-- RLS: this seed runs under the production posture (NOSUPERUSER / NOBYPASSRLS
+-- app role, FORCE RLS). `tenants` admits writes only with app.platform_admin
+-- bound; every domain table only with app.tenant_id = its tenant. Both are
+-- bound transaction-locally below, so nothing leaks into the session, and the
+-- certification tenant id is fixed so the domain inserts can be pre-scoped.
 
 \set ON_ERROR_STOP on
+
+BEGIN;
+DO $$ BEGIN PERFORM set_config('app.platform_admin', '1', true); END $$;
 
 -- Tear down previous certification tenant (children first)
 DO $$
@@ -11,6 +20,8 @@ DECLARE
 BEGIN
   SELECT id INTO tid FROM tenants WHERE slug = 'proctira-multiboard-cert';
   IF tid IS NOT NULL THEN
+    -- Scope the deletes to whichever id the previous run used.
+    PERFORM set_config('app.tenant_id', tid::text, true);
     -- SIS foundation children (003) — ignore if tables not yet applied
     BEGIN DELETE FROM substitutions WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN DELETE FROM section_meetings WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
@@ -39,10 +50,12 @@ BEGIN
   END IF;
 END $$;
 
+DO $$ BEGIN PERFORM set_config('app.tenant_id', '00000000-0000-4000-8000-00000000ce27', true); END $$;
+
 WITH tenant_ins AS (
   INSERT INTO tenants (id, name, slug, config, status)
   VALUES (
-    uuid_generate_v4(),
+    '00000000-0000-4000-8000-00000000ce27',
     'Proctira Multi-Board Certification Tenant',
     'proctira-multiboard-cert',
     '{"locale":"en-IN","timezone":"Asia/Kolkata","certification":true}'::jsonb,
@@ -169,3 +182,5 @@ SELECT
   (SELECT count(*) FROM student_ins) AS students,
   (SELECT count(*) FROM staff_ins) AS staff,
   (SELECT count(*) FROM enroll_ins) AS enrollments;
+
+COMMIT;

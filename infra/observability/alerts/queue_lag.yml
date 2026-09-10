@@ -18,13 +18,13 @@ groups:
           team: ops
           slo: queue_lag
         annotations:
-          summary: "Kafka consumer group {{ $labels.consumergroup }} lag above 1000"
+          summary: 'Kafka consumer group {{ $labels.consumergroup }} lag above 1000'
           description: |
             Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }}
             has a lag of {{ $value }} messages for more than 10 minutes.
             This may indicate a slow consumer or processing backlog.
-          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#queue-lag"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+          runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#queue-lag'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'
 
       - alert: KafkaConsumerLagCritical
         expr: |
@@ -35,13 +35,13 @@ groups:
           team: ops
           slo: queue_lag
         annotations:
-          summary: "Kafka consumer group {{ $labels.consumergroup }} lag above 5000"
+          summary: 'Kafka consumer group {{ $labels.consumergroup }} lag above 5000'
           description: |
             Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }}
             has a critical lag of {{ $value }} messages. Processing is severely
             behind. Page on-call.
-          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#queue-lag-critical"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+          runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#queue-lag-critical'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'
 
       - alert: RabbitMQQueueDepthHigh
         expr: |
@@ -52,12 +52,12 @@ groups:
           team: ops
           slo: queue_lag
         annotations:
-          summary: "RabbitMQ queue {{ $labels.queue }} depth above 5000"
+          summary: 'RabbitMQ queue {{ $labels.queue }} depth above 5000'
           description: |
             Queue {{ $labels.queue }} has {{ $value }} messages ready for
             consumption. Consumers may be down or processing too slowly.
-          runbook_url: "https://runbooks.proctira.org/services/notification.md#queue-depth"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+          runbook_url: 'https://runbooks.proctira.org/services/notification.md#queue-depth'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'
 
       - alert: RabbitMQQueueDepthCritical
         expr: |
@@ -68,12 +68,12 @@ groups:
           team: ops
           slo: queue_lag
         annotations:
-          summary: "RabbitMQ queue {{ $labels.queue }} depth above 20000"
+          summary: 'RabbitMQ queue {{ $labels.queue }} depth above 20000'
           description: |
             Queue {{ $labels.queue }} has {{ $value }} messages. Risk of
             memory exhaustion on the broker. Page on-call immediately.
-          runbook_url: "https://runbooks.proctira.org/services/notification.md#queue-depth-critical"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+          runbook_url: 'https://runbooks.proctira.org/services/notification.md#queue-depth-critical'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'
 
       - alert: RabbitMQDeadLetterGrowing
         expr: |
@@ -84,10 +84,10 @@ groups:
           team: engineering
           slo: queue_lag
         annotations:
-          summary: "Dead letter queue {{ $labels.queue }} growing"
+          summary: 'Dead letter queue {{ $labels.queue }} growing'
           description: |
             Dead letter queue {{ $labels.queue }} has received {{ $value }}
             messages in the last 30 minutes. Messages are failing processing
             and being routed to DLX. Investigate consumer errors.
-          runbook_url: "https://runbooks.proctira.org/services/notification.md#dead-letter-queue"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+          runbook_url: 'https://runbooks.proctira.org/services/notification.md#dead-letter-queue'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-dependencies'

@@ -12,7 +12,9 @@ import type {
   AuditLogQueryResult,
   AuditRetentionConfig,
   ArchivalResult,
+  ChainVerification,
 } from './audit-repository.js';
+import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
 
 /**
  * In-memory implementation of AuditRepository for testing purposes.
@@ -22,11 +24,16 @@ export class InMemoryAuditRepository implements AuditRepository {
   private entries: AuditLogEntry[] = [];
   private archivedEntries: AuditLogEntry[] = [];
   private retentionConfigs: Map<string, AuditRetentionConfig> = new Map();
+  /** Per-tenant chain head (G-913). */
+  private chainHeads: Map<string, { seq: number; hash: string | null }> = new Map();
 
   /**
    * Create a new audit log entry (append-only).
    */
   async create(input: CreateAuditLogInput): Promise<AuditLogEntry> {
+    const head = this.chainHeads.get(input.tenantId) ?? { seq: 0, hash: null };
+    const prevHash = head.hash;
+    const entryHash = computeEntryHash(input, prevHash);
     const entry: AuditLogEntry = {
       id: input.id,
       tenantId: input.tenantId,
@@ -40,9 +47,13 @@ export class InMemoryAuditRepository implements AuditRepository {
       beforeValues: input.beforeValues,
       afterValues: input.afterValues,
       metadata: input.metadata ?? null,
+      chainSeq: head.seq + 1,
+      prevHash,
+      entryHash,
     };
 
     this.entries.push(entry);
+    this.chainHeads.set(input.tenantId, { seq: entry.chainSeq!, hash: entryHash });
     return entry;
   }
 
@@ -62,32 +73,32 @@ export class InMemoryAuditRepository implements AuditRepository {
    * Query audit log entries with filtering and pagination.
    */
   async query(query: AuditLogQuery): Promise<AuditLogQueryResult> {
-    let filtered = this.entries.filter(e => e.tenantId === query.tenantId);
+    let filtered = this.entries.filter((e) => e.tenantId === query.tenantId);
 
     if (query.entityType) {
-      filtered = filtered.filter(e => e.entityType === query.entityType);
+      filtered = filtered.filter((e) => e.entityType === query.entityType);
     }
 
     if (query.entityId) {
-      filtered = filtered.filter(e => e.entityId === query.entityId);
+      filtered = filtered.filter((e) => e.entityId === query.entityId);
     }
 
     if (query.userId) {
-      filtered = filtered.filter(e => e.userId === query.userId);
+      filtered = filtered.filter((e) => e.userId === query.userId);
     }
 
     if (query.operation) {
-      filtered = filtered.filter(e => e.operation === query.operation);
+      filtered = filtered.filter((e) => e.operation === query.operation);
     }
 
     if (query.startDate) {
       const start = new Date(query.startDate + 'T00:00:00.000Z');
-      filtered = filtered.filter(e => e.timestamp >= start);
+      filtered = filtered.filter((e) => e.timestamp >= start);
     }
 
     if (query.endDate) {
       const end = new Date(query.endDate + 'T23:59:59.999Z');
-      filtered = filtered.filter(e => e.timestamp <= end);
+      filtered = filtered.filter((e) => e.timestamp <= end);
     }
 
     // Sort by timestamp
@@ -117,7 +128,7 @@ export class InMemoryAuditRepository implements AuditRepository {
    * Get a single audit log entry by ID.
    */
   async findById(tenantId: string, id: string): Promise<AuditLogEntry | null> {
-    return this.entries.find(e => e.id === id && e.tenantId === tenantId) ?? null;
+    return this.entries.find((e) => e.id === id && e.tenantId === tenantId) ?? null;
   }
 
   /**
@@ -153,7 +164,7 @@ export class InMemoryAuditRepository implements AuditRepository {
     cutoffDate.setMonth(cutoffDate.getMonth() - config.retentionMonths);
 
     const toArchive = this.entries.filter(
-      e => e.tenantId === tenantId && e.timestamp < cutoffDate,
+      (e) => e.tenantId === tenantId && e.timestamp < cutoffDate,
     );
 
     // Move to archived
@@ -161,7 +172,7 @@ export class InMemoryAuditRepository implements AuditRepository {
 
     // Remove from active entries
     this.entries = this.entries.filter(
-      e => !(e.tenantId === tenantId && e.timestamp < cutoffDate),
+      (e) => !(e.tenantId === tenantId && e.timestamp < cutoffDate),
     );
 
     // Update last archival timestamp
@@ -188,12 +199,34 @@ export class InMemoryAuditRepository implements AuditRepository {
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - config.retentionMonths);
 
-    return this.entries.filter(
-      e => e.tenantId === tenantId && e.timestamp < cutoffDate,
-    ).length;
+    return this.entries.filter((e) => e.tenantId === tenantId && e.timestamp < cutoffDate).length;
+  }
+
+  /**
+   * G-913: verify across active + archived rows so archival never breaks the chain.
+   */
+  async verifyChain(tenantId: string): Promise<ChainVerification> {
+    const all = [...this.entries, ...this.archivedEntries].filter((e) => e.tenantId === tenantId);
+    return verifyEntrySequence(tenantId, all);
+  }
+
+  async listTenantsWithArchivalEnabled(): Promise<string[]> {
+    return [...this.retentionConfigs.values()]
+      .filter((c) => c.archivalEnabled)
+      .map((c) => c.tenantId);
   }
 
   // --- Test helpers ---
+
+  /**
+   * Simulates out-of-band tampering (e.g. a DBA editing a row with the
+   * append-only trigger disabled) so tests can prove `verifyChain` catches it.
+   */
+  tamperForTest(id: string, patch: Partial<AuditLogEntry>): void {
+    const idx = this.entries.findIndex((e) => e.id === id);
+    if (idx === -1) throw new Error(`no entry ${id}`);
+    this.entries[idx] = { ...this.entries[idx]!, ...patch };
+  }
 
   /**
    * Get all entries (for test assertions).

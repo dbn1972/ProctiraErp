@@ -39,7 +39,7 @@ import { cn } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 const STATUS_LABELS: Record<ScholarshipProgram['status'], string> = {
@@ -140,7 +140,8 @@ function windowProgress(start: string, end: string): number | null {
   }
 }
 
-export default async function ScholarshipProgramPage({ params }: PageProps) {
+export default async function ScholarshipProgramPage(props: PageProps) {
+  const params = await props.params;
   const [program, allApps] = await Promise.all([
     getScholarshipProgram(params.id),
     listScholarshipApplications(),

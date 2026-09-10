@@ -19,7 +19,7 @@ import { TABLE_MAPPINGS } from './table-mappings.js';
  */
 export function buildTransformExpression(
   sourceColumn: string,
-  transform: ColumnTransform | undefined
+  transform: ColumnTransform | undefined,
 ): string {
   if (!transform) {
     return `s."${sourceColumn}"`;
@@ -57,7 +57,11 @@ export function buildTransformExpression(
 /**
  * Builds the INSERT...SELECT SQL for transforming a single table mapping.
  */
-export function buildTransformSQL(mapping: TableMapping, stagingSchema: string, targetSchema: string): string {
+export function buildTransformSQL(
+  mapping: TableMapping,
+  stagingSchema: string,
+  targetSchema: string,
+): string {
   const selectColumns = mapping.columns.map((col) => {
     const expr = buildTransformExpression(col.source, col.transform);
     return `${expr} AS "${col.target}"`;

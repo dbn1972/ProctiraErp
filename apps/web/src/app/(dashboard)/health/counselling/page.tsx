@@ -71,7 +71,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -98,9 +98,7 @@ export default async function CounsellingPage() {
   const total = sessions.length;
   const studentsSupported = new Set(sessions.map((s) => s.studentId)).size;
   const upcoming = sessions.filter((s) => s.status === 'SCHEDULED').length;
-  const counsellors = new Set(
-    sessions.map((s) => s.counsellorName).filter(Boolean),
-  ).size;
+  const counsellors = new Set(sessions.map((s) => s.counsellorName).filter(Boolean)).size;
 
   return (
     <section aria-labelledby="counselling-heading" className="space-y-6">
@@ -168,12 +166,14 @@ export default async function CounsellingPage() {
         role="note"
         className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
       >
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+        <Info
+          className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400"
+          aria-hidden="true"
+        />
         <p>
           <span className="font-semibold">Restricted register. </span>
-          Counselling records are visible only to Health Officers and the assigned
-          counsellor. Session notes marked confidential are sealed and never appear in
-          exports or reports.
+          Counselling records are visible only to Health Officers and the assigned counsellor.
+          Session notes marked confidential are sealed and never appear in exports or reports.
         </p>
       </div>
 
@@ -256,9 +256,7 @@ function SessionRow({ session }: { session: CounsellingSession }) {
       </TableCell>
 
       {/* Date */}
-      <TableCell className="text-sm text-muted-foreground">
-        {session.sessionDate || '—'}
-      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{session.sessionDate || '—'}</TableCell>
 
       {/* Status */}
       <TableCell>
@@ -327,9 +325,7 @@ function KpiCard({
           </span>
           <span className="text-sm font-medium text-muted-foreground">{label}</span>
         </div>
-        <div className="mt-3 text-3xl font-extrabold tabular-nums text-foreground">
-          {value}
-        </div>
+        <div className="mt-3 text-3xl font-extrabold tabular-nums text-foreground">{value}</div>
       </CardContent>
     </Card>
   );

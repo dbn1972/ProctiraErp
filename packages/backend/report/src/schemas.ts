@@ -21,34 +21,39 @@ const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 
 // ─── Report Format ───────────────────────────────────────────────────────────
 
-export const ReportFormatSchema = Type.Union([
-  Type.Literal('xlsx'),
-  Type.Literal('pdf'),
-  Type.Literal('csv'),
-], { description: 'Report export format' });
+export const ReportFormatSchema = Type.Union(
+  [Type.Literal('xlsx'), Type.Literal('pdf'), Type.Literal('csv')],
+  { description: 'Report export format' },
+);
 
 export type ReportFormat = Static<typeof ReportFormatSchema>;
 
 // ─── Report Job Status ───────────────────────────────────────────────────────
 
-export const ReportJobStatusSchema = Type.Union([
-  Type.Literal('queued'),
-  Type.Literal('processing'),
-  Type.Literal('completed'),
-  Type.Literal('failed'),
-], { description: 'Report job processing status' });
+export const ReportJobStatusSchema = Type.Union(
+  [
+    Type.Literal('queued'),
+    Type.Literal('processing'),
+    Type.Literal('completed'),
+    Type.Literal('failed'),
+  ],
+  { description: 'Report job processing status' },
+);
 
 export type ReportJobStatus = Static<typeof ReportJobStatusSchema>;
 
 // ─── Aggregation Type ────────────────────────────────────────────────────────
 
-export const AggregationTypeSchema = Type.Union([
-  Type.Literal('count'),
-  Type.Literal('sum'),
-  Type.Literal('avg'),
-  Type.Literal('min'),
-  Type.Literal('max'),
-], { description: 'Aggregation function type' });
+export const AggregationTypeSchema = Type.Union(
+  [
+    Type.Literal('count'),
+    Type.Literal('sum'),
+    Type.Literal('avg'),
+    Type.Literal('min'),
+    Type.Literal('max'),
+  ],
+  { description: 'Aggregation function type' },
+);
 
 export type AggregationType = Static<typeof AggregationTypeSchema>;
 
@@ -64,10 +69,9 @@ export type AggregationConfig = Static<typeof AggregationConfigSchema>;
 
 // ─── Delivery Method ─────────────────────────────────────────────────────────
 
-export const DeliveryMethodSchema = Type.Union([
-  Type.Literal('email'),
-  Type.Literal('in_app'),
-], { description: 'Report delivery method' });
+export const DeliveryMethodSchema = Type.Union([Type.Literal('email'), Type.Literal('in_app')], {
+  description: 'Report delivery method',
+});
 
 export type DeliveryMethod = Static<typeof DeliveryMethodSchema>;
 
@@ -83,20 +87,28 @@ export const GenerateReportSchema = Type.Object({
   filters: Type.Record(Type.String(), Type.Unknown(), {
     description: 'Key-value filter criteria for the report data',
   }),
-  groupBy: Type.Optional(Type.Array(Type.String({ minLength: 1 }), {
-    description: 'Fields to group results by',
-  })),
-  aggregations: Type.Optional(Type.Array(AggregationConfigSchema, {
-    description: 'Aggregation configurations',
-  })),
-  templateId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Report card template ID (for report card generation)',
-  })),
-  title: Type.Optional(Type.String({
-    maxLength: 255,
-    description: 'Custom report title',
-  })),
+  groupBy: Type.Optional(
+    Type.Array(Type.String({ minLength: 1 }), {
+      description: 'Fields to group results by',
+    }),
+  ),
+  aggregations: Type.Optional(
+    Type.Array(AggregationConfigSchema, {
+      description: 'Aggregation configurations',
+    }),
+  ),
+  templateId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Report card template ID (for report card generation)',
+    }),
+  ),
+  title: Type.Optional(
+    Type.String({
+      maxLength: 255,
+      description: 'Custom report title',
+    }),
+  ),
 });
 
 export type GenerateReportInput = Static<typeof GenerateReportSchema>;
@@ -113,7 +125,10 @@ export type MergeField = Static<typeof MergeFieldSchema>;
 
 export const ConditionalSectionSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 100, description: 'Section name' }),
-  condition: Type.String({ minLength: 1, description: 'Condition expression (e.g., "score >= 50")' }),
+  condition: Type.String({
+    minLength: 1,
+    description: 'Condition expression (e.g., "score >= 50")',
+  }),
   content: Type.String({ description: 'Section content template' }),
 });
 
@@ -147,9 +162,11 @@ export const CreateReportTemplateSchema = Type.Object({
   mergeFields: Type.Array(MergeFieldSchema, {
     description: 'Merge fields available in this template',
   }),
-  conditionalSections: Type.Optional(Type.Array(ConditionalSectionSchema, {
-    description: 'Conditional sections that render based on data conditions',
-  })),
+  conditionalSections: Type.Optional(
+    Type.Array(ConditionalSectionSchema, {
+      description: 'Conditional sections that render based on data conditions',
+    }),
+  ),
   branding: Type.Optional(BrandingConfigSchema),
 });
 
@@ -185,13 +202,21 @@ export const CreateScheduledReportSchema = Type.Object({
     description: 'Cron expression for schedule (e.g., "0 8 * * 1" for every Monday at 8am)',
   }),
   deliveryMethod: DeliveryMethodSchema,
-  recipientUserIds: Type.Optional(Type.Array(Type.String({
-    pattern: UuidPattern,
-    description: 'User IDs to deliver the report to',
-  }))),
-  recipientEmails: Type.Optional(Type.Array(Type.String({
-    description: 'Email addresses for delivery',
-  }))),
+  recipientUserIds: Type.Optional(
+    Type.Array(
+      Type.String({
+        pattern: UuidPattern,
+        description: 'User IDs to deliver the report to',
+      }),
+    ),
+  ),
+  recipientEmails: Type.Optional(
+    Type.Array(
+      Type.String({
+        description: 'Email addresses for delivery',
+      }),
+    ),
+  ),
   isActive: Type.Optional(Type.Boolean({ description: 'Whether the schedule is active' })),
 });
 
@@ -230,12 +255,17 @@ export const ScheduleIdParamsSchema = Type.Object({
 
 export type ScheduleIdParams = Static<typeof ScheduleIdParamsSchema>;
 
-export const ListReportJobsQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, description: 'Page number' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, description: 'Items per page' })),
-  status: Type.Optional(ReportJobStatusSchema),
-  reportType: Type.Optional(Type.String()),
-}, { additionalProperties: false });
+export const ListReportJobsQuerySchema = Type.Object(
+  {
+    page: Type.Optional(Type.Number({ minimum: 1, description: 'Page number' })),
+    pageSize: Type.Optional(
+      Type.Number({ minimum: 1, maximum: 100, description: 'Items per page' }),
+    ),
+    status: Type.Optional(ReportJobStatusSchema),
+    reportType: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
 
 export type ListReportJobsQuery = Static<typeof ListReportJobsQuerySchema>;
 

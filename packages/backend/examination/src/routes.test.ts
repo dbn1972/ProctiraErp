@@ -37,12 +37,8 @@ function validExaminationBody() {
     academicPeriodId: uuid(),
     startDate: futureDate(14),
     endDate: futureDate(21),
-    subjects: [
-      { name: 'Mathematics', code: 'MATH', maxScore: 100 },
-    ],
-    centers: [
-      { name: 'Center A', code: 'CTR-A', institutionId: uuid(), capacity: 200 },
-    ],
+    subjects: [{ name: 'Mathematics', code: 'MATH', maxScore: 100 }],
+    centers: [{ name: 'Center A', code: 'CTR-A', institutionId: uuid(), capacity: 200 }],
     gradingSchemes: [
       {
         name: 'Standard Grading',

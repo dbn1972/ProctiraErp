@@ -70,10 +70,7 @@ const SWR_API_PREFIXES = [
 /** API path prefixes whose GET responses are freshness-critical and
  * must hit the network first; cache is only a fallback for offline.
  */
-const NETWORK_FIRST_API_PREFIXES = [
-  '/api/v1/auth/',
-  '/api/v1/tenant/branding',
-] as const;
+const NETWORK_FIRST_API_PREFIXES = ['/api/v1/auth/', '/api/v1/tenant/branding'] as const;
 
 /** Path prefixes for content-hashed static assets that can safely use
  * cache-first with a long TTL. Next.js writes its hashed bundles to

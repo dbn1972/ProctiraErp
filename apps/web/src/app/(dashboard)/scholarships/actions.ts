@@ -7,12 +7,17 @@ import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
+  approveScholarshipApplication,
   createScholarshipProgram,
+  rejectScholarshipApplication,
   updateDisbursement,
   updateScholarshipProgram,
   type CreateScholarshipProgramInput,
   type UpdateScholarshipProgramInput,
 } from '@/lib/api/scholarships';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_COMMENT = 2000;
 
 export interface ScholarshipActionState {
   status: 'idle' | 'success' | 'error';
@@ -59,6 +64,55 @@ export async function updateScholarshipProgramAction(
         : error instanceof Error
           ? error.message
           : 'Failed to update program';
+    return { status: 'error', message };
+  }
+}
+
+/**
+ * G-911 — approve / reject a scholarship application with an optional
+ * reviewer comment. Approval also queues the first instalment on the gateway.
+ */
+export async function decideApplicationAction(input: {
+  applicationId: string;
+  decision: 'approve' | 'reject';
+  comment?: string;
+}): Promise<ScholarshipActionState> {
+  if (!UUID_RE.test(input.applicationId)) {
+    return { status: 'error', message: 'Invalid application id.' };
+  }
+  if (input.decision !== 'approve' && input.decision !== 'reject') {
+    return { status: 'error', message: 'Unknown decision.' };
+  }
+  const comment = input.comment?.trim() ?? '';
+  if (comment.length > MAX_COMMENT) {
+    return { status: 'error', message: `Comment must be at most ${MAX_COMMENT} characters.` };
+  }
+
+  try {
+    const payload = comment ? { comment } : {};
+    const application =
+      input.decision === 'approve'
+        ? await approveScholarshipApplication(input.applicationId, payload)
+        : await rejectScholarshipApplication(input.applicationId, payload);
+    revalidatePath(`/scholarships/applications/${input.applicationId}`);
+    revalidatePath('/scholarships/applications');
+    revalidatePath('/scholarships/disbursements');
+    revalidatePath(`/scholarships/programs/${application.programId}`);
+    revalidatePath('/scholarships');
+    return {
+      status: 'success',
+      message:
+        input.decision === 'approve'
+          ? 'Application approved — first instalment scheduled.'
+          : 'Application rejected.',
+    };
+  } catch (error) {
+    const message =
+      error instanceof GatewayError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : `Failed to ${input.decision} application`;
     return { status: 'error', message };
   }
 }

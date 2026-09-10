@@ -26,6 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { EmptyState } from '@/components/page';
 import { cn } from '@/lib/utils';
 
 import { StudentListFilters as Filters } from './_components/student-list-filters';
@@ -38,12 +39,12 @@ export const dynamic = 'force-dynamic';
 
 /** Avatar palette — 6 colours cycled deterministically by name hash. */
 const AVATAR_PALETTES: { bg: string; text: string }[] = [
-  { bg: 'bg-teal-100',    text: 'text-teal-700'    },
-  { bg: 'bg-indigo-100',  text: 'text-indigo-700'  },
-  { bg: 'bg-violet-100',  text: 'text-violet-700'  },
+  { bg: 'bg-teal-100', text: 'text-teal-700' },
+  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
+  { bg: 'bg-violet-100', text: 'text-violet-700' },
   { bg: 'bg-emerald-100', text: 'text-emerald-700' },
-  { bg: 'bg-amber-100',   text: 'text-amber-700'   },
-  { bg: 'bg-rose-100',    text: 'text-rose-700'    },
+  { bg: 'bg-amber-100', text: 'text-amber-700' },
+  { bg: 'bg-rose-100', text: 'text-rose-700' },
 ];
 
 function avatarPalette(name: string): { bg: string; text: string } {
@@ -83,7 +84,7 @@ function readNum(data: Record<string, unknown>, key: string): number | null {
 }
 
 function readStringParam(
-  params: PageProps['searchParams'],
+  params: Awaited<PageProps['searchParams']>,
   key: string,
   defaultValue = '',
 ): string {
@@ -95,7 +96,7 @@ function readStringParam(
 }
 
 function readNumberParam(
-  params: PageProps['searchParams'],
+  params: Awaited<PageProps['searchParams']>,
   key: string,
   defaultValue: number,
 ): number {
@@ -116,15 +117,16 @@ function unique<T extends { id: string }>(items: T[]): T[] {
 /* ------------------------------------------------------------------ page */
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function StudentListPage({ searchParams }: PageProps) {
-  const page          = readNumberParam(searchParams, 'page', 1);
-  const search        = readStringParam(searchParams, 'search');
+export default async function StudentListPage(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const page = readNumberParam(searchParams, 'page', 1);
+  const search = readStringParam(searchParams, 'search');
   const institutionId = readStringParam(searchParams, 'institutionId');
-  const gradeId       = readStringParam(searchParams, 'gradeId');
-  const status        = readStringParam(searchParams, 'status', 'ALL');
+  const gradeId = readStringParam(searchParams, 'gradeId');
+  const status = readStringParam(searchParams, 'status', 'ALL');
 
   const filters: StudentListFilters = {
     page,
@@ -132,9 +134,9 @@ export default async function StudentListPage({ searchParams }: PageProps) {
     sortBy: 'lastName',
     sortOrder: 'asc',
   };
-  if (search)        filters.search        = search;
+  if (search) filters.search = search;
   if (institutionId) filters.institutionId = institutionId;
-  if (gradeId)       filters.gradeId       = gradeId;
+  if (gradeId) filters.gradeId = gradeId;
   if (status && status !== 'ALL') {
     filters.status = status as StudentListFilters['status'];
   }
@@ -147,8 +149,7 @@ export default async function StudentListPage({ searchParams }: PageProps) {
   const grades = unique(
     institutions
       .flatMap(
-        (inst) =>
-          (inst as unknown as { grades?: { id: string; name: string }[] }).grades ?? [],
+        (inst) => (inst as unknown as { grades?: { id: string; name: string }[] }).grades ?? [],
       )
       .map((g) => ({ id: g.id, name: g.name })),
   );
@@ -157,7 +158,6 @@ export default async function StudentListPage({ searchParams }: PageProps) {
 
   return (
     <section aria-labelledby="students-heading" className="space-y-0">
-
       {/* ── Page head ── */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -190,10 +190,7 @@ export default async function StudentListPage({ searchParams }: PageProps) {
       </div>
 
       {/* ── Status tabs ── */}
-      <StudentStatusTabs
-        activeStatus={status}
-        counts={{ ALL: totalAll }}
-      />
+      <StudentStatusTabs activeStatus={status} counts={{ ALL: totalAll }} />
 
       {/* ── Inline filter bar ── */}
       <div className="py-3">
@@ -210,7 +207,20 @@ export default async function StudentListPage({ searchParams }: PageProps) {
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           {studentsResponse.data.length === 0 ? (
-            <EmptyState />
+            <EmptyState
+              title="No students found"
+              description="Try adjusting your search or filters, or add a student."
+              action={
+                <>
+                  <Button asChild size="sm">
+                    <Link href="/students/new">Add student</Link>
+                  </Button>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/students/import">Bulk import</Link>
+                  </Button>
+                </>
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table aria-label="Student records">
@@ -252,21 +262,21 @@ export default async function StudentListPage({ searchParams }: PageProps) {
 
 function StudentRow({ student }: { student: Student }) {
   const cd = student.customData ?? {};
-  const initials   = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
-  const fullName   = `${student.firstName} ${student.lastName}`;
-  const palette    = avatarPalette(fullName);
+  const initials = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
+  const fullName = `${student.firstName} ${student.lastName}`;
+  const palette = avatarPalette(fullName);
 
   const genderInitial = student.gender ? student.gender[0]?.toUpperCase() : null;
-  const dob           = student.dateOfBirth ? formatDate(student.dateOfBirth) : null;
-  const admNo         = readStr(cd, 'admissionNo') || readStr(cd, 'admissionNumber');
+  const dob = student.dateOfBirth ? formatDate(student.dateOfBirth) : null;
+  const admNo = readStr(cd, 'admissionNo') || readStr(cd, 'admissionNumber');
   const subParts: string[] = [];
   if (genderInitial) subParts.push(genderInitial);
-  if (dob)           subParts.push(dob);
-  if (admNo)         subParts.push(`Adm. ${admNo}`);
+  if (dob) subParts.push(dob);
+  if (admNo) subParts.push(`Adm. ${admNo}`);
 
   const gradeSection = readStr(cd, 'gradeSection') || readStr(cd, 'grade') || '—';
-  const institution  = readStr(cd, 'institutionName') || readStr(cd, 'institution') || '—';
-  const attendance   = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
+  const institution = readStr(cd, 'institutionName') || readStr(cd, 'institution') || '—';
+  const attendance = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
   const enrollStatus = readStr(cd, 'enrollmentStatus') || 'ENROLLED';
 
   return (
@@ -292,9 +302,7 @@ function StudentRow({ student }: { student: Student }) {
               {fullName}
             </Link>
             {subParts.length > 0 && (
-              <p className="truncate text-xs text-muted-foreground">
-                {subParts.join(' · ')}
-              </p>
+              <p className="truncate text-xs text-muted-foreground">{subParts.join(' · ')}</p>
             )}
           </div>
         </div>
@@ -368,14 +376,8 @@ function StudentRow({ student }: { student: Student }) {
 /* --------------------------------------------------------------- micro-components */
 
 function AttendanceBar({ pct }: { pct: number }) {
-  const barColor =
-    pct >= 90 ? 'bg-emerald-500' : pct >= 75 ? 'bg-amber-500' : 'bg-red-500';
-  const textColor =
-    pct >= 90
-      ? 'text-foreground'
-      : pct >= 75
-        ? 'text-amber-700'
-        : 'text-red-600';
+  const barColor = pct >= 90 ? 'bg-emerald-500' : pct >= 75 ? 'bg-amber-500' : 'bg-red-500';
+  const textColor = pct >= 90 ? 'text-foreground' : pct >= 75 ? 'text-amber-700' : 'text-red-600';
 
   return (
     <div className="flex items-center gap-2">
@@ -387,14 +389,9 @@ function AttendanceBar({ pct }: { pct: number }) {
         aria-label={`Attendance ${pct}%`}
         className="h-1.5 w-20 overflow-hidden rounded-full bg-muted"
       >
-        <div
-          className={cn('h-full rounded-full', barColor)}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
       </div>
-      <span className={cn('text-xs font-semibold tabular-nums', textColor)}>
-        {pct}%
-      </span>
+      <span className={cn('text-xs font-semibold tabular-nums', textColor)}>{pct}%</span>
     </div>
   );
 }
@@ -415,10 +412,7 @@ function StatusPill({ status }: { status: string }) {
     case 'ALUMNI':
     case 'GRADUATED':
       return (
-        <Badge
-          variant="outline"
-          className="border-sky-200 bg-sky-50 text-sky-700"
-        >
+        <Badge variant="outline" className="border-sky-200 bg-sky-50 text-sky-700">
           Alumni
         </Badge>
       );
@@ -427,23 +421,4 @@ function StatusPill({ status }: { status: string }) {
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-      <p className="text-base font-medium text-foreground">No students found</p>
-      <p className="text-sm text-muted-foreground">
-        Try adjusting your search or filters, or add a student.
-      </p>
-      <div className="mt-3 flex gap-2">
-        <Button asChild size="sm">
-          <Link href="/students/new">Add student</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/students/import">Bulk import</Link>
-        </Button>
-      </div>
-    </div>
-  );
 }

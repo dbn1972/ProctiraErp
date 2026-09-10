@@ -5,11 +5,7 @@
 import Link from 'next/link';
 
 import { BoardExportTriggerForm } from '@/components/examinations/board-export-trigger-form';
-import {
-  listBoardExportJobs,
-  listBoardPacks,
-  listGradebookBoards,
-} from '@/lib/api/gradebook';
+import { listBoardExportJobs, listBoardPacks, listGradebookBoards } from '@/lib/api/gradebook';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,7 +86,10 @@ export default async function BoardExportsPage() {
         <h2 className="text-lg font-semibold">Recent jobs</h2>
         {jobs.ok && jobs.data.length > 0 ? (
           <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full min-w-[640px] text-left text-sm" aria-label="Board export jobs">
+            <table
+              className="w-full min-w-[640px] text-start text-sm"
+              aria-label="Board export jobs"
+            >
               <thead className="bg-muted/40">
                 <tr>
                   <th className="px-3 py-2 font-semibold">Job</th>

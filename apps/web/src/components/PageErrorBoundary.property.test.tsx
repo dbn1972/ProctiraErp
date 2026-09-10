@@ -83,43 +83,40 @@ describe('Property F-9: Error Boundary Recovery', () => {
 
   it('for any error, clicking Retry resets the boundary and re-renders children', () => {
     fc.assert(
-      fc.property(
-        fc.string({ minLength: 1, maxLength: 200 }),
-        (errorMessage) => {
-          cleanup();
+      fc.property(fc.string({ minLength: 1, maxLength: 200 }), (errorMessage) => {
+        cleanup();
 
-          let shouldThrow = true;
+        let shouldThrow = true;
 
-          function ConditionalPage(): React.ReactElement {
-            if (shouldThrow) {
-              throw new Error(errorMessage);
-            }
-            return <div data-testid="page-content">Recovered</div>;
+        function ConditionalPage(): React.ReactElement {
+          if (shouldThrow) {
+            throw new Error(errorMessage);
           }
+          return <div data-testid="page-content">Recovered</div>;
+        }
 
-          render(
-            <PageErrorBoundary>
-              <ConditionalPage />
-            </PageErrorBoundary>,
-          );
+        render(
+          <PageErrorBoundary>
+            <ConditionalPage />
+          </PageErrorBoundary>,
+        );
 
-          // Error boundary should be showing
-          expect(screen.getByTestId('page-error-boundary')).toBeDefined();
+        // Error boundary should be showing
+        expect(screen.getByTestId('page-error-boundary')).toBeDefined();
 
-          // Fix the error condition
-          shouldThrow = false;
+        // Fix the error condition
+        shouldThrow = false;
 
-          // Click Retry
-          act(() => {
-            fireEvent.click(screen.getByTestId('error-boundary-retry'));
-          });
+        // Click Retry
+        act(() => {
+          fireEvent.click(screen.getByTestId('error-boundary-retry'));
+        });
 
-          // PROPERTY: After retry with resolved error, content renders
-          expect(screen.getByTestId('page-content')).toBeDefined();
-          expect(screen.getByTestId('page-content').textContent).toBe('Recovered');
-          expect(screen.queryByTestId('page-error-boundary')).toBeNull();
-        },
-      ),
+        // PROPERTY: After retry with resolved error, content renders
+        expect(screen.getByTestId('page-content')).toBeDefined();
+        expect(screen.getByTestId('page-content').textContent).toBe('Recovered');
+        expect(screen.queryByTestId('page-error-boundary')).toBeNull();
+      }),
       { numRuns: 30 },
     );
   });
@@ -158,9 +155,7 @@ describe('Property F-9: Error Boundary Recovery', () => {
 
           // PROPERTY: Second boundary's content renders normally
           expect(screen.getByTestId('healthy-section')).toBeDefined();
-          expect(screen.getByTestId('healthy-section').textContent).toBe(
-            'Working fine',
-          );
+          expect(screen.getByTestId('healthy-section').textContent).toBe('Working fine');
         },
       ),
       { numRuns: 30 },

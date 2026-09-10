@@ -147,18 +147,14 @@ export class DashboardService {
     // produce a clean 403 instead of a 404 when the user is logged in
     // but cross-scoping.
     const institutionAuthorized =
-      repoScope.isCountryScope ||
-      repoScope.institutionIds.includes(query.institutionId);
+      repoScope.isCountryScope || repoScope.institutionIds.includes(query.institutionId);
 
     if (!institutionAuthorized) {
       // School principals/admins may *also* be authorised by Area_Hierarchy
       // for state directors etc. — defer that decision to the repository
       // (which runs the same area-IN check). If the repo returns null for
       // an authorised area we treat that as 404; otherwise 403.
-      const dataIfAreaScope = await this.deps.repository.schoolDashboard(
-        repoScope,
-        query,
-      );
+      const dataIfAreaScope = await this.deps.repository.schoolDashboard(repoScope, query);
       if (dataIfAreaScope === null) {
         return {
           status: 'forbidden',

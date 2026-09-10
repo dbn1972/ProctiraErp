@@ -15,15 +15,17 @@ import { getExamination } from '@/lib/api/examinations';
 import { ExamTabs } from './exam-tabs';
 
 interface LayoutProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   children: React.ReactNode;
 }
 
 const STATUS_PILL: Record<string, string> = {
-  OPEN:      'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-  DRAFT:     'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
+  OPEN: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  SCHEDULED: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
+  IN_PROGRESS: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  DRAFT: 'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
   COMPLETED: 'bg-violet-50  text-violet-700  dark:bg-violet-950/40  dark:text-violet-400',
-  CLOSED:    'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
+  CLOSED: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
   CANCELLED: 'bg-red-50     text-red-700     dark:bg-red-950/40     dark:text-red-400',
 };
 
@@ -35,12 +37,12 @@ function formatDate(d: string): string {
 }
 
 export default async function ExaminationDetailLayout({ params, children }: LayoutProps) {
-  const examination = await getExamination(params.id);
+  const { id } = await params;
+  const examination = await getExamination(id);
   if (!examination) notFound();
 
   return (
     <section className="space-y-6">
-
       {/* ── Hero head ── */}
       <div className="flex flex-col gap-3">
         <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
@@ -82,7 +84,7 @@ export default async function ExaminationDetailLayout({ params, children }: Layo
         </div>
 
         {/* ── Tabs ── */}
-        <ExamTabs examId={params.id} candidateCount={examination.candidateCount} />
+        <ExamTabs examId={id} candidateCount={examination.candidateCount} />
       </div>
 
       {children}

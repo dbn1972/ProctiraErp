@@ -40,9 +40,7 @@ describe('ApiErrorSchema', () => {
       code: 'VALIDATION_ERROR',
       message: 'Validation failed',
       statusCode: 400,
-      errors: [
-        { field: 'body.name', rule: 'required', message: 'Name is required' },
-      ],
+      errors: [{ field: 'body.name', rule: 'required', message: 'Name is required' }],
     };
 
     expect(Value.Check(ApiErrorSchema, apiError)).toBe(true);

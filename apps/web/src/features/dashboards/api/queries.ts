@@ -91,10 +91,7 @@ function useApiQuery<T>(
  * Falls back to mock data when the gateway is unavailable.
  */
 export function useCountryDashboardData(): DashboardQueryResult<CountryDashboardData> {
-  return useApiQuery(
-    (signal) => fetchCountryDashboard(signal),
-    COUNTRY_DASHBOARD_MOCK,
-  );
+  return useApiQuery((signal) => fetchCountryDashboard(signal), COUNTRY_DASHBOARD_MOCK);
 }
 
 /**
@@ -136,10 +133,7 @@ export function useBoardAdminDashboardData(
 export function useBoardComparisonData(
   boardCodes?: ReadonlyArray<string>,
 ): DashboardQueryResult<BoardComparisonData> {
-  return useApiQuery(
-    (signal) => fetchBoardComparison(boardCodes, signal),
-    BOARD_COMPARISON_MOCK,
-  );
+  return useApiQuery((signal) => fetchBoardComparison(boardCodes, signal), BOARD_COMPARISON_MOCK);
 }
 
 /**

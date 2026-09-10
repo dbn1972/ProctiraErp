@@ -26,14 +26,8 @@ export {
 } from './mockData';
 
 // ─── Lower-scope hooks (Task 52.4) ──────────────────────────────────────────
-export {
-  useSchoolDashboard,
-  __SCHOOL_DASHBOARD_MOCK__,
-} from './useSchoolDashboard';
-export {
-  useTeacherDashboard,
-  __TEACHER_DASHBOARD_MOCK__,
-} from './useTeacherDashboard';
+export { useSchoolDashboard, __SCHOOL_DASHBOARD_MOCK__ } from './useSchoolDashboard';
+export { useTeacherDashboard, __TEACHER_DASHBOARD_MOCK__ } from './useTeacherDashboard';
 export {
   useParentStudentDashboard,
   __PARENT_STUDENT_DASHBOARD_MOCK__,

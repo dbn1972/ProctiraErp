@@ -101,32 +101,17 @@ function BrandedSurfaces({ onRender }: { onRender: () => void }) {
   return (
     <div data-testid="branded-shell">
       {/* Sidebar — uses bg-sidebar which maps to var(--sidebar) / var(--tenant-primary) */}
-      <aside
-        data-testid="sidebar"
-        style={{ backgroundColor: 'var(--tenant-primary)' }}
-      />
+      <aside data-testid="sidebar" style={{ backgroundColor: 'var(--tenant-primary)' }} />
       {/* Primary button — uses bg-primary which maps to var(--tenant-primary) */}
-      <button
-        data-testid="primary-button"
-        style={{ backgroundColor: 'var(--tenant-primary)' }}
-      >
+      <button data-testid="primary-button" style={{ backgroundColor: 'var(--tenant-primary)' }}>
         Action
       </button>
       {/* Focus ring — uses outline-color from var(--tenant-primary) via --ring */}
-      <input
-        data-testid="focus-ring-input"
-        style={{ outlineColor: 'var(--tenant-primary)' }}
-      />
+      <input data-testid="focus-ring-input" style={{ outlineColor: 'var(--tenant-primary)' }} />
       {/* Chart series 1 — uses var(--tenant-primary) */}
-      <div
-        data-testid="chart-1"
-        style={{ fill: 'var(--tenant-primary)' }}
-      />
+      <div data-testid="chart-1" style={{ fill: 'var(--tenant-primary)' }} />
       {/* Chart series 2 — uses var(--tenant-accent) */}
-      <div
-        data-testid="chart-2"
-        style={{ fill: 'var(--tenant-accent)' }}
-      />
+      <div data-testid="chart-2" style={{ fill: 'var(--tenant-accent)' }} />
     </div>
   );
 }
@@ -158,7 +143,9 @@ describe('Property F-6: Tenant Theming Independence', () => {
 
         // Track render count
         let renderCount = 0;
-        const onRender = () => { renderCount++; };
+        const onRender = () => {
+          renderCount++;
+        };
 
         // Mount the branded component tree with the default brand
         const { unmount } = render(
@@ -284,20 +271,14 @@ describe('Property F-6: Tenant Theming Independence', () => {
     const { readFileSync } = require('node:fs');
     const { resolve, dirname } = require('node:path');
 
-    const themeCssPath = resolve(
-      __dirname,
-      '../../../../packages/ui/styles/theme.css',
-    );
+    const themeCssPath = resolve(__dirname, '../../../../packages/ui/styles/theme.css');
 
     let themeCss: string;
     try {
       themeCss = readFileSync(themeCssPath, 'utf8');
     } catch {
       // If the file path doesn't resolve, try alternative path
-      const altPath = resolve(
-        __dirname,
-        '../../../../../packages/ui/styles/theme.css',
-      );
+      const altPath = resolve(__dirname, '../../../../../packages/ui/styles/theme.css');
       themeCss = readFileSync(altPath, 'utf8');
     }
 

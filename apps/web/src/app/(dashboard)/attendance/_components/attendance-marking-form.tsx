@@ -88,6 +88,7 @@ const STATUS_OPTIONS: { value: AttendanceStatusValue; label: string }[] = [
   { value: 'ABSENT', label: 'Absent' },
   { value: 'LATE', label: 'Late' },
   { value: 'EXCUSED', label: 'Excused' },
+  { value: 'EARLY_DEPARTURE', label: 'Early' },
 ];
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
@@ -111,16 +112,17 @@ function avatarPalette(name: string): string {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.charAt(0) ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.charAt(0) ?? '') : '';
   return (first + last).toUpperCase() || '?';
 }
 
 /* ── Segmented attendance status toggle ── */
 const TOGGLE_ON: Record<AttendanceStatusValue, string> = {
   PRESENT: 'bg-emerald-500 text-white',
-  ABSENT:  'bg-red-500 text-white',
-  LATE:    'bg-amber-500 text-white',
+  ABSENT: 'bg-red-500 text-white',
+  LATE: 'bg-amber-500 text-white',
   EXCUSED: 'bg-sky-500 text-white',
+  EARLY_DEPARTURE: 'bg-violet-500 text-white',
 };
 
 function StatusToggle({
@@ -163,9 +165,7 @@ function rosterToRows(roster: RosterEntry[]): RowState[] {
   return roster.map((entry) => ({
     studentId: entry.studentId,
     studentName: entry.studentName,
-    status:
-      (entry.attendance?.status as AttendanceStatusValue | undefined) ??
-      'PRESENT',
+    status: (entry.attendance?.status as AttendanceStatusValue | undefined) ?? 'PRESENT',
     comment: entry.attendance?.comment ?? '',
   }));
 }
@@ -197,13 +197,10 @@ export function AttendanceMarkingForm({
 
   const [institutionId, setInstitutionId] = useState(defaults.institutionId);
   const [classId, setClassId] = useState(defaults.classId);
-  const [academicPeriodId, setAcademicPeriodId] = useState(
-    defaults.academicPeriodId,
-  );
+  const [academicPeriodId, setAcademicPeriodId] = useState(defaults.academicPeriodId);
   const [date, setDate] = useState(defaults.date);
   const [rows, setRows] = useState<RowState[]>(() => rosterToRows(roster));
-  const [serverState, setServerState] =
-    useState<ActionState<BulkAttendanceResponse> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<BulkAttendanceResponse> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -293,15 +290,11 @@ export function AttendanceMarkingForm({
   }
 
   function setRowStatus(studentId: string, status: AttendanceStatusValue) {
-    setRows((prev) =>
-      prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)),
-    );
+    setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
   }
 
   function setRowComment(studentId: string, comment: string) {
-    setRows((prev) =>
-      prev.map((r) => (r.studentId === studentId ? { ...r, comment } : r)),
-    );
+    setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, comment } : r)));
   }
 
   function bulkSet(status: AttendanceStatusValue) {
@@ -324,8 +317,7 @@ export function AttendanceMarkingForm({
     if (!parsed.success) {
       setServerState({
         status: 'error',
-        message:
-          parsed.error.issues[0]?.message ?? 'Please fix the highlighted fields.',
+        message: parsed.error.issues[0]?.message ?? 'Please fix the highlighted fields.',
       });
       return;
     }
@@ -352,7 +344,10 @@ export function AttendanceMarkingForm({
       acc[r.status] = (acc[r.status] ?? 0) + 1;
       return acc;
     },
-    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 } as Record<AttendanceStatusValue, number>,
+    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, EARLY_DEPARTURE: 0 } as Record<
+      AttendanceStatusValue,
+      number
+    >,
   );
 
   return (
@@ -364,10 +359,7 @@ export function AttendanceMarkingForm({
       <div className="grid gap-4 md:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor="institutionId">Institution</Label>
-          <Select
-            value={institutionId || undefined}
-            onValueChange={handleInstitutionChange}
-          >
+          <Select value={institutionId || undefined} onValueChange={handleInstitutionChange}>
             <SelectTrigger id="institutionId">
               <SelectValue placeholder="Select institution" />
             </SelectTrigger>
@@ -388,15 +380,10 @@ export function AttendanceMarkingForm({
         </div>
         <div className="space-y-1">
           <Label htmlFor="classId">Class</Label>
-          <Select
-            value={classId || undefined}
-            onValueChange={(value) => setClassId(value)}
-          >
+          <Select value={classId || undefined} onValueChange={(value) => setClassId(value)}>
             <SelectTrigger id="classId" aria-label="Class">
               <SelectValue
-                placeholder={
-                  institutionId ? 'Select class' : 'Select institution first'
-                }
+                placeholder={institutionId ? 'Select class' : 'Select institution first'}
               />
             </SelectTrigger>
             <SelectContent>
@@ -427,23 +414,16 @@ export function AttendanceMarkingForm({
           >
             <SelectTrigger id="academicPeriodId" aria-label="Academic period">
               <SelectValue
-                placeholder={
-                  institutionId ? 'Select period' : 'Select institution first'
-                }
+                placeholder={institutionId ? 'Select period' : 'Select institution first'}
               />
             </SelectTrigger>
             <SelectContent>
-              {academicPeriodId &&
-                !academicPeriods.some((p) => p.id === academicPeriodId) && (
-                  <SelectItem value={academicPeriodId}>
-                    Selected period
-                  </SelectItem>
-                )}
+              {academicPeriodId && !academicPeriods.some((p) => p.id === academicPeriodId) && (
+                <SelectItem value={academicPeriodId}>Selected period</SelectItem>
+              )}
               {academicPeriods.length === 0 && !academicPeriodId ? (
                 <SelectItem value={ZERO_UUID} disabled>
-                  {institutionId
-                    ? 'No academic periods'
-                    : 'Select an institution first'}
+                  {institutionId ? 'No academic periods' : 'Select an institution first'}
                 </SelectItem>
               ) : (
                 academicPeriods.map((period) => (
@@ -469,12 +449,7 @@ export function AttendanceMarkingForm({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={reload}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={reload} disabled={isPending}>
           Load roster
         </Button>
       </div>
@@ -504,8 +479,8 @@ export function AttendanceMarkingForm({
           className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]"
           data-testid="attendance-marking-empty"
         >
-          No roster yet. Choose an institution, class, academic period, and
-          date, then click <strong>Load roster</strong>.
+          No roster yet. Choose an institution, class, academic period, and date, then click{' '}
+          <strong>Load roster</strong>.
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
@@ -516,6 +491,7 @@ export function AttendanceMarkingForm({
               <SummaryChip color="bg-red-500" count={counts.ABSENT} label="absent" />
               <SummaryChip color="bg-amber-500" count={counts.LATE} label="late" />
               <SummaryChip color="bg-sky-500" count={counts.EXCUSED} label="excused" />
+              <SummaryChip color="bg-violet-500" count={counts.EARLY_DEPARTURE} label="early" />
             </div>
             <Button type="button" variant="outline" size="sm" onClick={() => bulkSet('PRESENT')}>
               <CheckCheck className="me-1.5 h-4 w-4" aria-hidden="true" />

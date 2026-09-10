@@ -189,7 +189,7 @@ describe('CacheClient', () => {
 
       await cache.get('exists'); // hit
       await cache.get('exists'); // hit
-      await cache.get('nope');   // miss
+      await cache.get('nope'); // miss
 
       const metrics = cache.getMetrics();
       expect(metrics.hits).toBe(2);

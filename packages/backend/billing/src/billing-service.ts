@@ -12,11 +12,7 @@
  *
  * Charter: Section 10 (Subscription, Entitlements, Feature Control)
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -169,7 +165,9 @@ export class BillingService {
 
     const existingSubscription = await this.repository.findActiveSubscription(input.tenantId);
     if (existingSubscription) {
-      throw new ConflictError('Tenant already has an active subscription. Use upgrade/downgrade to change plans.');
+      throw new ConflictError(
+        'Tenant already has an active subscription. Use upgrade/downgrade to change plans.',
+      );
     }
 
     const now = new Date();
@@ -349,7 +347,9 @@ export class BillingService {
     }
 
     if (currentPlan && this.getTierRank(newPlan.tier) <= this.getTierRank(currentPlan.tier)) {
-      throw new BusinessRuleError('Upgrade requires a higher tier plan. Use downgrade for lower tier plans.');
+      throw new BusinessRuleError(
+        'Upgrade requires a higher tier plan. Use downgrade for lower tier plans.',
+      );
     }
 
     const previousPlanId = subscription.planId;
@@ -393,7 +393,9 @@ export class BillingService {
     }
 
     if (currentPlan && this.getTierRank(newPlan.tier) >= this.getTierRank(currentPlan.tier)) {
-      throw new BusinessRuleError('Downgrade requires a lower tier plan. Use upgrade for higher tier plans.');
+      throw new BusinessRuleError(
+        'Downgrade requires a lower tier plan. Use upgrade for higher tier plans.',
+      );
     }
 
     // Check for data that would exceed new plan limits
@@ -574,7 +576,12 @@ export class BillingService {
   /**
    * Get usage for a tenant and metric.
    */
-  async getUsage(tenantId: string, metric: string, periodStart?: Date, periodEnd?: Date): Promise<UsageResponse> {
+  async getUsage(
+    tenantId: string,
+    metric: string,
+    periodStart?: Date,
+    periodEnd?: Date,
+  ): Promise<UsageResponse> {
     const subscription = await this.repository.findActiveSubscription(tenantId);
     if (!subscription) {
       throw new NotFoundError(`No active subscription found for tenant '${tenantId}'`);

@@ -17,6 +17,8 @@ import {
   Input,
 } from '@proctira/ui/components';
 
+import { useHydrated } from '@/hooks/useHydrated';
+
 import { createImportJobAction } from '../../reports/actions';
 
 /**
@@ -24,8 +26,14 @@ import { createImportJobAction } from '../../reports/actions';
  * When `liveImport` is true, queues jobs via POST /data-warehouse/import/jobs.
  */
 export function ImportSourceForms({ liveImport = false }: { liveImport?: boolean }) {
+  const hydrated = useHydrated();
   return (
-    <div className="grid gap-4 md:grid-cols-3" data-live-import={liveImport ? 'true' : 'false'}>
+    <div
+      className="grid gap-4 md:grid-cols-3"
+      data-testid="import-source-forms"
+      data-live-import={liveImport ? 'true' : 'false'}
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <FileImportCard
         icon={<FileSpreadsheet className="h-6 w-6" aria-hidden="true" />}
         title="Excel"

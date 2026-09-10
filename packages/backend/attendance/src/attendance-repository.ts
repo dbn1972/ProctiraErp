@@ -96,6 +96,8 @@ export interface LeaveTypeConfig {
  */
 export interface AttendanceAuditEntry {
   id: string;
+  /** Tenant of the parent attendance row — binds RLS for the audit write (G-732). */
+  tenantId?: string;
   attendanceId: string;
   previousStatus: AttendanceStatus | null;
   newStatus: AttendanceStatus;
@@ -137,10 +139,23 @@ export interface AttendancePercentageResult {
   excusedCount: number;
   /** Number of records with LATE status */
   lateCount: number;
-  /** Attendance percentage (present + late) / total, rounded to 2 decimal places */
+  /** Number of EARLY_DEPARTURE records (present-partial, weight 0.5) */
+  earlyDepartureCount: number;
+  /** Attendance percentage (present + late + 0.5*earlyDeparture) / total */
   attendancePercentage: number;
   /** Absence percentage (absent) / total, rounded to 2 decimal places */
   absencePercentage: number;
+  /** Per-student breakdown when scope is class or institution (G-919 CSV). */
+  studentRows?: Array<{
+    studentId: string;
+    totalRecords: number;
+    presentCount: number;
+    absentCount: number;
+    lateCount: number;
+    excusedCount: number;
+    earlyDepartureCount: number;
+    attendancePercentage: number;
+  }>;
 }
 
 /**
@@ -182,8 +197,14 @@ export interface ThresholdCheckResult {
  */
 export interface AttendanceRepository {
   // Student attendance
-  createStudentAttendance(data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>): Promise<StudentAttendanceEntity>;
-  updateStudentAttendance(id: string, tenantId: string, data: Partial<StudentAttendanceEntity>): Promise<StudentAttendanceEntity | null>;
+  createStudentAttendance(
+    data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StudentAttendanceEntity>;
+  updateStudentAttendance(
+    id: string,
+    tenantId: string,
+    data: Partial<StudentAttendanceEntity>,
+  ): Promise<StudentAttendanceEntity | null>;
   findStudentAttendance(
     tenantId: string,
     studentId: string,
@@ -204,6 +225,14 @@ export interface AttendanceRepository {
     query: AttendancePercentageQuery,
   ): Promise<StudentAttendanceEntity[]>;
 
+  /** All of a student's attendance rows in a date range (heatmap; no class filter). */
+  listStudentAttendanceByStudentDateRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]>;
+
   // Count absences for a student within a date range (for threshold checking)
   countStudentAbsences(
     tenantId: string,
@@ -214,8 +243,14 @@ export interface AttendanceRepository {
   ): Promise<number>;
 
   // Staff attendance
-  createStaffAttendance(data: Omit<StaffAttendanceEntity, 'createdAt' | 'updatedAt'>): Promise<StaffAttendanceEntity>;
-  updateStaffAttendance(id: string, tenantId: string, data: Partial<StaffAttendanceEntity>): Promise<StaffAttendanceEntity | null>;
+  createStaffAttendance(
+    data: Omit<StaffAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StaffAttendanceEntity>;
+  updateStaffAttendance(
+    id: string,
+    tenantId: string,
+    data: Partial<StaffAttendanceEntity>,
+  ): Promise<StaffAttendanceEntity | null>;
   findStaffAttendance(
     tenantId: string,
     staffId: string,
@@ -235,10 +270,7 @@ export interface AttendanceRepository {
     tenantId: string,
     institutionId: string,
   ): Promise<AcademicPeriodInfo | null>;
-  getAcademicPeriodById(
-    tenantId: string,
-    periodId: string,
-  ): Promise<AcademicPeriodInfo | null>;
+  getAcademicPeriodById(tenantId: string, periodId: string): Promise<AcademicPeriodInfo | null>;
 
   // Institution config
   getInstitutionAttendanceConfig(
@@ -252,7 +284,10 @@ export interface AttendanceRepository {
     institutionId: string,
   ): Promise<AbsenceThresholdConfig | null>;
 
-  // Audit
+  // Audit (tenantId binds the RLS context — attendance_audit derives tenancy from its parent row)
   createAuditEntry(entry: AttendanceAuditEntry): Promise<void>;
-  getAuditEntriesForAttendance(attendanceId: string): Promise<AttendanceAuditEntry[]>;
+  getAuditEntriesForAttendance(
+    attendanceId: string,
+    tenantId?: string,
+  ): Promise<AttendanceAuditEntry[]>;
 }

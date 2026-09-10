@@ -18,11 +18,7 @@ export type { AuditPluginOptions } from './audit-plugin.js';
 
 // Service
 export { AuditService, PROTECTED_ENTITY_TYPES } from './audit-service.js';
-export type {
-  RecordAuditInput,
-  QueryAuditInput,
-  SetRetentionInput,
-} from './audit-service.js';
+export type { RecordAuditInput, QueryAuditInput, SetRetentionInput } from './audit-service.js';
 
 // Repository
 export type {
@@ -34,10 +30,22 @@ export type {
   AuditOperation,
   AuditRetentionConfig,
   ArchivalResult,
+  ChainBreak,
+  ChainVerification,
 } from './audit-repository.js';
+
+// G-913 hash chain + runtime retention
+export { computeEntryHash, canonicalJson, verifyEntrySequence } from './audit-hash.js';
+export { createRetentionScheduler, DEFAULT_RETENTION_INTERVAL_MS } from './retention-scheduler.js';
+export type { RetentionScheduler, RetentionSchedulerOptions } from './retention-scheduler.js';
 
 // In-memory repository (for testing)
 export { InMemoryAuditRepository } from './in-memory-repository.js';
+
+// Postgres repository + factory (G-704)
+export { PgAuditRepository } from './pg-audit-repository.js';
+export { createAuditRepository } from './create-audit-repository.js';
+export type { AuditPersistence } from './create-audit-repository.js';
 
 // Schemas
 export {

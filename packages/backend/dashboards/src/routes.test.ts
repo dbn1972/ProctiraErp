@@ -195,19 +195,13 @@ function seedFixtures(repository: InMemoryDashboardRepository): void {
     pendingTasks: [],
   });
 
-  repository.setTeacherAggregate(
-    TENANT_ID,
-    'teacher-1',
-    'inst-MH-001',
-    'state-MH',
-    {
-      staffId: 'teacher-1',
-      assignedClasses: [],
-      todaySchedule: [],
-      attendancePending: [],
-      pendingAssessments: [],
-    },
-  );
+  repository.setTeacherAggregate(TENANT_ID, 'teacher-1', 'inst-MH-001', 'state-MH', {
+    staffId: 'teacher-1',
+    assignedClasses: [],
+    todaySchedule: [],
+    attendancePending: [],
+    pendingAssessments: [],
+  });
 
   repository.setParentStudentAggregate(TENANT_ID, 'parent-1', 'inst-MH-001', {
     studentId: 'student-1',
@@ -238,9 +232,7 @@ describe('Dashboard routes — RBAC + Area_Hierarchy scoping (Task 52.6)', () =>
     it('returns 200 for a country admin', async () => {
       harness.authJwt.value = jwtFor({
         sub: 'admin-1',
-        roles: [
-          { roleId: 'system_admin', roleName: 'System Admin', areaId: 'country' },
-        ],
+        roles: [{ roleId: 'system_admin', roleName: 'System Admin', areaId: 'country' }],
       });
 
       const response = await harness.app.inject({
@@ -334,9 +326,7 @@ describe('Dashboard routes — RBAC + Area_Hierarchy scoping (Task 52.6)', () =>
     it('lets a country admin read any state (country subsumes state)', async () => {
       harness.authJwt.value = jwtFor({
         sub: 'admin-1',
-        roles: [
-          { roleId: 'system_admin', roleName: 'System Admin', areaId: 'country' },
-        ],
+        roles: [{ roleId: 'system_admin', roleName: 'System Admin', areaId: 'country' }],
       });
 
       const response = await harness.app.inject({
@@ -352,9 +342,7 @@ describe('Dashboard routes — RBAC + Area_Hierarchy scoping (Task 52.6)', () =>
       // Seed an empty resolver entry — but no aggregate.
       harness.authJwt.value = jwtFor({
         sub: 'admin-1',
-        roles: [
-          { roleId: 'system_admin', roleName: 'System Admin', areaId: 'country' },
-        ],
+        roles: [{ roleId: 'system_admin', roleName: 'System Admin', areaId: 'country' }],
       });
 
       const response = await harness.app.inject({
@@ -521,24 +509,19 @@ describe('Dashboard routes — RBAC + Area_Hierarchy scoping (Task 52.6)', () =>
       // areaId is a *descendant* of their state — that's what the
       // hierarchy resolver buys us. Without descendant traversal the
       // policy filter would deny this read and silently break Req 40 AC 9.
-      harness.repository.setSchoolAggregate(
-        TENANT_ID,
-        'inst-MH-DIST-001',
-        'district-MH-PUN',
-        {
-          institutionId: 'inst-MH-DIST-001',
-          institutionName: 'Pune District School',
-          kpis: {
-            totalStudents: 150,
-            attendanceRatePercent: 88,
-            staffOnDuty: 14,
-            totalStaff: 16,
-            pendingApprovals: 0,
-          },
-          recentActivity: [],
-          pendingTasks: [],
+      harness.repository.setSchoolAggregate(TENANT_ID, 'inst-MH-DIST-001', 'district-MH-PUN', {
+        institutionId: 'inst-MH-DIST-001',
+        institutionName: 'Pune District School',
+        kpis: {
+          totalStudents: 150,
+          attendanceRatePercent: 88,
+          staffOnDuty: 14,
+          totalStaff: 16,
+          pendingApprovals: 0,
         },
-      );
+        recentActivity: [],
+        pendingTasks: [],
+      });
 
       harness.authJwt.value = jwtFor({
         roles: [
@@ -559,25 +542,20 @@ describe('Dashboard routes — RBAC + Area_Hierarchy scoping (Task 52.6)', () =>
       expect(response.json().institutionId).toBe('inst-MH-DIST-001');
     });
 
-    it("blocks a state director from reading a district school in another state", async () => {
-      harness.repository.setSchoolAggregate(
-        TENANT_ID,
-        'inst-KA-DIST-001',
-        'district-KA-BLR',
-        {
-          institutionId: 'inst-KA-DIST-001',
-          institutionName: 'Bangalore District School',
-          kpis: {
-            totalStudents: 120,
-            attendanceRatePercent: 85,
-            staffOnDuty: 12,
-            totalStaff: 14,
-            pendingApprovals: 0,
-          },
-          recentActivity: [],
-          pendingTasks: [],
+    it('blocks a state director from reading a district school in another state', async () => {
+      harness.repository.setSchoolAggregate(TENANT_ID, 'inst-KA-DIST-001', 'district-KA-BLR', {
+        institutionId: 'inst-KA-DIST-001',
+        institutionName: 'Bangalore District School',
+        kpis: {
+          totalStudents: 120,
+          attendanceRatePercent: 85,
+          staffOnDuty: 12,
+          totalStaff: 14,
+          pendingApprovals: 0,
         },
-      );
+        recentActivity: [],
+        pendingTasks: [],
+      });
 
       harness.authJwt.value = jwtFor({
         roles: [

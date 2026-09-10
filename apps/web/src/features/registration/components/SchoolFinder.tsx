@@ -261,9 +261,7 @@ export function SchoolFinder({
   const listRef = useRef<HTMLUListElement>(null);
   const handleResultsKey = useCallback((e: KeyboardEvent<HTMLUListElement>) => {
     if (!listRef.current) return;
-    const items = Array.from(
-      listRef.current.querySelectorAll<HTMLLIElement>('[role="listitem"]'),
-    );
+    const items = Array.from(listRef.current.querySelectorAll<HTMLLIElement>('[role="listitem"]'));
     const active = document.activeElement;
     const currentIdx = items.findIndex((el) => el.contains(active));
     if (e.key === 'ArrowDown') {
@@ -288,23 +286,15 @@ export function SchoolFinder({
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <section
-      aria-label="School finder"
-      className="space-y-4"
-      data-testid="school-finder"
-    >
+    <section aria-label="School finder" className="space-y-4" data-testid="school-finder">
       {/* 1. Geolocation prompt */}
-      <div
-        className="rounded-md border bg-muted/50 p-3"
-        data-testid="school-finder-geolocation"
-      >
+      <div className="rounded-md border bg-muted/50 p-3" data-testid="school-finder-geolocation">
         {coords ? (
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-sm font-medium">Using your location</p>
               <p className="text-xs text-muted-foreground">
-                Within {radiusKm} km of {coords.latitude.toFixed(4)},{' '}
-                {coords.longitude.toFixed(4)}
+                Within {radiusKm} km of {coords.latitude.toFixed(4)}, {coords.longitude.toFixed(4)}
               </p>
             </div>
             <button
@@ -349,10 +339,7 @@ export function SchoolFinder({
         data-testid="school-finder-filters"
       >
         <div>
-          <label
-            htmlFor="school-finder-search"
-            className="block text-xs font-medium"
-          >
+          <label htmlFor="school-finder-search" className="block text-xs font-medium">
             School name
           </label>
           <input
@@ -367,10 +354,7 @@ export function SchoolFinder({
         </div>
 
         <div>
-          <label
-            htmlFor="school-finder-area"
-            className="block text-xs font-medium"
-          >
+          <label htmlFor="school-finder-area" className="block text-xs font-medium">
             Area
           </label>
           <select
@@ -390,10 +374,7 @@ export function SchoolFinder({
         </div>
 
         <div>
-          <label
-            htmlFor="school-finder-type"
-            className="block text-xs font-medium"
-          >
+          <label htmlFor="school-finder-type" className="block text-xs font-medium">
             Type
           </label>
           <select
@@ -413,10 +394,7 @@ export function SchoolFinder({
         </div>
 
         <div>
-          <label
-            htmlFor="school-finder-grade"
-            className="block text-xs font-medium"
-          >
+          <label htmlFor="school-finder-grade" className="block text-xs font-medium">
             Grade
           </label>
           <select
@@ -437,10 +415,7 @@ export function SchoolFinder({
 
         {coords ? (
           <div className="sm:col-span-2">
-            <label
-              htmlFor="school-finder-radius"
-              className="block text-xs font-medium"
-            >
+            <label htmlFor="school-finder-radius" className="block text-xs font-medium">
               Radius: {radiusKm} km
             </label>
             <input
@@ -491,10 +466,7 @@ export function SchoolFinder({
 
         {results.length > 0 ? (
           <>
-            <p
-              className="text-xs text-muted-foreground"
-              data-testid="school-finder-count"
-            >
+            <p className="text-xs text-muted-foreground" data-testid="school-finder-count">
               {totalItems} school{totalItems === 1 ? '' : 's'} found
               {totalPages > 1 ? ` — page ${page} of ${totalPages}` : ''}
             </p>

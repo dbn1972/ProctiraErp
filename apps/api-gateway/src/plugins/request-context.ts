@@ -69,7 +69,7 @@ const requestContextPluginImpl: FastifyPluginAsync<RequestContextOptions> = asyn
  */
 export const requestContextPlugin = fp(requestContextPluginImpl, {
   name: '@proctira/request-context',
-  fastify: '4.x',
+  fastify: '5.x',
 });
 
 export default requestContextPlugin;

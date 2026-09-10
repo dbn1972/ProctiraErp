@@ -36,11 +36,11 @@ spec:
               protocol: TCP
           env:
             - name: PORT
-              value: "3004"
+              value: '3004'
             - name: HOSTNAME
-              value: "0.0.0.0"
+              value: '0.0.0.0'
             - name: NODE_ENV
-              value: "production"
+              value: 'production'
           envFrom:
             - configMapRef:
                 name: proctira-config

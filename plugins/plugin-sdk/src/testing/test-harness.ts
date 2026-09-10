@@ -5,7 +5,12 @@
  * Simulates the platform runtime without requiring a full server.
  */
 import type { PluginDefinition } from '../core/define-plugin.js';
-import type { HookContext, HookResult, DomainEventPayload, ApprovedEvent } from '@proctira/backend-plugin';
+import type {
+  HookContext,
+  HookResult,
+  DomainEventPayload,
+  ApprovedEvent,
+} from '@proctira/backend-plugin';
 import { validateManifest, type ManifestValidationResult } from '../manifest/index.js';
 import { mockHookContext } from './mock-hook-context.js';
 import { mockEventPayload } from './mock-event-payload.js';
@@ -98,11 +103,7 @@ export function createTestHarness(
   plugin: PluginDefinition,
   options: TestHarnessOptions = {},
 ): TestHarness {
-  const {
-    tenantId = 'test-tenant-001',
-    actorId = 'test-user-001',
-    configuration = {},
-  } = options;
+  const { tenantId = 'test-tenant-001', actorId = 'test-user-001', configuration = {} } = options;
 
   return {
     plugin,

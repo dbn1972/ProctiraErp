@@ -35,8 +35,14 @@ function validNumberArb(min = 0, max = 1000): fc.Arbitrary<number> {
 /** Generates a valid email-like string. */
 const validEmailArb: fc.Arbitrary<string> = fc
   .tuple(
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 1, maxLength: 10 }),
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 1, maxLength: 8 }),
+    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+      minLength: 1,
+      maxLength: 10,
+    }),
+    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+      minLength: 1,
+      maxLength: 8,
+    }),
     fc.constantFrom('com', 'org', 'net', 'edu'),
   )
   .map(([user, domain, tld]) => `${user}@${domain}.${tld}`);
@@ -114,7 +120,10 @@ const validNestedPayloadArb: fc.Arbitrary<Record<string, unknown>> = fc
  * Generates an invalid payload by applying one or more mutations to a valid payload.
  * Mutations include: removing required fields, wrong types, constraint violations.
  */
-const invalidSamplePayloadArb: fc.Arbitrary<{ payload: Record<string, unknown>; invalidFields: string[] }> = fc
+const invalidSamplePayloadArb: fc.Arbitrary<{
+  payload: Record<string, unknown>;
+  invalidFields: string[];
+}> = fc
   .tuple(
     validSamplePayloadArb,
     fc.constantFrom(
@@ -173,12 +182,15 @@ const invalidSamplePayloadArb: fc.Arbitrary<{ payload: Record<string, unknown>; 
 /**
  * Generates payloads with multiple simultaneous violations.
  */
-const multipleViolationsPayloadArb: fc.Arbitrary<{ payload: Record<string, unknown>; expectedMinErrors: number }> = fc
+const multipleViolationsPayloadArb: fc.Arbitrary<{
+  payload: Record<string, unknown>;
+  expectedMinErrors: number;
+}> = fc
   .tuple(
-    fc.subarray(
-      ['name', 'code', 'age', 'email', 'active'] as const,
-      { minLength: 2, maxLength: 5 },
-    ),
+    fc.subarray(['name', 'code', 'age', 'email', 'active'] as const, {
+      minLength: 2,
+      maxLength: 5,
+    }),
   )
   .map(([fieldsToRemove]) => {
     const payload: Record<string, unknown> = {};
@@ -201,36 +213,30 @@ describe('Property 1: API Validation Produces Structured Errors', () => {
   describe('Valid payloads are accepted without errors', () => {
     it('any valid payload matching the schema produces a success result with no validation errors', () => {
       fc.assert(
-        fc.property(
-          validSamplePayloadArb,
-          (payload) => {
-            const result = validate(SampleApiSchema, payload);
+        fc.property(validSamplePayloadArb, (payload) => {
+          const result = validate(SampleApiSchema, payload);
 
-            // Valid payloads must be accepted
-            expect(result.success).toBe(true);
-            if (result.success) {
-              // Validated data should contain all the original fields
-              expect(result.data.name).toBe(payload.name);
-              expect(result.data.code).toBe(payload.code);
-              expect(result.data.age).toBe(payload.age);
-              expect(result.data.email).toBe(payload.email);
-              expect(result.data.active).toBe(payload.active);
-            }
-          },
-        ),
+          // Valid payloads must be accepted
+          expect(result.success).toBe(true);
+          if (result.success) {
+            // Validated data should contain all the original fields
+            expect(result.data.name).toBe(payload.name);
+            expect(result.data.code).toBe(payload.code);
+            expect(result.data.age).toBe(payload.age);
+            expect(result.data.email).toBe(payload.email);
+            expect(result.data.active).toBe(payload.active);
+          }
+        }),
         { numRuns: 200 },
       );
     });
 
     it('any valid nested payload matching the schema produces a success result', () => {
       fc.assert(
-        fc.property(
-          validNestedPayloadArb,
-          (payload) => {
-            const result = validate(NestedApiSchema, payload);
-            expect(result.success).toBe(true);
-          },
-        ),
+        fc.property(validNestedPayloadArb, (payload) => {
+          const result = validate(NestedApiSchema, payload);
+          expect(result.success).toBe(true);
+        }),
         { numRuns: 100 },
       );
     });
@@ -239,88 +245,86 @@ describe('Property 1: API Validation Produces Structured Errors', () => {
   describe('Invalid payloads produce structured error responses', () => {
     it('any invalid payload produces a failure result with field-level errors', () => {
       fc.assert(
-        fc.property(
-          invalidSamplePayloadArb,
-          ({ payload, invalidFields }) => {
-            const result = validate(SampleApiSchema, payload);
+        fc.property(invalidSamplePayloadArb, ({ payload, invalidFields }) => {
+          const result = validate(SampleApiSchema, payload);
 
-            // Invalid payloads must be rejected
-            expect(result.success).toBe(false);
-            if (!result.success) {
-              // Must have at least one error
-              expect(result.errors.length).toBeGreaterThan(0);
+          // Invalid payloads must be rejected
+          expect(result.success).toBe(false);
+          if (!result.success) {
+            // Must have at least one error
+            expect(result.errors.length).toBeGreaterThan(0);
 
-              // Each error must have the required structure
-              for (const error of result.errors) {
-                // Field path must be a non-empty string
-                expect(typeof error.field).toBe('string');
-                expect(error.field.length).toBeGreaterThan(0);
+            // Each error must have the required structure
+            for (const error of result.errors) {
+              // Field path must be a non-empty string
+              expect(typeof error.field).toBe('string');
+              expect(error.field.length).toBeGreaterThan(0);
 
-                // Human-readable message must be a non-empty string
-                expect(typeof error.message).toBe('string');
-                expect(error.message.length).toBeGreaterThan(0);
+              // Human-readable message must be a non-empty string
+              expect(typeof error.message).toBe('string');
+              expect(error.message.length).toBeGreaterThan(0);
 
-                // Rule must be a non-empty string identifying the validation rule
-                expect(typeof error.rule).toBe('string');
-                expect(error.rule.length).toBeGreaterThan(0);
-              }
-
-              // The invalid fields should be identified in the errors
-              const errorFields = result.errors.map((e) => e.field);
-              for (const field of invalidFields) {
-                expect(errorFields).toContain(field);
-              }
+              // Rule must be a non-empty string identifying the validation rule
+              expect(typeof error.rule).toBe('string');
+              expect(error.rule.length).toBeGreaterThan(0);
             }
-          },
-        ),
+
+            // The invalid fields should be identified in the errors
+            const errorFields = result.errors.map((e) => e.field);
+            for (const field of invalidFields) {
+              expect(errorFields).toContain(field);
+            }
+          }
+        }),
         { numRuns: 200 },
       );
     });
 
     it('each field-level error identifies the field path and the validation rule that failed', () => {
       fc.assert(
-        fc.property(
-          invalidSamplePayloadArb,
-          ({ payload }) => {
-            const result = validate(SampleApiSchema, payload);
+        fc.property(invalidSamplePayloadArb, ({ payload }) => {
+          const result = validate(SampleApiSchema, payload);
 
-            if (!result.success) {
-              for (const error of result.errors) {
-                // Field path must be a dot-notation path (no leading slash)
-                expect(error.field).not.toMatch(/^\//);
+          if (!result.success) {
+            for (const error of result.errors) {
+              // Field path must be a dot-notation path (no leading slash)
+              expect(error.field).not.toMatch(/^\//);
 
-                // Rule must be one of the known validation rules
-                const knownRules = [
-                  'required', 'type', 'minLength', 'maxLength',
-                  'minimum', 'maximum', 'pattern', 'format', 'invalid',
-                ];
-                expect(knownRules).toContain(error.rule);
+              // Rule must be one of the known validation rules
+              const knownRules = [
+                'required',
+                'type',
+                'minLength',
+                'maxLength',
+                'minimum',
+                'maximum',
+                'pattern',
+                'format',
+                'invalid',
+              ];
+              expect(knownRules).toContain(error.rule);
 
-                // Message must be human-readable (not a raw JSON path or schema reference)
-                expect(error.message).not.toMatch(/^\//);
-                expect(error.message.length).toBeGreaterThan(3);
-              }
+              // Message must be human-readable (not a raw JSON path or schema reference)
+              expect(error.message).not.toMatch(/^\//);
+              expect(error.message.length).toBeGreaterThan(3);
             }
-          },
-        ),
+          }
+        }),
         { numRuns: 200 },
       );
     });
 
     it('multiple field violations produce multiple field-level errors', () => {
       fc.assert(
-        fc.property(
-          multipleViolationsPayloadArb,
-          ({ payload, expectedMinErrors }) => {
-            const result = validate(SampleApiSchema, payload);
+        fc.property(multipleViolationsPayloadArb, ({ payload, expectedMinErrors }) => {
+          const result = validate(SampleApiSchema, payload);
 
-            expect(result.success).toBe(false);
-            if (!result.success) {
-              // Should have at least as many errors as fields removed
-              expect(result.errors.length).toBeGreaterThanOrEqual(expectedMinErrors);
-            }
-          },
-        ),
+          expect(result.success).toBe(false);
+          if (!result.success) {
+            // Should have at least as many errors as fields removed
+            expect(result.errors.length).toBeGreaterThanOrEqual(expectedMinErrors);
+          }
+        }),
         { numRuns: 100 },
       );
     });
@@ -331,10 +335,10 @@ describe('Property 1: API Validation Produces Structured Errors', () => {
       fc.assert(
         fc.property(
           // Generate a random subset of fields to invalidate
-          fc.subarray(
-            ['name', 'code', 'age', 'email', 'active'] as const,
-            { minLength: 1, maxLength: 5 },
-          ),
+          fc.subarray(['name', 'code', 'age', 'email', 'active'] as const, {
+            minLength: 1,
+            maxLength: 5,
+          }),
           (fieldsToInvalidate) => {
             const payload: Record<string, unknown> = {
               name: 'ValidName',
@@ -378,8 +382,14 @@ describe('Property 1: API Validation Produces Structured Errors', () => {
         fc.property(
           fc.constantFrom(
             // Various invalid nested payloads
-            { institution: { name: '', code: 'x', address: { city: '', zip: 'ab' } }, contact: { phone: '12' } },
-            { institution: { name: 123, code: true, address: { city: 456, zip: 789 } }, contact: { phone: false } },
+            {
+              institution: { name: '', code: 'x', address: { city: '', zip: 'ab' } },
+              contact: { phone: '12' },
+            },
+            {
+              institution: { name: 123, code: true, address: { city: 456, zip: 789 } },
+              contact: { phone: false },
+            },
             { institution: { name: 'Valid', code: 'V', address: {} }, contact: {} },
           ),
           (payload) => {

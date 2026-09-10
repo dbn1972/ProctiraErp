@@ -21,10 +21,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const refreshToken = jar.get(AUTH_COOKIES.REFRESH_TOKEN)?.value;
 
   if (!refreshToken) {
-    return NextResponse.json(
-      { message: 'No refresh token present.' },
-      { status: 401 },
-    );
+    return NextResponse.json({ message: 'No refresh token present.' }, { status: 401 });
   }
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';
@@ -57,21 +54,9 @@ export async function POST(request: Request): Promise<NextResponse> {
       { message: data.message || 'Refresh failed.' },
       { status: 401 },
     );
-    failure.cookies.set(
-      AUTH_COOKIES.ACCESS_TOKEN,
-      '',
-      clearCookieOptions(),
-    );
-    failure.cookies.set(
-      AUTH_COOKIES.REFRESH_TOKEN,
-      '',
-      clearCookieOptions(),
-    );
-    failure.cookies.set(
-      AUTH_COOKIES.SESSION_ID,
-      '',
-      clearCookieOptions(),
-    );
+    failure.cookies.set(AUTH_COOKIES.ACCESS_TOKEN, '', clearCookieOptions(request));
+    failure.cookies.set(AUTH_COOKIES.REFRESH_TOKEN, '', clearCookieOptions(request));
+    failure.cookies.set(AUTH_COOKIES.SESSION_ID, '', clearCookieOptions(request));
     return failure;
   }
 
@@ -79,12 +64,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn),
+    accessTokenCookieOptions(data.tokens.expiresIn, request),
   );
   response.cookies.set(
     AUTH_COOKIES.REFRESH_TOKEN,
     data.tokens.refreshToken,
-    refreshTokenCookieOptions(),
+    refreshTokenCookieOptions(undefined, request),
   );
   return response;
 }

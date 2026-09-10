@@ -26,7 +26,6 @@ export const dynamic = 'force-dynamic';
 export default function NewStaffPage() {
   return (
     <section aria-labelledby="new-staff-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -37,9 +36,8 @@ export default function NewStaffPage() {
             Add staff member
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create a service record for a teaching or non-teaching staff
-            member. An employee ID is generated on save and the record is
-            routed to the BEO for verification.
+            Create a service record for a teaching or non-teaching staff member. An employee ID is
+            generated on save and the record is routed to the BEO for verification.
           </p>
         </div>
         <div className="shrink-0">
@@ -57,8 +55,8 @@ export default function NewStaffPage() {
         <CardHeader>
           <CardTitle className="text-base">Personal & employment details</CardTitle>
           <CardDescription>
-            Fields marked * are required. Personal information, designation,
-            school posting, and qualifications.
+            Fields marked * are required. Personal information, designation, school posting, and
+            qualifications.
           </CardDescription>
         </CardHeader>
         <CardContent>

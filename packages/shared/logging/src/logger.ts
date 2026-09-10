@@ -40,12 +40,7 @@ export interface CreateLoggerOptions {
  * 2. NODE_ENV is 'development' (and pretty is not explicitly false)
  */
 export function createLogger(options: CreateLoggerOptions = {}): Logger {
-  const {
-    name,
-    level = process.env['LOG_LEVEL'] || 'info',
-    context = {},
-    pretty,
-  } = options;
+  const { name, level = process.env['LOG_LEVEL'] || 'info', context = {}, pretty } = options;
 
   const isDevelopment = process.env['NODE_ENV'] === 'development';
   const usePretty = pretty ?? isDevelopment;

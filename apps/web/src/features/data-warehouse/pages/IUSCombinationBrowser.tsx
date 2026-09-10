@@ -24,10 +24,7 @@ import {
   TableRow,
   ScrollArea,
 } from '@proctira/ui/components';
-import {
-  fetchIUSCombinations,
-  type IUSCombination,
-} from '../api/data-warehouse-browser';
+import { fetchIUSCombinations, type IUSCombination } from '../api/data-warehouse-browser';
 
 interface IUSCombinationBrowserProps {
   /** Pre-filter by indicator IDs */
@@ -106,9 +103,7 @@ export default function IUSCombinationBrowser({
             ))}
           </div>
         ) : filteredCombinations.length === 0 ? (
-          <p className="text-muted-foreground text-center py-8">
-            No IUS combinations found.
-          </p>
+          <p className="text-muted-foreground text-center py-8">No IUS combinations found.</p>
         ) : (
           <ScrollArea className="h-[400px]">
             <Table>
@@ -152,7 +147,8 @@ export default function IUSCombinationBrowser({
         )}
 
         <p className="text-xs text-muted-foreground mt-3">
-          {filteredCombinations.length} combination{filteredCombinations.length !== 1 ? 's' : ''} found
+          {filteredCombinations.length} combination{filteredCombinations.length !== 1 ? 's' : ''}{' '}
+          found
         </p>
       </CardContent>
     </Card>

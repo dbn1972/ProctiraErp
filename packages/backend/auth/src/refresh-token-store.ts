@@ -15,9 +15,7 @@ import type { RefreshTokenStore } from './token-service.js';
 export class PrismaRefreshTokenStore implements RefreshTokenStore {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(
-    input: Omit<RefreshToken, 'id' | 'createdAt'>,
-  ): Promise<RefreshToken> {
+  async create(input: Omit<RefreshToken, 'id' | 'createdAt'>): Promise<RefreshToken> {
     const record = await this.prisma.refreshToken.create({
       data: {
         token: input.token,
@@ -45,11 +43,7 @@ export class PrismaRefreshTokenStore implements RefreshTokenStore {
     return this.mapToRefreshToken(record);
   }
 
-  async revoke(
-    token: string,
-    reason: string,
-    replacedByToken?: string,
-  ): Promise<void> {
+  async revoke(token: string, reason: string, replacedByToken?: string): Promise<void> {
     await this.prisma.refreshToken.update({
       where: { token },
       data: {
@@ -75,11 +69,7 @@ export class PrismaRefreshTokenStore implements RefreshTokenStore {
     });
   }
 
-  async revokeAllForUser(
-    userId: string,
-    tenantId: string,
-    reason: string,
-  ): Promise<void> {
+  async revokeAllForUser(userId: string, tenantId: string, reason: string): Promise<void> {
     await this.prisma.refreshToken.updateMany({
       where: {
         userId,

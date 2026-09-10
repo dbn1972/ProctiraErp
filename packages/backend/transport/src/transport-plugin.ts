@@ -9,9 +9,10 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { TransportFeesPort } from './fees-port.js';
+import { registerTransportRoutes } from './routes.js';
 import type { TransportRepository } from './transport-repository.js';
 import { TransportService } from './transport-service.js';
-import { registerTransportRoutes } from './routes.js';
 
 /**
  * Options for the transport plugin.
@@ -21,6 +22,8 @@ export interface TransportPluginOptions {
   repository: TransportRepository;
   /** Route prefix for transport (default: '/transport') */
   prefix?: string;
+  /** Optional G-903 fees port (injected by api-gateway). */
+  feesService?: TransportFeesPort;
 }
 
 // Extend Fastify types
@@ -34,14 +37,11 @@ declare module 'fastify' {
  * Fastify plugin that registers the transport service and routes.
  */
 export const transportPlugin = fp(
-  async function transportPluginImpl(
-    fastify: FastifyInstance,
-    options: TransportPluginOptions,
-  ) {
-    const { repository, prefix = '/transport' } = options;
+  async function transportPluginImpl(fastify: FastifyInstance, options: TransportPluginOptions) {
+    const { repository, prefix = '/transport', feesService } = options;
 
     // Create transport service instance
-    const transportService = new TransportService(repository);
+    const transportService = new TransportService(repository, undefined, feesService);
 
     // Decorate fastify with the transport service
     fastify.decorate('transportService', transportService);
@@ -54,7 +54,7 @@ export const transportPlugin = fp(
   },
   {
     name: '@proctira/backend-transport',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

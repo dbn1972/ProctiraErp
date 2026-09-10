@@ -20,9 +20,7 @@ export class ProviderRegistry {
    */
   register(provider: ExternalAuthProvider): void {
     if (this.providers.has(provider.providerId)) {
-      throw new Error(
-        `Provider with ID "${provider.providerId}" is already registered`,
-      );
+      throw new Error(`Provider with ID "${provider.providerId}" is already registered`);
     }
     this.providers.set(provider.providerId, provider);
   }

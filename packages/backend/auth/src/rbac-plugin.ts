@@ -88,10 +88,7 @@ function defaultExtractResourceContext(request: FastifyRequest): ResourceContext
  * - `rbacAreaResolver` — the area hierarchy resolver
  */
 export const rbacPlugin = fp(
-  async function rbacPluginImpl(
-    fastify: FastifyInstance,
-    options: RbacPluginOptions,
-  ) {
+  async function rbacPluginImpl(fastify: FastifyInstance, options: RbacPluginOptions) {
     const { registry, areaResolver, extractResourceContext } = options;
 
     // Decorate with registry and resolver for direct access
@@ -132,7 +129,8 @@ export const rbacPlugin = fp(
           };
 
           // Extract resource context
-          const contextExtractor = extractContext ?? extractResourceContext ?? defaultExtractResourceContext;
+          const contextExtractor =
+            extractContext ?? extractResourceContext ?? defaultExtractResourceContext;
           const resourceContext = contextExtractor(request);
 
           // Evaluate permission
@@ -160,7 +158,7 @@ export const rbacPlugin = fp(
   },
   {
     name: '@proctira/rbac',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: ['@proctira/backend-auth'],
   },
 );

@@ -193,9 +193,7 @@ export interface MarketingFooterProps {
   year?: number;
 }
 
-export function MarketingFooter({
-  year = new Date().getFullYear(),
-}: MarketingFooterProps = {}) {
+export function MarketingFooter({ year = new Date().getFullYear() }: MarketingFooterProps = {}) {
   const t = useTranslations('marketing.footer');
   const tFooterLabel = useTranslations('marketing.footer');
   const { name, logoUrl } = useBrand();
@@ -229,9 +227,7 @@ export function MarketingFooter({
                 className="h-8 w-auto"
                 data-testid="marketing-footer-brand-logo"
               />
-              <span className="text-lg font-semibold tracking-tight">
-                {name}
-              </span>
+              <span className="text-lg font-semibold tracking-tight">{name}</span>
             </Link>
           </div>
 
@@ -244,11 +240,7 @@ export function MarketingFooter({
             className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:col-span-9 lg:grid-cols-4 xl:grid-cols-6"
           >
             {FOOTER_COLUMNS.map((column) => (
-              <FooterColumnView
-                key={column.key}
-                column={column}
-                t={t}
-              />
+              <FooterColumnView key={column.key} column={column} t={t} />
             ))}
           </nav>
         </div>
@@ -262,14 +254,8 @@ export function MarketingFooter({
             {t('copyright', { year, brand: name })}
           </p>
 
-          <div
-            className="flex items-center gap-3"
-            data-testid="marketing-footer-language-region"
-          >
-            <span
-              id="marketing-footer-language-label"
-              className="text-sm font-medium"
-            >
+          <div className="flex items-center gap-3" data-testid="marketing-footer-language-region">
+            <span id="marketing-footer-language-label" className="text-sm font-medium">
               {t('language.title')}
             </span>
             <LanguageSelector

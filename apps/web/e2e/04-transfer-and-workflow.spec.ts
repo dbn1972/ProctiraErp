@@ -25,7 +25,10 @@ test.describe('Critical journey: transfer request → workflow approval → stat
     expect(studentName.length).toBeGreaterThan(0);
 
     // 2. Open transfer dialog
-    await page.getByRole('button', { name: /request transfer|transfer/i }).first().click();
+    await page
+      .getByRole('button', { name: /request transfer|transfer/i })
+      .first()
+      .click();
 
     // Destination institution
     await page.getByLabel(/destination|new institution|institution/i).click();
@@ -53,7 +56,10 @@ test.describe('Critical journey: transfer request → workflow approval → stat
 
     // 4. Verify enrollment status on student profile
     await page.goto('/students');
-    await page.getByRole('link', { name: new RegExp(studentName, 'i') }).first().click();
+    await page
+      .getByRole('link', { name: new RegExp(studentName, 'i') })
+      .first()
+      .click();
     await expect(page.getByText(/transferred/i)).toBeVisible({ timeout: 15_000 });
   });
 });

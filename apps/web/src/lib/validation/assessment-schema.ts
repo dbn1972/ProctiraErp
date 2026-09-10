@@ -10,27 +10,16 @@ import { z } from 'zod';
 
 const uuid = z.string().uuid('Must be a valid UUID');
 
-export const gradingSchemeTypeSchema = z.enum([
-  'numeric',
-  'letter',
-  'competency',
-]);
+export const gradingSchemeTypeSchema = z.enum(['numeric', 'letter', 'competency']);
 
 export type GradingSchemeTypeValue = z.infer<typeof gradingSchemeTypeSchema>;
 
 export const gradeThresholdSchema = z
   .object({
-    grade: z
-      .string()
-      .min(1, 'Grade label is required')
-      .max(10, 'Grade label is too long'),
+    grade: z.string().min(1, 'Grade label is required').max(10, 'Grade label is too long'),
     minScore: z.number({ message: 'Min score is required' }),
     maxScore: z.number({ message: 'Max score is required' }),
-    descriptor: z
-      .string()
-      .max(500, 'Descriptor is too long')
-      .optional()
-      .or(z.literal('')),
+    descriptor: z.string().max(500, 'Descriptor is too long').optional().or(z.literal('')),
   })
   .refine((d) => d.maxScore >= d.minScore, {
     message: 'Max score must be ≥ min score',
@@ -39,40 +28,26 @@ export const gradeThresholdSchema = z
 
 export const gradingSchemeFormSchema = z
   .object({
-    name: z
-      .string()
-      .min(1, 'Name is required')
-      .max(255, 'Name is too long'),
+    name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
     type: gradingSchemeTypeSchema,
     minValue: z.number({ message: 'Min value is required' }),
     maxValue: z.number({ message: 'Max value is required' }),
-    thresholds: z
-      .array(gradeThresholdSchema)
-      .min(1, 'At least one threshold is required'),
+    thresholds: z.array(gradeThresholdSchema).min(1, 'At least one threshold is required'),
   })
   .refine((d) => d.maxValue > d.minValue, {
     message: 'Max value must be greater than min value',
     path: ['maxValue'],
   })
-  .refine(
-    (d) =>
-      d.thresholds.every(
-        (t) => t.minScore >= d.minValue && t.maxScore <= d.maxValue,
-      ),
-    {
-      message: 'All thresholds must fall within the scheme range',
-      path: ['thresholds'],
-    },
-  );
+  .refine((d) => d.thresholds.every((t) => t.minScore >= d.minValue && t.maxScore <= d.maxValue), {
+    message: 'All thresholds must fall within the scheme range',
+    path: ['thresholds'],
+  });
 
 export type GradingSchemeFormValues = z.infer<typeof gradingSchemeFormSchema>;
 
 export const assessmentItemEntrySchema = z
   .object({
-    name: z
-      .string()
-      .min(1, 'Name is required')
-      .max(255, 'Name is too long'),
+    name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
     weight: z
       .number({ message: 'Weight is required' })
       .gt(0, 'Weight must be greater than 0')
@@ -108,6 +83,4 @@ export const assessmentItemsFormSchema = z
     },
   );
 
-export type AssessmentItemsFormValues = z.infer<
-  typeof assessmentItemsFormSchema
->;
+export type AssessmentItemsFormValues = z.infer<typeof assessmentItemsFormSchema>;

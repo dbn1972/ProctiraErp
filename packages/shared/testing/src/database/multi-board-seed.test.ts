@@ -31,9 +31,7 @@ describe('seedMultiBoardSchools — enterprise certification profile', () => {
       enrollmentCount: 3000,
     });
 
-    expect(result.boards.map((b) => b.code).sort()).toEqual(
-      ['CBSE', 'ICSE', 'MH-STATE'].sort(),
-    );
+    expect(result.boards.map((b) => b.code).sort()).toEqual(['CBSE', 'ICSE', 'MH-STATE'].sort());
 
     for (const school of result.schools) {
       expect(school.students).toHaveLength(500);

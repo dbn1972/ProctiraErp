@@ -2,11 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 
-import {
-  API_KEY_SCOPES,
-  validateApiKeyRequest,
-  type ApiKeyScope,
-} from '@/lib/api-key-validation';
+import { API_KEY_SCOPES, validateApiKeyRequest, type ApiKeyScope } from '@/lib/api-key-validation';
 
 /**
  * Client-only API key request demo.

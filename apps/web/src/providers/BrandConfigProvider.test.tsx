@@ -12,14 +12,7 @@
  *   • Backend `BrandingConfigSchema` payload shape coercion
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 
@@ -264,9 +257,9 @@ describe('BrandConfigProvider — fallback when API fails (Requirement 43.4)', (
   });
 
   it('default fetcher returns DEFAULT_BRAND when global fetch returns non-ok', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('upstream broken', { status: 503 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('upstream broken', { status: 503 }));
 
     const { result } = renderHook(() => useBrand(), {
       wrapper: ({ children }) => <BrandConfigProvider>{children}</BrandConfigProvider>,
@@ -338,21 +331,17 @@ function injectSsrThemeStyle(brand: Brand): HTMLStyleElement {
 }
 
 function removeSsrThemeStyles(): void {
-  document
-    .querySelectorAll('style[data-tenant-theme]')
-    .forEach((el) => el.remove());
+  document.querySelectorAll('style[data-tenant-theme]').forEach((el) => el.remove());
 }
 
 describe('parseTenantCssTokens — SSR token parser (Task 58.1)', () => {
   it('returns each --tenant-* declaration keyed by suffix', () => {
     const css =
-      ':root{--tenant-name:\'EduZo\';--tenant-primary:hsl(280,70%,45%);--tenant-login-bg:linear-gradient(135deg,hsl(280,70%,30%),hsl(280,70%,50%));}';
+      ":root{--tenant-name:'EduZo';--tenant-primary:hsl(280,70%,45%);--tenant-login-bg:linear-gradient(135deg,hsl(280,70%,30%),hsl(280,70%,50%));}";
     const tokens = parseTenantCssTokens(css);
     expect(tokens['name']).toBe("'EduZo'");
     expect(tokens['primary']).toBe('hsl(280,70%,45%)');
-    expect(tokens['login-bg']).toBe(
-      'linear-gradient(135deg,hsl(280,70%,30%),hsl(280,70%,50%))',
-    );
+    expect(tokens['login-bg']).toBe('linear-gradient(135deg,hsl(280,70%,30%),hsl(280,70%,50%))');
   });
 
   it('returns an empty object when no --tenant-* declarations exist', () => {
@@ -361,8 +350,7 @@ describe('parseTenantCssTokens — SSR token parser (Task 58.1)', () => {
   });
 
   it('tolerates declarations split across multiple selectors / rules', () => {
-    const css =
-      ':root{--tenant-name:\'EduZo\';}html{--tenant-primary:#003366;}';
+    const css = ":root{--tenant-name:'EduZo';}html{--tenant-primary:#003366;}";
     const tokens = parseTenantCssTokens(css);
     expect(tokens['name']).toBe("'EduZo'");
     expect(tokens['primary']).toBe('#003366');

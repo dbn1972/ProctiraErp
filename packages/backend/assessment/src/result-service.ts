@@ -13,11 +13,7 @@
  * - 8.5: Reject out-of-range scores with error indicating valid range
  * - 8.8: Bulk entry up to 5000 rows with row-level validation errors
  */
-import {
-  BusinessRuleError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 import type { FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -71,9 +67,7 @@ export class ResultService {
     // Validate assessment item exists
     const item = await this.assessmentItemRepo.findById(input.assessmentItemId, tenantId);
     if (!item) {
-      throw new NotFoundError(
-        `Assessment item with id '${input.assessmentItemId}' not found`,
-      );
+      throw new NotFoundError(`Assessment item with id '${input.assessmentItemId}' not found`);
     }
 
     // Validate score is within the item's score range
@@ -222,11 +216,12 @@ export class ResultService {
     }
 
     // Get the grading scheme from the first item (all items share the same scheme)
-    const gradingScheme = await this.gradingSchemeRepo.findById(items[0]!.gradingSchemeId, tenantId);
+    const gradingScheme = await this.gradingSchemeRepo.findById(
+      items[0]!.gradingSchemeId,
+      tenantId,
+    );
     if (!gradingScheme) {
-      throw new NotFoundError(
-        `Grading scheme with id '${items[0]!.gradingSchemeId}' not found`,
-      );
+      throw new NotFoundError(`Grading scheme with id '${items[0]!.gradingSchemeId}' not found`);
     }
 
     // Get student's results for this subject+period
@@ -365,7 +360,12 @@ export class ResultService {
       if (!row.assessmentItemId || typeof row.assessmentItemId !== 'string') {
         rowErrors.push('assessmentItemId is required and must be a string');
       }
-      if (row.score === undefined || row.score === null || typeof row.score !== 'number' || isNaN(row.score)) {
+      if (
+        row.score === undefined ||
+        row.score === null ||
+        typeof row.score !== 'number' ||
+        isNaN(row.score)
+      ) {
         rowErrors.push('score is required and must be a number');
       }
 

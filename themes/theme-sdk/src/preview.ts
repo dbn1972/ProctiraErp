@@ -126,7 +126,9 @@ export function generateCssVariables(tokens: ThemeTokens, prefix = 'proctira'): 
   lines.push(`  --${prefix}-spacing-unit: ${tokens.spacing.unit}px;`);
   if (tokens.spacing.scale) {
     for (let i = 0; i < tokens.spacing.scale.length; i++) {
-      lines.push(`  --${prefix}-spacing-${i}: ${tokens.spacing.scale[i]! * tokens.spacing.unit}px;`);
+      lines.push(
+        `  --${prefix}-spacing-${i}: ${tokens.spacing.scale[i]! * tokens.spacing.unit}px;`,
+      );
     }
   }
 
@@ -209,21 +211,18 @@ export function generateThemePreview(
   mode: 'light' | 'dark' = 'light',
 ): ThemePreview {
   const hasDarkMode = !!definition.darkTokens;
-  const tokens = mode === 'dark' && definition.darkTokens
-    ? definition.darkTokens
-    : definition.tokens;
+  const tokens =
+    mode === 'dark' && definition.darkTokens ? definition.darkTokens : definition.tokens;
 
   // Generate CSS variables
   const cssVariables = generateCssVariables(tokens);
 
   // Generate color swatches
-  const colorSwatches: ColorSwatch[] = Object.entries(tokens.colors).map(
-    ([name, value]) => ({
-      name,
-      value,
-      required: REQUIRED_TOKENS.has(name),
-    }),
-  );
+  const colorSwatches: ColorSwatch[] = Object.entries(tokens.colors).map(([name, value]) => ({
+    name,
+    value,
+    required: REQUIRED_TOKENS.has(name),
+  }));
 
   // Generate typography samples
   const typographySamples = generateTypographySamples(tokens);

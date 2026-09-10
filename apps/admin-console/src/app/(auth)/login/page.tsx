@@ -16,13 +16,11 @@ export default function LoginPage() {
           <span className="text-xl font-semibold tracking-tight">ProctiraERP</span>
         </div>
         <div className="space-y-3">
-          <h2 className="text-3xl font-semibold tracking-tight">
-            Platform Admin Console
-          </h2>
+          <h2 className="text-3xl font-semibold tracking-tight">Platform Admin Console</h2>
           <p className="max-w-md text-sm text-white/70">
-            Internal-only operations: tenant lifecycle, plan and entitlement
-            management, plugin marketplace review, theme approvals, break-glass
-            access controls, and system health monitoring.
+            Internal-only operations: tenant lifecycle, plan and entitlement management, plugin
+            marketplace review, theme approvals, break-glass access controls, and system health
+            monitoring.
           </p>
         </div>
         <div className="text-xs text-white/60">

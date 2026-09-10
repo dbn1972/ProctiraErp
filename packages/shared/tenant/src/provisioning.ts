@@ -6,8 +6,11 @@
  * - Seeding default area hierarchy (root node)
  * - Creating the initial admin user with full permissions
  *
- * Provisioning operations bypass RLS by using a direct database connection
- * (superuser or service role) since the tenant doesn't exist yet when provisioning starts.
+ * `tenants` is FORCE-RLS (db/sql/021 + Prisma 20260908_wave7_rls_hardening), so
+ * even the owning app role cannot insert a tenant row without control-plane
+ * scope. Provisioning therefore binds `app.platform_admin = '1'` transaction-
+ * locally for the tenant insert, then binds the freshly minted tenant id
+ * (`app.tenant_id` / `app.current_tenant_id`) before seeding tenant-scoped rows.
  */
 
 import { createLogger } from '@proctira/logging';
@@ -96,15 +99,20 @@ export async function provisionTenant(
   logger.info({ slug: input.slug, name: input.name }, 'Starting tenant provisioning');
 
   const result = await db.$transaction(async (tx) => {
+    // Control-plane scope for the tenants insert (transaction-local; is_local=true).
+    await tx.$executeRawUnsafe(`SELECT set_config('app.platform_admin', '1', true)`);
+
     // Step 1: Create the Tenant record
     const tenantConfig = JSON.stringify(input.config ?? {});
-    const tenantRows = await tx.$queryRawUnsafe<Array<{
-      id: string;
-      name: string;
-      slug: string;
-      status: string;
-      created_at: Date;
-    }>>(
+    const tenantRows = await tx.$queryRawUnsafe<
+      Array<{
+        id: string;
+        name: string;
+        slug: string;
+        status: string;
+        created_at: Date;
+      }>
+    >(
       `INSERT INTO tenants (name, slug, config, status, created_at, updated_at)
        VALUES ($1, $2, $3::jsonb, 'active', NOW(), NOW())
        RETURNING id, name, slug, status, created_at`,
@@ -120,12 +128,18 @@ export async function provisionTenant(
 
     logger.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant record created');
 
+    // Bind the new tenant so RLS WITH CHECK admits the seeded rows below.
+    await tx.$executeRawUnsafe(`SELECT set_config('app.tenant_id', $1, true)`, tenant.id);
+    await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id', $1, true)`, tenant.id);
+
     // Step 2: Seed default root area hierarchy node
-    const areaRows = await tx.$queryRawUnsafe<Array<{
-      id: string;
-      name: string;
-      code: string;
-    }>>(
+    const areaRows = await tx.$queryRawUnsafe<
+      Array<{
+        id: string;
+        name: string;
+        code: string;
+      }>
+    >(
       `INSERT INTO geographic_areas (tenant_id, name, code, level, parent_id, path, lft, rgt, created_at, updated_at)
        VALUES ($1, $2, $3, 0, NULL, '/', 1, 2, NOW(), NOW())
        RETURNING id, name, code`,
@@ -144,12 +158,14 @@ export async function provisionTenant(
     // Step 3: Create admin user
     // Note: The users table may not exist yet in the current schema iteration.
     // We create a minimal admin record that the auth service can use.
-    const adminRows = await tx.$queryRawUnsafe<Array<{
-      id: string;
-      email: string;
-      first_name: string;
-      last_name: string;
-    }>>(
+    const adminRows = await tx.$queryRawUnsafe<
+      Array<{
+        id: string;
+        email: string;
+        first_name: string;
+        last_name: string;
+      }>
+    >(
       `INSERT INTO users (tenant_id, email, first_name, last_name, password_hash, role, status, created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, 'admin', 'active', NOW(), NOW())
        RETURNING id, email, first_name, last_name`,
@@ -165,10 +181,7 @@ export async function provisionTenant(
       throw new Error('Failed to create admin user');
     }
 
-    logger.info(
-      { tenantId: tenant.id, adminEmail: adminUser.email },
-      'Admin user created',
-    );
+    logger.info({ tenantId: tenant.id, adminEmail: adminUser.email }, 'Admin user created');
 
     return {
       tenant: {

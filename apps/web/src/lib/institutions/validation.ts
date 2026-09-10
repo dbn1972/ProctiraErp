@@ -6,14 +6,10 @@
  */
 import { z } from 'zod';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const uuid = (label: string) =>
-  z
-    .string()
-    .min(1, `${label} is required`)
-    .regex(UUID_PATTERN, `${label} must be a valid UUID`);
+  z.string().min(1, `${label} is required`).regex(UUID_PATTERN, `${label} must be a valid UUID`);
 
 const optionalString = (max: number) =>
   z
@@ -36,18 +32,12 @@ const optionalCoordinate = (min: number, max: number, label: string) =>
     })
     .refine(
       (value) => value === undefined || (!Number.isNaN(value) && value >= min && value <= max),
-      `${label} must be between ${min} and ${max}`
+      `${label} must be between ${min} and ${max}`,
     );
 
 export const institutionFormSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(255, 'Name must be 255 characters or fewer'),
-  code: z
-    .string()
-    .min(1, 'Code is required')
-    .max(50, 'Code must be 50 characters or fewer'),
+  name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or fewer'),
+  code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
   areaId: uuid('Area'),
   typeId: uuid('Type'),
   sectorId: uuid('Sector'),
@@ -68,28 +58,82 @@ export const institutionFormSchema = z.object({
 export type InstitutionFormValues = z.input<typeof institutionFormSchema>;
 export type InstitutionFormParsed = z.output<typeof institutionFormSchema>;
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 export const academicPeriodFormSchema = z
   .object({
-    name: z
-      .string()
-      .min(1, 'Name is required')
-      .max(100, 'Name must be 100 characters or fewer'),
-    code: z
-      .string()
-      .min(1, 'Code is required')
-      .max(50, 'Code must be 50 characters or fewer'),
-    startDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
-    endDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
+    name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+    code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
+    startDate: z.string().regex(ISO_DATE, 'Start date must be in YYYY-MM-DD format'),
+    endDate: z.string().regex(ISO_DATE, 'End date must be in YYYY-MM-DD format'),
     status: z.enum(['active', 'inactive', 'archived']).optional(),
+    // G-905 hierarchy — a year has no parent; terms/semesters/quarters need one.
+    kind: z.enum(['year', 'semester', 'term', 'quarter']).optional(),
+    // '' = no parent (kept untransformed so react-hook-form input/output types match).
+    parentId: z.union([z.literal(''), z.string().uuid('Select an academic year')]).optional(),
+  })
+  .refine((data) => data.endDate >= data.startDate, {
+    message: 'End date must be on or after start date',
+    path: ['endDate'],
+  })
+  .refine((data) => (data.kind ?? 'year') === 'year' || Boolean(data.parentId), {
+    message: 'Sub-periods must belong to an academic year',
+    path: ['parentId'],
+  });
+
+export type AcademicPeriodFormValues = z.input<typeof academicPeriodFormSchema>;
+export type AcademicPeriodFormParsed = z.output<typeof academicPeriodFormSchema>;
+
+// G-905 — calendar events and year-end rollover
+export const calendarEventFormSchema = z
+  .object({
+    kind: z.enum(['holiday', 'break', 'grading_window', 'exam_window', 'event']),
+    name: z.string().min(1, 'Name is required').max(200, 'Name must be 200 characters or fewer'),
+    startDate: z.string().regex(ISO_DATE, 'Start date must be in YYYY-MM-DD format'),
+    endDate: z.string().regex(ISO_DATE, 'End date must be in YYYY-MM-DD format'),
+    institutionId: z
+      .union([z.literal(''), z.string().uuid('Select an institution')])
+      .optional()
+      .transform((v) => (v === '' || v === undefined ? undefined : v)),
+    notes: z
+      .string()
+      .max(2000, 'Notes must be 2000 characters or fewer')
+      .optional()
+      .transform((v) => (v?.trim() ? v.trim() : undefined)),
   })
   .refine((data) => data.endDate >= data.startDate, {
     message: 'End date must be on or after start date',
     path: ['endDate'],
   });
+export type CalendarEventFormValues = z.input<typeof calendarEventFormSchema>;
 
-export type AcademicPeriodFormValues = z.input<typeof academicPeriodFormSchema>;
-export type AcademicPeriodFormParsed = z.output<typeof academicPeriodFormSchema>;
+export const rolloverFormSchema = z.object({
+  targetPeriodId: z.string().uuid('Select the target academic year'),
+  institutionId: z
+    .union([z.literal(''), z.string().uuid('Select an institution')])
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : v)),
+  promoteEnrollments: z.boolean().optional(),
+  dryRun: z.boolean().optional(),
+});
+export type RolloverFormValues = z.input<typeof rolloverFormSchema>;
+
+// G-901 — grades and class sections (institution academics)
+export const gradeFormSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+  code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
+  order: z.coerce.number().int('Order must be a whole number').min(0).max(32767),
+});
+export type GradeFormValues = z.input<typeof gradeFormSchema>;
+
+export const classSectionFormSchema = z.object({
+  institutionId: z.string().uuid('Institution is required'),
+  gradeId: z.string().uuid('Grade is required'),
+  academicPeriodId: z.string().uuid('Academic period is required'),
+  name: z.string().min(1, 'Section name is required').max(100),
+  capacity: z
+    .union([z.literal(''), z.coerce.number().int().min(1).max(32767)])
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : v)),
+});
+export type ClassSectionFormValues = z.input<typeof classSectionFormSchema>;

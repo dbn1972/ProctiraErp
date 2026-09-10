@@ -10,6 +10,10 @@ import { revalidatePath } from 'next/cache';
 
 import {
   calculateAttendancePercentage,
+  createLeaveRequest,
+  createRegularisation,
+  decideLeaveRequest,
+  decideRegularisation,
   recordBulkAttendance,
   type AttendancePercentageResult,
   type BulkAttendanceInput,
@@ -31,9 +35,7 @@ export interface ActionState<T = unknown> {
   data?: T;
 }
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -41,10 +43,7 @@ function zodFlatten(
   return out;
 }
 
-function toErrorState<T = unknown>(
-  error: unknown,
-  fallback: string,
-): ActionState<T> {
+function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
   if (error instanceof GatewayError) {
     return { status: 'error', message: error.message || fallback };
   }
@@ -112,9 +111,7 @@ export async function getAttendanceReportAction(
       scope: parsed.data.scope,
       ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
       ...(parsed.data.classId ? { classId: parsed.data.classId } : {}),
-      ...(parsed.data.institutionId
-        ? { institutionId: parsed.data.institutionId }
-        : {}),
+      ...(parsed.data.institutionId ? { institutionId: parsed.data.institutionId } : {}),
       startDate: parsed.data.startDate,
       endDate: parsed.data.endDate,
     });
@@ -130,5 +127,71 @@ export async function getAttendanceReportAction(
       error,
       'Failed to calculate attendance percentage',
     );
+  }
+}
+
+export async function createRegularisationAction(input: {
+  attendanceId: string;
+  studentId: string;
+  institutionId: string;
+  classId: string;
+  attendanceDate: string;
+  fromStatus: string;
+  toStatus: StudentAttendanceStatus;
+  reason?: string;
+}): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await createRegularisation(input);
+    revalidatePath('/attendance/ops');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to request regularisation');
+  }
+}
+
+export async function decideRegularisationAction(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await decideRegularisation(id, decision);
+    revalidatePath('/attendance/ops');
+    revalidatePath('/attendance');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to decide regularisation');
+  }
+}
+
+export async function createLeaveRequestAction(input: {
+  studentId: string;
+  institutionId: string;
+  classId: string;
+  academicPeriodId: string;
+  fromDate: string;
+  toDate: string;
+  reason?: string;
+  attachmentUrl?: string;
+}): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await createLeaveRequest(input);
+    revalidatePath('/attendance/ops');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to request leave');
+  }
+}
+
+export async function decideLeaveAction(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await decideLeaveRequest(id, decision);
+    revalidatePath('/attendance/ops');
+    revalidatePath('/attendance');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to decide leave');
   }
 }

@@ -17,7 +17,12 @@ export class InMemoryGISRepository implements GISRepository {
     return { ...layer, features: [...layer.features] };
   }
 
-  async updateLayer(id: string, warehouseId: string, tenantId: string, updates: Partial<GISLayer>): Promise<GISLayer> {
+  async updateLayer(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<GISLayer>,
+  ): Promise<GISLayer> {
     const existing = this.layers.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
       throw new Error(`GIS layer not found: ${id}`);
@@ -43,7 +48,11 @@ export class InMemoryGISRepository implements GISRepository {
     return { ...layer, features: [...layer.features] };
   }
 
-  async listLayers(warehouseId: string, tenantId: string, options: GISLayerListOptions): Promise<GISListResult> {
+  async listLayers(
+    warehouseId: string,
+    tenantId: string,
+    options: GISLayerListOptions,
+  ): Promise<GISListResult> {
     let results = Array.from(this.layers.values()).filter(
       (l) => l.warehouseId === warehouseId && l.tenantId === tenantId,
     );
@@ -62,10 +71,15 @@ export class InMemoryGISRepository implements GISRepository {
     return { data: data.map((l) => ({ ...l, features: [...l.features] })), total };
   }
 
-  async findLayersByAreaHierarchy(warehouseId: string, tenantId: string, areaId: string): Promise<GISLayer[]> {
+  async findLayersByAreaHierarchy(
+    warehouseId: string,
+    tenantId: string,
+    areaId: string,
+  ): Promise<GISLayer[]> {
     // Get all areas to build hierarchy
-    const allAreas = Array.from(this.layers.values())
-      .filter((l) => l.warehouseId === warehouseId && l.tenantId === tenantId);
+    const allAreas = Array.from(this.layers.values()).filter(
+      (l) => l.warehouseId === warehouseId && l.tenantId === tenantId,
+    );
 
     // If we have a warehouse repository, use it to find descendant areas
     if (this.warehouseRepository) {
@@ -83,7 +97,11 @@ export class InMemoryGISRepository implements GISRepository {
       .map((l) => ({ ...l, features: [...l.features] }));
   }
 
-  private async getDescendantAreaIds(warehouseId: string, tenantId: string, parentAreaId: string): Promise<Set<string>> {
+  private async getDescendantAreaIds(
+    warehouseId: string,
+    tenantId: string,
+    parentAreaId: string,
+  ): Promise<Set<string>> {
     const result = new Set<string>();
     if (!this.warehouseRepository) return result;
 

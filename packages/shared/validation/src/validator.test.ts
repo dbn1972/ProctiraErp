@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import { describe, it, expect } from 'vitest';
 
-import { validate } from './validator';
+import { validate, validateQuery } from './validator';
 
 describe('validate', () => {
   describe('successful validation', () => {
@@ -179,9 +179,11 @@ describe('validate', () => {
 
     it('handles array item field paths', () => {
       const schema = Type.Object({
-        items: Type.Array(Type.Object({
-          name: Type.String({ minLength: 1 }),
-        })),
+        items: Type.Array(
+          Type.Object({
+            name: Type.String({ minLength: 1 }),
+          }),
+        ),
       });
 
       const result = validate(schema, { items: [{ name: '' }] });
@@ -244,5 +246,67 @@ describe('validate', () => {
         expect(result.errors[0]!.message.length).toBeGreaterThan(5);
       }
     });
+  });
+
+  describe('Fastify 5 null-prototype inputs (Wave 8 regression)', () => {
+    it('validates request.query / request.params style objects without throwing', () => {
+      const schema = Type.Object({
+        page: Type.Optional(Type.Integer({ default: 1 })),
+        tags: Type.Optional(Type.Array(Type.Object({ id: Type.String() }))),
+      });
+      const query = Object.create(null) as Record<string, unknown>;
+      query.page = 3;
+      const nested = Object.create(null) as Record<string, unknown>;
+      nested.id = 'a';
+      query.tags = [nested];
+
+      const result = validate(schema, query);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({ page: 3, tags: [{ id: 'a' }] });
+        expect(Object.getPrototypeOf(result.data)).toBe(Object.prototype);
+      }
+    });
+
+    it('validates objects inheriting from a custom prototype (find-my-way params)', () => {
+      const schema = Type.Object({ id: Type.String() });
+      const params = Object.create({ inherited: true }) as Record<string, unknown>;
+      params.id = 'abc';
+      const result = validate(schema, params);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data).toEqual({ id: 'abc' });
+    });
+
+    it('still applies defaults to an empty null-prototype object', () => {
+      const schema = Type.Object({ pageSize: Type.Optional(Type.Integer({ default: 20 })) });
+      const result = validate(schema, Object.create(null));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.pageSize).toBe(20);
+    });
+  });
+});
+
+describe('validateQuery — query-string coercion (Wave 8)', () => {
+  const Query = Type.Object({
+    pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+    includeClosed: Type.Optional(Type.Boolean()),
+    search: Type.Optional(Type.String()),
+  });
+
+  it('coerces numeric and boolean strings from a query string', () => {
+    const result = validateQuery(Query, { pageSize: '100', includeClosed: 'true', search: 'x' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({ pageSize: 100, includeClosed: true, search: 'x' });
+    }
+  });
+
+  it('still rejects out-of-range and non-numeric values after coercion', () => {
+    expect(validateQuery(Query, { pageSize: '500' }).success).toBe(false);
+    expect(validateQuery(Query, { pageSize: 'lots' }).success).toBe(false);
+  });
+
+  it('plain validate does not coerce JSON body strings into numbers', () => {
+    expect(validate(Query, { pageSize: '100' }).success).toBe(false);
   });
 });

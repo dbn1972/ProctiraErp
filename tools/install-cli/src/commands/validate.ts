@@ -356,14 +356,22 @@ function checkDiskSpace(minGb: number, diskPath: string): CheckResult {
         name: 'disk-space',
         status: 'pass',
         message: `${availableGb.toFixed(1)} GB available (minimum: ${minGb} GB)`,
-        details: { availableGb: Math.round(availableGb * 10) / 10, requiredGb: minGb, path: diskPath },
+        details: {
+          availableGb: Math.round(availableGb * 10) / 10,
+          requiredGb: minGb,
+          path: diskPath,
+        },
       };
     }
     return {
       name: 'disk-space',
       status: 'fail',
       message: `Only ${availableGb.toFixed(1)} GB available — minimum ${minGb} GB required`,
-      details: { availableGb: Math.round(availableGb * 10) / 10, requiredGb: minGb, path: diskPath },
+      details: {
+        availableGb: Math.round(availableGb * 10) / 10,
+        requiredGb: minGb,
+        path: diskPath,
+      },
     };
   } catch {
     // Fallback for platforms where statfsSync is unavailable
@@ -387,14 +395,22 @@ function checkMemory(minGb: number): CheckResult {
       name: 'memory',
       status: 'pass',
       message: `${totalGb.toFixed(1)} GB total RAM (minimum: ${minGb} GB), ${freeGb.toFixed(1)} GB free`,
-      details: { totalGb: Math.round(totalGb * 10) / 10, freeGb: Math.round(freeGb * 10) / 10, requiredGb: minGb },
+      details: {
+        totalGb: Math.round(totalGb * 10) / 10,
+        freeGb: Math.round(freeGb * 10) / 10,
+        requiredGb: minGb,
+      },
     };
   }
   return {
     name: 'memory',
     status: 'fail',
     message: `${totalGb.toFixed(1)} GB total RAM — minimum ${minGb} GB required`,
-    details: { totalGb: Math.round(totalGb * 10) / 10, freeGb: Math.round(freeGb * 10) / 10, requiredGb: minGb },
+    details: {
+      totalGb: Math.round(totalGb * 10) / 10,
+      freeGb: Math.round(freeGb * 10) / 10,
+      requiredGb: minGb,
+    },
   };
 }
 

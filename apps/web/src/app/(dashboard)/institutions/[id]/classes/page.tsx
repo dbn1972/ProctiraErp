@@ -7,7 +7,8 @@
  * in section customData. Sections are scoped to an academic period
  * (Requirement 5.5).
  */
-import { Download, Eye, MoreVertical, Pencil, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Eye } from 'lucide-react';
 
 import {
   Button,
@@ -21,20 +22,23 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { AddClassSectionDialog } from '@/components/institutions/academics-create-dialogs';
 import {
   ApiClientError,
+  listAcademicPeriods,
   listClassesByInstitution,
   listGrades,
 } from '@/lib/institutions/api';
-import type { ClassSection, Grade } from '@/lib/institutions/types';
+import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/types';
 
 interface ClassesPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 interface ClassesData {
   classes: ClassSection[];
   grades: Grade[];
+  periods: AcademicPeriod[];
   error: string | null;
 }
 
@@ -43,13 +47,13 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
   return typeof v === 'string' ? v : '';
 }
 
-export default async function InstitutionClassesPage({ params }: ClassesPageProps) {
+export default async function InstitutionClassesPage(props: ClassesPageProps) {
+  const params = await props.params;
   const data = await loadClasses(params.id);
   const gradeMap = new Map(data.grades.map((grade) => [grade.id, grade]));
 
   return (
     <div className="space-y-4">
-
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -61,14 +65,11 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export roster
-          </Button>
-          <Button size="sm" disabled>
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Add section
-          </Button>
+          <AddClassSectionDialog
+            institutionId={params.id}
+            grades={data.grades}
+            periods={data.periods}
+          />
         </div>
       </div>
 
@@ -98,7 +99,9 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
               <TableBody>
                 {data.classes.map((section) => {
                   const grade = gradeMap.get(section.gradeId);
-                  const cd = (section as unknown as { customData?: Record<string, unknown> }).customData ?? {};
+                  const cd =
+                    (section as unknown as { customData?: Record<string, unknown> }).customData ??
+                    {};
                   const teacher = readStr(cd, 'classTeacher');
                   const teacherRole = readStr(cd, 'classTeacherRole');
                   const room = readStr(cd, 'room');
@@ -133,14 +136,13 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
                       <TableCell className="text-sm text-muted-foreground">{room || '—'}</TableCell>
                       <TableCell className="text-end">
                         <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="View section">
-                            <Eye className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="Edit section">
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
-                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                          <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
+                            <Link
+                              href={`/attendance?institutionId=${params.id}&classId=${section.id}`}
+                              aria-label={`Open roster for ${chip}`}
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                            </Link>
                           </Button>
                         </div>
                       </TableCell>
@@ -158,15 +160,17 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
 
 async function loadClasses(institutionId: string): Promise<ClassesData> {
   try {
-    const [classes, grades] = await Promise.all([
+    const [classes, grades, periods] = await Promise.all([
       listClassesByInstitution(institutionId),
       listGrades().catch(() => [] as Grade[]),
+      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
     ]);
-    return { classes, grades, error: null };
+    return { classes, grades, periods, error: null };
   } catch (error) {
     return {
       classes: [],
       grades: [],
+      periods: [],
       error:
         error instanceof ApiClientError
           ? error.message

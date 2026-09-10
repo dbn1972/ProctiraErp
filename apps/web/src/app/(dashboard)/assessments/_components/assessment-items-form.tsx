@@ -27,10 +27,7 @@ import {
   type AssessmentItemsFormValues,
 } from '@/lib/validation/assessment-schema';
 
-import {
-  defineAssessmentItemsAction,
-  type ActionState,
-} from '../actions';
+import { defineAssessmentItemsAction, type ActionState } from '../actions';
 
 interface SchemeOption {
   id: string;
@@ -79,8 +76,7 @@ export function AssessmentItemsForm({
   defaultSchemeId = '',
   defaultItems = [],
 }: AssessmentItemsFormProps) {
-  const [serverState, setServerState] =
-    useState<ActionState<{ totalWeight: number }> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<{ totalWeight: number }> | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   const form = useForm<AssessmentItemsFormValues>({
@@ -113,10 +109,7 @@ export function AssessmentItemsForm({
   const watchedSubject = watch('subjectId');
   const watchedPeriod = watch('academicPeriodId');
 
-  const totalWeight = watchedItems.reduce(
-    (sum, item) => sum + (Number(item?.weight) || 0),
-    0,
-  );
+  const totalWeight = watchedItems.reduce((sum, item) => sum + (Number(item?.weight) || 0), 0);
   const weightDelta = totalWeight - 100;
   const weightOk = Math.abs(weightDelta) <= 0.01;
 
@@ -175,20 +168,15 @@ export function AssessmentItemsForm({
         >
           <Select
             value={watchedSubject || undefined}
-            onValueChange={(value) =>
-              setValue('subjectId', value, { shouldValidate: true })
-            }
+            onValueChange={(value) => setValue('subjectId', value, { shouldValidate: true })}
           >
             <SelectTrigger id="subjectId" aria-label="Subject">
               <SelectValue placeholder="Select subject" />
             </SelectTrigger>
             <SelectContent>
-              {watchedSubject &&
-                !subjects.some((s) => s.id === watchedSubject) && (
-                  <SelectItem value={watchedSubject}>
-                    Selected subject
-                  </SelectItem>
-                )}
+              {watchedSubject && !subjects.some((s) => s.id === watchedSubject) && (
+                <SelectItem value={watchedSubject}>Selected subject</SelectItem>
+              )}
               {subjects.length === 0 && !watchedSubject ? (
                 <SelectItem value={ZERO_UUID} disabled>
                   No subjects
@@ -213,20 +201,15 @@ export function AssessmentItemsForm({
         >
           <Select
             value={watchedPeriod || undefined}
-            onValueChange={(value) =>
-              setValue('academicPeriodId', value, { shouldValidate: true })
-            }
+            onValueChange={(value) => setValue('academicPeriodId', value, { shouldValidate: true })}
           >
             <SelectTrigger id="academicPeriodId" aria-label="Academic period">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
-              {watchedPeriod &&
-                !academicPeriods.some((p) => p.id === watchedPeriod) && (
-                  <SelectItem value={watchedPeriod}>
-                    Selected period
-                  </SelectItem>
-                )}
+              {watchedPeriod && !academicPeriods.some((p) => p.id === watchedPeriod) && (
+                <SelectItem value={watchedPeriod}>Selected period</SelectItem>
+              )}
               {academicPeriods.length === 0 && !watchedPeriod ? (
                 <SelectItem value={ZERO_UUID} disabled>
                   No academic periods
@@ -250,9 +233,7 @@ export function AssessmentItemsForm({
         >
           <Select
             value={watchedScheme || undefined}
-            onValueChange={(value) =>
-              setValue('gradingSchemeId', value, { shouldValidate: true })
-            }
+            onValueChange={(value) => setValue('gradingSchemeId', value, { shouldValidate: true })}
           >
             <SelectTrigger id="gradingSchemeId">
               <SelectValue placeholder="Select scheme" />
@@ -285,9 +266,7 @@ export function AssessmentItemsForm({
           <div className="flex items-center gap-3">
             <span
               className={`text-sm font-medium ${
-                weightOk
-                  ? 'text-emerald-700'
-                  : 'text-[hsl(var(--destructive))]'
+                weightOk ? 'text-emerald-700' : 'text-[hsl(var(--destructive))]'
               }`}
               role="status"
               aria-live="polite"
@@ -296,8 +275,7 @@ export function AssessmentItemsForm({
               {!weightOk && (
                 <>
                   {' '}
-                  (
-                  {weightDelta > 0 ? '+' : ''}
+                  ({weightDelta > 0 ? '+' : ''}
                   {weightDelta.toFixed(2)}%)
                 </>
               )}

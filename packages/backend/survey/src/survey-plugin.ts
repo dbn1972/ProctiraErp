@@ -48,10 +48,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the survey service and routes.
  */
 export const surveyPlugin = fp(
-  async function surveyPluginImpl(
-    fastify: FastifyInstance,
-    options: SurveyPluginOptions,
-  ) {
+  async function surveyPluginImpl(fastify: FastifyInstance, options: SurveyPluginOptions) {
     const {
       surveyRepository,
       distributionRepository,
@@ -81,7 +78,7 @@ export const surveyPlugin = fp(
   },
   {
     name: '@proctira/backend-survey',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

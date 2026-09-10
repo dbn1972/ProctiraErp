@@ -45,12 +45,16 @@ export const CreateTrainingProgramSchema = Type.Object({
   startDate: Type.String({ pattern: DATE_PATTERN, description: 'Program start date' }),
   endDate: Type.String({ pattern: DATE_PATTERN, description: 'Program end date' }),
   provider: Type.Optional(Type.String({ maxLength: 200, description: 'Training provider' })),
-  certificationName: Type.Optional(Type.String({ maxLength: 200, description: 'Certification awarded on completion' })),
-  certificationValidityDays: Type.Optional(Type.Number({
-    minimum: 1,
-    maximum: 36500,
-    description: 'Number of days the certification is valid after issuance',
-  })),
+  certificationName: Type.Optional(
+    Type.String({ maxLength: 200, description: 'Certification awarded on completion' }),
+  ),
+  certificationValidityDays: Type.Optional(
+    Type.Number({
+      minimum: 1,
+      maximum: 36500,
+      description: 'Number of days the certification is valid after issuance',
+    }),
+  ),
 });
 
 export type CreateTrainingProgramInput = Static<typeof CreateTrainingProgramSchema>;
@@ -106,9 +110,15 @@ export type RecordTrainingAttendanceInput = Static<typeof RecordTrainingAttendan
 export const IssueCertificationSchema = Type.Object({
   staffId: Type.String({ pattern: UUID_PATTERN, description: 'Staff member UUID' }),
   programId: Type.String({ pattern: UUID_PATTERN, description: 'Training program UUID' }),
-  certificationName: Type.String({ minLength: 1, maxLength: 200, description: 'Certification name' }),
+  certificationName: Type.String({
+    minLength: 1,
+    maxLength: 200,
+    description: 'Certification name',
+  }),
   issuedDate: Type.String({ pattern: DATE_PATTERN, description: 'Date certification was issued' }),
-  expiryDate: Type.Optional(Type.String({ pattern: DATE_PATTERN, description: 'Certification expiry date' })),
+  expiryDate: Type.Optional(
+    Type.String({ pattern: DATE_PATTERN, description: 'Certification expiry date' }),
+  ),
 });
 
 export type IssueCertificationInput = Static<typeof IssueCertificationSchema>;
@@ -157,12 +167,18 @@ export type TrainingProgramListQuery = Static<typeof TrainingProgramListQuerySch
 export const CertificationListQuerySchema = Type.Object({
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
-  staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' })),
-  status: Type.Optional(Type.String({
-    enum: ['ACTIVE', 'EXPIRED', 'REVOKED'],
-    description: 'Filter by certification status',
-  })),
-  programId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by program' })),
+  staffId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' }),
+  ),
+  status: Type.Optional(
+    Type.String({
+      enum: ['ACTIVE', 'EXPIRED', 'REVOKED'],
+      description: 'Filter by certification status',
+    }),
+  ),
+  programId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by program' }),
+  ),
 });
 
 export type CertificationListQuery = Static<typeof CertificationListQuerySchema>;

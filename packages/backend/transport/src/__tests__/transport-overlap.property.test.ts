@@ -73,9 +73,7 @@ describe('Transport Service - No Overlapping Student Assignments (Property)', ()
               routeId: route2.id,
               startDate: startDateStr,
             }),
-          ).rejects.toThrow(
-            'Student already has an active transport route assignment',
-          );
+          ).rejects.toThrow('Student already has an active transport route assignment');
         },
       ),
       { numRuns: 50 },

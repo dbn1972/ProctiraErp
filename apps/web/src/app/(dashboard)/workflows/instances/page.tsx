@@ -17,10 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import {
-  listWorkflowInstances,
-  type WorkflowInstance,
-} from '@/lib/api/workflows';
+import { listWorkflowInstances, type WorkflowInstance } from '@/lib/api/workflows';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,8 +44,8 @@ export default async function WorkflowInstancesPage() {
             Workflow instances
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every approval request currently moving through a workflow, district-wide
-            · {instances.length.toLocaleString()} run
+            Every approval request currently moving through a workflow, district-wide ·{' '}
+            {instances.length.toLocaleString()} run
             {instances.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -111,9 +108,7 @@ export default async function WorkflowInstancesPage() {
                       {inst.definitionName}
                     </TableCell>
                     <TableCell>
-                      <span className="text-muted-foreground">
-                        {inst.subjectType}/
-                      </span>
+                      <span className="text-muted-foreground">{inst.subjectType}/</span>
                       <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
                         {inst.subjectId}
                       </code>

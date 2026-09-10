@@ -4,6 +4,8 @@
  * POST   /audit                    - Record a single audit log entry
  * POST   /audit/batch              - Record multiple audit log entries
  * GET    /audit                    - Query audit logs with filters
+ * GET    /audit/dsar/:subjectId     - G-734 DSAR export for a data subject
+ * GET    /audit/chain/verify        - G-913 recompute the tenant hash chain
  * GET    /audit/:id                - Get a single audit log entry
  * GET    /audit/retention          - Get retention configuration
  * PUT    /audit/retention          - Set retention configuration
@@ -61,6 +63,9 @@ function formatAuditEntryResponse(entry: AuditLogEntry) {
     beforeValues: entry.beforeValues,
     afterValues: entry.afterValues,
     metadata: entry.metadata,
+    chainSeq: entry.chainSeq,
+    prevHash: entry.prevHash,
+    entryHash: entry.entryHash,
   };
 }
 
@@ -101,7 +106,7 @@ function getClientIp(request: FastifyRequest): string {
   }
   const realIp = request.headers['x-real-ip'];
   if (realIp) {
-    return Array.isArray(realIp) ? realIp[0] ?? request.ip : realIp;
+    return Array.isArray(realIp) ? (realIp[0] ?? request.ip) : realIp;
   }
   return request.ip;
 }
@@ -194,7 +199,7 @@ export async function registerAuditRoutes(
       const { userId, userName } = getUserInfo(request);
       const ipAddress = getClientIp(request);
 
-      const inputs = result.data.entries.map(entry => ({
+      const inputs = result.data.entries.map((entry) => ({
         tenantId,
         entityType: entry.entityType,
         entityId: entry.entityId,
@@ -334,11 +339,53 @@ export async function registerAuditRoutes(
   });
 
   // POST /audit/archival/execute - Execute archival of expired entries
-  fastify.post(`${prefix}/archival/execute`, async (request: FastifyRequest, reply: FastifyReply) => {
+  fastify.post(
+    `${prefix}/archival/execute`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const tenantId = getTenantId(request);
+        const result = await auditService.executeArchival(tenantId);
+        return reply.status(200).send(formatArchivalResultResponse(result));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send({
+            code: error.code,
+            message: error.message,
+            statusCode: error.statusCode,
+          });
+        }
+        throw error;
+      }
+    },
+  );
+
+  // GET /audit/archival/candidates - Get count of archival candidates
+  fastify.get(
+    `${prefix}/archival/candidates`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const tenantId = getTenantId(request);
+        const count = await auditService.getArchivalCandidateCount(tenantId);
+        return reply.status(200).send({ count });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send({
+            code: error.code,
+            message: error.message,
+            statusCode: error.statusCode,
+          });
+        }
+        throw error;
+      }
+    },
+  );
+
+  // GET /audit/chain/verify — G-913 tamper-evidence check
+  fastify.get(`${prefix}/chain/verify`, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const tenantId = getTenantId(request);
-      const result = await auditService.executeArchival(tenantId);
-      return reply.status(200).send(formatArchivalResultResponse(result));
+      const verification = await auditService.verifyChain(tenantId);
+      return reply.status(200).send(verification);
     } catch (error: unknown) {
       if (error instanceof AppError) {
         return reply.status(error.statusCode).send({
@@ -351,12 +398,27 @@ export async function registerAuditRoutes(
     }
   });
 
-  // GET /audit/archival/candidates - Get count of archival candidates
-  fastify.get(`${prefix}/archival/candidates`, async (request: FastifyRequest, reply: FastifyReply) => {
+  // GET /audit/dsar/:subjectId — G-734 Data Subject Access Request export
+  fastify.get(`${prefix}/dsar/:subjectId`, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      const subjectId = String((request.params as { subjectId?: string }).subjectId ?? '').trim();
+      if (!subjectId) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'subjectId is required',
+          statusCode: 400,
+        });
+      }
       const tenantId = getTenantId(request);
-      const count = await auditService.getArchivalCandidateCount(tenantId);
-      return reply.status(200).send({ count });
+      const pack = await auditService.exportDataSubjectPackage(tenantId, subjectId);
+      return reply.status(200).send({
+        subjectId: pack.subjectId,
+        tenantId: pack.tenantId,
+        exportedAt: pack.exportedAt,
+        entryCount: pack.entryCount,
+        truncated: pack.truncated,
+        entries: pack.entries.map(formatAuditEntryResponse),
+      });
     } catch (error: unknown) {
       if (error instanceof AppError) {
         return reply.status(error.statusCode).send({

@@ -3,10 +3,19 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ExternalAuthHandler } from './external-auth-handler.js';
-import type { ExternalIdentityStore, ExternalAuthUserLookup, ExternalIdentityLink } from './external-auth-handler.js';
+import type {
+  ExternalIdentityStore,
+  ExternalAuthUserLookup,
+  ExternalIdentityLink,
+} from './external-auth-handler.js';
 import { ProviderRegistry } from './provider-registry.js';
 import { ExternalAuthError } from './types.js';
-import type { ExternalAuthProvider, AuthInitiationResult, AuthCallbackParams, ExternalUserProfile } from './types.js';
+import type {
+  ExternalAuthProvider,
+  AuthInitiationResult,
+  AuthCallbackParams,
+  ExternalUserProfile,
+} from './types.js';
 import type { AuthUser, AuthConfig, TokenPair } from '@proctira/auth';
 import { TokenService } from '../token-service.js';
 import type { JwtSigner, RefreshTokenStore } from '../token-service.js';
@@ -21,7 +30,10 @@ class MockProvider implements ExternalAuthProvider {
   readonly type = 'oauth2' as const;
   readonly displayName = 'Mock Provider';
 
-  public initiateResult: AuthInitiationResult = { redirectUrl: 'https://mock.com/auth', state: 'mock-state' };
+  public initiateResult: AuthInitiationResult = {
+    redirectUrl: 'https://mock.com/auth',
+    state: 'mock-state',
+  };
   public callbackResult: ExternalUserProfile = {
     externalId: 'ext-user-1',
     email: 'external@example.com',
@@ -36,7 +48,10 @@ class MockProvider implements ExternalAuthProvider {
     return this.initiateResult;
   }
 
-  async handleCallback(_params: AuthCallbackParams, _tenantId: string): Promise<ExternalUserProfile> {
+  async handleCallback(
+    _params: AuthCallbackParams,
+    _tenantId: string,
+  ): Promise<ExternalUserProfile> {
     if (this.callbackError) throw this.callbackError;
     return this.callbackResult;
   }
@@ -45,17 +60,26 @@ class MockProvider implements ExternalAuthProvider {
 class MockIdentityStore implements ExternalIdentityStore {
   public links: ExternalIdentityLink[] = [];
 
-  async findByExternalId(providerId: string, externalId: string, tenantId: string): Promise<ExternalIdentityLink | null> {
-    return this.links.find(
-      (l) => l.providerId === providerId && l.externalId === externalId && l.tenantId === tenantId,
-    ) ?? null;
+  async findByExternalId(
+    providerId: string,
+    externalId: string,
+    tenantId: string,
+  ): Promise<ExternalIdentityLink | null> {
+    return (
+      this.links.find(
+        (l) =>
+          l.providerId === providerId && l.externalId === externalId && l.tenantId === tenantId,
+      ) ?? null
+    );
   }
 
   async findByEmail(email: string, tenantId: string): Promise<ExternalIdentityLink | null> {
     return this.links.find((l) => l.email === email && l.tenantId === tenantId) ?? null;
   }
 
-  async create(link: Omit<ExternalIdentityLink, 'createdAt' | 'lastUsedAt'>): Promise<ExternalIdentityLink> {
+  async create(
+    link: Omit<ExternalIdentityLink, 'createdAt' | 'lastUsedAt'>,
+  ): Promise<ExternalIdentityLink> {
     const full: ExternalIdentityLink = { ...link, createdAt: new Date(), lastUsedAt: new Date() };
     this.links.push(full);
     return full;
@@ -78,7 +102,11 @@ class MockUserLookup implements ExternalAuthUserLookup {
     return this.users.find((u) => u.email === email && u.tenantId === tenantId) ?? null;
   }
 
-  async createFromExternalProfile(profile: ExternalUserProfile, tenantId: string, _providerId: string): Promise<AuthUser> {
+  async createFromExternalProfile(
+    profile: ExternalUserProfile,
+    tenantId: string,
+    _providerId: string,
+  ): Promise<AuthUser> {
     const user: AuthUser = {
       userId: `new-user-${Date.now()}`,
       tenantId,
@@ -132,7 +160,9 @@ class MockSessionStore implements SessionStore {
   async updateLastActivity(_sessionId: string, _timestamp: Date): Promise<void> {}
   async invalidate(_sessionId: string): Promise<void> {}
   async invalidateAllForUser(_userId: string, _tenantId: string): Promise<void> {}
-  async findActiveByUser(_userId: string, _tenantId: string): Promise<Session[]> { return []; }
+  async findActiveByUser(_userId: string, _tenantId: string): Promise<Session[]> {
+    return [];
+  }
 }
 
 // --- Tests ---

@@ -15,7 +15,7 @@ import {
 } from '@proctira/ui/components';
 
 import { createInvoiceAction } from '../../fees-actions';
-import type { FeePlan } from '@/lib/api/parent-portal';
+import type { FeePlan } from '@/lib/api/fees';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -82,7 +82,7 @@ export function NewInvoiceForm({ plans }: { plans: FeePlan[] }) {
             <select
               id="invoice-plan"
               name="planId"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               defaultValue=""
               disabled={!hydrated || pending}
             >

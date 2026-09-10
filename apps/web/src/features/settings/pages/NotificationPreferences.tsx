@@ -96,6 +96,8 @@ export interface NotificationPreferencesProps {
   loadPreferences?: typeof getNotificationPreferences;
   /** Override the mutator (tests inject in-memory implementations). */
   savePreferences?: typeof updateNotificationPreferences;
+  /** When true, the parent route renders the page heading (dashboard shell). */
+  suppressPageHeader?: boolean;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────
@@ -103,6 +105,7 @@ export interface NotificationPreferencesProps {
 export default function NotificationPreferences({
   loadPreferences = getNotificationPreferences,
   savePreferences = updateNotificationPreferences,
+  suppressPageHeader = false,
 }: NotificationPreferencesProps = {}): JSX.Element {
   const { t } = useLanguage();
   const announce = useAnnounce();
@@ -246,12 +249,14 @@ export default function NotificationPreferences({
 
   return (
     <div className="p-6" data-testid="notification-preferences">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">
-          {t('settings.notifications.title')}
-        </h1>
-        <p className="mt-1 text-muted-foreground">{t('settings.notifications.description')}</p>
-      </header>
+      {!suppressPageHeader ? (
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">
+            {t('settings.notifications.title')}
+          </h1>
+          <p className="mt-1 text-muted-foreground">{t('settings.notifications.description')}</p>
+        </header>
+      ) : null}
 
       <Alert className="mb-6" data-testid="sms-sandbox-banner">
         <AlertTitle>{t('settings.notifications.smsSandboxTitle')}</AlertTitle>

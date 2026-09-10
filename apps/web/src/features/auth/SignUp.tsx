@@ -69,10 +69,7 @@ import {
   type PasswordRating,
   type PasswordStrengthRule,
 } from '@proctira/ui/components';
-import {
-  scorePasswordDetails,
-  type PasswordScoreDetails,
-} from '@proctira/auth';
+import { scorePasswordDetails, type PasswordScoreDetails } from '@proctira/auth';
 import { OAuthIcon } from '@/components/auth/oauth-icon';
 import { DocumentTitle } from '@/components/DocumentTitle';
 import { useLanguage } from '@/providers/LanguageProvider';
@@ -152,10 +149,7 @@ export function gradePassword(password: string): PasswordGrade {
     return { rating: 'weak', satisfied: 0, percent: 0 };
   }
   const details = scorePasswordDetails(password);
-  const satisfied = PASSWORD_RULES.reduce(
-    (n, rule) => (rule.satisfied(details) ? n + 1 : n),
-    0,
-  );
+  const satisfied = PASSWORD_RULES.reduce((n, rule) => (rule.satisfied(details) ? n + 1 : n), 0);
   const percent = Math.round((satisfied / PASSWORD_RULES.length) * 100);
   return { rating: details.rating, satisfied, percent };
 }
@@ -252,10 +246,7 @@ export default function SignUp(): ReactElement {
   }, []);
 
   const grade = gradePassword(password);
-  const passwordDetails = useMemo(
-    () => scorePasswordDetails(password),
-    [password],
-  );
+  const passwordDetails = useMemo(() => scorePasswordDetails(password), [password]);
 
   function ratingLabel(rating: PasswordRating): string {
     switch (rating) {
@@ -287,13 +278,11 @@ export default function SignUp(): ReactElement {
     if (!fullName.trim()) next.fullName = t('auth.fullNameRequired');
     if (!email.trim()) next.email = t('auth.emailRequired');
     else if (!isLikelyEmail(email)) next.email = t('auth.emailInvalid');
-    if (!institutionName.trim())
-      next.institution = t('auth.institutionNameRequired');
+    if (!institutionName.trim()) next.institution = t('auth.institutionNameRequired');
     if (!roleId) next.role = t('auth.roleRequired');
     if (!password) next.password = t('auth.passwordRequired');
     else if (grade.rating === 'weak') next.password = t('auth.passwordTooWeak');
-    if (!confirmPassword)
-      next.confirmPassword = t('auth.confirmPasswordRequired');
+    if (!confirmPassword) next.confirmPassword = t('auth.confirmPasswordRequired');
     else if (password && confirmPassword !== password)
       next.confirmPassword = t('auth.passwordsDoNotMatch');
     if (!agreedToTerms) next.terms = t('auth.termsRequired');
@@ -305,9 +294,7 @@ export default function SignUp(): ReactElement {
     termsAcceptedAtRef.current = checked ? new Date().toISOString() : null;
   }
 
-  async function handleSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setFormError(null);
     const nextErrors = validate();
@@ -315,8 +302,7 @@ export default function SignUp(): ReactElement {
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
-    const acceptedAt =
-      termsAcceptedAtRef.current ?? new Date().toISOString();
+    const acceptedAt = termsAcceptedAtRef.current ?? new Date().toISOString();
 
     const result = await signUp({
       fullName: fullName.trim(),
@@ -373,12 +359,7 @@ export default function SignUp(): ReactElement {
             >
               {t('auth.checkYourEmailToActivate', { email: confirmedEmail })}
             </p>
-            <Button
-              asChild
-              variant="link"
-              className="mt-6"
-              data-testid="signup-confirmation-back"
-            >
+            <Button asChild variant="link" className="mt-6" data-testid="signup-confirmation-back">
               <Link to="/auth/signin">{t('auth.backToSignIn')}</Link>
             </Button>
           </CardContent>
@@ -404,21 +385,13 @@ export default function SignUp(): ReactElement {
           </header>
 
           {formError && (
-            <Alert
-              variant="destructive"
-              className="mb-4"
-              data-testid="signup-form-error"
-            >
+            <Alert variant="destructive" className="mb-4" data-testid="signup-form-error">
               <AlertDescription>{formError}</AlertDescription>
             </Alert>
           )}
 
           {rolesError && !formError && (
-            <Alert
-              variant="warning"
-              className="mb-4"
-              data-testid="signup-roles-error"
-            >
+            <Alert variant="warning" className="mb-4" data-testid="signup-roles-error">
               <AlertDescription>{rolesError}</AlertDescription>
             </Alert>
           )}
@@ -443,11 +416,7 @@ export default function SignUp(): ReactElement {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   aria-invalid={errors.fullName ? 'true' : undefined}
-                  aria-describedby={
-                    errors.fullName
-                      ? `${fieldIds.fullName}-error`
-                      : undefined
-                  }
+                  aria-describedby={errors.fullName ? `${fieldIds.fullName}-error` : undefined}
                 />
                 {errors.fullName && (
                   <p
@@ -473,9 +442,7 @@ export default function SignUp(): ReactElement {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   aria-invalid={errors.email ? 'true' : undefined}
-                  aria-describedby={
-                    errors.email ? `${fieldIds.email}-error` : undefined
-                  }
+                  aria-describedby={errors.email ? `${fieldIds.email}-error` : undefined}
                 />
                 {errors.email && (
                   <p
@@ -491,9 +458,7 @@ export default function SignUp(): ReactElement {
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor={fieldIds.institution}>
-                  {t('auth.institutionName')}
-                </Label>
+                <Label htmlFor={fieldIds.institution}>{t('auth.institutionName')}</Label>
                 <Input
                   id={fieldIds.institution}
                   name="institutionName"
@@ -506,9 +471,7 @@ export default function SignUp(): ReactElement {
                   onChange={(e) => setInstitutionName(e.target.value)}
                   aria-invalid={errors.institution ? 'true' : undefined}
                   aria-describedby={
-                    errors.institution
-                      ? `${fieldIds.institution}-error`
-                      : undefined
+                    errors.institution ? `${fieldIds.institution}-error` : undefined
                   }
                 />
                 {errors.institution && (
@@ -538,9 +501,7 @@ export default function SignUp(): ReactElement {
                   loadingPlaceholder={t('common.loading')}
                   ariaLabel={t('auth.yourRole')}
                   ariaInvalid={Boolean(errors.role)}
-                  ariaDescribedBy={
-                    errors.role ? `${fieldIds.role}-error` : undefined
-                  }
+                  ariaDescribedBy={errors.role ? `${fieldIds.role}-error` : undefined}
                   data-testid="signup-role-trigger"
                 />
                 {errors.role && (
@@ -578,11 +539,7 @@ export default function SignUp(): ReactElement {
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                    aria-label={
-                      showPassword
-                        ? t('auth.hidePassword')
-                        : t('auth.showPassword')
-                    }
+                    aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     tabIndex={-1}
                   >
                     {showPassword ? (
@@ -604,9 +561,7 @@ export default function SignUp(): ReactElement {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor={fieldIds.confirmPassword}>
-                  {t('auth.confirmPassword')}
-                </Label>
+                <Label htmlFor={fieldIds.confirmPassword}>{t('auth.confirmPassword')}</Label>
                 <div className="relative">
                   <Input
                     id={fieldIds.confirmPassword}
@@ -619,9 +574,7 @@ export default function SignUp(): ReactElement {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     aria-invalid={errors.confirmPassword ? 'true' : undefined}
                     aria-describedby={
-                      errors.confirmPassword
-                        ? `${fieldIds.confirmPassword}-error`
-                        : undefined
+                      errors.confirmPassword ? `${fieldIds.confirmPassword}-error` : undefined
                     }
                     className="pe-10"
                   />
@@ -630,9 +583,7 @@ export default function SignUp(): ReactElement {
                     onClick={() => setShowConfirmPassword((v) => !v)}
                     className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                     aria-label={
-                      showConfirmPassword
-                        ? t('auth.hidePassword')
-                        : t('auth.showPassword')
+                      showConfirmPassword ? t('auth.hidePassword') : t('auth.showPassword')
                     }
                     tabIndex={-1}
                   >
@@ -678,12 +629,8 @@ export default function SignUp(): ReactElement {
                 <Checkbox
                   id={fieldIds.terms}
                   checked={agreedToTerms}
-                  onCheckedChange={(value) =>
-                    handleTermsToggle(value === true)
-                  }
-                  aria-describedby={
-                    errors.terms ? `${fieldIds.terms}-error` : undefined
-                  }
+                  onCheckedChange={(value) => handleTermsToggle(value === true)}
+                  aria-describedby={errors.terms ? `${fieldIds.terms}-error` : undefined}
                   data-testid="signup-terms"
                 />
                 <span className="text-foreground">
@@ -741,15 +688,8 @@ export default function SignUp(): ReactElement {
               className="w-full"
               data-testid="signup-submit"
             >
-              {isSubmitting && (
-                <Loader2
-                  className="me-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              )}
-              {isSubmitting
-                ? t('auth.creatingAccount')
-                : t('auth.signUp')}
+              {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {isSubmitting ? t('auth.creatingAccount') : t('auth.signUp')}
             </Button>
           </form>
 
@@ -758,9 +698,7 @@ export default function SignUp(): ReactElement {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                {t('auth.orSignUpWith')}
-              </span>
+              <span className="bg-card px-2 text-muted-foreground">{t('auth.orSignUpWith')}</span>
             </div>
           </div>
 
@@ -778,9 +716,7 @@ export default function SignUp(): ReactElement {
                   data-testid={`signup-oauth-${provider.id}`}
                 >
                   <OAuthIcon provider={provider.icon} />
-                  <span>
-                    {t('auth.continueWith', { provider: provider.name })}
-                  </span>
+                  <span>{t('auth.continueWith', { provider: provider.name })}</span>
                 </a>
               </Button>
             ))}
@@ -788,10 +724,7 @@ export default function SignUp(): ReactElement {
 
           <p className="mt-8 text-center text-sm text-muted-foreground">
             {t('auth.alreadyHaveAccount')}{' '}
-            <Link
-              to="/auth/signin"
-              className="font-medium text-accent hover:underline"
-            >
+            <Link to="/auth/signin" className="font-medium text-accent hover:underline">
               {t('auth.signInLink')}
             </Link>
           </p>

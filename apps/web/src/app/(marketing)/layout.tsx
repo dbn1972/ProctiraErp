@@ -21,14 +21,6 @@
  */
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
 
-export default function MarketingRouteGroupLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <MarketingLayout skipDocumentTitle>
-      {children}
-    </MarketingLayout>
-  );
+export default function MarketingRouteGroupLayout({ children }: { children: React.ReactNode }) {
+  return <MarketingLayout skipDocumentTitle>{children}</MarketingLayout>;
 }

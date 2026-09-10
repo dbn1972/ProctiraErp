@@ -13,7 +13,7 @@ export {
 } from './schemas';
 
 // Validator
-export { validate, type ValidationResult } from './validator';
+export { validate, validateQuery, type ValidateOptions, type ValidationResult } from './validator';
 
 // Re-export Typebox Type for convenience
 export { Type, type Static, type TSchema } from '@sinclair/typebox';

@@ -88,9 +88,7 @@ export default function AnalyticsDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>Assessment trend</CardTitle>
-          <CardDescription>
-            Average literacy and numeracy scores per term.
-          </CardDescription>
+          <CardDescription>Average literacy and numeracy scores per term.</CardDescription>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={280}>

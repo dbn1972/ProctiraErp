@@ -36,9 +36,7 @@ export default definePlugin({
       'student.read',
       'enrollment.read',
     ],
-    requiredExtensionPoints: [
-      'workflow.before-transition',
-    ],
+    requiredExtensionPoints: ['workflow.before-transition'],
     configSchema: {
       type: 'object',
       properties: {
@@ -120,19 +118,16 @@ export default definePlugin({
   ],
 
   eventHandlers: [
-    defineEventHandler(
-      'workflow.transitioned',
-      async (event, context): Promise<void> => {
-        // Sync workflow transitions to external system
-        if (event.data['entityType'] === 'student_transfer') {
-          console.log(
-            `[transfer-approval-rules] Transfer workflow transitioned: ` +
-              `${event.data['fromState']} -> ${event.data['toState']} ` +
-              `for entity ${event.entityId}`,
-          );
-          // In a real plugin, POST to externalSyncUrl
-        }
-      },
-    ),
+    defineEventHandler('workflow.transitioned', async (event, context): Promise<void> => {
+      // Sync workflow transitions to external system
+      if (event.data['entityType'] === 'student_transfer') {
+        console.log(
+          `[transfer-approval-rules] Transfer workflow transitioned: ` +
+            `${event.data['fromState']} -> ${event.data['toState']} ` +
+            `for entity ${event.entityId}`,
+        );
+        // In a real plugin, POST to externalSyncUrl
+      }
+    }),
   ],
 });

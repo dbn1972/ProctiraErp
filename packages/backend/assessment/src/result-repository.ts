@@ -50,7 +50,9 @@ export interface StudentSubjectResult {
  */
 export interface AssessmentResultRepository {
   /** Create or update a single result entry */
-  upsert(data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>): Promise<AssessmentResultEntity>;
+  upsert(
+    data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AssessmentResultEntity>;
 
   /** Create or update multiple result entries in bulk */
   bulkUpsert(
@@ -62,6 +64,13 @@ export interface AssessmentResultRepository {
     tenantId: string,
     studentId: string,
     subjectId: string,
+    academicPeriodId: string,
+  ): Promise<AssessmentResultEntity[]>;
+
+  /** Find all results for a student across every subject in a period */
+  findByStudentPeriod(
+    tenantId: string,
+    studentId: string,
     academicPeriodId: string,
   ): Promise<AssessmentResultEntity[]>;
 

@@ -17,15 +17,18 @@ import {
 
 import { createDriverAssignmentAction, createStudentAssignmentAction } from '../actions';
 import type { TransportRoute, TransportVehicle } from '@/lib/api/transport';
+import type { RouteStop } from '@/lib/transport/api';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function AssignmentForms({
   routes,
   vehicles,
+  stops,
 }: {
   routes: TransportRoute[];
   vehicles: TransportVehicle[];
+  stops: RouteStop[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -83,10 +86,15 @@ export function AssignmentForms({
     const fd = new FormData(event.currentTarget);
     const studentId = String(fd.get('studentId') ?? '').trim();
     const routeId = String(fd.get('routeId') ?? '').trim();
+    const stopId = String(fd.get('stopId') ?? '').trim();
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
     if (!UUID_RE.test(studentId) || !UUID_RE.test(routeId)) {
       setError('Student and route must be UUID v4 values.');
+      return;
+    }
+    if (stopId && !UUID_RE.test(stopId)) {
+      setError('Stop id must be a UUID v4 when provided.');
       return;
     }
     if (!startDate) {
@@ -100,6 +108,7 @@ export function AssignmentForms({
       const result = await createStudentAssignmentAction({
         studentId,
         routeId,
+        stopId: stopId || undefined,
         startDate,
         endDate: endDate || undefined,
       });
@@ -210,6 +219,21 @@ export function AssignmentForms({
                   {routes.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField id="student-stop" label="Stop">
+                <select
+                  id="student-stop"
+                  name="stopId"
+                  className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  defaultValue=""
+                >
+                  <option value="">No stop</option>
+                  {stops.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
                     </option>
                   ))}
                 </select>

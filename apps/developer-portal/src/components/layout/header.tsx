@@ -17,7 +17,9 @@ export function Header() {
           Docs
         </button>
         <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-          <span className="text-sm font-medium text-primary-700" aria-label="User avatar">D</span>
+          <span className="text-sm font-medium text-primary-700" aria-label="User avatar">
+            D
+          </span>
         </div>
       </div>
     </header>

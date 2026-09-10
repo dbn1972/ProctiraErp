@@ -7,7 +7,7 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
@@ -34,11 +34,17 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
 
   // ─── Program operations ────────────────────────────────────────────────────
 
-  async createProgram(data: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'>): Promise<ScholarshipProgramEntity> {
+  async createProgram(
+    data: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ScholarshipProgramEntity> {
     return this.delegate.createProgram(data);
   }
 
-  async updateProgram(id: string, tenantId: string, data: Partial<ScholarshipProgramEntity>): Promise<ScholarshipProgramEntity | null> {
+  async updateProgram(
+    id: string,
+    tenantId: string,
+    data: Partial<ScholarshipProgramEntity>,
+  ): Promise<ScholarshipProgramEntity | null> {
     const result = await this.delegate.updateProgram(id, tenantId, data);
     if (result && this.cache) {
       const key = tenantKey(tenantId, 'scholarship-program', id);
@@ -53,14 +59,19 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
     }
 
     const key = tenantKey(tenantId, 'scholarship-program', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findProgramById(id, tenantId),
       PROGRAM_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
-  async listPrograms(tenantId: string, filter: ProgramFilter, pagination: PaginationOptions): Promise<PaginatedResult<ScholarshipProgramEntity>> {
+  async listPrograms(
+    tenantId: string,
+    filter: ProgramFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScholarshipProgramEntity>> {
     return this.delegate.listPrograms(tenantId, filter, pagination);
   }
 
@@ -75,19 +86,32 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
 
   // ─── Application operations ────────────────────────────────────────────────
 
-  async createApplication(data: Omit<ScholarshipApplicationEntity, 'createdAt' | 'updatedAt'>): Promise<ScholarshipApplicationEntity> {
+  async createApplication(
+    data: Omit<ScholarshipApplicationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ScholarshipApplicationEntity> {
     return this.delegate.createApplication(data);
   }
 
-  async updateApplication(id: string, tenantId: string, data: Partial<ScholarshipApplicationEntity>): Promise<ScholarshipApplicationEntity | null> {
+  async updateApplication(
+    id: string,
+    tenantId: string,
+    data: Partial<ScholarshipApplicationEntity>,
+  ): Promise<ScholarshipApplicationEntity | null> {
     return this.delegate.updateApplication(id, tenantId, data);
   }
 
-  async findApplicationById(id: string, tenantId: string): Promise<ScholarshipApplicationEntity | null> {
+  async findApplicationById(
+    id: string,
+    tenantId: string,
+  ): Promise<ScholarshipApplicationEntity | null> {
     return this.delegate.findApplicationById(id, tenantId);
   }
 
-  async listApplications(tenantId: string, filter: ApplicationFilter, pagination: PaginationOptions): Promise<PaginatedResult<ScholarshipApplicationEntity>> {
+  async listApplications(
+    tenantId: string,
+    filter: ApplicationFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScholarshipApplicationEntity>> {
     return this.delegate.listApplications(tenantId, filter, pagination);
   }
 
@@ -95,17 +119,27 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
     return this.delegate.countApplicationsByProgram(programId, tenantId);
   }
 
-  async findApplicationByApplicantAndProgram(applicantId: string, programId: string, tenantId: string): Promise<ScholarshipApplicationEntity | null> {
+  async findApplicationByApplicantAndProgram(
+    applicantId: string,
+    programId: string,
+    tenantId: string,
+  ): Promise<ScholarshipApplicationEntity | null> {
     return this.delegate.findApplicationByApplicantAndProgram(applicantId, programId, tenantId);
   }
 
   // ─── Disbursement operations ───────────────────────────────────────────────
 
-  async createDisbursement(data: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'>): Promise<DisbursementEntity> {
+  async createDisbursement(
+    data: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<DisbursementEntity> {
     return this.delegate.createDisbursement(data);
   }
 
-  async updateDisbursement(id: string, tenantId: string, data: Partial<DisbursementEntity>): Promise<DisbursementEntity | null> {
+  async updateDisbursement(
+    id: string,
+    tenantId: string,
+    data: Partial<DisbursementEntity>,
+  ): Promise<DisbursementEntity | null> {
     return this.delegate.updateDisbursement(id, tenantId, data);
   }
 
@@ -113,27 +147,42 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
     return this.delegate.findDisbursementById(id, tenantId);
   }
 
-  async listDisbursements(tenantId: string, filter: DisbursementFilter, pagination: PaginationOptions): Promise<PaginatedResult<DisbursementEntity>> {
+  async listDisbursements(
+    tenantId: string,
+    filter: DisbursementFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<DisbursementEntity>> {
     return this.delegate.listDisbursements(tenantId, filter, pagination);
   }
 
-  async listDisbursementsByApplication(applicationId: string, tenantId: string): Promise<DisbursementEntity[]> {
+  async listDisbursementsByApplication(
+    applicationId: string,
+    tenantId: string,
+  ): Promise<DisbursementEntity[]> {
     return this.delegate.listDisbursementsByApplication(applicationId, tenantId);
   }
 
   // ─── Compliance operations ─────────────────────────────────────────────────
 
-  async createComplianceRecord(data: Omit<ComplianceRecordEntity, 'createdAt' | 'updatedAt'>): Promise<ComplianceRecordEntity> {
+  async createComplianceRecord(
+    data: Omit<ComplianceRecordEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ComplianceRecordEntity> {
     return this.delegate.createComplianceRecord(data);
   }
 
-  async listComplianceRecords(applicationId: string, tenantId: string): Promise<ComplianceRecordEntity[]> {
+  async listComplianceRecords(
+    applicationId: string,
+    tenantId: string,
+  ): Promise<ComplianceRecordEntity[]> {
     return this.delegate.listComplianceRecords(applicationId, tenantId);
   }
 
   // ─── Report operations ─────────────────────────────────────────────────────
 
-  async getUtilizationReport(tenantId: string, filter: UtilizationReportFilter): Promise<UtilizationReportData> {
+  async getUtilizationReport(
+    tenantId: string,
+    filter: UtilizationReportFilter,
+  ): Promise<UtilizationReportData> {
     return this.delegate.getUtilizationReport(tenantId, filter);
   }
 }

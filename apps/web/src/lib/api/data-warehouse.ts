@@ -56,10 +56,10 @@ export async function listImportJobs(): Promise<{
   jobs: DwImportJob[];
   source: ScaffoldDataSource;
 }> {
-  const result = await gatewayFetch<{ data: DwImportJob[] }>(
-    '/data-warehouse/import/jobs',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: DwImportJob[] }>('/data-warehouse/import/jobs', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   if (result.ok) {
     return { jobs: result.data?.data ?? [], source: 'gateway' };
   }

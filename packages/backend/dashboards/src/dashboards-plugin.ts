@@ -31,10 +31,7 @@ declare module 'fastify' {
 }
 
 export const dashboardsPlugin = fp(
-  async function dashboardsPluginImpl(
-    fastify: FastifyInstance,
-    options: DashboardsPluginOptions,
-  ) {
+  async function dashboardsPluginImpl(fastify: FastifyInstance, options: DashboardsPluginOptions) {
     const { repository, areaResolver, prefix = '/dashboards' } = options;
 
     const service = new DashboardService({ repository, areaResolver });
@@ -44,6 +41,6 @@ export const dashboardsPlugin = fp(
   },
   {
     name: '@proctira/backend-dashboards',
-    fastify: '4.x',
+    fastify: '5.x',
   },
 );

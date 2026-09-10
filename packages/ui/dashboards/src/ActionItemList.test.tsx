@@ -35,13 +35,7 @@ describe('<ActionItemList />', () => {
   });
 
   it('renders one row per item with the priority badge', () => {
-    render(
-      <ActionItemList
-        title="Action items"
-        items={items}
-        data-testid="list"
-      />,
-    );
+    render(<ActionItemList title="Action items" items={items} data-testid="list" />);
 
     const card = screen.getByTestId('list');
     expect(card).toHaveAttribute('data-state', 'ready');
@@ -101,13 +95,7 @@ describe('<ActionItemList />', () => {
 
   it('renders deep-link items as anchors and click handlers as buttons', () => {
     const onSelect = vi.fn();
-    render(
-      <ActionItemList
-        title="Action items"
-        items={items}
-        onSelect={onSelect}
-      />,
-    );
+    render(<ActionItemList title="Action items" items={items} onSelect={onSelect} />);
 
     // The href item renders as an anchor.
     const link = screen.getByRole('link', {
@@ -127,9 +115,7 @@ describe('<ActionItemList />', () => {
   it('announces high-priority items assertively after the loading→loaded transition', () => {
     render(<LiveRegion />);
 
-    const { rerender } = render(
-      <ActionItemList title="Action items" items={[]} loading />,
-    );
+    const { rerender } = render(<ActionItemList title="Action items" items={[]} loading />);
 
     rerender(<ActionItemList title="Action items" items={items} />);
 

@@ -28,7 +28,10 @@ class MockSAMLResponseParser implements SAMLResponseParser {
   public parseResult: SAMLParsedResponse | null = null;
   public parseError: Error | null = null;
 
-  async parseResponse(_samlResponse: string, _config: SAMLProviderConfig): Promise<SAMLParsedResponse> {
+  async parseResponse(
+    _samlResponse: string,
+    _config: SAMLProviderConfig,
+  ): Promise<SAMLParsedResponse> {
     if (this.parseError) throw this.parseError;
     if (!this.parseResult) throw new Error('No mock result configured');
     return this.parseResult;
@@ -173,10 +176,7 @@ describe('SAMLProvider', () => {
         },
       };
 
-      const profile = await provider.handleCallback(
-        { samlResponse: 'response' },
-        'tenant-1',
-      );
+      const profile = await provider.handleCallback({ samlResponse: 'response' }, 'tenant-1');
 
       expect(profile.email).toBe('user@corp.com');
       expect(profile.displayName).toBe('Direct User');
@@ -236,8 +236,12 @@ describe('DefaultSAMLResponseParser', () => {
     const result = await parser.parseResponse(encoded, samlConfig);
 
     expect(result.nameId).toBe('user@corp.com');
-    expect(result.attributes['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress']).toBe('user@corp.com');
-    expect(result.attributes['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name']).toBe('Test User');
+    expect(
+      result.attributes['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'],
+    ).toBe('user@corp.com');
+    expect(result.attributes['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name']).toBe(
+      'Test User',
+    );
   });
 
   it('should throw when NameID is missing', async () => {
@@ -272,9 +276,7 @@ describe('DefaultSAMLResponseParser', () => {
     `;
     const encoded = Buffer.from(samlXml).toString('base64');
 
-    await expect(parser.parseResponse(encoded, samlConfig)).rejects.toThrow(
-      'audience mismatch',
-    );
+    await expect(parser.parseResponse(encoded, samlConfig)).rejects.toThrow('audience mismatch');
   });
 
   it('should throw on non-success status', async () => {

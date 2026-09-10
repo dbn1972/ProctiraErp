@@ -42,15 +42,8 @@ import DemoPage from '../DemoPage';
 import PrivacyPolicy from '../../legal/PrivacyPolicy';
 import TermsOfService from '../../legal/TermsOfService';
 
-import {
-  BrandConfigProvider,
-  clearBrandCache,
-  type Brand,
-} from '@/providers/BrandConfigProvider';
-import {
-  LanguageProvider,
-  type TranslationMap,
-} from '@/providers/LanguageProvider';
+import { BrandConfigProvider, clearBrandCache, type Brand } from '@/providers/BrandConfigProvider';
+import { LanguageProvider, type TranslationMap } from '@/providers/LanguageProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 import enMessages from '@/messages/en.json';
 
@@ -66,10 +59,7 @@ const SAMPLE_BRAND: Brand = {
   document_title_template: '{page} | {brand}',
 };
 
-function renderPage(
-  Page: React.ComponentType,
-  pathname = '/',
-): ReturnType<typeof render> {
+function renderPage(Page: React.ComponentType, pathname = '/'): ReturnType<typeof render> {
   currentPathname = pathname;
   return render(
     <BrandConfigProvider initialBrand={SAMPLE_BRAND}>
@@ -95,12 +85,11 @@ beforeEach(() => {
   // dropdowns inside `<LanguageSelector>` (mounted by the marketing
   // header/footer) instantiate observers eagerly.
   if (!('ResizeObserver' in globalThis)) {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-      class {
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {}
-      } as unknown as typeof ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    } as unknown as typeof ResizeObserver;
   }
   /* eslint-disable @typescript-eslint/unbound-method --
      Polyfill probes intentionally read the prototype slot. */
@@ -143,8 +132,7 @@ const PAGE_CASES: readonly PageCase[] = [
     Page: AboutPage,
     pathname: '/about',
     pageTestId: 'marketing-about-page',
-    expectedHeading:
-      'Open source education infrastructure for the public good',
+    expectedHeading: 'Open source education infrastructure for the public good',
   },
   {
     name: 'FeaturesPage',
@@ -206,9 +194,7 @@ describe('Marketing & legal pages — smoke tests (Task 50.2)', () => {
       // Shared chrome is present so the page is reachable from the
       // marketing header and footer navigation (Requirement 31 AC 5).
       expect(document.querySelector('[data-shell="marketing"]')).not.toBeNull();
-      expect(
-        document.querySelector('[data-shell="marketing-footer"]'),
-      ).not.toBeNull();
+      expect(document.querySelector('[data-shell="marketing-footer"]')).not.toBeNull();
     });
   }
 });

@@ -63,7 +63,7 @@ describe('constraint-validator', () => {
 
       // Institution status should allow active/inactive
       const institutionStatus = enumConstraints.find(
-        (c) => c.table === 'institutions' && c.column === 'status'
+        (c) => c.table === 'institutions' && c.column === 'status',
       );
       expect(institutionStatus).toBeDefined();
       expect(institutionStatus!.allowedValues).toContain('active');
@@ -71,7 +71,7 @@ describe('constraint-validator', () => {
 
       // Enrollment status should allow all lifecycle states
       const enrollmentStatus = enumConstraints.find(
-        (c) => c.table === 'enrollments' && c.column === 'status'
+        (c) => c.table === 'enrollments' && c.column === 'status',
       );
       expect(enrollmentStatus).toBeDefined();
       expect(enrollmentStatus!.allowedValues).toContain('ENROLLED');
@@ -101,14 +101,14 @@ describe('constraint-validator', () => {
 
       // Institution name max 255
       const institutionName = lengthConstraints.find(
-        (c) => c.table === 'institutions' && c.column === 'name'
+        (c) => c.table === 'institutions' && c.column === 'name',
       );
       expect(institutionName).toBeDefined();
       expect(institutionName!.maxLength).toBe(255);
 
       // Institution code max 50
       const institutionCode = lengthConstraints.find(
-        (c) => c.table === 'institutions' && c.column === 'code'
+        (c) => c.table === 'institutions' && c.column === 'code',
       );
       expect(institutionCode).toBeDefined();
       expect(institutionCode!.maxLength).toBe(50);
@@ -116,7 +116,7 @@ describe('constraint-validator', () => {
 
     it('should mark all NOT NULL and UNIQUE constraints as errors', () => {
       const criticalConstraints = SCHEMA_CONSTRAINTS.filter(
-        (c) => c.type === 'not_null' || c.type === 'unique' || c.type === 'foreign_key'
+        (c) => c.type === 'not_null' || c.type === 'unique' || c.type === 'foreign_key',
       );
 
       for (const constraint of criticalConstraints) {

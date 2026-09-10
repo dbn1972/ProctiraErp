@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the billing service and routes.
  */
 export const billingPlugin = fp(
-  async function billingPluginImpl(
-    fastify: FastifyInstance,
-    options: BillingPluginOptions,
-  ) {
+  async function billingPluginImpl(fastify: FastifyInstance, options: BillingPluginOptions) {
     const { repository, prefix = '/billing' } = options;
 
     // Create billing service instance
@@ -54,7 +51,7 @@ export const billingPlugin = fp(
   },
   {
     name: '@proctira/backend-billing',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

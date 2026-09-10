@@ -18,9 +18,7 @@ import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
 
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
-  process.env['NEXT_PUBLIC_GATEWAY_URL'] ??
-  process.env['GATEWAY_URL'] ??
-  'http://localhost:3000';
+  process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? process.env['GATEWAY_URL'] ?? 'http://localhost:3000';
 
 /** API version prefix used by the gateway. */
 export const GATEWAY_API_PREFIX = '/api/v1';
@@ -46,18 +44,18 @@ export interface GatewayResponse<T> {
 }
 
 /** Reads the current session's tenant + access token from cookies / headers. */
-export function getSessionContext(): { tenantId: string; accessToken: string | null } {
-  const cookieStore = cookies();
-  const headerStore = headers();
+export async function getSessionContext(): Promise<{
+  tenantId: string;
+  accessToken: string | null;
+}> {
+  const cookieStore = await cookies();
+  const headerStore = await headers();
 
   const accessToken = cookieStore.get(AUTH_COOKIES.ACCESS_TOKEN)?.value ?? null;
   const payload = accessToken ? decodeTokenPayload(accessToken) : null;
 
   // Prefer JWT claim; fall back to middleware-injected header; finally to "default".
-  const tenantId =
-    payload?.tenantId ??
-    headerStore.get('x-tenant-id') ??
-    'default';
+  const tenantId = payload?.tenantId ?? headerStore.get('x-tenant-id') ?? 'default';
 
   return { tenantId, accessToken };
 }
@@ -70,7 +68,7 @@ export async function gatewayFetch<T>(
   path: string,
   init: GatewayRequestInit = {},
 ): Promise<GatewayResponse<T>> {
-  const { tenantId: ctxTenantId, accessToken } = getSessionContext();
+  const { tenantId: ctxTenantId, accessToken } = await getSessionContext();
   const tenantId = init.tenantId ?? ctxTenantId;
 
   const requestHeaders = new Headers(init.headers);

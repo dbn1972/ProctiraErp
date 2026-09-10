@@ -1,23 +1,31 @@
 /**
- * Admin notification rules hub (Server Component).
+ * Admin notification rules (G-1002).
  */
 import Link from 'next/link';
-import { ArrowLeft, ListChecks } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+  CreateNotificationRuleDialog,
+  NotificationRulesTable,
+} from '@/components/admin/notification-rules-controls';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
+import {
+  listNotificationRules,
+  listNotificationTemplates,
+} from '@/lib/api/notifications-rules.server';
 import { requireSession } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NotificationRulesPage() {
-  await requireSession();
+  await requireSession('/admin/notification-rules');
+
+  const [{ rules, source: rulesSource }, { templates, source: templatesSource }] =
+    await Promise.all([listNotificationRules(), listNotificationTemplates()]);
+
+  const source =
+    rulesSource === 'gateway' || templatesSource === 'gateway' ? 'gateway' : rulesSource;
 
   return (
     <div className="space-y-6 p-6">
@@ -29,30 +37,30 @@ export default async function NotificationRulesPage() {
           </Link>
         </Button>
       </div>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Notification rules
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Configure event-driven delivery rules. API: `/api/v1/notifications/rules`. Emergency-class
-          campaigns (Comms Center) will bypass quiet hours.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Notification rules
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Event-driven delivery rules for your school. Emergency campaigns bypass quiet hours.
+          </p>
+        </div>
+        <CreateNotificationRuleDialog templates={templates} />
       </div>
+
+      <ScaffoldModeBanner
+        source={source}
+        surface="Notification rules"
+        detail="Rules stay empty when the notification service is offline."
+      />
+
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <ListChecks className="h-4 w-4" aria-hidden="true" />
-            Rules catalog
-          </CardTitle>
-          <CardDescription>
-            Create and update rules via the notification service. UI editor forms land in the next
-            slice; this hub establishes the nav route.
-          </CardDescription>
+          <CardTitle className="text-base">Rules catalog</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground" role="status">
-            No rules loaded in this view yet. Use the API or wait for the interactive editor.
-          </p>
+          <NotificationRulesTable rules={rules} />
         </CardContent>
       </Card>
     </div>

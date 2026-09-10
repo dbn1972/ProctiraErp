@@ -42,7 +42,11 @@ export type UpdateWarehouseInput = Static<typeof UpdateWarehouseSchema>;
  */
 export const CreateIndicatorSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255 }),
-  gid: Type.String({ minLength: 1, maxLength: 60, description: 'Global unique identifier for the indicator' }),
+  gid: Type.String({
+    minLength: 1,
+    maxLength: 60,
+    description: 'Global unique identifier for the indicator',
+  }),
   shortName: Type.Optional(Type.String({ maxLength: 50 })),
   keywords: Type.Optional(Type.String({ maxLength: 255 })),
   info: Type.Optional(Type.String({ maxLength: 5000 })),
@@ -71,7 +75,11 @@ export type UpdateIndicatorInput = Static<typeof UpdateIndicatorSchema>;
  */
 export const CreateUnitSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 128 }),
-  gid: Type.String({ minLength: 1, maxLength: 60, description: 'Global unique identifier for the unit' }),
+  gid: Type.String({
+    minLength: 1,
+    maxLength: 60,
+    description: 'Global unique identifier for the unit',
+  }),
 });
 
 export type CreateUnitInput = Static<typeof CreateUnitSchema>;
@@ -92,7 +100,11 @@ export type UpdateUnitInput = Static<typeof UpdateUnitSchema>;
  */
 export const CreateSubgroupSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 128 }),
-  gid: Type.String({ minLength: 1, maxLength: 255, description: 'Global unique identifier for the subgroup' }),
+  gid: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'Global unique identifier for the subgroup',
+  }),
   typeName: Type.Optional(Type.String({ maxLength: 128 })),
 });
 
@@ -114,10 +126,16 @@ export type UpdateSubgroupInput = Static<typeof UpdateSubgroupSchema>;
  * Create time period request body.
  */
 export const CreateTimePeriodSchema = Type.Object({
-  timePeriod: Type.String({ minLength: 1, maxLength: 30, description: 'Time period label (e.g., "2023", "2023.Q1")' }),
+  timePeriod: Type.String({
+    minLength: 1,
+    maxLength: 30,
+    description: 'Time period label (e.g., "2023", "2023.Q1")',
+  }),
   startDate: Type.Optional(Type.String({ description: 'ISO date string for period start' })),
   endDate: Type.Optional(Type.String({ description: 'ISO date string for period end' })),
-  periodicity: Type.Optional(Type.String({ maxLength: 50, description: 'Periodicity (e.g., "Annual", "Quarterly")' })),
+  periodicity: Type.Optional(
+    Type.String({ maxLength: 50, description: 'Periodicity (e.g., "Annual", "Quarterly")' }),
+  ),
 });
 
 export type CreateTimePeriodInput = Static<typeof CreateTimePeriodSchema>;
@@ -141,7 +159,11 @@ export type UpdateTimePeriodInput = Static<typeof UpdateTimePeriodSchema>;
 export const CreateAreaSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 60 }),
   areaId: Type.String({ minLength: 1, maxLength: 255, description: 'External area identifier' }),
-  gid: Type.String({ minLength: 1, maxLength: 60, description: 'Global unique identifier for the area' }),
+  gid: Type.String({
+    minLength: 1,
+    maxLength: 60,
+    description: 'Global unique identifier for the area',
+  }),
   parentId: Type.Optional(UuidString()),
   level: Type.Number({ minimum: 0, maximum: 10 }),
 });
@@ -195,15 +217,19 @@ export type DataRecordInput = Static<typeof DataRecordSchema>;
 export const BulkImportSchema = Type.Object({
   format: ImportFormatSchema,
   records: Type.Optional(Type.Array(DataRecordSchema, { minItems: 1 })),
-  fileContent: Type.Optional(Type.String({ description: 'Base64-encoded file content for Excel/CSV' })),
-  dbConnectionConfig: Type.Optional(Type.Object({
-    host: Type.String({ minLength: 1 }),
-    port: Type.Number({ minimum: 1, maximum: 65535 }),
-    database: Type.String({ minLength: 1 }),
-    username: Type.String({ minLength: 1 }),
-    password: Type.String({ minLength: 1 }),
-    query: Type.String({ minLength: 1 }),
-  })),
+  fileContent: Type.Optional(
+    Type.String({ description: 'Base64-encoded file content for Excel/CSV' }),
+  ),
+  dbConnectionConfig: Type.Optional(
+    Type.Object({
+      host: Type.String({ minLength: 1 }),
+      port: Type.Number({ minimum: 1, maximum: 65535 }),
+      database: Type.String({ minLength: 1 }),
+      username: Type.String({ minLength: 1 }),
+      password: Type.String({ minLength: 1 }),
+      query: Type.String({ minLength: 1 }),
+    }),
+  ),
 });
 
 export type BulkImportInput = Static<typeof BulkImportSchema>;
@@ -219,11 +245,9 @@ export const DataQuerySchema = Type.Object({
   subgroupIds: Type.Optional(Type.Array(UuidString())),
   areaIds: Type.Optional(Type.Array(UuidString())),
   timePeriods: Type.Optional(Type.Array(Type.String())),
-  aggregation: Type.Optional(Type.Union([
-    Type.Literal('sum'),
-    Type.Literal('avg'),
-    Type.Literal('count'),
-  ])),
+  aggregation: Type.Optional(
+    Type.Union([Type.Literal('sum'), Type.Literal('avg'), Type.Literal('count')]),
+  ),
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 1000, default: 50 })),
 });
