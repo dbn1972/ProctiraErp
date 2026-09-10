@@ -90,7 +90,10 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Ingest GPS ping</CardTitle>
-          <CardDescription>POST /transport/gps — idempotent by deviceId + pingId.</CardDescription>
+          <CardDescription>
+            Submit a location update from a registered GPS device. Duplicate pings for the same device
+            are ignored.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form
@@ -151,6 +154,7 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Sending…' : 'Send ping'}
             </Button>
+            <p className="text-xs text-muted-foreground">API: POST /transport/gps</p>
           </form>
         </CardContent>
       </Card>

@@ -657,6 +657,17 @@ export class PgPhiStore {
     );
   }
 
+  /** Wave 10 Option B — tenant-wide immunisation register. */
+  async listAllVaccinations(tenantId: string): Promise<VaccinationEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM health_vaccinations WHERE tenant_id=$1 ORDER BY date_administered DESC`,
+      [tenantId],
+    );
+    return result.rows.map((r) => mapVaccination(r as Record<string, unknown>));
+  }
+
   async deleteVaccination(id: string, tenantId: string): Promise<boolean> {
     await this.ensureSchema();
     const result = await this.query(

@@ -28,6 +28,7 @@
     "@proctira/backend-communication": "workspace:*",
     "@proctira/backend-curriculum": "workspace:*",
     "@proctira/backend-developer-portal": "workspace:*",
+    "@proctira/backend-etl": "workspace:*",
     "@proctira/backend-examination": "workspace:*",
     "@proctira/backend-fees": "workspace:*",
     "@proctira/backend-gradebook": "workspace:*",

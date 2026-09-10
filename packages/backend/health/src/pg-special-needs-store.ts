@@ -209,6 +209,58 @@ export class PgSpecialNeedsStore {
     });
   }
 
+  async listPhiAccessLogs(
+    tenantId: string,
+    options: { studentId?: string; limit?: number } = {},
+  ): Promise<
+    Array<{
+      id: string;
+      tenantId: string;
+      actorUserId: string;
+      studentId: string;
+      resourceType: string;
+      resourceId: string | null;
+      action: string;
+      createdAt: string;
+    }>
+  > {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+      const result = options.studentId
+        ? await client.query(
+            `SELECT id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action, created_at
+             FROM health_phi_access_log
+             WHERE tenant_id=$1 AND student_id=$2
+             ORDER BY created_at DESC LIMIT $3`,
+            [tenantId, options.studentId, limit],
+          )
+        : await client.query(
+            `SELECT id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action, created_at
+             FROM health_phi_access_log
+             WHERE tenant_id=$1
+             ORDER BY created_at DESC LIMIT $2`,
+            [tenantId, limit],
+          );
+      return result.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: String(r.id),
+          tenantId: String(r.tenant_id),
+          actorUserId: String(r.actor_user_id),
+          studentId: String(r.student_id),
+          resourceType: String(r.resource_type),
+          resourceId: r.resource_id == null ? null : String(r.resource_id),
+          action: String(r.action),
+          createdAt:
+            r.created_at instanceof Date
+              ? r.created_at.toISOString()
+              : String(r.created_at),
+        };
+      });
+    });
+  }
+
   async createAssessment(
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<SpecialNeedsAssessmentEntity> {

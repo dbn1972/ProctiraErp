@@ -86,6 +86,7 @@ import {
   registrationPlugin,
 } from '@proctira/backend-registration';
 import { reportCataloguePlugin } from '@proctira/backend-report';
+import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -378,6 +379,21 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/reports'],
     register: async (scope) => {
       await scope.register(reportCataloguePlugin);
+    },
+  },
+  {
+    name: 'etl',
+    proxyPrefixes: ['/pipelines'],
+    register: async (scope) => {
+      // Wave 10 Option C — unpark ETL. PG document store when DATABASE_URL (046).
+      const repository = createPipelineRepository();
+      await scope.register(etlPlugin, {
+        repository,
+        config: {
+          defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
+        },
+        prefix: '/pipelines',
+      });
     },
   },
   {

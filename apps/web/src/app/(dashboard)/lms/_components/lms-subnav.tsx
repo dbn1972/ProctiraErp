@@ -15,7 +15,10 @@ const LINKS = [
 
 export function LmsSubnav({ current }: { current: string }) {
   return (
-    <nav aria-label="Learning sections" className="flex flex-wrap gap-2">
+    <nav
+      aria-label="Learning sections"
+      className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
       {LINKS.map((link) => {
         const active = current === link.href;
         return (
@@ -23,7 +26,7 @@ export function LmsSubnav({ current }: { current: string }) {
             key={link.href}
             href={link.href}
             className={cn(
-              'inline-flex min-h-11 items-center rounded-full border px-3 text-sm font-medium',
+              'inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 text-sm font-medium',
               active
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-background text-foreground hover:bg-muted',

@@ -104,6 +104,22 @@ export function canAccessHealthRecords(roles: Array<{ roleName: string }>): bool
   return roles.some((role) => allowed.has(role.roleName));
 }
 
+/** PHI access log viewer — matches HealthService.listPhiAccessLogs privileged roles. */
+export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): boolean {
+  return roles.some((role) => {
+    const n = role.roleName.toLowerCase();
+    return (
+      n.includes('health_admin') ||
+      n.includes('health_officer') ||
+      n.includes('system_admin') ||
+      n.includes('administrator') ||
+      n === 'super_admin' ||
+      n === 'health_admin' ||
+      n === 'health_officer'
+    );
+  });
+}
+
 export async function listHealthRecords(): Promise<HealthRecord[]> {
   const result = await gatewayFetch<{ data: HealthRecord[] }>('/health/records', {
     throwOnError: false,
@@ -163,4 +179,184 @@ export async function listScreeningPrograms(): Promise<ScreeningProgram[]> {
     next: { revalidate: 0 },
   });
   return result.data?.data ?? [];
+}
+
+export interface AllergyRecord {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  allergyType: string;
+  description: string;
+  severity: string;
+  reaction: string | null;
+  treatment: string | null;
+  diagnosedDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAllergyInput {
+  studentId: string;
+  allergyType: string;
+  description: string;
+  severity: 'mild' | 'moderate' | 'severe' | 'life-threatening';
+  reaction?: string;
+  treatment?: string;
+  diagnosedDate?: string;
+}
+
+export interface VaccinationRecord {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  vaccineName: string;
+  doseNumber: number;
+  dateAdministered: string;
+  administeredBy: string | null;
+  batchNumber: string | null;
+  nextDueDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateVaccinationInput {
+  studentId: string;
+  vaccineName: string;
+  doseNumber: number;
+  dateAdministered: string;
+  administeredBy?: string;
+  batchNumber?: string;
+  nextDueDate?: string;
+  notes?: string;
+}
+
+export interface PhiAccessLogRow {
+  id: string;
+  tenantId: string;
+  actorUserId: string;
+  studentId: string;
+  resourceType: string;
+  resourceId: string | null;
+  action: string;
+  createdAt: string;
+}
+
+export interface NurseIncidentRecord {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  institutionId: string | null;
+  incidentAt: string;
+  category: string;
+  severity: string;
+  notes: string;
+  reportedBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateNurseIncidentInput {
+  studentId: string;
+  institutionId?: string;
+  incidentAt: string;
+  category: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  notes?: string;
+  reportedBy: string;
+}
+
+export async function listStudentAllergies(studentId: string): Promise<AllergyRecord[]> {
+  const result = await gatewayFetch<{ data: AllergyRecord[] }>(
+    `/health/allergies/student/${studentId}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createAllergy(input: CreateAllergyInput): Promise<AllergyRecord> {
+  const result = await gatewayFetch<AllergyRecord>('/health/allergies', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create allergy',
+    });
+  }
+  return result.data;
+}
+
+export async function listStudentVaccinations(studentId: string): Promise<VaccinationRecord[]> {
+  const result = await gatewayFetch<{ data: VaccinationRecord[] }>(
+    `/health/vaccinations/student/${studentId}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+/** Tenant-wide immunisation register (Wave 10 Option B). */
+export async function listVaccinations(): Promise<VaccinationRecord[]> {
+  const result = await gatewayFetch<{ data: VaccinationRecord[] }>('/health/vaccinations', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createVaccination(input: CreateVaccinationInput): Promise<VaccinationRecord> {
+  const result = await gatewayFetch<VaccinationRecord>('/health/vaccinations', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create vaccination',
+    });
+  }
+  return result.data;
+}
+
+export async function listPhiAccessLogs(studentId?: string): Promise<{
+  rows: PhiAccessLogRow[];
+  accessDenied: boolean;
+}> {
+  const qs = studentId ? `?studentId=${encodeURIComponent(studentId)}` : '';
+  const result = await gatewayFetch<{ data: PhiAccessLogRow[] }>(`/health/phi-access${qs}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  if (result.status === 401 || result.status === 403 || result.status === 422) {
+    return { rows: [], accessDenied: true };
+  }
+  return { rows: result.data?.data ?? [], accessDenied: false };
+}
+
+export async function listNurseIncidents(): Promise<NurseIncidentRecord[]> {
+  const result = await gatewayFetch<{ data: NurseIncidentRecord[] }>('/health/incidents', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createNurseIncident(
+  input: CreateNurseIncidentInput,
+): Promise<NurseIncidentRecord> {
+  const result = await gatewayFetch<NurseIncidentRecord>('/health/incidents', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create incident',
+    });
+  }
+  return result.data;
 }

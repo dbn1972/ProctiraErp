@@ -60,6 +60,9 @@ export default async function DataWarehousePage() {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
+            <Link href="/pipelines">ETL pipelines</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/data-warehouse/map">
               <MapIcon className="me-1.5 h-4 w-4" aria-hidden="true" />
               Open GIS map

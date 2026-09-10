@@ -87,36 +87,41 @@
 
 ### P1
 
-| ID     | Screen                             | Finding                                                                                | Fix / waiver                                                                                                                                                        |
-| ------ | ---------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B3-001 | Transport live                     | Primary subtitle was developer-facing (`FORCE RLS`, JWT headers)                       | **Fixed** — user-facing subtitle; the API `honestyNote` (`FORCE RLS`, `MapLibre`) is no longer rendered at all after integration review (`transport/live/page.tsx`) |
-| B3-002 | Timetable substitutions            | “Double-books return HTTP 409” in page intro                                           | **Fixed** — plain-language overlap message (`institutions/[id]/timetable/substitutions/page.tsx`)                                                                   |
-| B3-003 | Attendance ops                     | Thin empty states (“No regularisation requests.”)                                      | **Fixed** — guided copy with next action (`attendance-ops-forms.tsx`)                                                                                               |
-| B3-004 | Communication circular detail      | Breadcrumb shows raw circular UUID                                                     | Open — shorten to title slug or “Circular detail”                                                                                                                   |
-| B3-005 | Timetable generate / substitutions | Prerequisite empty states describe setup but lack deep links to periods/bell schedules | Open — add links to `/academic-periods` and bell-schedule route                                                                                                     |
-| B3-006 | Attendance ops                     | Power-user UUID fields with no picker/autocomplete                                     | Open — acceptable for admin v1; improve with entity search later                                                                                                    |
-| B3-007 | Transport live (mobile)            | Map marker labels near illegible at 390px                                              | Open — increase label size or tooltip on tap                                                                                                                        |
-| B3-008 | Transport live                     | GPS ingest card still cites `POST /transport/gps`                                      | Open — admin-only; demote to helper text                                                                                                                            |
+| ID     | Screen                             | Finding                                                                                | Fix / waiver                                                                                                                                                                     |
+| ------ | ---------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B3-001 | Transport live                     | Primary subtitle was developer-facing (`FORCE RLS`, JWT headers)                       | **Fixed** — user-facing subtitle; the API `honestyNote` (`FORCE RLS`, `MapLibre`) is no longer rendered at all after integration review (`transport/live/page.tsx`)              |
+| B3-002 | Timetable substitutions            | “Double-books return HTTP 409” in page intro                                           | **Fixed** — plain-language overlap message (`institutions/[id]/timetable/substitutions/page.tsx`)                                                                                |
+| B3-003 | Attendance ops                     | Thin empty states (“No regularisation requests.”)                                      | **Fixed** — guided copy with next action (`attendance-ops-forms.tsx`)                                                                                                            |
+| B3-004 | Communication circular detail      | Breadcrumb shows raw circular UUID                                                     | **Fixed** — UUID segments shortened in breadcrumbs (Wave 10 G-1004)                                                                                                              |
+| B3-005 | Timetable generate / substitutions | Prerequisite empty states describe setup but lack deep links to periods/bell schedules | **Fixed** — deep links to academic periods / bell schedules / staff (Wave 10 G-1004)                                                                                             |
+| B3-006 | Attendance ops                     | Power-user UUID fields with no picker/autocomplete                                     | **Fixed (this PR)** — `EntitySearchSelect` for student/institution/class/period; attendance record id remains text input (`attendance-ops-forms.tsx`, `attendance/ops/page.tsx`) |
+| B3-007 | Transport live (mobile)            | Map marker labels near illegible at 390px                                              | **Fixed (this PR)** — marker labels 17px, SVG `<title>` tooltips, labels hidden below `sm` (`transport/_components/live-map.tsx`)                                                |
+| B3-008 | Transport live                     | GPS ingest card still cites `POST /transport/gps`                                      | **Fixed (this PR)** — user-facing CardDescription; API path demoted to muted helper text (`transport/_components/gps-device-forms.tsx`)                                          |
 
 ### P2
 
-| ID     | Screen                   | Finding                                                | Backlog note                                                   |
-| ------ | ------------------------ | ------------------------------------------------------ | -------------------------------------------------------------- |
-| B3-009 | LMS hub (mobile)         | Chip rows stack three deep before content              | Consider collapsible “More” on narrow viewports                |
-| B3-010 | Reports (mobile)         | “Generate” button smaller than “Fetch summary”         | Align primary button sizing                                    |
-| B3-011 | Institution child routes | Breadcrumbs expose full institution UUID               | Use school display name in breadcrumb label                    |
-| B3-012 | Captures (all mobile)    | Fixed bottom nav appears mid-scroll in `fullPage` PNGs | Capture artifact only — viewport screenshots omit the artefact |
+| ID     | Screen                   | Finding                                                | Backlog note                                                                                                                          |
+| ------ | ------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| B3-009 | LMS hub (mobile)         | Chip rows stack three deep before content              | **Fixed (this PR)** — horizontal scroll subnav with min touch targets (`lms/_components/lms-subnav.tsx`)                              |
+| B3-010 | Reports (mobile)         | “Generate” button smaller than “Fetch summary”         | **Fixed (this PR)** — both primary actions use default size + `min-h-11` (`catalogue-generate-panel.tsx`, `board-summary-panel.tsx`)  |
+| B3-011 | Institution child routes | Breadcrumbs expose full institution UUID               | **Fixed (this PR)** — `InstitutionBreadcrumbLabel` resolves name via `/api/v1/institutions/:id` (`components/layout/breadcrumbs.tsx`) |
+| B3-012 | Captures (all mobile)    | Fixed bottom nav appears mid-scroll in `fullPage` PNGs | **WAIVED** (capture artifact only, dated 2026-09-10) — viewport screenshots omit the artefact                                         |
 
 ---
 
 ## 3. Decisions / changes landed
 
-| Change                        | Files                                                                             | Result                                               |
-| ----------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| User-facing live-map subtitle | `apps/web/src/app/(dashboard)/transport/live/page.tsx`                            | Primary copy readable; technical note retained below |
-| Plain-language clash message  | `apps/web/src/app/(dashboard)/institutions/[id]/timetable/substitutions/page.tsx` | HTTP status code removed from UI                     |
-| Guided empty states           | `apps/web/src/app/(dashboard)/attendance/_components/attendance-ops-forms.tsx`    | Regularisation + leave lists explain next step       |
-| `wave9-b3` capture module     | `apps/web/scripts/capture-screens.mjs`                                            | 40 routes, 120 PNGs committed                        |
+| Change                          | Files                                                                             | Result                                               |
+| ------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| User-facing live-map subtitle   | `apps/web/src/app/(dashboard)/transport/live/page.tsx`                            | Primary copy readable; technical note retained below |
+| Plain-language clash message    | `apps/web/src/app/(dashboard)/institutions/[id]/timetable/substitutions/page.tsx` | HTTP status code removed from UI                     |
+| Guided empty states             | `apps/web/src/app/(dashboard)/attendance/_components/attendance-ops-forms.tsx`    | Regularisation + leave lists explain next step       |
+| Entity search on attendance ops | `attendance/ops/page.tsx`, `attendance-ops-forms.tsx`                             | B3-006 — searchable student/institution/class/period |
+| Transport map + GPS copy        | `transport/_components/live-map.tsx`, `gps-device-forms.tsx`                      | B3-007, B3-008                                       |
+| LMS mobile subnav scroll        | `lms/_components/lms-subnav.tsx`                                                  | B3-009                                               |
+| Reports button parity           | `reports/_components/catalogue-generate-panel.tsx`, `board-summary-panel.tsx`     | B3-010                                               |
+| Institution breadcrumb names    | `components/layout/breadcrumbs.tsx`, `institution-breadcrumb-label.tsx`           | B3-011                                               |
+| `wave9-b3` capture module       | `apps/web/scripts/capture-screens.mjs`                                            | 40 routes, 120 PNGs committed                        |
 
 ---
 
@@ -125,7 +130,7 @@
 | Claim                             | Status                                                                                              |
 | --------------------------------- | --------------------------------------------------------------------------------------------------- |
 | P0 cleared                        | ☑                                                                                                   |
-| P1 cleared or waived              | ☑ (3 fixed in-session; 5 documented above)                                                          |
+| P1 cleared or waived              | ☑ (3 fixed in-session; B3-006…B3-011 fixed in Wave 10 PR; B3-012 waived 2026-09-10)                 |
 | Multidevice PNGs reviewed         | ☑ (desktop + mobile all modules; tablet sample: staff-attendance, communication-hub, lms-analytics) |
 | Scoreboard updated if score moved | ☐ (no scoreboard change — 8.4 within prior Wave 9 band)                                             |
 

@@ -21,6 +21,13 @@ const STUDENT_ID =
 
 const HEALTH_ROUTES: { id: string; path: string; heading?: RegExp }[] = [
   { id: 'records-hub', path: '/health', heading: /health/i },
+  { id: 'allergies', path: '/health/allergies', heading: /allerg/i },
+  { id: 'allergies-new', path: '/health/allergies/new', heading: /allerg/i },
+  { id: 'vaccinations', path: '/health/vaccinations', heading: /vaccin/i },
+  { id: 'vaccinations-new', path: '/health/vaccinations/new', heading: /vaccin/i },
+  { id: 'incidents', path: '/health/incidents', heading: /incident|nurse/i },
+  { id: 'incidents-new', path: '/health/incidents/new', heading: /nurse|incident|visit/i },
+  { id: 'phi-access', path: '/health/phi-access', heading: /phi access/i },
   { id: 'screenings', path: '/health/screenings', heading: /screenings/i },
   { id: 'counselling', path: '/health/counselling', heading: /counselling|counseling/i },
   {

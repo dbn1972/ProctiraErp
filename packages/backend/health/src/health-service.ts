@@ -415,6 +415,19 @@ export class HealthService {
     return result;
   }
 
+  /** Tenant-wide immunisation register (Wave 10 Option B). */
+  async listAllVaccinations(
+    tenantId: string,
+    accessContext: HealthAccessContext,
+  ): Promise<VaccinationEntity[]> {
+    if (!hasHealthAccess(accessContext, '')) {
+      throw new BusinessRuleError('Access denied: not authorized to access health records');
+    }
+    const list = this.repository.listAllVaccinations?.bind(this.repository);
+    if (!list) return [];
+    return list(tenantId);
+  }
+
   // ─── Insurance ──────────────────────────────────────────────────────────
 
   async createInsurance(
@@ -919,5 +932,87 @@ export class HealthService {
         counsellingSessions: counsellingSessions.data,
       },
     };
+  }
+
+  async listPhiAccessLogs(
+    tenantId: string,
+    access: HealthAccessContext,
+    options: { studentId?: string; limit?: number } = {},
+  ) {
+    const privileged = access.roles.some((r) => {
+      const n = r.toLowerCase();
+      return (
+        n.includes('health_admin') ||
+        n.includes('system_admin') ||
+        n.includes('administrator') ||
+        n.includes('health_officer')
+      );
+    });
+    if (!privileged) {
+      throw new BusinessRuleError('Access denied: PHI access log requires a health admin role');
+    }
+    const repo = this.repository as {
+      listPhiAccessLogs?: (
+        tenantId: string,
+        options?: { studentId?: string; limit?: number },
+      ) => Promise<
+        Array<{
+          id: string;
+          tenantId: string;
+          actorUserId: string;
+          studentId: string;
+          resourceType: string;
+          resourceId: string | null;
+          action: string;
+          createdAt: string;
+        }>
+      >;
+    };
+    if (typeof repo.listPhiAccessLogs !== 'function') return [];
+    return repo.listPhiAccessLogs(tenantId, options);
+  }
+
+  async createNurseIncident(
+    tenantId: string,
+    input: {
+      studentId: string;
+      institutionId?: string;
+      incidentAt: string;
+      category: string;
+      severity: 'low' | 'medium' | 'high' | 'critical';
+      notes?: string;
+      reportedBy: string;
+    },
+    access: HealthAccessContext,
+  ) {
+    if (!hasHealthAccess(access, input.studentId)) {
+      throw new BusinessRuleError(
+        "Access denied: not authorized to access this student's health records",
+      );
+    }
+    const create = this.repository.createNurseIncident?.bind(this.repository);
+    if (!create) {
+      throw new BusinessRuleError('Nurse incidents are not available on this repository');
+    }
+    return create({
+      id: uuidv4(),
+      tenantId,
+      studentId: input.studentId,
+      institutionId: input.institutionId ?? null,
+      incidentAt: new Date(input.incidentAt),
+      category: input.category,
+      severity: input.severity,
+      notes: input.notes ?? '',
+      reportedBy: input.reportedBy,
+    });
+  }
+
+  async listNurseIncidents(tenantId: string, access: HealthAccessContext) {
+    if (!hasHealthAccess(access, '')) {
+      // Empty studentId → role-only check inside hasHealthAccess for personnel
+      throw new BusinessRuleError('Access denied: not authorized to access health records');
+    }
+    const list = this.repository.listNurseIncidents?.bind(this.repository);
+    return list ? list(tenantId) : [];
   }
 }

@@ -4,6 +4,8 @@ import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
+import { InstitutionBreadcrumbLabel } from '@/components/layout/institution-breadcrumb-label';
+
 /**
  * Breadcrumb navigation component.
  * Automatically generates breadcrumb trail from the current URL path.
@@ -24,8 +26,10 @@ export function Breadcrumbs() {
     const href = '/' + segments.slice(0, index + 1).join('/');
     const label = formatSegmentLabel(segment);
     const isLast = index === segments.length - 1;
+    const previousSegment = index > 0 ? segments[index - 1] : undefined;
+    const isInstitutionId = previousSegment === 'institutions' && UUID_SEGMENT.test(segment);
 
-    return { href, label, isLast };
+    return { href, label, isLast, segment, isInstitutionId };
   });
 
   return (
@@ -47,14 +51,28 @@ export function Breadcrumbs() {
             <BreadcrumbSeparator />
             {crumb.isLast ? (
               <span className="font-medium text-foreground" aria-current="page">
-                {crumb.label}
+                {crumb.isInstitutionId ? (
+                  <InstitutionBreadcrumbLabel
+                    institutionId={crumb.segment}
+                    fallbackLabel={crumb.label}
+                  />
+                ) : (
+                  crumb.label
+                )}
               </span>
             ) : (
               <Link
                 href={crumb.href}
                 className="inline-flex min-h-12 min-w-12 items-center justify-center hover:text-foreground"
               >
-                {crumb.label}
+                {crumb.isInstitutionId ? (
+                  <InstitutionBreadcrumbLabel
+                    institutionId={crumb.segment}
+                    fallbackLabel={crumb.label}
+                  />
+                ) : (
+                  crumb.label
+                )}
               </Link>
             )}
           </li>

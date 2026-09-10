@@ -76,6 +76,21 @@ export interface VaccinationEntity {
   updatedAt: Date;
 }
 
+/** Nurse / clinic visit incident (Wave 10 Option B). */
+export interface NurseIncidentEntity {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  institutionId: string | null;
+  incidentAt: Date;
+  category: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  notes: string;
+  reportedBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface InsuranceEntity {
   id: string;
   tenantId: string;
@@ -346,9 +361,17 @@ export interface HealthRepository {
   // rows instead of the demo seed. Optional so older implementations still
   // satisfy the contract; the UI aggregate treats "absent" as "no live rows".
   listAllAllergies?(tenantId: string): Promise<AllergyEntity[]>;
+  listAllVaccinations?(tenantId: string): Promise<VaccinationEntity[]>;
   listAllConditions?(tenantId: string): Promise<HealthConditionEntity[]>;
   listAllDiagnoses?(tenantId: string): Promise<DiagnosisEntity[]>;
   listAllAccommodationPlans?(tenantId: string): Promise<AccommodationPlanEntity[]>;
+
+  // Nurse incidents (Wave 10 Option B) — optional for older impls
+  createNurseIncident?(
+    data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<NurseIncidentEntity>;
+  listNurseIncidents?(tenantId: string): Promise<NurseIncidentEntity[]>;
+  listNurseIncidentsByStudent?(tenantId: string, studentId: string): Promise<NurseIncidentEntity[]>;
 
   // Screening Programs
   createScreeningProgram(

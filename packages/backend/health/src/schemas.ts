@@ -199,6 +199,19 @@ export const UpdateVaccinationSchema = Type.Object({
 });
 export type UpdateVaccinationInput = Static<typeof UpdateVaccinationSchema>;
 
+// ─── Nurse Incidents (Wave 10 Option B) ───────────────────────────────────────
+
+export const CreateNurseIncidentSchema = Type.Object({
+  studentId: Type.String({ description: 'Student UUID' }),
+  institutionId: Type.Optional(Type.String({ description: 'Institution UUID' })),
+  incidentAt: Type.String({ description: 'ISO timestamp of the visit/incident' }),
+  category: Type.String({ minLength: 1, maxLength: 100 }),
+  severity: Type.String({ enum: ['low', 'medium', 'high', 'critical'] }),
+  notes: Type.Optional(Type.String({ maxLength: 2000 })),
+  reportedBy: Type.String({ minLength: 1, maxLength: 200 }),
+});
+export type CreateNurseIncidentInput = Static<typeof CreateNurseIncidentSchema>;
+
 // ─── Insurance Schemas ────────────────────────────────────────────────────────
 
 export const CreateInsuranceSchema = Type.Object({

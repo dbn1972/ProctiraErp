@@ -197,6 +197,9 @@ importers:
       '@proctira/backend-developer-portal':
         specifier: workspace:*
         version: link:../../packages/backend/developer-portal
+      '@proctira/backend-etl':
+        specifier: workspace:*
+        version: link:../../packages/backend/etl
       '@proctira/backend-examination':
         specifier: workspace:*
         version: link:../../packages/backend/examination
@@ -1362,6 +1365,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

@@ -134,6 +134,7 @@ export function CatalogueGeneratePanel({ templates }: CatalogueGeneratePanelProp
           <div className="sm:col-span-2">
             <Button
               type="submit"
+              className="min-h-11"
               disabled={pending}
               title={pending ? 'Generating report' : undefined}
             >
