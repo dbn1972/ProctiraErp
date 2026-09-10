@@ -23,7 +23,7 @@ dependencies:
   equatable: ^2.0.5
 
   # Secure storage / biometrics
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^11.0.0
   local_auth: ^2.2.0
 
   # Local storage / paths
