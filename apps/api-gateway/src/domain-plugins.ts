@@ -11,8 +11,9 @@
  *  - student / institution / staff (incl. assignments) / attendance /
  *    assessment / examination: Prisma-backed (Postgres + RLS) via their
  *    create*Repository factories when DATABASE_URL is set, else in-memory.
- *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
- *    other health entities + workflows seed in-memory.
+ *  - health: raw SQL + `pg` when DATABASE_URL is set (no Prisma) for counselling
+ *    (002), profile/screening PHI (012), special-needs (017), nurse incidents (046);
+ *    else in-memory hybrid fallback.
  *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
@@ -31,8 +32,9 @@
  *  - insights / platform-admin: UI aggregates; PG-backed when DATABASE_URL
  *    (020_insights_ui_schema.sql). G-909 mounts `@proctira/backend-report`
  *    for real catalogue exports; insights keeps board summary + data-warehouse.
- *  - assessment report-card repos wired (in-memory; no Prisma models yet).
- *    Durable HTML report cards also via gradebook `/gradebook/report-cards`.
+ *  - assessment report-card repos via createReportCard*Repository() — raw pg
+ *    `024` when DATABASE_URL is set, else in-memory. Durable HTML also via
+ *    gradebook `/gradebook/report-cards`.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -263,7 +265,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/assessments'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
-      // G-210: wire in-memory report-card repos so `/report-cards` routes enable.
+      // G-210: report-card factories use pg `024` when DATABASE_URL is set.
       // Durable board HTML report cards also live at `/gradebook/report-cards`.
       await scope.register(assessmentPlugin, {
         gradingSchemeRepository: createGradingSchemeRepository(),
@@ -345,8 +347,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'health',
     proxyPrefixes: ['/health'],
     register: async (scope) => {
-      // Postgres counselling + profile/screening PHI when DATABASE_URL is set
-      // (raw pg, no Prisma — SQL 002 + 012). Special-needs stays in-memory.
+      // Postgres counselling + PHI + special-needs + nurse incidents when
+      // DATABASE_URL is set (raw pg — SQL 002 + 012 + 017 + 046); else memory.
       // UI aggregates merge seed + live counselling writes for list sync.
       // G-711: production must not boot without a PHI key (or explicit opt-out).
       assertPhiKeyConfigured();
