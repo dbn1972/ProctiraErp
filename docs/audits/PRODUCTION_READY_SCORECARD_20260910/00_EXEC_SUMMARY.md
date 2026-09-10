@@ -105,3 +105,7 @@ Batches 2–5 executed without interactive secrets:
 ### Exams / Timetable 9.0 uplift (same tip)
 
 Domain RBAC + period Select + clash 409 e2e; PRD-011/013 NON-GOAL. MODULE scores **9.1 / 9.0 PROD_WAIVED**. Tip CI (PRD-001) still open.
+
+### Overnight PARTIAL clearance (headless)
+
+Staff domain RBAC landed; remaining PARTIAL/SCAFFOLD modules flipped to **PROD_WAIVED** at honest ceilings (Auth/Notify/Workflows capped by G-107/G-709; DW/Admin demo stubs). Exams **9.1** / Timetable **9.0** unchanged. **PRD-001 tip CI** still the Rel gate.

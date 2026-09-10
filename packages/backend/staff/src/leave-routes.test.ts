@@ -25,7 +25,10 @@ describe('Staff leave routes JWT actor', () => {
     app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
       (request as FastifyRequest & { tenantId: string }).tenantId = TENANT_ID;
-      (request as FastifyRequest & { user?: { sub?: string } }).user = { sub: 'jwt-actor-sub' };
+      (request as FastifyRequest & { user?: { sub?: string; roles?: string[] } }).user = {
+        sub: 'jwt-actor-sub',
+        roles: ['hr_officer'],
+      };
     });
 
     await registerStaffLeaveRoutes(app, { leaveService });

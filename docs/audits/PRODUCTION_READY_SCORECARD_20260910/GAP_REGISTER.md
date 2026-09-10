@@ -61,3 +61,5 @@ IDs `PRD-*` are new planning IDs from this scorecard. `G-*` reuse the enterprise
 | PRD-001                                       | **OPEN** — tip CI must still land green on post-closure SHA (watch Integration Tests).                                                                          |
 
 | Exams + Timetable 9.0 uplift | **CLOSED** — domain RBAC, period Select, clash 409 e2e, PRD-011/013 NON-GOAL; MODULE scores → 9.1 / 9.0 PROD_WAIVED. |
+
+| Overnight PARTIAL→PROD_WAIVED sync | **CLOSED** — Staff domain RBAC (`staff-access`); Health/ETL/Admissions/Auth/Notify/Workflows/Reports/DW/Admin rescored PROD_WAIVED with G-107/G-709/OCR/demo honesty. Tip CI (PRD-001) still required for Rel 9. |

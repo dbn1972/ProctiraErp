@@ -148,7 +148,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Staff + assignments + G-918 contracts/attendance/import/payroll; Prisma when DATABASE_URL set. HR ops raw SQL 043.',
+      'Staff/HR CRUD + G-918 ops; domain RBAC via staff-access (rbacWired=false = gateway rbacPlugin not mounted).',
     registrarName: 'staff',
   },
   {

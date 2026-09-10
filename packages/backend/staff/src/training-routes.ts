@@ -43,6 +43,7 @@ import {
   type TrainingProgramListQuery,
   type CertificationListQuery,
 } from './training-schemas.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 import type { TrainingService } from './training-service.js';
 
 /**
@@ -155,6 +156,10 @@ export async function registerTrainingRoutes(
   options: TrainingRoutesOptions,
 ): Promise<void> {
   const { trainingService, prefix = '/staff/training' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    staffWritePreHandler(request, reply, 'staff.hr.write');
+  });
 
   // ─── Training Programs ───────────────────────────────────────────────
 
