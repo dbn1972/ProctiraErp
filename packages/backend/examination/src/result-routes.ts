@@ -48,7 +48,7 @@ export async function registerResultRoutes(
     const url = request.url;
     const action =
       url.includes('/publish') || url.includes('/analysis') ? 'exam.publish' : 'exam.update';
-    await examinationWritePreHandler(request, reply, action);
+    examinationWritePreHandler(request, reply, action);
   });
 
   /**

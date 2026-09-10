@@ -36,11 +36,11 @@ export function requireExaminationAction(
  * Skip GET/HEAD/OPTIONS; assert `action` on mutating methods.
  * When denied, reply is sent and Fastify skips the route because `reply.sent`.
  */
-export async function examinationWritePreHandler(
+export function examinationWritePreHandler(
   request: FastifyRequest,
   reply: FastifyReply,
   action: ExaminationAction,
-): Promise<void> {
+): void {
   const method = request.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
   if (!requireExaminationAction(request, reply, action)) {

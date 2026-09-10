@@ -15,8 +15,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { ExaminationEntity } from './examination-repository.js';
 import { requireExaminationAction } from './examination-http-guard.js';
+import type { ExaminationEntity } from './examination-repository.js';
 import type { ExaminationService } from './examination-service.js';
 import {
   CreateExaminationSchema,

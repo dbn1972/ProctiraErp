@@ -80,7 +80,7 @@ export async function registerDocumentRoutes(
   const { documentGenerationService, prefix = '/examinations' } = options;
 
   fastify.addHook('preHandler', async (request, reply) => {
-    await examinationWritePreHandler(request, reply, 'document.generate');
+    examinationWritePreHandler(request, reply, 'document.generate');
   });
 
   /**
