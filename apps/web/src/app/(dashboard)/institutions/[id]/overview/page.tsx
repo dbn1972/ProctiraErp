@@ -235,11 +235,22 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 
 export default async function InstitutionOverviewPage(props: OverviewPageProps) {
   const params = await props.params;
-  const [institution, areas, types] = await Promise.all([
-    getInstitution(params.id),
+  const [institutionResult, areas, types] = await Promise.all([
+    getInstitution(params.id).catch(() => null),
     loadAreaOptions(),
     loadTypeOptions(),
   ]);
+
+  // Layout already soft-fails when the gateway is down; mirror that here so
+  // live KPI fetches never crash the overview tab on an offline stack.
+  if (!institutionResult) {
+    return (
+      <p className="text-sm text-muted-foreground" role="status">
+        Institution details are currently unavailable.
+      </p>
+    );
+  }
+  const institution = institutionResult;
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
   const areaName = nameFor(areas, institution.areaId);

@@ -14,6 +14,7 @@ import { Button } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { InstitutionTabs } from '@/components/institutions/institution-tabs';
 import { ApiClientError, getInstitution } from '@/lib/institutions/api';
+import type { Institution } from '@/lib/institutions/types';
 import {
   loadAreaOptions,
   loadOwnershipOptions,
@@ -150,12 +151,42 @@ export default async function InstitutionLayout({ params, children }: Institutio
   );
 }
 
+/**
+ * Placeholder used when the gateway is unreachable so child tabs (grades,
+ * classes, gradebook, …) can still mount their ungated Add / heading chrome.
+ * Real 404s still call notFound() via a null return.
+ */
+function unavailableInstitution(id: string): Institution {
+  return {
+    id,
+    name: 'Institution unavailable',
+    code: '',
+    areaId: '',
+    typeId: '',
+    sectorId: '',
+    ownershipId: '',
+    status: 'ACTIVE',
+    latitude: null,
+    longitude: null,
+    address: null,
+    contactPhone: null,
+    contactEmail: null,
+    deactivationReason: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
 async function loadInstitution(id: string) {
   try {
     return await getInstitution(id);
   } catch (error) {
     if (error instanceof ApiClientError && error.statusCode === 404) {
       return null;
+    }
+    // statusCode 0 = network / gateway down (Integration Tests ungated path).
+    if (error instanceof ApiClientError && error.statusCode === 0) {
+      return unavailableInstitution(id);
     }
     throw error;
   }

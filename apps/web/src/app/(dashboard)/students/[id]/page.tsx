@@ -148,8 +148,12 @@ interface PageProps {
 
 export default async function StudentProfilePage(props: PageProps) {
   const params = await props.params;
+  // Resolve the student first so unknown / offline IDs hit notFound() before
+  // secondary fetches can surface a gateway error boundary.
+  const student = await getStudent(params.id);
+  if (!student) notFound();
+
   const [
-    student,
     enrollments,
     history,
     transfers,
@@ -160,7 +164,6 @@ export default async function StudentProfilePage(props: PageProps) {
     incidents,
     hasPhoto,
   ] = await Promise.all([
-    getStudent(params.id),
     getStudentEnrollments(params.id),
     getEnrollmentHistory(params.id),
     getTransferRecords(params.id),
@@ -171,8 +174,6 @@ export default async function StudentProfilePage(props: PageProps) {
     listStudentDiscipline(params.id),
     studentHasPhoto(params.id),
   ]);
-
-  if (!student) notFound();
 
   const cd = student.customData ?? {};
   const currentEnrollment = enrollments.find((e) => e.status === 'ENROLLED') ?? null;

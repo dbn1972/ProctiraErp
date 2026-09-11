@@ -36,7 +36,8 @@ test.describe('ETL pipelines — shell (ungated)', () => {
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByRole('heading', { name: /etl pipelines/i })).toBeVisible();
     await expect(page.getByTestId('create-pipeline-form')).toBeVisible();
-    await expect(page.getByRole('link', { name: /data warehouse/i })).toBeVisible();
+    // Prefer the in-page CTA — sidebar also has a "Data Warehouse" nav link.
+    await expect(page.getByRole('link', { name: /data warehouse indicators/i })).toBeVisible();
   });
 
   test('/pipelines rejects empty name client-side', async ({ page }) => {

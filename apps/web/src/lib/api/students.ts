@@ -243,9 +243,10 @@ export async function listStudents(filters: StudentListFilters = {}): Promise<St
 }
 
 /**
- * Resolves to `null` only when the gateway says the student does not exist
- * (404). Any other failure (5xx, network, auth) is thrown so the page shows an
- * error boundary instead of a misleading "Page not found".
+ * Resolves to `null` when the student is missing (404) or the gateway is
+ * unreachable (network / status 0). Ungated shells and unknown-id routes must
+ * render the not-found page rather than an error boundary when the API is
+ * offline. Auth and 5xx responses still throw.
  */
 export async function getStudent(id: string): Promise<Student | null> {
   const result = await gatewayFetch<Student>(`/students/${id}`, {
@@ -254,7 +255,7 @@ export async function getStudent(id: string): Promise<Student | null> {
     next: { revalidate: 0 },
   });
   if (result.ok) return result.data;
-  if (result.status === 404) return null;
+  if (result.status === 404 || result.status === 0) return null;
   throw new GatewayError({
     status: result.status,
     code: result.error?.code ?? 'GATEWAY_ERROR',
