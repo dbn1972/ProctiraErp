@@ -853,14 +853,17 @@ export class FeesService {
       const invoice = prior.invoiceId
         ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
         : null;
-      return { concession: prior, invoice, discountCents: input.amountCents, idempotent: true as const };
+      return {
+        concession: prior,
+        invoice,
+        discountCents: input.amountCents,
+        idempotent: true as const,
+      };
     }
 
     const invoices = await this.repository.listInvoicesForStudentIds(tenantId, [input.studentId]);
     const invoice =
-      (input.invoiceId
-        ? invoices.find((row) => row.id === input.invoiceId)
-        : undefined) ??
+      (input.invoiceId ? invoices.find((row) => row.id === input.invoiceId) : undefined) ??
       invoices.find((row) => row.status === 'open' || row.status === 'overdue') ??
       null;
 

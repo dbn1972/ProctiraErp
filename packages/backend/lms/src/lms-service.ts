@@ -202,7 +202,10 @@ function bankToQuizQuestion(
   bank: BankQuestionEntity,
   position: number,
 ): Omit<QuizQuestionEntity, 'createdAt'> {
-  const options = Array.isArray(bank.payload.options) ? (bank.payload.options as string[]) : [];
+  const rawOptions = bank.payload.options;
+  const options = Array.isArray(rawOptions)
+    ? rawOptions.filter((item): item is string => typeof item === 'string')
+    : [];
   const correctOptionIndex =
     typeof bank.payload.correctOptionIndex === 'number' ? bank.payload.correctOptionIndex : -1;
   return {
@@ -1446,7 +1449,10 @@ export class LmsService {
           skillHits.set(key, current);
         }
         for (const q of questions) {
-          const tags = Array.isArray(q.payload?.tags) ? (q.payload.tags as string[]) : [];
+          const rawTags = q.payload?.tags;
+          const tags = Array.isArray(rawTags)
+            ? rawTags.filter((item): item is string => typeof item === 'string')
+            : [];
           for (const tag of tags) {
             const key = `tag:${tag}`;
             const current = skillHits.get(key) ?? { label: tag, correct: 0, attempts: 0 };
@@ -1664,5 +1670,4 @@ export class LmsService {
   async listModuleItems(tenantId: string, moduleId: string) {
     return this.repository.listModuleItems(tenantId, moduleId);
   }
-
 }

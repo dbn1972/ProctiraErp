@@ -13,8 +13,8 @@ import { defaultLocale, isValidLocale, type Locale } from './config';
  * Fallback chain for messages: user locale → default locale → empty.
  */
 export default getRequestConfig(async () => {
-  const cookieStore = cookies();
-  const headerStore = headers();
+  const cookieStore = await cookies();
+  const headerStore = await headers();
 
   const cookieLocale = cookieStore.get('locale')?.value;
   const acceptLanguage = headerStore.get('accept-language');
@@ -29,10 +29,10 @@ export default getRequestConfig(async () => {
 
   let messages: IntlMessages;
   try {
-    messages = (await import(`../messages/${resolvedLocale}.json`)).default;
+    messages = await loadMessages(resolvedLocale);
   } catch {
     try {
-      messages = (await import(`../messages/${defaultLocale}.json`)).default;
+      messages = await loadMessages(defaultLocale);
     } catch {
       messages = {};
     }
@@ -48,3 +48,15 @@ export default getRequestConfig(async () => {
 
 /** Recursive shape of next-intl message dictionaries */
 type IntlMessages = { [key: string]: string | IntlMessages };
+
+async function loadMessages(locale: string): Promise<IntlMessages> {
+  const mod: unknown = await import(`../messages/${locale}.json`);
+  if (typeof mod !== 'object' || mod === null || !('default' in mod)) {
+    return {};
+  }
+  const value = Reflect.get(mod, 'default');
+  if (typeof value !== 'object' || value === null) {
+    return {};
+  }
+  return value as IntlMessages;
+}

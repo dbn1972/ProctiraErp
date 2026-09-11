@@ -351,7 +351,6 @@ export interface LmsModuleItemEntity {
 }
 
 export interface LmsRepository {
-
   // Skills
   createSkill(data: Omit<SkillEntity, 'createdAt' | 'updatedAt'>): Promise<SkillEntity>;
   findSkillById(tenantId: string, id: string): Promise<SkillEntity | null>;

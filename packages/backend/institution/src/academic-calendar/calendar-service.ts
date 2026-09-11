@@ -238,7 +238,6 @@ export class AcademicCalendarService {
       }
     }
 
-
     // ── Enrollments (optional) ──
     if (dto.promoteEnrollments) {
       const grades = (await this.prisma.grade.findMany({

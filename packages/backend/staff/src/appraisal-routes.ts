@@ -27,8 +27,8 @@ import {
   type AppraisalTemplateParams,
   type AppraisalListQuery,
 } from './appraisal-schemas.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
 import type { AppraisalService } from './appraisal-service.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 
 /**
  * Options for registering appraisal routes.

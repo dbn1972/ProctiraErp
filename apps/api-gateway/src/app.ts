@@ -1,4 +1,3 @@
-import { providersPlugin } from './plugins/providers-plugin.js';
 /**
  * API Gateway Application Builder
  *
@@ -66,6 +65,7 @@ import {
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
+import { providersPlugin } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
 import {

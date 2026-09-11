@@ -78,7 +78,6 @@ import {
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
@@ -111,6 +110,7 @@ import {
   WorkflowService,
   workflowPlugin,
 } from '@proctira/backend-workflow';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -202,9 +202,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             options?: Dry,
           ) => Promise<{ cloned: number; source: number }>);
       try {
-        const { createTimetableRepository, TimetableService } = await import(
-          '@proctira/backend-timetable'
-        );
+        const { createTimetableRepository, TimetableService } =
+          await import('@proctira/backend-timetable');
         const tt = new TimetableService(createTimetableRepository());
         copyTimetable = (tenantId, _actor, sourcePeriodId, targetPeriodId, options) =>
           tt.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId, options);
@@ -427,12 +426,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             // Scholarship amounts are major units; fees ledger is cents.
             const amountCents = Math.round(Number(input.amount) * 100);
             if (amountCents <= 0) return;
-            await feesForScholarships.applyScholarshipNetting(input.tenantId, 'scholarship-netting', {
-              studentId: input.applicantId,
-              disbursementId: input.disbursementId,
-              amountCents,
-              currency: input.currency,
-            });
+            await feesForScholarships.applyScholarshipNetting(
+              input.tenantId,
+              'scholarship-netting',
+              {
+                studentId: input.applicantId,
+                disbursementId: input.disbursementId,
+                amountCents,
+                currency: input.currency,
+              },
+            );
           },
         },
       });
@@ -747,7 +750,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         pipelineStore,
         prefix: '/registrations',
         admissionsPrefix: '/admissions',
-        
+
         createOfferFeeInvoice: async (input) => {
           const fees = new FeesService(createFeesRepository());
           const amountCents = Math.round(Number(input.feeAmount) * 100);

@@ -890,5 +890,4 @@ export async function registerTimetableRoutes(
       return reply.code(201).send(result);
     },
   );
-
 }

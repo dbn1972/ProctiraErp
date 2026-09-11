@@ -592,7 +592,9 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 )}
                 {summary.timetable && (
                   <Stat
-                    label={summary.dryRun ? 'Timetable sections to clone' : 'Timetable sections cloned'}
+                    label={
+                      summary.dryRun ? 'Timetable sections to clone' : 'Timetable sections cloned'
+                    }
                     value={summary.timetable.sectionsCloned}
                     testId="rollover-timetable"
                   />

@@ -1044,7 +1044,6 @@ export class TimetableService {
     }
     return { sectionsCloned, meetingsCloned };
   }
-
 }
 
 export type { SectionEnrollmentEntity, SubstitutionEntity };

@@ -22,6 +22,28 @@ export interface SandboxIdpToken {
   roles: string[];
 }
 
+const BASE64URL_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/** ASCII-only base64url (no padding). JSON payloads in this facade are ASCII. */
+function encodeBase64Url(value: string): string {
+  const bytes: number[] = [];
+  for (let i = 0; i < value.length; i += 1) {
+    bytes.push(value.charCodeAt(i) & 0xff);
+  }
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i] ?? 0;
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+    const triplet = (a << 16) | ((b ?? 0) << 8) | (c ?? 0);
+    out += BASE64URL_ALPHABET[(triplet >> 18) & 63] ?? '';
+    out += BASE64URL_ALPHABET[(triplet >> 12) & 63] ?? '';
+    if (b !== undefined) out += BASE64URL_ALPHABET[(triplet >> 6) & 63] ?? '';
+    if (c !== undefined) out += BASE64URL_ALPHABET[triplet & 63] ?? '';
+  }
+  return out;
+}
+
 /** Issues a local HS256-shaped opaque token (not a real JWT crypto stack). */
 export function issueSandboxIdpToken(input: {
   subject: string;
@@ -29,8 +51,8 @@ export function issueSandboxIdpToken(input: {
   roles?: string[];
   secret?: string;
 }): SandboxIdpToken {
-  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-  const payload = Buffer.from(
+  const header = encodeBase64Url(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+  const payload = encodeBase64Url(
     JSON.stringify({
       sub: input.subject,
       tid: input.tenantId,
@@ -39,8 +61,8 @@ export function issueSandboxIdpToken(input: {
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 3600,
     }),
-  ).toString('base64url');
-  const sig = Buffer.from(input.secret ?? 'sandbox').toString('base64url').slice(0, 16);
+  );
+  const sig = encodeBase64Url(input.secret ?? 'sandbox').slice(0, 16);
   return {
     accessToken: `${header}.${payload}.${sig}`,
     tokenType: 'Bearer',
@@ -51,7 +73,9 @@ export function issueSandboxIdpToken(input: {
   };
 }
 
-export function listProviderCapabilities(env: NodeJS.ProcessEnv = process.env): ProviderCapability[] {
+export function listProviderCapabilities(
+  env: Record<string, string | undefined> = {},
+): ProviderCapability[] {
   const mode = (env.PROVIDER_MODE === 'live' ? 'live' : 'sandbox') as ProviderMode;
   return [
     {

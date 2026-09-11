@@ -16,6 +16,15 @@ import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/c
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
+  CreateScholarshipProgramInput,
+  UpdateScholarshipProgramInput,
+  CreateApplicationInput,
+  CreateDisbursementInput,
+  UpdateDisbursementInput,
+  RecipientComplianceInput,
+  UtilizationReportQuery,
+} from './schemas.js';
+import type {
   ScholarshipProgramEntity,
   ScholarshipApplicationEntity,
   DisbursementEntity,
@@ -29,15 +38,6 @@ import type {
   ApplicationStatus,
   DisbursementFrequency,
 } from './scholarship-repository.js';
-import type {
-  CreateScholarshipProgramInput,
-  UpdateScholarshipProgramInput,
-  CreateApplicationInput,
-  CreateDisbursementInput,
-  UpdateDisbursementInput,
-  RecipientComplianceInput,
-  UtilizationReportQuery,
-} from './schemas.js';
 
 /**
  * Interface for Workflow Engine integration.
@@ -567,7 +567,10 @@ export class ScholarshipService {
       updated.paymentStatus === 'paid' &&
       existing.paymentStatus !== 'paid'
     ) {
-      const application = await this.repository.findApplicationById(updated.applicationId, tenantId);
+      const application = await this.repository.findApplicationById(
+        updated.applicationId,
+        tenantId,
+      );
       const program = application
         ? await this.repository.findProgramById(application.programId, tenantId)
         : null;

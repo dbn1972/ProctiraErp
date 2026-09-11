@@ -1,9 +1,6 @@
+import { issueSandboxIdpToken, listProviderCapabilities } from '@proctira/backend-providers';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import {
-  issueSandboxIdpToken,
-  listProviderCapabilities,
-} from '@proctira/backend-providers';
 
 /**
  * G-7 / G-10 adjacent — provider capability discovery + sandbox IdP mint.
