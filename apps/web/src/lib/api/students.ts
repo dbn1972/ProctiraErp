@@ -331,6 +331,49 @@ export async function transferStudent(input: StudentTransferInput): Promise<{
   return result.data;
 }
 
+export interface UpdateEnrollmentStatusInput {
+  status: 'WITHDRAWN' | 'GRADUATED';
+  reason: string;
+  effectiveDate: string;
+}
+
+export async function updateEnrollmentStatus(
+  enrollmentId: string,
+  input: UpdateEnrollmentStatusInput,
+): Promise<EnrollmentEntry> {
+  const result = await gatewayFetch<EnrollmentEntry>(
+    `/enrollments/${encodeURIComponent(enrollmentId)}/status`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) {
+    throw new Error('Empty response from enrollment-service');
+  }
+  return result.data;
+}
+
+export interface BulkUpdateEnrollmentStatusInput extends UpdateEnrollmentStatusInput {
+  enrollmentIds: string[];
+}
+
+export interface BulkUpdateEnrollmentStatusResult {
+  updated: EnrollmentEntry[];
+  failed: Array<{ enrollmentId: string; code: string; message: string }>;
+}
+
+/** Wave 11 — withdraw or graduate many enrollments in one call. */
+export async function bulkUpdateEnrollmentStatus(
+  input: BulkUpdateEnrollmentStatusInput,
+): Promise<BulkUpdateEnrollmentStatusResult> {
+  const result = await gatewayFetch<BulkUpdateEnrollmentStatusResult>(
+    '/enrollments/bulk-status',
+    { method: 'POST', json: input },
+  );
+  if (!result.data) {
+    throw new Error('Empty response from enrollment-service');
+  }
+  return result.data;
+}
+
 /* ---------------------------------------------------------- Custom Fields */
 
 export async function getStudentCustomFields(): Promise<CustomFieldDefinition[]> {

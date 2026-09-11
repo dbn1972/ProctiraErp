@@ -162,6 +162,17 @@ class ModelTable {
     return { ...next };
   }
 
+  async updateMany(args: { where?: Where; data: Row }): Promise<{ count: number }> {
+    let count = 0;
+    for (const [id, row] of this.rows) {
+      if (matches(row, args.where)) {
+        this.rows.set(id, { ...row, ...args.data, updatedAt: new Date() });
+        count += 1;
+      }
+    }
+    return { count };
+  }
+
   async delete(args: { where: Where }): Promise<Row> {
     const current = await this.findFirst({ where: args.where });
     if (!current) throw new NotFoundRecord();

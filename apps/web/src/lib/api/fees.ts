@@ -159,13 +159,20 @@ export async function createFeePlan(input: CreateFeePlanInput): Promise<FeePlan>
   return throwIfMissing(result, 'Failed to create fee plan');
 }
 
-export async function listInvoices(scope: 'parent' | 'staff' = 'staff'): Promise<FeeInvoice[]> {
+export async function listInvoices(
+  scope: 'parent' | 'staff' = 'staff',
+  filters: { studentId?: string } = {},
+): Promise<FeeInvoice[]> {
   const qs = scope === 'parent' ? '?scope=parent' : '';
   const result = await gatewayFetch<{ data: FeeInvoice[] }>(`/fees/invoices${qs}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data?.data ?? [];
+  const invoices = result.data?.data ?? [];
+  if (filters.studentId) {
+    return invoices.filter((inv) => inv.studentId === filters.studentId);
+  }
+  return invoices;
 }
 
 export async function createInvoice(input: CreateInvoiceInput): Promise<FeeInvoice> {

@@ -413,6 +413,58 @@ describe('EnrollmentService', () => {
     });
   });
 
+
+  describe('bulkUpdateEnrollmentStatus', () => {
+    it('graduates multiple enrolled students and reports per-id failures', async () => {
+      const a = await service.createEnrollment(TENANT_ID, validCreateInput());
+      const b = await service.createEnrollment(
+        TENANT_ID,
+        validCreateInput({ studentId: uuid() }),
+      );
+      const missingId = uuid();
+
+      const result = await service.bulkUpdateEnrollmentStatus(TENANT_ID, {
+        enrollmentIds: [a.id, b.id, missingId, a.id],
+        status: 'GRADUATED',
+        reason: 'End of programme',
+        effectiveDate: '2024-05-30',
+      });
+
+      expect(result.updated).toHaveLength(2);
+      expect(result.updated.every((row) => row.status === 'GRADUATED')).toBe(true);
+      expect(result.updated.every((row) => row.exitedAt?.getTime() === new Date('2024-05-30').getTime())).toBe(
+        true,
+      );
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0]?.enrollmentId).toBe(missingId);
+    });
+
+    it('collects business-rule failures without aborting siblings', async () => {
+      const active = await service.createEnrollment(TENANT_ID, validCreateInput());
+      const withdrawn = await service.createEnrollment(
+        TENANT_ID,
+        validCreateInput({ studentId: uuid() }),
+      );
+      await service.updateEnrollmentStatus(TENANT_ID, withdrawn.id, {
+        status: 'WITHDRAWN',
+        reason: 'Left school',
+        effectiveDate: '2024-04-01',
+      });
+
+      const result = await service.bulkUpdateEnrollmentStatus(TENANT_ID, {
+        enrollmentIds: [withdrawn.id, active.id],
+        status: 'GRADUATED',
+        reason: 'Cohort close',
+        effectiveDate: '2024-05-30',
+      });
+
+      expect(result.updated).toHaveLength(1);
+      expect(result.updated[0]?.id).toBe(active.id);
+      expect(result.failed).toHaveLength(1);
+      expect(result.failed[0]?.enrollmentId).toBe(withdrawn.id);
+    });
+  });
+
   describe('listEnrollments', () => {
     it('should return paginated results', async () => {
       // Create 3 enrollments

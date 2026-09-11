@@ -5,6 +5,7 @@
  * GET    /enrollments                    - List enrollments (paginated, filterable)
  * GET    /enrollments/:id                - Get a single enrollment
  * POST   /enrollments/:id/status         - Update enrollment status (withdraw/graduate)
+ * POST   /enrollments/bulk-status        - Wave 11 bulk withdraw/graduate
  * POST   /enrollments/transfer           - Transfer a student between institutions
  * GET    /enrollments/student/:studentId/history   - Get enrollment history for a student
  * GET    /enrollments/student/:studentId/transfers - Get transfer records for a student
@@ -19,11 +20,13 @@ import type { EnrollmentService } from './enrollment-service.js';
 import {
   CreateEnrollmentSchema,
   UpdateEnrollmentStatusSchema,
+  BulkUpdateEnrollmentStatusSchema,
   StudentTransferSchema,
   EnrollmentParamsSchema,
   StudentParamsSchema,
   type CreateEnrollmentInput,
   type UpdateEnrollmentStatusInput,
+  type BulkUpdateEnrollmentStatusInput,
   type StudentTransferInput,
   type EnrollmentParams,
   type StudentParams,
@@ -296,6 +299,43 @@ export async function registerEnrollmentRoutes(
         }
         throw error;
       }
+    },
+  );
+
+  /**
+   * POST /enrollments/bulk-status
+   * Wave 11 — withdraw or graduate many enrollments in one call.
+   */
+  fastify.post(
+    `${prefix}/bulk-status`,
+    async function bulkStatusHandler(
+      request: FastifyRequest<{ Body: BulkUpdateEnrollmentStatusInput }>,
+      reply: FastifyReply,
+    ) {
+      const bodyResult = validate(BulkUpdateEnrollmentStatusSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const result = await enrollmentService.bulkUpdateEnrollmentStatus(tenantId, bodyResult.data);
+      return reply.status(200).send({
+        updated: result.updated.map(formatEnrollmentResponse),
+        failed: result.failed,
+      });
     },
   );
 

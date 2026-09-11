@@ -6,8 +6,8 @@
  *             enrollment-by-grade bar chart, recent activity timeline
  *  - Sidebar: key facts, contact details
  *
- * All metric data is read from `customData` with graceful "Currently
- * unavailable" fallbacks — no fabricated numbers, no raw UUIDs.
+ * KPI tiles prefer live list/hierarchy/attendance APIs, with graceful
+ * "Currently unavailable" / customData fallbacks — no fabricated numbers.
  */
 import Link from 'next/link';
 import {
@@ -28,8 +28,11 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { getInstitution } from '@/lib/institutions/api';
+import { getInfrastructureHierarchy, getInstitution } from '@/lib/institutions/api';
 import { loadAreaOptions, loadTypeOptions } from '@/lib/institutions/lookups';
+import { listStudents } from '@/lib/api/students';
+import { listStaff } from '@/lib/api/staff';
+import { calculateAttendancePercentage } from '@/lib/api/attendance';
 
 interface OverviewPageProps {
   params: Promise<{ id: string }>;
@@ -242,10 +245,44 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
   const areaName = nameFor(areas, institution.areaId);
   const typeName = nameFor(types, institution.typeId);
 
-  const studentCount = readNum(cd, 'studentCount');
-  const staffCount = readNum(cd, 'staffCount');
-  const attendance = readNum(cd, 'attendance');
-  const classrooms = readNum(cd, 'classroomCount');
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setUTCDate(endDate.getUTCDate() - 30);
+  const toIso = (d: Date) => d.toISOString().slice(0, 10);
+
+  const [studentsRes, staffRes, hierarchy, attendanceRes] = await Promise.all([
+    listStudents({ institutionId: institution.id, pageSize: 1 }).catch(() => null),
+    listStaff({ institutionId: institution.id, pageSize: 1 }).catch(() => null),
+    getInfrastructureHierarchy(institution.id).catch(() => null),
+    calculateAttendancePercentage({
+      scope: 'institution',
+      institutionId: institution.id,
+      startDate: toIso(startDate),
+      endDate: toIso(endDate),
+    }).catch(() => null),
+  ]);
+
+  const studentCount = studentsRes?.meta?.totalItems ?? readNum(cd, 'studentCount');
+  const staffCount = staffRes?.meta?.totalItems ?? readNum(cd, 'staffCount');
+  const attendance =
+    attendanceRes && Number.isFinite(attendanceRes.attendancePercentage)
+      ? Math.round(attendanceRes.attendancePercentage)
+      : readNum(cd, 'attendance');
+  let classrooms: number | null = null;
+  if (hierarchy?.lands?.length) {
+    classrooms = hierarchy.lands.reduce(
+      (sum, land) =>
+        sum +
+        land.buildings.reduce(
+          (bSum, building) =>
+            bSum + building.floors.reduce((fSum, floor) => fSum + floor.rooms.length, 0),
+          0,
+        ),
+      0,
+    );
+  } else {
+    classrooms = readNum(cd, 'classroomCount');
+  }
 
   const rawEnroll = cd['enrollmentByGrade'];
   const enrollment: GradeEnrollment[] = Array.isArray(rawEnroll)

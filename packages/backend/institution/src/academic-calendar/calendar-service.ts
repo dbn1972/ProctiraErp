@@ -281,6 +281,7 @@ export class AcademicCalendarService {
 
       summary.enrollments.considered = sourceEnrollments.length;
       const plan: Array<{ e: EnrollmentRow; nextGradeId: string; nextClassId: string | null }> = [];
+      const graduating: EnrollmentRow[] = [];
       for (const e of sourceEnrollments) {
         if (inTarget.has(e.studentId)) {
           summary.enrollments.alreadyInTarget += 1;
@@ -290,6 +291,7 @@ export class AcademicCalendarService {
         const nextGradeId = order === undefined ? undefined : gradeByOrder.get(order + 1);
         if (!nextGradeId) {
           summary.enrollments.graduating += 1;
+          graduating.push(e);
           continue;
         }
         let nextClassId: string | null = null;
@@ -319,6 +321,14 @@ export class AcademicCalendarService {
             },
           });
           summary.enrollments.promoted += 1;
+        }
+        // Wave 11 — terminal-grade students are graduated on the source period
+        // (not only counted). Idempotent: re-run skips non-ENROLLED rows.
+        for (const e of graduating) {
+          await this.prisma.enrollment.updateMany({
+            where: { id: e.id, tenantId, status: 'ENROLLED' },
+            data: { status: 'GRADUATED', exitedAt: source.endDate },
+          });
         }
       }
     }

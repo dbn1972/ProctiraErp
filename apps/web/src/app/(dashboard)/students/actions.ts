@@ -14,11 +14,14 @@ import { listAcademicPeriods, listInstitutionGrades } from '@/lib/api/institutio
 import {
   addStudentDiscipline,
   addStudentSibling,
+  bulkUpdateEnrollmentStatus,
   createStudent,
   deleteStudent,
+  getStudentEnrollments,
   setStudentConsent,
   submitBulkImport,
   transferStudent,
+  updateEnrollmentStatus,
   updateStudent,
   uploadStudentPhoto,
   type BulkImportRequest,
@@ -397,5 +400,81 @@ export async function getInstitutionPeriodsAction(
     return periods.map((p) => ({ id: p.id, name: p.name }));
   } catch {
     return [];
+  }
+}
+
+/* ----------------------------------------------------- Wave 11 graduate */
+
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function graduateEnrollmentAction(
+  studentId: string,
+  enrollmentId: string,
+): Promise<ActionState> {
+  if (!UUID_RE.test(studentId) || !UUID_RE.test(enrollmentId)) {
+    return { status: 'error', message: 'Invalid student or enrollment.' };
+  }
+  try {
+    await updateEnrollmentStatus(enrollmentId, {
+      status: 'GRADUATED',
+      reason: 'Graduated from student profile',
+      effectiveDate: todayIsoDate(),
+    });
+    revalidatePath(`/students/${studentId}`);
+    revalidatePath('/students');
+    return { status: 'success', message: 'Student graduated.' };
+  } catch (error) {
+    return toErrorState(error, 'Failed to graduate student');
+  }
+}
+
+/** Resolve current ENROLLED rows for the given students, then bulk-graduate. */
+export async function bulkGraduateStudentsAction(
+  studentIds: string[],
+): Promise<ActionState<{ graduated: number; failed: number }>> {
+  const ids = [...new Set(studentIds)].filter((id) => UUID_RE.test(id)).slice(0, 100);
+  if (ids.length === 0) {
+    return { status: 'error', message: 'Select at least one student.' };
+  }
+
+  try {
+    const enrollmentIds: string[] = [];
+    for (const studentId of ids) {
+      const enrollments = await getStudentEnrollments(studentId);
+      for (const row of enrollments) {
+        if (row.status === 'ENROLLED') enrollmentIds.push(row.id);
+      }
+    }
+    if (enrollmentIds.length === 0) {
+      return {
+        status: 'error',
+        message: 'No active (ENROLLED) enrollments found for the selection.',
+      };
+    }
+
+    const result = await bulkUpdateEnrollmentStatus({
+      enrollmentIds,
+      status: 'GRADUATED',
+      reason: 'Bulk graduate from student list',
+      effectiveDate: todayIsoDate(),
+    });
+
+    revalidatePath('/students');
+    for (const id of ids) revalidatePath(`/students/${id}`);
+
+    const graduated = result.updated.length;
+    const failed = result.failed.length;
+    return {
+      status: failed === 0 ? 'success' : 'error',
+      message:
+        failed === 0
+          ? `Graduated ${graduated} enrollment${graduated === 1 ? '' : 's'}.`
+          : `Graduated ${graduated}; ${failed} failed.`,
+      data: { graduated, failed },
+    };
+  } catch (error) {
+    return toErrorState(error, 'Failed to bulk graduate');
   }
 }

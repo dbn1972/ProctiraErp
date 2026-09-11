@@ -10,7 +10,7 @@
  *         with transfer date and reason; transition statuses accordingly
  * - 6.4: Reject transfer if destination institution does not exist or is inactive
  */
-import { NotFoundError, BusinessRuleError, EnrollmentStatus } from '@proctira/common';
+import { AppError, NotFoundError, BusinessRuleError, EnrollmentStatus } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -24,6 +24,7 @@ import type {
 import type {
   CreateEnrollmentInput,
   UpdateEnrollmentStatusInput,
+  BulkUpdateEnrollmentStatusInput,
   StudentTransferInput,
 } from './schemas.js';
 
@@ -134,6 +135,51 @@ export class EnrollmentService {
     });
 
     return updated;
+  }
+
+  /**
+   * Wave 11 — bulk withdraw / graduate. Per-id results; one failure does not
+   * roll back siblings (registrar can retry the failed subset).
+   */
+  async bulkUpdateEnrollmentStatus(
+    tenantId: string,
+    input: BulkUpdateEnrollmentStatusInput,
+  ): Promise<{
+    updated: EnrollmentEntity[];
+    failed: Array<{ enrollmentId: string; code: string; message: string }>;
+  }> {
+    const updated: EnrollmentEntity[] = [];
+    const failed: Array<{ enrollmentId: string; code: string; message: string }> = [];
+    const seen = new Set<string>();
+
+    for (const enrollmentId of input.enrollmentIds) {
+      if (seen.has(enrollmentId)) continue;
+      seen.add(enrollmentId);
+      try {
+        const row = await this.updateEnrollmentStatus(tenantId, enrollmentId, {
+          status: input.status,
+          reason: input.reason,
+          effectiveDate: input.effectiveDate,
+        });
+        updated.push(row);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          failed.push({
+            enrollmentId,
+            code: error.code,
+            message: error.message,
+          });
+        } else {
+          failed.push({
+            enrollmentId,
+            code: 'INTERNAL_ERROR',
+            message: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+    }
+
+    return { updated, failed };
   }
 
   /**

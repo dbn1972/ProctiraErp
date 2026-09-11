@@ -510,6 +510,19 @@ describe('G-905 academic calendar', () => {
       expect(targetEnrollments[0]!.classId).toBe(eightA.id);
       expect(targetEnrollments.some((e) => e.studentId === graduating)).toBe(false);
 
+      const sourceGraduated = (await deps.prisma.enrollment.findMany({
+        where: {
+          tenantId: TENANT_A,
+          academicPeriodId: source.id,
+          studentId: graduating,
+        },
+      })) as Array<{ status: string; exitedAt: Date | null }>;
+      expect(sourceGraduated).toHaveLength(1);
+      expect(sourceGraduated[0]).toMatchObject({ status: 'GRADUATED' });
+      expect(new Date(sourceGraduated[0]!.exitedAt as Date).toISOString().slice(0, 10)).toBe(
+        String(source.endDate).slice(0, 10),
+      );
+
       const again = await app.inject({
         method: 'POST',
         url: `/academic-periods/${source.id}/rollover`,
@@ -519,10 +532,12 @@ describe('G-905 academic calendar', () => {
       expect(again.json()).toMatchObject({
         classes: { toCreate: 0, existing: 3, created: 0 },
         enrollments: {
-          considered: 2,
+          // Terminal student is already GRADUATED on source, so only the
+          // still-ENROLLED promoted row is considered on re-run.
+          considered: 1,
           toPromote: 0,
           promoted: 0,
-          graduating: 1,
+          graduating: 0,
           alreadyInTarget: 1,
         },
       });

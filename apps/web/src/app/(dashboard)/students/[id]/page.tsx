@@ -60,6 +60,12 @@ import {
 } from '@/lib/api/students';
 import { cn } from '@/lib/utils';
 import { Student360Panel } from '../_components/student-360-panel';
+import {
+  StudentFeesTab,
+  StudentHealthTab,
+  StudentLmsTab,
+} from '../_components/student-360-live-panels';
+import { GraduateStudentButton } from '../_components/graduate-student-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -253,6 +259,12 @@ export default async function StudentProfilePage(props: PageProps) {
               Edit student
             </Link>
           </Button>
+          {currentEnrollment ? (
+            <GraduateStudentButton
+              studentId={student.id}
+              enrollmentId={currentEnrollment.id}
+            />
+          ) : null}
         </div>
       </div>
 
@@ -262,7 +274,7 @@ export default async function StudentProfilePage(props: PageProps) {
           aria-label="Student information sections"
           className="h-auto w-full gap-0 overflow-x-auto rounded-none border-b border-border bg-transparent p-0"
         >
-          {(['overview', 'attendance', 'assessments', 'guardians', 'history'] as const).map((v) => (
+          {(['overview', 'attendance', 'assessments', 'guardians', 'health', 'fees', 'lms', 'history'] as const).map((v) => (
             <TabsTrigger
               key={v}
               value={v}
@@ -401,6 +413,45 @@ export default async function StudentProfilePage(props: PageProps) {
         {/* ── History tab ── */}
         <TabsContent value="history" className="mt-6">
           <EnrollmentTab enrollments={enrollments} history={history} transfers={transfers} />
+        </TabsContent>
+
+        {/* ── Health tab ── */}
+        <TabsContent value="health" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Health</CardTitle>
+              <CardDescription>Live health record, allergies, and vaccinations.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <StudentHealthTab studentId={student.id} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Fees tab ── */}
+        <TabsContent value="fees" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Fees</CardTitle>
+              <CardDescription>Invoices for this student from the fees service.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <StudentFeesTab studentId={student.id} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── LMS tab ── */}
+        <TabsContent value="lms" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>LMS / PAL</CardTitle>
+              <CardDescription>Personalized learning plan and skill progress.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <StudentLmsTab studentId={student.id} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ── Custom fields tab ── */}
