@@ -90,6 +90,8 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   billing: 'platform',
   'tenant-lifecycle': 'platform',
   'audit-logs': 'platform',
+  // G-7: sandbox provider capability discovery + sandbox IdP mint
+  providers: 'platform',
   admin: 'platform',
   // Platform-admin console
   tenants: 'platform',

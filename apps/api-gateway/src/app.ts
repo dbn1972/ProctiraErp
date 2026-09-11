@@ -1,4 +1,3 @@
-import { providersPlugin } from './plugins/providers-plugin.js';
 /**
  * API Gateway Application Builder
  *
@@ -66,6 +65,7 @@ import {
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
+import { providersPlugin } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
 import {
@@ -755,7 +755,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 10. Register service router for the remaining domains (proxies to
   // standalone services via SERVICE_ROUTES). In-process prefixes are excluded
   // so they don't conflict with the handlers registered above.
-  await app.register(providersPlugin);
+  await app.register(providersPlugin, { prefix: '/api/v1' });
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',

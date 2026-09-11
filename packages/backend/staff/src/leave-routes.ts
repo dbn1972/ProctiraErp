@@ -13,8 +13,8 @@ import {
   type DecideStaffLeaveInput,
   type StaffLeaveParams,
 } from './leave-schemas.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffLeaveService } from './leave-service.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 
 export interface StaffLeaveRoutesOptions {
   leaveService: StaffLeaveService;

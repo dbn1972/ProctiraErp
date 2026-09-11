@@ -1016,8 +1016,6 @@ export const feesPlugin = fp(
         }
       },
     );
-
-
   },
   {
     name: '@proctira/backend-fees',

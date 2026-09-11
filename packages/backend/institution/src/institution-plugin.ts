@@ -13,7 +13,10 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import { AcademicCalendarService, type RolloverExtras } from './academic-calendar/calendar-service.js';
+import {
+  AcademicCalendarService,
+  type RolloverExtras,
+} from './academic-calendar/calendar-service.js';
 import { registerAcademicCalendarRoutes } from './academic-calendar/routes.js';
 import { registerAcademicPeriodRoutes } from './academic-period/academic-period-routes.js';
 import { AcademicPeriodService } from './academic-period/academic-period-service.js';

@@ -46,8 +46,8 @@ import {
   type UpdateContractInput,
   type VerifyQualificationInput,
 } from './hr-schemas.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffHrService } from './hr-service.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 
 export interface StaffHrRoutesOptions {
   hrService: StaffHrService;

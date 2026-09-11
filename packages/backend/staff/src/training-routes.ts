@@ -23,6 +23,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { staffWritePreHandler } from './staff-http-guard.js';
 import {
   CreateTrainingProgramSchema,
   UpdateTrainingProgramSchema,
@@ -43,7 +44,6 @@ import {
   type TrainingProgramListQuery,
   type CertificationListQuery,
 } from './training-schemas.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
 import type { TrainingService } from './training-service.js';
 
 /**

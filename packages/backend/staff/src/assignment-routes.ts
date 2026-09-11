@@ -24,8 +24,8 @@ import {
   type AssignmentListQuery,
   type AssignmentParams,
 } from './assignment-schemas.js';
-import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffAssignmentService } from './assignment-service.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 
 /**
  * Options for registering assignment routes.

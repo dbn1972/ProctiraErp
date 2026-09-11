@@ -61,6 +61,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'lms',
   'notification',
   'parent-portal',
+  'providers',
   'registration',
   'report',
   'scholarship',
@@ -366,6 +367,15 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: false,
     notes:
       'billingPlugin mounted in `app.ts` (G-106). Suspend gate also checks JWT/in-memory store.',
+  },
+  {
+    package: 'providers',
+    mounted: true,
+    prefixes: ['/providers'],
+    persistence: 'in-memory',
+    rbacWired: true,
+    notes:
+      'providersPlugin mounted in `app.ts` under `/api/v1` (G-7). Sandbox capability discovery + sandbox IdP mint; live IdP/PSP/Twilio/FCM remain NON-GOAL without secrets.',
   },
   {
     package: 'tenant',

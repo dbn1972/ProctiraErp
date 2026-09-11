@@ -63,7 +63,9 @@ export const tenantAdminPlugin = fp(
       // The tenant package's PermissionRef vocabulary is the CRUD subset; other
       // actions (e.g. `preview`) are platform-only and not role-editable here.
       permissions: role.permissions.filter((p): p is BuiltInRoleSeed['permissions'][number] =>
-        ['create', 'read', 'update', 'delete', 'list', 'manage', 'preview', 'edit'].includes(p.action),
+        ['create', 'read', 'update', 'delete', 'list', 'manage', 'preview', 'edit'].includes(
+          p.action,
+        ),
       ),
     }));
     const { repository, persistence } = createRolesRepository(seed);
@@ -95,7 +97,16 @@ export const tenantAdminPlugin = fp(
         (request as { tenantId?: string }).tenantId ??
         (request as { user?: { tenantId?: string } }).user?.tenantId,
       hasPermission: async (request, permission) => {
-        const user = (request as { user?: { roles?: Array<string | { roleId?: string; permissions?: Array<{ resource: string; action: string }> }> } }).user;
+        const user = (
+          request as {
+            user?: {
+              roles?: Array<
+                | string
+                | { roleId?: string; permissions?: Array<{ resource: string; action: string }> }
+              >;
+            };
+          }
+        ).user;
         if (!user) return false;
         const roles = user.roles ?? [];
         // Tenant admins with user:manage (or branding:* / tenant manage) may brand.
@@ -108,7 +119,8 @@ export const tenantAdminPlugin = fp(
             if (
               role.permissions.some(
                 (p) =>
-                  (p.resource === 'branding' && (p.action === permission.split(':')[1] || p.action === 'manage')) ||
+                  (p.resource === 'branding' &&
+                    (p.action === permission.split(':')[1] || p.action === 'manage')) ||
                   (p.resource === 'tenant' && (p.action === 'manage' || p.action === 'update')) ||
                   (p.resource === 'user' && p.action === 'manage'),
               )
@@ -129,7 +141,9 @@ export const tenantAdminPlugin = fp(
           (request as { tenantId?: string }).tenantId ??
           (request as { user?: { tenantId?: string } }).user?.tenantId;
         if (!tenantId) {
-          return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
+          return reply
+            .code(400)
+            .send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
         }
         const logoUrl = request.body?.logoUrl?.trim() || null;
         const faviconUrl = request.body?.faviconUrl?.trim() || null;

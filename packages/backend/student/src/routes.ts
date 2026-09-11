@@ -12,13 +12,9 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { assertStudentWriteAccess } from './student-access.js';
-import type { StudentService } from './student-service.js';
 import {
   CreateStudentSchema,
   UpdateStudentSchema,
-  StudentListQuerySchema,
-  StudentSearchQuerySchema,
   StudentParamsSchema,
   type CreateStudentInput,
   type UpdateStudentInput,
@@ -26,6 +22,8 @@ import {
   type StudentSearchQuery,
   type StudentParams,
 } from './schemas.js';
+import { assertStudentWriteAccess } from './student-access.js';
+import type { StudentService } from './student-service.js';
 
 function getRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
@@ -203,7 +201,7 @@ export async function registerStudentRoutes(
         });
       }
 
-      const query = request.query as StudentSearchQuery;
+      const query = request.query;
       if (!query.q || query.q.trim().length === 0) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
@@ -244,7 +242,7 @@ export async function registerStudentRoutes(
         });
       }
 
-      const query = request.query as StudentListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'lastName';

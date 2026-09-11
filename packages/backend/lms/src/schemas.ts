@@ -394,7 +394,6 @@ export type ClassAnalyticsQuery = Static<typeof ClassAnalyticsQuerySchema>;
 export const FileIdParamsSchema = Type.Object({ id: Uuid });
 export const PostIdParamsSchema = Type.Object({ id: Uuid, postId: Uuid });
 
-
 export const CreateModuleSchema = Type.Object({
   title: Type.String({ minLength: 1, maxLength: 255 }),
   classKey: Type.Optional(Type.String({ maxLength: 120 })),

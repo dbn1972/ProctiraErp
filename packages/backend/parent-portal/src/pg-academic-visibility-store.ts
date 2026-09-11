@@ -288,7 +288,6 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     });
   }
 
-
   async getLms(tenantId: string, studentId: string): Promise<LmsPayload> {
     return this.withTenant(tenantId, async (client) => {
       const rows = await queryRows(
@@ -327,7 +326,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
         feedback: strOrNull(row.feedback),
       }));
       const assigned = data.length;
-      const submitted = data.filter((d) => d.submissionStatus && d.submissionStatus !== 'draft').length;
+      const submitted = data.filter(
+        (d) => d.submissionStatus && d.submissionStatus !== 'draft',
+      ).length;
       const graded = data.filter((d) => d.score != null).length;
       const missing = data.filter((d) => !d.submissionStatus).length;
       const scored = data.filter((d) => d.score != null && d.maxScore && d.maxScore > 0);
@@ -347,7 +348,10 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     });
   }
 
-  async getReportCards(tenantId: string, studentId: string): Promise<AcademicList<ReportCardDetail>> {
+  async getReportCards(
+    tenantId: string,
+    studentId: string,
+  ): Promise<AcademicList<ReportCardDetail>> {
     return this.withTenant(tenantId, async (client) => {
       const cards = await queryRows(
         client,

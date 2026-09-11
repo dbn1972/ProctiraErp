@@ -996,7 +996,6 @@ export async function registerLmsRoutes(
     }
   });
 
-
   // ── Modules (Canvas-class sequencing) ───────────────────────────────────
   fastify.post(`${prefix}/modules`, async (request, reply) => {
     const body = validate(CreateModuleSchema, request.body);
@@ -1045,5 +1044,4 @@ export async function registerLmsRoutes(
       return sendError(reply, error);
     }
   });
-
 }

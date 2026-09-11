@@ -689,7 +689,9 @@ export class InMemoryLmsRepository implements LmsRepository {
     return [...this.modules.values()]
       .filter((m) => m.tenantId === tenantId)
       .filter((m) => (filter.classKey ? m.classKey === filter.classKey : true))
-      .filter((m) => (filter.academicPeriodId ? m.academicPeriodId === filter.academicPeriodId : true))
+      .filter((m) =>
+        filter.academicPeriodId ? m.academicPeriodId === filter.academicPeriodId : true,
+      )
       .filter((m) => (filter.institutionId ? m.institutionId === filter.institutionId : true))
       .sort((a, b) => a.position - b.position);
   }
@@ -702,5 +704,4 @@ export class InMemoryLmsRepository implements LmsRepository {
       .filter((i) => i.tenantId === tenantId && i.moduleId === moduleId)
       .sort((a, b) => a.position - b.position);
   }
-
 }

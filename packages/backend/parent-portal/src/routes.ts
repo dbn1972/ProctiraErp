@@ -1027,5 +1027,4 @@ export async function registerParentPortalRoutes(
       return sendOrAppError(reply, () => view.self(tenantId, actor));
     });
   }
-
 }

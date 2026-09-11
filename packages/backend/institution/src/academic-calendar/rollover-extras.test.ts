@@ -1,4 +1,3 @@
-
 import { describe, expect, it, vi } from 'vitest';
 import { AcademicCalendarService } from './calendar-service.js';
 
@@ -39,7 +38,12 @@ describe('G-905 rollover extras', () => {
 
     const service = new AcademicCalendarService({
       prisma: prisma as never,
-      store: { listByPeriod: vi.fn(), create: vi.fn(), findById: vi.fn(), delete: vi.fn() } as never,
+      store: {
+        listByPeriod: vi.fn(),
+        create: vi.fn(),
+        findById: vi.fn(),
+        delete: vi.fn(),
+      } as never,
       rolloverExtras: { copyFeeStructures, copyTimetable, copyLmsAssignments, recordRolloverRun },
     });
 
@@ -52,9 +56,13 @@ describe('G-905 rollover extras', () => {
       idempotencyKey: 'dry-run-key-01',
     });
 
-    expect(copyFeeStructures).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', { dryRun: true });
+    expect(copyFeeStructures).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', {
+      dryRun: true,
+    });
     expect(copyTimetable).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', { dryRun: true });
-    expect(copyLmsAssignments).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', { dryRun: true });
+    expect(copyLmsAssignments).toHaveBeenCalledWith('t1', 'rollover', 'src', 'tgt', {
+      dryRun: true,
+    });
     expect(summary.feeStructures).toEqual({ cloned: 2, source: 3 });
     expect(summary.timetable).toEqual({ sectionsCloned: 1, meetingsCloned: 4 });
     expect(summary.lmsAssignments).toEqual({ cloned: 5, source: 5 });
