@@ -9,11 +9,14 @@ import {
   ClipboardList,
   Clock,
   CreditCard,
+  FileText,
   GraduationCap,
   Home,
+  Layers,
   Library,
   MessageSquare,
   ShieldCheck,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -63,6 +66,27 @@ const PARENT_NAV: readonly ParentNavItem[] = [
     href: '/parent/homework',
     Icon: BookOpen,
     match: (pathname) => pathname.startsWith('/parent/homework'),
+  },
+  {
+    key: 'lms',
+    label: 'LMS',
+    href: '/parent/lms',
+    Icon: Layers,
+    match: (pathname) => pathname.startsWith('/parent/lms'),
+  },
+  {
+    key: 'report-cards',
+    label: 'Report cards',
+    href: '/parent/report-cards',
+    Icon: FileText,
+    match: (pathname) => pathname.startsWith('/parent/report-cards'),
+  },
+  {
+    key: 'pal',
+    label: 'PAL',
+    href: '/parent/pal',
+    Icon: Sparkles,
+    match: (pathname) => pathname.startsWith('/parent/pal'),
   },
   {
     key: 'library',
