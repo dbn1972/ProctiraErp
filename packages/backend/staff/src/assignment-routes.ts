@@ -24,6 +24,7 @@ import {
   type AssignmentListQuery,
   type AssignmentParams,
 } from './assignment-schemas.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffAssignmentService } from './assignment-service.js';
 
 /**
@@ -76,6 +77,10 @@ export async function registerAssignmentRoutes(
   options: AssignmentRoutesOptions,
 ): Promise<void> {
   const { assignmentService, prefix = '/staff/assignments' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    staffWritePreHandler(request, reply, 'staff.hr.write');
+  });
 
   /**
    * POST /staff/assignments

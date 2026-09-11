@@ -16,6 +16,7 @@ import type {
   HealthMeasurementEntity,
   HealthRepository,
   InsuranceEntity,
+  NurseIncidentEntity,
   ScreeningProgramEntity,
   VaccinationEntity,
 } from './health-repository.js';
@@ -25,6 +26,10 @@ import {
   isPgCounsellingEnabled,
   type PgCounsellingStore,
 } from './pg-counselling-store.js';
+import {
+  createPgNurseIncidentStore,
+  type PgNurseIncidentStore,
+} from './pg-nurse-incident-store.js';
 import { createPgPhiStore, isPgPhiEnabled, type PgPhiStore } from './pg-phi-store.js';
 import {
   createPgSpecialNeedsStore,
@@ -73,6 +78,7 @@ export class HybridHealthRepository implements HealthRepository {
     private readonly counselling: PgCounsellingStore | null,
     private readonly phi: PgPhiStore | null,
     private readonly specialNeeds: PgSpecialNeedsStore | null = null,
+    private readonly nurseIncidents: PgNurseIncidentStore | null = null,
   ) {
     const sn = this.specialNeeds;
     this.createAssessment = (sn?.createAssessment ?? this.memory.createAssessment).bind(
@@ -129,6 +135,27 @@ export class HybridHealthRepository implements HealthRepository {
     if (this.specialNeeds) {
       await this.specialNeeds.logPhiAccess(input);
     }
+  }
+
+  async listPhiAccessLogs(
+    tenantId: string,
+    options: { studentId?: string; limit?: number } = {},
+  ): Promise<
+    Array<{
+      id: string;
+      tenantId: string;
+      actorUserId: string;
+      studentId: string;
+      resourceType: string;
+      resourceId: string | null;
+      action: string;
+      createdAt: string;
+    }>
+  > {
+    if (this.specialNeeds && typeof this.specialNeeds.listPhiAccessLogs === 'function') {
+      return this.specialNeeds.listPhiAccessLogs(tenantId, options);
+    }
+    return [];
   }
 
   // ─── Profile PHI ──────────────────────────────────────────────────────────
@@ -409,6 +436,11 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listAllAllergies(tenantId);
   }
 
+  async listAllVaccinations(tenantId: string): Promise<VaccinationEntity[]> {
+    if (this.phi) return this.phi.listAllVaccinations(tenantId);
+    return this.memory.listAllVaccinations(tenantId);
+  }
+
   async listAllConditions(tenantId: string): Promise<HealthConditionEntity[]> {
     if (this.phi) return this.phi.listAllConditions(tenantId);
     return this.memory.listAllConditions(tenantId);
@@ -423,6 +455,26 @@ export class HybridHealthRepository implements HealthRepository {
     if (this.specialNeeds) return this.specialNeeds.listAllAccommodationPlans(tenantId);
     return this.memory.listAllAccommodationPlans(tenantId);
   }
+
+  async createNurseIncident(
+    data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<NurseIncidentEntity> {
+    if (this.nurseIncidents) return this.nurseIncidents.create(data);
+    return this.memory.createNurseIncident(data);
+  }
+
+  async listNurseIncidents(tenantId: string): Promise<NurseIncidentEntity[]> {
+    if (this.nurseIncidents) return this.nurseIncidents.listByTenant(tenantId);
+    return this.memory.listNurseIncidents(tenantId);
+  }
+
+  async listNurseIncidentsByStudent(
+    tenantId: string,
+    studentId: string,
+  ): Promise<NurseIncidentEntity[]> {
+    if (this.nurseIncidents) return this.nurseIncidents.listByStudent(tenantId, studentId);
+    return this.memory.listNurseIncidentsByStudent(tenantId, studentId);
+  }
 }
 
 export function createHealthRepository(): HybridHealthRepository {
@@ -432,7 +484,8 @@ export function createHealthRepository(): HybridHealthRepository {
   const counselling = enabled ? createPgCounsellingStore() : null;
   const phi = enabled ? createPgPhiStore() : null;
   const specialNeeds = enabled ? createPgSpecialNeedsStore() : null;
-  return new HybridHealthRepository(memory, counselling, phi, specialNeeds);
+  const nurseIncidents = enabled ? createPgNurseIncidentStore() : null;
+  return new HybridHealthRepository(memory, counselling, phi, specialNeeds, nurseIncidents);
 }
 
-export type { PgCounsellingStore, PgPhiStore, PgSpecialNeedsStore };
+export type { PgCounsellingStore, PgPhiStore, PgSpecialNeedsStore, PgNurseIncidentStore };

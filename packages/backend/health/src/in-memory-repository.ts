@@ -19,6 +19,7 @@ import type {
   AccommodationPlanEntity,
   CounsellingSessionEntity,
   ScreeningProgramEntity,
+  NurseIncidentEntity,
 } from './health-repository.js';
 
 function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult<T> {
@@ -49,6 +50,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   private accommodationPlans = new Map<string, AccommodationPlanEntity>();
   private counsellingSessions = new Map<string, CounsellingSessionEntity>();
   private screeningPrograms = new Map<string, ScreeningProgramEntity>();
+  private nurseIncidents = new Map<string, NurseIncidentEntity>();
 
   // ─── Measurements ─────────────────────────────────────────────────────────
 
@@ -548,6 +550,12 @@ export class InMemoryHealthRepository implements HealthRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async listAllVaccinations(tenantId: string): Promise<VaccinationEntity[]> {
+    return Array.from(this.vaccinations.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.dateAdministered.localeCompare(a.dateAdministered));
+  }
+
   async listAllConditions(tenantId: string): Promise<HealthConditionEntity[]> {
     return Array.from(this.conditions.values())
       .filter((e) => e.tenantId === tenantId)
@@ -626,6 +634,32 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
+  async createNurseIncident(
+    data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<NurseIncidentEntity> {
+    const now = new Date();
+    const entity: NurseIncidentEntity = { ...data, createdAt: now, updatedAt: now };
+    this.nurseIncidents.set(entity.id, entity);
+    return { ...entity };
+  }
+
+  async listNurseIncidents(tenantId: string): Promise<NurseIncidentEntity[]> {
+    return Array.from(this.nurseIncidents.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.incidentAt.getTime() - a.incidentAt.getTime())
+      .map((e) => ({ ...e }));
+  }
+
+  async listNurseIncidentsByStudent(
+    tenantId: string,
+    studentId: string,
+  ): Promise<NurseIncidentEntity[]> {
+    return Array.from(this.nurseIncidents.values())
+      .filter((e) => e.tenantId === tenantId && e.studentId === studentId)
+      .sort((a, b) => b.incidentAt.getTime() - a.incidentAt.getTime())
+      .map((e) => ({ ...e }));
+  }
+
   // ─── Test Helpers ─────────────────────────────────────────────────────────
 
   clear(): void {
@@ -640,5 +674,6 @@ export class InMemoryHealthRepository implements HealthRepository {
     this.accommodationPlans.clear();
     this.counsellingSessions.clear();
     this.screeningPrograms.clear();
+    this.nurseIncidents.clear();
   }
 }

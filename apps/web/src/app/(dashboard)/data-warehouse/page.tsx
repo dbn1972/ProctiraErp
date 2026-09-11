@@ -60,6 +60,9 @@ export default async function DataWarehousePage() {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
+            <Link href="/pipelines">ETL pipelines</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/data-warehouse/map">
               <MapIcon className="me-1.5 h-4 w-4" aria-hidden="true" />
               Open GIS map
@@ -79,11 +82,12 @@ export default async function DataWarehousePage() {
 
       <ScaffoldModeBanner
         source={source}
-        surface="Data warehouse"
+        force={source === 'scaffold'}
+        surface="Data warehouse (demo / Insights surface)"
         detail={
-          indicators.length === 0
-            ? 'Indicator list is empty because the warehouse gateway is offline or unseeded — not because metrics were hidden.'
-            : 'Indicator values reflect the warehouse gateway when connected.'
+          source === 'scaffold'
+            ? 'Demo mode: the backend/data-warehouse package remains PARKED. This Insights UI lists indicators only when the gateway responds; empty lists mean offline/unseeded — not hidden metrics. Field mapping and import stay client-side demos until live connectors ship.'
+            : 'Indicator values reflect the Insights warehouse gateway when connected. The separate backend/data-warehouse package remains PARKED; do not treat this page as a full live warehouse product.'
         }
       />
 

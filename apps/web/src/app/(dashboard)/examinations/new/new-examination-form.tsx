@@ -39,8 +39,15 @@ export interface InstitutionOption {
   code: string;
 }
 
+export interface AcademicPeriodOption {
+  id: string;
+  name: string;
+  status?: string;
+}
+
 interface NewExaminationFormProps {
   institutions: InstitutionOption[];
+  academicPeriods?: AcademicPeriodOption[];
 }
 
 type FieldErrors = Record<string, string>;
@@ -54,11 +61,17 @@ function flattenClientErrors(issues: { path: PropertyKey[]; message: string }[])
   return out;
 }
 
-export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
+export function NewExaminationForm({
+  institutions,
+  academicPeriods = [],
+}: NewExaminationFormProps) {
   const router = useRouter();
-  const [values, setValues] = useState<CreateExaminationFormValues>(() =>
-    defaultCreateExaminationValues(institutions[0]?.id ?? ''),
-  );
+  const [values, setValues] = useState<CreateExaminationFormValues>(() => {
+    const defaults = defaultCreateExaminationValues(institutions[0]?.id ?? '');
+    const preferredPeriod =
+      academicPeriods.find((p) => p.status === 'active')?.id ?? academicPeriods[0]?.id ?? '';
+    return preferredPeriod ? { ...defaults, academicPeriodId: preferredPeriod } : defaults;
+  });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [serverState, setServerState] = useState<ActionState<{
     examinationId: string;
@@ -165,19 +178,42 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
 
             <FormField
               id="exam-period"
-              label="Academic period ID"
+              label="Academic period"
               required
               error={errors.academicPeriodId}
             >
-              <Input
-                id="exam-period"
-                name="academicPeriodId"
-                value={values.academicPeriodId}
-                onChange={(e) => patchRoot('academicPeriodId', e.target.value)}
-                placeholder="UUID v4 of the academic period"
-                aria-invalid={Boolean(errors.academicPeriodId)}
-                data-testid="examination-academic-period"
-              />
+              {academicPeriods.length > 0 ? (
+                <Select
+                  value={values.academicPeriodId || undefined}
+                  onValueChange={(v) => patchRoot('academicPeriodId', v)}
+                >
+                  <SelectTrigger
+                    id="exam-period"
+                    data-testid="examination-academic-period"
+                    aria-invalid={Boolean(errors.academicPeriodId)}
+                  >
+                    <SelectValue placeholder="Select academic period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {academicPeriods.map((period) => (
+                      <SelectItem key={period.id} value={period.id}>
+                        {period.name}
+                        {period.status ? ` (${period.status})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="exam-period"
+                  name="academicPeriodId"
+                  value={values.academicPeriodId}
+                  onChange={(e) => patchRoot('academicPeriodId', e.target.value)}
+                  placeholder="UUID v4 of the academic period (gateway offline)"
+                  aria-invalid={Boolean(errors.academicPeriodId)}
+                  data-testid="examination-academic-period"
+                />
+              )}
             </FormField>
 
             <div className="grid gap-4 md:grid-cols-2">

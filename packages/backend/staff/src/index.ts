@@ -290,3 +290,6 @@ export { PrismaStaffRepository } from './prisma-staff-repository.js';
 export { PrismaAssignmentRepository } from './prisma-assignment-repository.js';
 export { createStaffRepository, createAssignmentRepository } from './repository-factory.js';
 export type { StaffRepositoryConfig } from './repository-factory.js';
+
+export { assertStaffAccess, hasStaffAccess, normalizeStaffRoles } from './staff-access.js';
+export type { StaffAction } from './staff-access.js';

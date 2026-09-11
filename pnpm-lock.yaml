@@ -197,6 +197,9 @@ importers:
       '@proctira/backend-developer-portal':
         specifier: workspace:*
         version: link:../../packages/backend/developer-portal
+      '@proctira/backend-etl':
+        specifier: workspace:*
+        version: link:../../packages/backend/etl
       '@proctira/backend-examination':
         specifier: workspace:*
         version: link:../../packages/backend/examination
@@ -227,6 +230,9 @@ importers:
       '@proctira/backend-parent-portal':
         specifier: workspace:*
         version: link:../../packages/backend/parent-portal
+      '@proctira/backend-providers':
+        specifier: workspace:*
+        version: link:../../packages/backend/providers
       '@proctira/backend-registration':
         specifier: workspace:*
         version: link:../../packages/backend/registration
@@ -1362,6 +1368,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
@@ -2030,6 +2039,8 @@ importers:
       vitest:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.41)(jsdom@24.1.3)
+
+  packages/backend/providers: {}
 
   packages/backend/registration:
     dependencies:

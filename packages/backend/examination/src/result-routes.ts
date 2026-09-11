@@ -17,6 +17,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { examinationWritePreHandler } from './examination-http-guard.js';
 import type { ResultPublicationService } from './result-publication-service.js';
 import {
   RecordMarksSchema,
@@ -42,6 +43,13 @@ export async function registerResultRoutes(
   options: ResultRoutesOptions,
 ): Promise<void> {
   const { resultPublicationService, prefix = '/examinations' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    const url = request.url;
+    const action =
+      url.includes('/publish') || url.includes('/analysis') ? 'exam.publish' : 'exam.update';
+    examinationWritePreHandler(request, reply, action);
+  });
 
   /**
    * POST /examinations/:examinationId/results/publish

@@ -1,3 +1,4 @@
+import { providersPlugin } from './plugins/providers-plugin.js';
 /**
  * API Gateway Application Builder
  *
@@ -639,7 +640,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(tenantLifecyclePlugin, {
     repository: createTenantRepository().repository,
     prefix: '/api/v1/tenant-lifecycle',
-    branding: { disabled: true },
+    branding: { disabled: false },
   });
 
   // Record mutating API calls (best-effort; never fail the request).
@@ -754,6 +755,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 10. Register service router for the remaining domains (proxies to
   // standalone services via SERVICE_ROUTES). In-process prefixes are excluded
   // so they don't conflict with the handlers registered above.
+  await app.register(providersPlugin);
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',

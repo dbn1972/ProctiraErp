@@ -40,6 +40,7 @@ describe('staffPlugin mounts appraisal + training routes (G-717)', () => {
     app = Fastify();
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
+      (request as unknown as { user: { roles: string[] } }).user = { roles: ['hr_officer'] };
     });
     await app.register(staffPlugin, {
       repository: new InMemoryStaffRepository(),

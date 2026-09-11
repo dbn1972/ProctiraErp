@@ -383,6 +383,7 @@ export class LmsService {
       subject: input.subject.trim(),
       gradeLevel: input.gradeLevel ?? null,
       sectionId: input.sectionId ?? null,
+      academicPeriodId: input.academicPeriodId ?? null,
       skillIds,
       maxScore,
       dueAt: input.dueAt ? new Date(input.dueAt) : null,
@@ -1462,10 +1463,12 @@ export class LmsService {
       assignmentCount: assignments.length,
       submissionCount,
       uniqueStudents: students.size,
+      rosterSize: students.size,
       submissionRate:
-        assignments.length === 0
+        assignments.length === 0 || students.size === 0
           ? 0
-          : Math.round((submissionCount / assignments.length) * 100) / 100,
+          : Math.round((submissionCount / (assignments.length * students.size)) * 10000) / 10000,
+      missingStudentIds: [] as string[],
       averageScore: mean(scores) ?? 0,
       masteryBySkill: Array.from(skillHits.entries()).map(([id, row]) => ({
         skillId: id,
@@ -1553,4 +1556,113 @@ export class LmsService {
       position: existing.length,
     });
   }
+  /** World-class rollover — clone published assignments as drafts (no submissions). */
+  async cloneAssignmentsForPeriod(
+    tenantId: string,
+    actorId: string,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+    options: { dryRun?: boolean } = {},
+  ): Promise<{ cloned: number; source: number }> {
+    const listed = await this.repository.listAssignments(
+      tenantId,
+      { academicPeriodId: sourcePeriodId },
+      { page: 1, pageSize: 500 },
+    );
+    const source = listed.data.filter(
+      (a) => a.status === 'published' || a.status === 'closed' || a.status === 'draft',
+    );
+    if (options.dryRun) {
+      // Count how many would be newly created (skip if same code already in target).
+      const targetListed = await this.repository.listAssignments(
+        tenantId,
+        { academicPeriodId: targetPeriodId },
+        { page: 1, pageSize: 500 },
+      );
+      const targetTitles = new Set(targetListed.data.map((a) => a.title.toLowerCase()));
+      const planned = source.filter((a) => !targetTitles.has(a.title.toLowerCase())).length;
+      return { cloned: planned, source: source.length };
+    }
+    let cloned = 0;
+    for (const assignment of source) {
+      const { createdAt: _c, updatedAt: _u, ...rest } = assignment;
+      await this.repository.createAssignment({
+        ...rest,
+        id: randomUUID(),
+        academicPeriodId: targetPeriodId,
+        status: 'draft',
+        createdBy: actorId,
+        publishedAt: null,
+      });
+      cloned += 1;
+    }
+    return { cloned, source: source.length };
+  }
+
+  async createModule(
+    tenantId: string,
+    actorId: string,
+    input: {
+      title: string;
+      classKey?: string;
+      institutionId?: string;
+      academicPeriodId?: string;
+      position?: number;
+      published?: boolean;
+    },
+  ) {
+    const id = randomUUID();
+    return this.repository.createModule({
+      id,
+      tenantId,
+      title: input.title,
+      classKey: input.classKey ?? null,
+      institutionId: input.institutionId ?? null,
+      academicPeriodId: input.academicPeriodId ?? null,
+      position: input.position ?? 0,
+      published: input.published ?? false,
+      createdBy: actorId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  async addModuleItem(
+    tenantId: string,
+    moduleId: string,
+    input: {
+      itemType: 'assignment' | 'content' | 'discussion' | 'url';
+      itemId?: string;
+      title: string;
+      position?: number;
+      required?: boolean;
+    },
+  ) {
+    const module = await this.repository.findModule(tenantId, moduleId);
+    if (!module) throw new NotFoundError('Module not found');
+    const id = randomUUID();
+    return this.repository.createModuleItem({
+      id,
+      tenantId,
+      moduleId,
+      itemType: input.itemType,
+      itemId: input.itemId ?? null,
+      title: input.title,
+      position: input.position ?? 0,
+      required: input.required ?? false,
+      createdAt: new Date(),
+    });
+  }
+
+  async listModules(
+    tenantId: string,
+    filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
+  ) {
+    return this.repository.listModules(tenantId, filter);
+  }
+
+  async listModuleItems(tenantId: string, moduleId: string) {
+    return this.repository.listModuleItems(tenantId, moduleId);
+  }
+
 }

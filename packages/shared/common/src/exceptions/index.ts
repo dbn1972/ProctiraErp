@@ -77,3 +77,13 @@ export class BusinessRuleError extends AppError {
     super(message, ErrorCode.BUSINESS_RULE_ERROR, 422);
   }
 }
+
+/**
+ * Thrown when the caller is authenticated but lacks permission.
+ * HTTP 403 - Forbidden
+ */
+export class ForbiddenError extends AppError {
+  constructor(message: string = 'Forbidden') {
+    super(message, ErrorCode.FORBIDDEN, 403);
+  }
+}

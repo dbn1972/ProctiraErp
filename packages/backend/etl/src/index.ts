@@ -20,6 +20,7 @@ export type {
   PipelineListResult,
 } from './pipeline-repository.js';
 export { InMemoryPipelineRepository } from './in-memory-repository.js';
+export { PgPipelineRepository, createPipelineRepository } from './pg-pipeline-repository.js';
 
 // Scheduler
 export {

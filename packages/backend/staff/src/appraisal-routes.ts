@@ -27,6 +27,7 @@ import {
   type AppraisalTemplateParams,
   type AppraisalListQuery,
 } from './appraisal-schemas.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 import type { AppraisalService } from './appraisal-service.js';
 
 /**
@@ -103,6 +104,10 @@ export async function registerAppraisalRoutes(
   options: AppraisalRoutesOptions,
 ): Promise<void> {
   const { appraisalService, prefix = '/staff/appraisals' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    staffWritePreHandler(request, reply, 'staff.hr.write');
+  });
 
   /**
    * POST /staff/appraisals/templates

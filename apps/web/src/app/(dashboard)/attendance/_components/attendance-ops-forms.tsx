@@ -4,7 +4,9 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { Button, Input, Label } from '@proctira/ui/components';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import {
   createLeaveRequestAction,
@@ -41,6 +43,10 @@ const leaveSchema = z.object({
 export function AttendanceOpsForms({
   regularisations,
   leaves,
+  studentOptions = [],
+  institutionOptions = [],
+  classOptions = [],
+  periodOptions = [],
 }: {
   regularisations: Array<{
     id: string;
@@ -58,6 +64,10 @@ export function AttendanceOpsForms({
     status: string;
     reason: string | null;
   }>;
+  studentOptions?: EntityLabelOption[];
+  institutionOptions?: EntityLabelOption[];
+  classOptions?: EntityLabelOption[];
+  periodOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -103,19 +113,31 @@ export function AttendanceOpsForms({
         }}
       >
         <h3 className="text-base font-semibold sm:col-span-2">Request regularisation</h3>
-        {(
-          [
-            ['attendanceId', 'Attendance record id'],
-            ['studentId', 'Student id'],
-            ['institutionId', 'Institution id'],
-            ['classId', 'Class id'],
-          ] as const
-        ).map(([name, label]) => (
-          <div key={name} className="space-y-1">
-            <Label htmlFor={name}>{label}</Label>
-            <Input id={name} name={name} required />
-          </div>
-        ))}
+        <div className="space-y-1">
+          <Label htmlFor="attendanceId">Attendance record id</Label>
+          <Input id="attendanceId" name="attendanceId" required />
+        </div>
+        <EntitySearchSelect
+          id="studentId"
+          name="studentId"
+          label="Student"
+          options={studentOptions}
+          required
+        />
+        <EntitySearchSelect
+          id="institutionId"
+          name="institutionId"
+          label="Institution"
+          options={institutionOptions}
+          required
+        />
+        <EntitySearchSelect
+          id="classId"
+          name="classId"
+          label="Class"
+          options={classOptions}
+          required
+        />
         <div className="space-y-1">
           <Label htmlFor="attendanceDate">Date</Label>
           <Input id="attendanceDate" name="attendanceDate" type="date" required />
@@ -231,22 +253,34 @@ export function AttendanceOpsForms({
         }}
       >
         <h3 className="text-base font-semibold sm:col-span-2">Student leave</h3>
-        <div className="space-y-1">
-          <Label htmlFor="leaveStudentId">Student id</Label>
-          <Input id="leaveStudentId" name="leaveStudentId" required />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="leaveInstitutionId">Institution id</Label>
-          <Input id="leaveInstitutionId" name="leaveInstitutionId" required />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="leaveClassId">Class id</Label>
-          <Input id="leaveClassId" name="leaveClassId" required />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="leavePeriodId">Academic period id</Label>
-          <Input id="leavePeriodId" name="leavePeriodId" required />
-        </div>
+        <EntitySearchSelect
+          id="leaveStudentId"
+          name="leaveStudentId"
+          label="Student"
+          options={studentOptions}
+          required
+        />
+        <EntitySearchSelect
+          id="leaveInstitutionId"
+          name="leaveInstitutionId"
+          label="Institution"
+          options={institutionOptions}
+          required
+        />
+        <EntitySearchSelect
+          id="leaveClassId"
+          name="leaveClassId"
+          label="Class"
+          options={classOptions}
+          required
+        />
+        <EntitySearchSelect
+          id="leavePeriodId"
+          name="leavePeriodId"
+          label="Academic period"
+          options={periodOptions}
+          required
+        />
         <div className="space-y-1">
           <Label htmlFor="fromDate">From</Label>
           <Input id="fromDate" name="fromDate" type="date" required />

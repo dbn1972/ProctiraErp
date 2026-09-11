@@ -11,8 +11,9 @@
  *  - student / institution / staff (incl. assignments) / attendance /
  *    assessment / examination: Prisma-backed (Postgres + RLS) via their
  *    create*Repository factories when DATABASE_URL is set, else in-memory.
- *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
- *    other health entities + workflows seed in-memory.
+ *  - health: raw SQL + `pg` when DATABASE_URL is set (no Prisma) for counselling
+ *    (002), profile/screening PHI (012), special-needs (017), nurse incidents (046);
+ *    else in-memory hybrid fallback.
  *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
@@ -31,8 +32,9 @@
  *  - insights / platform-admin: UI aggregates; PG-backed when DATABASE_URL
  *    (020_insights_ui_schema.sql). G-909 mounts `@proctira/backend-report`
  *    for real catalogue exports; insights keeps board summary + data-warehouse.
- *  - assessment report-card repos wired (in-memory; no Prisma models yet).
- *    Durable HTML report cards also via gradebook `/gradebook/report-cards`.
+ *  - assessment report-card repos via createReportCard*Repository() — raw pg
+ *    `024` when DATABASE_URL is set, else in-memory. Durable HTML also via
+ *    gradebook `/gradebook/report-cards`.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -58,6 +60,7 @@ import {
   developerPortalPlugin,
   InMemoryDeveloperPortalRepository,
 } from '@proctira/backend-developer-portal';
+import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import {
   createDocumentRepository,
   createExamOpsStore,
@@ -75,6 +78,7 @@ import {
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
@@ -176,10 +180,90 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
       // DATABASE_URL is set, else in-memory Prisma look-alike.
+      const feesForRollover = new FeesService(createFeesRepository());
+      // Timetable + LMS clones are best-effort — packages may be memory or PG.
+      type Dry = { dryRun?: boolean };
+      let copyTimetable:
+        | undefined
+        | ((
+            tenantId: string,
+            actorId: string,
+            sourcePeriodId: string,
+            targetPeriodId: string,
+            options?: Dry,
+          ) => Promise<{ sectionsCloned: number; meetingsCloned: number }>);
+      let copyLmsAssignments:
+        | undefined
+        | ((
+            tenantId: string,
+            actorId: string,
+            sourcePeriodId: string,
+            targetPeriodId: string,
+            options?: Dry,
+          ) => Promise<{ cloned: number; source: number }>);
+      try {
+        const { createTimetableRepository, TimetableService } = await import(
+          '@proctira/backend-timetable'
+        );
+        const tt = new TimetableService(createTimetableRepository());
+        copyTimetable = (tenantId, _actor, sourcePeriodId, targetPeriodId, options) =>
+          tt.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId, options);
+      } catch {
+        copyTimetable = async () => ({ sectionsCloned: 0, meetingsCloned: 0 });
+      }
+      try {
+        const { createLmsRepository, LmsService } = await import('@proctira/backend-lms');
+        const lms = new LmsService(createLmsRepository());
+        copyLmsAssignments = (tenantId, actorId, sourcePeriodId, targetPeriodId, options) =>
+          lms.cloneAssignmentsForPeriod(tenantId, actorId, sourcePeriodId, targetPeriodId, options);
+      } catch {
+        copyLmsAssignments = async () => ({ cloned: 0, source: 0 });
+      }
+      const pgPool = getSharedPgPool();
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),
         prefix: '/institutions',
         academics: true,
+        rolloverExtras: {
+          copyFeeStructures: (tenantId, actorId, sourcePeriodId, targetPeriodId, options) =>
+            feesForRollover.cloneStructuresForPeriod(
+              tenantId,
+              actorId,
+              sourcePeriodId,
+              targetPeriodId,
+              options,
+            ),
+          copyTimetable,
+          copyLmsAssignments,
+          recordRolloverRun: pgPool
+            ? async (input) => {
+                await withPgTenant(pgPool, input.tenantId, async (client) => {
+                  await client.query(
+                    `INSERT INTO academic_rollover_runs (
+                       id, tenant_id, source_period_id, target_period_id, actor_id,
+                       dry_run, idempotency_key, request, summary, status
+                     ) VALUES (
+                       gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4,
+                       $5, $6, $7::jsonb, $8::jsonb, $9
+                     )
+                     ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+                     DO NOTHING`,
+                    [
+                      input.tenantId,
+                      input.sourcePeriodId,
+                      input.targetPeriodId,
+                      input.actorId,
+                      input.dryRun,
+                      input.idempotencyKey,
+                      JSON.stringify(input.request),
+                      JSON.stringify(input.summary),
+                      input.status,
+                    ],
+                  );
+                });
+              }
+            : undefined,
+        },
       });
     },
   },
@@ -262,7 +346,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/assessments'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
-      // G-210: wire in-memory report-card repos so `/report-cards` routes enable.
+      // G-210: report-card factories use pg `024` when DATABASE_URL is set.
       // Durable board HTML report cards also live at `/gradebook/report-cards`.
       await scope.register(assessmentPlugin, {
         gradingSchemeRepository: createGradingSchemeRepository(),
@@ -334,9 +418,23 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       if (shouldSeedDemoData()) {
         await seedScholarshipDemoData(repository);
       }
+      const feesForScholarships = new FeesService(createFeesRepository());
       await scope.register(scholarshipPlugin, {
         repository,
         prefix: '/scholarships',
+        serviceOptions: {
+          onDisbursementPaid: async (input) => {
+            // Scholarship amounts are major units; fees ledger is cents.
+            const amountCents = Math.round(Number(input.amount) * 100);
+            if (amountCents <= 0) return;
+            await feesForScholarships.applyScholarshipNetting(input.tenantId, 'scholarship-netting', {
+              studentId: input.applicantId,
+              disbursementId: input.disbursementId,
+              amountCents,
+              currency: input.currency,
+            });
+          },
+        },
       });
     },
   },
@@ -344,8 +442,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'health',
     proxyPrefixes: ['/health'],
     register: async (scope) => {
-      // Postgres counselling + profile/screening PHI when DATABASE_URL is set
-      // (raw pg, no Prisma — SQL 002 + 012). Special-needs stays in-memory.
+      // Postgres counselling + PHI + special-needs + nurse incidents when
+      // DATABASE_URL is set (raw pg — SQL 002 + 012 + 017 + 046); else memory.
       // UI aggregates merge seed + live counselling writes for list sync.
       // G-711: production must not boot without a PHI key (or explicit opt-out).
       assertPhiKeyConfigured();
@@ -378,6 +476,21 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/reports'],
     register: async (scope) => {
       await scope.register(reportCataloguePlugin);
+    },
+  },
+  {
+    name: 'etl',
+    proxyPrefixes: ['/pipelines'],
+    register: async (scope) => {
+      // Wave 10 Option C — unpark ETL. PG document store when DATABASE_URL (046).
+      const repository = createPipelineRepository();
+      await scope.register(etlPlugin, {
+        repository,
+        config: {
+          defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
+        },
+        prefix: '/pipelines',
+      });
     },
   },
   {
@@ -634,6 +747,32 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         pipelineStore,
         prefix: '/registrations',
         admissionsPrefix: '/admissions',
+        
+        createOfferFeeInvoice: async (input) => {
+          const fees = new FeesService(createFeesRepository());
+          const amountCents = Math.round(Number(input.feeAmount) * 100);
+          const invoice = await fees.createInvoice(input.tenantId, 'admissions-offer', {
+            studentId: input.applicationId,
+            title: `Admission offer fee — ${input.firstName} ${input.lastName}`,
+            description: `Offer ${input.offerId}`,
+            amountCents: Math.max(amountCents, 0),
+            currency: input.feeCurrency || 'INR',
+          });
+          return { invoiceId: invoice.id };
+        },
+        assertOfferFeePaid: async (input) => {
+          const fees = new FeesService(createFeesRepository());
+          const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+          if (invoice.status === 'paid') return;
+          if (input.paymentRef) {
+            await fees.recordPayment(input.tenantId, 'admissions-offer', {
+              invoiceId: input.invoiceId,
+              method: 'sandbox',
+            });
+            return;
+          }
+          throw new Error('Offer fee invoice must be paid before enrolment');
+        },
         enrolOnAccept: async (input: {
           tenantId: string;
           applicationId: string;

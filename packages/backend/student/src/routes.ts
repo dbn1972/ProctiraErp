@@ -12,6 +12,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { assertStudentWriteAccess } from './student-access.js';
 import type { StudentService } from './student-service.js';
 import {
   CreateStudentSchema,
@@ -25,6 +26,11 @@ import {
   type StudentSearchQuery,
   type StudentParams,
 } from './schemas.js';
+
+function getRoles(request: FastifyRequest): unknown {
+  const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+  return user?.roles ?? [];
+}
 
 /**
  * Options for registering student routes.
@@ -109,6 +115,7 @@ export async function registerStudentRoutes(
       }
 
       try {
+        assertStudentWriteAccess(getRoles(request), 'student.create');
         const student = await studentService.create(tenantId, result.data);
         return reply.status(201).send(formatStudentResponse(student));
       } catch (error: unknown) {
@@ -160,6 +167,7 @@ export async function registerStudentRoutes(
       }
 
       try {
+        assertStudentWriteAccess(getRoles(request), 'student.update');
         const student = await studentService.update(
           tenantId,
           paramsResult.data.id,

@@ -467,6 +467,21 @@ export class ParentPortalService {
     return this.academicStore.getHomework(tenantId, studentId);
   }
 
+  async getChildLms(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getLms(tenantId, studentId);
+  }
+
+  async getChildReportCards(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getReportCards(tenantId, studentId);
+  }
+
+  async getChildPalPlan(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getPalPlan(tenantId, studentId);
+  }
+
   async getChildCalendar(tenantId: string, parentUserId: string, studentId: string) {
     await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
     return this.academicStore.getCalendar(tenantId, studentId);
@@ -495,6 +510,16 @@ export class ParentPortalService {
   async getSelfHomework(tenantId: string, actor: StudentActor) {
     const studentId = await this.resolveStudentSelfId(tenantId, actor);
     return this.academicStore.getHomework(tenantId, studentId);
+  }
+
+  async getSelfLms(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getLms(tenantId, studentId);
+  }
+
+  async getSelfReportCards(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getReportCards(tenantId, studentId);
   }
 
   async getSelfCalendar(tenantId: string, actor: StudentActor) {

@@ -28,6 +28,7 @@
     "@proctira/backend-communication": "workspace:*",
     "@proctira/backend-curriculum": "workspace:*",
     "@proctira/backend-developer-portal": "workspace:*",
+    "@proctira/backend-etl": "workspace:*",
     "@proctira/backend-examination": "workspace:*",
     "@proctira/backend-fees": "workspace:*",
     "@proctira/backend-gradebook": "workspace:*",
@@ -58,7 +59,8 @@
     "fastify": "^5.7.2",
     "fastify-plugin": "^4.5.0",
     "ioredis": "^5.4.0",
-    "pg": "^8.21.0"
+    "pg": "^8.21.0",
+    "@proctira/backend-providers": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

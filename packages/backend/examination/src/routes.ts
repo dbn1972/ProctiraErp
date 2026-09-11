@@ -15,6 +15,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { requireExaminationAction } from './examination-http-guard.js';
 import type { ExaminationEntity } from './examination-repository.js';
 import type { ExaminationService } from './examination-service.js';
 import {
@@ -89,6 +90,7 @@ function formatExaminationResponse(entity: ExaminationEntity) {
 /**
  * Register examination routes on a Fastify instance.
  */
+
 export async function registerExaminationRoutes(
   fastify: FastifyInstance,
   options: ExaminationRoutesOptions,
@@ -124,6 +126,8 @@ export async function registerExaminationRoutes(
           statusCode: 400,
         });
       }
+
+      if (!requireExaminationAction(request, reply, 'exam.create')) return;
 
       try {
         const examination = await examinationService.create(tenantId, result.data);
@@ -178,6 +182,8 @@ export async function registerExaminationRoutes(
         });
       }
 
+      if (!requireExaminationAction(request, reply, 'exam.update')) return;
+
       try {
         const examination = await examinationService.update(
           tenantId,
@@ -223,6 +229,8 @@ export async function registerExaminationRoutes(
           statusCode: 400,
         });
       }
+
+      if (!requireExaminationAction(request, reply, 'exam.delete')) return;
 
       try {
         await examinationService.delete(tenantId, paramsResult.data.id);
@@ -417,6 +425,8 @@ export async function registerExaminationRoutes(
           statusCode: 400,
         });
       }
+
+      if (!requireExaminationAction(request, reply, 'candidate.register')) return;
 
       try {
         const registration = await examinationService.registerCandidate(

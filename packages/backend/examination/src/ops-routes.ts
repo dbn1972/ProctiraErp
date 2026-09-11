@@ -18,6 +18,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { examinationWritePreHandler } from './examination-http-guard.js';
 import {
   AllocateInvigilatorSchema,
   AllocationParamsSchema,
@@ -96,6 +97,11 @@ export async function registerExamOpsRoutes(
   options: ExamOpsRoutesOptions,
 ): Promise<void> {
   const { examOpsService, prefix = '/examinations' } = options;
+
+  // Domain RBAC on mutating ops (invigilators, seating, double-entry, re-eval).
+  fastify.addHook('preHandler', async (request, reply) => {
+    examinationWritePreHandler(request, reply, 'ops.moderate');
+  });
 
   fastify.get(
     `${prefix}/:id/sessions`,

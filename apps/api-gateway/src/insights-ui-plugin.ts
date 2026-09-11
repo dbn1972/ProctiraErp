@@ -62,7 +62,40 @@ export const insightsUiPlugin = fp(
       '/reports/board/:boardId/summary',
       async (request, reply) => {
         const tenantId = resolveTenantId(request);
-        const summary = await getBoardSummary(request.params.boardId, tenantId, {
+        const boardId = request.params.boardId;
+        const user = request.user as
+          | {
+              roles?: Array<{
+                roleId?: string;
+                roleName?: string;
+                areaId?: string | null;
+                institutionId?: string;
+              }>;
+            }
+          | undefined;
+        const roles = user?.roles ?? [];
+        const isPrivileged = roles.some((r) => {
+          const n = `${r.roleId ?? ''} ${r.roleName ?? ''}`.toLowerCase();
+          return (
+            n.includes('system_admin') ||
+            n.includes('administrator') ||
+            n.includes('board') ||
+            n.includes('platform')
+          );
+        });
+        if (!isPrivileged) {
+          const scoped = roles
+            .map((r) => r.areaId || r.institutionId)
+            .filter((id): id is string => Boolean(id));
+          if (scoped.length > 0 && !scoped.includes(boardId)) {
+            return reply.status(403).send({
+              code: 'BOARD_FORBIDDEN',
+              message: 'You cannot load rollups for another board or area.',
+              statusCode: 403,
+            });
+          }
+        }
+        const summary = await getBoardSummary(boardId, tenantId, {
           forceMemory: options.forceMemory,
         });
         return reply.send(summary);

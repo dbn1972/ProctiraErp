@@ -13,6 +13,7 @@ import {
   type DecideStaffLeaveInput,
   type StaffLeaveParams,
 } from './leave-schemas.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffLeaveService } from './leave-service.js';
 
 export interface StaffLeaveRoutesOptions {
@@ -65,6 +66,10 @@ export async function registerStaffLeaveRoutes(
   options: StaffLeaveRoutesOptions,
 ): Promise<void> {
   const { leaveService, prefix = '/staff' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    staffWritePreHandler(request, reply, 'staff.hr.write');
+  });
 
   fastify.get(
     `${prefix}/leaves`,

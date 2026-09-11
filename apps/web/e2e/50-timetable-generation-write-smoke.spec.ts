@@ -57,7 +57,9 @@ async function postOk(
 interface TimetableFixture {
   periodId: string;
   bellScheduleId: string;
+  bellPeriodId: string;
   sectionId: string;
+  sectionBId: string;
   staffId: string;
   roomId: string;
 }
@@ -88,7 +90,7 @@ async function buildTimetableInputs(request: APIRequestContext): Promise<Timetab
     },
     201,
   );
-  await postOk(
+  const bellPeriod = await postOk(
     request,
     `/timetable/bell-schedules/${bell.id}/periods`,
     { name: 'P1', periodOrder: 1, startTime: '08:00', endTime: '08:45' },
@@ -137,10 +139,24 @@ async function buildTimetableInputs(request: APIRequestContext): Promise<Timetab
     },
     201,
   );
+  const sectionB = await postOk(
+    request,
+    '/timetable/sections',
+    {
+      institutionId: INSTITUTION_A,
+      academicPeriodId: period.id,
+      name: `SecB ${stamp}`,
+      code: `B${stamp.slice(-6)}`,
+      capacity: 30,
+    },
+    201,
+  );
   return {
     periodId: period.id as string,
     bellScheduleId: bell.id as string,
+    bellPeriodId: bellPeriod.id as string,
     sectionId: section.id as string,
+    sectionBId: sectionB.id as string,
     staffId: staff.id as string,
     roomId: room.id as string,
   };
@@ -233,6 +249,32 @@ test.describe('Timetable generation — live chain (E2E_BACKEND_READY)', () => {
       waitUntil: 'domcontentloaded',
     });
     await hydrated(page, 'timetable-generate-page');
+  });
+
+  test('teacher double-book meeting returns HTTP 409', async ({ request }) => {
+    const fx = await buildTimetableInputs(request);
+    const meetingBody = {
+      institutionId: INSTITUTION_A,
+      academicPeriodId: fx.periodId,
+      sectionId: fx.sectionId,
+      staffId: fx.staffId,
+      periodId: fx.bellPeriodId,
+      roomId: fx.roomId,
+      dayOfWeek: 1,
+      status: 'active',
+    };
+    await postOk(request, '/timetable/meetings', meetingBody, 201);
+    const clash = await request.post(`${GATEWAY_URL}/api/v1/timetable/meetings`, {
+      headers: headers(),
+      data: {
+        ...meetingBody,
+        sectionId: fx.sectionBId,
+        roomId: null,
+      },
+    });
+    expect(clash.status(), await clash.text()).toBe(409);
+    const body = await clash.json();
+    expect(String(body.code ?? body.error?.code ?? '')).toMatch(/CLASH|CONFLICT/i);
   });
 
   test('cross-tenant: tenant B cannot read tenant A generation jobs', async ({ request }) => {

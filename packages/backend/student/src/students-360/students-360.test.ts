@@ -215,7 +215,11 @@ describe('G-914 students 360 routes', () => {
       const header = request.headers['x-tenant-id'];
       (request as unknown as { tenantId: string }).tenantId =
         typeof header === 'string' ? header : TENANT_A;
-      (request as unknown as { user: { sub: string } }).user = { sub: actor };
+      // Registrar role required for POST /students after PRD-005 write RBAC.
+      (request as unknown as { user: { sub: string; roles: string[] } }).user = {
+        sub: actor,
+        roles: ['registrar'],
+      };
     });
     await registerStudentRoutes(app, { studentService });
     await registerStudents360Routes(app, { service });

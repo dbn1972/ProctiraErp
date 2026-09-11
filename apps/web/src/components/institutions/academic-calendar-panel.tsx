@@ -371,6 +371,9 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
   const [targetPeriodId, setTargetPeriodId] = useState<string>(targets[0]?.id ?? '');
   const [institutionId, setInstitutionId] = useState<string>(TENANT_WIDE);
   const [promote, setPromote] = useState(true);
+  const [copyFees, setCopyFees] = useState(true);
+  const [copyTimetable, setCopyTimetable] = useState(true);
+  const [copyLms, setCopyLms] = useState(true);
   const [summary, setSummary] = useState<RolloverSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -390,6 +393,10 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
         targetPeriodId,
         institutionId: institutionId === TENANT_WIDE ? '' : institutionId,
         promoteEnrollments: promote,
+        copyFeeStructures: copyFees,
+        copyTimetable,
+        copyLmsAssignments: copyLms,
+        idempotencyKey: dryRun ? undefined : `rollover-${source.id}-${targetPeriodId}`,
         dryRun,
       });
       if (!result.success) {
@@ -482,6 +489,48 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
               </Label>
             </div>
 
+            <div className="space-y-2 rounded-md border bg-muted/10 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Also copy into the target year
+              </p>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="ro-fees"
+                  checked={copyFees}
+                  onCheckedChange={(v) => setCopyFees(v === true)}
+                  disabled={isPending}
+                  data-testid="rollover-copy-fees"
+                />
+                <Label htmlFor="ro-fees" className="font-normal">
+                  Fee structures
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="ro-tt"
+                  checked={copyTimetable}
+                  onCheckedChange={(v) => setCopyTimetable(v === true)}
+                  disabled={isPending}
+                  data-testid="rollover-copy-timetable"
+                />
+                <Label htmlFor="ro-tt" className="font-normal">
+                  Timetable sections &amp; meetings
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="ro-lms"
+                  checked={copyLms}
+                  onCheckedChange={(v) => setCopyLms(v === true)}
+                  disabled={isPending}
+                  data-testid="rollover-copy-lms"
+                />
+                <Label htmlFor="ro-lms" className="font-normal">
+                  LMS assignments (as drafts)
+                </Label>
+              </div>
+            </div>
+
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -534,6 +583,27 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 />
                 <Stat label="Graduating (no next grade)" value={summary.enrollments.graduating} />
                 <Stat label="Already in target year" value={summary.enrollments.alreadyInTarget} />
+                {summary.feeStructures && (
+                  <Stat
+                    label={summary.dryRun ? 'Fee structures to clone' : 'Fee structures cloned'}
+                    value={summary.feeStructures.cloned}
+                    testId="rollover-fees"
+                  />
+                )}
+                {summary.timetable && (
+                  <Stat
+                    label={summary.dryRun ? 'Timetable sections to clone' : 'Timetable sections cloned'}
+                    value={summary.timetable.sectionsCloned}
+                    testId="rollover-timetable"
+                  />
+                )}
+                {summary.lmsAssignments && (
+                  <Stat
+                    label={summary.dryRun ? 'LMS assignments to clone' : 'LMS assignments cloned'}
+                    value={summary.lmsAssignments.cloned}
+                    testId="rollover-lms"
+                  />
+                )}
               </dl>
             )}
           </>

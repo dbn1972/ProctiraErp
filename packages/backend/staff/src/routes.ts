@@ -20,6 +20,7 @@ import {
   type StaffListQuery,
   type StaffParams,
 } from './schemas.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffService } from './staff-service.js';
 
 /**
@@ -72,6 +73,14 @@ export async function registerStaffRoutes(
   options: StaffRoutesOptions,
 ): Promise<void> {
   const { staffService, prefix = '/staff' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+    const action =
+      method === 'POST' ? 'staff.create' : method === 'DELETE' ? 'staff.delete' : 'staff.update';
+    staffWritePreHandler(request, reply, action);
+  });
 
   /**
    * POST /staff

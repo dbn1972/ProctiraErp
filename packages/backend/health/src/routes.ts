@@ -35,6 +35,7 @@ import {
   UpdateConditionSchema,
   CreateVaccinationSchema,
   UpdateVaccinationSchema,
+  CreateNurseIncidentSchema,
   CreateInsuranceSchema,
   UpdateInsuranceSchema,
   CreateSpecialNeedsAssessmentSchema,
@@ -435,6 +436,20 @@ export async function registerHealthRoutes(
         getAccessContext(request),
       );
       return reply.status(201).send(entity);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/vaccinations`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = getTenantId(request);
+    if (!tenantId)
+      return reply
+        .status(400)
+        .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+    try {
+      const data = await healthService.listAllVaccinations(tenantId, getAccessContext(request));
+      return reply.status(200).send({ data });
     } catch (error) {
       return sendError(reply, error);
     }
@@ -1205,6 +1220,93 @@ export async function registerHealthRoutes(
         getAccessContext(request),
       );
       return reply.status(200).send(pack);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // ─── PHI access log viewer (Wave 10 Option B) ───────────────────────────
+
+  fastify.get(`${prefix}/phi-access`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    const query = request.query as { studentId?: string; limit?: string };
+    try {
+      const data = await healthService.listPhiAccessLogs(tenantId, getAccessContext(request), {
+        studentId: query.studentId,
+        limit: query.limit ? Number(query.limit) : 100,
+      });
+      return reply.status(200).send({ data });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  // ─── Nurse incidents (Wave 10 Option B) ─────────────────────────────────
+
+  fastify.post(`${prefix}/incidents`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const result = validate(CreateNurseIncidentSchema, request.body);
+    if (!result.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: result.errors,
+      });
+    }
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    try {
+      const entity = await healthService.createNurseIncident(
+        tenantId,
+        {
+          ...result.data,
+          severity: result.data.severity as 'low' | 'medium' | 'high' | 'critical',
+        },
+        getAccessContext(request),
+      );
+      return reply.status(201).send({
+        ...entity,
+        incidentAt: entity.incidentAt.toISOString(),
+        createdAt: entity.createdAt.toISOString(),
+        updatedAt: entity.updatedAt.toISOString(),
+      });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/incidents`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    try {
+      const rows = await healthService.listNurseIncidents(tenantId, getAccessContext(request));
+      return reply.status(200).send({
+        data: rows.map((entity) => ({
+          ...entity,
+          incidentAt: entity.incidentAt.toISOString(),
+          createdAt: entity.createdAt.toISOString(),
+          updatedAt: entity.updatedAt.toISOString(),
+        })),
+      });
     } catch (error) {
       return sendError(reply, error);
     }

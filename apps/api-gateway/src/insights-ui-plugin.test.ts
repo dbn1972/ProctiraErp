@@ -144,6 +144,59 @@ describe('insightsUiPlugin (memory)', () => {
       expect(body.lmsCompletionPercent).toBeNull();
       expect(body.schoolsBreakdown).toEqual([]);
     });
+
+    it('returns 403 BOARD_FORBIDDEN when scoped role requests another board', async () => {
+      const app = Fastify();
+      apps.push(app);
+      app.addHook('onRequest', async (request) => {
+        (request as { user?: unknown }).user = {
+          roles: [
+            {
+              roleId: 'teacher',
+              roleName: 'Teacher',
+              areaId: 'board-home',
+              institutionId: 'board-home',
+            },
+          ],
+        };
+      });
+      await app.register(insightsUiPlugin, { forceMemory: true });
+      await app.ready();
+
+      const denied = await app.inject({
+        method: 'GET',
+        url: '/reports/board/board-other/summary',
+        headers: { 'x-tenant-id': 'tenant-board' },
+      });
+      expect(denied.statusCode).toBe(403);
+      expect((denied.json() as { code: string }).code).toBe('BOARD_FORBIDDEN');
+
+      const allowed = await app.inject({
+        method: 'GET',
+        url: '/reports/board/board-home/summary',
+        headers: { 'x-tenant-id': 'tenant-board' },
+      });
+      expect(allowed.statusCode).toBe(200);
+    });
+
+    it('allows privileged administrator to load any board summary', async () => {
+      const app = Fastify();
+      apps.push(app);
+      app.addHook('onRequest', async (request) => {
+        (request as { user?: unknown }).user = {
+          roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: 'board-home' }],
+        };
+      });
+      await app.register(insightsUiPlugin, { forceMemory: true });
+      await app.ready();
+
+      const res = await app.inject({
+        method: 'GET',
+        url: '/reports/board/board-other/summary',
+        headers: { 'x-tenant-id': 'tenant-board' },
+      });
+      expect(res.statusCode).toBe(200);
+    });
   });
 });
 

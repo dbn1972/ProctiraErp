@@ -872,4 +872,23 @@ export async function registerTimetableRoutes(
       return sendDomainError(reply, error);
     }
   });
+  fastify.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
+    `${prefix}/clone-period`,
+    async (request, reply) => {
+      const sourcePeriodId = request.body?.sourcePeriodId;
+      const targetPeriodId = request.body?.targetPeriodId;
+      if (!sourcePeriodId || !targetPeriodId) {
+        return reply.code(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'sourcePeriodId and targetPeriodId are required',
+          statusCode: 400,
+        });
+      }
+      const tenantId = tenantIdOf(request, reply);
+      if (!tenantId) return;
+      const result = await service.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId);
+      return reply.code(201).send(result);
+    },
+  );
+
 }

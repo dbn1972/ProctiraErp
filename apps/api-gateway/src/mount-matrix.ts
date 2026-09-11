@@ -50,6 +50,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'communication',
   'curriculum',
   'developer-portal',
+  'etl',
   'examination',
   'fees',
   'gradebook',
@@ -80,7 +81,6 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
   'custom-field',
   'dashboards',
   'data-warehouse',
-  'etl',
   'install',
   'plugin',
   'policy',
@@ -100,7 +100,6 @@ export const EXPECTED_PARKED: readonly string[] = [
   'custom-field',
   'dashboards',
   'data-warehouse',
-  'etl',
   'install',
   'plugin',
   'policy',
@@ -149,7 +148,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Staff + assignments + G-918 contracts/attendance/import/payroll; Prisma when DATABASE_URL set. HR ops raw SQL 043.',
+      'Staff/HR CRUD + G-918 ops; domain RBAC via staff-access (rbacWired=false = gateway rbacPlugin not mounted).',
     registrarName: 'staff',
   },
   {
@@ -169,7 +168,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set.',
+      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set. Domain RBAC via examination-access (rbacWired=false = gateway rbacPlugin not mounted; mutations assertExaminationAccess).',
     registrarName: 'examination',
   },
   {
@@ -186,7 +185,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Proxy prefix `/assessments`; native routes include `/report-cards` (G-210 in-memory templates/jobs). Durable HTML also via gradebook `/gradebook/report-cards`.',
+      'Proxy prefix `/assessments`; `/report-cards` uses createReportCard*Repository() (PG/`024` when DATABASE_URL, else memory). Durable HTML also via gradebook `/gradebook/report-cards`. CA-sealed PDF = PRD-011 NON-GOAL.',
     registrarName: 'assessment',
   },
   {
@@ -196,7 +195,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (003_sis_timetable_schedule_schema.sql + 041_timetable_generation_schema.sql) when DATABASE_URL set. G-917: /timetable/generation-jobs (sync in-process greedy+repair) and /timetable/teacher-absences. Else in-memory.',
+      'Raw pg (003 + 041) when DATABASE_URL set. Domain RBAC via timetable-access; meeting/substitution clashes → 409. G-917 generation-jobs + teacher-absences. iCal/federation = PRD-013 NON-GOAL.',
     registrarName: 'timetable',
   },
   {
@@ -205,7 +204,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/gradebook'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (003/004) when DATABASE_URL set; else in-memory.',
+    notes:
+      'Raw pg (003/004/032) when DATABASE_URL set. Domain RBAC via gradebook-access (mutations). Transcript HMAC stub; CA-sealed PDF = PRD-011 NON-GOAL.',
     registrarName: 'gradebook',
   },
   {
@@ -457,14 +457,13 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   },
   {
     package: 'etl',
-    mounted: false,
+    mounted: true,
     prefixes: ['/pipelines'],
-    persistence: 'n/a',
-    rbacWired: false,
-    parked: true,
-    parkedReason:
-      'G-924 PARKED (deferred) — pipeline runtime has no product surface; scheduled report runs (G-909) cover the operational need. Mount with data-warehouse when BI pipelines are funded.',
-    notes: 'Unmounted (G-209).',
+    persistence: 'raw-pg',
+    rbacWired: true,
+    registrarName: 'etl',
+    notes:
+      'Wave 10 Option C — unparked. PG document store (046) when DATABASE_URL; else in-memory. Insights still owns /data-warehouse.',
   },
   {
     package: 'install',

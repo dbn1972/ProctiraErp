@@ -12,12 +12,12 @@
  * - 12.4: Restrict access to authorized health personnel and student's guardian
  * - 12.5: Support configurable health screening programs per grade level
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { HealthRepository } from './health-repository.js';
 import type {
+  HealthRepository,
   HealthMeasurementEntity,
   AllergyEntity,
   HealthConditionEntity,
@@ -31,11 +31,6 @@ import type {
   ScreeningProgramEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
-
-type PhiAccessCapableRepository = HealthRepository & {
-  logPhiAccess?: (input: PhiAccessLogInput) => Promise<void>;
-};
-
 import type {
   CreateMeasurementInput,
   UpdateMeasurementInput,
@@ -58,6 +53,10 @@ import type {
   CreateScreeningProgramInput,
   UpdateScreeningProgramInput,
 } from './schemas.js';
+
+type PhiAccessCapableRepository = HealthRepository & {
+  logPhiAccess?: (input: PhiAccessLogInput) => Promise<void>;
+};
 
 /**
  * User context for access control checks.
@@ -121,7 +120,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<HealthMeasurementEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -152,7 +151,7 @@ export class HealthService {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -169,7 +168,7 @@ export class HealthService {
     const entity = await this.repository.findMeasurementById(id, tenantId);
     if (!entity) throw new NotFoundError(`Measurement with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, entity.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -189,7 +188,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<HealthMeasurementEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -211,7 +210,7 @@ export class HealthService {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -226,7 +225,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<AllergyEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -253,7 +252,7 @@ export class HealthService {
     const existing = await this.repository.findAllergyById(id, tenantId);
     if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -269,7 +268,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<AllergyEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -291,7 +290,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<HealthConditionEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -319,7 +318,7 @@ export class HealthService {
     const existing = await this.repository.findConditionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -335,7 +334,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<HealthConditionEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -357,7 +356,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<VaccinationEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -385,7 +384,7 @@ export class HealthService {
     const existing = await this.repository.findVaccinationById(id, tenantId);
     if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -401,7 +400,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<VaccinationEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -415,6 +414,19 @@ export class HealthService {
     return result;
   }
 
+  /** Tenant-wide immunisation register (Wave 10 Option B). */
+  async listAllVaccinations(
+    tenantId: string,
+    accessContext: HealthAccessContext,
+  ): Promise<VaccinationEntity[]> {
+    if (!hasHealthAccess(accessContext, '')) {
+      throw new ForbiddenError('Access denied: not authorized to access health records');
+    }
+    const list = this.repository.listAllVaccinations?.bind(this.repository);
+    if (!list) return [];
+    return list(tenantId);
+  }
+
   // ─── Insurance ──────────────────────────────────────────────────────────
 
   async createInsurance(
@@ -423,7 +435,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<InsuranceEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -450,7 +462,7 @@ export class HealthService {
     const existing = await this.repository.findInsuranceById(id, tenantId);
     if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -466,7 +478,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<InsuranceEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -488,7 +500,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<SpecialNeedsAssessmentEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -513,7 +525,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<SpecialNeedsAssessmentEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -535,7 +547,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<DiagnosisEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -561,7 +573,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<DiagnosisEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -583,7 +595,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<ReferralEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -612,7 +624,7 @@ export class HealthService {
     const existing = await this.repository.findReferralById(id, tenantId);
     if (!existing) throw new NotFoundError(`Referral with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -628,7 +640,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<ReferralEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -650,7 +662,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<AccommodationPlanEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -679,7 +691,7 @@ export class HealthService {
     const existing = await this.repository.findAccommodationPlanById(id, tenantId);
     if (!existing) throw new NotFoundError(`Accommodation plan with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -695,7 +707,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<AccommodationPlanEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -721,7 +733,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<CounsellingSessionEntity> {
     if (!hasHealthAccess(accessContext, input.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -756,7 +768,7 @@ export class HealthService {
     const existing = await this.repository.findCounsellingSessionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Counselling session with id '${id}' not found`);
     if (!hasHealthAccess(accessContext, existing.studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -780,7 +792,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
   ): Promise<PaginatedResult<CounsellingSessionEntity>> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -866,7 +878,7 @@ export class HealthService {
     sections: Record<string, unknown>;
   }> {
     if (!hasHealthAccess(accessContext, studentId)) {
-      throw new BusinessRuleError(
+      throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
     }
@@ -919,5 +931,87 @@ export class HealthService {
         counsellingSessions: counsellingSessions.data,
       },
     };
+  }
+
+  async listPhiAccessLogs(
+    tenantId: string,
+    access: HealthAccessContext,
+    options: { studentId?: string; limit?: number } = {},
+  ) {
+    const privileged = access.roles.some((r) => {
+      const n = r.toLowerCase();
+      return (
+        n.includes('health_admin') ||
+        n.includes('system_admin') ||
+        n.includes('administrator') ||
+        n.includes('health_officer')
+      );
+    });
+    if (!privileged) {
+      throw new ForbiddenError('Access denied: PHI access log requires a health admin role');
+    }
+    const repo = this.repository as {
+      listPhiAccessLogs?: (
+        tenantId: string,
+        options?: { studentId?: string; limit?: number },
+      ) => Promise<
+        Array<{
+          id: string;
+          tenantId: string;
+          actorUserId: string;
+          studentId: string;
+          resourceType: string;
+          resourceId: string | null;
+          action: string;
+          createdAt: string;
+        }>
+      >;
+    };
+    if (typeof repo.listPhiAccessLogs !== 'function') return [];
+    return repo.listPhiAccessLogs(tenantId, options);
+  }
+
+  async createNurseIncident(
+    tenantId: string,
+    input: {
+      studentId: string;
+      institutionId?: string;
+      incidentAt: string;
+      category: string;
+      severity: 'low' | 'medium' | 'high' | 'critical';
+      notes?: string;
+      reportedBy: string;
+    },
+    access: HealthAccessContext,
+  ) {
+    if (!hasHealthAccess(access, input.studentId)) {
+      throw new ForbiddenError(
+        "Access denied: not authorized to access this student's health records",
+      );
+    }
+    const create = this.repository.createNurseIncident?.bind(this.repository);
+    if (!create) {
+      throw new BusinessRuleError('Nurse incidents are not available on this repository');
+    }
+    return create({
+      id: uuidv4(),
+      tenantId,
+      studentId: input.studentId,
+      institutionId: input.institutionId ?? null,
+      incidentAt: new Date(input.incidentAt),
+      category: input.category,
+      severity: input.severity,
+      notes: input.notes ?? '',
+      reportedBy: input.reportedBy,
+    });
+  }
+
+  async listNurseIncidents(tenantId: string, access: HealthAccessContext) {
+    if (!hasHealthAccess(access, '')) {
+      // Empty studentId → role-only check inside hasHealthAccess for personnel
+      throw new ForbiddenError('Access denied: not authorized to access health records');
+    }
+    const list = this.repository.listNurseIncidents?.bind(this.repository);
+    return list ? list(tenantId) : [];
   }
 }

@@ -40,6 +40,9 @@ import {
   ClassAnalyticsQuerySchema,
   ContentListQuerySchema,
   CreateAssignmentSchema,
+  CreateModuleSchema,
+  CreateModuleItemSchema,
+  ListModulesQuerySchema,
   CreateBankQuestionSchema,
   CreateContentItemSchema,
   CreateDiscussionSchema,
@@ -992,4 +995,55 @@ export async function registerLmsRoutes(
       return sendError(reply, error);
     }
   });
+
+
+  // ── Modules (Canvas-class sequencing) ───────────────────────────────────
+  fastify.post(`${prefix}/modules`, async (request, reply) => {
+    const body = validate(CreateModuleSchema, request.body);
+    if (!body.success) return validationFailed(reply, body.errors);
+    const tenantId = getTenantId(request);
+    if (!tenantId) return tenantRequired(reply);
+    try {
+      const actor = getLmsActor(request);
+      const created = await lmsService.createModule(tenantId, actor.userId ?? 'system', body.data);
+      return reply.status(201).send(serialise(created));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/modules`, async (request, reply) => {
+    const query = validateQuery(ListModulesQuerySchema, plainQuery(request));
+    if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
+    const tenantId = getTenantId(request);
+    if (!tenantId) return tenantRequired(reply);
+    try {
+      const modules = await lmsService.listModules(tenantId, query.data);
+      const withItems = await Promise.all(
+        modules.map(async (mod) => ({
+          ...mod,
+          items: await lmsService.listModuleItems(tenantId, mod.id),
+        })),
+      );
+      return reply.send({ data: withItems.map(serialise) });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/modules/:id/items`, async (request, reply) => {
+    const params = validate(IdParamsSchema, plainParams(request));
+    if (!params.success) return validationFailed(reply, params.errors, 'Invalid ID');
+    const body = validate(CreateModuleItemSchema, request.body);
+    if (!body.success) return validationFailed(reply, body.errors);
+    const tenantId = getTenantId(request);
+    if (!tenantId) return tenantRequired(reply);
+    try {
+      const item = await lmsService.addModuleItem(tenantId, params.data.id, body.data);
+      return reply.status(201).send(serialise(item));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
 }

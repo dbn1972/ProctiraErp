@@ -16,9 +16,12 @@ import {
   type CalendarEventItem,
   type GradesPayload,
   type HomeworkItem,
+  type LmsAssignmentItem,
+  type LmsPayload,
   type NoticeItem,
   type PalPlanItem,
   type PublishedGrade,
+  type ReportCardDetail,
   type ReportCardSummary,
   type TimetableSlot,
 } from './academic-visibility.js';
@@ -278,6 +281,136 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
         dueAt: isoOrNull(row.due_at),
         status: str(row.status),
       }));
+      return {
+        data,
+        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+      };
+    });
+  }
+
+
+  async getLms(tenantId: string, studentId: string): Promise<LmsPayload> {
+    return this.withTenant(tenantId, async (client) => {
+      const rows = await queryRows(
+        client,
+        `SELECT a.id, a.title, a.kind, a.subject, a.due_at, a.status, a.max_score,
+                s.status AS submission_status, s.score, s.graded_at, s.feedback
+           FROM lms_assignments a
+           LEFT JOIN lms_submissions s
+             ON s.assignment_id = a.id
+            AND s.tenant_id = a.tenant_id
+            AND s.student_id = $2::uuid
+          WHERE a.tenant_id = $1::uuid
+            AND a.status IN ('published', 'closed')
+            AND (
+              a.section_id IS NULL
+              OR a.section_id IN (
+                SELECT section_id FROM section_enrollments
+                 WHERE tenant_id = $1::uuid AND student_id = $2::uuid AND status = 'ENROLLED'
+              )
+            )
+          ORDER BY a.due_at NULLS LAST
+          LIMIT 100`,
+        [tenantId, studentId],
+      );
+      const data: LmsAssignmentItem[] = rows.map((row) => ({
+        id: str(row.id),
+        title: str(row.title),
+        kind: str(row.kind),
+        subject: strOrNull(row.subject),
+        dueAt: isoOrNull(row.due_at),
+        maxScore: numOrNull(row.max_score),
+        status: str(row.status),
+        submissionStatus: strOrNull(row.submission_status),
+        score: numOrNull(row.score),
+        gradedAt: isoOrNull(row.graded_at),
+        feedback: strOrNull(row.feedback),
+      }));
+      const assigned = data.length;
+      const submitted = data.filter((d) => d.submissionStatus && d.submissionStatus !== 'draft').length;
+      const graded = data.filter((d) => d.score != null).length;
+      const missing = data.filter((d) => !d.submissionStatus).length;
+      const scored = data.filter((d) => d.score != null && d.maxScore && d.maxScore > 0);
+      const averageScorePercent =
+        scored.length === 0
+          ? null
+          : Math.round(
+              (scored.reduce((acc, d) => acc + ((d.score ?? 0) / (d.maxScore ?? 1)) * 100, 0) /
+                scored.length) *
+                100,
+            ) / 100;
+      return {
+        data,
+        summary: { assigned, submitted, graded, missing, averageScorePercent },
+        meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },
+      };
+    });
+  }
+
+  async getReportCards(tenantId: string, studentId: string): Promise<AcademicList<ReportCardDetail>> {
+    return this.withTenant(tenantId, async (client) => {
+      const cards = await queryRows(
+        client,
+        `SELECT id, academic_period_id, status, output_url, completed_at
+           FROM report_card_jobs
+          WHERE tenant_id = $1::uuid AND student_id = $2::uuid
+            AND status IN ('completed', 'COMPLETED', 'SUCCEEDED')
+          ORDER BY created_at DESC
+          LIMIT 20`,
+        [tenantId, studentId],
+      );
+      const data: ReportCardDetail[] = [];
+      for (const row of cards) {
+        const subjects = await queryRows(
+          client,
+          `SELECT subject, numeric_score, letter_grade, remarks
+             FROM report_card_subject_lines
+            WHERE tenant_id = $1::uuid AND report_card_job_id = $2::uuid
+            ORDER BY position ASC NULLS LAST, subject ASC`,
+          [tenantId, str(row.id)],
+        );
+        // Fallback: published gradebook rows for the period when subject lines table is absent/empty
+        let subjectLines = subjects.map((s) => ({
+          subject: str(s.subject),
+          numericScore: numOrNull(s.numeric_score),
+          letterGrade: strOrNull(s.letter_grade),
+          remarks: strOrNull(s.remarks),
+        }));
+        if (subjectLines.length === 0 && row.academic_period_id) {
+          const grades = await queryRows(
+            client,
+            `SELECT COALESCE(ge.subject, ge.assessment_code, 'Subject') AS subject,
+                    ge.numeric_score, ge.letter_grade, ge.comment AS remarks
+               FROM grade_entries ge
+              WHERE ge.tenant_id = $1::uuid AND ge.student_id = $2::uuid
+                AND (
+                  ge.academic_period_id = $3::uuid
+                  OR ge.metadata->>'academicPeriodId' = $3::text
+                )
+                AND (
+                  ge.locked_at IS NOT NULL
+                  OR COALESCE(ge.metadata->>'workflowStatus', '') IN ('APPROVED', 'LOCKED')
+                )
+              ORDER BY ge.entered_at DESC
+              LIMIT 40`,
+            [tenantId, studentId, str(row.academic_period_id)],
+          );
+          subjectLines = grades.map((g) => ({
+            subject: str(g.subject),
+            numericScore: numOrNull(g.numeric_score),
+            letterGrade: strOrNull(g.letter_grade),
+            remarks: strOrNull(g.remarks),
+          }));
+        }
+        data.push({
+          id: str(row.id),
+          academicPeriodId: strOrNull(row.academic_period_id),
+          status: str(row.status),
+          outputUrl: strOrNull(row.output_url),
+          completedAt: isoOrNull(row.completed_at),
+          subjects: subjectLines,
+        });
+      }
       return {
         data,
         meta: { source: data.length > 0 ? 'postgres' : 'none', studentId },

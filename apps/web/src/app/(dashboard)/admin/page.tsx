@@ -29,8 +29,8 @@ export default function AdminLandingPage() {
 
       <ScaffoldModeBanner
         force
-        surface="Administration"
-        detail="Admin hub and nested settings are UI scaffolds. Nested lists stay empty when tenant admin APIs are offline rather than inventing accounts."
+        surface="Administration (ops stub)"
+        detail="This console is an ops stub / UI scaffold — not a live billing, plugin marketplace, or control-plane console. Nested lists stay empty when tenant admin APIs are offline rather than inventing accounts, plans, or plugin installs."
       />
 
       <SectionGrid sections={ADMIN_SECTIONS} label="Tenant administration" />

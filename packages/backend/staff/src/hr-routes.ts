@@ -46,6 +46,7 @@ import {
   type UpdateContractInput,
   type VerifyQualificationInput,
 } from './hr-schemas.js';
+import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffHrService } from './hr-service.js';
 
 export interface StaffHrRoutesOptions {
@@ -161,6 +162,18 @@ export async function registerStaffHrRoutes(
   options: StaffHrRoutesOptions,
 ): Promise<void> {
   const { hrService, prefix = '/staff' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
+    const url = request.url;
+    const action = url.includes('/import')
+      ? 'staff.import'
+      : url.includes('/payroll')
+        ? 'payroll.export'
+        : 'staff.hr.write';
+    staffWritePreHandler(request, reply, action);
+  });
 
   fastify.get(
     `${prefix}/contracts`,

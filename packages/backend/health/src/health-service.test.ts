@@ -9,7 +9,7 @@
  * - Screening programs (Requirement 12.5)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ForbiddenError, ForbiddenError, NotFoundError } from '@proctira/common';
 
 import { HealthService, hasHealthAccess } from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
@@ -109,7 +109,7 @@ describe('HealthService', () => {
           },
           unauthorizedContext,
         ),
-      ).rejects.toThrow(BusinessRuleError);
+      ).rejects.toThrow(ForbiddenError);
     });
 
     it('allows guardian to create measurement for their student', async () => {
@@ -207,7 +207,7 @@ describe('HealthService', () => {
           },
           unauthorizedContext,
         ),
-      ).rejects.toThrow(BusinessRuleError);
+      ).rejects.toThrow(ForbiddenError);
     });
 
     it('updates an allergy record', async () => {
@@ -685,6 +685,61 @@ describe('HealthService', () => {
       await expect(service.getScreeningProgram(tenantId, 'non-existent-id')).rejects.toThrow(
         NotFoundError,
       );
+    });
+  });
+
+  describe('Wave 10 Option B — PHI access + nurse incidents', () => {
+    const healthAdminContext: HealthAccessContext = {
+      userId: 'user-health-admin',
+      roles: ['health_admin'],
+      guardianOfStudentIds: [],
+    };
+
+    it('lists all vaccinations for health roles', async () => {
+      await service.createVaccination(
+        tenantId,
+        {
+          studentId: 'student-001',
+          vaccineName: 'Tdap',
+          doseNumber: 1,
+          dateAdministered: '2024-06-01',
+        },
+        healthOfficerContext,
+      );
+      const rows = await service.listAllVaccinations(tenantId, healthOfficerContext);
+      expect(rows.some((r) => r.vaccineName === 'Tdap')).toBe(true);
+    });
+
+    it('denies PHI access log to nurse-only role', async () => {
+      const nurseOnly: HealthAccessContext = {
+        userId: 'user-nurse',
+        roles: ['school_nurse'],
+        guardianOfStudentIds: [],
+      };
+      await expect(service.listPhiAccessLogs(tenantId, nurseOnly)).rejects.toThrow(ForbiddenError);
+    });
+
+    it('allows PHI access log for health_admin', async () => {
+      const rows = await service.listPhiAccessLogs(tenantId, healthAdminContext);
+      expect(Array.isArray(rows)).toBe(true);
+    });
+
+    it('creates and lists nurse incidents', async () => {
+      const created = await service.createNurseIncident(
+        tenantId,
+        {
+          studentId: 'student-001',
+          incidentAt: '2024-09-01T10:00:00.000Z',
+          category: 'clinic_visit',
+          severity: 'low',
+          notes: 'Headache',
+          reportedBy: 'Nurse Ada',
+        },
+        healthOfficerContext,
+      );
+      expect(created.category).toBe('clinic_visit');
+      const listed = await service.listNurseIncidents(tenantId, healthOfficerContext);
+      expect(listed.some((r) => r.id === created.id)).toBe(true);
     });
   });
 });

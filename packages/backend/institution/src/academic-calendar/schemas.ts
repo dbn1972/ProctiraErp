@@ -54,6 +54,14 @@ export const RolloverRequestSchema = Type.Object({
   promoteEnrollments: Type.Optional(Type.Boolean()),
   /** Compute the plan without writing anything (default true). */
   dryRun: Type.Optional(Type.Boolean()),
+  /** Clone fee structures into the target period (G-5). */
+  copyFeeStructures: Type.Optional(Type.Boolean()),
+  /** Clone timetable sections/meetings into the target period (G-5). */
+  copyTimetable: Type.Optional(Type.Boolean()),
+  /** Clone LMS assignments (draft, no submissions) into the target period. */
+  copyLmsAssignments: Type.Optional(Type.Boolean()),
+  /** Client idempotency key for rollover run ledger. */
+  idempotencyKey: Type.Optional(Type.String({ minLength: 8, maxLength: 128 })),
 });
 export type RolloverRequestDto = Static<typeof RolloverRequestSchema>;
 
@@ -71,4 +79,8 @@ export interface RolloverSummary {
     /** Students who already hold an enrollment in the target period. */
     alreadyInTarget: number;
   };
+  feeStructures?: { cloned: number; source: number };
+  timetable?: { sectionsCloned: number; meetingsCloned: number };
+  lmsAssignments?: { cloned: number; source: number };
+  runId?: string;
 }

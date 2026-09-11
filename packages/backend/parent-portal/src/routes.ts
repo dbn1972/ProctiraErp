@@ -948,6 +948,27 @@ export async function registerParentPortalRoutes(
         parentPortalService.getSelfGrades(tenantId, actor),
     },
     {
+      path: 'report-cards',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildReportCards(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfReportCards(tenantId, actor),
+    },
+    {
+      path: 'lms',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildLms(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfLms(tenantId, actor),
+    },
+    {
+      path: 'pal',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildPalPlan(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfPalPlan(tenantId, actor),
+    },
+    {
       path: 'timetable',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildTimetable(tenantId, parentUserId, studentId),
@@ -1007,13 +1028,4 @@ export async function registerParentPortalRoutes(
     });
   }
 
-  fastify.get(
-    `${studentPrefix}/me/pal`,
-    async function studentPalHandler(request: FastifyRequest, reply: FastifyReply) {
-      const tenantId = await requireTenant(request, reply);
-      if (!tenantId) return;
-      const actor = { userId: getActorId(request), email: actorEmail(request) };
-      return sendOrAppError(reply, () => parentPortalService.getSelfPalPlan(tenantId, actor));
-    },
-  );
 }

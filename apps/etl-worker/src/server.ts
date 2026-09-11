@@ -4,10 +4,9 @@
  * Standalone Fastify application that hosts the ETL service.
  * Provides pipeline management API and executes ETL pipelines.
  */
-import Fastify from 'fastify';
-import { etlPlugin } from '@proctira/backend-etl/plugin';
-import { InMemoryPipelineRepository } from '@proctira/backend-etl';
+import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import { observabilityPlugin } from '@proctira/observability';
+import Fastify from 'fastify';
 
 const PORT = parseInt(process.env['ETL_WORKER_PORT'] ?? '3010', 10);
 const HOST = process.env['ETL_WORKER_HOST'] ?? '0.0.0.0';
@@ -25,9 +24,9 @@ async function start() {
     ignorePaths: ['/health'],
   });
 
-  // Register ETL plugin with in-memory repository (swap for PostgreSQL in production)
+  // PG document store when DATABASE_URL (046); else in-memory
   await fastify.register(etlPlugin, {
-    repository: new InMemoryPipelineRepository(),
+    repository: createPipelineRepository(),
     config: {
       defaultRetryPolicy: {
         maxRetries: 3,

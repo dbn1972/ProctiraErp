@@ -13,7 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import { AcademicCalendarService } from './academic-calendar/calendar-service.js';
+import { AcademicCalendarService, type RolloverExtras } from './academic-calendar/calendar-service.js';
 import { registerAcademicCalendarRoutes } from './academic-calendar/routes.js';
 import { registerAcademicPeriodRoutes } from './academic-period/academic-period-routes.js';
 import { AcademicPeriodService } from './academic-period/academic-period-service.js';
@@ -38,6 +38,8 @@ import { tenantContext } from './tenant-context.js';
  * Options for the institution plugin.
  */
 export interface InstitutionPluginOptions {
+  /** World-class year rollover fee/timetable/LMS/audit hooks. */
+  rolloverExtras?: RolloverExtras;
   /** Institution repository implementation */
   repository: InstitutionRepository;
   /** Database client for area hierarchy operations (optional - if not provided, area routes are not registered) */
@@ -140,6 +142,7 @@ export const institutionPlugin = fp(
     const academicCalendarService = new AcademicCalendarService({
       prisma: deps.prisma,
       store: deps.calendarStore,
+      rolloverExtras: options.rolloverExtras,
     });
     fastify.decorate('academicCalendarService', academicCalendarService);
     await registerAcademicCalendarRoutes(fastify, {

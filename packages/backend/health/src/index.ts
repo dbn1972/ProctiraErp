@@ -60,6 +60,13 @@ export {
 } from './pg-special-needs-store.js';
 export type { PhiAccessLogInput } from './pg-special-needs-store.js';
 export {
+  createPgNurseIncidentStore,
+  ensureNurseIncidentSchema,
+  isPgNurseIncidentEnabled,
+  PgNurseIncidentStore,
+} from './pg-nurse-incident-store.js';
+export type { NurseIncidentEntity } from './health-repository.js';
+export {
   assertPhiKeyConfigured,
   decryptPhi,
   encryptPhi,

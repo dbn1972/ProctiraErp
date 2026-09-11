@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, getHealthRecord } from '@/lib/api/health';
+import { canAccessHealthRecords, getHealthRecord, listStudentVaccinations } from '@/lib/api/health';
 import { cn } from '@/lib/utils';
 
 /* ---------------------------------------------------------------- helpers */
@@ -84,6 +84,7 @@ export default async function HealthRecordPage(props: PageProps) {
   const record = await getHealthRecord(params.studentId);
   if (!record) notFound();
 
+  const vaccinations = await listStudentVaccinations(params.studentId);
   const palette = avatarPalette(record.studentName);
 
   return (
@@ -166,6 +167,31 @@ export default async function HealthRecordPage(props: PageProps) {
                       className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
                     >
                       {a}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">None recorded.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Vaccinations</CardTitle>
+              <CardDescription>Immunisation doses on file for this student.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {vaccinations.length ? (
+                <ul className="divide-y divide-border" role="list">
+                  {vaccinations.map((v) => (
+                    <li key={v.id} className="py-2 text-sm">
+                      <span className="font-medium">{v.vaccineName}</span>
+                      <span className="text-muted-foreground">
+                        {' '}
+                        · dose {v.doseNumber}
+                        {v.dateAdministered ? ` · ${v.dateAdministered}` : ''}
+                      </span>
                     </li>
                   ))}
                 </ul>

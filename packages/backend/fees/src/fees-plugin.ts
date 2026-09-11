@@ -7,6 +7,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { assertFeesAccess } from './fees-access.js';
 import type { FeesRepository } from './fees-repository.js';
 import {
   FeesService,
@@ -159,6 +160,11 @@ function getTenantId(request: FastifyRequest): string | null {
 function getActorId(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
   return user?.sub ?? 'anonymous';
+}
+
+function getRoles(request: FastifyRequest): unknown {
+  const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+  return user?.roles ?? [];
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -445,6 +451,7 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         try {
+          assertFeesAccess(getRoles(request), 'payment.record');
           const result = await feesService.recordPayment(tenantId, getActorId(request), {
             invoiceId: paramsResult.data.id,
             ...bodyResult.data,
@@ -488,6 +495,7 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         try {
+          assertFeesAccess(getRoles(request), 'payment.record');
           const paid = await feesService.recordPayment(tenantId, getActorId(request), result.data);
           return reply.status(201).send({
             invoice: formatInvoice(paid.invoice),
@@ -931,6 +939,85 @@ export const feesPlugin = fp(
       const data = await feesService.listOverdueForReminder(tenantId, asOf);
       return reply.status(200).send({ data, asOf: asOf.toISOString() });
     });
+
+    fastify.post(
+      `${prefix}/scholarships/net`,
+      async function netScholarship(
+        request: FastifyRequest<{
+          Body: {
+            studentId: string;
+            disbursementId: string;
+            amountCents: number;
+            invoiceId?: string;
+            currency?: string;
+          };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const body = request.body;
+        if (!body?.studentId || !body?.disbursementId || !body?.amountCents) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'studentId, disbursementId, amountCents are required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const result = await feesService.applyScholarshipNetting(tenantId, getActorId(request), {
+            studentId: body.studentId,
+            disbursementId: body.disbursementId,
+            amountCents: body.amountCents,
+            invoiceId: body.invoiceId,
+            currency: body.currency,
+          });
+          return reply.status(200).send(result);
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/structures/clone-period`,
+      async function cloneStructures(
+        request: FastifyRequest<{
+          Body: { sourcePeriodId: string; targetPeriodId: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const body = request.body;
+        if (!body?.sourcePeriodId || !body?.targetPeriodId) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'sourcePeriodId and targetPeriodId are required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const result = await feesService.cloneStructuresForPeriod(
+            tenantId,
+            getActorId(request),
+            body.sourcePeriodId,
+            body.targetPeriodId,
+          );
+          return reply.status(201).send(result);
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+
   },
   {
     name: '@proctira/backend-fees',

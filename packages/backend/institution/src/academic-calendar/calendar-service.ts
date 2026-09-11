@@ -16,9 +16,45 @@ import type { PrismaClient } from '@proctira/database';
 import type { CalendarEventRecord, CalendarStore } from './calendar-store.js';
 import type { CreateCalendarEventDto, RolloverRequestDto, RolloverSummary } from './schemas.js';
 
+export type RolloverExtras = {
+  copyFeeStructures?: (
+    tenantId: string,
+    actorId: string,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+    options?: { dryRun?: boolean },
+  ) => Promise<{ cloned: number; source: number }>;
+  copyTimetable?: (
+    tenantId: string,
+    actorId: string,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+    options?: { dryRun?: boolean },
+  ) => Promise<{ sectionsCloned: number; meetingsCloned: number }>;
+  copyLmsAssignments?: (
+    tenantId: string,
+    actorId: string,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+    options?: { dryRun?: boolean },
+  ) => Promise<{ cloned: number; source: number }>;
+  recordRolloverRun?: (input: {
+    tenantId: string;
+    actorId: string;
+    sourcePeriodId: string;
+    targetPeriodId: string;
+    dryRun: boolean;
+    idempotencyKey: string | null;
+    request: Record<string, unknown>;
+    summary: RolloverSummary;
+    status: 'completed' | 'dry_run';
+  }) => Promise<void>;
+};
+
 export interface AcademicCalendarServiceDeps {
   prisma: PrismaClient;
   store: CalendarStore;
+  rolloverExtras?: RolloverExtras;
 }
 
 interface PeriodRow {
@@ -57,12 +93,19 @@ function isoDate(value: Date): string {
 }
 
 export class AcademicCalendarService {
+  private readonly rolloverExtras?: RolloverExtras;
+
   private readonly prisma: PrismaClient;
   private readonly store: CalendarStore;
 
   constructor(deps: AcademicCalendarServiceDeps) {
     this.prisma = deps.prisma;
     this.store = deps.store;
+    this.rolloverExtras = deps.rolloverExtras;
+  }
+
+  setRolloverExtras(extras: RolloverExtras) {
+    (this as unknown as { rolloverExtras?: RolloverExtras }).rolloverExtras = extras;
   }
 
   private async requirePeriod(tenantId: string, id: string): Promise<PeriodRow> {
@@ -195,90 +238,147 @@ export class AcademicCalendarService {
       }
     }
 
-    if (!dto.promoteEnrollments) return summary;
 
-    // ── Enrollments ──
-    const grades = (await this.prisma.grade.findMany({
-      where: { tenantId, deletedAt: null },
-      orderBy: { order: 'asc' },
-    })) as GradeRow[];
-    const gradeOrder = new Map(grades.map((g) => [g.id, g.order]));
-    const gradeByOrder = new Map(grades.map((g) => [g.order, g.id]));
+    // ── Enrollments (optional) ──
+    if (dto.promoteEnrollments) {
+      const grades = (await this.prisma.grade.findMany({
+        where: { tenantId, deletedAt: null },
+        orderBy: { order: 'asc' },
+      })) as GradeRow[];
+      const gradeOrder = new Map(grades.map((g) => [g.id, g.order]));
+      const gradeByOrder = new Map(grades.map((g) => [g.order, g.id]));
 
-    const [sourceEnrollments, targetEnrollments] = await Promise.all([
-      this.prisma.enrollment.findMany({
-        where: { tenantId, academicPeriodId: source.id, status: 'ENROLLED', ...institutionFilter },
-      }) as Promise<EnrollmentRow[]>,
-      this.prisma.enrollment.findMany({
-        where: { tenantId, academicPeriodId: target.id, ...institutionFilter },
-      }) as Promise<EnrollmentRow[]>,
-    ]);
-    const inTarget = new Set(targetEnrollments.map((e) => e.studentId));
-    const sourceClassById = new Map(sourceClasses.map((c) => [c.id, c]));
+      const [sourceEnrollments, targetEnrollments] = await Promise.all([
+        this.prisma.enrollment.findMany({
+          where: {
+            tenantId,
+            academicPeriodId: source.id,
+            status: 'ENROLLED',
+            ...institutionFilter,
+          },
+        }) as Promise<EnrollmentRow[]>,
+        this.prisma.enrollment.findMany({
+          where: { tenantId, academicPeriodId: target.id, ...institutionFilter },
+        }) as Promise<EnrollmentRow[]>,
+      ]);
+      const inTarget = new Set(targetEnrollments.map((e) => e.studentId));
+      const sourceClassById = new Map(sourceClasses.map((c) => [c.id, c]));
 
-    // Sections are named per grade ("7-A" → "8-A"), so carry a student into
-    // the section holding the same ordinal position in the next grade: the
-    // n-th source section of grade N maps to the n-th target section of N+1.
-    const byInstitutionGrade = (rows: ClassRow[]) => {
-      const groups = new Map<string, ClassRow[]>();
-      for (const c of rows) {
-        const key = `${c.institutionId}|${c.gradeId}`;
-        const group = groups.get(key) ?? [];
-        group.push(c);
-        groups.set(key, group);
-      }
-      for (const group of groups.values()) {
-        group.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-      }
-      return groups;
-    };
-    const sourceSections = byInstitutionGrade(sourceClasses);
-    const targetSections = byInstitutionGrade(Array.from(targetByKey.values()));
+      const byInstitutionGrade = (rows: ClassRow[]) => {
+        const groups = new Map<string, ClassRow[]>();
+        for (const c of rows) {
+          const key = `${c.institutionId}|${c.gradeId}`;
+          const group = groups.get(key) ?? [];
+          group.push(c);
+          groups.set(key, group);
+        }
+        for (const group of groups.values()) {
+          group.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+        }
+        return groups;
+      };
+      const sourceSections = byInstitutionGrade(sourceClasses);
+      const targetSections = byInstitutionGrade(Array.from(targetByKey.values()));
 
-    summary.enrollments.considered = sourceEnrollments.length;
-    const plan: Array<{ e: EnrollmentRow; nextGradeId: string; nextClassId: string | null }> = [];
-    for (const e of sourceEnrollments) {
-      if (inTarget.has(e.studentId)) {
-        summary.enrollments.alreadyInTarget += 1;
-        continue;
+      summary.enrollments.considered = sourceEnrollments.length;
+      const plan: Array<{ e: EnrollmentRow; nextGradeId: string; nextClassId: string | null }> = [];
+      for (const e of sourceEnrollments) {
+        if (inTarget.has(e.studentId)) {
+          summary.enrollments.alreadyInTarget += 1;
+          continue;
+        }
+        const order = gradeOrder.get(e.gradeId);
+        const nextGradeId = order === undefined ? undefined : gradeByOrder.get(order + 1);
+        if (!nextGradeId) {
+          summary.enrollments.graduating += 1;
+          continue;
+        }
+        let nextClassId: string | null = null;
+        const sourceClass = e.classId ? sourceClassById.get(e.classId) : undefined;
+        if (sourceClass) {
+          const siblings = sourceSections.get(`${e.institutionId}|${e.gradeId}`) ?? [];
+          const position = siblings.findIndex((c) => c.id === sourceClass.id);
+          const candidates = targetSections.get(`${e.institutionId}|${nextGradeId}`) ?? [];
+          nextClassId = candidates[position]?.id ?? null;
+        }
+        plan.push({ e, nextGradeId, nextClassId });
       }
-      const order = gradeOrder.get(e.gradeId);
-      const nextGradeId = order === undefined ? undefined : gradeByOrder.get(order + 1);
-      if (!nextGradeId) {
-        summary.enrollments.graduating += 1;
-        continue;
+      summary.enrollments.toPromote = plan.length;
+
+      if (!dryRun) {
+        for (const { e, nextGradeId, nextClassId } of plan) {
+          await this.prisma.enrollment.create({
+            data: {
+              tenantId,
+              studentId: e.studentId,
+              institutionId: e.institutionId,
+              gradeId: nextGradeId,
+              classId: nextClassId,
+              academicPeriodId: target.id,
+              status: 'ENROLLED',
+              enrolledAt: target.startDate,
+            },
+          });
+          summary.enrollments.promoted += 1;
+        }
       }
-      let nextClassId: string | null = null;
-      const sourceClass = e.classId ? sourceClassById.get(e.classId) : undefined;
-      if (sourceClass) {
-        const siblings = sourceSections.get(`${e.institutionId}|${e.gradeId}`) ?? [];
-        const position = siblings.findIndex((c) => c.id === sourceClass.id);
-        const candidates = targetSections.get(`${e.institutionId}|${nextGradeId}`) ?? [];
-        // In a dry run the target sections may not exist yet (created on
-        // execute), so this reports null there.
-        nextClassId = candidates[position]?.id ?? null;
-      }
-      plan.push({ e, nextGradeId, nextClassId });
     }
-    summary.enrollments.toPromote = plan.length;
 
-    if (dryRun) return summary;
-
-    for (const { e, nextGradeId, nextClassId } of plan) {
-      await this.prisma.enrollment.create({
-        data: {
+    // ── Fee / timetable / LMS extras (preview counts on dry-run) ──
+    if (dto.copyFeeStructures) {
+      if (this.rolloverExtras?.copyFeeStructures) {
+        summary.feeStructures = await this.rolloverExtras.copyFeeStructures(
           tenantId,
-          studentId: e.studentId,
-          institutionId: e.institutionId,
-          gradeId: nextGradeId,
-          classId: nextClassId,
-          academicPeriodId: target.id,
-          status: 'ENROLLED',
-          enrolledAt: target.startDate,
-        },
-      });
-      summary.enrollments.promoted += 1;
+          'rollover',
+          sourcePeriodId,
+          dto.targetPeriodId,
+          { dryRun },
+        );
+      } else {
+        summary.feeStructures = { cloned: 0, source: 0 };
+      }
     }
+    if (dto.copyTimetable) {
+      if (this.rolloverExtras?.copyTimetable) {
+        summary.timetable = await this.rolloverExtras.copyTimetable(
+          tenantId,
+          'rollover',
+          sourcePeriodId,
+          dto.targetPeriodId,
+          { dryRun },
+        );
+      } else {
+        summary.timetable = { sectionsCloned: 0, meetingsCloned: 0 };
+      }
+    }
+    if (dto.copyLmsAssignments) {
+      if (this.rolloverExtras?.copyLmsAssignments) {
+        summary.lmsAssignments = await this.rolloverExtras.copyLmsAssignments(
+          tenantId,
+          'rollover',
+          sourcePeriodId,
+          dto.targetPeriodId,
+          { dryRun },
+        );
+      } else {
+        summary.lmsAssignments = { cloned: 0, source: 0 };
+      }
+    }
+
+    if (this.rolloverExtras?.recordRolloverRun) {
+      await this.rolloverExtras.recordRolloverRun({
+        tenantId,
+        actorId: 'rollover',
+        sourcePeriodId,
+        targetPeriodId: dto.targetPeriodId,
+        dryRun,
+        idempotencyKey: dto.idempotencyKey ?? null,
+        request: { ...dto } as unknown as Record<string, unknown>,
+        summary,
+        status: dryRun ? 'dry_run' : 'completed',
+      });
+    }
+
     return summary;
   }
 }
