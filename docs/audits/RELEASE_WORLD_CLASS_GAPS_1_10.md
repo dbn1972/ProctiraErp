@@ -35,3 +35,8 @@ Merge commit `57b2e9bd` on `main` failed required **Lint** and **Type Check** (U
 - No new provider secrets; sandbox facade unchanged
 
 **Ship claim:** not ready until this follow-up’s required tip checks are SUCCESS on `main`.
+
+### Unit test follow-up
+
+- Tip Unit Tests failed because new `packages/backend/providers` was absent from the G-003 mount matrix.
+- Mounted under `/api/v1/providers`, added matrix + RBAC `providers → platform` mapping.
