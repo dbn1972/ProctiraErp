@@ -206,6 +206,49 @@ export interface HomeworkItem {
   status: string;
 }
 
+/** Parent academic 360 — LMS depth beyond a flat homework list. */
+export interface LmsAssignmentItem {
+  id: string;
+  title: string;
+  kind: string;
+  subject: string | null;
+  dueAt: string | null;
+  maxScore: number | null;
+  status: string;
+  submissionStatus: string | null;
+  score: number | null;
+  gradedAt: string | null;
+  feedback: string | null;
+}
+
+export interface LmsPayload {
+  data: LmsAssignmentItem[];
+  summary: {
+    assigned: number;
+    submitted: number;
+    graded: number;
+    missing: number;
+    averageScorePercent: number | null;
+  };
+  meta: AcademicMeta;
+}
+
+export interface ReportCardSubjectLine {
+  subject: string;
+  numericScore: number | null;
+  letterGrade: string | null;
+  remarks: string | null;
+}
+
+export interface ReportCardDetail {
+  id: string;
+  academicPeriodId: string | null;
+  status: string;
+  outputUrl: string | null;
+  completedAt: string | null;
+  subjects: ReportCardSubjectLine[];
+}
+
 export interface CalendarEventItem {
   id: string;
   kind: string;
@@ -240,6 +283,8 @@ export type AcademicView =
   | 'homework'
   | 'calendar'
   | 'notices'
+  | 'lms'
+  | 'report-cards'
   | 'pal';
 
 export interface AcademicFetchResult<T> {
@@ -286,6 +331,22 @@ export async function getChildHomework(studentId: string) {
   );
 }
 
+export async function getChildLms(studentId: string) {
+  return fetchAcademic<LmsPayload>(childAcademicPath(studentId, 'lms'));
+}
+
+export async function getChildReportCards(studentId: string) {
+  return fetchAcademic<{ data: ReportCardDetail[]; meta: AcademicMeta }>(
+    childAcademicPath(studentId, 'report-cards'),
+  );
+}
+
+export async function getChildPalPlan(studentId: string) {
+  return fetchAcademic<{ data: PalPlanItem[]; meta: AcademicMeta }>(
+    childAcademicPath(studentId, 'pal'),
+  );
+}
+
 export async function getChildCalendar(studentId: string) {
   return fetchAcademic<{ data: CalendarEventItem[]; meta: AcademicMeta }>(
     childAcademicPath(studentId, 'calendar'),
@@ -314,6 +375,16 @@ export async function getSelfTimetable() {
 
 export async function getSelfHomework() {
   return fetchAcademic<{ data: HomeworkItem[]; meta: AcademicMeta }>('/student-portal/me/homework');
+}
+
+export async function getSelfLms() {
+  return fetchAcademic<LmsPayload>('/student-portal/me/lms');
+}
+
+export async function getSelfReportCards() {
+  return fetchAcademic<{ data: ReportCardDetail[]; meta: AcademicMeta }>(
+    '/student-portal/me/report-cards',
+  );
 }
 
 export async function getSelfCalendar() {

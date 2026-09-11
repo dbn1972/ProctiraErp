@@ -129,6 +129,39 @@ export default async function ParentHomePage() {
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">LMS</CardTitle>
+            <CardDescription>Assignments, submissions, and scores</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/lms">Open LMS</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Report cards</CardTitle>
+            <CardDescription>Subject lines from completed cards</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/report-cards">Open report cards</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">PAL</CardTitle>
+            <CardDescription>Practice plan for review and reinforce</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/pal">Open PAL</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Library</CardTitle>
             <CardDescription>Catalogue, loans, and holds</CardDescription>
           </CardHeader>

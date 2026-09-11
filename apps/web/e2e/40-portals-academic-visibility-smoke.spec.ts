@@ -32,6 +32,14 @@ const PARENT_ACADEMIC_PAGES = [
   { id: 'grades', path: '/parent/grades', view: 'grades', testId: 'parent-grades' },
   { id: 'timetable', path: '/parent/timetable', view: 'timetable', testId: 'parent-timetable' },
   { id: 'homework', path: '/parent/homework', view: 'homework', testId: 'parent-homework' },
+  { id: 'lms', path: '/parent/lms', view: 'lms', testId: 'parent-lms' },
+  {
+    id: 'report-cards',
+    path: '/parent/report-cards',
+    view: 'report-cards',
+    testId: 'parent-report-cards',
+  },
+  { id: 'pal', path: '/parent/pal', view: 'pal', testId: 'parent-pal' },
   { id: 'calendar', path: '/parent/calendar', view: 'calendar', testId: 'parent-calendar' },
   { id: 'notices', path: '/parent/notices', view: 'notices', testId: 'parent-notices' },
 ] as const;
