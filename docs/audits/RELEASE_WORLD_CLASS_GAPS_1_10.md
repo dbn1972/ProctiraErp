@@ -6,7 +6,7 @@
 
 ## Tip CI honesty
 - Required tip checks must be SUCCESS on the merge commit before claiming shipped.
-- Pre-fix tip `a78cb4cd` failed Lint / Charter (error-envelope) / E2E (duplicate `/me/pal` route). Fix commit follows.
+- Pre-fix tip `a78cb4cd` failed Lint / Charter (error-envelope) / E2E (duplicate `/me/pal` route).
 
 ## Migrations
 - `db/sql/047_academic_rollover_runs_schema.sql` — rollover ledger + LMS modules (+ `academic_period_id` on assignments). Apply with existing SQL migration path (not Prisma-only).
