@@ -110,7 +110,7 @@ export class EnrollmentService {
     }
 
     const previousStatus = enrollment.status;
-    const newStatus = input.status as 'WITHDRAWN' | 'GRADUATED';
+    const newStatus = input.status;
 
     const updated = await this.repository.updateEnrollment(enrollmentId, tenantId, {
       status: newStatus,

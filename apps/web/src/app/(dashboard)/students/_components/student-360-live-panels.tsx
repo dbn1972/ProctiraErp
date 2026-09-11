@@ -229,7 +229,7 @@ export function StudentFeesTab({ studentId }: { studentId: string }) {
             <TableHead>Invoice</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Due</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
+            <TableHead className="text-end">Amount</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -245,7 +245,7 @@ export function StudentFeesTab({ studentId }: { studentId: string }) {
               <TableCell>
                 {inv.dueAt ? new Date(inv.dueAt).toLocaleDateString() : '—'}
               </TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-end">
                 {money(inv.amountCents, inv.currency)}
               </TableCell>
             </TableRow>
@@ -319,7 +319,7 @@ export function StudentLmsTab({ studentId }: { studentId: string }) {
                 <TableRow>
                   <TableHead>Skill</TableHead>
                   <TableHead>Subject</TableHead>
-                  <TableHead className="text-right">Mastery</TableHead>
+                  <TableHead className="text-end">Mastery</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -329,7 +329,7 @@ export function StudentLmsTab({ studentId }: { studentId: string }) {
                     <TableCell className="text-muted-foreground">
                       {row.skill.subject}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-end">
                       {row.mastery
                         ? `${Math.round(row.mastery.mastery * 100)}%`
                         : '—'}

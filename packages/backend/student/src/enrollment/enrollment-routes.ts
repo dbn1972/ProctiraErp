@@ -16,6 +16,11 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import type {
+  EnrollmentEntity,
+  EnrollmentHistoryEntity,
+  TransferRecordEntity,
+} from './enrollment-repository.js';
 import type { EnrollmentService } from './enrollment-service.js';
 import {
   CreateEnrollmentSchema,
@@ -32,11 +37,6 @@ import {
   type StudentParams,
   type EnrollmentListQuery,
 } from './schemas.js';
-import type {
-  EnrollmentEntity,
-  EnrollmentHistoryEntity,
-  TransferRecordEntity,
-} from './enrollment-repository.js';
 
 /**
  * Options for registering enrollment routes.
@@ -171,7 +171,7 @@ export async function registerEnrollmentRoutes(
         });
       }
 
-      const query = request.query as EnrollmentListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

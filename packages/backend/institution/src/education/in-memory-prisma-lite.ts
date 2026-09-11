@@ -162,7 +162,7 @@ class ModelTable {
     return { ...next };
   }
 
-  async updateMany(args: { where?: Where; data: Row }): Promise<{ count: number }> {
+  updateMany(args: { where?: Where; data: Row }): Promise<{ count: number }> {
     let count = 0;
     for (const [id, row] of this.rows) {
       if (matches(row, args.where)) {
@@ -170,7 +170,7 @@ class ModelTable {
         count += 1;
       }
     }
-    return { count };
+    return Promise.resolve({ count });
   }
 
   async delete(args: { where: Where }): Promise<Row> {

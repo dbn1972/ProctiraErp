@@ -17,8 +17,6 @@ import {
   ClipboardList,
   Award,
   DollarSign,
-  GraduationCap,
-  Building2,
 } from 'lucide-react';
 
 import {
@@ -732,7 +730,7 @@ function EnrollmentTimelineCard({ history }: { history: EnrollmentHistoryEntry[]
       </CardHeader>
       <CardContent>
         <ol className="relative space-y-4 border-s border-border ps-4 text-sm">
-          {items.map((entry, i) => (
+          {items.map((entry, _i) => (
             <li key={entry.id} className="relative">
               {/* dot */}
               <span
