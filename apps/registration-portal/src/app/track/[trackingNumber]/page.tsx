@@ -8,8 +8,8 @@ import { checkApplicationStatus } from '@/lib/api';
 import { isValidDateOfBirth, isValidTrackingNumber } from '@/lib/validation';
 
 interface PageProps {
-  params: { trackingNumber: string };
-  searchParams: { dob?: string };
+  params: Promise<{ trackingNumber: string }>;
+  searchParams: Promise<{ dob?: string }>;
 }
 
 /**
@@ -23,8 +23,10 @@ interface PageProps {
  */
 export default async function TrackingDetailPage({ params, searchParams }: PageProps) {
   const t = await getTranslations('tracking');
-  const trackingNumber = decodeURIComponent(params.trackingNumber).toUpperCase();
-  const dob = searchParams.dob ?? '';
+  const { trackingNumber: rawTrackingNumber } = await params;
+  const { dob: rawDob } = await searchParams;
+  const trackingNumber = decodeURIComponent(rawTrackingNumber).toUpperCase();
+  const dob = rawDob ?? '';
 
   const valid = isValidTrackingNumber(trackingNumber) && isValidDateOfBirth(dob);
 

@@ -1,16 +1,17 @@
 import { ReviewStep } from '@/components/registration/review-step';
 
 interface PageProps {
-  params: { institutionType: string };
+  params: Promise<{ institutionType: string }>;
 }
 
 /**
  * Step 3 — Review and submit page.
  */
-export default function ApplyReviewPage({ params }: PageProps) {
+export default async function ApplyReviewPage({ params }: PageProps) {
+  const { institutionType } = await params;
   return (
     <div className="space-y-6">
-      <ReviewStep institutionType={params.institutionType} />
+      <ReviewStep institutionType={institutionType} />
     </div>
   );
 }
