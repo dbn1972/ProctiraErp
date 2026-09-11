@@ -14,6 +14,8 @@ import type {
   DiscussionPostEntity,
   LessonEntity,
   LessonResourceEntity,
+  LmsModuleEntity,
+  LmsModuleItemEntity,
   LmsRepository,
   MasteryFilter,
   PracticeAttemptEntity,
@@ -76,8 +78,8 @@ export class InMemoryLmsRepository implements LmsRepository {
   private lessons = new Map<string, LessonEntity>();
   private lessonResources = new Map<string, LessonResourceEntity[]>();
   private content = new Map<string, ContentItemEntity>();
-  private modules = new Map<string, import('./lms-repository.js').LmsModuleEntity>();
-  private moduleItems = new Map<string, import('./lms-repository.js').LmsModuleItemEntity>();
+  private modules = new Map<string, LmsModuleEntity>();
+  private moduleItems = new Map<string, LmsModuleItemEntity>();
 
   clear(): void {
     this.skills.clear();
@@ -672,7 +674,7 @@ export class InMemoryLmsRepository implements LmsRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return paginate(items, pagination);
   }
-  async createModule(data: import('./lms-repository.js').LmsModuleEntity) {
+  async createModule(data: LmsModuleEntity) {
     this.modules.set(data.id, data);
     return data;
   }
@@ -691,7 +693,7 @@ export class InMemoryLmsRepository implements LmsRepository {
       .filter((m) => (filter.institutionId ? m.institutionId === filter.institutionId : true))
       .sort((a, b) => a.position - b.position);
   }
-  async createModuleItem(data: import('./lms-repository.js').LmsModuleItemEntity) {
+  async createModuleItem(data: LmsModuleItemEntity) {
     this.moduleItems.set(data.id, data);
     return data;
   }

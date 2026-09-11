@@ -1028,13 +1028,4 @@ export async function registerParentPortalRoutes(
     });
   }
 
-  fastify.get(
-    `${studentPrefix}/me/pal`,
-    async function studentPalHandler(request: FastifyRequest, reply: FastifyReply) {
-      const tenantId = await requireTenant(request, reply);
-      if (!tenantId) return;
-      const actor = { userId: getActorId(request), email: actorEmail(request) };
-      return sendOrAppError(reply, () => parentPortalService.getSelfPalPlan(tenantId, actor));
-    },
-  );
 }

@@ -27,6 +27,8 @@ import type {
   DiscussionPostEntity,
   LessonEntity,
   LessonResourceEntity,
+  LmsModuleEntity,
+  LmsModuleItemEntity,
   LmsRepository,
   LmsScope,
   MasteryFilter,
@@ -1756,7 +1758,7 @@ export class PgLmsRepository implements LmsRepository {
       };
     });
   }
-  async createModule(data: import('./lms-repository.js').LmsModuleEntity) {
+  async createModule(data: LmsModuleEntity) {
     await this.pool.query(
       `INSERT INTO lms_modules (id, tenant_id, institution_id, academic_period_id, class_key, title, position, published, created_by, created_at, updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
@@ -1764,14 +1766,22 @@ export class PgLmsRepository implements LmsRepository {
     );
     return data;
   }
-  async findModule(tenantId: string, id: string) {
+  async findModule(tenantId: string, id: string): Promise<LmsModuleEntity | null> {
     const res = await this.pool.query(`SELECT * FROM lms_modules WHERE tenant_id=$1 AND id=$2`, [tenantId, id]);
-    const row = res.rows[0];
+    const row = res.rows[0] as Record<string, unknown> | undefined;
     if (!row) return null;
     return {
-      id: row.id, tenantId: row.tenant_id, institutionId: row.institution_id, academicPeriodId: row.academic_period_id,
-      classKey: row.class_key, title: row.title, position: row.position, published: row.published,
-      createdBy: row.created_by, createdAt: row.created_at, updatedAt: row.updated_at,
+      id: String(row.id),
+      tenantId: String(row.tenant_id),
+      institutionId: row.institution_id ? String(row.institution_id) : null,
+      academicPeriodId: row.academic_period_id ? String(row.academic_period_id) : null,
+      classKey: row.class_key ? String(row.class_key) : null,
+      title: String(row.title),
+      position: Number(row.position),
+      published: Boolean(row.published),
+      createdBy: row.created_by ? String(row.created_by) : null,
+      createdAt: row.created_at as Date,
+      updatedAt: row.updated_at as Date,
     };
   }
   async listModules(tenantId: string, filter: { classKey?: string; academicPeriodId?: string; institutionId?: string }) {
@@ -1789,7 +1799,7 @@ export class PgLmsRepository implements LmsRepository {
         (filter.institutionId ? m.institutionId === filter.institutionId : true),
       );
   }
-  async createModuleItem(data: import('./lms-repository.js').LmsModuleItemEntity) {
+  async createModuleItem(data: LmsModuleItemEntity) {
     await this.pool.query(
       `INSERT INTO lms_module_items (id, tenant_id, module_id, item_type, item_id, title, position, required, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,

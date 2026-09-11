@@ -1,0 +1,21 @@
+# Release ops — world-class gaps 1–10 (W10 branch)
+
+**Branch:** `cursor/w10-health-dw-ux-56c3`  
+**PR:** https://github.com/dbn1972/ProctiraErp/pull/48  
+**Base:** `main`
+
+## Tip CI honesty
+- Required tip checks must be SUCCESS on the merge commit before claiming shipped.
+- Pre-fix tip `a78cb4cd` failed Lint / Charter (error-envelope) / E2E (duplicate `/me/pal` route). Fix commit follows.
+
+## Migrations
+- `db/sql/047_academic_rollover_runs_schema.sql` — rollover ledger + LMS modules (+ `academic_period_id` on assignments). Apply with existing SQL migration path (not Prisma-only).
+
+## Externals
+- IdP / PSP / Twilio / FCM / MapLibre / sealed PDF remain NON-GOAL (sandbox/honesty).
+
+## Deploy
+- App/API change; no image-signing required for merge of this PR beyond existing Supply Chain workflow rules.
+
+## Rollback
+- Revert merge commit; disable branding/rollover UI toggles; leave `047` tables in place (additive) or drop via follow-up DBA change if needed.

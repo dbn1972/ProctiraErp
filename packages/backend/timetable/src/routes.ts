@@ -879,17 +879,13 @@ export async function registerTimetableRoutes(
       const targetPeriodId = request.body?.targetPeriodId;
       if (!sourcePeriodId || !targetPeriodId) {
         return reply.code(400).send({
-          statusCode: 400,
-          error: 'Bad Request',
+          code: 'VALIDATION_ERROR',
           message: 'sourcePeriodId and targetPeriodId are required',
+          statusCode: 400,
         });
       }
-      const tenantId =
-        (request as { tenantId?: string }).tenantId ??
-        (typeof request.headers['x-tenant-id'] === 'string' ? request.headers['x-tenant-id'] : undefined);
-      if (!tenantId) {
-        return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
-      }
+      const tenantId = tenantIdOf(request, reply);
+      if (!tenantId) return;
       const result = await service.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId);
       return reply.code(201).send(result);
     },
