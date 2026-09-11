@@ -15,7 +15,7 @@
 
 ## Externals
 
-- IdP / PSP / Twilio / FCM / MapLibre / sealed PDF remain NON-GOAL (sandbox/honesty).
+- Live Keycloak login evidence (G-107) / PSP / Twilio / FCM / MapLibre / sealed PDF remain NON-GOAL for tip CI without secrets (sandbox/honesty). Product IdP = Keycloak (ADR-001).
 
 ## Deploy
 

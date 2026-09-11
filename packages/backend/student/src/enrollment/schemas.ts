@@ -70,6 +70,30 @@ export const UpdateEnrollmentStatusSchema = Type.Object({
 export type UpdateEnrollmentStatusInput = Static<typeof UpdateEnrollmentStatusSchema>;
 
 /**
+ * Wave 11 — bulk withdraw / graduate (same transition rules as single status).
+ */
+export const BulkUpdateEnrollmentStatusSchema = Type.Object({
+  enrollmentIds: Type.Array(Type.String({ pattern: UuidPattern, description: 'Enrollment UUID' }), {
+    minItems: 1,
+    maxItems: 100,
+  }),
+  status: Type.Union([Type.Literal('WITHDRAWN'), Type.Literal('GRADUATED')], {
+    description: 'New enrollment status',
+  }),
+  reason: Type.String({
+    minLength: 1,
+    maxLength: 500,
+    description: 'Reason for status change',
+  }),
+  effectiveDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Effective date of status change (ISO date format YYYY-MM-DD)',
+  }),
+});
+
+export type BulkUpdateEnrollmentStatusInput = Static<typeof BulkUpdateEnrollmentStatusSchema>;
+
+/**
  * Schema for student transfer between institutions.
  * Requirements: 6.3, 6.4
  */

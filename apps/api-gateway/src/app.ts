@@ -297,9 +297,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
-  // 7. Register JWT authentication (local HS JWT) OR optional Keycloak RS256.
-  // Keycloak activates only when KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set.
-  // Without those env vars, local JWT auth is unchanged.
+  // 7. Authentication: Keycloak RS256 is the platform IdP (ADR-001).
+  // When KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set, verify Keycloak JWKS tokens.
+  // Omitting them keeps local HS-JWT as a CI/headless fallback only — not an alternate product IdP.
   const keycloak = loadKeycloakAuthConfig();
   // G-713: the only anonymous surface is health probes, docs (non-prod), and the
   // pre-login auth flows. `/api/v1/services` and `/api/v1/auth/roles` require a JWT.

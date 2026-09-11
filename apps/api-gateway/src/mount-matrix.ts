@@ -375,7 +375,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'in-memory',
     rbacWired: true,
     notes:
-      'providersPlugin mounted in `app.ts` under `/api/v1` (G-7). Sandbox capability discovery + sandbox IdP mint; live IdP/PSP/Twilio/FCM remain NON-GOAL without secrets.',
+      'providersPlugin mounted in `app.ts` under `/api/v1` (G-7). Capability discovery + sandbox PSP/SMS/email/push. Platform IdP is Keycloak (ADR-001); sandbox IdP mint is CI-only. Live PSP/Twilio/FCM remain secret-gated.',
   },
   {
     package: 'tenant',

@@ -28,6 +28,7 @@ export type { EnrollmentRoutesOptions } from './enrollment-routes.js';
 export {
   CreateEnrollmentSchema,
   UpdateEnrollmentStatusSchema,
+  BulkUpdateEnrollmentStatusSchema,
   StudentTransferSchema,
   EnrollmentParamsSchema,
   StudentParamsSchema,
@@ -39,6 +40,7 @@ export {
 export type {
   CreateEnrollmentInput,
   UpdateEnrollmentStatusInput,
+  BulkUpdateEnrollmentStatusInput,
   StudentTransferInput,
   EnrollmentParams,
   StudentParams,

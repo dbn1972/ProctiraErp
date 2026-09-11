@@ -641,7 +641,7 @@ export function SignUpForm(): JSX.Element {
           {t('alreadyHaveAccount')}{' '}
           <Link
             href={`/login${returnTo !== '/' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`}
-            className="font-medium text-primary hover:underline"
+            className="inline-flex min-h-12 items-center font-medium text-primary hover:underline"
           >
             {t('signInLink')}
           </Link>

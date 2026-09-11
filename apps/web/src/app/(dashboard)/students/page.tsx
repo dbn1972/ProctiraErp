@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { StudentListFilters as Filters } from './_components/student-list-filters';
 import { StudentListPagination } from './_components/student-list-pagination';
 import { StudentStatusTabs } from './_components/student-status-tabs';
+import { StudentsBulkGraduateBar } from './_components/students-bulk-graduate-bar';
 
 export const dynamic = 'force-dynamic';
 
@@ -222,26 +223,43 @@ export default async function StudentListPage(props: PageProps) {
               }
             />
           ) : (
-            <div className="overflow-x-auto">
-              <Table aria-label="Student records">
-                <TableHeader>
-                  <TableRow className="bg-muted/40">
-                    <TableHead className="ps-4 font-medium">Student</TableHead>
-                    <TableHead className="font-medium">National ID</TableHead>
-                    <TableHead className="font-medium">Grade / Section</TableHead>
-                    <TableHead className="font-medium">Institution</TableHead>
-                    <TableHead className="font-medium">Attendance</TableHead>
-                    <TableHead className="font-medium">Status</TableHead>
-                    <TableHead className="pe-4 text-end font-medium">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {studentsResponse.data.map((student) => (
-                    <StudentRow key={student.id} student={student} />
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <>
+              <div className="border-b px-4 pt-3">
+                <StudentsBulkGraduateBar
+                  rows={studentsResponse.data.map((student) => {
+                    const cd = student.customData ?? {};
+                    const status =
+                      (typeof cd['enrollmentStatus'] === 'string' && cd['enrollmentStatus']) ||
+                      'ENROLLED';
+                    return {
+                      studentId: student.id,
+                      label: `${student.firstName} ${student.lastName}`,
+                      canGraduate: status === 'ENROLLED',
+                    };
+                  })}
+                />
+              </div>
+              <div className="overflow-x-auto">
+                <Table aria-label="Student records">
+                  <TableHeader>
+                    <TableRow className="bg-muted/40">
+                      <TableHead className="ps-4 font-medium">Student</TableHead>
+                      <TableHead className="font-medium">National ID</TableHead>
+                      <TableHead className="font-medium">Grade / Section</TableHead>
+                      <TableHead className="font-medium">Institution</TableHead>
+                      <TableHead className="font-medium">Attendance</TableHead>
+                      <TableHead className="font-medium">Status</TableHead>
+                      <TableHead className="pe-4 text-end font-medium">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {studentsResponse.data.map((student) => (
+                      <StudentRow key={student.id} student={student} />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
 
           <div className="border-t px-4 py-3">
