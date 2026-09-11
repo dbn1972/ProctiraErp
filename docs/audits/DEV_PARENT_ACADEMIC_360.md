@@ -9,23 +9,23 @@
 
 ## 0. Product contract
 
-| Item | Content |
-| ---- | ------- |
+| Item                 | Content                                                  |
+| -------------------- | -------------------------------------------------------- |
 | Capability statement | Wire existing parent-portal academic APIs into parent UI |
-| In scope | Client + pages + nav + smoke/route audit |
-| Explicit non-goals | New backend stores; sealed PDF; live IdP secrets |
-| Roles (RBAC) | Parent linked-child reads only |
+| In scope             | Client + pages + nav + smoke/route audit                 |
+| Explicit non-goals   | New backend stores; sealed PDF; live IdP secrets         |
+| Roles (RBAC)         | Parent linked-child reads only                           |
 
 ## 1–7. Build notes
 
-| Area | Done | Evidence |
-| ---- | ---- | -------- |
-| SQL / new tables | N/A | Headless APIs already on main |
-| API client | ☑ | `getChildLms` / `getChildReportCards` / `getChildPalPlan` (+ self) |
-| UI pages | ☑ | `apps/web/src/app/(parent)/parent/{lms,report-cards,pal}/page.tsx` |
-| Nav | ☑ | `ParentPortalShell` |
-| Tests | ☑ | route-audit + e2e G-904 lists |
-| Cross-tenant | ☑ | Existing parent-portal deny; UI shows forbidden honesty |
+| Area             | Done | Evidence                                                           |
+| ---------------- | ---- | ------------------------------------------------------------------ |
+| SQL / new tables | N/A  | Headless APIs already on main                                      |
+| API client       | ☑    | `getChildLms` / `getChildReportCards` / `getChildPalPlan` (+ self) |
+| UI pages         | ☑    | `apps/web/src/app/(parent)/parent/{lms,report-cards,pal}/page.tsx` |
+| Nav              | ☑    | `ParentPortalShell`                                                |
+| Tests            | ☑    | route-audit + e2e G-904 lists                                      |
+| Cross-tenant     | ☑    | Existing parent-portal deny; UI shows forbidden honesty            |
 
 ## Explicit non-claims
 

@@ -55,9 +55,7 @@ export default async function ParentLmsPage({
           <p className="text-xs text-muted-foreground" data-testid="parent-lms-summary">
             {summary.assigned} assigned · {summary.submitted} submitted · {summary.graded} graded ·{' '}
             {summary.missing} missing
-            {summary.averageScorePercent != null
-              ? ` · avg ${summary.averageScorePercent}%`
-              : ''}
+            {summary.averageScorePercent != null ? ` · avg ${summary.averageScorePercent}%` : ''}
           </p>
         ) : null}
         <ul className="divide-y divide-border" role="list">
