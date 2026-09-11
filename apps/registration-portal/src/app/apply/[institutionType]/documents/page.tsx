@@ -2,7 +2,7 @@ import { DocumentsStep } from '@/components/registration/documents-step';
 import { loadFormConfiguration } from '@/lib/server';
 
 interface PageProps {
-  params: { institutionType: string };
+  params: Promise<{ institutionType: string }>;
 }
 
 /**
@@ -12,12 +12,13 @@ interface PageProps {
  * configuration and renders one upload slot per required document.
  */
 export default async function ApplyDocumentsPage({ params }: PageProps) {
-  const config = await loadFormConfiguration(params.institutionType);
+  const { institutionType } = await params;
+  const config = await loadFormConfiguration(institutionType);
   const fileFields = config.fields.filter((f) => f.type === 'file');
 
   return (
     <div className="space-y-6">
-      <DocumentsStep institutionType={params.institutionType} fileFields={fileFields} />
+      <DocumentsStep institutionType={institutionType} fileFields={fileFields} />
     </div>
   );
 }

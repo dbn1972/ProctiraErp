@@ -3,7 +3,7 @@ import { PersonalInfoForm } from '@/components/registration/personal-info-form';
 import { loadFormConfiguration } from '@/lib/server';
 
 interface PageProps {
-  params: { institutionType: string };
+  params: Promise<{ institutionType: string }>;
 }
 
 /**
@@ -15,13 +15,14 @@ interface PageProps {
  * file fields are reserved for the next step.
  */
 export default async function ApplyPersonalPage({ params }: PageProps) {
-  const config = await loadFormConfiguration(params.institutionType);
+  const { institutionType } = await params;
+  const config = await loadFormConfiguration(institutionType);
   const customFields = config.fields.filter((f) => f.type !== 'file');
 
   return (
     <div className="space-y-6">
-      <ApplyHeader institutionType={params.institutionType} />
-      <PersonalInfoForm institutionType={params.institutionType} customFields={customFields} />
+      <ApplyHeader institutionType={institutionType} />
+      <PersonalInfoForm institutionType={institutionType} customFields={customFields} />
     </div>
   );
 }

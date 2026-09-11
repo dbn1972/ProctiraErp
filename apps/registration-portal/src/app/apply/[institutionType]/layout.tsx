@@ -12,20 +12,21 @@ import { ApplyStepper } from '@/components/registration/apply-stepper';
  * sessionStorage. Suspense is required because the provider reads
  * `useSearchParams` for the school-finder `institutionId` handoff.
  */
-export default function ApplyLayout({
+export default async function ApplyLayout({
   children,
   params,
 }: {
   children: React.ReactNode;
-  params: { institutionType: string };
+  params: Promise<{ institutionType: string }>;
 }) {
+  const { institutionType } = await params;
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <Header />
       <main className="flex-1">
         <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
           <Suspense fallback={null}>
-            <RegistrationProvider institutionType={params.institutionType}>
+            <RegistrationProvider institutionType={institutionType}>
               <div className="mb-8">
                 <ApplyStepper />
               </div>
