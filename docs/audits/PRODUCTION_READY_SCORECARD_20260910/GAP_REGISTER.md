@@ -58,8 +58,8 @@ IDs `PRD-*` are new planning IDs from this scorecard. `G-*` reuse the enterprise
 | PRD-008                                       | **CLOSED** — Report-cards already use `createReportCard*Repository()` (PG/`024` when DB); mount matrix corrected.                                               |
 | G-107 / G-202 / G-709                         | **WAIVER REFRESHED** — secrets not available on this headless run; remain release-board WAIVED (dated 2026-09-10).                                              |
 | PRD-007 / PRD-010 / PRD-011 / PRD-012 / G-506 | **NON-GOAL / WAIVED** — device-farm, MapLibre, sealed PDF, LTI/SCORM, statuspage — not funded this pass.                                                        |
-| PRD-001                                       | **OPEN** — tip CI must still land green on `29a8d94` (CI + E2E Backend Ready).                                                                                  |
+| PRD-001                                       | **CLOSED** — tip CI SUCCESS on `38b3f2a` (CI + E2E Backend Ready + DoD/PR Check/Supply Chain).                                                                  |
 
 | Exams + Timetable 9.0 uplift | **CLOSED** — domain RBAC, period Select, clash 409 e2e, PRD-011/013 NON-GOAL; MODULE scores → 9.1 / 9.0 PROD_WAIVED. |
 
-| Overnight PARTIAL→PROD_WAIVED sync | **CLOSED** — Staff domain RBAC (`staff-access`); Health/ETL/Admissions/Auth/Notify/Workflows/Reports/DW/Admin rescored PROD_WAIVED with G-107/G-709/OCR/demo honesty. Tip CI (PRD-001) still required for Rel 9. |
+| Overnight PARTIAL→PROD_WAIVED sync | **CLOSED** — Staff domain RBAC (`staff-access`); Health/ETL/Admissions/Auth/Notify/Workflows/Reports/DW/Admin rescored PROD_WAIVED with G-107/G-709/OCR/demo honesty. PRD-001 tip CI CLOSED on `38b3f2a`. |

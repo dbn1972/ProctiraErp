@@ -1,6 +1,6 @@
 # Module score sheet — 2026-09-10
 
-**Tip:** `pending-exam-tt-9` · **Program rollup:** 7.6 / 10 (evidence-weighted)  
+**Tip:** `38b3f2a` · **Program rollup:** 8.5 / 10 (evidence-weighted, PROD_WAIVED)  
 **Pillars:** Product/IA · Build · UX · A11y · Security · Data · Test · Release (avg; missing evidence caps pillar ≤ 4.0)
 
 Status: `PROD_WAIVED` = shippable with documented waivers · `PARTIAL` = usable, gaps block 9.0+ · `SCAFFOLD` = honesty banners / stubs · `PARKED` = not a live product surface
@@ -36,7 +36,7 @@ Status: `PROD_WAIVED` = shippable with documented waivers · `PARTIAL` = usable,
 
 ### Scoring notes
 
-- **Release pillar** capped because tip CI on `29a8d94` is not yet green (PRD-001).
+- **Release pillar:** tip CI SUCCESS on `38b3f2a` (PRD-001 CLOSED); Rel still capped by live IdP/PSP/comms waivers where listed.
 - **Test pillar** distinguishes inventory smoke vs `E2E_BACKEND_READY` write proof.
 - Health Build/Data pulled down by special-needs memory path despite Wave 10 nurse-incident PG.
 - Insights/DW/Admin intentionally below 7.0 until scaffolds removed or release-classified.

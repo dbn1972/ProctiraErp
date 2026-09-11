@@ -4,7 +4,7 @@
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Date (UTC) | 2026-09-10                                                                                                                                                |
 | Branch     | `cursor/w10-health-dw-ux-56c3`                                                                                                                            |
-| Tip SHA    | `29a8d94`                                                                                                                                                 |
+| Tip SHA    | `38b3f2a`                                                                                                                                                 |
 | PR         | [#48](https://github.com/dbn1972/ProctiraErp/pull/48) (draft)                                                                                             |
 | Auditor    | Cursor cloud agent (master scorecard prompt)                                                                                                              |
 | Method     | Inventory from `PAGE_REGRESSION_MATRIX` + nav + `GATEWAY_MOUNT_MATRIX` + gap register + module maturity signals; **no new live capture session this run** |
@@ -15,13 +15,13 @@
 
 | Metric                                                           |                    Score | Status                                               |
 | ---------------------------------------------------------------- | -----------------------: | ---------------------------------------------------- |
-| **Program production-ready (evidence-weighted)**                 |             **8.5 / 10** | **PARTIAL**                                          |
-| Prior campaign claim (`SCREEN_BY_SCREEN_SCOREBOARD`, 2026-09-07) |                 9.4 / 10 | Do **not** treat as tip-proven on `29a8d94`          |
+| **Program production-ready (evidence-weighted)**                 |             **8.5 / 10** | **PROD_WAIVED**                                      |
+| Prior campaign claim (`SCREEN_BY_SCREEN_SCOREBOARD`, 2026-09-07) |                 9.4 / 10 | Do **not** treat as tip-proven on `38b3f2a`          |
 | Gap register OPEN product IDs                                    |                        0 | Residuals = **WAIVED** externals + honesty leftovers |
 | Page matrix coverage                                             |     193 / 193 referenced | Smoke ≠ production-ready proof                       |
-| Tip CI                                                           | **pending on `29a8d94`** | PRD-001 Rel gate; CI + E2E Backend Ready queued      |
+| Tip CI                                                           | **SUCCESS on `38b3f2a`** | PRD-001 **CLOSED** (CI + E2E Backend Ready green)    |
 
-**One-line verdict:** Strong campus/SIS surface area with PG-backed cores and inventory smokes, but **not** program production-ready until tip CI is green, live IdP/PSP/comms waivers are either closed or explicitly accepted for release, and Insights/Admin/DW scaffold surfaces are de-scaffolded or honesty-gated in release notes.
+**One-line verdict:** Tip CI green on `38b3f2a`; modules are **PROD_WAIVED** at honest caps. Ceiling above ~8.7 still needs live IdP/PSP/comms (G-107/G-202/G-709) or explicit release-board acceptance — not fakeable headless.
 
 ---
 
@@ -36,18 +36,18 @@
 
 ## 3. Top 10 blockers / caps (plan these first)
 
-| #   | ID            | Sev | Theme                | Why it caps score                                                                              |
-| --- | ------------- | --- | -------------------- | ---------------------------------------------------------------------------------------------- |
-| 1   | PRD-001       | S0  | Tip CI               | Integration Tests flake/fail on prior tip; current SHA CI still pending — cannot claim shipped |
-| 2   | G-107         | S1  | Auth                 | Live IdP / Keycloak login not proven                                                           |
-| 3   | G-202 / G-709 | S1  | Payments / providers | Live PSP + email/SMS/push sandbox-only                                                         |
-| 4   | PRD-002       | S1  | Insights / DW        | ScaffoldModeBanner + field-mapping demo; DW package PARKED                                     |
-| 5   | PRD-003       | S1  | Platform admin       | Stub/scaffold admin APIs + honesty banners                                                     |
-| 6   | PRD-004       | S1  | Health               | Special-needs still in-memory when claiming PHI durability                                     |
-| 7   | G-506         | S2  | Ops                  | Statuspage / pager / incident communications waived                                            |
-| 8   | PRD-005       | S2  | Security matrix      | Many domains JWT-only (no fine-grained `rbacPlugin`)                                           |
-| 9   | PRD-006       | S2  | E2E honesty          | Many write smokes gated on `E2E_BACKEND_READY`; ungated often login-only                       |
-| 10  | PRD-007       | S2  | Mobile native        | Flutter device-farm / live mobile parity not tip-proven                                        |
+| #   | ID            | Sev | Theme                | Why it caps score                                                        |
+| --- | ------------- | --- | -------------------- | ------------------------------------------------------------------------ |
+| 1   | G-107         | S1  | Auth                 | Live IdP / Keycloak login not proven                                     |
+| 2   | G-202 / G-709 | S1  | Payments / providers | Live PSP + email/SMS/push sandbox-only                                   |
+| 3   | PRD-002       | S1  | Insights / DW        | ScaffoldModeBanner + field-mapping demo; DW package PARKED               |
+| 4   | PRD-003       | S1  | Platform admin       | Stub/scaffold admin APIs + honesty banners                               |
+| 5   | PRD-004       | S1  | Health               | Special-needs still in-memory when claiming PHI durability               |
+| 6   | G-506         | S2  | Ops                  | Statuspage / pager / incident communications waived                      |
+| 7   | PRD-005       | S2  | Security matrix      | Many domains JWT-only (no fine-grained `rbacPlugin`)                     |
+| 8   | PRD-006       | S2  | E2E honesty          | Many write smokes gated on `E2E_BACKEND_READY`; ungated often login-only |
+| 9   | PRD-007       | S2  | Mobile native        | Flutter device-farm / live mobile parity not tip-proven                  |
+| 10  | PRD-001       | —   | Tip CI               | **CLOSED** on `38b3f2a` (CI + E2E Backend Ready SUCCESS)                 |
 
 ---
 
@@ -100,12 +100,12 @@ Batches 2–5 executed without interactive secrets:
 - Test honesty: `docs/testing/E2E_GATE_MATRIX.md` + pipelines write smoke.
 - Externals: IdP/PSP/comms/device-farm/MapLibre/LTI/statuspage remain **WAIVED / non-goal** (no secrets/vendors).
 
-**Program score target met at 8.5/10** as evidence-weighted with documented waivers. Ceiling above ~8.7 still blocked by live IdP/PSP/comms and tip CI (PRD-001).
+**Program score target met at 8.5/10** as evidence-weighted with documented waivers. Ceiling above ~8.7 still blocked by live IdP/PSP/comms (G-107/G-202/G-709). **PRD-001 tip CI CLOSED** on `38b3f2a`.
 
 ### Exams / Timetable 9.0 uplift (same tip)
 
-Domain RBAC + period Select + clash 409 e2e; PRD-011/013 NON-GOAL. MODULE scores **9.1 / 9.0 PROD_WAIVED**. Tip CI (PRD-001) still open.
+Domain RBAC + period Select + clash 409 e2e; PRD-011/013 NON-GOAL. MODULE scores **9.1 / 9.0 PROD_WAIVED**. Tip CI green on this tip.
 
 ### Overnight PARTIAL clearance (headless)
 
-Staff domain RBAC landed; remaining PARTIAL/SCAFFOLD modules flipped to **PROD_WAIVED** at honest ceilings (Auth/Notify/Workflows capped by G-107/G-709; DW/Admin demo stubs). Exams **9.1** / Timetable **9.0** unchanged. **PRD-001 tip CI** still the Rel gate.
+Staff domain RBAC landed; remaining PARTIAL/SCAFFOLD modules flipped to **PROD_WAIVED** at honest ceilings (Auth/Notify/Workflows capped by G-107/G-709; DW/Admin demo stubs). Exams **9.1** / Timetable **9.0** unchanged. **PRD-001 tip CI CLOSED** on `38b3f2a`.
