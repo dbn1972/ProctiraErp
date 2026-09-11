@@ -948,6 +948,30 @@ export async function registerParentPortalRoutes(
         parentPortalService.getSelfGrades(tenantId, actor),
     },
     {
+      path: 'report-cards',
+      parent: async (tenantId: string, parentUserId: string, studentId: string) => {
+        const grades = await parentPortalService.getChildGrades(tenantId, parentUserId, studentId);
+        return {
+          data: grades.reportCards ?? [],
+          meta: { ...(grades.meta ?? {}), view: 'report-cards' },
+        };
+      },
+      self: async (tenantId: string, actor: { userId: string; email?: string | null }) => {
+        const grades = await parentPortalService.getSelfGrades(tenantId, actor);
+        return {
+          data: grades.reportCards ?? [],
+          meta: { ...(grades.meta ?? {}), view: 'report-cards' },
+        };
+      },
+    },
+    {
+      path: 'lms',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildHomework(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfHomework(tenantId, actor),
+    },
+    {
       path: 'timetable',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
         parentPortalService.getChildTimetable(tenantId, parentUserId, studentId),

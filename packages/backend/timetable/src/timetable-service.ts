@@ -984,6 +984,57 @@ export class TimetableService {
       );
     }
   }
+  /** G-5 — clone published sections + meetings into a target academic period. */
+  async cloneForAcademicPeriod(
+    tenantId: string,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+  ): Promise<{ sectionsCloned: number; meetingsCloned: number }> {
+    if (sourcePeriodId === targetPeriodId) {
+      throw new ValidationError('Source and target academic periods must differ');
+    }
+    const sections = await this.repo.listSections(tenantId, { academicPeriodId: sourcePeriodId });
+    const existingTarget = await this.repo.listSections(tenantId, {
+      academicPeriodId: targetPeriodId,
+    });
+    const existingKeys = new Set(
+      existingTarget.map((s) => `${s.institutionId}|${s.code}`.toLowerCase()),
+    );
+    let sectionsCloned = 0;
+    let meetingsCloned = 0;
+    const sectionIdMap = new Map<string, string>();
+    for (const section of sections) {
+      const key = `${section.institutionId}|${section.code}`.toLowerCase();
+      if (existingKeys.has(key)) continue;
+      const newId = randomUUID();
+      sectionIdMap.set(section.id, newId);
+      await this.repo.createSection({
+        ...section,
+        id: newId,
+        academicPeriodId: targetPeriodId,
+        publishStatus: 'DRAFT' as SectionPublishStatus,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      sectionsCloned += 1;
+    }
+    const meetings = await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId });
+    for (const meeting of meetings) {
+      const newSectionId = sectionIdMap.get(meeting.sectionId);
+      if (!newSectionId) continue;
+      await this.repo.createMeeting({
+        ...meeting,
+        id: randomUUID(),
+        sectionId: newSectionId,
+        academicPeriodId: targetPeriodId,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      meetingsCloned += 1;
+    }
+    return { sectionsCloned, meetingsCloned };
+  }
+
 }
 
 export type { SectionEnrollmentEntity, SubstitutionEntity };

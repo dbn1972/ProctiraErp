@@ -11,7 +11,12 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AdmissionsCrmStore } from './admissions-crm-store.js';
-import { AdmissionsPipelineService, type EnrolOnAccept } from './pipeline/pipeline-service.js';
+import {
+  AdmissionsPipelineService,
+  type AssertOfferFeePaid,
+  type CreateOfferFeeInvoice,
+  type EnrolOnAccept,
+} from './pipeline/pipeline-service.js';
 import { InMemoryAdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
@@ -31,6 +36,10 @@ export interface RegistrationPluginOptions {
   pipelineStore?: AdmissionsPipelineStore;
   /** Auto-enrol hook used when an offer is accepted (student + enrollment). */
   enrolOnAccept?: EnrolOnAccept;
+  /** G-2: create fee invoice when offer has a non-zero fee. */
+  createOfferFeeInvoice?: CreateOfferFeeInvoice;
+  /** G-2: require paid offer invoice before enrol. */
+  assertOfferFeePaid?: AssertOfferFeePaid;
   /** Route prefix for registration endpoints (default: '/registrations') */
   prefix?: string;
   /** Staff admissions CRM prefix (default: '/admissions') */
@@ -62,6 +71,8 @@ export const registrationPlugin = fp(
       crmStore,
       pipelineStore,
       enrolOnAccept,
+      createOfferFeeInvoice,
+      assertOfferFeePaid,
       prefix = '/registrations',
       admissionsPrefix = '/admissions',
       defaultTenantId,
@@ -84,6 +95,8 @@ export const registrationPlugin = fp(
       pipelineStore ?? new InMemoryAdmissionsPipelineStore(),
       repository,
       enrolOnAccept,
+      createOfferFeeInvoice,
+      assertOfferFeePaid,
     );
     await registerAdmissionsPipelineRoutes(fastify, {
       service: pipelineService,

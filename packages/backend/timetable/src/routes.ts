@@ -872,4 +872,25 @@ export async function registerTimetableRoutes(
       return sendDomainError(reply, error);
     }
   });
+  app.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
+    `${prefix}/clone-period`,
+    async (request, reply) => {
+      const sourcePeriodId = request.body?.sourcePeriodId;
+      const targetPeriodId = request.body?.targetPeriodId;
+      if (!sourcePeriodId || !targetPeriodId) {
+        return reply.code(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: 'sourcePeriodId and targetPeriodId are required',
+        });
+      }
+      const tenantId = request.tenantId ?? (request.headers['x-tenant-id'] as string);
+      if (!tenantId) {
+        return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
+      }
+      const result = await service.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId);
+      return reply.code(201).send(result);
+    },
+  );
+
 }

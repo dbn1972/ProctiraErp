@@ -82,6 +82,22 @@ function formatOffer(row: OfferRecord) {
   };
 }
 
+export type CreateOfferFeeInvoice = (input: {
+  tenantId: string;
+  applicationId: string;
+  offerId: string;
+  feeAmount: number;
+  feeCurrency: string;
+  firstName: string;
+  lastName: string;
+}) => Promise<{ invoiceId: string }>;
+
+export type AssertOfferFeePaid = (input: {
+  tenantId: string;
+  invoiceId: string;
+  paymentRef?: string | null;
+}) => Promise<void>;
+
 export class AdmissionsPipelineService {
   constructor(
     private readonly store: AdmissionsPipelineStore,
@@ -90,6 +106,8 @@ export class AdmissionsPipelineService {
       'create' | 'findById' | 'listByTenant'
     >,
     private readonly enrolOnAccept?: EnrolOnAccept,
+    private readonly createOfferFeeInvoice?: CreateOfferFeeInvoice,
+    private readonly assertOfferFeePaid?: AssertOfferFeePaid,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
@@ -358,6 +376,21 @@ export class AdmissionsPipelineService {
       feeCurrency: input.feeCurrency ?? 'INR',
       issuedAt: now.toISOString(),
     });
+    let offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
+    const feeAmount = input.feeAmount ?? 0;
+    const feeCurrency = input.feeCurrency ?? 'INR';
+    if (!offerFeeInvoiceId && feeAmount > 0 && this.createOfferFeeInvoice) {
+      const invoice = await this.createOfferFeeInvoice({
+        tenantId,
+        applicationId: application.id,
+        offerId: document.offerId,
+        feeAmount,
+        feeCurrency,
+        firstName: application.firstName,
+        lastName: application.lastName,
+      });
+      offerFeeInvoiceId = invoice.invoiceId;
+    }
     const record: OfferRecord = {
       id: document.offerId,
       tenantId,
@@ -368,10 +401,10 @@ export class AdmissionsPipelineService {
       gradeId: placement.gradeId,
       quota: placement.quota,
       status: 'draft',
-      feeAmount: input.feeAmount ?? 0,
-      feeCurrency: input.feeCurrency ?? 'INR',
+      feeAmount,
+      feeCurrency,
       paymentRef: null,
-      offerFeeInvoiceId: input.offerFeeInvoiceId ?? null,
+      offerFeeInvoiceId,
       enrolledStudentId: null,
       expiresAt: input.expiresAt ? new Date(input.expiresAt) : null,
       offerDocument: document as unknown as Record<string, unknown>,
@@ -387,7 +420,26 @@ export class AdmissionsPipelineService {
       throw new BusinessRuleError(`Cannot send an offer in '${offer.status}' status`);
     }
     await this.assertSeatAvailable(tenantId, offer);
-    const next: OfferRecord = { ...offer, status: 'sent', updatedAt: new Date() };
+    let offerFeeInvoiceId = offer.offerFeeInvoiceId;
+    if (!offerFeeInvoiceId && offer.feeAmount > 0 && this.createOfferFeeInvoice) {
+      const application = await this.requireApplication(tenantId, offer.applicationId);
+      const invoice = await this.createOfferFeeInvoice({
+        tenantId,
+        applicationId: application.id,
+        offerId: offer.id,
+        feeAmount: offer.feeAmount,
+        feeCurrency: offer.feeCurrency,
+        firstName: application.firstName,
+        lastName: application.lastName,
+      });
+      offerFeeInvoiceId = invoice.invoiceId;
+    }
+    const next: OfferRecord = {
+      ...offer,
+      offerFeeInvoiceId,
+      status: 'sent',
+      updatedAt: new Date(),
+    };
     return formatOffer(await this.store.updateOffer(next));
   }
 
@@ -406,6 +458,14 @@ export class AdmissionsPipelineService {
     }
     await this.assertSeatAvailable(tenantId, effective);
     const application = await this.requireApplication(tenantId, effective.applicationId);
+
+    if (effective.offerFeeInvoiceId && this.assertOfferFeePaid) {
+      await this.assertOfferFeePaid({
+        tenantId,
+        invoiceId: effective.offerFeeInvoiceId,
+        paymentRef: input.paymentRef ?? null,
+      });
+    }
 
     let enrolledStudentId = effective.enrolledStudentId;
     if (!enrolledStudentId) {

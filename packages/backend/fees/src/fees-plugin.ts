@@ -939,6 +939,85 @@ export const feesPlugin = fp(
       const data = await feesService.listOverdueForReminder(tenantId, asOf);
       return reply.status(200).send({ data, asOf: asOf.toISOString() });
     });
+
+    fastify.post(
+      `${prefix}/scholarships/net`,
+      async function netScholarship(
+        request: FastifyRequest<{
+          Body: {
+            studentId: string;
+            disbursementId: string;
+            amountCents: number;
+            invoiceId?: string;
+            currency?: string;
+          };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const body = request.body;
+        if (!body?.studentId || !body?.disbursementId || !body?.amountCents) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'studentId, disbursementId, amountCents are required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const result = await feesService.applyScholarshipNetting(tenantId, getActorId(request), {
+            studentId: body.studentId,
+            disbursementId: body.disbursementId,
+            amountCents: body.amountCents,
+            invoiceId: body.invoiceId,
+            currency: body.currency,
+          });
+          return reply.status(200).send(result);
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/structures/clone-period`,
+      async function cloneStructures(
+        request: FastifyRequest<{
+          Body: { sourcePeriodId: string; targetPeriodId: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const body = request.body;
+        if (!body?.sourcePeriodId || !body?.targetPeriodId) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'sourcePeriodId and targetPeriodId are required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const result = await feesService.cloneStructuresForPeriod(
+            tenantId,
+            getActorId(request),
+            body.sourcePeriodId,
+            body.targetPeriodId,
+          );
+          return reply.status(201).send(result);
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+
   },
   {
     name: '@proctira/backend-fees',

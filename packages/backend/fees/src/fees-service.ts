@@ -826,4 +826,135 @@ export class FeesService {
     const receipts = await this.repository.listReceiptsForTenant(tenantId);
     return receipts.filter((receipt) => idSet.has(receipt.invoiceId));
   }
+
+  /**
+   * G-1 scholarship netting — credit an open fee invoice from a paid disbursement.
+   * Idempotent on `disbursementId` (reason marker).
+   */
+  async applyScholarshipNetting(
+    tenantId: string,
+    actorId: string,
+    input: {
+      studentId: string;
+      disbursementId: string;
+      amountCents: number;
+      invoiceId?: string;
+      currency?: string;
+    },
+  ) {
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+      throw new BusinessRuleError('Scholarship netting amountCents must be a positive integer');
+    }
+    const marker = `scholarship_netting:${input.disbursementId}`;
+    const prior = (await this.repository.listConcessions(tenantId)).find((c) =>
+      c.reason.includes(marker),
+    );
+    if (prior) {
+      const invoice = prior.invoiceId
+        ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
+        : null;
+      return { concession: prior, invoice, discountCents: input.amountCents, idempotent: true as const };
+    }
+
+    const invoices = await this.repository.listInvoicesForStudentIds(tenantId, [input.studentId]);
+    const invoice =
+      (input.invoiceId
+        ? invoices.find((row) => row.id === input.invoiceId)
+        : undefined) ??
+      invoices.find((row) => row.status === 'open' || row.status === 'overdue') ??
+      null;
+
+    let structureId = invoice?.structureId ?? null;
+    if (!structureId) {
+      const existing = (await this.repository.listFeeStructures(tenantId)).find(
+        (s) => s.code === 'SCHOLARSHIP_NET',
+      );
+      const structure =
+        existing ??
+        (await this.createFeeStructure(tenantId, actorId, {
+          code: 'SCHOLARSHIP_NET',
+          name: 'Scholarship netting',
+          category: 'scholarship',
+          amountCents: 0,
+          currency: input.currency ?? invoice?.currency ?? 'INR',
+        }));
+      structureId = structure.id;
+    }
+
+    if (!invoice) {
+      const concession = await this.applyConcession(tenantId, actorId, {
+        studentId: input.studentId,
+        structureId,
+        kind: 'amount',
+        amountCents: input.amountCents,
+        reason: `${marker} (no open invoice — credit reserved)`,
+      });
+      return { ...concession, idempotent: false as const };
+    }
+
+    return {
+      ...(await this.applyConcession(tenantId, actorId, {
+        studentId: input.studentId,
+        structureId,
+        invoiceId: invoice.id,
+        kind: 'amount',
+        amountCents: Math.min(input.amountCents, invoice.amountCents),
+        reason: marker,
+      })),
+      idempotent: false as const,
+    };
+  }
+
+  /** G-5 — clone fee structures (+ instalments) into a target academic period. */
+  async cloneStructuresForPeriod(
+    tenantId: string,
+    actorId: string,
+    sourcePeriodId: string,
+    targetPeriodId: string,
+  ) {
+    if (sourcePeriodId === targetPeriodId) {
+      throw new BusinessRuleError('Source and target academic periods must differ');
+    }
+    const source = (await this.repository.listFeeStructures(tenantId)).filter(
+      (s) => s.academicPeriodId === sourcePeriodId && s.status === 'active',
+    );
+    const targetExisting = await this.repository.listFeeStructures(tenantId);
+    const created = [];
+    for (const row of source) {
+      const code = `${row.code}`.slice(0, 24) + '_R';
+      if (targetExisting.some((t) => t.academicPeriodId === targetPeriodId && t.code === code)) {
+        continue;
+      }
+      const cloned = await this.createFeeStructure(tenantId, actorId, {
+        code,
+        name: row.name,
+        category: row.category,
+        term: row.term ?? undefined,
+        amountCents: row.amountCents,
+        currency: row.currency,
+        institutionId: row.institutionId ?? undefined,
+        academicPeriodId: targetPeriodId,
+        gradeId: row.gradeId ?? undefined,
+        classId: row.classId ?? undefined,
+      });
+      const instalments = await this.repository.listStructureInstalments(tenantId, row.id);
+      if (instalments.length > 0) {
+        await this.repository.replaceStructureInstalments(
+          tenantId,
+          cloned.id,
+          instalments.map((inst, index) => ({
+            id: uuidv4(),
+            tenantId,
+            structureId: cloned.id,
+            sequence: inst.sequence ?? index + 1,
+            amountCents: inst.amountCents,
+            dueOffsetDays: inst.dueOffsetDays,
+            label: inst.label,
+          })),
+        );
+      }
+      created.push(cloned);
+    }
+    return { cloned: created.length, source: source.length };
+  }
 }

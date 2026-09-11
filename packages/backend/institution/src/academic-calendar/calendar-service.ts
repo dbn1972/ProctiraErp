@@ -56,7 +56,14 @@ function isoDate(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+export type RolloverExtras = {
+  copyFeeStructures?: (tenantId: string, actorId: string, sourcePeriodId: string, targetPeriodId: string) => Promise<{ cloned: number; source: number }>;
+  copyTimetable?: (tenantId: string, actorId: string, sourcePeriodId: string, targetPeriodId: string) => Promise<{ sectionsCloned: number; meetingsCloned: number }>;
+};
+
 export class AcademicCalendarService {
+  private readonly rolloverExtras?: RolloverExtras;
+
   private readonly prisma: PrismaClient;
   private readonly store: CalendarStore;
 
@@ -279,6 +286,28 @@ export class AcademicCalendarService {
       });
       summary.enrollments.promoted += 1;
     }
-    return summary;
+    
+    if (dto.copyFeeStructures && this.rolloverExtras?.copyFeeStructures && !dryRun) {
+      summary.feeStructures = await this.rolloverExtras.copyFeeStructures(
+        tenantId,
+        'rollover',
+        sourcePeriodId,
+        dto.targetPeriodId,
+      );
+    } else if (dto.copyFeeStructures) {
+      summary.feeStructures = { cloned: 0, source: 0 };
+    }
+    if (dto.copyTimetable && this.rolloverExtras?.copyTimetable && !dryRun) {
+      summary.timetable = await this.rolloverExtras.copyTimetable(
+        tenantId,
+        'rollover',
+        sourcePeriodId,
+        dto.targetPeriodId,
+      );
+    } else if (dto.copyTimetable) {
+      summary.timetable = { sectionsCloned: 0, meetingsCloned: 0 };
+    }
+
+return summary;
   }
 }

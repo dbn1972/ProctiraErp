@@ -79,6 +79,18 @@ function normaliseNotes(notes: string | null | undefined): string | null {
 export interface ScholarshipServiceOptions {
   /** Default workflow ID for scholarship application approval */
   defaultWorkflowId?: string;
+  /**
+   * G-1: when a disbursement becomes `paid`, net the amount onto student fees.
+   * amount is major currency units from the scholarship domain (convert to cents in the adapter).
+   */
+  onDisbursementPaid?: (input: {
+    tenantId: string;
+    disbursementId: string;
+    applicationId: string;
+    applicantId: string;
+    amount: number;
+    currency: string;
+  }) => Promise<void>;
 }
 
 /**
@@ -86,6 +98,7 @@ export interface ScholarshipServiceOptions {
  */
 export class ScholarshipService {
   private readonly defaultWorkflowId: string;
+  private readonly onDisbursementPaid?: ScholarshipServiceOptions['onDisbursementPaid'];
 
   constructor(
     private readonly repository: ScholarshipRepository,
@@ -93,6 +106,7 @@ export class ScholarshipService {
     options?: ScholarshipServiceOptions,
   ) {
     this.defaultWorkflowId = options?.defaultWorkflowId ?? 'scholarship_approval';
+    this.onDisbursementPaid = options?.onDisbursementPaid;
   }
 
   // ─── Program Operations ──────────────────────────────────────────────────
@@ -546,6 +560,27 @@ export class ScholarshipService {
     const updated = await this.repository.updateDisbursement(id, tenantId, updateData);
     if (!updated) {
       throw new NotFoundError(`Disbursement with id '${id}' not found`);
+    }
+
+    if (
+      this.onDisbursementPaid &&
+      updated.paymentStatus === 'paid' &&
+      existing.paymentStatus !== 'paid'
+    ) {
+      const application = await this.repository.findApplicationById(updated.applicationId, tenantId);
+      const program = application
+        ? await this.repository.findProgramById(application.programId, tenantId)
+        : null;
+      if (application) {
+        await this.onDisbursementPaid({
+          tenantId,
+          disbursementId: updated.id,
+          applicationId: application.id,
+          applicantId: application.applicantId,
+          amount: updated.amount,
+          currency: program?.currency ?? 'INR',
+        });
+      }
     }
 
     return updated;

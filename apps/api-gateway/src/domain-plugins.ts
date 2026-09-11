@@ -337,9 +337,23 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       if (shouldSeedDemoData()) {
         await seedScholarshipDemoData(repository);
       }
+      const feesForScholarships = new FeesService(createFeesRepository());
       await scope.register(scholarshipPlugin, {
         repository,
         prefix: '/scholarships',
+        serviceOptions: {
+          onDisbursementPaid: async (input) => {
+            // Scholarship amounts are major units; fees ledger is cents.
+            const amountCents = Math.round(Number(input.amount) * 100);
+            if (amountCents <= 0) return;
+            await feesForScholarships.applyScholarshipNetting(input.tenantId, 'scholarship-netting', {
+              studentId: input.applicantId,
+              disbursementId: input.disbursementId,
+              amountCents,
+              currency: input.currency,
+            });
+          },
+        },
       });
     },
   },
@@ -652,6 +666,32 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         pipelineStore,
         prefix: '/registrations',
         admissionsPrefix: '/admissions',
+        
+        createOfferFeeInvoice: async (input) => {
+          const fees = new FeesService(createFeesRepository());
+          const amountCents = Math.round(Number(input.feeAmount) * 100);
+          const invoice = await fees.createInvoice(input.tenantId, 'admissions-offer', {
+            studentId: input.applicationId,
+            title: `Admission offer fee — ${input.firstName} ${input.lastName}`,
+            description: `Offer ${input.offerId}`,
+            amountCents: Math.max(amountCents, 0),
+            currency: input.feeCurrency || 'INR',
+          });
+          return { invoiceId: invoice.id };
+        },
+        assertOfferFeePaid: async (input) => {
+          const fees = new FeesService(createFeesRepository());
+          const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+          if (invoice.status === 'paid') return;
+          if (input.paymentRef) {
+            await fees.recordPayment(input.tenantId, 'admissions-offer', {
+              invoiceId: input.invoiceId,
+              method: 'sandbox',
+            });
+            return;
+          }
+          throw new Error('Offer fee invoice must be paid before enrolment');
+        },
         enrolOnAccept: async (input: {
           tenantId: string;
           applicationId: string;
