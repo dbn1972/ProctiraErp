@@ -13,7 +13,7 @@
 
 ## External providers
 
-- Headless; no live IdP/PSP/Twilio/FCM secrets required
+- Headless; no live Keycloak realm / PSP / Twilio / FCM secrets required in tip CI (product IdP remains Keycloak — ADR-001)
 
 ## Deploy path
 

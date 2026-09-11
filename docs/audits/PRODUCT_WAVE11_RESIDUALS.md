@@ -9,7 +9,7 @@
 
 ## 1. Capability statement
 
-Registrars can **graduate terminal-grade students during year rollover** (not only count them), **bulk-update enrollment status** from the student list, and open a student profile to see **live Health / Fees / LMS** panels. Principals see **live institution overview KPIs** (students, staff, classrooms, attendance %) instead of `customData` placeholders. MapLibre, sealed PDF, live IdP/PSP/Twilio remain non-goals.
+Registrars can **graduate terminal-grade students during year rollover** (not only count them), **bulk-update enrollment status** from the student list, and open a student profile to see **live Health / Fees / LMS** panels. Principals see **live institution overview KPIs** (students, staff, classrooms, attendance %) instead of `customData` placeholders. MapLibre, sealed PDF, and live PSP/Twilio secrets remain non-goals for this slice. **Keycloak is the platform IdP** (ADR-001); tip CI may still omit realm secrets (G-107 evidence residual).
 
 ## 2. Personas & jobs
 

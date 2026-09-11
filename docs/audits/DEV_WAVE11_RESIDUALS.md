@@ -18,7 +18,7 @@
 
 ## Non-goals (unchanged)
 
-MapLibre · sealed transcript PDF · live IdP/PSP/Twilio · second staff-attendance UI · sibling/consent create forms
+MapLibre · sealed transcript PDF · live Keycloak login evidence / PSP / Twilio · second staff-attendance UI · sibling/consent create forms
 
 ## Honesty
 
