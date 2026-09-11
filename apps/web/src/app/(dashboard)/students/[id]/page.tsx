@@ -258,10 +258,7 @@ export default async function StudentProfilePage(props: PageProps) {
             </Link>
           </Button>
           {currentEnrollment ? (
-            <GraduateStudentButton
-              studentId={student.id}
-              enrollmentId={currentEnrollment.id}
-            />
+            <GraduateStudentButton studentId={student.id} enrollmentId={currentEnrollment.id} />
           ) : null}
         </div>
       </div>
@@ -272,7 +269,18 @@ export default async function StudentProfilePage(props: PageProps) {
           aria-label="Student information sections"
           className="h-auto w-full gap-0 overflow-x-auto rounded-none border-b border-border bg-transparent p-0"
         >
-          {(['overview', 'attendance', 'assessments', 'guardians', 'health', 'fees', 'lms', 'history'] as const).map((v) => (
+          {(
+            [
+              'overview',
+              'attendance',
+              'assessments',
+              'guardians',
+              'health',
+              'fees',
+              'lms',
+              'history',
+            ] as const
+          ).map((v) => (
             <TabsTrigger
               key={v}
               value={v}
@@ -806,7 +814,7 @@ function CurrentEnrollmentCard({
 /* --------------------------------------------------------------- existing tab content */
 
 function EnrollmentTab({
-  enrollments,
+  enrollments: _enrollments,
   history,
   transfers,
 }: {

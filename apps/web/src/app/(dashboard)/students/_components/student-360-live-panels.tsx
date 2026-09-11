@@ -126,7 +126,7 @@ export function StudentHealthTab({ studentId }: { studentId: string }) {
 
   const loading = record.loading || allergies.loading || vaccines.loading;
   const error = record.error || allergies.error || vaccines.error;
-  const empty = !record.data && !(allergies.data?.length) && !(vaccines.data?.length);
+  const empty = !record.data && !allergies.data?.length && !vaccines.data?.length;
 
   return (
     <PanelShell loading={loading} error={error} empty={empty}>
@@ -139,9 +139,7 @@ export function StudentHealthTab({ studentId }: { studentId: string }) {
             </div>
             <div>
               <p className="text-muted-foreground">Last updated</p>
-              <p className="font-medium">
-                {new Date(record.data.lastUpdated).toLocaleString()}
-              </p>
+              <p className="font-medium">{new Date(record.data.lastUpdated).toLocaleString()}</p>
             </div>
             {record.data.emergencyContactName ? (
               <div>
@@ -199,9 +197,7 @@ export function StudentHealthTab({ studentId }: { studentId: string }) {
                   <TableRow key={v.id}>
                     <TableCell>{v.vaccineName}</TableCell>
                     <TableCell>{v.doseNumber}</TableCell>
-                    <TableCell>
-                      {new Date(v.dateAdministered).toLocaleDateString()}
-                    </TableCell>
+                    <TableCell>{new Date(v.dateAdministered).toLocaleDateString()}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -242,12 +238,8 @@ export function StudentFeesTab({ studentId }: { studentId: string }) {
               <TableCell>
                 <Badge variant="outline">{inv.status}</Badge>
               </TableCell>
-              <TableCell>
-                {inv.dueAt ? new Date(inv.dueAt).toLocaleDateString() : '—'}
-              </TableCell>
-              <TableCell className="text-end">
-                {money(inv.amountCents, inv.currency)}
-              </TableCell>
+              <TableCell>{inv.dueAt ? new Date(inv.dueAt).toLocaleDateString() : '—'}</TableCell>
+              <TableCell className="text-end">{money(inv.amountCents, inv.currency)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -265,7 +257,7 @@ export function StudentLmsTab({ studentId }: { studentId: string }) {
 
   const loading = plan.loading || progress.loading;
   const error = plan.error || progress.error;
-  const empty = !(plan.data?.items?.length) && !(progress.data?.skills?.length);
+  const empty = !plan.data?.items?.length && !progress.data?.skills?.length;
 
   return (
     <PanelShell loading={loading} error={error} empty={empty}>
@@ -301,9 +293,7 @@ export function StudentLmsTab({ studentId }: { studentId: string }) {
                   <span className="font-medium">{item.skillName}</span>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{item.type}</Badge>
-                    <span className="text-muted-foreground">
-                      {Math.round(item.mastery * 100)}%
-                    </span>
+                    <span className="text-muted-foreground">{Math.round(item.mastery * 100)}%</span>
                   </div>
                 </li>
               ))}
@@ -326,13 +316,9 @@ export function StudentLmsTab({ studentId }: { studentId: string }) {
                 {progress.data.skills.slice(0, 20).map((row) => (
                   <TableRow key={row.skill.id}>
                     <TableCell>{row.skill.name}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {row.skill.subject}
-                    </TableCell>
+                    <TableCell className="text-muted-foreground">{row.skill.subject}</TableCell>
                     <TableCell className="text-end">
-                      {row.mastery
-                        ? `${Math.round(row.mastery.mastery * 100)}%`
-                        : '—'}
+                      {row.mastery ? `${Math.round(row.mastery.mastery * 100)}%` : '—'}
                     </TableCell>
                   </TableRow>
                 ))}

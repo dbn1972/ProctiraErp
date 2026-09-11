@@ -7,14 +7,14 @@
 
 ## Closed in this slice
 
-| Item | Evidence |
-| ---- | -------- |
+| Item                                                   | Evidence                                                                                |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------- |
 | Rollover marks terminal ENROLLED → GRADUATED on source | `calendar-service` updateMany + academic-calendar test asserts `GRADUATED` + `exitedAt` |
-| `POST /enrollments/bulk-status` | Schema + service + route; unit tests for success + per-id failure |
-| Student profile Graduate CTA | `GraduateStudentButton` + `graduateEnrollmentAction` |
-| Student list bulk graduate | `StudentsBulkGraduateBar` + `bulkGraduateStudentsAction` |
-| Student tabs Health / Fees / LMS | Live panels over health, fees, LMS/PAL clients |
-| Institution overview live KPIs | Students/staff totals, attendance %, room count from hierarchy |
+| `POST /enrollments/bulk-status`                        | Schema + service + route; unit tests for success + per-id failure                       |
+| Student profile Graduate CTA                           | `GraduateStudentButton` + `graduateEnrollmentAction`                                    |
+| Student list bulk graduate                             | `StudentsBulkGraduateBar` + `bulkGraduateStudentsAction`                                |
+| Student tabs Health / Fees / LMS                       | Live panels over health, fees, LMS/PAL clients                                          |
+| Institution overview live KPIs                         | Students/staff totals, attendance %, room count from hierarchy                          |
 
 ## Non-goals (unchanged)
 

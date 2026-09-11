@@ -73,10 +73,10 @@ export type UpdateEnrollmentStatusInput = Static<typeof UpdateEnrollmentStatusSc
  * Wave 11 — bulk withdraw / graduate (same transition rules as single status).
  */
 export const BulkUpdateEnrollmentStatusSchema = Type.Object({
-  enrollmentIds: Type.Array(
-    Type.String({ pattern: UuidPattern, description: 'Enrollment UUID' }),
-    { minItems: 1, maxItems: 100 },
-  ),
+  enrollmentIds: Type.Array(Type.String({ pattern: UuidPattern, description: 'Enrollment UUID' }), {
+    minItems: 1,
+    maxItems: 100,
+  }),
   status: Type.Union([Type.Literal('WITHDRAWN'), Type.Literal('GRADUATED')], {
     description: 'New enrollment status',
   }),

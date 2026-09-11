@@ -364,10 +364,10 @@ export interface BulkUpdateEnrollmentStatusResult {
 export async function bulkUpdateEnrollmentStatus(
   input: BulkUpdateEnrollmentStatusInput,
 ): Promise<BulkUpdateEnrollmentStatusResult> {
-  const result = await gatewayFetch<BulkUpdateEnrollmentStatusResult>(
-    '/enrollments/bulk-status',
-    { method: 'POST', json: input },
-  );
+  const result = await gatewayFetch<BulkUpdateEnrollmentStatusResult>('/enrollments/bulk-status', {
+    method: 'POST',
+    json: input,
+  });
   if (!result.data) {
     throw new Error('Empty response from enrollment-service');
   }

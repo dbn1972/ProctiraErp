@@ -413,14 +413,10 @@ describe('EnrollmentService', () => {
     });
   });
 
-
   describe('bulkUpdateEnrollmentStatus', () => {
     it('graduates multiple enrolled students and reports per-id failures', async () => {
       const a = await service.createEnrollment(TENANT_ID, validCreateInput());
-      const b = await service.createEnrollment(
-        TENANT_ID,
-        validCreateInput({ studentId: uuid() }),
-      );
+      const b = await service.createEnrollment(TENANT_ID, validCreateInput({ studentId: uuid() }));
       const missingId = uuid();
 
       const result = await service.bulkUpdateEnrollmentStatus(TENANT_ID, {
@@ -432,9 +428,9 @@ describe('EnrollmentService', () => {
 
       expect(result.updated).toHaveLength(2);
       expect(result.updated.every((row) => row.status === 'GRADUATED')).toBe(true);
-      expect(result.updated.every((row) => row.exitedAt?.getTime() === new Date('2024-05-30').getTime())).toBe(
-        true,
-      );
+      expect(
+        result.updated.every((row) => row.exitedAt?.getTime() === new Date('2024-05-30').getTime()),
+      ).toBe(true);
       expect(result.failed).toHaveLength(1);
       expect(result.failed[0]?.enrollmentId).toBe(missingId);
     });
