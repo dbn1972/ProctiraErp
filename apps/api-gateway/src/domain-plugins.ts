@@ -78,6 +78,7 @@ import {
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
@@ -179,10 +180,90 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
       // DATABASE_URL is set, else in-memory Prisma look-alike.
+      const feesForRollover = new FeesService(createFeesRepository());
+      // Timetable + LMS clones are best-effort — packages may be memory or PG.
+      type Dry = { dryRun?: boolean };
+      let copyTimetable:
+        | undefined
+        | ((
+            tenantId: string,
+            actorId: string,
+            sourcePeriodId: string,
+            targetPeriodId: string,
+            options?: Dry,
+          ) => Promise<{ sectionsCloned: number; meetingsCloned: number }>);
+      let copyLmsAssignments:
+        | undefined
+        | ((
+            tenantId: string,
+            actorId: string,
+            sourcePeriodId: string,
+            targetPeriodId: string,
+            options?: Dry,
+          ) => Promise<{ cloned: number; source: number }>);
+      try {
+        const { createTimetableRepository, TimetableService } = await import(
+          '@proctira/backend-timetable'
+        );
+        const tt = new TimetableService(createTimetableRepository());
+        copyTimetable = (tenantId, _actor, sourcePeriodId, targetPeriodId, options) =>
+          tt.cloneForAcademicPeriod(tenantId, sourcePeriodId, targetPeriodId, options);
+      } catch {
+        copyTimetable = async () => ({ sectionsCloned: 0, meetingsCloned: 0 });
+      }
+      try {
+        const { createLmsRepository, LmsService } = await import('@proctira/backend-lms');
+        const lms = new LmsService(createLmsRepository());
+        copyLmsAssignments = (tenantId, actorId, sourcePeriodId, targetPeriodId, options) =>
+          lms.cloneAssignmentsForPeriod(tenantId, actorId, sourcePeriodId, targetPeriodId, options);
+      } catch {
+        copyLmsAssignments = async () => ({ cloned: 0, source: 0 });
+      }
+      const pgPool = getSharedPgPool();
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),
         prefix: '/institutions',
         academics: true,
+        rolloverExtras: {
+          copyFeeStructures: (tenantId, actorId, sourcePeriodId, targetPeriodId, options) =>
+            feesForRollover.cloneStructuresForPeriod(
+              tenantId,
+              actorId,
+              sourcePeriodId,
+              targetPeriodId,
+              options,
+            ),
+          copyTimetable,
+          copyLmsAssignments,
+          recordRolloverRun: pgPool
+            ? async (input) => {
+                await withPgTenant(pgPool, input.tenantId, async (client) => {
+                  await client.query(
+                    `INSERT INTO academic_rollover_runs (
+                       id, tenant_id, source_period_id, target_period_id, actor_id,
+                       dry_run, idempotency_key, request, summary, status
+                     ) VALUES (
+                       gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4,
+                       $5, $6, $7::jsonb, $8::jsonb, $9
+                     )
+                     ON CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+                     DO NOTHING`,
+                    [
+                      input.tenantId,
+                      input.sourcePeriodId,
+                      input.targetPeriodId,
+                      input.actorId,
+                      input.dryRun,
+                      input.idempotencyKey,
+                      JSON.stringify(input.request),
+                      JSON.stringify(input.summary),
+                      input.status,
+                    ],
+                  );
+                });
+              }
+            : undefined,
+        },
       });
     },
   },

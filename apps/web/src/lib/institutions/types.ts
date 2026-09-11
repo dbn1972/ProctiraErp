@@ -137,6 +137,10 @@ export interface RolloverInput {
   institutionId?: string;
   promoteEnrollments?: boolean;
   dryRun?: boolean;
+  copyFeeStructures?: boolean;
+  copyTimetable?: boolean;
+  copyLmsAssignments?: boolean;
+  idempotencyKey?: string;
 }
 
 export interface RolloverSummary {
@@ -151,6 +155,10 @@ export interface RolloverSummary {
     graduating: number;
     alreadyInTarget: number;
   };
+  feeStructures?: { cloned: number; source: number };
+  timetable?: { sectionsCloned: number; meetingsCloned: number };
+  lmsAssignments?: { cloned: number; source: number };
+  runId?: string;
 }
 
 export interface Grade {

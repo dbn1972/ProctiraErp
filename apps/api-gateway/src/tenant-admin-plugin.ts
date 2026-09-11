@@ -26,11 +26,15 @@
 import { DEFAULT_ROLES } from '@proctira/backend-auth';
 import {
   createRolesRepository,
+  createTenantRepository,
+  effectiveTenantSettings,
   InMemoryTenantSettingsStore,
   PgTenantSettingsStore,
+  registerBrandingRoutes,
   registerRolesRoutes,
   registerTenantSettingsRoutes,
   RolesService,
+  TenantService,
   type BuiltInRoleSeed,
   type RolesAuditEvent,
   type TenantSettingsStore,
@@ -59,7 +63,7 @@ export const tenantAdminPlugin = fp(
       // The tenant package's PermissionRef vocabulary is the CRUD subset; other
       // actions (e.g. `preview`) are platform-only and not role-editable here.
       permissions: role.permissions.filter((p): p is BuiltInRoleSeed['permissions'][number] =>
-        ['create', 'read', 'update', 'delete', 'list', 'manage'].includes(p.action),
+        ['create', 'read', 'update', 'delete', 'list', 'manage', 'preview', 'edit'].includes(p.action),
       ),
     }));
     const { repository, persistence } = createRolesRepository(seed);
@@ -80,6 +84,80 @@ export const tenantAdminPlugin = fp(
 
     await registerRolesRoutes(fastify, { rolesService, prefix });
     await registerTenantSettingsRoutes(fastify, { store: settingsStore, prefix });
+
+    // World-class branding (draft/publish/versions/active/preview)
+    const { repository: tenantRepo } = createTenantRepository();
+    const tenantService = new TenantService(tenantRepo);
+    await registerBrandingRoutes(fastify, {
+      tenantService,
+      prefix: `${prefix}/branding`,
+      getTenantId: (request) =>
+        (request as { tenantId?: string }).tenantId ??
+        (request as { user?: { tenantId?: string } }).user?.tenantId,
+      hasPermission: async (request, permission) => {
+        const user = (request as { user?: { roles?: Array<string | { roleId?: string; permissions?: Array<{ resource: string; action: string }> }> } }).user;
+        if (!user) return false;
+        const roles = user.roles ?? [];
+        // Tenant admins with user:manage (or branding:* / tenant manage) may brand.
+        for (const role of roles) {
+          const id = typeof role === 'string' ? role : role.roleId;
+          if (id && ['tenant_admin', 'platform_admin', 'super_admin', 'admin'].includes(id)) {
+            return true;
+          }
+          if (typeof role !== 'string' && Array.isArray(role.permissions)) {
+            if (
+              role.permissions.some(
+                (p) =>
+                  (p.resource === 'branding' && (p.action === permission.split(':')[1] || p.action === 'manage')) ||
+                  (p.resource === 'tenant' && (p.action === 'manage' || p.action === 'update')) ||
+                  (p.resource === 'user' && p.action === 'manage'),
+              )
+            ) {
+              return true;
+            }
+          }
+        }
+        return false; // published branding is public via GET; draft preview requires branding:preview
+      },
+    });
+
+    // Logo asset staging (URL/data-URI already validated on publish; this stores a draft logo URL helper)
+    fastify.post<{ Body: { logoUrl?: string; faviconUrl?: string } }>(
+      `${prefix}/branding/assets`,
+      async (request, reply) => {
+        const tenantId =
+          (request as { tenantId?: string }).tenantId ??
+          (request as { user?: { tenantId?: string } }).user?.tenantId;
+        if (!tenantId) {
+          return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
+        }
+        const logoUrl = request.body?.logoUrl?.trim() || null;
+        const faviconUrl = request.body?.faviconUrl?.trim() || null;
+        if (!logoUrl && !faviconUrl) {
+          return reply.code(400).send({
+            statusCode: 400,
+            error: 'Bad Request',
+            message: 'logoUrl or faviconUrl required',
+          });
+        }
+        // Persist onto settings branding for immediate admin console use.
+        const current = await settingsStore.get(tenantId);
+        const base = effectiveTenantSettings(tenantId, current);
+        const next = {
+          ...base,
+          tenantId,
+          updatedAt: new Date().toISOString(),
+          updatedBy: (request as { user?: { id?: string } }).user?.id ?? null,
+          branding: {
+            ...base.branding,
+            ...(logoUrl ? { logoUrl } : {}),
+          },
+        };
+        await settingsStore.put(next);
+        return reply.code(200).send({ tenantId, branding: next.branding, faviconUrl });
+      },
+    );
+
     if (options.scimPrefix !== false) {
       await fastify.register(scimPlugin, {
         rolesService,

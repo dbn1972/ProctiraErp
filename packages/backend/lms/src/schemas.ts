@@ -76,6 +76,7 @@ export const CreateAssignmentSchema = Type.Object({
   subject: Type.String({ minLength: 1, maxLength: 120 }),
   gradeLevel: Type.Optional(Type.String({ maxLength: 40 })),
   sectionId: Type.Optional(Uuid),
+  academicPeriodId: Type.Optional(Uuid),
   skillIds: Type.Optional(Type.Array(Uuid, { maxItems: 50 })),
   maxScore: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 100000 })),
   dueAt: Type.Optional(IsoDateTime),
@@ -392,3 +393,34 @@ export type ClassAnalyticsQuery = Static<typeof ClassAnalyticsQuerySchema>;
 
 export const FileIdParamsSchema = Type.Object({ id: Uuid });
 export const PostIdParamsSchema = Type.Object({ id: Uuid, postId: Uuid });
+
+
+export const CreateModuleSchema = Type.Object({
+  title: Type.String({ minLength: 1, maxLength: 255 }),
+  classKey: Type.Optional(Type.String({ maxLength: 120 })),
+  institutionId: Type.Optional(Uuid),
+  academicPeriodId: Type.Optional(Uuid),
+  position: Type.Optional(Type.Integer({ minimum: 0 })),
+  published: Type.Optional(Type.Boolean()),
+});
+export type CreateModuleInput = Static<typeof CreateModuleSchema>;
+
+export const CreateModuleItemSchema = Type.Object({
+  itemType: Type.Union([
+    Type.Literal('assignment'),
+    Type.Literal('content'),
+    Type.Literal('discussion'),
+    Type.Literal('url'),
+  ]),
+  itemId: Type.Optional(Uuid),
+  title: Type.String({ minLength: 1, maxLength: 255 }),
+  position: Type.Optional(Type.Integer({ minimum: 0 })),
+  required: Type.Optional(Type.Boolean()),
+});
+export type CreateModuleItemInput = Static<typeof CreateModuleItemSchema>;
+
+export const ListModulesQuerySchema = Type.Object({
+  classKey: Type.Optional(Type.String()),
+  academicPeriodId: Type.Optional(Uuid),
+  institutionId: Type.Optional(Uuid),
+});

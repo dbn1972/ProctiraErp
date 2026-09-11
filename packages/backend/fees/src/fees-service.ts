@@ -911,6 +911,7 @@ export class FeesService {
     actorId: string,
     sourcePeriodId: string,
     targetPeriodId: string,
+    options: { dryRun?: boolean } = {},
   ) {
     if (sourcePeriodId === targetPeriodId) {
       throw new BusinessRuleError('Source and target academic periods must differ');
@@ -919,6 +920,16 @@ export class FeesService {
       (s) => s.academicPeriodId === sourcePeriodId && s.status === 'active',
     );
     const targetExisting = await this.repository.listFeeStructures(tenantId);
+    if (options.dryRun) {
+      let planned = 0;
+      for (const row of source) {
+        const code = `${row.code}`.slice(0, 24) + '_R';
+        if (!targetExisting.some((x) => x.academicPeriodId === targetPeriodId && x.code === code)) {
+          planned += 1;
+        }
+      }
+      return { cloned: planned, source: source.length };
+    }
     const created = [];
     for (const row of source) {
       const code = `${row.code}`.slice(0, 24) + '_R';

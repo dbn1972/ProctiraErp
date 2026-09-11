@@ -989,6 +989,7 @@ export class TimetableService {
     tenantId: string,
     sourcePeriodId: string,
     targetPeriodId: string,
+    options: { dryRun?: boolean } = {},
   ): Promise<{ sectionsCloned: number; meetingsCloned: number }> {
     if (sourcePeriodId === targetPeriodId) {
       throw new ValidationError('Source and target academic periods must differ');
@@ -1000,6 +1001,15 @@ export class TimetableService {
     const existingKeys = new Set(
       existingTarget.map((s) => `${s.institutionId}|${s.code}`.toLowerCase()),
     );
+    if (options.dryRun) {
+      const toClone = sections.filter(
+        (s) => !existingKeys.has(`${s.institutionId}|${s.code}`.toLowerCase()),
+      );
+      const meetings = await this.repo.listMeetings(tenantId, { academicPeriodId: sourcePeriodId });
+      const sectionIds = new Set(toClone.map((s) => s.id));
+      const meetingsPlanned = meetings.filter((m) => sectionIds.has(m.sectionId)).length;
+      return { sectionsCloned: toClone.length, meetingsCloned: meetingsPlanned };
+    }
     let sectionsCloned = 0;
     let meetingsCloned = 0;
     const sectionIdMap = new Map<string, string>();
@@ -1012,7 +1022,7 @@ export class TimetableService {
         ...section,
         id: newId,
         academicPeriodId: targetPeriodId,
-        publishStatus: 'DRAFT' as SectionPublishStatus,
+        status: 'DRAFT' as SectionPublishStatus,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });

@@ -86,6 +86,47 @@ export interface HomeworkItem {
   status: string;
 }
 
+/** Parent academic 360 — LMS depth beyond a flat homework list. */
+export interface LmsAssignmentItem {
+  id: string;
+  title: string;
+  kind: string;
+  subject: string | null;
+  dueAt: string | null;
+  maxScore: number | null;
+  status: string;
+  submissionStatus: string | null;
+  score: number | null;
+  gradedAt: string | null;
+  feedback: string | null;
+}
+
+export interface LmsPayload extends AcademicList<LmsAssignmentItem> {
+  summary: {
+    assigned: number;
+    submitted: number;
+    graded: number;
+    missing: number;
+    averageScorePercent: number | null;
+  };
+}
+
+export interface ReportCardSubjectLine {
+  subject: string;
+  numericScore: number | null;
+  letterGrade: string | null;
+  remarks: string | null;
+}
+
+export interface ReportCardDetail {
+  id: string;
+  academicPeriodId: string | null;
+  status: string;
+  outputUrl: string | null;
+  completedAt: string | null;
+  subjects: ReportCardSubjectLine[];
+}
+
 export interface CalendarEventItem {
   id: string;
   kind: string;
@@ -119,6 +160,8 @@ export interface AcademicVisibilityStore {
   getGrades(tenantId: string, studentId: string): Promise<GradesPayload>;
   getTimetable(tenantId: string, studentId: string): Promise<AcademicList<TimetableSlot>>;
   getHomework(tenantId: string, studentId: string): Promise<AcademicList<HomeworkItem>>;
+  getLms(tenantId: string, studentId: string): Promise<LmsPayload>;
+  getReportCards(tenantId: string, studentId: string): Promise<AcademicList<ReportCardDetail>>;
   getCalendar(tenantId: string, studentId: string): Promise<AcademicList<CalendarEventItem>>;
   getNotices(
     tenantId: string,
@@ -194,6 +237,17 @@ export class EmptyAcademicVisibilityStore implements AcademicVisibilityStore {
   }
 
   getHomework(_tenantId: string, studentId: string): Promise<AcademicList<HomeworkItem>> {
+    return Promise.resolve(emptyAcademicList(studentId));
+  }
+
+  getLms(_tenantId: string, studentId: string): Promise<LmsPayload> {
+    return Promise.resolve({
+      ...emptyAcademicList<LmsAssignmentItem>(studentId),
+      summary: { assigned: 0, submitted: 0, graded: 0, missing: 0, averageScorePercent: null },
+    });
+  }
+
+  getReportCards(_tenantId: string, studentId: string): Promise<AcademicList<ReportCardDetail>> {
     return Promise.resolve(emptyAcademicList(studentId));
   }
 

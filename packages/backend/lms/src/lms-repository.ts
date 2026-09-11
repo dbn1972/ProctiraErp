@@ -43,6 +43,8 @@ export interface AssignmentEntity extends ScopeTarget {
   subject: string;
   gradeLevel: string | null;
   sectionId: string | null;
+  /** Academic period this assignment belongs to (year-end rollover key). */
+  academicPeriodId?: string | null;
   skillIds: string[];
   maxScore: number;
   dueAt: Date | null;
@@ -155,6 +157,7 @@ export interface AssignmentFilter extends ScopeFilter {
   subject?: string;
   gradeLevel?: string;
   sectionId?: string;
+  academicPeriodId?: string;
   search?: string;
   dueBefore?: Date;
   dueAfter?: Date;
@@ -321,7 +324,34 @@ export interface ContentItemEntity extends ScopeTarget {
   updatedAt: Date;
 }
 
+export interface LmsModuleEntity {
+  id: string;
+  tenantId: string;
+  institutionId: string | null;
+  academicPeriodId: string | null;
+  classKey: string | null;
+  title: string;
+  position: number;
+  published: boolean;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface LmsModuleItemEntity {
+  id: string;
+  tenantId: string;
+  moduleId: string;
+  itemType: 'assignment' | 'content' | 'discussion' | 'url';
+  itemId: string | null;
+  title: string;
+  position: number;
+  required: boolean;
+  createdAt: Date;
+}
+
 export interface LmsRepository {
+
   // Skills
   createSkill(data: Omit<SkillEntity, 'createdAt' | 'updatedAt'>): Promise<SkillEntity>;
   findSkillById(tenantId: string, id: string): Promise<SkillEntity | null>;
@@ -527,4 +557,13 @@ export interface LmsRepository {
     filter: ScopeFilter & { subject?: string; published?: boolean; classKey?: string },
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<ContentItemEntity>>;
+
+  createModule(data: LmsModuleEntity): Promise<LmsModuleEntity>;
+  findModule(tenantId: string, id: string): Promise<LmsModuleEntity | null>;
+  listModules(
+    tenantId: string,
+    filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
+  ): Promise<LmsModuleEntity[]>;
+  createModuleItem(data: LmsModuleItemEntity): Promise<LmsModuleItemEntity>;
+  listModuleItems(tenantId: string, moduleId: string): Promise<LmsModuleItemEntity[]>;
 }

@@ -115,6 +115,10 @@ export const rolloverFormSchema = z.object({
     .transform((v) => (v === '' || v === undefined ? undefined : v)),
   promoteEnrollments: z.boolean().optional(),
   dryRun: z.boolean().optional(),
+  copyFeeStructures: z.boolean().optional(),
+  copyTimetable: z.boolean().optional(),
+  copyLmsAssignments: z.boolean().optional(),
+  idempotencyKey: z.string().min(8).max(128).optional(),
 });
 export type RolloverFormValues = z.input<typeof rolloverFormSchema>;
 

@@ -949,27 +949,24 @@ export async function registerParentPortalRoutes(
     },
     {
       path: 'report-cards',
-      parent: async (tenantId: string, parentUserId: string, studentId: string) => {
-        const grades = await parentPortalService.getChildGrades(tenantId, parentUserId, studentId);
-        return {
-          data: grades.reportCards ?? [],
-          meta: { ...(grades.meta ?? {}), view: 'report-cards' },
-        };
-      },
-      self: async (tenantId: string, actor: { userId: string; email?: string | null }) => {
-        const grades = await parentPortalService.getSelfGrades(tenantId, actor);
-        return {
-          data: grades.reportCards ?? [],
-          meta: { ...(grades.meta ?? {}), view: 'report-cards' },
-        };
-      },
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildReportCards(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfReportCards(tenantId, actor),
     },
     {
       path: 'lms',
       parent: (tenantId: string, parentUserId: string, studentId: string) =>
-        parentPortalService.getChildHomework(tenantId, parentUserId, studentId),
+        parentPortalService.getChildLms(tenantId, parentUserId, studentId),
       self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
-        parentPortalService.getSelfHomework(tenantId, actor),
+        parentPortalService.getSelfLms(tenantId, actor),
+    },
+    {
+      path: 'pal',
+      parent: (tenantId: string, parentUserId: string, studentId: string) =>
+        parentPortalService.getChildPalPlan(tenantId, parentUserId, studentId),
+      self: (tenantId: string, actor: { userId: string; email?: string | null }) =>
+        parentPortalService.getSelfPalPlan(tenantId, actor),
     },
     {
       path: 'timetable',

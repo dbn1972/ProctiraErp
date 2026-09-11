@@ -76,6 +76,8 @@ export class InMemoryLmsRepository implements LmsRepository {
   private lessons = new Map<string, LessonEntity>();
   private lessonResources = new Map<string, LessonResourceEntity[]>();
   private content = new Map<string, ContentItemEntity>();
+  private modules = new Map<string, import('./lms-repository.js').LmsModuleEntity>();
+  private moduleItems = new Map<string, import('./lms-repository.js').LmsModuleItemEntity>();
 
   clear(): void {
     this.skills.clear();
@@ -94,6 +96,8 @@ export class InMemoryLmsRepository implements LmsRepository {
     this.lessons.clear();
     this.lessonResources.clear();
     this.content.clear();
+    this.modules.clear();
+    this.moduleItems.clear();
   }
 
   // ─── Skills ────────────────────────────────────────────────────────────
@@ -181,6 +185,7 @@ export class InMemoryLmsRepository implements LmsRepository {
       .filter((a) => !filter.subject || a.subject === filter.subject)
       .filter((a) => !filter.gradeLevel || a.gradeLevel === filter.gradeLevel)
       .filter((a) => !filter.sectionId || a.sectionId === filter.sectionId)
+      .filter((a) => !filter.academicPeriodId || a.academicPeriodId === filter.academicPeriodId)
       .filter((a) => !search || a.title.toLowerCase().includes(search))
       .filter(
         (a) =>
@@ -667,4 +672,33 @@ export class InMemoryLmsRepository implements LmsRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     return paginate(items, pagination);
   }
+  async createModule(data: import('./lms-repository.js').LmsModuleEntity) {
+    this.modules.set(data.id, data);
+    return data;
+  }
+  async findModule(tenantId: string, id: string) {
+    const row = this.modules.get(id);
+    return row && row.tenantId === tenantId ? row : null;
+  }
+  async listModules(
+    tenantId: string,
+    filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
+  ) {
+    return [...this.modules.values()]
+      .filter((m) => m.tenantId === tenantId)
+      .filter((m) => (filter.classKey ? m.classKey === filter.classKey : true))
+      .filter((m) => (filter.academicPeriodId ? m.academicPeriodId === filter.academicPeriodId : true))
+      .filter((m) => (filter.institutionId ? m.institutionId === filter.institutionId : true))
+      .sort((a, b) => a.position - b.position);
+  }
+  async createModuleItem(data: import('./lms-repository.js').LmsModuleItemEntity) {
+    this.moduleItems.set(data.id, data);
+    return data;
+  }
+  async listModuleItems(tenantId: string, moduleId: string) {
+    return [...this.moduleItems.values()]
+      .filter((i) => i.tenantId === tenantId && i.moduleId === moduleId)
+      .sort((a, b) => a.position - b.position);
+  }
+
 }

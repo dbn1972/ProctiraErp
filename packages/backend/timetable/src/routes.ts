@@ -872,7 +872,7 @@ export async function registerTimetableRoutes(
       return sendDomainError(reply, error);
     }
   });
-  app.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
+  fastify.post<{ Body: { sourcePeriodId?: string; targetPeriodId?: string } }>(
     `${prefix}/clone-period`,
     async (request, reply) => {
       const sourcePeriodId = request.body?.sourcePeriodId;
@@ -884,7 +884,9 @@ export async function registerTimetableRoutes(
           message: 'sourcePeriodId and targetPeriodId are required',
         });
       }
-      const tenantId = request.tenantId ?? (request.headers['x-tenant-id'] as string);
+      const tenantId =
+        (request as { tenantId?: string }).tenantId ??
+        (typeof request.headers['x-tenant-id'] === 'string' ? request.headers['x-tenant-id'] : undefined);
       if (!tenantId) {
         return reply.code(400).send({ statusCode: 400, error: 'Bad Request', message: 'tenant required' });
       }
