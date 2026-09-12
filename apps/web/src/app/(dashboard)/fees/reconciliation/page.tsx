@@ -12,10 +12,10 @@ export const dynamic = 'force-dynamic';
 export default async function FeesReconciliationPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ batch?: string }> | { batch?: string };
+  searchParams?: Promise<{ batch?: string }>;
 }) {
   await requireSession();
-  const params = searchParams instanceof Promise ? await searchParams : searchParams;
+  const params = (await searchParams) ?? {};
   const batches = await listReconciliationBatches();
   const requested = params?.batch?.trim() || null;
   const selectedBatchId =
