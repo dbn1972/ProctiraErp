@@ -28,13 +28,19 @@ function truthy(value: string | undefined): boolean {
 
 /** Snapshot env into a typed bag (avoids unsafe ProcessEnv default params). */
 export function readPersistencePolicyEnv(
-  source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+  source?: Record<string, string | undefined>,
 ): PersistencePolicyEnv {
+  const env = source ?? {
+    NODE_ENV: process.env['NODE_ENV'],
+    DATABASE_URL: process.env['DATABASE_URL'],
+    REQUIRE_DATABASE: process.env['REQUIRE_DATABASE'],
+    ALLOW_IN_MEMORY_IN_PRODUCTION: process.env['ALLOW_IN_MEMORY_IN_PRODUCTION'],
+  };
   return {
-    NODE_ENV: source.NODE_ENV,
-    DATABASE_URL: source.DATABASE_URL,
-    REQUIRE_DATABASE: source.REQUIRE_DATABASE,
-    ALLOW_IN_MEMORY_IN_PRODUCTION: source.ALLOW_IN_MEMORY_IN_PRODUCTION,
+    NODE_ENV: env.NODE_ENV,
+    DATABASE_URL: env.DATABASE_URL,
+    REQUIRE_DATABASE: env.REQUIRE_DATABASE,
+    ALLOW_IN_MEMORY_IN_PRODUCTION: env.ALLOW_IN_MEMORY_IN_PRODUCTION,
   };
 }
 
@@ -53,6 +59,17 @@ export function resolvePersistenceMode(
   return 'memory';
 }
 
+type WarnLogger = { warn: (message: string) => void };
+
+function defaultWarnLogger(): WarnLogger {
+  return {
+    warn(message: string): void {
+      // eslint-disable-next-line no-console -- intentional operator-facing fallback signal
+      console.warn(message);
+    },
+  };
+}
+
 /**
  * Throws when an in-memory store must not be used in this environment;
  * otherwise emits a single warning per domain so the fallback is never silent.
@@ -64,7 +81,7 @@ export function resolvePersistenceMode(
 export function assertInMemoryFallbackAllowed(
   domain: string,
   env: PersistencePolicyEnv = readPersistencePolicyEnv(),
-  log: Pick<Console, 'warn'> = console,
+  log: WarnLogger = defaultWarnLogger(),
 ): void {
   if (env.DATABASE_URL?.trim()) {
     throw new Error(
