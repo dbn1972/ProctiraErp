@@ -22,14 +22,14 @@ See: `docs/audits/DEV_P2_LIB_CIRCULATION_ACQ.md`, `docs/audits/PRODUCT_LIBRARY_O
 
 ## Layout
 
-| Path                    | Role                                      |
-| ----------------------- | ----------------------------------------- |
-| `src/library-service.ts`| Domain service                            |
-| `src/routes.ts`         | Fastify routes (`/library/*`)             |
-| `src/pg-library-repository.ts` | Postgres store                     |
+| Path                           | Role                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `src/library-service.ts`       | Domain service                                                           |
+| `src/routes.ts`                | Fastify routes (`/library/*`)                                            |
+| `src/pg-library-repository.ts` | Postgres store                                                           |
 | `src/in-memory-repository.ts`  | Memory store (no silent prod fallback when `DATABASE_URL` set — factory) |
-| `src/library-ops.ts`    | Hold/fine helpers                         |
-| `src/isbn-lookup.ts`    | Stub / Open Library adapter               |
+| `src/library-ops.ts`           | Hold/fine helpers                                                        |
+| `src/isbn-lookup.ts`           | Stub / Open Library adapter                                              |
 
 ## Verify
 

@@ -24,14 +24,14 @@ A librarian can import a title from an ISBN, place and fulfil holds when copies 
 
 ## 3. Scope
 
-| In scope                                                                            | Non-goals                                                                                     |
-| ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| ISBN lookup adapter: stub (default) + Open Library HTTP via `LIBRARY_ISBN_PROVIDER` | Live Open Library in unit tests (never call the network)                                      |
-| Holds/reservations queue per title with position + ready expiry                     | Inter-library loan, MARC ingest, RFID                                                         |
-| Copy barcode/accession + lookup + scan checkout/return                              | Physical scanner hardware drivers                                                             |
-| OPAC read-only search for staff/student/parent                                      | Full student/parent portal OPAC shells (`apps/web/(student)` / `(parent)` not in this stream) |
-| Per-tenant fine policy (cents/day + cap), assess, list, mark paid, summary route    | Editing `packages/backend/fees`; live PSP posting beyond existing G-603 optional ledger port  |
-| Dual in-memory + pg stores                                                          | Prisma for this path                                                                          |
+| In scope                                                                            | Non-goals                                                                                                                                                     |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ISBN lookup adapter: stub (default) + Open Library HTTP via `LIBRARY_ISBN_PROVIDER` | Live Open Library in unit tests (never call the network)                                                                                                      |
+| Holds/reservations queue per title with position + ready expiry                     | Inter-library loan, MARC ingest, RFID                                                                                                                         |
+| Copy barcode/accession + lookup + scan checkout/return                              | Physical scanner hardware drivers                                                                                                                             |
+| OPAC read-only search for staff/student/parent                                      | Full student/parent portal OPAC shells (`apps/web/(student)` / `(parent)` not in this stream)                                                                 |
+| Per-tenant fine policy (cents/day + cap), assess, list, mark paid, summary route    | Editing `packages/backend/fees`; live PSP posting beyond existing G-603 optional ledger port                                                                  |
+| Dual in-memory + pg stores                                                          | Prisma for this path                                                                                                                                          |
 | Circulation desk (checkout / return / renew) — **ships** (P2-LIB)                   | **Acquisitions** (vendors, POs, receiving, fund encumbrance, serials claiming) — **dated NON-GOAL 2026-09-12** (PRD-017); see `DEV_P2_LIB_CIRCULATION_ACQ.md` |
 
 ## 4. Peer parity
