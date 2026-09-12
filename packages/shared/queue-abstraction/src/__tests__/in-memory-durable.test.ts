@@ -17,9 +17,9 @@ describe('matchRoutingKey', () => {
   });
 
   it('matches single-segment wildcards', () => {
-    expect(matchRoutingKey('tenant.*.exam.document.generate', 'tenant.t1.exam.document.generate')).toBe(
-      true,
-    );
+    expect(
+      matchRoutingKey('tenant.*.exam.document.generate', 'tenant.t1.exam.document.generate'),
+    ).toBe(true);
     expect(
       matchRoutingKey('tenant.*.exam.document.generate', 'tenant.t1.other.document.generate'),
     ).toBe(false);
@@ -58,9 +58,7 @@ describe('InMemoryDurableQueueAdapter restart safety', () => {
   it('publishes with tenant-prefixed routing key', async () => {
     await adapter.publish(msg());
     expect(store.pendingCount).toBe(1);
-    expect(store.pending[0]?.routingKey).toBe(
-      buildTenantName('t1', EXAM_DOCUMENT_JOB_TYPE),
-    );
+    expect(store.pending[0]?.routingKey).toBe(buildTenantName('t1', EXAM_DOCUMENT_JOB_TYPE));
   });
 
   it('reclaims in-flight messages on disconnect (crash) and redelivers after restart', async () => {
