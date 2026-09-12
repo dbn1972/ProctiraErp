@@ -209,8 +209,9 @@ describe('G-702 — every mounted prefix has an RBAC resource mapping (default-d
     // auth is mounted + rbacPlugin-registered even though /auth is path-excluded
     const auth = MOUNT_MATRIX.find((e) => e.package === 'auth');
     expect(auth?.rbacWired).toBe(true);
-    expect(dishonest, `Flip rbacWired:true — prefixes already gated: ${dishonest.join('; ')}`).toEqual(
-      [],
-    );
+    expect(
+      dishonest,
+      `Flip rbacWired:true — prefixes already gated: ${dishonest.join('; ')}`,
+    ).toEqual([]);
   });
 });
