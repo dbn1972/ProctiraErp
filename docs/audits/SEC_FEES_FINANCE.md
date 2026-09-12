@@ -19,3 +19,11 @@
 | Netting API tenant-scoped                  | ☑    | `applyScholarshipNetting` + repository filters; unit idempotency    |
 | Staff UI does not claim cross-tenant apply | ☑    | Session + gateway JWT; gated e2e foreign netting assertion          |
 | Sandbox / no live PSP on this surface      | ☑    | Honesty copy on `/fees/scholarship-netting`; G-202 waiver unchanged |
+
+## F2 addendum (2026-09-12)
+
+| Check                            | Pass | Evidence                                                               |
+| -------------------------------- | ---- | ---------------------------------------------------------------------- |
+| Dunning APIs tenant-scoped       | ☑    | suppressions/audit filtered by `tenantId`; unit isolation              |
+| Suppressions prevent send        | ☑    | `reminder-dunning.test.ts`                                             |
+| No live Twilio/SES claim (G-709) | ☑    | Sandbox mode + honesty note on `/fees/dunning`; waiver board unchanged |

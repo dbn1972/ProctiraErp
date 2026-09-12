@@ -98,6 +98,7 @@ const DASHBOARD_ROUTES = [
   { path: '/student/pal', label: 'student-pal' },
   { path: '/fees/structures', label: 'fees-structures' },
   { path: '/fees/reports', label: 'fees-reports' },
+  { path: '/fees/dunning', label: 'fees-dunning' },
   { path: '/admissions/enquiries', label: 'admissions-enquiries' },
   { path: '/admissions/seat-matrix', label: 'admissions-seat-matrix' },
   { path: '/admissions/merit', label: 'admissions-merit' },

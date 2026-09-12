@@ -50,9 +50,34 @@ export const scholarshipNettingFormSchema = z.object({
   currency: z.string().max(8).optional().or(z.literal('')),
 });
 
+/** Staff F2 — POST /fees/reminders/send */
+export const reminderSendFormSchema = z.object({
+  invoiceIds: z.array(z.string().regex(UUID)).min(1, 'Select at least one invoice'),
+  channels: z
+    .array(z.enum(['email', 'sms']))
+    .min(1, 'Select at least one channel')
+    .max(2),
+  minOverdueDays: z.coerce.number().int().min(1).max(365).optional(),
+  cadenceDays: z.coerce.number().int().min(0).max(90).optional(),
+});
+
+/** Staff F2 — POST /fees/reminders/suppressions */
+export const reminderSuppressionFormSchema = z
+  .object({
+    studentId: z.string().regex(UUID).optional().or(z.literal('')),
+    invoiceId: z.string().regex(UUID).optional().or(z.literal('')),
+    reason: z.string().min(1, 'Reason is required').max(2000),
+  })
+  .refine((value) => Boolean(value.studentId?.trim() || value.invoiceId?.trim()), {
+    message: 'Student or invoice UUID is required',
+    path: ['studentId'],
+  });
+
 export type FeeStructureFormValues = z.infer<typeof feeStructureFormSchema>;
 export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
 export type ReconciliationFormValues = z.infer<typeof reconciliationFormSchema>;
 export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
+export type ReminderSendFormValues = z.infer<typeof reminderSendFormSchema>;
+export type ReminderSuppressionFormValues = z.infer<typeof reminderSuppressionFormSchema>;

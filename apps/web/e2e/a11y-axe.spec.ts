@@ -152,6 +152,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/fees/invoices',
     '/fees/receipts',
     '/fees/scholarship-netting',
+    '/fees/dunning',
     '/workflows',
     '/workflows/approvals',
     '/workflows/instances',
@@ -225,6 +226,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     // Wave 9 (G-903 fees structures/reports, G-906 admissions CRM, G-907 gradebook surfaces)
     '/fees/structures',
     '/fees/reports',
+    '/fees/dunning',
     '/admissions/enquiries',
     '/admissions/seat-matrix',
     '/admissions/merit',

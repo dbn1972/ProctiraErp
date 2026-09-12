@@ -22,6 +22,31 @@ import {
   concessionDiscountCents,
 } from './instalment-schedule.js';
 import { SandboxPaymentAdapter, type PaymentAdapter } from './payment-adapter.js';
+import {
+  FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+  type ReminderChannel,
+  type ReminderSendAuditEntity,
+  type ReminderSuppressionEntity,
+  type SendReminderResultRow,
+} from './reminder-sandbox.js';
+
+export type { ReminderChannel, ReminderSendAuditEntity, ReminderSuppressionEntity };
+export { FEES_REMINDER_SANDBOX_HONESTY_NOTE };
+
+export interface AddReminderSuppressionInput {
+  studentId?: string;
+  invoiceId?: string;
+  reason: string;
+}
+
+export interface SendRemindersInput {
+  invoiceIds: string[];
+  channels: ReminderChannel[];
+  /** Skip invoices with fewer overdue days than this (default 1). */
+  minOverdueDays?: number;
+  /** Skip if a sandbox send for the same invoice+channel exists within this many days. */
+  cadenceDays?: number;
+}
 
 export interface CreateFeePlanInput {
   code?: string;
@@ -133,6 +158,10 @@ export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
 
 export class FeesService {
   private readonly paymentAdapter: PaymentAdapter;
+  /** F2 — process-local suppressions (sandbox console; not durable SQL). */
+  private readonly reminderSuppressions: ReminderSuppressionEntity[] = [];
+  /** F2 — process-local send audit trail (sandbox honesty). */
+  private readonly reminderSendAudits: ReminderSendAuditEntity[] = [];
 
   constructor(
     private readonly repository: FeesRepository,
@@ -648,6 +677,15 @@ export class FeesService {
     return refund;
   }
 
+  private isReminderSuppressed(tenantId: string, studentId: string, invoiceId: string): boolean {
+    return this.reminderSuppressions.some(
+      (row) =>
+        row.tenantId === tenantId &&
+        ((row.invoiceId != null && row.invoiceId === invoiceId) ||
+          (row.studentId != null && row.studentId === studentId)),
+    );
+  }
+
   async listOverdueForReminder(tenantId: string, asOf: Date) {
     const invoices = await this.repository.listInvoicesForTenant(tenantId);
     return invoices
@@ -666,7 +704,177 @@ export class FeesService {
           1,
           Math.floor((asOf.getTime() - invoice.dueAt!.getTime()) / 86_400_000),
         ),
+        suppressed: this.isReminderSuppressed(tenantId, invoice.studentId, invoice.id),
       }));
+  }
+
+  async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
+    return this.reminderSuppressions
+      .filter((row) => row.tenantId === tenantId)
+      .map((row) => ({ ...row }));
+  }
+
+  async addReminderSuppression(
+    tenantId: string,
+    actorId: string,
+    input: AddReminderSuppressionInput,
+  ): Promise<ReminderSuppressionEntity> {
+    const studentId = input.studentId?.trim() || null;
+    const invoiceId = input.invoiceId?.trim() || null;
+    if (!studentId && !invoiceId) {
+      throw new BusinessRuleError('studentId or invoiceId is required for a suppression');
+    }
+    if (!input.reason?.trim()) {
+      throw new BusinessRuleError('reason is required');
+    }
+    const entity: ReminderSuppressionEntity = {
+      id: uuidv4(),
+      tenantId,
+      studentId,
+      invoiceId,
+      reason: input.reason.trim(),
+      createdBy: actorId,
+      createdAt: new Date(),
+    };
+    this.reminderSuppressions.push(entity);
+    return { ...entity };
+  }
+
+  async removeReminderSuppression(tenantId: string, suppressionId: string): Promise<void> {
+    const index = this.reminderSuppressions.findIndex(
+      (row) => row.tenantId === tenantId && row.id === suppressionId,
+    );
+    if (index < 0) {
+      throw new NotFoundError(`Reminder suppression ${suppressionId} not found`);
+    }
+    this.reminderSuppressions.splice(index, 1);
+  }
+
+  async listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]> {
+    return this.reminderSendAudits
+      .filter((row) => row.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((row) => ({ ...row }));
+  }
+
+  async sendReminders(
+    tenantId: string,
+    actorId: string,
+    input: SendRemindersInput,
+    asOf: Date = new Date(),
+  ): Promise<{
+    mode: 'sandbox';
+    honestyNote: string;
+    results: SendReminderResultRow[];
+  }> {
+    const channels = [...new Set(input.channels)];
+    if (channels.length === 0) {
+      throw new BusinessRuleError('At least one channel (email or sms) is required');
+    }
+    if (!input.invoiceIds?.length) {
+      throw new BusinessRuleError('invoiceIds is required');
+    }
+    const minOverdueDays = Math.max(1, input.minOverdueDays ?? 1);
+    const cadenceDays = Math.max(0, input.cadenceDays ?? 0);
+    const overdue = await this.listOverdueForReminder(tenantId, asOf);
+    const byId = new Map(overdue.map((row) => [row.invoiceId, row]));
+    const results: SendReminderResultRow[] = [];
+
+    for (const invoiceId of input.invoiceIds) {
+      const row = byId.get(invoiceId);
+      if (!row) {
+        for (const channel of channels) {
+          results.push({
+            invoiceId,
+            studentId: '',
+            channel,
+            messageId: null,
+            suppressed: false,
+            skippedReason: 'not_overdue_or_unknown',
+          });
+        }
+        continue;
+      }
+      if (row.suppressed) {
+        for (const channel of channels) {
+          results.push({
+            invoiceId,
+            studentId: row.studentId,
+            channel,
+            messageId: null,
+            suppressed: true,
+            skippedReason: 'suppressed',
+          });
+        }
+        continue;
+      }
+      if (row.overdueDays < minOverdueDays) {
+        for (const channel of channels) {
+          results.push({
+            invoiceId,
+            studentId: row.studentId,
+            channel,
+            messageId: null,
+            suppressed: false,
+            skippedReason: 'below_min_overdue_days',
+          });
+        }
+        continue;
+      }
+
+      for (const channel of channels) {
+        if (cadenceDays > 0) {
+          const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
+          const recent = this.reminderSendAudits.some(
+            (audit) =>
+              audit.tenantId === tenantId &&
+              audit.invoiceId === invoiceId &&
+              audit.channel === channel &&
+              audit.createdAt.getTime() >= cutoff,
+          );
+          if (recent) {
+            results.push({
+              invoiceId,
+              studentId: row.studentId,
+              channel,
+              messageId: null,
+              suppressed: false,
+              skippedReason: 'within_cadence',
+            });
+            continue;
+          }
+        }
+
+        const messageId = `sandbox-${channel}:fees:${tenantId}:${invoiceId}:${Date.now()}`;
+        const audit: ReminderSendAuditEntity = {
+          id: uuidv4(),
+          tenantId,
+          invoiceId,
+          studentId: row.studentId,
+          channel,
+          messageId,
+          mode: 'sandbox',
+          honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+          actorId,
+          createdAt: new Date(),
+        };
+        this.reminderSendAudits.push(audit);
+        results.push({
+          invoiceId,
+          studentId: row.studentId,
+          channel,
+          messageId,
+          suppressed: false,
+          auditId: audit.id,
+        });
+      }
+    }
+
+    return {
+      mode: 'sandbox',
+      honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+      results,
+    };
   }
 
   async duesReport(tenantId: string, asOf: Date = new Date()) {
