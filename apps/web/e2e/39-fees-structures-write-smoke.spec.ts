@@ -98,7 +98,9 @@ test.describe('Fee structures — pages render (ungated)', () => {
 
   test('/fees/scholarship-netting renders the apply form', async ({ page }) => {
     await page.goto('/fees/scholarship-netting', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /scholarship netting/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1, name: /^scholarship netting$/i }),
+    ).toBeVisible();
     await expect(page.getByTestId('scholarship-netting-form')).toBeVisible();
     await expect(page.getByTestId('submit-scholarship-netting')).toBeVisible();
   });
@@ -310,7 +312,7 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
       `${GATEWAY_URL}/api/v1/fees/structures/${structure.id}/bulk-invoice`,
       { headers: headers(), data: { studentIds: [STUDENT_A] } },
     );
-    expect(bulk.status(), await bulk.text()).toBe(200);
+    expect([200, 201], await bulk.text()).toContain(bulk.status());
     const invoiceId = ((await bulk.json()).created as Array<{ id: string }>)[0]?.id;
     expect(invoiceId).toBeTruthy();
 

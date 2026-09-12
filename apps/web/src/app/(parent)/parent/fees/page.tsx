@@ -11,9 +11,16 @@ import {
   type FeeInvoice,
   type FeeReceipt,
 } from '@/lib/api/fees';
-import { formatAmount, PayInvoiceButton } from './_components/pay-invoice-button';
+import { PayInvoiceButton } from './_components/pay-invoice-button';
 
 export const dynamic = 'force-dynamic';
+
+function formatAmount(cents: number, currency: string): string {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currency || 'USD',
+  }).format(cents / 100);
+}
 
 function remainingBalanceCents(invoice: FeeInvoice, receipts: FeeReceipt[]): number {
   if (invoice.status === 'paid' || invoice.status === 'void') return 0;
