@@ -13,7 +13,16 @@ import type {
   ListRoomsFilter,
   ListSectionsFilter,
   ListSubstitutionsFilter,
+  UpdateConcurrencyOpts,
 } from './timetable-repository.js';
+import { TimetableVersionConflictError } from './timetable-errors.js';
+
+/** Ensure OCC tokens always advance (same-ms Date.now collisions). */
+function nextUpdatedAt(previous: string): string {
+  const now = new Date().toISOString();
+  if (now > previous) return now;
+  return new Date(Date.parse(previous) + 1).toISOString();
+}
 
 export class InMemoryTimetableRepository implements TimetableRepository {
   private readonly bellSchedules = new Map<string, BellScheduleEntity>();
@@ -151,15 +160,23 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
-  async updateSection(tenantId: string, id: string, patch: Partial<SectionEntity>) {
+  async updateSection(
+    tenantId: string,
+    id: string,
+    patch: Partial<SectionEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const cur = await this.getSection(tenantId, id);
     if (!cur) return null;
+    if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+      throw new TimetableVersionConflictError('section', id, cur.updatedAt);
+    }
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nextUpdatedAt(cur.updatedAt),
     };
     this.sections.set(id, next);
     return next;
@@ -234,15 +251,23 @@ export class InMemoryTimetableRepository implements TimetableRepository {
     return row;
   }
 
-  async updateMeeting(tenantId: string, id: string, patch: Partial<SectionMeetingEntity>) {
+  async updateMeeting(
+    tenantId: string,
+    id: string,
+    patch: Partial<SectionMeetingEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const cur = await this.getMeeting(tenantId, id);
     if (!cur) return null;
+    if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+      throw new TimetableVersionConflictError('section_meeting', id, cur.updatedAt);
+    }
     const next = {
       ...cur,
       ...patch,
       id: cur.id,
       tenantId: cur.tenantId,
-      updatedAt: new Date().toISOString(),
+      updatedAt: nextUpdatedAt(cur.updatedAt),
     };
     this.meetings.set(id, next);
     return next;

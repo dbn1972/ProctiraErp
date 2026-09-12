@@ -27,7 +27,12 @@ import {
   CreateTeacherAbsenceSchema,
 } from './schemas.js';
 import { assertTimetableAccess, type TimetableAction } from './timetable-access.js';
-import { isTimetableClashError, isTimetableSchemaMissingError } from './timetable-errors.js';
+import {
+  isTimetableClashError,
+  isTimetableSchemaMissingError,
+  isTimetableVersionConflictError,
+  normalizeIfMatchToken,
+} from './timetable-errors.js';
 import type { TimetableService } from './timetable-service.js';
 
 export interface TimetableRoutesOptions {
@@ -78,8 +83,23 @@ function requireAction(
   }
 }
 
+function ifMatchOf(request: FastifyRequest): string | undefined {
+  const header = request.headers['if-match'];
+  const raw = Array.isArray(header) ? header[0] : header;
+  return normalizeIfMatchToken(raw);
+}
+
+function setEtag(reply: FastifyReply, updatedAt: string | undefined | null) {
+  if (updatedAt) {
+    reply.header('ETag', `"${updatedAt}"`);
+  }
+}
+
 function sendDomainError(reply: FastifyReply, error: unknown) {
   if (isTimetableClashError(error)) {
+    return reply.status(409).send(error.toJSON());
+  }
+  if (isTimetableVersionConflictError(error)) {
     return reply.status(409).send(error.toJSON());
   }
   if (isTimetableSchemaMissingError(error)) {
@@ -363,12 +383,19 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.updateMeeting(tenantId, id, validated.data);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.updateMeeting(
+        tenantId,
+        id,
+        validated.data,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       if (!row) {
         return reply
           .status(404)
           .send({ code: 'NOT_FOUND', message: 'Meeting not found', statusCode: 404 });
       }
+      setEtag(reply, row.updatedAt);
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -538,6 +565,7 @@ export async function registerTimetableRoutes(
         service.listEnrollments(tenantId, id),
         service.listMeetings(tenantId, { sectionId: id }),
       ]);
+      setEtag(reply, row.updatedAt);
       return reply.send({ ...row, enrollments, meetings });
     } catch (error) {
       return sendDomainError(reply, error);
@@ -589,7 +617,13 @@ export async function registerTimetableRoutes(
     }
     try {
       const { id } = request.params as { id: string };
-      const row = await service.updateSection(tenantId, id, validated.data);
+      const expectedUpdatedAt = ifMatchOf(request);
+      const row = await service.updateSection(
+        tenantId,
+        id,
+        validated.data,
+        expectedUpdatedAt ? { expectedUpdatedAt } : undefined,
+      );
       if (!row) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -597,6 +631,7 @@ export async function registerTimetableRoutes(
           statusCode: 404,
         });
       }
+      setEtag(reply, row.updatedAt);
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);

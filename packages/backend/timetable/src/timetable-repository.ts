@@ -144,6 +144,11 @@ export interface ListRoomsFilter {
   institutionId?: string;
 }
 
+/** Thin optimistic concurrency: If-Match token is the entity `updatedAt` ISO string. */
+export interface UpdateConcurrencyOpts {
+  expectedUpdatedAt?: string;
+}
+
 export interface TimetableRepository {
   listBellSchedules(
     tenantId: string,
@@ -179,6 +184,7 @@ export interface TimetableRepository {
     tenantId: string,
     id: string,
     patch: Partial<SectionEntity>,
+    opts?: UpdateConcurrencyOpts,
   ): Promise<SectionEntity | null>;
   deleteSection(tenantId: string, id: string): Promise<boolean>;
 
@@ -202,6 +208,7 @@ export interface TimetableRepository {
     tenantId: string,
     id: string,
     patch: Partial<SectionMeetingEntity>,
+    opts?: UpdateConcurrencyOpts,
   ): Promise<SectionMeetingEntity | null>;
   deleteMeeting(tenantId: string, id: string): Promise<boolean>;
 

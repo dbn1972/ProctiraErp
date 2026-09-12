@@ -33,6 +33,7 @@ import type {
   ListRoomsFilter,
   ListSectionsFilter,
   ListSubstitutionsFilter,
+  UpdateConcurrencyOpts,
 } from './timetable-repository.js';
 
 export interface TimetableAuditEntry {
@@ -282,13 +283,18 @@ export class TimetableService {
     });
   }
 
-  async updateSection(tenantId: string, id: string, patch: Partial<SectionInput>) {
+  async updateSection(
+    tenantId: string,
+    id: string,
+    patch: Partial<SectionInput>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const existing = await this.repo.getSection(tenantId, id);
     if (!existing) return null;
     if (existing.status === 'PUBLISHED') {
       throw new ValidationError('Published sections are locked; unpublish before editing');
     }
-    return this.repo.updateSection(tenantId, id, patch);
+    return this.repo.updateSection(tenantId, id, patch, opts);
   }
 
   async deleteSection(tenantId: string, id: string) {
@@ -593,7 +599,12 @@ export class TimetableService {
     return row;
   }
 
-  async updateMeeting(tenantId: string, id: string, patch: Partial<MeetingInput>) {
+  async updateMeeting(
+    tenantId: string,
+    id: string,
+    patch: Partial<MeetingInput>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return null;
     await this.assertSectionEditable(tenantId, patch.sectionId ?? existing.sectionId);
@@ -609,7 +620,7 @@ export class TimetableService {
       status: patch.status ?? existing.status,
     };
     await this.assertNoMeetingClash(tenantId, candidate, id);
-    const row = await this.repo.updateMeeting(tenantId, id, patch);
+    const row = await this.repo.updateMeeting(tenantId, id, patch, opts);
     if (row) {
       this.recordAudit({
         tenantId,
