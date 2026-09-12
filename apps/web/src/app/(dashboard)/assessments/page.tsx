@@ -109,6 +109,28 @@ export default async function AssessmentsPage(props: PageProps) {
         </div>
       </div>
 
+      {/* P1-ASSESS — moderation/publication lives on the gradebook workflow */}
+      <aside
+        data-testid="assess-moderation-lifecycle"
+        className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
+        aria-label="Grade moderation and publication lifecycle"
+      >
+        <p>
+          <span className="font-medium text-foreground">Moderation &amp; publication:</span>{' '}
+          draft → submit → approve → lock → publish runs on the institution gradebook. Parents and
+          students only see published grades.
+        </p>
+        <p className="mt-1">
+          <Link
+            href="/assessments/report-cards"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+            data-testid="assess-moderation-report-cards-link"
+          >
+            View published grades &amp; report cards
+          </Link>
+        </p>
+      </aside>
+
       {/* ── Table card ── */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">
