@@ -4,7 +4,7 @@
 > Gate: `apps/web/src/app/page-regression-matrix.test.ts` fails when any page lacks an e2e reference.
 
 - App Router pages: **200**
-- Playwright specs: **83**
+- Playwright specs: **84**
 - Pages without any e2e reference: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -14,7 +14,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | Page | Coverage kinds | Specs |
 |---|---|---|
 | `/forgot-password` | a11y, dark, smoke, touch | `a11y-axe.spec.ts`<br>`auth/forgot-password.spec.ts`<br>`auth/ungated-auth-matrix.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/login` | a11y, dark, functional, smoke, touch, visual | `09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`20-attendance-inventory-smoke.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`23-master-schedule-inventory-smoke.spec.ts`<br>`24-visual-regression.spec.ts`<br>`a11y-axe.spec.ts`<br>`auth/logout-oauth-redirect.spec.ts`<br>`auth/reset-password.spec.ts`<br>`auth/signin-federated.spec.ts`<br>`auth/signin-local.spec.ts`<br>`auth/signin-mfa-branch.spec.ts`<br>`auth/ungated-auth-matrix.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/login` | a11y, dark, functional, smoke, touch, visual | `09-route-permission-coupling.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`18-workflows-inventory-smoke.spec.ts`<br>`20-attendance-inventory-smoke.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`23-master-schedule-inventory-smoke.spec.ts`<br>`24-visual-regression.spec.ts`<br>`a11y-axe.spec.ts`<br>`auth/logout-oauth-redirect.spec.ts`<br>`auth/reset-password.spec.ts`<br>`auth/session-gate.spec.ts`<br>`auth/signin-federated.spec.ts`<br>`auth/signin-local.spec.ts`<br>`auth/signin-mfa-branch.spec.ts`<br>`auth/ungated-auth-matrix.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/logout` | smoke | `auth/logout-oauth-redirect.spec.ts` |
 | `/mfa` | a11y, dark, smoke, touch | `a11y-axe.spec.ts`<br>`auth/mfa-verify.spec.ts`<br>`auth/signin-mfa-branch.spec.ts`<br>`auth/ungated-auth-matrix.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/mfa-setup` | smoke | `auth/mfa-setup.spec.ts` |
