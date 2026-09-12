@@ -7,39 +7,40 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withPgTenant } from '@proctira/database';
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
-import type {
-  GatePassEntity,
-  GatePassRequestedBy,
-  GatePassStatus,
-  HostelAssignmentEntity,
-  HostelAttendanceEntity,
-  HostelAttendanceStatus,
-  HostelBedEntity,
-  HostelBlockEntity,
-  HostelEntity,
-  HostelFeeStructureEntity,
-  HostelLeaveEntity,
-  HostelRepository,
-  HostelRoomEntity,
-  HostelStatus,
-  HostelVisitorEntity,
-  LeaveStatus,
-  MessMeal,
-  MessPlanEntity,
-  MessPlanStatus,
-  MessMenuItemEntity,
-  MessSubscriptionEntity,
-  MessSubscriptionStatus,
-  NewGatePass,
-  NewHostelAttendance,
-  NewHostelFeeStructure,
-  NewMessMenuItem,
-  NewMessPlan,
-  NewMessSubscription,
-  VisitorStatus,
+import {
+  BedAssignmentConflictError,
+  type GatePassEntity,
+  type GatePassRequestedBy,
+  type GatePassStatus,
+  type HostelAssignmentEntity,
+  type HostelAttendanceEntity,
+  type HostelAttendanceStatus,
+  type HostelBedEntity,
+  type HostelBlockEntity,
+  type HostelEntity,
+  type HostelFeeStructureEntity,
+  type HostelLeaveEntity,
+  type HostelRepository,
+  type HostelRoomEntity,
+  type HostelStatus,
+  type HostelVisitorEntity,
+  type LeaveStatus,
+  type MessMeal,
+  type MessPlanEntity,
+  type MessPlanStatus,
+  type MessMenuItemEntity,
+  type MessSubscriptionEntity,
+  type MessSubscriptionStatus,
+  type NewGatePass,
+  type NewHostelAttendance,
+  type NewHostelFeeStructure,
+  type NewMessMenuItem,
+  type NewMessPlan,
+  type NewMessSubscription,
+  type VisitorStatus,
 } from './hostel-repository.js';
 
 const { Pool } = pg;
@@ -87,6 +88,15 @@ export async function ensureHostelSchema(pool: PgPoolLike = getSharedHostelPool(
     schemaReady = (async () => {
       await pool.query(readFileSync(resolveSqlFile('008_hostel_schema.sql'), 'utf8'));
       await pool.query(readFileSync(resolveSqlFile('040_hostel_ops_schema.sql'), 'utf8'));
+      // P2-HOSTEL: unique active bed / student (partial indexes — package-owned guard).
+      await pool.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_hostel_assignments_active_bed
+          ON hostel_assignments (tenant_id, bed_id)
+          WHERE is_active;
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_hostel_assignments_active_student
+          ON hostel_assignments (tenant_id, student_id)
+          WHERE is_active;
+      `);
     })();
   }
   await schemaReady;
@@ -291,9 +301,12 @@ export class PgHostelRepository implements HostelRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
+  private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
+    return withPgTenant(this.pool, tenantId, fn);
+  }
+
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
-    return withPgTenant(
-      this.pool,
+    return this.withTenant(
       tenantId,
       (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
     );
@@ -355,6 +368,81 @@ export class PgHostelRepository implements HostelRepository {
       ],
     );
     return mapAssignment(result.rows[0] as Record<string, unknown>);
+  }
+
+  async createActiveAssignment(
+    data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'> & { isActive: true },
+  ): Promise<HostelAssignmentEntity> {
+    await this.ensureSchema();
+    try {
+      return await this.withTenant(data.tenantId, async (client) => {
+        // Lock the bed row so concurrent active claims serialize.
+        const bedResult = await client.query(
+          `SELECT * FROM hostel_beds WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+          [data.bedId, data.tenantId],
+        );
+        const bedRow = bedResult.rows[0] as Record<string, unknown> | undefined;
+        if (!bedRow) {
+          throw new BedAssignmentConflictError('BED_UNAVAILABLE', 'Bed not found for assignment');
+        }
+        if (!Boolean(bedRow.is_available)) {
+          throw new BedAssignmentConflictError(
+            'BED_UNAVAILABLE',
+            'Bed is not available for assignment',
+          );
+        }
+
+        const studentBusy = await client.query(
+          `SELECT 1 FROM hostel_assignments
+           WHERE tenant_id = $1 AND student_id = $2 AND is_active
+           LIMIT 1`,
+          [data.tenantId, data.studentId],
+        );
+        if ((studentBusy.rowCount ?? studentBusy.rows.length) > 0) {
+          throw new BedAssignmentConflictError(
+            'STUDENT_ALREADY_ASSIGNED',
+            'Student already has an active bed assignment',
+          );
+        }
+
+        const insert = await client.query(
+          `INSERT INTO hostel_assignments
+             (id, tenant_id, student_id, bed_id, start_date, end_date, is_active)
+           VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING *`,
+          [
+            data.id,
+            data.tenantId,
+            data.studentId,
+            data.bedId,
+            data.startDate,
+            data.endDate,
+          ],
+        );
+        await client.query(
+          `UPDATE hostel_beds
+           SET is_available = false, updated_at = now()
+           WHERE id = $1 AND tenant_id = $2`,
+          [data.bedId, data.tenantId],
+        );
+        return mapAssignment(insert.rows[0] as Record<string, unknown>);
+      });
+    } catch (err) {
+      if (err instanceof BedAssignmentConflictError) throw err;
+      const pgErr = err as { code?: string; constraint?: string };
+      if (pgErr.code === '23505') {
+        if (String(pgErr.constraint ?? '').includes('active_student')) {
+          throw new BedAssignmentConflictError(
+            'STUDENT_ALREADY_ASSIGNED',
+            'Student already has an active bed assignment',
+          );
+        }
+        throw new BedAssignmentConflictError(
+          'BED_UNAVAILABLE',
+          'Bed is not available for assignment',
+        );
+      }
+      throw err;
+    }
   }
 
   async listAssignments(tenantId: string): Promise<HostelAssignmentEntity[]> {

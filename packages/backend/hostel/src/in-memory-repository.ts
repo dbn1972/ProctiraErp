@@ -1,27 +1,28 @@
 /**
  * In-memory hostel repository (v1 gateway default).
  */
-import type {
-  GatePassEntity,
-  HostelAssignmentEntity,
-  HostelAttendanceEntity,
-  HostelBedEntity,
-  HostelBlockEntity,
-  HostelEntity,
-  HostelFeeStructureEntity,
-  HostelLeaveEntity,
-  HostelRepository,
-  HostelRoomEntity,
-  HostelVisitorEntity,
-  MessMenuItemEntity,
-  MessPlanEntity,
-  MessSubscriptionEntity,
-  NewGatePass,
-  NewHostelAttendance,
-  NewHostelFeeStructure,
-  NewMessMenuItem,
-  NewMessPlan,
-  NewMessSubscription,
+import {
+  BedAssignmentConflictError,
+  type GatePassEntity,
+  type HostelAssignmentEntity,
+  type HostelAttendanceEntity,
+  type HostelBedEntity,
+  type HostelBlockEntity,
+  type HostelEntity,
+  type HostelFeeStructureEntity,
+  type HostelLeaveEntity,
+  type HostelRepository,
+  type HostelRoomEntity,
+  type HostelVisitorEntity,
+  type MessMenuItemEntity,
+  type MessPlanEntity,
+  type MessSubscriptionEntity,
+  type NewGatePass,
+  type NewHostelAttendance,
+  type NewHostelFeeStructure,
+  type NewMessMenuItem,
+  type NewMessPlan,
+  type NewMessSubscription,
 } from './hostel-repository.js';
 
 export class InMemoryHostelRepository implements HostelRepository {
@@ -59,6 +60,53 @@ export class InMemoryHostelRepository implements HostelRepository {
   ): Promise<HostelAssignmentEntity> {
     const now = new Date();
     const entity: HostelAssignmentEntity = { ...data, createdAt: now, updatedAt: now };
+    this.assignments.push(entity);
+    return entity;
+  }
+
+  async createActiveAssignment(
+    data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'> & { isActive: true },
+  ): Promise<HostelAssignmentEntity> {
+    // No await between check and write — concurrent callers serialize on the
+    // sync critical section (same invariant as Pg FOR UPDATE).
+    const bedIndex = this.beds.findIndex((b) => b.id === data.bedId && b.tenantId === data.tenantId);
+    if (bedIndex === -1) {
+      throw new BedAssignmentConflictError('BED_UNAVAILABLE', 'Bed not found for assignment');
+    }
+    const bed = this.beds[bedIndex]!;
+    if (!bed.isAvailable) {
+      throw new BedAssignmentConflictError(
+        'BED_UNAVAILABLE',
+        'Bed is not available for assignment',
+      );
+    }
+    const studentBusy = this.assignments.some(
+      (a) => a.tenantId === data.tenantId && a.studentId === data.studentId && a.isActive,
+    );
+    if (studentBusy) {
+      throw new BedAssignmentConflictError(
+        'STUDENT_ALREADY_ASSIGNED',
+        'Student already has an active bed assignment',
+      );
+    }
+    const bedBusy = this.assignments.some(
+      (a) => a.tenantId === data.tenantId && a.bedId === data.bedId && a.isActive,
+    );
+    if (bedBusy) {
+      throw new BedAssignmentConflictError(
+        'BED_UNAVAILABLE',
+        'Bed is not available for assignment',
+      );
+    }
+
+    const now = new Date();
+    this.beds[bedIndex] = { ...bed, isAvailable: false, updatedAt: now };
+    const entity: HostelAssignmentEntity = {
+      ...data,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.assignments.push(entity);
     return entity;
   }
