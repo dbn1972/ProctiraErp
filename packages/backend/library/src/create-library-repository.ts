@@ -1,7 +1,11 @@
 /**
  * Library repository factory — Postgres when DATABASE_URL is set, else in-memory.
+ * P0-05: never fall through to memory when DATABASE_URL is set.
  */
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 
 import { InMemoryLibraryRepository } from './in-memory-repository.js';
 import type { LibraryRepository } from './library-repository.js';
@@ -15,7 +19,8 @@ export function isPgLibraryEnabled(): boolean {
 export function createLibraryRepository(): LibraryRepository {
   if (isPgLibraryEnabled()) {
     const pool = getSharedLibraryPool();
-    if (pool) return new PgLibraryRepository(pool);
+    assertPostgresRepositoryAvailable('library', pool);
+    return new PgLibraryRepository(pool);
   }
   assertInMemoryFallbackAllowed('library');
   return new InMemoryLibraryRepository();

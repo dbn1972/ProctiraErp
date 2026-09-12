@@ -57,9 +57,10 @@ export type { PgPool } from './pg-pool';
 export { PgDocumentCollection, withPlatformScope, reviveDates } from './pg-document-store';
 export type { DocumentRow } from './pg-document-store';
 
-// G-714: in-memory fallback policy shared by repository factories
+// G-714 / P0-05: in-memory fallback policy shared by repository factories
 export {
   assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
   resolvePersistenceMode,
   resetPersistenceWarnings,
 } from './persistence-policy';

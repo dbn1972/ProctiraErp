@@ -1,9 +1,13 @@
 /**
  * Factories for appraisal + training stores (G-717): Postgres when
  * DATABASE_URL is set, otherwise in-memory (refused in production by the
- * persistence policy).
+ * persistence policy). P0-05: never fall through to memory when DATABASE_URL is set.
  */
-import { assertInMemoryFallbackAllowed, getSharedPgPool } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+  getSharedPgPool,
+} from '@proctira/database';
 
 import type { AppraisalRepository, AppraisalTemplateRepository } from './appraisal-repository.js';
 import {
@@ -43,8 +47,9 @@ export interface TrainingRepositories {
 }
 
 export function createAppraisalRepositories(): AppraisalRepositories {
-  const pool = getSharedPgPool();
-  if (pool) {
+  if (process.env.DATABASE_URL?.trim()) {
+    const pool = getSharedPgPool();
+    assertPostgresRepositoryAvailable('staff-appraisals', pool);
     return {
       templateRepository: new PgAppraisalTemplateRepository(pool),
       appraisalRepository: new PgAppraisalRepository(pool),
@@ -58,8 +63,9 @@ export function createAppraisalRepositories(): AppraisalRepositories {
 }
 
 export function createTrainingRepositories(): TrainingRepositories {
-  const pool = getSharedPgPool();
-  if (pool) {
+  if (process.env.DATABASE_URL?.trim()) {
+    const pool = getSharedPgPool();
+    assertPostgresRepositoryAvailable('staff-training', pool);
     return {
       programRepository: new PgTrainingProgramRepository(pool),
       sessionRepository: new PgTrainingSessionRepository(pool),

@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
   resetPersistenceWarnings,
   resolvePersistenceMode,
 } from './persistence-policy';
 
-describe('persistence policy (G-714)', () => {
+describe('persistence policy (G-714 / P0-05)', () => {
   beforeEach(() => resetPersistenceWarnings());
 
   it('returns postgres when a database url is set', () => {
@@ -27,6 +28,24 @@ describe('persistence policy (G-714)', () => {
     ).toThrow(/REQUIRE_DATABASE=1/);
   });
 
+  it('fail-closes when DATABASE_URL is set (P0-05)', () => {
+    expect(() =>
+      assertInMemoryFallbackAllowed('fees', {
+        NODE_ENV: 'development',
+        DATABASE_URL: 'postgres://localhost/proctira',
+      }),
+    ).toThrow(/DATABASE_URL is set — refusing in-memory fallback/);
+  });
+
+  it('fail-closes resolvePersistenceMode when env carries DATABASE_URL but url arg is empty', () => {
+    expect(() =>
+      resolvePersistenceMode('admissions', undefined, {
+        NODE_ENV: 'test',
+        DATABASE_URL: 'postgres://localhost/proctira',
+      }),
+    ).toThrow(/DATABASE_URL is set/);
+  });
+
   it('allows production fallback only with the explicit escape hatch', () => {
     expect(() =>
       assertInMemoryFallbackAllowed('fees', {
@@ -43,5 +62,14 @@ describe('persistence policy (G-714)', () => {
     assertInMemoryFallbackAllowed('hostel', { NODE_ENV: 'development' }, log);
     expect(log.warn).toHaveBeenCalledTimes(2);
     expect(log.warn.mock.calls[0]?.[0]).toMatch(/fees/);
+  });
+
+  it('assertPostgresRepositoryAvailable throws when pool/repo is missing', () => {
+    expect(() => assertPostgresRepositoryAvailable('notification', null)).toThrow(
+      /Postgres repository is unavailable/,
+    );
+    expect(() =>
+      assertPostgresRepositoryAvailable('fees', { query: () => undefined }),
+    ).not.toThrow();
   });
 });

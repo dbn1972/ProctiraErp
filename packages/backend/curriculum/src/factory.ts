@@ -1,4 +1,7 @@
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 import pg from 'pg';
 
 import { InMemoryCurriculumStore, PgCurriculumStore, type CurriculumStore } from './store.js';
@@ -28,7 +31,8 @@ export function getSharedCurriculumPool(): pg.Pool | null {
 export function createCurriculumStore(): CurriculumStore {
   if (isPgCurriculumEnabled()) {
     const pool = getSharedCurriculumPool();
-    if (pool) return new PgCurriculumStore(pool);
+    assertPostgresRepositoryAvailable('curriculum', pool);
+    return new PgCurriculumStore(pool);
   }
   assertInMemoryFallbackAllowed('curriculum');
   return new InMemoryCurriculumStore();
