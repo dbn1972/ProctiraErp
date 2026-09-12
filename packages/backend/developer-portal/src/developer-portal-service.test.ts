@@ -63,7 +63,7 @@ describe('DeveloperPortalService', () => {
       });
       expect(entity.name).toBe('Test Key');
       expect(entity.scopes).toEqual(['read:students', 'write:students']);
-      expect(rawKey).toMatch(/^oem_/);
+      expect(rawKey).toMatch(/^oem_[0-9a-f]{32}$/);
     });
 
     it('should validate an API key', async () => {

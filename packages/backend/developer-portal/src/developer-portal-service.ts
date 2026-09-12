@@ -5,6 +5,8 @@
  * webhook registration with HMAC verification, sandbox provisioning,
  * plugin submission/review workflow, marketplace, documentation, and analytics.
  */
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
 import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -65,68 +67,55 @@ export const DEFAULT_CONFIG: DeveloperPortalServiceConfig = {
   maxWebhookRetries: 5,
 };
 
-// ─── Crypto Utilities ─────────────────────────────────────────────────────────
+// ─── Crypto Utilities (Node crypto — P0-11) ───────────────────────────────────
 
 /**
- * Generate a random API key string.
- * Format: oem_{32 random hex chars}
+ * Generate a cryptographically random API key.
+ * Format: oem_{32 hex chars} (16 bytes from randomBytes).
  */
 export function generateApiKey(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let key = 'oem_';
-  for (let i = 0; i < 32; i++) {
-    key += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return key;
+  return `oem_${randomBytes(16).toString('hex')}`;
 }
 
 /**
- * Hash an API key for storage (simple SHA-256 simulation for in-memory use).
- * In production, use crypto.createHash('sha256').
+ * Hash an API key for storage (SHA-256 hex, prefixed for clarity).
+ * Raw keys are never persisted; only this digest is stored.
  */
 export function hashApiKey(key: string): string {
-  // Simple hash for testing - in production use crypto.createHash('sha256')
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    const char = key.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  return `sha256:${Math.abs(hash).toString(16).padStart(16, '0')}`;
+  const digest = createHash('sha256').update(key, 'utf8').digest('hex');
+  return `sha256:${digest}`;
 }
 
 /**
- * Generate HMAC-SHA256 signature for webhook payload.
+ * Generate HMAC-SHA256 signature for a webhook payload.
+ * Format matches common partner convention: `sha256=<hex>`.
  */
 export function generateWebhookSignature(payload: string, secret: string): string {
-  // Simple HMAC simulation for testing
-  // In production: crypto.createHmac('sha256', secret).update(payload).digest('hex')
-  let hash = 0;
-  const combined = secret + payload;
-  for (let i = 0; i < combined.length; i++) {
-    const char = combined.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash;
-  }
-  return `sha256=${Math.abs(hash).toString(16).padStart(64, '0')}`;
+  const digest = createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+  return `sha256=${digest}`;
 }
 
 /**
- * Verify a webhook signature against expected.
+ * Verify a webhook signature with timing-safe comparison.
+ * Rejects wrong length, wrong prefix, or tampered payloads/secrets.
  */
 export function verifyWebhookSignature(
   payload: string,
   secret: string,
   signature: string,
 ): boolean {
-  const expected = generateWebhookSignature(payload, secret);
-  // Constant-time comparison
-  if (expected.length !== signature.length) return false;
-  let result = 0;
-  for (let i = 0; i < expected.length; i++) {
-    result |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  if (typeof signature !== 'string' || !signature.startsWith('sha256=')) {
+    return false;
   }
-  return result === 0;
+  const expected = generateWebhookSignature(payload, secret);
+  try {
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(signature, 'utf8');
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
