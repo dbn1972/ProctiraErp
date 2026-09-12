@@ -2,7 +2,7 @@
  * Staff fees hub (Server Component).
  */
 import Link from 'next/link';
-import { FileText, Receipt, Wallet, Layers, BarChart3 } from 'lucide-react';
+import { FileText, Receipt, Wallet, Layers, BarChart3, GraduationCap } from 'lucide-react';
 
 import {
   Button,
@@ -106,6 +106,24 @@ export default async function FeesOverviewPage() {
             <Button asChild>
               <Link href="/fees/reports" data-testid="open-reports">
                 Open reports
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <GraduationCap className="h-4 w-4" aria-hidden="true" />
+              Scholarship netting
+            </CardTitle>
+            <CardDescription>
+              Apply paid disbursement credits to open student invoices.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/scholarship-netting" data-testid="open-scholarship-netting">
+                Open netting
               </Link>
             </Button>
           </CardContent>

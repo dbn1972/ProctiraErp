@@ -5,12 +5,14 @@ import { revalidatePath } from 'next/cache';
 import { GatewayError } from '@/lib/api/gateway';
 import {
   applyConcession,
+  applyScholarshipNetting,
   bulkInvoiceStructure,
   createFeeStructure,
   generateInstalments,
   importReconciliation,
   recordInvoicePayment,
   refundInvoice,
+  type ScholarshipNettingResult,
 } from '@/lib/api/fees';
 import {
   bulkInvoiceFormSchema,
@@ -18,11 +20,13 @@ import {
   feeStructureFormSchema,
   reconciliationFormSchema,
   refundFormSchema,
+  scholarshipNettingFormSchema,
   type BulkInvoiceFormValues,
   type ConcessionFormValues,
   type FeeStructureFormValues,
   type ReconciliationFormValues,
   type RefundFormValues,
+  type ScholarshipNettingFormValues,
 } from './validation';
 
 export interface FieldError {
@@ -57,6 +61,7 @@ function refreshFees() {
   revalidatePath('/fees/structures');
   revalidatePath('/fees/invoices');
   revalidatePath('/fees/reports');
+  revalidatePath('/fees/scholarship-netting');
   revalidatePath('/parent/fees');
 }
 
@@ -187,6 +192,28 @@ export async function importReconciliationAction(
       success: true,
       data: { matched: result.matched.length, unmatched: result.unmatched.length },
     };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function applyScholarshipNettingAction(
+  values: ScholarshipNettingFormValues,
+): Promise<ActionResult<ScholarshipNettingResult>> {
+  const parsed = scholarshipNettingFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+  }
+  try {
+    const result = await applyScholarshipNetting({
+      studentId: parsed.data.studentId,
+      disbursementId: parsed.data.disbursementId.trim(),
+      amountCents: Math.round(parsed.data.amount * 100),
+      invoiceId: parsed.data.invoiceId || undefined,
+      currency: parsed.data.currency || undefined,
+    });
+    refreshFees();
+    return { success: true, data: result };
   } catch (error) {
     return fail(error);
   }

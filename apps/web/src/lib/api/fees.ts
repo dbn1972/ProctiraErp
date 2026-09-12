@@ -290,3 +290,45 @@ export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoic
   });
   return throwIfMissing(result, 'Failed to record payment').invoice;
 }
+
+/** G-1 / F1 — credit an open invoice (or reserve credit) from a paid scholarship disbursement. */
+export interface FeeConcession {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  structureId: string;
+  invoiceId: string | null;
+  kind: 'percent' | 'amount';
+  percent: number | null;
+  amountCents: number | null;
+  reason: string;
+  approverId: string | null;
+  status: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface ApplyScholarshipNettingInput {
+  studentId: string;
+  disbursementId: string;
+  amountCents: number;
+  invoiceId?: string;
+  currency?: string;
+}
+
+export interface ScholarshipNettingResult {
+  concession: FeeConcession;
+  invoice: FeeInvoice | null;
+  discountCents: number;
+  idempotent: boolean;
+}
+
+export async function applyScholarshipNetting(
+  input: ApplyScholarshipNettingInput,
+): Promise<ScholarshipNettingResult> {
+  const result = await gatewayFetch<ScholarshipNettingResult>('/fees/scholarships/net', {
+    method: 'POST',
+    json: input,
+  });
+  return throwIfMissing(result, 'Failed to apply scholarship netting');
+}

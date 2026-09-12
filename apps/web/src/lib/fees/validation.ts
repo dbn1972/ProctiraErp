@@ -41,8 +41,18 @@ export const reconciliationFormSchema = z.object({
   filename: z.string().max(255).optional(),
 });
 
+/** Staff F1 — POST /fees/scholarships/net body (amount in major units → cents in action). */
+export const scholarshipNettingFormSchema = z.object({
+  studentId: z.string().regex(UUID, 'Student must be a UUID'),
+  disbursementId: z.string().min(1, 'Disbursement ID is required').max(200),
+  amount: z.coerce.number().gt(0, 'Amount must be greater than 0'),
+  invoiceId: z.string().regex(UUID, 'Invoice must be a UUID').optional().or(z.literal('')),
+  currency: z.string().max(8).optional().or(z.literal('')),
+});
+
 export type FeeStructureFormValues = z.infer<typeof feeStructureFormSchema>;
 export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
 export type ReconciliationFormValues = z.infer<typeof reconciliationFormSchema>;
+export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
