@@ -186,4 +186,31 @@ describe('G-702 — every mounted prefix has an RBAC resource mapping (default-d
     expect(resourceForApiPath('/api/v1/services')).toBeUndefined();
     expect(Object.keys(PATH_RESOURCE_MAP).length).toBeGreaterThan(30);
   });
+
+  it('P0-01: mounted packages with PATH_RESOURCE_MAP prefixes mark rbacWired true', () => {
+    const dishonest: string[] = [];
+    for (const entry of MOUNT_MATRIX) {
+      if (!entry.mounted) {
+        expect(entry.rbacWired, `${entry.package} unmounted should not claim rbacWired`).toBe(
+          false,
+        );
+        continue;
+      }
+      const mappedPrefixes = entry.prefixes.filter((prefix) => {
+        if (prefix === '/auth') return false; // auth excluded from path evaluator by design
+        const resolved = resourceForApiPath(`/api/v1${prefix}/x`);
+        return Boolean(resolved) && resolved !== UNMAPPED_API_RESOURCE;
+      });
+      if (mappedPrefixes.length === 0) continue;
+      if (!entry.rbacWired) {
+        dishonest.push(`${entry.package} (${mappedPrefixes.join(', ')})`);
+      }
+    }
+    // auth is mounted + rbacPlugin-registered even though /auth is path-excluded
+    const auth = MOUNT_MATRIX.find((e) => e.package === 'auth');
+    expect(auth?.rbacWired).toBe(true);
+    expect(dishonest, `Flip rbacWired:true — prefixes already gated: ${dishonest.join('; ')}`).toEqual(
+      [],
+    );
+  });
 });
