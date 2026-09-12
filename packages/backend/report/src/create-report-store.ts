@@ -1,4 +1,8 @@
-import { assertInMemoryFallbackAllowed, getSharedPgPool } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+  getSharedPgPool,
+} from '@proctira/database';
 
 import { PgReportStore } from './pg-report-store.js';
 import { InMemoryReportStore, type ReportStore } from './report-store.js';
@@ -12,8 +16,9 @@ export function resetSharedReportStoreForTests(): void {
 }
 
 export function createReportStore(): { store: ReportStore; persistence: ReportPersistence } {
-  const pool = getSharedPgPool();
-  if (pool) {
+  if (process.env.DATABASE_URL?.trim()) {
+    const pool = getSharedPgPool();
+    assertPostgresRepositoryAvailable('report', pool);
     return { store: new PgReportStore(pool), persistence: 'postgres' };
   }
   assertInMemoryFallbackAllowed('report');

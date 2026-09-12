@@ -2,8 +2,12 @@
  * Fees repository factory — Postgres when DATABASE_URL is set, else shared in-memory.
  * Shared in-memory ensures library fines (G-603) and /fees reads see the same ledger
  * within a single process when not using Postgres.
+ * P0-05: never fall through to memory when DATABASE_URL is set.
  */
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 
 import type { FeesRepository } from './fees-repository.js';
 import { InMemoryFeesRepository } from './in-memory-repository.js';
@@ -24,7 +28,8 @@ export function resetSharedFeesRepositoryForTests(): void {
 export function createFeesRepository(): FeesRepository {
   if (isPgFeesEnabled()) {
     const pool = getSharedFeesPool();
-    if (pool) return new PgFeesRepository(pool);
+    assertPostgresRepositoryAvailable('fees', pool);
+    return new PgFeesRepository(pool);
   }
   if (!sharedMemoryFees) {
     assertInMemoryFallbackAllowed('fees');

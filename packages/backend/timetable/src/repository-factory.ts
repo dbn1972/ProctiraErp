@@ -1,8 +1,13 @@
 /**
  * Prefer Postgres raw-SQL repository when DATABASE_URL is set; else in-memory.
  * No Prisma on the timetable certification path.
+ * P0-05: never fall through to memory when DATABASE_URL is set.
  */
-import { assertInMemoryFallbackAllowed, getSharedPgPool } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+  getSharedPgPool,
+} from '@proctira/database';
 
 import {
   InMemoryTimetableOpsStore,
@@ -16,7 +21,8 @@ import type { TimetableRepository } from './timetable-repository.js';
 export function createTimetableRepository(): TimetableRepository {
   if (isPgTimetableEnabled()) {
     const pg = createPgTimetableRepository();
-    if (pg) return pg;
+    assertPostgresRepositoryAvailable('timetable', pg);
+    return pg;
   }
   assertInMemoryFallbackAllowed('timetable');
   return new InMemoryTimetableRepository();
@@ -24,8 +30,11 @@ export function createTimetableRepository(): TimetableRepository {
 
 /** G-917 jobs/absences: raw pg 041 when DATABASE_URL is set; else in-memory. */
 export function createTimetableOpsStore(): TimetableOpsStore {
-  const pool = getSharedPgPool();
-  if (pool) return new PgTimetableOpsStore(pool);
+  if (process.env.DATABASE_URL?.trim()) {
+    const pool = getSharedPgPool();
+    assertPostgresRepositoryAvailable('timetable.ops', pool);
+    return new PgTimetableOpsStore(pool);
+  }
   assertInMemoryFallbackAllowed('timetable');
   return new InMemoryTimetableOpsStore();
 }

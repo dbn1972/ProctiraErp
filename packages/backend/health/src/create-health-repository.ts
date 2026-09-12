@@ -5,7 +5,10 @@
  * when DATABASE_URL is set (raw `pg`, no Prisma).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 
 import type {
   AccommodationPlanEntity,
@@ -480,11 +483,19 @@ export class HybridHealthRepository implements HealthRepository {
 export function createHealthRepository(): HybridHealthRepository {
   const memory = new InMemoryHealthRepository();
   const enabled = isPgCounsellingEnabled() || isPgPhiEnabled();
-  if (!enabled) assertInMemoryFallbackAllowed('health');
-  const counselling = enabled ? createPgCounsellingStore() : null;
-  const phi = enabled ? createPgPhiStore() : null;
-  const specialNeeds = enabled ? createPgSpecialNeedsStore() : null;
-  const nurseIncidents = enabled ? createPgNurseIncidentStore() : null;
+  if (!enabled) {
+    assertInMemoryFallbackAllowed('health');
+    return new HybridHealthRepository(memory, null, null, null, null);
+  }
+  // P0-05: DATABASE_URL set ⇒ PG overlays required (no silent all-memory hybrid).
+  const counselling = createPgCounsellingStore();
+  const phi = createPgPhiStore();
+  const specialNeeds = createPgSpecialNeedsStore();
+  const nurseIncidents = createPgNurseIncidentStore();
+  assertPostgresRepositoryAvailable('health.counselling', counselling);
+  assertPostgresRepositoryAvailable('health.phi', phi);
+  assertPostgresRepositoryAvailable('health.special-needs', specialNeeds);
+  assertPostgresRepositoryAvailable('health.nurse-incidents', nurseIncidents);
   return new HybridHealthRepository(memory, counselling, phi, specialNeeds, nurseIncidents);
 }
 

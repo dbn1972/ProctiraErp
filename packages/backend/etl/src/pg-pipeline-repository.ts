@@ -2,7 +2,13 @@
  * PostgreSQL pipeline repository (Wave 10 Option C).
  * Stores Pipeline / PipelineExecution as JSONB documents with RLS.
  */
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type {
@@ -229,11 +235,13 @@ export class PgPipelineRepository implements PipelineRepository {
   }
 }
 
-/** Factory: PG when DATABASE_URL; else memory. */
+/** Factory: PG when DATABASE_URL; else memory (P0-05: never silent memory when URL set). */
 export function createPipelineRepository(): PipelineRepository {
-  const pool = getSharedPgPool();
-  if (pool && process.env.DATABASE_URL?.trim()) {
+  if (process.env.DATABASE_URL?.trim()) {
+    const pool = getSharedPgPool();
+    assertPostgresRepositoryAvailable('etl', pool);
     return new PgPipelineRepository(pool);
   }
+  assertInMemoryFallbackAllowed('etl');
   return new InMemoryPipelineRepository();
 }

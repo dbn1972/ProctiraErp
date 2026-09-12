@@ -1,7 +1,11 @@
 /**
  * Parent portal repository factory — Postgres when DATABASE_URL is set, else in-memory.
+ * P0-05: never fall through to memory when DATABASE_URL is set.
  */
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 
 import {
   EmptyAcademicVisibilityStore,
@@ -25,7 +29,8 @@ let sharedMemoryParent: InMemoryParentPortalRepository | null = null;
 export function createParentPortalRepository(): ParentPortalRepository {
   if (isPgParentPortalEnabled()) {
     const pool = getSharedParentPortalPool();
-    if (pool) return new PgParentPortalRepository(pool);
+    assertPostgresRepositoryAvailable('parent-portal', pool);
+    return new PgParentPortalRepository(pool);
   }
   assertInMemoryFallbackAllowed('parent-portal');
   if (!sharedMemoryParent) {
@@ -37,7 +42,9 @@ export function createParentPortalRepository(): ParentPortalRepository {
 export function createAcademicVisibilityStore(): AcademicVisibilityStore {
   if (isPgParentPortalEnabled()) {
     const pool = getSharedParentPortalPool();
-    if (pool) return new PgAcademicVisibilityStore(pool);
+    assertPostgresRepositoryAvailable('parent-portal.academic-visibility', pool);
+    return new PgAcademicVisibilityStore(pool);
   }
+  assertInMemoryFallbackAllowed('parent-portal.academic-visibility');
   return new EmptyAcademicVisibilityStore();
 }

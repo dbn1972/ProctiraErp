@@ -9,6 +9,7 @@
  */
 import {
   assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
   createPrismaClient,
   getSharedPgPool,
 } from '@proctira/database';
@@ -43,10 +44,11 @@ export function createAttendanceOpsStore(
   config: AttendanceRepositoryConfig = {},
 ): AttendanceOpsStore {
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
-  const pool = getSharedPgPool(databaseUrl);
-  if (!pool) {
-    assertInMemoryFallbackAllowed('attendance');
-    return new InMemoryAttendanceOpsStore();
+  if (databaseUrl?.trim()) {
+    const pool = getSharedPgPool(databaseUrl);
+    assertPostgresRepositoryAvailable('attendance.ops', pool);
+    return new PgAttendanceOpsStore(pool);
   }
-  return new PgAttendanceOpsStore(pool);
+  assertInMemoryFallbackAllowed('attendance');
+  return new InMemoryAttendanceOpsStore();
 }

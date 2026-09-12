@@ -1,4 +1,7 @@
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 
 import {
   InMemoryGradebookExtrasStore,
@@ -10,7 +13,8 @@ import { getSharedGradebookPool, isPgGradebookEnabled } from './pg-gradebook-rep
 export function createGradebookExtrasStore(): GradebookExtrasStore {
   if (isPgGradebookEnabled()) {
     const pool = getSharedGradebookPool();
-    if (pool) return new PgGradebookExtrasStore(pool);
+    assertPostgresRepositoryAvailable('gradebook.extras', pool);
+    return new PgGradebookExtrasStore(pool);
   }
   assertInMemoryFallbackAllowed('gradebook');
   return new InMemoryGradebookExtrasStore();

@@ -1,7 +1,11 @@
 /**
  * Communication repository factory — Postgres when DATABASE_URL is set, else in-memory.
+ * P0-05: never fall through to memory when DATABASE_URL is set.
  */
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+} from '@proctira/database';
 
 import type { CommunicationRepository } from './communication-repository.js';
 import { InMemoryCommunicationRepository } from './in-memory-repository.js';
@@ -18,7 +22,8 @@ export function isPgCommunicationEnabled(): boolean {
 export function createCommunicationRepository(): CommunicationRepository {
   if (isPgCommunicationEnabled()) {
     const pool = getSharedCommunicationPool();
-    if (pool) return new PgCommunicationRepository(pool);
+    assertPostgresRepositoryAvailable('communication', pool);
+    return new PgCommunicationRepository(pool);
   }
   assertInMemoryFallbackAllowed('communication');
   return new InMemoryCommunicationRepository();

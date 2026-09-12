@@ -5,7 +5,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 import pg from 'pg';
 
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
@@ -286,9 +291,12 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
 }
 
 export function createStaffLeaveRepository(): StaffLeaveRepository {
-  const pool = getSharedStaffLeavePool();
-  if (pool) {
+  const url = process.env.DATABASE_URL?.trim();
+  if (url) {
+    const pool = getSharedStaffLeavePool();
+    assertPostgresRepositoryAvailable('staff-leave', pool);
     return new PgStaffLeaveRepository(pool);
   }
+  assertInMemoryFallbackAllowed('staff-leave');
   return new InMemoryStaffLeaveRepository();
 }

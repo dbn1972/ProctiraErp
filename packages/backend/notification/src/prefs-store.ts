@@ -8,7 +8,7 @@ import { randomUUID } from 'node:crypto';
 
 import pg from 'pg';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, withPgTenant, type PgQueryable } from '@proctira/database';
 
 export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook' | 'sms';
 export type NotificationCategory =
@@ -315,7 +315,9 @@ export function createPgNotificationPrefsStore(
 }
 
 export function createNotificationPrefsStore(): NotificationPrefsStore {
-  return isPgNotificationPrefsEnabled()
-    ? createPgNotificationPrefsStore()
-    : new InMemoryNotificationPrefsStore();
+  if (isPgNotificationPrefsEnabled()) {
+    return createPgNotificationPrefsStore();
+  }
+  assertInMemoryFallbackAllowed('notification-prefs');
+  return new InMemoryNotificationPrefsStore();
 }
