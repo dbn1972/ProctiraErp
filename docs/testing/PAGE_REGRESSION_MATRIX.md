@@ -85,7 +85,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/fees/reports` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/fees/scholarship-netting` | a11y, functional | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/fees/structures` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/health` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/health` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/[studentId]` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/allergies` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/allergies/new` | functional | `17-health-inventory-smoke.spec.ts` |
@@ -208,7 +208,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/parent/messages` | a11y, dark, functional, touch | `22-parent-portal-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/parent/messages/[threadId]` | functional | `22-parent-portal-smoke.spec.ts` |
 | `/parent/notices` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/parent/offers` | a11y, dark, functional, touch | `22-parent-portal-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/parent/offers` | a11y, dark, functional, touch | `22-parent-portal-smoke.spec.ts`<br>`41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/parent/pal` | smoke | `40-portals-academic-visibility-smoke.spec.ts` |
 | `/parent/report-cards` | smoke | `40-portals-academic-visibility-smoke.spec.ts` |
 | `/parent/timetable` | a11y, cls, dark, rtl, smoke, touch | `40-portals-academic-visibility-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`loading-skeleton-cls.spec.ts`<br>`rtl-arabic.spec.ts`<br>`touch-target-minimum.spec.ts` |
