@@ -17,17 +17,12 @@ export function AuthDemoModeBanner(): JSX.Element | null {
   if (!isAuthDemoModeEnabled()) return null;
 
   return (
-    <Alert
-      variant="warning"
-      className="mb-4"
-      data-testid="auth-demo-mode-banner"
-      role="status"
-    >
+    <Alert variant="warning" className="mb-4" data-testid="auth-demo-mode-banner" role="status">
       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
       <AlertTitle>Auth demo mode</AlertTitle>
       <AlertDescription>
-        NEXT_PUBLIC_AUTH_DEMO_MODE is enabled. This is not a production IdP stub —
-        credential and Keycloak sign-in still use the real cookie session gate.
+        NEXT_PUBLIC_AUTH_DEMO_MODE is enabled. This is not a production IdP stub — credential and
+        Keycloak sign-in still use the real cookie session gate.
       </AlertDescription>
     </Alert>
   );

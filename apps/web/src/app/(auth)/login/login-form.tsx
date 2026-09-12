@@ -18,7 +18,13 @@ import {
 } from '@proctira/ui/components';
 import { OAuthIcon } from '@/components/auth/oauth-icon';
 import { AuthDemoModeBanner } from '@/components/auth/auth-demo-mode-banner';
-import { AUTH_ENDPOINTS, OAUTH_PROVIDERS, getOAuthAuthorizeUrl, sanitizeReturnTo, signIn } from '@/lib/auth';
+import {
+  AUTH_ENDPOINTS,
+  OAUTH_PROVIDERS,
+  getOAuthAuthorizeUrl,
+  sanitizeReturnTo,
+  signIn,
+} from '@/lib/auth';
 
 /**
  * Client component for the login form. Submits credentials to
