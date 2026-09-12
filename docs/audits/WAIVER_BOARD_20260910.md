@@ -16,3 +16,4 @@ Secrets / vendors **not** available this run — do not fake live proofs.
 | PRD-013 | Timetable iCal / federation   | **NON-GOAL**          | Clash 409 + PG schedule accepted         |
 | PRD-014 | Admissions OCR / ID scan      | **NON-GOAL**          | Manual capture accepted                  |
 | PRD-015 | DW live connectors / admin CP | **NON-GOAL** (demo)   | Honesty banners + PARKED package         |
+| PRD-016 | Public apply + applicant IdP  | **NON-GOAL** (dated)  | Until funded IdP + public-apply epic; dated **2026-09-12** (A3). Basic registration-portal intake only — **no** peer CRM public-apply parity claim. See `PRODUCT_ADMISSIONS_ENROL_JOURNEY.md` A-1 + `DEV_ADMISSIONS_PUBLIC_APPLY_WAIVER.md`. |
