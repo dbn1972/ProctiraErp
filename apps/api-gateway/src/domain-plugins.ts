@@ -63,6 +63,7 @@ import {
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import {
   createDocumentRepository,
+  createDocumentTaskQueueFromEnv,
   createExamOpsStore,
   createExaminationRepository,
   createResultRepository,
@@ -412,6 +413,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       const examOpsStore = createExamOpsStore();
+      // P0-06: durable exam-document queue when QUEUE_BACKEND / RABBITMQ_URL set.
+      const documentQueueHandle = await createDocumentTaskQueueFromEnv();
+      if (documentQueueHandle) {
+        scope.addHook('onClose', async () => {
+          await documentQueueHandle.disconnect();
+        });
+      }
       await scope.register(examinationPlugin, {
         repository: createExaminationRepository(),
         resultRepository: createResultRepository(),
@@ -419,6 +427,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // G-902: document routes (/documents/generate, /documents/jobs) only
         // register when a PdfGenerator is supplied.
         pdfGenerator: new SimplePdfGenerator(),
+        documentTaskQueue: documentQueueHandle?.queue,
         examOpsStore,
         prefix: '/examinations',
       });

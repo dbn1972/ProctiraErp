@@ -35,6 +35,21 @@ export { buildTenantName } from './types';
 export { KafkaAdapter } from './adapters/kafka-adapter';
 export { RabbitMQAdapter } from './adapters/rabbitmq-adapter';
 export { SQSAdapter } from './adapters/sqs-adapter';
+export {
+  InMemoryDurableQueueAdapter,
+  InMemoryDurableQueueStore,
+  matchRoutingKey,
+} from './adapters/in-memory-durable-adapter';
+export type {
+  DurableQueuedMessage,
+  InMemoryDurableQueueAdapterOptions,
+} from './adapters/in-memory-durable-adapter';
 
 // Factory
 export { createQueueAdapter, createQueueAdapterFromEnv } from './factory';
+
+/** Well-known job type for examination document generation workers (P0-06). */
+export const EXAM_DOCUMENT_JOB_TYPE = 'exam.document.generate' as const;
+
+/** Consumer binding pattern for all tenants' exam document jobs. */
+export const EXAM_DOCUMENT_CONSUME_TOPIC = 'tenant.*.exam.document.generate' as const;

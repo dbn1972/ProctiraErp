@@ -10,6 +10,7 @@
     "./adapters/kafka": "./src/adapters/kafka-adapter.ts",
     "./adapters/rabbitmq": "./src/adapters/rabbitmq-adapter.ts",
     "./adapters/sqs": "./src/adapters/sqs-adapter.ts",
+    "./adapters/memory-durable": "./src/adapters/in-memory-durable-adapter.ts",
     "./factory": "./src/factory.ts"
   },
   "scripts": {
