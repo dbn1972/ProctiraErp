@@ -366,6 +366,22 @@ DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
   bash tools/scripts/restore-drill.sh
 ```
 
+**Tip-committed evidence (P0-13):** GH Actions artifacts alone are not durable
+in-repo proof. After a successful local or CI drill, commit a dated pack under
+`docs/audits/evidence/restore-drill-YYYYMMDD.json` (mode, row counts, CI run
+URL). Current pack: [`docs/audits/evidence/restore-drill-20260912.json`](./audits/evidence/restore-drill-20260912.json)
+(local `full-db` drill + cross-ref to the latest successful
+[`Restore Drill`](https://github.com/dbn1972/ProctiraErp/actions/runs/34683877155)
+workflow run). Validate the tip pack without re-running Postgres:
+
+```bash
+./tools/scripts/check-restore-drill-evidence.sh
+```
+
+If neither local Postgres nor a successful workflow run is available, file a
+dated waiver under `docs/audits/WAIVER_P0_13_….md` with an expiry instead of
+faking green — honesty over theater.
+
 ### 7.2 Backup Monitoring Alerts
 
 Configure alerts for:
@@ -485,5 +501,5 @@ npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup"
 
 ---
 
-_Last updated: 2026-09-08 (G-503 scripts + retention job)_
+_Last updated: 2026-09-12 (P0-13 tip-committed restore-drill evidence)_
 _Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness_

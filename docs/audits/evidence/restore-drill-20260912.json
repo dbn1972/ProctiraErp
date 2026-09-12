@@ -1,0 +1,58 @@
+{
+  "gap": "P0-13 / G-503 / G-707",
+  "title": "backup-restore-drill tip evidence",
+  "recordedAt": "2026-09-12T15:38:59Z",
+  "branch": "cursor/backup-restore-drill-56c3",
+  "mode": "local-full-db",
+  "ok": true,
+  "localDrill": {
+    "script": "tools/scripts/restore-drill.sh",
+    "postgres": "16.15",
+    "sourceDatabase": "proctira_test (URL redacted)",
+    "restoreDatabase": "proctira_restore_drill",
+    "timestamp": "20260912T153859Z",
+    "mode": "full-db",
+    "dumpBytes": 839439,
+    "dumpListEntries": 1697,
+    "counts": {
+      "tenants": 24,
+      "boards": 1,
+      "institutions": 1
+    },
+    "rowParity": "source equals restored (full-db recreate + pg_restore)",
+    "artifactDir": "/tmp/restore-drill-local (ephemeral; tip pack is this JSON)"
+  },
+  "ciCrossRef": {
+    "workflow": ".github/workflows/restore-drill.yml",
+    "latestSuccessfulRun": {
+      "id": 34683877155,
+      "url": "https://github.com/dbn1972/ProctiraErp/actions/runs/34683877155",
+      "conclusion": "success",
+      "event": "pull_request",
+      "headBranch": "dependabot/github_actions/actions-cf7f187915",
+      "headSha": "81ebbf4512116bcc290bdd04bc2e5da0913c9bf4",
+      "createdAt": "2026-09-12T08:40:35Z",
+      "mode": "full-db",
+      "dumpListEntries": 1749,
+      "counts": {
+        "tenants": 0,
+        "boards": 0,
+        "institutions": 0
+      },
+      "note": "CI seeded schema with zero tenant/board/institution rows; row parity still 0=0. Local drill above uses a populated DB."
+    },
+    "artifactName": "restore-drill",
+    "artifactRetentionDays": 90
+  },
+  "scriptsExercised": [
+    "tools/scripts/pg-backup.sh",
+    "tools/scripts/pg-restore.sh",
+    "tools/scripts/restore-drill.sh"
+  ],
+  "runbook": "docs/BACKUP_RESTORE.md §7",
+  "honesty": [
+    "Tip-committed pack proves tooling was exercised (local full-db) and cites latest successful GH Actions run URL.",
+    "Does not claim live cluster CronJob execution or production offsite restore.",
+    "Not a WAIVER — evidence is tip-committed under docs/audits/evidence/."
+  ]
+}
