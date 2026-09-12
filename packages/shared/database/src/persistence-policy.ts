@@ -26,13 +26,25 @@ function truthy(value: string | undefined): boolean {
   return v === '1' || v === 'true' || v === 'yes';
 }
 
+/** Snapshot env into a typed bag (avoids unsafe ProcessEnv default params). */
+export function readPersistencePolicyEnv(
+  source: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): PersistencePolicyEnv {
+  return {
+    NODE_ENV: source.NODE_ENV,
+    DATABASE_URL: source.DATABASE_URL,
+    REQUIRE_DATABASE: source.REQUIRE_DATABASE,
+    ALLOW_IN_MEMORY_IN_PRODUCTION: source.ALLOW_IN_MEMORY_IN_PRODUCTION,
+  };
+}
+
 export type PersistenceMode = 'postgres' | 'memory';
 
 /** Resolve which persistence mode the factory should use, or throw when memory is disallowed. */
 export function resolvePersistenceMode(
   domain: string,
   databaseUrl: string | undefined,
-  env: PersistencePolicyEnv = process.env,
+  env: PersistencePolicyEnv = readPersistencePolicyEnv(),
 ): PersistenceMode {
   if (databaseUrl && databaseUrl.trim().length > 0) return 'postgres';
   // Defense-in-depth: env may still carry DATABASE_URL even if the factory
@@ -51,7 +63,7 @@ export function resolvePersistenceMode(
  */
 export function assertInMemoryFallbackAllowed(
   domain: string,
-  env: PersistencePolicyEnv = process.env,
+  env: PersistencePolicyEnv = readPersistencePolicyEnv(),
   log: Pick<Console, 'warn'> = console,
 ): void {
   if (env.DATABASE_URL?.trim()) {
