@@ -224,9 +224,9 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/lms/assignments/new',
     '/lms/assignments/new?kind=quiz',
     // Wave 9 (G-903 fees structures/reports, G-906 admissions CRM, G-907 gradebook surfaces)
+    // /fees/dunning is listed with the fees hub routes above (avoid duplicate Playwright titles).
     '/fees/structures',
     '/fees/reports',
-    '/fees/dunning',
     '/admissions/enquiries',
     '/admissions/seat-matrix',
     '/admissions/merit',

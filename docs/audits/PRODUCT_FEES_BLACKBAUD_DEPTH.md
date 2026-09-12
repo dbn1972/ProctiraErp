@@ -41,13 +41,13 @@ When F1–F3 ship on top of today’s Fees v1 (~8.4 PROD_WAIVED), **finance staf
 
 ### Explicit decisions (locked)
 
-| ID / topic            | Decision                                                                                                                                                                                                                           |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ID / topic            | Decision                                                                                                                                                                                                                                                                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **F-1 / G-202**       | **Keep dated waiver** (`docs/audits/WAIVER_BOARD_20260912.md`; note `DEV_FEES_G202_WAIVER.md`) until PSP sandbox keys are available. Do not reopen as a build blocker for F1–F3. **F4 (2026-09-12)** refreshed the waiver date only — still no keys; **do not claim Blackbaud-complete**. |
-| **F-4 GL / tax**      | **Deferred non-goal for this epic** unless separately funded. Slice F5 stays optional/OPEN; do not smuggle CoA/tax into F1–F3.                                                                                                     |
-| **OCR / ID scan**     | **N/A** to Fees Blackbaud-depth. Admissions **PRD-014** remains NON-GOAL; Fees does not introduce document-AI intake.                                                                                                              |
-| **Staff vs parent**   | Netting, dunning, recon = **staff** shell only. Instalment schedule / remaining balance = **parent** shell. No staff jargon on parent surfaces.                                                                                    |
-| **World-class claim** | Until S0/S1 residuals are DONE or dated-waived **and** peer table evidence exists, Fees remains **solid v1 / PROD_WAIVED — not Blackbaud-complete**.                                                                               |
+| **F-4 GL / tax**      | **Deferred non-goal for this epic** unless separately funded. Slice F5 stays optional/OPEN; do not smuggle CoA/tax into F1–F3.                                                                                                                                                            |
+| **OCR / ID scan**     | **N/A** to Fees Blackbaud-depth. Admissions **PRD-014** remains NON-GOAL; Fees does not introduce document-AI intake.                                                                                                                                                                     |
+| **Staff vs parent**   | Netting, dunning, recon = **staff** shell only. Instalment schedule / remaining balance = **parent** shell. No staff jargon on parent surfaces.                                                                                                                                           |
+| **World-class claim** | Until S0/S1 residuals are DONE or dated-waived **and** peer table evidence exists, Fees remains **solid v1 / PROD_WAIVED — not Blackbaud-complete**.                                                                                                                                      |
 
 ## 4. Peer parity
 
