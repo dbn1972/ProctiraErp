@@ -385,7 +385,7 @@ export class PgHostelRepository implements HostelRepository {
         if (!bedRow) {
           throw new BedAssignmentConflictError('BED_UNAVAILABLE', 'Bed not found for assignment');
         }
-        if (!Boolean(bedRow.is_available)) {
+        if (!bedRow.is_available) {
           throw new BedAssignmentConflictError(
             'BED_UNAVAILABLE',
             'Bed is not available for assignment',
@@ -398,7 +398,7 @@ export class PgHostelRepository implements HostelRepository {
            LIMIT 1`,
           [data.tenantId, data.studentId],
         );
-        if ((studentBusy.rowCount ?? studentBusy.rows.length) > 0) {
+        if (studentBusy.rows.length > 0) {
           throw new BedAssignmentConflictError(
             'STUDENT_ALREADY_ASSIGNED',
             'Student already has an active bed assignment',
