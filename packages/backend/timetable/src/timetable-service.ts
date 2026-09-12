@@ -802,17 +802,15 @@ export class TimetableService {
         daysOfWeek: input.daysOfWeek ?? [1, 2, 3, 4, 5],
         periods,
         rooms: rooms.map((r): GeneratorRoom => ({ id: r.id, capacity: r.capacity })),
-        demands: input.demands.map(
-          (d): GeneratorDemand => ({
-            id: d.id ?? randomUUID(),
-            sectionId: d.sectionId,
-            subjectId: d.subjectId,
-            staffId: d.staffId,
-            periodsPerWeek: d.periodsPerWeek,
-            preferredRoomId: d.preferredRoomId ?? null,
-            enrollmentCount: d.enrollmentCount ?? 0,
-          }),
-        ),
+        demands: input.demands.map((d): GeneratorDemand => ({
+          id: d.id ?? randomUUID(),
+          sectionId: d.sectionId,
+          subjectId: d.subjectId,
+          staffId: d.staffId,
+          periodsPerWeek: d.periodsPerWeek,
+          preferredRoomId: d.preferredRoomId ?? null,
+          enrollmentCount: d.enrollmentCount ?? 0,
+        })),
         unavailable: input.unavailable,
         teacherMaxPeriodsPerDay: input.teacherMaxPeriodsPerDay ?? 6,
       };
