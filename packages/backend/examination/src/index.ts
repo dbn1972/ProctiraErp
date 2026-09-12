@@ -51,6 +51,11 @@ export type {
   DocumentBlobStore,
 } from './document-generation-service.js';
 
+export { QueueDocumentTaskQueue } from './queue-document-task-queue.js';
+export type { ExamDocumentJobPayload } from './queue-document-task-queue.js';
+export { createDocumentTaskQueueFromEnv } from './document-task-queue-factory.js';
+export type { DocumentTaskQueueHandle } from './document-task-queue-factory.js';
+
 // PDF Generator
 export { SimplePdfGenerator } from './pdf-generator.js';
 export type { PdfGenerator, ExaminationInfo } from './pdf-generator.js';

@@ -9,3 +9,4 @@ packages:
   - 'plugins/*'
   - 'themes/*'
   - 'tools/*'
+  - 'workers/*'
