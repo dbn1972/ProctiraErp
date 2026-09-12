@@ -95,11 +95,11 @@ One slice per PR. Copy PRODUCT checklist before build. Tip CI green before merge
 
 ### Slice A0 — IA lock (Admissions enrol journey v2)
 
-- [ ] `docs/audits/PRODUCT_ADMISSIONS_ENROL_JOURNEY.md`
-- [ ] Journey map: enquiry → merit → seat → offer → pay → enrol (staff + applicant/parent)
-- [ ] Decision on **A-1** public apply (build vs NON-GOAL)
-- [ ] Confirm OCR stays NON-GOAL (A-4)
-- **Exit:** PRODUCT audit merged
+- [x] `docs/audits/PRODUCT_ADMISSIONS_ENROL_JOURNEY.md`
+- [x] Journey map: enquiry → merit → seat → offer → pay → enrol (staff + applicant/parent)
+- [x] Decision on **A-1** public apply (build vs NON-GOAL)
+- [x] Confirm OCR stays NON-GOAL (A-4)
+- **Exit:** PRODUCT audit merged (branch `cursor/adm-enrol-ia-lock-56c3`)
 
 ### Slice A1 — PG pipeline store default (closes A-3)
 
@@ -168,7 +168,8 @@ Until then, status remains: **solid v1 / PROD_WAIVED — not world-class complet
 
 ## 6. Progress log
 
-| Date (UTC) | Event                                                                                                                                                       |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-12 | Task file created from honest residual audit (Fees ~8.4, Admissions ~8.0 PROD_WAIVED)                                                                       |
-| 2026-09-12 | **F0 IN PR / done (IA)** — `cursor/fees-ia-lock-56c3` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md` (F-1 keep G-202 waiver; F-4 GL/tax deferred; OCR N/A) |
+| Date (UTC) | Event                                                                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-12 | Task file created from honest residual audit (Fees ~8.4, Admissions ~8.0 PROD_WAIVED)                                                                      |
+| 2026-09-12 | **F0 DONE (IA)** — merged `cursor/fees-ia-lock-56c3` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md` (F-1 keep G-202 waiver; F-4 GL/tax deferred; OCR N/A) |
+| 2026-09-12 | **A0** PRODUCT IA lock: `docs/audits/PRODUCT_ADMISSIONS_ENROL_JOURNEY.md` — A-1 deferred to A3; A-4 OCR remains NON-GOAL; A-3 → build A1                   |
