@@ -39,10 +39,14 @@
 
 ## Active slice
 
-**None** — peer-gap closure queue slices **#1–#10** are closed on `main` (with dated external waivers only where listed).
+**None** for queue **#1–#10** (closed on `main` with dated external waivers).
+
+**Next depth (not a re-open of #1–#10):** Fees Blackbaud-class + Admissions enrol-journey residuals — see  
+`docs/plans/TASKS_FEES_ADMISSIONS_WORLD_CLASS_GAPS.md`.
 
 ## Honesty
 
 - “Fully built” ≠ every peer feature forever; it means **documented residuals are either closed or dated external waivers**.
 - Do not claim SSO/SCIM/device-farm/LMS product complete without evidence.
 - Live Twilio/SMS, live PSP, live LMS vendor sandboxes, and external Statuspage remain waived until secrets/providers exist.
+- Fees ~8.4 / Admissions ~8.0 **PROD_WAIVED** ≠ Blackbaud / full CRM→enrol world-class complete.
