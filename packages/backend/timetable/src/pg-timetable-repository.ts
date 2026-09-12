@@ -6,7 +6,7 @@
 import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
-import { TimetableSchemaMissingError } from './timetable-errors.js';
+import { TimetableSchemaMissingError, TimetableVersionConflictError } from './timetable-errors.js';
 import type {
   AttendancePeriodSlot,
   BellScheduleEntity,
@@ -23,6 +23,7 @@ import type {
   ListRoomsFilter,
   ListSectionsFilter,
   ListSubstitutionsFilter,
+  UpdateConcurrencyOpts,
 } from './timetable-repository.js';
 
 const { Pool } = pg;
@@ -74,6 +75,13 @@ async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
 function iso(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   return String(value);
+}
+
+/** Ensure OCC tokens always advance (same-ms Date.now collisions). */
+function nextUpdatedAt(previous: string): string {
+  const now = new Date().toISOString();
+  if (now > previous) return now;
+  return new Date(Date.parse(previous) + 1).toISOString();
 }
 
 function dateOnly(value: unknown): string {
@@ -543,20 +551,37 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updateMeeting(tenantId: string, id: string, patch: Partial<SectionMeetingEntity>) {
+  async updateMeeting(
+    tenantId: string,
+    id: string,
+    patch: Partial<SectionMeetingEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getMeeting(tenantId, id);
       if (!cur) return null;
+      if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+        throw new TimetableVersionConflictError('section_meeting', id, cur.updatedAt);
+      }
       const next = {
         ...cur,
         ...patch,
         id: cur.id,
         tenantId: cur.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextUpdatedAt(cur.updatedAt),
       };
-      await this.query(
+      const params: unknown[] = [
         tenantId,
-        `UPDATE section_meetings SET
+        id,
+        next.sectionId,
+        next.periodId,
+        next.dayOfWeek,
+        next.roomId,
+        next.staffId || null,
+        next.status,
+        next.updatedAt,
+      ];
+      let sql = `UPDATE section_meetings SET
           section_id = $3,
           bell_period_id = $4,
           day_of_week = $5,
@@ -564,19 +589,17 @@ export class PgTimetableRepository implements TimetableRepository {
           teacher_staff_id = $7,
           status = $8,
           updated_at = $9::timestamptz
-         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
-        [
-          tenantId,
-          id,
-          next.sectionId,
-          next.periodId,
-          next.dayOfWeek,
-          next.roomId,
-          next.staffId || null,
-          next.status,
-          next.updatedAt,
-        ],
-      );
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`;
+      if (opts?.expectedUpdatedAt) {
+        params.push(opts.expectedUpdatedAt);
+        sql += ` AND updated_at = $10::timestamptz`;
+      }
+      const result = await this.query(tenantId, sql, params);
+      if ((result.rowCount ?? 0) === 0) {
+        const again = await this.getMeeting(tenantId, id);
+        if (!again) return null;
+        throw new TimetableVersionConflictError('section_meeting', id, again.updatedAt);
+      }
       return this.getMeeting(tenantId, id);
     });
   }
@@ -797,20 +820,39 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updateSection(tenantId: string, id: string, patch: Partial<SectionEntity>) {
+  async updateSection(
+    tenantId: string,
+    id: string,
+    patch: Partial<SectionEntity>,
+    opts?: UpdateConcurrencyOpts,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getSection(tenantId, id);
       if (!cur) return null;
+      if (opts?.expectedUpdatedAt && cur.updatedAt !== opts.expectedUpdatedAt) {
+        throw new TimetableVersionConflictError('section', id, cur.updatedAt);
+      }
       const next = {
         ...cur,
         ...patch,
         id: cur.id,
         tenantId: cur.tenantId,
-        updatedAt: new Date().toISOString(),
+        updatedAt: nextUpdatedAt(cur.updatedAt),
       };
-      const result = await this.query(
+      const params: unknown[] = [
         tenantId,
-        `UPDATE sections SET
+        id,
+        next.gradeId,
+        next.code,
+        next.name,
+        next.primaryTeacherId,
+        next.defaultRoomId,
+        next.capacity,
+        next.status,
+        next.publishedAt,
+        next.updatedAt,
+      ];
+      let sql = `UPDATE sections SET
           grade_id = $3,
           code = $4,
           name = $5,
@@ -820,22 +862,18 @@ export class PgTimetableRepository implements TimetableRepository {
           status = $9::section_publish_status,
           published_at = $10::timestamptz,
           updated_at = $11::timestamptz
-         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
-         RETURNING *`,
-        [
-          tenantId,
-          id,
-          next.gradeId,
-          next.code,
-          next.name,
-          next.primaryTeacherId,
-          next.defaultRoomId,
-          next.capacity,
-          next.status,
-          next.publishedAt,
-          next.updatedAt,
-        ],
-      );
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`;
+      if (opts?.expectedUpdatedAt) {
+        params.push(opts.expectedUpdatedAt);
+        sql += ` AND updated_at = $12::timestamptz`;
+      }
+      sql += ` RETURNING *`;
+      const result = await this.query(tenantId, sql, params);
+      if ((result.rowCount ?? 0) === 0) {
+        const again = await this.getSection(tenantId, id);
+        if (!again) return null;
+        throw new TimetableVersionConflictError('section', id, again.updatedAt);
+      }
       return mapSection(result.rows[0] as Record<string, unknown>);
     });
   }

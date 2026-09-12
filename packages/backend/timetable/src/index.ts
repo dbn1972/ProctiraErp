@@ -27,8 +27,11 @@ export type {
 export {
   TimetableClashError,
   TimetableSchemaMissingError,
+  TimetableVersionConflictError,
   isTimetableClashError,
   isTimetableSchemaMissingError,
+  isTimetableVersionConflictError,
+  normalizeIfMatchToken,
 } from './timetable-errors.js';
 
 export { TimetableService } from './timetable-service.js';
@@ -71,6 +74,7 @@ export type {
   SectionPublishStatus,
   SubstitutionEntity,
   AttendancePeriodSlot,
+  UpdateConcurrencyOpts,
 } from './timetable-repository.js';
 
 export {
