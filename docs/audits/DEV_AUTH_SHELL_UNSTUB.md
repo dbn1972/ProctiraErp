@@ -14,22 +14,22 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_DEV_CHECKLIST.md`.
 
 ## 0. Product contract
 
-| Item                   | Content                                                                                                                                 |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Item                   | Content                                                                                                                               |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | Capability statement   | After sign-in (password, OAuth, or Keycloak SSO), `useAuth()` reflects the cookie session used by middleware / server `getSession()`. |
 | In scope (peer parity) | Unstub `AuthProvider`; `GET /api/auth/session`; Keycloak SSO entry on `/login`; demo banner gated by explicit env                     |
-| Explicit non-goals     | Live Keycloak IdP proof in this agent; inventing a new IdP; TASKS file edits; full Auth enterprise re-score                             |
-| Roles (RBAC)           | JWT role claims → `AuthUser.roles` / coarse `scope` for dashboard routing only; server RBAC unchanged                                   |
-| Boards impacted        | CBSE ☐ ICSE ☐ State ☐ Other: N/A (identity shell)                                                                                       |
+| Explicit non-goals     | Live Keycloak IdP proof in this agent; inventing a new IdP; TASKS file edits; full Auth enterprise re-score                           |
+| Roles (RBAC)           | JWT role claims → `AuthUser.roles` / coarse `scope` for dashboard routing only; server RBAC unchanged                                 |
+| Boards impacted        | CBSE ☐ ICSE ☐ State ☐ Other: N/A (identity shell)                                                                                     |
 
 Screen / API inventory:
 
-| Nav / surface     | Route                 | API                         | Tables | PII        |
-| ----------------- | --------------------- | --------------------------- | ------ | ---------- |
-| Login             | `/login`              | `POST /api/auth/login`      | —      | email/pw   |
-| Keycloak SSO      | `/api/auth/keycloak`  | gateway `/api/v1/auth/login`| —      | OIDC       |
-| Session hydrate   | (client)              | `GET /api/auth/session`     | —      | claims     |
-| Auth provider     | AppProviders / App    | session + refresh + logout  | —      | session    |
+| Nav / surface   | Route                | API                          | Tables | PII      |
+| --------------- | -------------------- | ---------------------------- | ------ | -------- |
+| Login           | `/login`             | `POST /api/auth/login`       | —      | email/pw |
+| Keycloak SSO    | `/api/auth/keycloak` | gateway `/api/v1/auth/login` | —      | OIDC     |
+| Session hydrate | (client)             | `GET /api/auth/session`      | —      | claims   |
+| Auth provider   | AppProviders / App   | session + refresh + logout   | —      | session  |
 
 ---
 
@@ -47,44 +47,44 @@ Screen / API inventory:
 
 ## 2. API / services
 
-| Check                              | Done | Evidence                                              |
-| ---------------------------------- | ---- | ----------------------------------------------------- |
-| Tenant middleware on all routes    | ☑    | Existing middleware + cookie gate unchanged           |
-| Validation + typed errors          | ☑    | Session route returns authenticated / expired shapes  |
-| RBAC enforced                      | ☑    | Server-side only; client mapping is UX                |
-| Conflict / rule failures → 409/422 | ☐    | N/A                                                   |
-| Idempotent writes where needed     | ☐    | N/A                                                   |
-| Cross-tenant deny test             | ☐    | Residual — covered by gateway JWT tenancy elsewhere   |
+| Check                              | Done | Evidence                                             |
+| ---------------------------------- | ---- | ---------------------------------------------------- |
+| Tenant middleware on all routes    | ☑    | Existing middleware + cookie gate unchanged          |
+| Validation + typed errors          | ☑    | Session route returns authenticated / expired shapes |
+| RBAC enforced                      | ☑    | Server-side only; client mapping is UX               |
+| Conflict / rule failures → 409/422 | ☐    | N/A                                                  |
+| Idempotent writes where needed     | ☐    | N/A                                                  |
+| Cross-tenant deny test             | ☐    | Residual — covered by gateway JWT tenancy elsewhere  |
 
 ---
 
 ## 3. UI (redesign)
 
-| Screen | Empty/loading/error | Write works | Board-aware | Evidence |
-| ------ | ------------------- | ----------- | ----------- | -------- |
-| AuthProvider hydrate | ☑ loading → authed/unauthed | signIn/signOut/refresh via BFF | N/A | `AuthProvider.test.tsx` |
-| `/login` | ☑ | existing LoginForm + Keycloak link | N/A | `login-form.tsx` |
-| Demo banner | ☑ only when env set | N/A | N/A | `auth-demo-mode-banner.tsx` |
+| Screen               | Empty/loading/error         | Write works                        | Board-aware | Evidence                    |
+| -------------------- | --------------------------- | ---------------------------------- | ----------- | --------------------------- |
+| AuthProvider hydrate | ☑ loading → authed/unauthed | signIn/signOut/refresh via BFF     | N/A         | `AuthProvider.test.tsx`     |
+| `/login`             | ☑                           | existing LoginForm + Keycloak link | N/A         | `login-form.tsx`            |
+| Demo banner          | ☑ only when env set         | N/A                                | N/A         | `auth-demo-mode-banner.tsx` |
 
 ---
 
 ## 4. Cross-module integration
 
-| Dependency                     | Integrated | Evidence                                      |
-| ------------------------------ | ---------- | --------------------------------------------- |
-| Middleware cookie gate         | ☑          | Same `access_token` / `getSession()`          |
-| `/api/auth/login|refresh|logout` | ☑        | AuthProvider calls session helpers            |
-| Keycloak (ADR-001)             | ☑          | `/api/auth/keycloak` linked from login        |
-| Dashboard RoleRouter           | ☑          | Still consumes `useAuth().user`               |
+| Dependency             | Integrated | Evidence                               |
+| ---------------------- | ---------- | -------------------------------------- | --- | ---------------------------------- |
+| Middleware cookie gate | ☑          | Same `access_token` / `getSession()`   |
+| `/api/auth/login       | refresh    | logout`                                | ☑   | AuthProvider calls session helpers |
+| Keycloak (ADR-001)     | ☑          | `/api/auth/keycloak` linked from login |
+| Dashboard RoleRouter   | ☑          | Still consumes `useAuth().user`        |
 
 ---
 
 ## 5. Observability & audit
 
-| Check                               | Done | Evidence |
-| ----------------------------------- | ---- | -------- |
-| Auth failures surface messages      | ☑    | Existing login form + AuthProvider throw     |
-| Demo mode honesty                   | ☑    | `NEXT_PUBLIC_AUTH_DEMO_MODE` + banner        |
+| Check                          | Done | Evidence                                 |
+| ------------------------------ | ---- | ---------------------------------------- |
+| Auth failures surface messages | ☑    | Existing login form + AuthProvider throw |
+| Demo mode honesty              | ☑    | `NEXT_PUBLIC_AUTH_DEMO_MODE` + banner    |
 
 ---
 
@@ -99,21 +99,21 @@ Screen / API inventory:
 
 ## 7. Test evidence (Definition of Test — minimal)
 
-| Check                    | Done | Evidence |
-| ------------------------ | ---- | -------- |
-| Unit: token → AuthUser   | ☑    | `apps/web/src/lib/auth/auth-user.test.ts` |
-| Unit: session route      | ☑    | `apps/web/src/app/api/auth/session/route.test.ts` |
-| Unit: AuthProvider       | ☑    | `apps/web/src/providers/AuthProvider.test.tsx` |
-| Live IdP e2e             | ☐    | Dated residual — no Keycloak secrets in agent |
+| Check                  | Done | Evidence                                          |
+| ---------------------- | ---- | ------------------------------------------------- |
+| Unit: token → AuthUser | ☑    | `apps/web/src/lib/auth/auth-user.test.ts`         |
+| Unit: session route    | ☑    | `apps/web/src/app/api/auth/session/route.test.ts` |
+| Unit: AuthProvider     | ☑    | `apps/web/src/providers/AuthProvider.test.tsx`    |
+| Live IdP e2e           | ☐    | Dated residual — no Keycloak secrets in agent     |
 
 ---
 
 ## Exit criteria (P0-02 DoD)
 
-| Criterion                                              | Status |
-| ------------------------------------------------------ | ------ |
-| Stubbed web auth shell identified                      | ☑ AuthProvider |
-| Wired to real session/auth gate already in repo        | ☑ |
-| Prod does not ship stub login as primary shell         | ☑ |
-| Demo (if any) behind explicit env + banner             | ☑ banner-only |
-| Minimal unit proof + this DEV doc                      | ☑ |
+| Criterion                                       | Status         |
+| ----------------------------------------------- | -------------- |
+| Stubbed web auth shell identified               | ☑ AuthProvider |
+| Wired to real session/auth gate already in repo | ☑              |
+| Prod does not ship stub login as primary shell  | ☑              |
+| Demo (if any) behind explicit env + banner      | ☑ banner-only  |
+| Minimal unit proof + this DEV doc               | ☑              |
