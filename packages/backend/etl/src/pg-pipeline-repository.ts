@@ -235,7 +235,16 @@ export class PgPipelineRepository implements PipelineRepository {
   }
 }
 
-/** Factory: PG when DATABASE_URL; else memory (P0-05: never silent memory when URL set). */
+/**
+ * Factory: PG when DATABASE_URL; else memory.
+ *
+ * P0-05 / P0-10 honesty:
+ * - `DATABASE_URL` set → Postgres only; `assertPostgresRepositoryAvailable` fails closed
+ *   (never silent InMemory when operators expect durable pipelines).
+ * - `DATABASE_URL` unset → InMemory for local/unit tests after `assertInMemoryFallbackAllowed`
+ *   (blocked in production unless `ALLOW_IN_MEMORY_IN_PRODUCTION=1`).
+ * See `apps/etl-worker/README.md`.
+ */
 export function createPipelineRepository(): PipelineRepository {
   if (process.env.DATABASE_URL?.trim()) {
     const pool = getSharedPgPool();
