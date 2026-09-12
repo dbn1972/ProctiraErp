@@ -82,6 +82,13 @@ test.describe('Academic calendar — pages render (ungated)', () => {
     await expect(page.getByTestId('new-period')).toBeVisible();
   });
 
+  test('/academic-periods exposes Export calendar (.ics) CTA', async ({ page }) => {
+    await page.goto('/academic-periods', { waitUntil: 'domcontentloaded' });
+    const exportLink = page.getByTestId('export-calendar');
+    await expect(exportLink).toBeVisible();
+    await expect(exportLink).toHaveAttribute('href', '/api/academic-calendar/export');
+  });
+
   test('/academic-periods/[id]/calendar shows not-found for an unknown period', async ({
     page,
   }) => {

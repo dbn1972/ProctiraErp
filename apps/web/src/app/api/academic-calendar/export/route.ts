@@ -36,8 +36,10 @@ export async function GET(request: Request): Promise<Response> {
     if (periodId && periods.length === 0) {
       return NextResponse.json({ code: 'NOT_FOUND', message: 'Period not found' }, { status: 404 });
     }
+    // Honesty: do not silently drop holidays/windows when a period fetch fails —
+    // propagate so the client gets UPSTREAM_ERROR instead of a partial .ics.
     const events: CalendarEvent[] = (
-      await Promise.all(periods.map((p) => listCalendarEvents(p.id).catch(() => [])))
+      await Promise.all(periods.map((p) => listCalendarEvents(p.id)))
     ).flat();
 
     const body = renderAcademicCalendarIcs({ tenantId, periods, events });

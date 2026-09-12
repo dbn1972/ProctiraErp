@@ -54,6 +54,18 @@ describe('renderAcademicCalendarIcs (G-905/G-925)', () => {
   it('scopes UIDs to the tenant', () => {
     expect(ics).toContain(`UID:event-${event.id}@tenant-a.proctira`);
   });
+
+  it('publishes METHOD:PUBLISH and remains valid with periods-only (no events)', () => {
+    const emptyEvents = renderAcademicCalendarIcs({
+      tenantId: 'tenant-a',
+      periods: [period],
+      events: [],
+      now: new Date('2026-09-09T08:00:00Z'),
+    });
+    expect(emptyEvents).toContain('METHOD:PUBLISH');
+    expect(emptyEvents.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(emptyEvents.trimEnd().endsWith('END:VCALENDAR')).toBe(true);
+  });
 });
 
 describe('hierarchyToCsv (G-925)', () => {
