@@ -1,11 +1,13 @@
 /**
  * Staff Routes
  *
- * POST   /staff       - Create a new staff record
- * PUT    /staff/:id   - Update a staff record
- * GET    /staff       - List staff (paginated, filterable, searchable)
- * GET    /staff/:id   - Get a single staff record
- * DELETE /staff/:id   - Delete a staff record
+ * POST   /staff              - Create a new staff record
+ * PUT    /staff/:id          - Update a staff record
+ * GET    /staff              - List staff (paginated, filterable, searchable)
+ * GET    /staff/:id          - Get a single staff record
+ * DELETE /staff/:id          - Delete a staff record
+ * POST   /staff/:id/offboard - Thin offboard status stub (P1-HR)
+ * GET    /staff/:id/offboard - Read thin offboard status
  */
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
@@ -20,6 +22,12 @@ import {
   type StaffListQuery,
   type StaffParams,
 } from './schemas.js';
+import {
+  OffboardStaffParamsSchema,
+  OffboardStaffSchema,
+  type OffboardStaffInput,
+  type OffboardStaffParams,
+} from './offboard-schemas.js';
 import { staffWritePreHandler } from './staff-http-guard.js';
 import type { StaffService } from './staff-service.js';
 
@@ -63,6 +71,12 @@ function formatStaffResponse(entity: {
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };
+}
+
+/** Actor from verified JWT only (G-102 — never trust x-user-id headers). */
+function getActorId(request: FastifyRequest): string {
+  const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
+  return user?.sub ?? 'anonymous';
 }
 
 /**
@@ -218,6 +232,102 @@ export async function registerStaffRoutes(
         data: result.data.map(formatStaffResponse),
         meta: result.meta,
       });
+    },
+  );
+
+  /**
+   * POST /staff/:id/offboard — thin offboard status stub (P1-HR).
+   * Registered before GET /:id so the static segment matches.
+   */
+  fastify.post(
+    `${prefix}/:id/offboard`,
+    async function offboardHandler(
+      request: FastifyRequest<{ Params: OffboardStaffParams; Body: OffboardStaffInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(OffboardStaffParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid staff ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(OffboardStaffSchema, request.body ?? {});
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const view = await staffService.offboard(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+          getActorId(request),
+        );
+        return reply.status(200).send(view);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /staff/:id/offboard — read thin offboard status stub.
+   */
+  fastify.get(
+    `${prefix}/:id/offboard`,
+    async function getOffboardHandler(
+      request: FastifyRequest<{ Params: OffboardStaffParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(OffboardStaffParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid staff ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const view = await staffService.getOffboardStatus(tenantId, paramsResult.data.id);
+        return reply.status(200).send(view);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 

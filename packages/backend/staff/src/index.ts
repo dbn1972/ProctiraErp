@@ -293,3 +293,22 @@ export type { StaffRepositoryConfig } from './repository-factory.js';
 
 export { assertStaffAccess, hasStaffAccess, normalizeStaffRoles } from './staff-access.js';
 export type { StaffAction } from './staff-access.js';
+
+// ─── Thin offboard status stub (P1-HR S0/S1) ─────────────────────────
+export {
+  OffboardStaffSchema,
+  OffboardStaffParamsSchema,
+  OffboardStatusResponseSchema,
+} from './offboard-schemas.js';
+export type {
+  OffboardStaffInput,
+  OffboardStaffParams,
+  OffboardStatusResponse,
+} from './offboard-schemas.js';
+export {
+  OFFBOARD_CUSTOM_DATA_KEY,
+  readOffboardMeta,
+  writeOffboardMeta,
+} from './offboard-meta.js';
+export type { StaffOffboardMeta } from './offboard-meta.js';
+export type { StaffOffboardStatusView } from './staff-service.js';

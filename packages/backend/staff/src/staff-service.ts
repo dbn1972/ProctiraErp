@@ -13,8 +13,20 @@ import { ConflictError, NotFoundError, EntityStatus } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { readOffboardMeta, writeOffboardMeta, type StaffOffboardMeta } from './offboard-meta.js';
+import type { OffboardStaffInput } from './offboard-schemas.js';
 import type { CreateStaffInput, UpdateStaffInput } from './schemas.js';
 import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
+
+export interface StaffOffboardStatusView {
+  staffId: string;
+  employmentStatus: 'ACTIVE' | 'INACTIVE';
+  offboardStatus: 'active' | 'offboarded';
+  effectiveDate: string | null;
+  reason: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
 
 /**
  * Service handling staff business logic.
@@ -135,5 +147,84 @@ export class StaffService {
     if (!deleted) {
       throw new NotFoundError(`Staff with id '${id}' not found`);
     }
+  }
+
+  /**
+   * Thin offboard status stub (P1-HR): mark staff INACTIVE and record metadata.
+   * Does not run IT revoke, asset return, final pay, or contract termination.
+   *
+   * @throws NotFoundError if staff not found for tenant
+   * @throws ConflictError if already offboarded
+   */
+  async offboard(
+    tenantId: string,
+    id: string,
+    input: OffboardStaffInput,
+    decidedBy: string,
+  ): Promise<StaffOffboardStatusView> {
+    const existing = await this.repository.findById(id, tenantId);
+    if (!existing) {
+      throw new NotFoundError(`Staff with id '${id}' not found`);
+    }
+
+    const prior = readOffboardMeta(existing.customData);
+    if (prior || existing.status === EntityStatus.INACTIVE) {
+      throw new ConflictError(`Staff with id '${id}' is already inactive/offboarded`);
+    }
+
+    const meta: StaffOffboardMeta = {
+      status: 'offboarded',
+      effectiveDate: input.effectiveDate,
+      reason: input.reason?.trim() ? input.reason.trim() : null,
+      decidedBy,
+      decidedAt: new Date().toISOString(),
+    };
+
+    const updated = await this.repository.update(id, tenantId, {
+      status: EntityStatus.INACTIVE,
+      customData: writeOffboardMeta(existing.customData, meta),
+    });
+    if (!updated) {
+      throw new NotFoundError(`Staff with id '${id}' not found`);
+    }
+
+    return this.toOffboardView(updated);
+  }
+
+  /**
+   * Read thin offboard status for a staff member.
+   *
+   * @throws NotFoundError if staff not found for tenant
+   */
+  async getOffboardStatus(tenantId: string, id: string): Promise<StaffOffboardStatusView> {
+    const staff = await this.repository.findById(id, tenantId);
+    if (!staff) {
+      throw new NotFoundError(`Staff with id '${id}' not found`);
+    }
+    return this.toOffboardView(staff);
+  }
+
+  private toOffboardView(staff: StaffEntity): StaffOffboardStatusView {
+    const meta = readOffboardMeta(staff.customData);
+    if (!meta) {
+      return {
+        staffId: staff.id,
+        employmentStatus: staff.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+        offboardStatus: 'active',
+        effectiveDate: null,
+        reason: null,
+        decidedBy: null,
+        decidedAt: null,
+      };
+    }
+    return {
+      staffId: staff.id,
+      employmentStatus: staff.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+      offboardStatus: 'offboarded',
+      effectiveDate: meta.effectiveDate,
+      reason: meta.reason,
+      decidedBy: meta.decidedBy,
+      decidedAt: meta.decidedAt,
+    };
   }
 }
