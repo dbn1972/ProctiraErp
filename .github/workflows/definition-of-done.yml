@@ -7,27 +7,26 @@ name: Definition of Done
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 'release/**']
     paths:
       - 'packages/backend/**'
       - 'packages/shared/**'
-      - 'packages/eslint-plugin-proctira/**'
+      - 'packages/eslint-plugin-openemis/**'
       - 'apps/**'
       - 'tools/dod-checks/**'
       - 'tools/scripts/definition-of-done-checks*.mjs'
   push:
-    branches: [main]
+    branches: [main, develop, 'release/**']
     paths:
       - 'packages/backend/**'
       - 'packages/shared/**'
-      - 'packages/eslint-plugin-proctira/**'
+      - 'packages/eslint-plugin-openemis/**'
       - 'apps/**'
       - 'tools/dod-checks/**'
       - 'tools/scripts/definition-of-done-checks*.mjs'
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   dod-checks:

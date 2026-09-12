@@ -9,19 +9,14 @@ name: PR Check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -51,9 +46,14 @@ jobs:
   affected-summary:
     name: Affected Modules
     runs-on: ubuntu-latest
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
@@ -70,18 +70,21 @@ jobs:
 
       - name: List affected packages
         id: affected
+        shell: bash
         run: |
+          set -euo pipefail
           {
-            echo "## Affected Packages"
-            echo ""
-            echo "The following packages will be rebuilt:"
-            echo ""
+            echo '## Affected Packages'
+            echo
+            echo 'The following packages will be rebuilt:'
+            echo
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Use turbo dry run to show affected packages
-          if ! pnpm turbo run build --filter='...[origin/main]' --dry=json 2>/dev/null | \
-            jq -r '.packages[]' | while IFS= read -r pkg; do
-              echo "- \`${pkg}\`" >> "$GITHUB_STEP_SUMMARY"
-            done; then
-            echo "- Unable to determine affected packages" >> "$GITHUB_STEP_SUMMARY"
+          packages="$(pnpm turbo run build --filter="...[$BASE_SHA]" --dry=json | jq -r '.packages[]')"
+          if [ -z "$packages" ]; then
+            echo '- No build packages affected.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            while IFS= read -r package; do
+              echo "- \`${package}\`" >> "$GITHUB_STEP_SUMMARY"
+            done <<< "$packages"
           fi

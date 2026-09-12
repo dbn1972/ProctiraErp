@@ -1,9 +1,9 @@
 # =============================================================================
 # CI Pipeline - ProctiraERP Unified Platform
 # =============================================================================
-# Runs on every push and pull request to main/develop branches.
-# Stages: lint → type-check → unit test → build → integration test
-# Uses Turborepo remote caching and affected-module detection for selective builds.
+# Runs on every push and pull request to protected base branches.
+# Stages: detect → lint/type-check → test → build → specialized gates → required.
+# Core jobs always report; path-specific jobs may skip only when inapplicable.
 # =============================================================================
 
 name: CI
@@ -12,21 +12,20 @@ on:
   push:
     branches: [main, develop, 'release/**']
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, 'release/**']
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
-  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
   NODE_VERSION: '20'
   PNPM_VERSION: '10.33.2'
-
-permissions:
-  contents: read
-  pull-requests: read
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -39,9 +38,15 @@ jobs:
       packages-changed: ${{ steps.filter.outputs.packages }}
       apps-changed: ${{ steps.filter.outputs.apps }}
       infra-changed: ${{ steps.filter.outputs.infra }}
+      compose-changed: ${{ steps.filter.outputs.compose }}
+      docker-changed: ${{ steps.filter.outputs.docker }}
+      k8s-changed: ${{ steps.filter.outputs.k8s }}
+      code-changed: ${{ steps.filter.outputs.code }}
       has-backend-changes: ${{ steps.filter.outputs.backend }}
       has-frontend-changes: ${{ steps.filter.outputs.frontend }}
       has-shared-changes: ${{ steps.filter.outputs.shared }}
+      tenant-critical-changed: ${{ steps.filter.outputs.tenant-critical }}
+      flutter-changed: ${{ steps.filter.outputs.flutter }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,10 +60,43 @@ jobs:
               - 'packages/**'
             apps:
               - 'apps/**'
+            code:
+              - 'apps/**'
+              - 'packages/**'
+              - 'tools/**'
+              - 'plugins/**'
+              - 'themes/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - '.eslintrc*'
+              - '.prettier*'
+              - 'vitest*.{ts,js,mts,mjs}'
+            governance:
+              - '.github/**'
+              - '.kiro/**'
+              - 'CONTRIBUTING.md'
+              - 'SECURITY.md'
+              - 'docs/**'
             infra:
               - 'infrastructure/**'
+              - 'infra/**'
               - 'Dockerfile*'
+              - '**/Dockerfile*'
               - 'docker-compose*.yml'
+              - '.github/workflows/deploy.yml'
+            compose:
+              - 'docker-compose*.yml'
+              - 'infrastructure/**/docker-compose*.yml'
+              - 'infra/**/docker-compose*.yml'
+            docker:
+              - 'Dockerfile*'
+              - '**/Dockerfile'
+              - '**/Dockerfile.*'
+            k8s:
+              - 'infrastructure/k8s/**'
             backend:
               - 'packages/backend/**'
               - 'packages/shared/**'
@@ -66,15 +104,30 @@ jobs:
               - 'apps/etl-worker/**'
             frontend:
               - 'packages/ui/**'
-              - 'apps/web/**'
+              - 'apps/admin-console/**'
+              - 'apps/developer-portal/**'
+              - 'apps/install-wizard/**'
+              - 'apps/public-website/**'
               - 'apps/registration-portal/**'
+              - 'apps/web/**'
             shared:
               - 'packages/shared/**'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
               - 'turbo.json'
               - 'tsconfig.base.json'
               - 'pnpm-lock.yaml'
-              - '.github/workflows/**'
-              - '.eslintrc*'
+            tenant-critical:
+              - 'apps/api-gateway/**'
+              - 'packages/backend/**'
+              - 'packages/shared/**'
+              - 'tools/tenant-isolation-tests/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+            flutter:
+              - 'apps/mobile/**'
+              - 'packages/flutter-core/**'
 
   # ---------------------------------------------------------------------------
   # Lint - ESLint + Prettier check
@@ -83,15 +136,14 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.packages-changed == 'true' || needs.detect-changes.outputs.apps-changed == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -105,39 +157,52 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run ESLint (tip-changed sources only)
+      - name: Run ESLint on affected sources
+        if: needs.detect-changes.outputs.code-changed == 'true'
+        shell: bash
         run: |
-          # Tip-only: lint the TS/JS files touched in HEAD, not entire
-          # packages. Touching a package config (e.g. lighthouserc.cjs) must
-          # not fail the PR on pre-existing debt elsewhere in that package.
-          mapfile -t FILES < <(
-            git diff --name-only --diff-filter=ACMR HEAD~1 HEAD -- \
-              '*.ts' '*.tsx' '*.js' '*.jsx' \
-              | grep -vE '(^|/)(dist|\.next|coverage|node_modules)/' \
-              || true
-          )
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "No tip TS/JS sources; skipping ESLint."
+          set -euo pipefail
+          if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || [[ "$BASE_SHA" =~ ^0+$ ]] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo 'Comparison base unavailable; running full ESLint.'
+            pnpm lint
             exit 0
           fi
-          echo "Linting ${#FILES[@]} tip file(s):"
-          printf '  %s\n' "${FILES[@]}"
-          pnpm exec eslint --no-error-on-unmatched-pattern "${FILES[@]}"
+
+          mapfile -t files < <(
+            git diff --name-only --diff-filter=ACMR "$BASE_SHA"...HEAD -- \
+              '*.ts' '*.tsx' '*.js' '*.jsx' |
+              grep -vE '(^|/)(dist|\.next|coverage|node_modules)/' || true
+          )
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo 'No affected TS/JS sources; ESLint is not applicable.'
+            exit 0
+          fi
+          printf 'Linting %s affected source file(s):\n' "${#files[@]}"
+          printf '  %s\n' "${files[@]}"
+          pnpm exec eslint --no-error-on-unmatched-pattern "${files[@]}"
 
       - name: Run accessibility ESLint scan (icon-only buttons)
+        if: needs.detect-changes.outputs.has-frontend-changes == 'true'
         run: pnpm run lint:a11y
 
       - name: Run contrast gate (Requirement 37 AC 2 — light + dark modes)
+        if: needs.detect-changes.outputs.has-frontend-changes == 'true'
         run: pnpm run check:contrast
 
       - name: Run brand-neutrality ESLint scan (no-hardcoded-brand-strings)
+        if: needs.detect-changes.outputs.has-frontend-changes == 'true'
         run: pnpm run lint:brand
 
       - name: Check hardcoded brand strings (non-TypeScript assets)
+        if: needs.detect-changes.outputs.has-frontend-changes == 'true'
         run: pnpm run check:brand-strings
 
+      - name: Explain non-code lint scope
+        if: needs.detect-changes.outputs.code-changed != 'true'
+        run: echo 'No code paths changed; ESLint is not applicable.'
+
       - name: Check formatting (repo-wide, G-733)
-        run: pnpm run format:check
+        run: pnpm format:check
 
   # ---------------------------------------------------------------------------
   # Type Check - TypeScript compilation
@@ -146,15 +211,14 @@ jobs:
     name: Type Check
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.packages-changed == 'true' || needs.detect-changes.outputs.apps-changed == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -166,10 +230,24 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Run TypeScript type checking (affected packages)
-        run: pnpm turbo run typecheck --filter='...[HEAD~1]'
+      - name: Run TypeScript type checking for affected packages
+        if: needs.detect-changes.outputs.code-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BASE_SHA" =~ ^0+$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            pnpm turbo run typecheck --filter="...[$BASE_SHA]"
+          else
+            echo 'Comparison base unavailable; running full typecheck.'
+            pnpm typecheck
+          fi
+
+      - name: Explain non-code typecheck scope
+        if: needs.detect-changes.outputs.code-changed != 'true'
+        run: echo 'No code paths changed; TypeScript checking is not applicable.'
 
   # ---------------------------------------------------------------------------
   # Unit Tests - Vitest + fast-check property tests
@@ -177,15 +255,15 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [lint, typecheck]
+    needs: [detect-changes, lint, typecheck]
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -197,15 +275,29 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm install --frozen-lockfile
 
-      - name: Run unit tests (affected packages)
-        run: pnpm turbo run test --filter='...[HEAD~1]'
+      - name: Run unit tests for affected packages
+        if: needs.detect-changes.outputs.code-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BASE_SHA" =~ ^0+$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            pnpm turbo run test --filter="...[$BASE_SHA]"
+          else
+            echo 'Comparison base unavailable; running full unit test suite.'
+            pnpm test
+          fi
         env:
           CI: true
 
+      - name: Explain non-code test scope
+        if: needs.detect-changes.outputs.code-changed != 'true'
+        run: echo 'No code paths changed; unit tests are not applicable.'
+
       - name: Upload test coverage
-        if: always()
+        if: always() && needs.detect-changes.outputs.code-changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
@@ -218,15 +310,15 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -238,14 +330,29 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Build affected packages
-        run: pnpm turbo run build --filter='...[HEAD~1]'
+        if: needs.detect-changes.outputs.code-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ ! "$BASE_SHA" =~ ^0+$ ]] && git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            pnpm turbo run build --filter="...[$BASE_SHA]"
+          else
+            echo 'Comparison base unavailable; running full workspace build.'
+            pnpm build
+          fi
         env:
           NODE_ENV: production
 
+      - name: Explain non-code build scope
+        if: needs.detect-changes.outputs.code-changed != 'true'
+        run: echo 'No code paths changed; production builds are not applicable.'
+
       - name: Upload build artifacts
+        if: needs.detect-changes.outputs.code-changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
@@ -274,11 +381,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -364,11 +467,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -429,15 +528,16 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [build, detect-changes]
+    env:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+      TURBO_TEAM: ${{ vars.TURBO_TEAM }}
     if: needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          # The bootstrap role is a superuser and therefore bypasses RLS. The
-          # suites connect as `proctira`, a NOSUPERUSER / NOBYPASSRLS owner
-          # provisioned below, so tenant-isolation assertions are real (the
-          # production posture; FORCE RLS applies to owners).
+          # Bootstrap as postgres, then run suites as a NOSUPERUSER /
+          # NOBYPASSRLS application role so tenant-isolation assertions are real.
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
@@ -462,11 +562,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -480,8 +576,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Provision non-superuser app role + database (production RLS posture)
+      - name: Provision non-superuser app role and database
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
           export PGPASSWORD=postgres
@@ -500,19 +597,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 
-      # G-002: domain SQL (db/sql/001–N) after Prisma so raw-SQL modules use Postgres
       - name: Apply domain SQL schemas
         run: bash tools/scripts/apply-sql.sh
         env:
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
-          # G-705: demo seed files are opt-in; CI wants them, production never sets this.
           APPLY_SEEDS: '1'
 
-      # G-807: backend packages only define `test`, so `test:e2e` below never
-      # reached them and every pg-*-repository / *.live.test.ts suite silently
-      # skipped in CI (they self-skip without DATABASE_URL). Run the backend
-      # suites here against the migrated database so Postgres persistence,
-      # RLS and tenant binding are verified on every PR.
       - name: Run backend Postgres repository suites
         run: pnpm turbo run test --filter='./packages/backend/*' --force --continue
         env:
@@ -522,7 +612,7 @@ jobs:
           CI: true
 
       - name: Run integration tests
-        run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
+        run: pnpm turbo run test:e2e
         env:
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           REDIS_URL: redis://localhost:6379
@@ -549,15 +639,11 @@ jobs:
   dod-checks:
     name: Definition of Done (Charter §32)
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -569,19 +655,27 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Run Definition-of-Done checks
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm run check:dod
 
       - name: Run DoD check unit tests
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: pnpm run check:dod:test
 
       - name: Page-wise regression matrix is complete and current (G-804)
+        if: needs.detect-changes.outputs.code-changed == 'true'
         run: node tools/scripts/page-regression-matrix.mjs --check
 
+      - name: Explain non-code Definition-of-Done scope
+        if: needs.detect-changes.outputs.code-changed != 'true'
+        run: echo 'No code paths changed; Definition-of-Done code checks are not applicable.'
+
       - name: Upload DoD JSON report
-        if: always()
+        if: always() && needs.detect-changes.outputs.code-changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: dod-report
@@ -601,15 +695,11 @@ jobs:
   tenant-isolation:
     name: Tenant Isolation Verification (Release Gate)
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
     steps:
       - uses: actions/checkout@v4
         with:
-          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
-          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
-          # out the PR head (or push SHA) so the filter means "tip commit only".
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -621,45 +711,57 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Run unit isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:unit
         env:
           CI: true
 
       - name: Run integration isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:integration
         env:
           CI: true
 
       - name: Run queue/event isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:queue
         env:
           CI: true
 
       - name: Run search isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:search
         env:
           CI: true
 
       - name: Run cache isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:cache
         env:
           CI: true
 
       - name: Run report isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:report
         env:
           CI: true
 
       - name: Run E2E isolation tests
+        if: needs.detect-changes.outputs.tenant-critical-changed == 'true'
         run: pnpm test:tenant-isolation:e2e
         env:
           CI: true
 
+      - name: Explain non-tenant-critical scope
+        if: needs.detect-changes.outputs.tenant-critical-changed != 'true'
+        run: echo 'No tenant-critical paths changed; tenant-isolation suites are not applicable.'
+
       - name: Upload tenant isolation test results
-        if: always()
+        if: always() && needs.detect-changes.outputs.tenant-critical-changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: tenant-isolation-results
@@ -667,3 +769,263 @@ jobs:
             tools/tenant-isolation-tests/test-results/
             tools/tenant-isolation-tests/playwright-report/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Flutter validation - explicit success when mobile paths are not affected
+  # ---------------------------------------------------------------------------
+  flutter-validation:
+    name: Flutter Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: detect-changes
+    steps:
+      - uses: actions/checkout@v4
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+
+      - name: Read pinned Flutter revision
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        id: flutter-metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          revision="$(awk -F'"' '/^[[:space:]]+revision:/ { print $2; exit }' apps/mobile/.metadata)"
+          if [[ ! "$revision" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::apps/mobile/.metadata does not contain a full Flutter revision.'
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned Flutter SDK
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        shell: bash
+        env:
+          FLUTTER_REVISION: ${{ steps.flutter-metadata.outputs.revision }}
+        run: |
+          set -euo pipefail
+          sdk="$RUNNER_TEMP/flutter"
+          git init "$sdk"
+          git -C "$sdk" remote add origin https://github.com/flutter/flutter.git
+          git -C "$sdk" fetch --depth=1 origin "$FLUTTER_REVISION"
+          git -C "$sdk" checkout --detach FETCH_HEAD
+          echo "$sdk/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Flutter toolchain
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        run: |
+          flutter config --no-analytics
+          flutter --version
+          dart --version
+
+      - name: Resolve API client dependencies
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: packages/flutter-core/api-client
+        run: dart pub get --enforce-lockfile
+
+      - name: Check API client formatting
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: packages/flutter-core/api-client
+        run: dart format --output=none --set-exit-if-changed lib
+
+      - name: Analyze API client
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: packages/flutter-core/api-client
+        run: dart analyze --fatal-infos
+
+      - name: Resolve mobile dependencies
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter pub get --enforce-lockfile
+
+      - name: Check mobile Dart formatting
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: dart format --output=none --set-exit-if-changed lib test integration_test
+
+      - name: Analyze mobile app
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter analyze --fatal-infos --no-pub
+
+      - name: Run mobile unit and widget tests
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter test --no-pub --reporter=expanded --coverage test
+
+      - name: Run aggregated mobile journeys
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter test --no-pub --reporter=expanded integration_test/app_test.dart
+
+      - name: Run standalone offline-attendance journeys
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter test --no-pub --reporter=expanded integration_test/attendance_offline_test.dart
+
+      - name: Run standalone login journeys
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter test --no-pub --reporter=expanded integration_test/login_flow_test.dart
+
+      - name: Build Android debug application
+        if: needs.detect-changes.outputs.flutter-changed == 'true'
+        working-directory: apps/mobile
+        run: flutter build apk --debug --no-pub
+
+      - name: Explain non-Flutter scope
+        if: needs.detect-changes.outputs.flutter-changed != 'true'
+        run: echo 'No Flutter paths changed; mobile validation is not applicable.'
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure validation - explicit success when not applicable
+  # ---------------------------------------------------------------------------
+  infrastructure-validation:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Explain non-infrastructure scope
+        if: needs.detect-changes.outputs.infra-changed != 'true'
+        run: echo 'No infrastructure paths changed; infrastructure validation is not applicable.'
+
+      - name: Validate Docker Compose configurations
+        if: needs.detect-changes.outputs.compose-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          files=(docker-compose*.yml infrastructure/**/docker-compose*.yml infra/**/docker-compose*.yml)
+          for file in "${files[@]}"; do
+            echo "Validating $file"
+            docker compose --env-file .env.example -f "$file" config --quiet
+          done
+
+      - name: Validate Dockerfiles
+        if: needs.detect-changes.outputs.docker-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git ls-files 'Dockerfile*' '**/Dockerfile' '**/Dockerfile.*')
+          for file in "${files[@]}"; do
+            echo "Checking $file"
+            docker build --check --file "$file" .
+          done
+
+      - name: Render every Kustomize target
+        if: needs.detect-changes.outputs.k8s-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/kustomize"
+          mkdir -p "$out"
+          targets=(base overlays/development overlays/staging overlays/production)
+          for target in "${targets[@]}"; do
+            name="${target//\//-}"
+            echo "Rendering infrastructure/k8s/$target"
+            docker run --rm \
+              -v "$PWD:/work:ro" -w /work \
+              registry.k8s.io/kustomize/kustomize:v5.0.3@sha256:4e2f582b2ceaaf374013f85cf7462e87ccbe1d796b70e850ef5534e52c90b007 \
+              build "infrastructure/k8s/$target" > "$out/$name.yaml"
+            test -s "$out/$name.yaml"
+          done
+
+      - name: Validate rendered Kubernetes schemas
+        if: needs.detect-changes.outputs.k8s-changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$RUNNER_TEMP/kustomize:/manifests:ro" \
+            ghcr.io/yannh/kubeconform:v0.6.7@sha256:0925177fb05b44ce18574076141b5c3d83235e1904d3f952182ac99ddc45762c \
+            -strict -summary -kubernetes-version 1.27.0 \
+            /manifests/base.yaml \
+            /manifests/overlays-development.yaml \
+            /manifests/overlays-staging.yaml \
+            /manifests/overlays-production.yaml
+
+      - name: Explain delegated infrastructure scope
+        if: needs.detect-changes.outputs.infra-changed == 'true' && needs.detect-changes.outputs.compose-changed != 'true' && needs.detect-changes.outputs.docker-changed != 'true' && needs.detect-changes.outputs.k8s-changed != 'true'
+        run: echo 'Helm and observability validation are delegated to their dedicated workflows.'
+
+  # ---------------------------------------------------------------------------
+  # Stable aggregate check for branch protection
+  # ---------------------------------------------------------------------------
+  required:
+    name: Required
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - detect-changes
+      - lint
+      - typecheck
+      - unit-test
+      - build
+      - bundle-budget
+      - lighthouse
+      - integration-test
+      - dod-checks
+      - tenant-isolation
+      - flutter-validation
+      - infrastructure-validation
+    env:
+      DETECT_RESULT: ${{ needs.detect-changes.result }}
+      LINT_RESULT: ${{ needs.lint.result }}
+      TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+      UNIT_RESULT: ${{ needs.unit-test.result }}
+      BUILD_RESULT: ${{ needs.build.result }}
+      DOD_RESULT: ${{ needs.dod-checks.result }}
+      TENANT_RESULT: ${{ needs.tenant-isolation.result }}
+      FLUTTER_RESULT: ${{ needs.flutter-validation.result }}
+      INFRA_RESULT: ${{ needs.infrastructure-validation.result }}
+      BUNDLE_RESULT: ${{ needs.bundle-budget.result }}
+      LIGHTHOUSE_RESULT: ${{ needs.lighthouse.result }}
+      INTEGRATION_RESULT: ${{ needs.integration-test.result }}
+      FRONTEND_EXPECTED: ${{ needs.detect-changes.outputs.has-frontend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true' }}
+      INTEGRATION_EXPECTED: ${{ needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true' }}
+    steps:
+      - name: Enforce required results
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+
+          require_success() {
+            local label="$1"
+            local result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::${label} finished with '${result}', expected 'success'."
+              failed=1
+            fi
+          }
+
+          require_optional() {
+            local label="$1"
+            local expected="$2"
+            local result="$3"
+            if [ "$expected" = "true" ]; then
+              require_success "$label" "$result"
+            elif [ "$result" != "success" ] && [ "$result" != "skipped" ]; then
+              echo "::error::${label} finished with '${result}' while not applicable."
+              failed=1
+            fi
+          }
+
+          require_success 'Detect Affected Modules' "$DETECT_RESULT"
+          require_success 'Lint' "$LINT_RESULT"
+          require_success 'Type Check' "$TYPECHECK_RESULT"
+          require_success 'Unit Tests' "$UNIT_RESULT"
+          require_success 'Build' "$BUILD_RESULT"
+          require_success 'Definition of Done' "$DOD_RESULT"
+          require_success 'Tenant Isolation' "$TENANT_RESULT"
+          require_success 'Flutter Validation' "$FLUTTER_RESULT"
+          require_success 'Infrastructure Validation' "$INFRA_RESULT"
+          require_optional 'Bundle Budget' "$FRONTEND_EXPECTED" "$BUNDLE_RESULT"
+          require_optional 'Lighthouse' "$FRONTEND_EXPECTED" "$LIGHTHOUSE_RESULT"
+          require_optional 'Integration Tests' "$INTEGRATION_EXPECTED" "$INTEGRATION_RESULT"
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo 'All required and applicable CI gates passed.'

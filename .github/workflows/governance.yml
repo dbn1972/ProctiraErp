@@ -1,0 +1,77 @@
+name: Governance
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: governance-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    name: PR Policy
+    runs-on: ubuntu-latest
+    env:
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      PR_BASE: ${{ github.event.pull_request.base.ref }}
+      PR_BODY: ${{ github.event.pull_request.body || '' }}
+      PR_HEAD: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Validate branch and pull-request policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+
+          report_error() {
+            echo "::error::$1"
+            failed=1
+          }
+
+          if [[ ! "$PR_BASE" =~ ^(main|develop|release/.+)$ ]]; then
+            report_error "Pull requests must target main, develop, or an approved release/** branch."
+          fi
+
+          if [[ "$PR_HEAD" =~ ^(main|master|develop|release)(/|$) ]]; then
+            report_error "Task work cannot originate from a protected base branch."
+          fi
+
+          if [[ ! "$PR_HEAD" =~ ^(feat|fix|security|refactor|chore|docs|test|migration|hotfix|dependabot)/[A-Za-z0-9][A-Za-z0-9._/-]*$ ]]; then
+            report_error "Branch name must use an approved type and safe slug, for example feat/SIS-142-guardian-enrollment."
+          fi
+
+          if [[ "$PR_HEAD" == *'..'* || "$PR_HEAD" == *'//'* || "$PR_HEAD" == */ ]]; then
+            report_error "Branch name cannot contain '..', '//', or end with '/'."
+          fi
+
+          if [[ "$PR_AUTHOR" != 'dependabot[bot]' ]]; then
+            required_headings=(
+              '## Problem and outcome'
+              '## Scope and non-goals'
+              '## Linked work'
+              '## Affected modules, actors, and tenants'
+              '## Security and privacy'
+              '## Data and migrations'
+              '## API and event compatibility'
+              '## Validation evidence'
+              '## UI evidence'
+              '## Rollout and rollback'
+              '## Operational impact'
+              '## Risks and follow-up'
+            )
+
+            for heading in "${required_headings[@]}"; do
+              if ! grep -Fqi -- "$heading" <<< "$PR_BODY"; then
+                report_error "Pull-request body is missing required heading: $heading"
+              fi
+            done
+          fi
+
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+
+          echo 'Branch and pull-request policy checks passed.'
