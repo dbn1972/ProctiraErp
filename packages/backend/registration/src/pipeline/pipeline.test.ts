@@ -3,7 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { BusinessRuleError, ConflictError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 
@@ -217,5 +217,81 @@ describe('admissions pipeline service', () => {
 
     await app.close();
     expect(BusinessRuleError).toBeDefined();
+  });
+
+  it('lists and accepts offers only for matching guardian email', async () => {
+    const store = new InMemoryAdmissionsPipelineStore();
+    const apps = new InMemoryRegistrationRepository();
+    const service = new AdmissionsPipelineService(store, apps, async () => ({
+      studentId: randomUUID(),
+      enrollmentId: randomUUID(),
+    }));
+
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      seats: 5,
+    });
+
+    const mine = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Mine',
+      lastName: 'Child',
+      dateOfBirth: '2014-01-01',
+      guardianName: 'My Parent',
+      guardianPhone: '+91555',
+      guardianEmail: 'parent@family.test',
+      interviewScore: 88,
+      testScore: 90,
+    });
+    const other = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Other',
+      lastName: 'Child',
+      dateOfBirth: '2014-02-02',
+      guardianName: 'Other Parent',
+      guardianPhone: '+91666',
+      guardianEmail: 'other@family.test',
+      interviewScore: 70,
+      testScore: 70,
+    });
+    const convertedMine = await service.convertEnquiry(TENANT, mine.id);
+    const convertedOther = await service.convertEnquiry(TENANT, other.id);
+    const offerMine = await service.createOffer(TENANT, {
+      applicationId: convertedMine.application.id,
+      feeAmount: 500,
+    });
+    const offerOther = await service.createOffer(TENANT, {
+      applicationId: convertedOther.application.id,
+      feeAmount: 500,
+    });
+    await service.sendOffer(TENANT, offerMine.id);
+    await service.sendOffer(TENANT, offerOther.id);
+
+    const visible = await service.listGuardianOffers(TENANT, 'Parent@Family.TEST');
+    expect(visible).toHaveLength(1);
+    expect(visible[0]!.id).toBe(offerMine.id);
+    expect(visible[0]!.applicantFirstName).toBe('Mine');
+    expect(visible[0]!.feeAmount).toBe(500);
+
+    await expect(
+      service.acceptOfferForGuardian(TENANT, offerOther.id, 'parent@family.test', {
+        paymentRef: 'SANDBOX-PAY',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+
+    const accepted = await service.acceptOfferForGuardian(
+      TENANT,
+      offerMine.id,
+      'parent@family.test',
+      { paymentRef: 'SANDBOX-PAY' },
+    );
+    expect(accepted.status).toBe('accepted');
+    expect(accepted.enrolledStudentId).toBeTruthy();
   });
 });

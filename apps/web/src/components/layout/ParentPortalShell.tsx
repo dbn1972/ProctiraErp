@@ -130,6 +130,13 @@ const PARENT_NAV: readonly ParentNavItem[] = [
     Icon: CreditCard,
     match: (pathname) => pathname.startsWith('/parent/fees'),
   },
+  {
+    key: 'offers',
+    label: 'Offers',
+    href: '/parent/offers',
+    Icon: FileText,
+    match: (pathname) => pathname.startsWith('/parent/offers'),
+  },
 ];
 
 export interface ParentPortalShellProps {

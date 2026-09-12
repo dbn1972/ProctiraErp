@@ -83,6 +83,7 @@ import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import {
+  AdmissionsPipelineService,
   createAdmissionsCrmStore,
   createAdmissionsPipelineStore,
   createRegistrationRepository,
@@ -142,6 +143,92 @@ interface DomainRegistrar {
   proxyPrefixes: string[];
   /** Mounts the domain plugin onto an `/api/v1`-scoped instance. */
   register: (scope: FastifyInstance, config: GatewayConfig) => Promise<void>;
+}
+
+/** Shared admissions offer fee + enrol hooks (staff accept + parent A2 accept). */
+function createOfferFeeInvoiceHook() {
+  return async (input: {
+    tenantId: string;
+    applicationId: string;
+    offerId: string;
+    feeAmount: number;
+    feeCurrency: string;
+    firstName: string;
+    lastName: string;
+  }) => {
+    const fees = new FeesService(createFeesRepository());
+    const amountCents = Math.round(Number(input.feeAmount) * 100);
+    const invoice = await fees.createInvoice(input.tenantId, 'admissions-offer', {
+      studentId: input.applicationId,
+      title: `Admission offer fee — ${input.firstName} ${input.lastName}`,
+      description: `Offer ${input.offerId}`,
+      amountCents: Math.max(amountCents, 0),
+      currency: input.feeCurrency || 'INR',
+    });
+    return { invoiceId: invoice.id };
+  };
+}
+
+function assertOfferFeePaidHook() {
+  return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+    const fees = new FeesService(createFeesRepository());
+    const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+    if (invoice.status === 'paid') return;
+    if (input.paymentRef) {
+      await fees.recordPayment(input.tenantId, 'admissions-offer', {
+        invoiceId: input.invoiceId,
+        method: 'sandbox',
+      });
+      return;
+    }
+    throw new Error('Offer fee invoice must be paid before enrolment');
+  };
+}
+
+function createAdmissionsEnrolOnAccept() {
+  const studentService = new StudentService(createStudentRepository());
+  const enrollmentService = new EnrollmentService(createEnrollmentRepository());
+  return async (input: {
+    tenantId: string;
+    applicationId: string;
+    firstName: string;
+    lastName: string;
+    dateOfBirth: string;
+    gender: string;
+    guardianName: string;
+    guardianPhone: string;
+    guardianEmail: string | null;
+    institutionId: string;
+    gradeId: string;
+    academicPeriodId: string;
+  }): Promise<{ studentId: string; enrollmentId: string }> => {
+    const parts = input.guardianName.trim().split(/\s+/);
+    const guardianFirst = parts[0] ?? input.guardianName;
+    const guardianLast = parts.slice(1).join(' ') || guardianFirst;
+    const student = await studentService.create(input.tenantId, {
+      firstName: input.firstName,
+      lastName: input.lastName,
+      dateOfBirth: input.dateOfBirth,
+      gender: input.gender,
+      guardians: [
+        {
+          firstName: guardianFirst,
+          lastName: guardianLast,
+          relationship: 'guardian',
+          contactPhone: input.guardianPhone,
+          contactEmail: input.guardianEmail ?? undefined,
+        },
+      ],
+    });
+    const enrollment = await enrollmentService.createEnrollment(input.tenantId, {
+      studentId: student.id,
+      institutionId: input.institutionId,
+      gradeId: input.gradeId,
+      academicPeriodId: input.academicPeriodId,
+      enrolledAt: new Date().toISOString().slice(0, 10),
+    });
+    return { studentId: student.id, enrollmentId: enrollment.id };
+  };
 }
 
 /**
@@ -726,9 +813,24 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/parent-portal', '/student-portal'],
     register: async (scope) => {
       const repository = createParentPortalRepository();
+      // A2: same pipeline store + fee/enrol hooks as staff admissions so parent
+      // accept enrols against durable offers (PG when DATABASE_URL).
+      const pipelineService = new AdmissionsPipelineService(
+        createAdmissionsPipelineStore(),
+        createRegistrationRepository(),
+        createAdmissionsEnrolOnAccept(),
+        createOfferFeeInvoiceHook(),
+        assertOfferFeePaidHook(),
+      );
       await scope.register(parentPortalPlugin, {
         repository,
         feesService: new FeesService(createFeesRepository()),
+        admissionsOffers: {
+          listGuardianOffers: (tenantId, guardianEmail) =>
+            pipelineService.listGuardianOffers(tenantId, guardianEmail),
+          acceptOfferForGuardian: (tenantId, offerId, guardianEmail, input) =>
+            pipelineService.acceptOfferForGuardian(tenantId, offerId, guardianEmail, input),
+        },
         prefix: '/parent-portal',
         studentPrefix: '/student-portal',
       });
@@ -742,81 +844,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createRegistrationRepository();
       const crmStore = createAdmissionsCrmStore();
       const pipelineStore = createAdmissionsPipelineStore();
-      const studentService = new StudentService(createStudentRepository());
-      const enrollmentService = new EnrollmentService(createEnrollmentRepository());
       await scope.register(registrationPlugin, {
         repository,
         crmStore,
         pipelineStore,
         prefix: '/registrations',
         admissionsPrefix: '/admissions',
-
-        createOfferFeeInvoice: async (input) => {
-          const fees = new FeesService(createFeesRepository());
-          const amountCents = Math.round(Number(input.feeAmount) * 100);
-          const invoice = await fees.createInvoice(input.tenantId, 'admissions-offer', {
-            studentId: input.applicationId,
-            title: `Admission offer fee — ${input.firstName} ${input.lastName}`,
-            description: `Offer ${input.offerId}`,
-            amountCents: Math.max(amountCents, 0),
-            currency: input.feeCurrency || 'INR',
-          });
-          return { invoiceId: invoice.id };
-        },
-        assertOfferFeePaid: async (input) => {
-          const fees = new FeesService(createFeesRepository());
-          const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
-          if (invoice.status === 'paid') return;
-          if (input.paymentRef) {
-            await fees.recordPayment(input.tenantId, 'admissions-offer', {
-              invoiceId: input.invoiceId,
-              method: 'sandbox',
-            });
-            return;
-          }
-          throw new Error('Offer fee invoice must be paid before enrolment');
-        },
-        enrolOnAccept: async (input: {
-          tenantId: string;
-          applicationId: string;
-          firstName: string;
-          lastName: string;
-          dateOfBirth: string;
-          gender: string;
-          guardianName: string;
-          guardianPhone: string;
-          guardianEmail: string | null;
-          institutionId: string;
-          gradeId: string;
-          academicPeriodId: string;
-        }): Promise<{ studentId: string; enrollmentId: string }> => {
-          const parts = input.guardianName.trim().split(/\s+/);
-          const guardianFirst = parts[0] ?? input.guardianName;
-          const guardianLast = parts.slice(1).join(' ') || guardianFirst;
-          const student = await studentService.create(input.tenantId, {
-            firstName: input.firstName,
-            lastName: input.lastName,
-            dateOfBirth: input.dateOfBirth,
-            gender: input.gender,
-            guardians: [
-              {
-                firstName: guardianFirst,
-                lastName: guardianLast,
-                relationship: 'guardian',
-                contactPhone: input.guardianPhone,
-                contactEmail: input.guardianEmail ?? undefined,
-              },
-            ],
-          });
-          const enrollment = await enrollmentService.createEnrollment(input.tenantId, {
-            studentId: student.id,
-            institutionId: input.institutionId,
-            gradeId: input.gradeId,
-            academicPeriodId: input.academicPeriodId,
-            enrolledAt: new Date().toISOString().slice(0, 10),
-          });
-          return { studentId: student.id, enrollmentId: enrollment.id };
-        },
+        createOfferFeeInvoice: createOfferFeeInvoiceHook(),
+        assertOfferFeePaid: assertOfferFeePaidHook(),
+        enrolOnAccept: createAdmissionsEnrolOnAccept(),
       });
     },
   },

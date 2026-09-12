@@ -82,6 +82,10 @@ function formatOffer(row: OfferRecord) {
   };
 }
 
+function normalizeEmail(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
+}
+
 export type CreateOfferFeeInvoice = (input: {
   tenantId: string;
   applicationId: string;
@@ -530,6 +534,65 @@ export class AdmissionsPipelineService {
     return (await this.store.listOffers(tenantId, applicationId)).map((row) =>
       formatOffer(this.expireIfNeeded(row)),
     );
+  }
+
+  /**
+   * Parent/guardian family view — only offers whose application guardianEmail
+   * matches the JWT email (case-insensitive). Draft/declined/expired are hidden;
+   * sent (open) and accepted remain visible.
+   */
+  async listGuardianOffers(tenantId: string, guardianEmail: string) {
+    const email = normalizeEmail(guardianEmail);
+    if (!email) return [];
+    const offers = await this.store.listOffers(tenantId);
+    const rows: Array<
+      ReturnType<typeof formatOffer> & {
+        applicantFirstName: string;
+        applicantLastName: string;
+        guardianEmail: string | null;
+      }
+    > = [];
+    for (const offer of offers) {
+      const effective = this.expireIfNeeded(offer);
+      if (effective.status !== 'sent' && effective.status !== 'accepted') continue;
+      const application = await this.applications.findById(effective.applicationId, tenantId);
+      if (!application || application.tenantId !== tenantId) continue;
+      if (normalizeEmail(application.guardianEmail) !== email) continue;
+      rows.push({
+        ...formatOffer(effective),
+        applicantFirstName: application.firstName,
+        applicantLastName: application.lastName,
+        guardianEmail: application.guardianEmail,
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Accept + enrol for a guardian email match only. Mismatched or missing email → 404.
+   */
+  async acceptOfferForGuardian(
+    tenantId: string,
+    offerId: string,
+    guardianEmail: string,
+    input: AcceptOfferDto,
+  ) {
+    const email = normalizeEmail(guardianEmail);
+    if (!email) {
+      throw new NotFoundError(`Offer '${offerId}' not found`);
+    }
+    const offer = await this.requireOffer(tenantId, offerId);
+    const application = await this.requireApplication(tenantId, offer.applicationId);
+    if (normalizeEmail(application.guardianEmail) !== email) {
+      throw new NotFoundError(`Offer '${offerId}' not found`);
+    }
+    const accepted = await this.acceptOffer(tenantId, offerId, input);
+    return {
+      ...accepted,
+      applicantFirstName: application.firstName,
+      applicantLastName: application.lastName,
+      guardianEmail: application.guardianEmail,
+    };
   }
 
   private expireIfNeeded(offer: OfferRecord): OfferRecord {

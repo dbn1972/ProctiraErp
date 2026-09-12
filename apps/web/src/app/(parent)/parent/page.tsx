@@ -2,7 +2,7 @@
  * Parent portal home (Server Component).
  */
 import Link from 'next/link';
-import { CreditCard, MessageSquare, ShieldCheck } from 'lucide-react';
+import { CreditCard, FileText, MessageSquare, ShieldCheck } from 'lucide-react';
 
 import {
   Button,
@@ -102,6 +102,20 @@ export default async function ParentHomePage() {
           <CardContent>
             <Button asChild variant="outline" className="min-h-12">
               <Link href="/parent/fees">Open fees</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Offers
+            </CardTitle>
+            <CardDescription>Admission offers and sandbox fee accept</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/offers">Open offers</Link>
             </Button>
           </CardContent>
         </Card>

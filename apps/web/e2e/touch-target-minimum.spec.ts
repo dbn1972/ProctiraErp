@@ -131,6 +131,7 @@ const STANDARD_ROUTES = [
   '/parent/messages',
   '/parent/consents',
   '/parent/fees',
+  '/parent/offers',
   '/parent/attendance',
   '/parent/grades',
   '/parent/timetable',

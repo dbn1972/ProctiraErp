@@ -200,6 +200,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/parent/messages',
     '/parent/consents',
     '/parent/fees',
+    '/parent/offers',
     '/parent/attendance',
     '/parent/grades',
     '/parent/timetable',

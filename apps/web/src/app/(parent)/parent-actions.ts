@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
+  acceptGuardianOffer,
   createThread,
   decideConsent,
   payInvoice,
@@ -100,6 +101,39 @@ export async function payInvoiceAction(invoiceId: string): Promise<ParentActionS
           : error instanceof Error
             ? error.message
             : 'Failed to pay invoice',
+    };
+  }
+}
+
+export async function acceptGuardianOfferAction(input: {
+  offerId: string;
+  paymentRef: string;
+  offerFeeInvoiceId?: string;
+}): Promise<ParentActionState> {
+  try {
+    const offer = await acceptGuardianOffer(input.offerId, {
+      paymentRef: input.paymentRef,
+      offerFeeInvoiceId: input.offerFeeInvoiceId,
+    });
+    revalidatePath('/parent/offers');
+    revalidatePath('/parent/fees');
+    revalidatePath('/parent');
+    return {
+      status: 'success',
+      message: offer.enrolledStudentId
+        ? 'Offer accepted. Your child is enrolled.'
+        : 'Offer accepted.',
+      id: offer.enrolledStudentId ?? offer.id,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to accept offer',
     };
   }
 }
