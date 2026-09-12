@@ -300,10 +300,7 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
    * A5 tip journey (closes A-7): enquiry → merit → seat reserve → offer →
    * parent sandbox pay → enrol. Reuses staff CRM + parent `/parent/offers` surfaces.
    */
-  test('A5 tip: enquiry → merit → seat → offer → parent pay → enrol', async ({
-    page,
-    request,
-  }) => {
+  test('A5 tip: enquiry → merit → seat → offer → parent pay → enrol', async ({ page, request }) => {
     test.slow();
     const { periodId, gradeId } = await createPeriodAndGrade(request);
     const tag = stamp();
@@ -436,9 +433,7 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     const seatRows = (await jsonStatus(seatAfterRes, 200)) as {
       data: Array<{ gradeId: string; quota: string; filled: number; available: number }>;
     };
-    const general = seatRows.data.find(
-      (row) => row.gradeId === gradeId && row.quota === 'general',
-    );
+    const general = seatRows.data.find((row) => row.gradeId === gradeId && row.quota === 'general');
     expect(general).toBeTruthy();
     expect(general!.filled).toBeGreaterThanOrEqual(filledBefore + 1);
 

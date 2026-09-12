@@ -4,17 +4,17 @@ End-to-end tests for the ProctiraERP web application using [Playwright](https://
 The suite covers the critical user journeys defined in task 27.8 of the
 ProctiraERP Unified Platform spec:
 
-| Spec file                                    | Journey                                                                                             |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `41-admissions-crm-write-smoke.spec.ts`          | Admissions CRM + A5 tip: enquiry → merit → seat → offer → parent pay → enrol (soft-skip if gateway offline) |
-| `02-attendance.spec.ts`                      | Attendance marking → percentage report verification                                                 |
-| `03-assessment-and-report-card.spec.ts`      | Assessment scheme + items + results → report card                                                   |
-| `04-transfer-and-workflow.spec.ts`           | Transfer request → approval workflow → status update                                                |
-| `05-bulk-import.spec.ts`                     | Excel import → error preview → confirm valid rows                                                   |
-| `06-language-and-rtl.spec.ts`                | Language switch to Arabic → RTL layout → navigation                                                 |
-| `07-tenant-isolation.spec.ts`                | Tenant A data is not visible to Tenant B                                                            |
-| `15-overview-people-inventory-smoke.spec.ts` | Ungated: people routes → `/login`; optional authenticated inventory when `E2E_BACKEND_READY=1`      |
-| `16-institutions-inventory-smoke.spec.ts`    | Ungated: institution routes → `/login`; optional authenticated inventory when `E2E_BACKEND_READY=1` |
+| Spec file                                    | Journey                                                                                                     |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `41-admissions-crm-write-smoke.spec.ts`      | Admissions CRM + A5 tip: enquiry → merit → seat → offer → parent pay → enrol (soft-skip if gateway offline) |
+| `02-attendance.spec.ts`                      | Attendance marking → percentage report verification                                                         |
+| `03-assessment-and-report-card.spec.ts`      | Assessment scheme + items + results → report card                                                           |
+| `04-transfer-and-workflow.spec.ts`           | Transfer request → approval workflow → status update                                                        |
+| `05-bulk-import.spec.ts`                     | Excel import → error preview → confirm valid rows                                                           |
+| `06-language-and-rtl.spec.ts`                | Language switch to Arabic → RTL layout → navigation                                                         |
+| `07-tenant-isolation.spec.ts`                | Tenant A data is not visible to Tenant B                                                                    |
+| `15-overview-people-inventory-smoke.spec.ts` | Ungated: people routes → `/login`; optional authenticated inventory when `E2E_BACKEND_READY=1`              |
+| `16-institutions-inventory-smoke.spec.ts`    | Ungated: institution routes → `/login`; optional authenticated inventory when `E2E_BACKEND_READY=1`         |
 
 ## Prerequisites
 
