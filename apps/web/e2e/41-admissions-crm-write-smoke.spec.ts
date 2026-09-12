@@ -101,13 +101,22 @@ test.describe('Admissions CRM — pages render (ungated)', () => {
   test('/admissions/seat-matrix renders the save control', async ({ page }) => {
     await page.goto('/admissions/seat-matrix', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('save-seat')).toBeVisible();
+    await expect(page.getByTestId('seat-honesty')).toBeVisible();
+    await expect(
+      page.getByTestId('save-seat').or(page.getByTestId('seat-lookups-empty')),
+    ).toBeVisible();
   });
 
   test('/admissions/merit renders the generate control', async ({ page }) => {
     await page.goto('/admissions/merit', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('generate-merit')).toBeVisible();
+    await expect(page.getByTestId('merit-honesty')).toBeVisible();
+    await expect(
+      page.getByTestId('generate-merit').or(page.getByTestId('merit-lookups-empty')),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId('save-merit-scores').or(page.getByTestId('merit-lookups-empty')),
+    ).toBeVisible();
   });
 
   test('/admissions/[id] shows not-found for an unknown application', async ({ page }) => {

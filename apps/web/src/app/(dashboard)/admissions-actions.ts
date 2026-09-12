@@ -14,6 +14,7 @@ import {
   declineAdmissionOffer,
   generateMeritList,
   sendAdmissionOffer,
+  setApplicationPlacement,
   updateApplicationStatus,
   updateEnquiry,
   upsertSeatMatrix,
@@ -24,6 +25,7 @@ import {
   createOfferFormSchema,
   followupFormSchema,
   generateMeritFormSchema,
+  placementScoreFormSchema,
   seatMatrixFormSchema,
   updateEnquiryStageSchema,
 } from '@/lib/admissions/validation';
@@ -177,6 +179,29 @@ export async function generateMeritListAction(input: unknown): Promise<Admission
     return { status: 'success', message: 'Merit list generated.', id: list.id };
   } catch (error) {
     return fail(error, 'Failed to generate merit list');
+  }
+}
+
+export async function setPlacementScoresAction(input: unknown): Promise<AdmissionsActionState> {
+  const parsed = placementScoreFormSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: parsed.error.issues[0]?.message ?? 'Invalid placement / scores',
+    };
+  }
+  try {
+    const { applicationId, ...body } = parsed.data;
+    await setApplicationPlacement(applicationId, body);
+    revalidatePath('/admissions/merit');
+    revalidatePath(`/admissions/${applicationId}`);
+    return {
+      status: 'success',
+      message: 'Placement and entrance scores saved.',
+      id: applicationId,
+    };
+  } catch (error) {
+    return fail(error, 'Failed to save placement / scores');
   }
 }
 

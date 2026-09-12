@@ -50,6 +50,15 @@ export const generateMeritFormSchema = z
     message: 'Interview and test weights must sum to 1',
   });
 
+export const placementScoreFormSchema = z.object({
+  applicationId: uuid,
+  academicPeriodId: uuid,
+  gradeId: uuid,
+  quota: z.string().min(1).max(50).optional(),
+  interviewScore: z.coerce.number().min(0).max(100),
+  testScore: z.coerce.number().min(0).max(100),
+});
+
 export const createOfferFormSchema = z.object({
   applicationId: uuid,
   feeAmount: z.coerce.number().min(0).optional(),

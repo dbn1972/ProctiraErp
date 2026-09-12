@@ -20,7 +20,8 @@ export default async function AdmissionsMeritPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Merit list</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Rank placed applications with configurable interview and test weights.
+          Ingest interview and entrance/test scores on placement, then rank with configurable
+          weights.
         </p>
       </div>
       <AdmissionsChrome current="/admissions/merit">

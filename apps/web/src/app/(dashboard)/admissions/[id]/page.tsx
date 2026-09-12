@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 
 import { getApplicationBundle } from '@/lib/api/admissions';
+import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
 import { OfferPanel } from '../_components/offer-panel';
+import { PlacementPanel } from '../_components/placement-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +14,7 @@ export default async function AdmissionApplicationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const bundle = await getApplicationBundle(id);
+  const [bundle, lookups] = await Promise.all([getApplicationBundle(id), loadAdmissionsLookups()]);
   if (!bundle) {
     notFound();
   }
@@ -29,7 +31,10 @@ export default async function AdmissionApplicationPage({
         </p>
       </div>
       <AdmissionsChrome current="/admissions">
-        <OfferPanel bundle={bundle} />
+        <div className="space-y-6">
+          <PlacementPanel bundle={bundle} periods={lookups.periods} grades={lookups.grades} />
+          <OfferPanel bundle={bundle} />
+        </div>
       </AdmissionsChrome>
     </div>
   );
