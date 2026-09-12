@@ -39,12 +39,13 @@ Operators can run ProctiraERP as a **tenant-safe, durable, money-correct, PHI-aw
 
 ## 5. Success / DoD
 
-- [ ] All P0 slices DONE or dated WAIVER
+- [x] All P0 slices DONE or dated WAIVER
 - [ ] Tip CI green on last P0 merge
 - [ ] No “world-class complete” claim while any P0 OPEN
 - [x] First pack closed (2026-09-12): P0-02, P0-05, P0-08, P0-11, P0-12
 - [x] Second pack closed (2026-09-12): P0-01, P0-04, P0-06, P0-10
+- [x] Third pack closed (2026-09-12): P0-03, P0-07, P0-09, P0-13 — **all P0 DONE**
 
 ## 6. Handoff
 
-Build slices per `TASKS_ENTERPRISE_P0_P1_P2_GAPS.md` §1 packs A–E. Next: P0-03 / 09 / 13 (± P0-07) in parallel.
+Build slices per `TASKS_ENTERPRISE_P0_P1_P2_GAPS.md` §1 packs A–E. Next: P1 packs (ACAD/ADM/HR/ASSESS/EXAM/TT/FIN-GL/PAY/PROC/SAFE/WF); P2 tracked.
