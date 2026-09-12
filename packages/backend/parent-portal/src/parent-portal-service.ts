@@ -1,7 +1,7 @@
 /**
  * Parent portal service — child links, messaging, consents, fee sandbox, academic reads.
  */
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -10,7 +10,11 @@ import {
   UUID_RE,
   type AcademicVisibilityStore,
 } from './academic-visibility.js';
-import type { ParentPortalRepository } from './parent-portal-repository.js';
+import type {
+  ParentChildLinkEntity,
+  ParentLinkAuthorityFlag,
+  ParentPortalRepository,
+} from './parent-portal-repository.js';
 import type {
   CreateConsentInput,
   CreateFeePlanInput,
@@ -73,6 +77,10 @@ export class ParentPortalService {
       studentId: input.studentId,
       relationship: input.relationship ?? 'guardian',
       status: 'active',
+      // Defaults true preserve pre-P0-03 full-access behaviour for existing callers/seeds.
+      isPrimary: input.isPrimary ?? true,
+      canConsentMedical: input.canConsentMedical ?? true,
+      canViewFees: input.canViewFees ?? true,
     });
   }
 
@@ -89,15 +97,43 @@ export class ParentPortalService {
     return links.map((link) => link.studentId);
   }
 
+  /** Student ids where the guardian may view/pay fees. */
+  private async getFeeVisibleStudentIds(tenantId: string, parentUserId: string): Promise<string[]> {
+    const links = await this.repository.listChildLinksForParent(tenantId, parentUserId);
+    return links.filter((link) => link.canViewFees).map((link) => link.studentId);
+  }
+
   private async assertParentLinkedToStudent(
     tenantId: string,
     parentUserId: string,
     studentId: string,
-  ): Promise<void> {
-    const linked = await this.repository.hasActiveLink(tenantId, parentUserId, studentId);
-    if (!linked) {
+  ): Promise<ParentChildLinkEntity> {
+    const link = await this.repository.findActiveLink(tenantId, parentUserId, studentId);
+    if (!link) {
       throw new NotFoundError(`Student with id '${studentId}' not found`);
     }
+    return link;
+  }
+
+  /**
+   * Relationship-scoped gate: linked parent must hold the named authority flag.
+   * Unlinked → 404 (no existence leak). Linked without flag → 403.
+   */
+  private async assertParentAuthority(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+    flag: ParentLinkAuthorityFlag,
+  ): Promise<ParentChildLinkEntity> {
+    const link = await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    if (!link[flag]) {
+      throw new ForbiddenError(
+        flag === 'canConsentMedical'
+          ? 'Guardian is not authorised to decide medical consents for this student'
+          : 'Guardian is not authorised to view or pay fees for this student',
+      );
+    }
+    return link;
   }
 
   async createThread(tenantId: string, parentUserId: string, input: CreateThreadInput) {
@@ -200,6 +236,19 @@ export class ParentPortalService {
       throw new BusinessRuleError('Consent has already been decided');
     }
 
+    // P0-03: medical_treatment decisions require can_consent_medical on the active link.
+    if (consent.consentType === 'medical_treatment') {
+      await this.assertParentAuthority(
+        tenantId,
+        parentUserId,
+        consent.studentId,
+        'canConsentMedical',
+      );
+    } else {
+      // Non-medical consents still require an active parent↔student link.
+      await this.assertParentLinkedToStudent(tenantId, parentUserId, consent.studentId);
+    }
+
     const updated = await this.repository.updateConsent(consentId, tenantId, {
       status: input.status,
       decidedAt: new Date(),
@@ -291,7 +340,7 @@ export class ParentPortalService {
   }
 
   async listInvoicesForParent(tenantId: string, parentUserId: string) {
-    const studentIds = await this.getLinkedStudentIds(tenantId, parentUserId);
+    const studentIds = await this.getFeeVisibleStudentIds(tenantId, parentUserId);
     if (this.fees) {
       return this.fees.listInvoicesForStudentIds(tenantId, studentIds) as ReturnType<
         ParentPortalRepository['listInvoicesForStudentIds']
@@ -382,7 +431,7 @@ export class ParentPortalService {
   ) {
     if (this.fees) {
       const invoice = await this.fees.getInvoice(tenantId, invoiceId);
-      await this.assertParentLinkedToStudent(tenantId, parentUserId, invoice.studentId);
+      await this.assertParentAuthority(tenantId, parentUserId, invoice.studentId, 'canViewFees');
       return this.fees.recordPayment(tenantId, parentUserId, {
         invoiceId,
         payerUserId: parentUserId,
@@ -398,7 +447,7 @@ export class ParentPortalService {
       throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
     }
 
-    await this.assertParentLinkedToStudent(tenantId, parentUserId, invoice.studentId);
+    await this.assertParentAuthority(tenantId, parentUserId, invoice.studentId, 'canViewFees');
 
     if (invoice.status !== 'open') {
       throw new BusinessRuleError('Invoice is not open for payment');

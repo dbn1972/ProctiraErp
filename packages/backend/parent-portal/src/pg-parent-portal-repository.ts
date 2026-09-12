@@ -84,6 +84,8 @@ export async function ensureParentPortalSchema(
       await pool.query(sql010);
       const sql011 = readFileSync(resolveSqlPath('011_fees_finance_schema.sql'), 'utf8');
       await pool.query(sql011);
+      const sql049 = readFileSync(resolveSqlPath('049_parent_child_link_authority.sql'), 'utf8');
+      await pool.query(sql049);
     })();
   }
   await schemaReady;
@@ -121,6 +123,9 @@ function mapLink(row: Record<string, unknown>): ParentChildLinkEntity {
     studentId: String(row.student_id),
     relationship: String(row.relationship) as LinkRelationship,
     status: String(row.status) as LinkStatus,
+    isPrimary: row.is_primary == null ? true : Boolean(row.is_primary),
+    canConsentMedical: row.can_consent_medical == null ? true : Boolean(row.can_consent_medical),
+    canViewFees: row.can_view_fees == null ? true : Boolean(row.can_view_fees),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -255,9 +260,20 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     const result = await this.query(
       data.tenantId,
       `INSERT INTO parent_child_links (
-         id, tenant_id, parent_user_id, student_id, relationship, status
-       ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [data.id, data.tenantId, data.parentUserId, data.studentId, data.relationship, data.status],
+         id, tenant_id, parent_user_id, student_id, relationship, status,
+         is_primary, can_consent_medical, can_view_fees
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.parentUserId,
+        data.studentId,
+        data.relationship,
+        data.status,
+        data.isPrimary,
+        data.canConsentMedical,
+        data.canViewFees,
+      ],
     );
     return mapLink(result.rows[0] as Record<string, unknown>);
   }
@@ -303,16 +319,25 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapLink(result.rows[0] as Record<string, unknown>);
   }
 
-  async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
+  async findActiveLink(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+  ): Promise<ParentChildLinkEntity | null> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
-      `SELECT 1 FROM parent_child_links
+      `SELECT * FROM parent_child_links
        WHERE tenant_id = $1 AND parent_user_id = $2 AND student_id = $3 AND status = 'active'
        LIMIT 1`,
       [tenantId, parentUserId, studentId],
     );
-    return result.rows.length > 0;
+    if (!result.rows[0]) return null;
+    return mapLink(result.rows[0] as Record<string, unknown>);
+  }
+
+  async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
+    return (await this.findActiveLink(tenantId, parentUserId, studentId)) != null;
   }
 
   async createThread(

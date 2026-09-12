@@ -65,6 +65,9 @@ function formatLink(entity: {
   studentId: string;
   relationship: string;
   status: string;
+  isPrimary: boolean;
+  canConsentMedical: boolean;
+  canViewFees: boolean;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -75,6 +78,9 @@ function formatLink(entity: {
     studentId: entity.studentId,
     relationship: entity.relationship,
     status: entity.status,
+    isPrimary: entity.isPrimary,
+    canConsentMedical: entity.canConsentMedical,
+    canViewFees: entity.canViewFees,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };

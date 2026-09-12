@@ -41,8 +41,14 @@ describe('PgParentPortalRepository (live)', () => {
       studentId,
       relationship: 'mother',
       status: 'active',
+      isPrimary: true,
+      canConsentMedical: true,
+      canViewFees: true,
     });
     expect(link.relationship).toBe('mother');
+    expect(link.isPrimary).toBe(true);
+    expect(link.canConsentMedical).toBe(true);
+    expect(link.canViewFees).toBe(true);
 
     expect(await repo.hasActiveLink(tenantA, parentUserId, studentId)).toBe(true);
     expect((await repo.listChildLinksForParent(tenantA, parentUserId)).map((l) => l.id)).toEqual([
@@ -63,6 +69,9 @@ describe('PgParentPortalRepository (live)', () => {
         studentId,
         relationship: 'father',
         status: 'pending',
+        isPrimary: false,
+        canConsentMedical: false,
+        canViewFees: false,
       }),
     ).rejects.toThrow(/duplicate key|unique/i);
   });
