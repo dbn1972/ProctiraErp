@@ -116,9 +116,9 @@ export default async function AssessmentsPage(props: PageProps) {
         aria-label="Grade moderation and publication lifecycle"
       >
         <p>
-          <span className="font-medium text-foreground">Moderation &amp; publication:</span>{' '}
-          draft → submit → approve → lock → publish runs on the institution gradebook. Parents and
-          students only see published grades.
+          <span className="font-medium text-foreground">Moderation &amp; publication:</span> draft →
+          submit → approve → lock → publish runs on the institution gradebook. Parents and students
+          only see published grades.
         </p>
         <p className="mt-1">
           <Link
