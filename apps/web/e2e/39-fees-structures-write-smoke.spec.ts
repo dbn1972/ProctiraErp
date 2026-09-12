@@ -71,6 +71,7 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByTestId('open-structures')).toBeVisible();
     await expect(page.getByTestId('open-reports')).toBeVisible();
+    await expect(page.getByTestId('open-scholarship-netting')).toBeVisible();
   });
 
   test('/fees/structures renders with the New structure action', async ({ page }) => {
@@ -83,6 +84,13 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await page.goto('/fees/reports', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /fee reports/i })).toBeVisible();
     await expect(page.getByTestId('download-dues-csv')).toBeVisible();
+  });
+
+  test('/fees/scholarship-netting renders the apply form', async ({ page }) => {
+    await page.goto('/fees/scholarship-netting', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /scholarship netting/i })).toBeVisible();
+    await expect(page.getByTestId('scholarship-netting-form')).toBeVisible();
+    await expect(page.getByTestId('submit-scholarship-netting')).toBeVisible();
   });
 });
 
@@ -236,5 +244,64 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
       { headers: headers(TENANT_B), data: { studentIds: [STUDENT_A] } },
     );
     expect([400, 404]).toContain(foreignBulk.status());
+  });
+
+  test('scholarship netting credits invoice and denies cross-tenant', async ({ request }) => {
+    const structure = await createStructure(request, {
+      name: `E2E Net ${stamp()}`,
+      category: 'tuition',
+      amountCents: 10_000,
+    });
+    const bulk = await request.post(
+      `${GATEWAY_URL}/api/v1/fees/structures/${structure.id}/bulk-invoice`,
+      { headers: headers(), data: { studentIds: [STUDENT_A] } },
+    );
+    expect(bulk.status(), await bulk.text()).toBe(200);
+    const invoiceId = ((await bulk.json()).created as Array<{ id: string }>)[0]?.id;
+    expect(invoiceId).toBeTruthy();
+
+    const disbursementId = `e2e-disb-${stamp()}`;
+    const net = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
+      headers: headers(),
+      data: {
+        studentId: STUDENT_A,
+        disbursementId,
+        amountCents: 2500,
+        invoiceId,
+      },
+    });
+    expect(net.status(), await net.text()).toBe(200);
+    const body = await net.json();
+    expect(body.idempotent).toBe(false);
+    expect(body.discountCents).toBe(2500);
+    expect(body.invoice?.amountCents).toBe(7500);
+
+    const replay = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
+      headers: headers(),
+      data: {
+        studentId: STUDENT_A,
+        disbursementId,
+        amountCents: 2500,
+      },
+    });
+    expect(replay.status()).toBe(200);
+    expect((await replay.json()).idempotent).toBe(true);
+
+    const foreignNet = await request.post(`${GATEWAY_URL}/api/v1/fees/scholarships/net`, {
+      headers: headers(TENANT_B),
+      data: {
+        studentId: STUDENT_A,
+        disbursementId: `foreign-${stamp()}`,
+        amountCents: 100,
+        invoiceId,
+      },
+    });
+    // Tenant B must not credit tenant A invoice; either no matching invoice (reserved) or deny.
+    if (foreignNet.status() === 200) {
+      const foreignBody = await foreignNet.json();
+      expect(foreignBody.invoice?.id ?? null).not.toBe(invoiceId);
+    } else {
+      expect([400, 403, 404]).toContain(foreignNet.status());
+    }
   });
 });

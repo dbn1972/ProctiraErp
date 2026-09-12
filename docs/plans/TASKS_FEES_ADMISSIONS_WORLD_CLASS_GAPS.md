@@ -63,10 +63,10 @@ One slice per PR. Copy PRODUCT checklist before build. Tip CI green before merge
 
 ### Slice F1 — Scholarship netting UI (closes F-2)
 
-- [ ] Staff page under `/fees` (or scholarships) to preview/apply netting + show credits
-- [ ] Wire to `POST /fees/scholarships/net` + disbursement credit events
-- [ ] Unit + write smoke; tenant deny
-- [ ] UX empty/error honesty; a11y list routes
+- [x] Staff page under `/fees` (or scholarships) to preview/apply netting + show credits
+- [x] Wire to `POST /fees/scholarships/net` + disbursement credit events
+- [x] Unit + write smoke; tenant deny
+- [x] UX empty/error honesty; a11y list routes
 - **Exit:** DEV + SEC notes; tip CI green
 
 ### Slice F2 — Dunning console (closes F-3)
@@ -168,9 +168,10 @@ Until then, status remains: **solid v1 / PROD_WAIVED — not world-class complet
 
 ## 6. Progress log
 
-| Date (UTC) | Event                                                                                                                                                                  |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-09-12 | Task file created from honest residual audit (Fees ~8.4, Admissions ~8.0 PROD_WAIVED)                                                                                  |
-| 2026-09-12 | **F0 DONE (IA)** — merged `cursor/fees-ia-lock-56c3` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md` (F-1 keep G-202 waiver; F-4 GL/tax deferred; OCR N/A)             |
-| 2026-09-12 | **A0** PRODUCT IA lock: `docs/audits/PRODUCT_ADMISSIONS_ENROL_JOURNEY.md` — A-1 deferred to A3; A-4 OCR remains NON-GOAL; A-3 → build A1                               |
-| 2026-09-12 | **A1 DONE** — plugin defaults `pipelineStore` via `createAdmissionsPipelineStore()`; `docs/audits/DEV_ADMISSIONS_PIPELINE_PG.md`; branch `cursor/adm-pipeline-pg-56c3` |
+| Date (UTC) | Event                                                                                                                                                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-12 | Task file created from honest residual audit (Fees ~8.4, Admissions ~8.0 PROD_WAIVED)                                                                                                                                              |
+| 2026-09-12 | **F0 DONE (IA)** — merged `cursor/fees-ia-lock-56c3` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md` (F-1 keep G-202 waiver; F-4 GL/tax deferred; OCR N/A)                                                                         |
+| 2026-09-12 | **A0** PRODUCT IA lock: `docs/audits/PRODUCT_ADMISSIONS_ENROL_JOURNEY.md` — A-1 deferred to A3; A-4 OCR remains NON-GOAL; A-3 → build A1                                                                                           |
+| 2026-09-12 | **A1 DONE** — plugin defaults `pipelineStore` via `createAdmissionsPipelineStore()`; `docs/audits/DEV_ADMISSIONS_PIPELINE_PG.md`; merged PR #56                                                                                    |
+| 2026-09-12 | **F1 UI** — staff `/fees/scholarship-netting` + `applyScholarshipNetting` client; DEV `docs/audits/DEV_FEES_SCHOLARSHIP_NETTING_UI.md` (branch `cursor/fees-scholarship-net-ui-56c3`); tip CI / Blackbaud-complete **not** claimed |

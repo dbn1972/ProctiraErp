@@ -151,6 +151,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/fees/plans',
     '/fees/invoices',
     '/fees/receipts',
+    '/fees/scholarship-netting',
     '/workflows',
     '/workflows/approvals',
     '/workflows/instances',
