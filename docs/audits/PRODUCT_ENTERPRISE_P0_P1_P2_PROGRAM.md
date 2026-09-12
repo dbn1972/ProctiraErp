@@ -40,14 +40,15 @@ Operators can run ProctiraERP as a **tenant-safe, durable, money-correct, PHI-aw
 ## 5. Success / DoD
 
 - [x] All P0 slices DONE or dated WAIVER
-- [ ] Tip CI green on last P0 merge
-- [ ] No “world-class complete” claim while any P0 OPEN
+- [x] Tip CI green on last P0 merge (pack 3)
+- [x] No “world-class complete” claim while any P0 OPEN
 - [x] First pack closed (2026-09-12): P0-02, P0-05, P0-08, P0-11, P0-12
 - [x] Second pack closed (2026-09-12): P0-01, P0-04, P0-06, P0-10
 - [x] Third pack closed (2026-09-12): P0-03, P0-07, P0-09, P0-13 — **all P0 DONE**
+- [x] P1/P2 register closed (2026-09-12): `#84`–`#94` + honesty `#91` — DONE or dated NON-GOAL/WAIVER/PARKED
 
 ## 6. Handoff
 
-Build slices per `TASKS_ENTERPRISE_P0_P1_P2_GAPS.md` §1 packs A–E. Next: P1 packs (ACAD/ADM/HR/ASSESS/EXAM/TT/FIN-GL/PAY/PROC/SAFE/WF); P2 tracked.
+Build slices per `TASKS_ENTERPRISE_P0_P1_P2_GAPS.md` §1 packs A–E. Next: release board — register closed; unfunded depth remains dated NON-GOAL only.
 
 **P1/P2 honesty (2026-09-12):** residual/waiver pack at `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md` closes P1-ADM, P1-FIN-GL, P1-PAY, P1-PROC, P2-LMS, P2-CANTEEN, P2-TRANSPORT, P2-ALUMNI, P2-MOBILE, P2-SURVEY as DONE-with-dated-NON-GOAL/WAIVER/PARKED (parent reconciles TASKS).

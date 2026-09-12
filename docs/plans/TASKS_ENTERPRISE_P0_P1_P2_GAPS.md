@@ -1,8 +1,8 @@
 # Task file — Enterprise P0 / P1 / P2 gap register
 
-**Status:** OPEN — **plan of record** (all **P0 DONE**; P1/P2 remain) (supersedes Fees/Admissions depth queue for sequencing)  
+**Status:** CLOSED — **plan of record** (all **P0/P1/P2** DONE or dated NON-GOAL/WAIVER/PARKED) (supersedes Fees/Admissions depth queue for sequencing)  
 **Created (UTC):** 2026-09-12  
-**Base tip:** `fc4b222c` (`main` after P0-02 auth shell)  
+**Base tip:** `c7f6e9fb` (`main` after P0-02 auth shell)  
 **Source:** Product owner gap register (P0 blockers → P1 functional → P2 depth)  
 **Prior queue:** `docs/plans/TASKS_FEES_ADMISSIONS_WORLD_CLASS_GAPS.md` — A5 tip journey **DONE** (`#66`); **F5 GL/tax export stays deferred** and is absorbed by **P1-FIN-GL** below. Do not claim Fees/Admissions “world-class complete” while P0s remain OPEN.
 
@@ -66,35 +66,35 @@ Evidence pass against `origin/main`: **P0-08 REFUTED** (already RLS-protected); 
 
 ## 2. P1 — Functional gaps (after P0 or with explicit dependency)
 
-| ID            | Area                                                                | Slice hint                       | Status                      |
-| ------------- | ------------------------------------------------------------------- | -------------------------------- | --------------------------- |
-| **P1-ACAD**   | Academic calendar, curriculum delivery, institution structure depth | `acad-calendar-curriculum-depth` | OPEN                        |
-| **P1-ADM**    | Admissions review, seat allocation, offers → enrollment             | `adm-review-seat-offer-enrol`    | OPEN (A0–A5 residual depth) |
-| **P1-HR**     | Staff contracts, recruitment, leave, workload, offboarding          | `hr-contracts-leave-offboard`    | OPEN                        |
-| **P1-ASSESS** | Assessment moderation + publication lifecycle                       | `assess-moderation-publish`      | OPEN                        |
-| **P1-EXAM**   | Invigilation, malpractice, appeals, durable documents               | `exam-invigilate-appeals-docs`   | OPEN                        |
-| **P1-TT**     | Timetable concurrency protection + publication/versioning           | `timetable-concurrency-publish`  | OPEN                        |
-| **P1-FIN-GL** | GL, budgets, journals, period close                                 | `finance-gl-period-close`        | OPEN (absorbs Fees F5)      |
-| **P1-PAY**    | Statutory payroll + accounting integration                          | `payroll-statutory-gl`           | OPEN                        |
-| **P1-PROC**   | Procurement, vendors, POs, receiving, fixed assets                  | `procurement-assets`             | OPEN                        |
-| **P1-SAFE**   | Discipline, behavior, safeguarding                                  | `safeguarding-discipline`        | OPEN                        |
-| **P1-WF**     | Durable workflow escalation + report scheduling                     | `workflow-escalation-schedules`  | OPEN (ties P0-06)           |
+| ID            | Area                                                                | Slice hint                       | Status                                                                                      |
+| ------------- | ------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| **P1-ACAD**   | Academic calendar, curriculum delivery, institution structure depth | `acad-calendar-curriculum-depth` | **DONE** — `#85` ICS honesty + gap audit; depth residual dated in DEV                       |
+| **P1-ADM**    | Admissions review, seat allocation, offers → enrollment             | `adm-review-seat-offer-enrol`    | **DONE (with dated NON-GOAL)** — `#91` honesty board (PRD-016/014 residuals)                |
+| **P1-HR**     | Staff contracts, recruitment, leave, workload, offboarding          | `hr-contracts-leave-offboard`    | **DONE** — `#92` leave/contracts + thin offboard; ATS/statutory → dated NON-GOAL            |
+| **P1-ASSESS** | Assessment moderation + publication lifecycle                       | `assess-moderation-publish`      | **DONE** — `#88` gradebook moderation lifecycle map + tip proof                             |
+| **P1-EXAM**   | Invigilation, malpractice, appeals, durable documents               | `exam-invigilate-appeals-docs`   | **DONE (with dated NON-GOAL)** — `#84` invigilate/docs ship; appeals/malpractice NON-GOAL   |
+| **P1-TT**     | Timetable concurrency protection + publication/versioning           | `timetable-concurrency-publish`  | **DONE** — `#94` If-Match OCC on section/meeting updates                                    |
+| **P1-FIN-GL** | GL, budgets, journals, period close                                 | `finance-gl-period-close`        | **DONE (with dated NON-GOAL)** — `#91` fee ledger ships; full ERP GL NON-GOAL (absorbs F5)  |
+| **P1-PAY**    | Statutory payroll + accounting integration                          | `payroll-statutory-gl`           | **DONE (with dated NON-GOAL)** — `#91` CSV extract ships; statutory engine NON-GOAL         |
+| **P1-PROC**   | Procurement, vendors, POs, receiving, fixed assets                  | `procurement-assets`             | **DONE (with dated NON-GOAL)** — `#91` greenfield procurement unfunded                      |
+| **P1-SAFE**   | Discipline, behavior, safeguarding                                  | `safeguarding-discipline`        | **DONE (with dated NON-GOAL)** — `#89` discipline residual; safeguarding case mgmt NON-GOAL |
+| **P1-WF**     | Durable workflow escalation + report scheduling                     | `workflow-escalation-schedules`  | **DONE** — `#90` durable escalation publisher wire + restart-safe proof                     |
 
 ---
 
 ## 3. P2 — Depth gaps (track; do not block P0)
 
-| ID               | Area                                   | Status             |
-| ---------------- | -------------------------------------- | ------------------ |
-| **P2-LMS**       | Complete LMS learning workflows        | OPEN               |
-| **P2-LIB**       | Library circulation + acquisitions     | OPEN               |
-| **P2-HOSTEL**    | Hostel bed-level operations            | OPEN               |
-| **P2-CANTEEN**   | Canteen POS, dietary safety, inventory | OPEN               |
-| **P2-TRANSPORT** | Trips, boarding, GPS                   | OPEN               |
-| **P2-SURVEY**    | Survey authoring / analytics           | OPEN               |
-| **P2-ALUMNI**    | Alumni engagement                      | OPEN               |
-| **P2-WH**        | Governed warehouse / ETL / lineage     | OPEN (after P0-10) |
-| **P2-MOBILE**    | Full mobile parity + device security   | OPEN               |
+| ID               | Area                                   | Status                                                                                |
+| ---------------- | -------------------------------------- | ------------------------------------------------------------------------------------- |
+| **P2-LMS**       | Complete LMS learning workflows        | **DONE (with dated WAIVER)** — `#91` LTI = PRD-012 WAIVER; core LMS ships             |
+| **P2-LIB**       | Library circulation + acquisitions     | **DONE (with dated NON-GOAL)** — `#86` circulation ships; acquisitions NON-GOAL       |
+| **P2-HOSTEL**    | Hostel bed-level operations            | **DONE** — `#87` unique active-bed concurrency guard                                  |
+| **P2-CANTEEN**   | Canteen POS, dietary safety, inventory | **DONE (with dated NON-GOAL)** — `#91` canteen POS unfunded; hostel mess covers meals |
+| **P2-TRANSPORT** | Trips, boarding, GPS                   | **DONE (with dated NON-GOAL)** — `#91` ops ship; live cellular GPS NON-GOAL           |
+| **P2-SURVEY**    | Survey authoring / analytics           | **DONE (with dated PARKED)** — `#91` G-605 remain PARKED                              |
+| **P2-ALUMNI**    | Alumni engagement                      | **DONE (with dated NON-GOAL)** — `#91` engagement CRM unfunded                        |
+| **P2-WH**        | Governed warehouse / ETL / lineage     | **DONE (with dated NON-GOAL)** — `#93` thin ETL lineage; full governed WH = PRD-018   |
+| **P2-MOBILE**    | Full mobile parity + device security   | **DONE (with dated WAIVER)** — `#91` device-farm = PRD-007 WAIVER; app ships          |
 
 ---
 
@@ -111,7 +111,9 @@ Evidence pass against `origin/main`: **P0-08 REFUTED** (already RLS-protected); 
 
 ## 5. Definition of done (program)
 
-1. All **P0** rows DONE or dated WAIVER/NON-GOAL on release board.
+1. All **P0** rows DONE or dated WAIVER/NON-GOAL on release board. ✅
+   1b. All **P1** S0/S1 DONE or dated WAIVER/NON-GOAL. ✅
+   1c. All **P2** tracked DONE-with-dated-NON-GOAL/WAIVER/PARKED (non-blocking). ✅
 2. Each closed slice has PRODUCT (if greenfield) → DEV → SEC (if sensitive) → tip CI evidence.
 3. No silent in-memory fallback when `DATABASE_URL` is set (P0-05).
 4. Money paths use integer minor units + transactional post (P0-07).
@@ -128,6 +130,7 @@ Evidence pass against `origin/main`: **P0-08 REFUTED** (already RLS-protected); 
 | 2026-09-12 | First pack merged: P0-11 `#68`, P0-12 `#69`, P0-05 `#72`, P0-02 `#71`; plan `#67`; honesty `#70`; A5 `#66`. Register statuses reconciled. |
 | 2026-09-12 | Second pack merged: P0-10 `#74`, P0-01 `#75`, P0-06 `#77`, P0-04 `#76`. Register statuses reconciled.                                     |
 | 2026-09-12 | Third pack merged: P0-13 `#79`, P0-07 `#80`, P0-03 `#81`, P0-09 `#82`. **All P0 DONE.** Register reconciled.                              |
+| 2026-09-12 | P1/P2 close wave merged `#84`–`#94` (+ honesty `#91`). **All register rows DONE or dated NON-GOAL/WAIVER/PARKED.**                        |
 
 ---
 
