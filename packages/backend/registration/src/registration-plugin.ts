@@ -11,13 +11,13 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AdmissionsCrmStore } from './admissions-crm-store.js';
+import { createAdmissionsPipelineStore } from './create-registration-repository.js';
 import {
   AdmissionsPipelineService,
   type AssertOfferFeePaid,
   type CreateOfferFeeInvoice,
   type EnrolOnAccept,
 } from './pipeline/pipeline-service.js';
-import { InMemoryAdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
 import type { RegistrationRepository } from './registration-repository.js';
@@ -32,7 +32,11 @@ export interface RegistrationPluginOptions {
   repository: RegistrationRepository;
   /** Waitlist / interview CRM store (G-717). Defaults to in-memory. */
   crmStore?: AdmissionsCrmStore;
-  /** Enquiry / merit / seat / offer store (G-906). Defaults to in-memory. */
+  /**
+   * Enquiry / merit / seat / offer store (G-906).
+   * Defaults via {@link createAdmissionsPipelineStore} (PG when `DATABASE_URL` is set;
+   * otherwise in-memory subject to the shared fallback policy).
+   */
   pipelineStore?: AdmissionsPipelineStore;
   /** Auto-enrol hook used when an offer is accepted (student + enrollment). */
   enrolOnAccept?: EnrolOnAccept;
@@ -92,7 +96,7 @@ export const registrationPlugin = fp(
     });
 
     const pipelineService = new AdmissionsPipelineService(
-      pipelineStore ?? new InMemoryAdmissionsPipelineStore(),
+      pipelineStore ?? createAdmissionsPipelineStore(),
       repository,
       enrolOnAccept,
       createOfferFeeInvoice,
