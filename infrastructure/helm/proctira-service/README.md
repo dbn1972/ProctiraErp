@@ -54,5 +54,6 @@ helm upgrade --install proctira-api-gateway ./infrastructure/helm/proctira-servi
 
 The Deployment then mounts `proctira-api-gateway-env` via `envFrom`; the chart
 never contains secret values. Pre-existing Secrets can be listed under
-`envFromSecrets`. `.github/workflows/helm-template.yml` asserts these objects
-render for staging and production on every chart change.
+`envFromSecrets`. `./tools/scripts/helm-template-check.sh` (and
+`.github/workflows/helm-template.yml`) assert these objects render for staging
+and production on every chart change.

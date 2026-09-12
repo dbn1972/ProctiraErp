@@ -19,6 +19,7 @@ script is a single `.mjs` file with no compile step so it runs without
 | (internal)                 | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules.                                        |
 | (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002).                                 |
 | (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset. |
+| (CI / local)               | `helm-template-check.sh`             | P0-12 / G-501: lint + `helm template` for `proctira-service` + `proctira-platform` (deploy path parity). |
 
 ## `check:brand-strings` (task 57.4 / Design M)
 
