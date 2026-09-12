@@ -46,6 +46,7 @@ import {
   UpdateAccommodationPlanSchema,
   CreateCounsellingSessionSchema,
   UpdateCounsellingSessionSchema,
+  CreateHealthBreakGlassRequestSchema,
   CreateScreeningProgramSchema,
   UpdateScreeningProgramSchema,
   UuidParamsSchema,
@@ -1247,6 +1248,125 @@ export async function registerHealthRoutes(
       return sendError(reply, error);
     }
   });
+
+  // ─── Health PHI break-glass (P0-09) — field dual-control, not platform-admin ─
+
+  fastify.post(`${prefix}/break-glass`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const result = validate(CreateHealthBreakGlassRequestSchema, request.body);
+    if (!result.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: result.errors,
+      });
+    }
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    try {
+      const grant = await healthService.requestBreakGlass(
+        tenantId,
+        result.data,
+        getAccessContext(request),
+      );
+      return reply.status(201).send(grant);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/break-glass`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    const query = request.query as { studentId?: string; limit?: string };
+    try {
+      const data = await healthService.listBreakGlassGrants(tenantId, getAccessContext(request), {
+        studentId: query.studentId,
+        limit: query.limit ? Number(query.limit) : 100,
+      });
+      return reply.status(200).send({ data });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.post(
+    `${prefix}/break-glass/:id/approve`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const grant = await healthService.approveBreakGlass(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+        );
+        return reply.status(200).send(grant);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/break-glass/:id/deny`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const grant = await healthService.denyBreakGlass(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+        );
+        return reply.status(200).send(grant);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 
   // ─── Nurse incidents (Wave 10 Option B) ─────────────────────────────────
 

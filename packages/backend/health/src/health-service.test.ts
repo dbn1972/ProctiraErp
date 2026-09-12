@@ -9,7 +9,7 @@
  * - Screening programs (Requirement 12.5)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BusinessRuleError, ForbiddenError, ForbiddenError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 
 import { HealthService, hasHealthAccess } from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';

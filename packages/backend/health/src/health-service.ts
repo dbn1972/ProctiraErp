@@ -31,6 +31,16 @@ import type {
   ScreeningProgramEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
+import {
+  PHI_FIELD_COUNSELLING_CASE_NOTES,
+  HEALTH_BREAK_GLASS_DEFAULT_MINUTES,
+  HEALTH_BREAK_GLASS_MAX_MINUTES,
+  applyCounsellingCaseNotesAcl,
+  canApproveHealthBreakGlass,
+  isHealthPhiFieldPath,
+  type HealthBreakGlassGrant,
+  type HealthPhiFieldPath,
+} from './phi-field-acl.js';
 import type {
   CreateMeasurementInput,
   UpdateMeasurementInput,
@@ -52,10 +62,57 @@ import type {
   UpdateCounsellingSessionInput,
   CreateScreeningProgramInput,
   UpdateScreeningProgramInput,
+  CreateHealthBreakGlassRequestInput,
 } from './schemas.js';
 
 type PhiAccessCapableRepository = HealthRepository & {
   logPhiAccess?: (input: PhiAccessLogInput) => Promise<void>;
+  listPhiAccessLogs?: (
+    tenantId: string,
+    options?: { studentId?: string; limit?: number },
+  ) => Promise<
+    Array<{
+      id: string;
+      tenantId: string;
+      actorUserId: string;
+      studentId: string;
+      resourceType: string;
+      resourceId: string | null;
+      action: string;
+      breakGlassId: string | null;
+      createdAt: string;
+    }>
+  >;
+  createBreakGlassGrant?: (input: {
+    tenantId: string;
+    requesterUserId: string;
+    studentId: string;
+    fieldPath: HealthPhiFieldPath;
+    justification: string;
+    durationMinutes: number;
+  }) => Promise<HealthBreakGlassGrant>;
+  findBreakGlassGrantById?: (id: string, tenantId: string) => Promise<HealthBreakGlassGrant | null>;
+  findActiveBreakGlassGrant?: (
+    tenantId: string,
+    requesterUserId: string,
+    studentId: string,
+    fieldPath: HealthPhiFieldPath,
+    now?: Date,
+  ) => Promise<HealthBreakGlassGrant | null>;
+  approveBreakGlassGrant?: (
+    id: string,
+    tenantId: string,
+    approverUserId: string,
+  ) => Promise<HealthBreakGlassGrant | null>;
+  denyBreakGlassGrant?: (
+    id: string,
+    tenantId: string,
+    approverUserId: string,
+  ) => Promise<HealthBreakGlassGrant | null>;
+  listBreakGlassGrants?: (
+    tenantId: string,
+    options?: { studentId?: string; limit?: number },
+  ) => Promise<HealthBreakGlassGrant[]>;
 };
 
 /**
@@ -110,6 +167,49 @@ export class HealthService {
       ...input,
       actorUserId: accessContext.userId,
     });
+  }
+
+  private async resolveCaseNotesGrant(
+    tenantId: string,
+    accessContext: HealthAccessContext,
+    studentId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.findActiveBreakGlassGrant !== 'function') return null;
+    return repo.findActiveBreakGlassGrant(
+      tenantId,
+      accessContext.userId,
+      studentId,
+      PHI_FIELD_COUNSELLING_CASE_NOTES,
+    );
+  }
+
+  private async applyCaseNotesFieldAcl(
+    tenantId: string,
+    accessContext: HealthAccessContext,
+    sessions: CounsellingSessionEntity[],
+  ): Promise<CounsellingSessionEntity[]> {
+    const byStudent = new Map<string, HealthBreakGlassGrant | null>();
+    const out: CounsellingSessionEntity[] = [];
+    for (const session of sessions) {
+      let grant = byStudent.get(session.studentId);
+      if (grant === undefined) {
+        grant = await this.resolveCaseNotesGrant(tenantId, accessContext, session.studentId);
+        byStudent.set(session.studentId, grant);
+      }
+      const acl = applyCounsellingCaseNotesAcl(session, grant);
+      if (!acl.redacted) {
+        await this.auditPhiRead(accessContext, {
+          tenantId,
+          studentId: session.studentId,
+          resourceType: 'counselling_session.case_notes',
+          resourceId: session.id,
+          breakGlassId: acl.breakGlassId,
+        });
+      }
+      out.push(acl.entity);
+    }
+    return out;
   }
 
   // ─── Measurements ───────────────────────────────────────────────────────
@@ -782,7 +882,8 @@ export class HealthService {
     }
     const updated = await this.repository.updateCounsellingSession(id, tenantId, input);
     if (!updated) throw new NotFoundError(`Counselling session with id '${id}' not found`);
-    return updated;
+    const [aclSession] = await this.applyCaseNotesFieldAcl(tenantId, accessContext, [updated]);
+    return aclSession!;
   }
 
   async listCounsellingSessions(
@@ -807,7 +908,8 @@ export class HealthService {
       resourceType: 'counselling_session',
       resourceId: null,
     });
-    return result;
+    const data = await this.applyCaseNotesFieldAcl(tenantId, accessContext, result.data);
+    return { ...result, data };
   }
 
   // ─── Screening Programs ─────────────────────────────────────────────────
@@ -914,6 +1016,12 @@ export class HealthService {
       resourceId: null,
     });
 
+    const counsellingWithAcl = await this.applyCaseNotesFieldAcl(
+      tenantId,
+      accessContext,
+      counsellingSessions.data,
+    );
+
     return {
       subjectId: studentId,
       tenantId,
@@ -928,7 +1036,7 @@ export class HealthService {
         diagnoses: diagnoses.data,
         referrals: referrals.data,
         accommodationPlans: accommodationPlans.data,
-        counsellingSessions: counsellingSessions.data,
+        counsellingSessions: counsellingWithAcl,
       },
     };
   }
@@ -950,25 +1058,121 @@ export class HealthService {
     if (!privileged) {
       throw new ForbiddenError('Access denied: PHI access log requires a health admin role');
     }
-    const repo = this.repository as {
-      listPhiAccessLogs?: (
-        tenantId: string,
-        options?: { studentId?: string; limit?: number },
-      ) => Promise<
-        Array<{
-          id: string;
-          tenantId: string;
-          actorUserId: string;
-          studentId: string;
-          resourceType: string;
-          resourceId: string | null;
-          action: string;
-          createdAt: string;
-        }>
-      >;
-    };
+    const repo = this.repository as PhiAccessCapableRepository;
     if (typeof repo.listPhiAccessLogs !== 'function') return [];
     return repo.listPhiAccessLogs(tenantId, options);
+  }
+
+  // ─── Health PHI break-glass (P0-09) ──────────────────────────────────────
+
+  async requestBreakGlass(
+    tenantId: string,
+    input: CreateHealthBreakGlassRequestInput,
+    accessContext: HealthAccessContext,
+  ): Promise<HealthBreakGlassGrant> {
+    if (!hasHealthAccess(accessContext, input.studentId)) {
+      throw new ForbiddenError(
+        "Access denied: not authorized to access this student's health records",
+      );
+    }
+    if (!accessContext.userId) {
+      throw new ForbiddenError('Access denied: authenticated user required for break-glass');
+    }
+    if (!isHealthPhiFieldPath(input.fieldPath)) {
+      throw new BusinessRuleError(`Unsupported PHI field path: ${input.fieldPath}`);
+    }
+    const durationMinutes = input.durationMinutes ?? HEALTH_BREAK_GLASS_DEFAULT_MINUTES;
+    if (durationMinutes < 1 || durationMinutes > HEALTH_BREAK_GLASS_MAX_MINUTES) {
+      throw new BusinessRuleError(
+        `durationMinutes must be between 1 and ${HEALTH_BREAK_GLASS_MAX_MINUTES}`,
+      );
+    }
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.createBreakGlassGrant !== 'function') {
+      throw new BusinessRuleError('Break-glass grants are not available on this repository');
+    }
+    return repo.createBreakGlassGrant({
+      tenantId,
+      requesterUserId: accessContext.userId,
+      studentId: input.studentId,
+      fieldPath: input.fieldPath,
+      justification: input.justification,
+      durationMinutes,
+    });
+  }
+
+  async approveBreakGlass(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+  ): Promise<HealthBreakGlassGrant> {
+    if (!canApproveHealthBreakGlass(accessContext.roles)) {
+      throw new ForbiddenError('Access denied: break-glass approval requires health_admin');
+    }
+    if (!accessContext.userId) {
+      throw new ForbiddenError('Access denied: authenticated user required for break-glass');
+    }
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.approveBreakGlassGrant !== 'function') {
+      throw new BusinessRuleError('Break-glass grants are not available on this repository');
+    }
+    try {
+      const updated = await repo.approveBreakGlassGrant(id, tenantId, accessContext.userId);
+      if (!updated) throw new NotFoundError(`Break-glass grant with id '${id}' not found`);
+      return updated;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'DUAL_CONTROL_VIOLATION') {
+        throw new BusinessRuleError(
+          'Dual-control violation: requester cannot approve their own break-glass grant',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async denyBreakGlass(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+  ): Promise<HealthBreakGlassGrant> {
+    if (!canApproveHealthBreakGlass(accessContext.roles)) {
+      throw new ForbiddenError('Access denied: break-glass denial requires health_admin');
+    }
+    if (!accessContext.userId) {
+      throw new ForbiddenError('Access denied: authenticated user required for break-glass');
+    }
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.denyBreakGlassGrant !== 'function') {
+      throw new BusinessRuleError('Break-glass grants are not available on this repository');
+    }
+    try {
+      const updated = await repo.denyBreakGlassGrant(id, tenantId, accessContext.userId);
+      if (!updated) throw new NotFoundError(`Break-glass grant with id '${id}' not found`);
+      return updated;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'DUAL_CONTROL_VIOLATION') {
+        throw new BusinessRuleError(
+          'Dual-control violation: requester cannot deny their own break-glass grant',
+        );
+      }
+      throw error;
+    }
+  }
+
+  async listBreakGlassGrants(
+    tenantId: string,
+    accessContext: HealthAccessContext,
+    options: { studentId?: string; limit?: number } = {},
+  ): Promise<HealthBreakGlassGrant[]> {
+    const privileged =
+      canApproveHealthBreakGlass(accessContext.roles) ||
+      accessContext.roles.some((r) => ['health_officer', 'counsellor', 'school_nurse'].includes(r));
+    if (!privileged) {
+      throw new ForbiddenError('Access denied: not authorized to list health break-glass grants');
+    }
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.listBreakGlassGrants !== 'function') return [];
+    return repo.listBreakGlassGrants(tenantId, options);
   }
 
   async createNurseIncident(
