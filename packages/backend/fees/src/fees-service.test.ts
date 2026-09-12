@@ -297,4 +297,82 @@ describe('FeesService', () => {
       expect(await service.listReconciliationBatches(TENANT_B)).toEqual([]);
     });
   });
+
+  describe('money integrity (integer cents)', () => {
+    it('rejects floating-point amountCents on create invoice / structure / payment / refund', async () => {
+      await expect(
+        service.createInvoice(TENANT_A, 'staff-1', {
+          studentId: STUDENT_ID,
+          title: 'Float invoice',
+          amountCents: 10.5,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+
+      await expect(
+        service.createFeePlan(TENANT_A, 'staff-1', {
+          name: 'Float plan',
+          amountCents: 10.5,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+
+      await expect(
+        service.createFeeStructure(TENANT_A, 'staff-1', {
+          name: 'Tuition',
+          category: 'tuition',
+          amountCents: 10.5,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Ok invoice',
+        amountCents: 1000,
+      });
+
+      await expect(
+        service.recordPayment(TENANT_A, 'parent-a', {
+          invoiceId: invoice.id,
+          amountCents: 10.5,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+
+      await expect(
+        service.recordRefund(TENANT_A, 'staff-1', {
+          invoiceId: invoice.id,
+          amountCents: 10.5,
+          reason: 'partial',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('accepts integer amountCents for invoice, structure, payment, and refund', async () => {
+      const structure = await service.createFeeStructure(TENANT_A, 'staff-1', {
+        name: 'Lab',
+        category: 'lab',
+        amountCents: 2500,
+      });
+      expect(structure.amountCents).toBe(2500);
+
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Lab fee',
+        amountCents: 2500,
+      });
+      expect(invoice.amountCents).toBe(2500);
+
+      const { payment, receipt } = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 2500,
+      });
+      expect(payment.amountCents).toBe(2500);
+      expect(receipt.amountCents).toBe(2500);
+
+      const refund = await service.recordRefund(TENANT_A, 'staff-1', {
+        invoiceId: invoice.id,
+        amountCents: 500,
+        reason: 'overcharge correction',
+      });
+      expect(refund.amountCents).toBe(500);
+    });
+  });
 });

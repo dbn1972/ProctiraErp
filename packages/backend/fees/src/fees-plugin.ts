@@ -30,7 +30,7 @@ const CreateFeePlanSchema = Type.Object({
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   name: Type.String({ minLength: 1, maxLength: 500 }),
   description: Type.Optional(Type.String({ maxLength: 5000 })),
-  amountCents: Type.Number({ minimum: 0 }),
+  amountCents: Type.Integer({ minimum: 0 }),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
   frequency: Type.Optional(
     Type.Union([
@@ -47,7 +47,7 @@ const CreateInvoiceSchema = Type.Object({
   planId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   title: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
   description: Type.Optional(Type.String({ maxLength: 5000 })),
-  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
+  amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
   dueAt: Type.Optional(Type.String()),
 });
@@ -67,7 +67,7 @@ const RecordPaymentSchema = Type.Object({
       Type.Literal('cash'),
     ]),
   ),
-  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
+  amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
 });
 
 const PayInvoiceSchema = Type.Object({
@@ -80,7 +80,7 @@ const PayInvoiceSchema = Type.Object({
     ]),
   ),
   payerUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
-  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
+  amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
 });
 
 const CreateFeeStructureSchema = Type.Object({
@@ -88,7 +88,7 @@ const CreateFeeStructureSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 500 }),
   category: Type.String({ minLength: 1, maxLength: 120 }),
   term: Type.Optional(Type.String({ maxLength: 64 })),
-  amountCents: Type.Number({ minimum: 0 }),
+  amountCents: Type.Integer({ minimum: 0 }),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
   institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
@@ -117,14 +117,14 @@ const ApplyConcessionSchema = Type.Object({
   invoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   kind: Type.Union([Type.Literal('percent'), Type.Literal('amount')]),
   percent: Type.Optional(Type.Number({ minimum: 0, maximum: 100 })),
-  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
+  amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
   approverId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
 
 const RecordRefundSchema = Type.Object({
   paymentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-  amountCents: Type.Number({ minimum: 1 }),
+  amountCents: Type.Integer({ minimum: 1 }),
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
 });
 

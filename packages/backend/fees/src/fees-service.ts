@@ -171,6 +171,9 @@ export class FeesService {
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
+    if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
+      throw new BusinessRuleError('Plan amountCents must be a non-negative integer');
+    }
     const code =
       input.code?.trim() ||
       input.name
@@ -229,8 +232,8 @@ export class FeesService {
     if (title == null || title.trim() === '') {
       throw new BusinessRuleError('Invoice title is required');
     }
-    if (amountCents == null || amountCents < 0) {
-      throw new BusinessRuleError('Invoice amountCents is required');
+    if (amountCents == null || amountCents < 0 || !Number.isInteger(amountCents)) {
+      throw new BusinessRuleError('Invoice amountCents must be a non-negative integer');
     }
 
     const invoiceId = uuidv4();
@@ -372,8 +375,13 @@ export class FeesService {
       throw new BusinessRuleError('Invoice is not open for payment');
     }
 
-    if (input.amountCents != null && input.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError('Payment amountCents must equal invoice.amountCents');
+    if (input.amountCents != null) {
+      if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
+        throw new BusinessRuleError('Payment amountCents must be a non-negative integer');
+      }
+      if (input.amountCents !== invoice.amountCents) {
+        throw new BusinessRuleError('Payment amountCents must equal invoice.amountCents');
+      }
     }
 
     const charge = await this.paymentAdapter.charge({
