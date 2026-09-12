@@ -62,7 +62,7 @@ export type {
   ConnectivityProviderProps,
 } from './ConnectivityProvider';
 
-export { AuthProvider, useAuth } from './AuthProvider';
+export { AuthProvider, useAuth, isAuthDemoModeEnabled } from './AuthProvider';
 export type {
   AuthStatus,
   AuthUser,

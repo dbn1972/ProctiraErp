@@ -31,6 +31,8 @@ describe('AUTH_COOKIES / AUTH_ENDPOINTS', () => {
     expect(AUTH_ENDPOINTS.LOGIN).toBe('/api/auth/login');
     expect(AUTH_ENDPOINTS.LOGOUT).toBe('/api/auth/logout');
     expect(AUTH_ENDPOINTS.REFRESH).toBe('/api/auth/refresh');
+    expect(AUTH_ENDPOINTS.SESSION).toBe('/api/auth/session');
+    expect(AUTH_ENDPOINTS.KEYCLOAK).toBe('/api/auth/keycloak');
     expect(AUTH_ENDPOINTS.OAUTH_CALLBACK).toBe('/api/auth/oauth/callback');
   });
 });

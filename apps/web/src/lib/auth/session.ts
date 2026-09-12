@@ -9,6 +9,8 @@
 
 import { withCsrfHeader } from '@/lib/auth/csrf';
 
+import type { AuthUserFromToken } from './auth-user';
+
 /** Cookie names used for authentication. */
 export const AUTH_COOKIES = {
   ACCESS_TOKEN: 'access_token',
@@ -21,6 +23,7 @@ export const AUTH_ENDPOINTS = {
   LOGIN: '/api/auth/login',
   LOGOUT: '/api/auth/logout',
   REFRESH: '/api/auth/refresh',
+  SESSION: '/api/auth/session',
   FORGOT_PASSWORD: '/api/auth/forgot-password',
   RESET_PASSWORD: '/api/auth/reset-password',
   VERIFY_MFA: '/api/auth/mfa/verify',
@@ -29,6 +32,8 @@ export const AUTH_ENDPOINTS = {
   OAUTH_CALLBACK: '/api/auth/oauth/callback',
   SIGNUP: '/api/auth/signup',
   SIGNUP_ROLES: '/api/tenant/signup-roles',
+  /** Keycloak authorization-code entry (platform IdP — ADR-001). */
+  KEYCLOAK: '/api/auth/keycloak',
 } as const;
 
 /** Supported OAuth/OIDC providers. */
@@ -189,6 +194,40 @@ export async function refreshAccessToken(): Promise<boolean> {
     return response.ok;
   } catch {
     return false;
+  }
+}
+
+/** Client-safe session snapshot from GET /api/auth/session (no raw JWT). */
+export interface ClientSessionSnapshot {
+  authenticated: boolean;
+  user: AuthUserFromToken | null;
+  reason?: 'expired';
+}
+
+/**
+ * Reads the current cookie session via the BFF. Used by `<AuthProvider>` to
+ * hydrate `useAuth()` without exposing httpOnly tokens to JavaScript.
+ */
+export async function fetchSession(
+  options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
+): Promise<ClientSessionSnapshot> {
+  const fetcher = options.fetcher ?? fetch;
+  try {
+    const response = await fetcher(AUTH_ENDPOINTS.SESSION, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      signal: options.signal,
+      cache: 'no-store',
+    });
+    const data = (await safeJson(response)) as ClientSessionSnapshot;
+    return {
+      authenticated: Boolean(data.authenticated),
+      user: data.user ?? null,
+      ...(data.reason ? { reason: data.reason } : {}),
+    };
+  } catch {
+    return { authenticated: false, user: null };
   }
 }
 
