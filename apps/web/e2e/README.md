@@ -6,7 +6,7 @@ ProctiraERP Unified Platform spec:
 
 | Spec file                                    | Journey                                                                                             |
 | -------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `01-login-and-create-student.spec.ts`        | Login → institution → create student → enroll                                                       |
+| `41-admissions-crm-write-smoke.spec.ts`          | Admissions CRM + A5 tip: enquiry → merit → seat → offer → parent pay → enrol (soft-skip if gateway offline) |
 | `02-attendance.spec.ts`                      | Attendance marking → percentage report verification                                                 |
 | `03-assessment-and-report-card.spec.ts`      | Assessment scheme + items + results → report card                                                   |
 | `04-transfer-and-workflow.spec.ts`           | Transfer request → approval workflow → status update                                                |

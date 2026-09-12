@@ -1,15 +1,19 @@
 /**
- * Admissions CRM — enquiry → application → merit → offer → accept → enrol
- * (Wave 9 / G-906).
+ * Admissions CRM — enquiry → merit → seat → offer → pay → enrol
+ * (Wave 9 / G-906 + slice A5 tip journey).
  *
  * Ungated: CRM pages render and an unknown application id shows not-found
- * (no crash).
+ * (no crash). Shells already soft-fail when the gateway is offline (empty
+ * lookups / empty lists).
  * Gated (E2E_BACKEND_READY): live API chain with TENANT_A / INSTITUTION_A,
- * UI enrolled badge, and tenant B isolation.
+ * A5 tip journey via parent offer-pay, UI enrolled badge, and tenant B
+ * isolation. When the flag is set but `/health` is unreachable, live tests
+ * soft-skip (Wave 11 honesty) instead of hard-failing.
  */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
+import { parentPortalJwtHeaders } from './fixtures/parent-portal-auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
@@ -18,6 +22,9 @@ const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
 /** Seeded by tools/e2e/seed-e2e-tenants.sql. */
 const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+/** Parent JWT email is `${sub}@tenant.test` — keep in sync with enquiry guardianEmail. */
+const GUARDIAN_SUB = 'guardian-a5';
+const GUARDIAN_EMAIL = `${GUARDIAN_SUB}@tenant.test`;
 
 function headers(tenantId = TENANT_A) {
   const token = createSignedJwt({
@@ -43,6 +50,15 @@ async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
   await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
   return el;
+}
+
+async function gatewayHealthy(request: APIRequestContext): Promise<boolean> {
+  try {
+    const res = await request.get(`${GATEWAY_URL}/health`, { timeout: 5_000 });
+    return res.ok();
+  } catch {
+    return false;
+  }
 }
 
 async function jsonStatus(
@@ -131,7 +147,14 @@ test.describe('Admissions CRM — pages render (ungated)', () => {
 test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1 and a live gateway + Postgres');
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page, request }) => {
+    // Soft-fail honesty when the flag is set but the gateway is offline (Wave 11 / A5).
+    if (!(await gatewayHealthy(request))) {
+      test.skip(
+        true,
+        'Gateway offline at /health — soft-skip live admissions chain (A5 honesty; not a hard fail)',
+      );
+    }
     await setupGatewayTenantSession(page);
   });
 
@@ -265,6 +288,174 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     };
     expect(student).toMatchObject({ firstName, lastName });
 
+    await page.goto(`/admissions/${applicationId}`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('enrolled-badge')).toBeVisible();
+    await expect(page.getByTestId('enrolled-student-link')).toHaveAttribute(
+      'href',
+      `/students/${accepted.enrolledStudentId}`,
+    );
+  });
+
+  /**
+   * A5 tip journey (closes A-7): enquiry → merit → seat reserve → offer →
+   * parent sandbox pay → enrol. Reuses staff CRM + parent `/parent/offers` surfaces.
+   */
+  test('A5 tip: enquiry → merit → seat → offer → parent pay → enrol', async ({
+    page,
+    request,
+  }) => {
+    test.slow();
+    const { periodId, gradeId } = await createPeriodAndGrade(request);
+    const tag = stamp();
+    const firstName = `A5${tag}`;
+    const lastName = 'Enrol';
+
+    const enquiryRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/enquiries`, {
+      headers: headers(),
+      data: {
+        institutionId: INSTITUTION_A,
+        academicPeriodId: periodId,
+        gradeId,
+        quota: 'general',
+        source: 'website',
+        firstName,
+        lastName,
+        dateOfBirth: '2012-09-01',
+        gender: 'female',
+        guardianName: 'A5 Guardian',
+        guardianPhone: '+15550155',
+        guardianEmail: GUARDIAN_EMAIL,
+        interviewScore: 91,
+        testScore: 94,
+      },
+    });
+    const enquiry = (await jsonStatus(enquiryRes, 201)) as { id: string };
+
+    const stageRes = await request.patch(
+      `${GATEWAY_URL}/api/v1/admissions/enquiries/${enquiry.id}`,
+      { headers: headers(), data: { stage: 'qualified' } },
+    );
+    expect(stageRes.status(), await stageRes.text()).toBe(200);
+
+    const convertRes = await request.post(
+      `${GATEWAY_URL}/api/v1/admissions/enquiries/${enquiry.id}/convert`,
+      { headers: headers() },
+    );
+    const converted = (await jsonStatus(convertRes, 201)) as {
+      application: { id: string };
+    };
+    const applicationId = converted.application.id;
+
+    // Merit before seat reserve (PRODUCT journey order).
+    const meritRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/merit-lists`, {
+      headers: headers(),
+      data: {
+        institutionId: INSTITUTION_A,
+        academicPeriodId: periodId,
+        gradeId,
+        interviewWeight: 0.4,
+        testWeight: 0.6,
+      },
+    });
+    const merit = (await jsonStatus(meritRes, 201)) as {
+      entries: Array<{ applicationId: string; rank: number }>;
+    };
+    expect(merit.entries.some((row) => row.applicationId === applicationId)).toBe(true);
+
+    // Seat reserve = category quota capacity (no separate reserve API).
+    const seatRes = await request.put(`${GATEWAY_URL}/api/v1/admissions/seat-matrix`, {
+      headers: headers(),
+      data: {
+        institutionId: INSTITUTION_A,
+        academicPeriodId: periodId,
+        gradeId,
+        quota: 'general',
+        seats: 3,
+      },
+    });
+    const seatBefore = (await jsonStatus(seatRes, 200)) as {
+      available: number;
+      filled: number;
+      seats: number;
+    };
+    expect(seatBefore.available).toBeGreaterThan(0);
+    const filledBefore = seatBefore.filled;
+
+    const offerRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers`, {
+      headers: headers(),
+      data: { applicationId, feeAmount: 15_000 },
+    });
+    const offer = (await jsonStatus(offerRes, 201)) as {
+      id: string;
+      status: string;
+      offerFeeInvoiceId: string | null;
+    };
+    expect(offer.status).toBe('draft');
+
+    const sendRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/send`, {
+      headers: headers(),
+    });
+    const sent = (await jsonStatus(sendRes, 200)) as {
+      status: string;
+      offerFeeInvoiceId: string | null;
+    };
+    expect(sent.status).toBe('sent');
+
+    const parentHeaders = parentPortalJwtHeaders(GUARDIAN_SUB);
+    const listRes = await request.get(`${GATEWAY_URL}/api/v1/parent-portal/offers`, {
+      headers: parentHeaders,
+    });
+    const listed = (await jsonStatus(listRes, 200)) as {
+      data: Array<{ id: string; status: string; feeAmount: number }>;
+    };
+    expect(listed.data.some((row) => row.id === offer.id && row.status === 'sent')).toBe(true);
+
+    const payRes = await request.post(
+      `${GATEWAY_URL}/api/v1/parent-portal/offers/${offer.id}/accept`,
+      {
+        headers: parentHeaders,
+        data: {
+          paymentRef: 'SANDBOX-A5-PAY',
+          offerFeeInvoiceId: sent.offerFeeInvoiceId ?? offer.offerFeeInvoiceId ?? undefined,
+        },
+      },
+    );
+    const accepted = (await jsonStatus(payRes, 200)) as {
+      status: string;
+      paymentRef: string;
+      enrolledStudentId: string | null;
+    };
+    expect(accepted.status).toBe('accepted');
+    expect(accepted.paymentRef).toBe('SANDBOX-A5-PAY');
+    expect(accepted.enrolledStudentId).toBeTruthy();
+
+    const seatAfterRes = await request.get(
+      `${GATEWAY_URL}/api/v1/admissions/seat-matrix?institutionId=${INSTITUTION_A}&academicPeriodId=${periodId}`,
+      { headers: headers() },
+    );
+    const seatRows = (await jsonStatus(seatAfterRes, 200)) as {
+      data: Array<{ gradeId: string; quota: string; filled: number; available: number }>;
+    };
+    const general = seatRows.data.find(
+      (row) => row.gradeId === gradeId && row.quota === 'general',
+    );
+    expect(general).toBeTruthy();
+    expect(general!.filled).toBeGreaterThanOrEqual(filledBefore + 1);
+
+    await setupGatewayTenantSession(page, {
+      sub: GUARDIAN_SUB,
+      email: GUARDIAN_EMAIL,
+      displayName: 'A5 Guardian',
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    });
+    await page.goto('/parent/offers', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('parent-offers')).toBeVisible();
+    await expect(page.getByTestId('sandbox-honesty-banner')).toBeVisible();
+    await expect(
+      page.getByTestId('parent-offer-accepted-row').filter({ hasText: firstName }),
+    ).toBeVisible({ timeout: 20_000 });
+
+    await setupGatewayTenantSession(page);
     await page.goto(`/admissions/${applicationId}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('enrolled-badge')).toBeVisible();
     await expect(page.getByTestId('enrolled-student-link')).toHaveAttribute(

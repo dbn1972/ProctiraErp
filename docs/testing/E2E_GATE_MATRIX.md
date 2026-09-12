@@ -56,7 +56,7 @@
 | `38-academic-calendar-write-smoke.spec.ts`                | Mixed (ungated + gated describes) |
 | `39-fees-structures-write-smoke.spec.ts`                  | Mixed (ungated + gated describes) |
 | `40-portals-academic-visibility-smoke.spec.ts`            | Mixed (ungated + gated describes) |
-| `41-admissions-crm-write-smoke.spec.ts`                   | Mixed (ungated + gated describes) |
+| `41-admissions-crm-write-smoke.spec.ts`                   | Mixed (ungated + gated; A5 tip soft-skips if gateway `/health` down) |
 | `42-gradebook-workflow-write-smoke.spec.ts`               | Mixed (ungated + gated describes) |
 | `43-curriculum-coverage-write-smoke.spec.ts`              | Mixed (ungated + gated describes) |
 | `44-students-360-write-smoke.spec.ts`                     | Mixed (ungated + gated describes) |
