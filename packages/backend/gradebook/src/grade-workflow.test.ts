@@ -7,7 +7,8 @@ import {
   transitionGradeWorkflow,
 } from './grade-workflow.js';
 
-describe('grade workflow state machine', () => {
+/** P1-ASSESS unit proof — assessment moderation + publication = gradebook workflow. */
+describe('grade workflow state machine (P1-ASSESS)', () => {
   it('reads DRAFT by default and LOCKED when lockedAt set', () => {
     expect(readGradeWorkflowStatus({})).toBe('DRAFT');
     expect(readGradeWorkflowStatus({ workflowStatus: 'SUBMITTED' })).toBe('SUBMITTED');
@@ -28,7 +29,7 @@ describe('grade workflow state machine', () => {
     expect(isGradePublished({ workflowStatus: 'DRAFT' })).toBe(false);
   });
 
-  it('allows draft → submit → approve → lock → publish', () => {
+  it('P1-ASSESS: allows draft → submit → approve → lock → publish', () => {
     let s = transitionGradeWorkflow('DRAFT', 'submit');
     expect(s).toBe('SUBMITTED');
     s = transitionGradeWorkflow(s, 'approve');

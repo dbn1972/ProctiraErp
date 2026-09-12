@@ -1,7 +1,11 @@
 /**
  * Gradebook workflow — submit → approve → lock → publish (Wave 9 / G-907).
+ * Also closes **P1-ASSESS** (assessment moderation + publication) by mapping
+ * that gap onto this gradebook lifecycle — see
+ * `docs/audits/DEV_P1_ASSESS_MODERATION_PUBLISH.md`.
  *
- * Ungated: institution gradebook, outcomes, and report-cards pages render.
+ * Ungated: institution gradebook, outcomes, report-cards, assessments hub
+ * moderation callout (P1-ASSESS tip fragment).
  * Gated (E2E_BACKEND_READY): live API transitions, TEACHER cannot APPROVE,
  * published grades are readable, UI hydrates workflow controls.
  */
@@ -98,6 +102,26 @@ test.describe('Gradebook workflow — pages render (ungated)', () => {
 
   test('/assessments/report-cards renders', async ({ page }) => {
     await page.goto('/assessments/report-cards', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /report cards/i })).toBeVisible();
+  });
+});
+
+test.describe('P1-ASSESS — assessments hub → gradebook publication path (ungated)', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupGatewayTenantSession(page);
+  });
+
+  test('hub exposes draft→publish moderation lifecycle and links to report cards', async ({
+    page,
+  }) => {
+    await page.goto('/assessments', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /assessment schemes/i })).toBeVisible();
+    const callout = page.getByTestId('assess-moderation-lifecycle');
+    await expect(callout).toBeVisible();
+    await expect(callout).toContainText(/draft → submit → approve → lock → publish/i);
+
+    await page.getByTestId('assess-moderation-report-cards-link').click();
+    await expect(page).toHaveURL(/\/assessments\/report-cards/);
     await expect(page.getByRole('heading', { name: /report cards/i })).toBeVisible();
   });
 });
