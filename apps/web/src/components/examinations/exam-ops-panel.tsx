@@ -440,9 +440,11 @@ export function ExamOpsPanel({
 
       <Card data-testid="exam-reeval-card">
         <CardHeader>
-          <CardTitle className="text-base">Re-evaluation</CardTitle>
+          <CardTitle className="text-base">Appeal / re-evaluation</CardTitle>
           <CardDescription>
-            Request → assign evaluator → complete with revised marks (delta is audited).
+            Marks appeal (IA: appeal ≡ re-evaluation). Request → assign evaluator → complete with
+            revised marks (delta is audited). Malpractice case management and formal appeals beyond
+            re-eval are out of scope.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -495,9 +497,9 @@ export function ExamOpsPanel({
           </form>
 
           {reevaluations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No re-evaluation requests.</p>
+            <p className="text-sm text-muted-foreground">No appeal / re-evaluation requests.</p>
           ) : (
-            <Table aria-label="Re-evaluation requests">
+            <Table aria-label="Appeal / re-evaluation requests">
               <TableHeader>
                 <TableRow>
                   <TableHead>Status</TableHead>
