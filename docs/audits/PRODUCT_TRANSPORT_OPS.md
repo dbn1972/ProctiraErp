@@ -89,3 +89,18 @@ Tenant boundary notes: every 045 table has `tenant_id`, ENABLE + FORCE RLS, `USI
 | Security   | `docs/audits/SEC_TRANSPORT_OPS.md`                                       |
 | Test       | deferred — no Playwright/full E2E in this worktree (resource discipline) |
 | Release    | not claimed                                                              |
+
+---
+
+## 9. P2-TRANSPORT honesty residual — live GPS (2026-09-12) — append only
+
+**Register close:** `P2-TRANSPORT` → **DONE-with-dated-NON-GOAL** on `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md`.  
+**Does not rewrite** G-920 scope above. Live cellular / hardware GPS was already a §3 non-goal; this dates it for the P2 register.
+
+| Tip proves                                                                                      | Dated NON-GOAL (2026-09-12)                                    |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Ordered stops, trip boarding/alighted/absent, alert rules, transport fee bands                  | Live **cellular telematics provider** / hardware GPS adapter   |
+| `POST /transport/gps` batch ingest + `GET /transport/live` last ping on **SVG** map + OSM links | MapLibre / Leaflet / Google Maps SDK (**PRD-010** still holds) |
+| `db/sql/045_transport_ops_schema.sql`, `/transport/*`, `54-transport-ops-write-smoke.spec.ts`   | Parent portal live map (still out of G-920)                    |
+
+**Forbidden claims:** live GPS hardware complete; MapLibre peer map. Re-open when a funded telematics adapter epic lands.

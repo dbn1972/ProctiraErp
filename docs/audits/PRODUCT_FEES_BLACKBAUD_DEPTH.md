@@ -136,3 +136,18 @@ Tenant boundary notes:
 **Build order:** F1 (netting UI) → F2 (dunning) → F3 (recon + parent instalments) → F4 (PSP evidence **or** waiver refresh) → F5 optional only if F-4 funded.
 
 **Honesty:** F0 is docs-only. Do not start SQL/UI until this PRODUCT audit is on the slice branch used for build.
+
+---
+
+## 9. P1-FIN-GL honesty residual (2026-09-12) — append only
+
+**Register close:** `P1-FIN-GL` (absorbs Fees **F5** / **F-4**) → **DONE-with-dated-NON-GOAL** on `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md`.  
+**Does not rewrite** F0–F4 decisions above.
+
+| Tip proves (Fees / student finance — **not** ERP GL)                                                     | Dated NON-GOAL (2026-09-12)                                                           |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Fee plans / invoices / sandbox pay / receipts (`PRODUCT_FEES_FINANCE_V1.md`, `/fees/*`)                  | Chart of accounts, budgets, period close, tax pack export, multi-entity consolidation |
+| Scholarship netting, dunning console, recon + parent instalments (F1–F3 tip UI under `/fees/*`)          | Full ERP GL suite / accounting-pack export until separately funded                    |
+| Integer-cent fee **ledger journals** (`packages/backend/fees`, `023_*`) — balanced AR/cash journals only | Statutory GL period close, budget vs actual, or finance-controller CoA product        |
+
+**Forbidden claims:** “GL / period close shipped”; Blackbaud Tuition complete (G-202 still waived). Re-open only when product funds a GL epic and reverses this NON-GOAL on a newer board.

@@ -125,3 +125,11 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` and adap
 - Linux IT green: login, tenant isolation, student→enrollment, attendance offline sync, notification deep-link + screenshot pack
 - Artifacts: goldens + `linux_*.png` under `/opt/cursor/artifacts/mobile-flutter-audit/`
 - Honest module score **9.3 / 10** with residual **Android device-farm PNGs** only
+
+---
+
+## 2026-09-12 — P2-MOBILE register bind (append only)
+
+**Register close:** `P2-MOBILE` → **DONE-with-dated-WAIVER** on `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md` (PRD-007).  
+Short residual note: `docs/audits/PRODUCT_MOBILE_DEVICE_FARM_RESIDUAL.md`.  
+Does **not** invent Android farm PNGs; score ceiling remains device-farm gated.
