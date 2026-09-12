@@ -17,6 +17,7 @@ import {
   ClipboardList,
   Award,
   DollarSign,
+  GraduationCap,
 } from 'lucide-react';
 
 import {
@@ -246,13 +247,22 @@ export default async function StudentProfilePage(props: PageProps) {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          {currentEnrollment ? (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/students/${student.id}/transfer`}>
+                <ArrowRightLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+                Request transfer
+              </Link>
+            </Button>
+          ) : (
+            <Button asChild size="sm" data-testid="student-enroll-cta">
+              <Link href={`/students/${student.id}/enroll`}>
+                <GraduationCap className="me-1.5 h-4 w-4" aria-hidden="true" />
+                Enroll
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm">
-            <Link href={`/students/${student.id}/transfer`}>
-              <ArrowRightLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Request transfer
-            </Link>
-          </Button>
-          <Button asChild size="sm">
             <Link href={`/students/${student.id}/edit`}>
               <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
               Edit student

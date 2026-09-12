@@ -1,16 +1,29 @@
 /**
- * StudentEnrollment — multi-step enrolment wizard for new students.
+ * StudentEnrollment — federated bridge for `/app/students/enroll`.
  *
- * Migrated from `School Platform Design/src/app/components/StudentEnrollment.tsx`
- * per task 60.2. Real data wiring is task 60.3.
+ * Real enrollment UX lives under the App Router (`/students/enroll` hub and
+ * `/students/[id]/enroll`). This component hard-navigates so the federated
+ * shell does not leave a dead-end placeholder (P0-04).
  */
-export default function StudentEnrollment() {
+function RedirectTo({ href }: { href: string }) {
+  if (typeof window !== 'undefined') window.location.replace(href);
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold">Enrol Student</h1>
-      <p className="text-muted-foreground mt-2">
-        Guided enrolment wizard. Placeholder pending task 60.3.
+    <div
+      role="status"
+      aria-live="polite"
+      className="space-y-3 p-6 text-muted-foreground"
+      data-testid="student-enrollment-redirect"
+    >
+      <p>Opening the enrollment workspace…</p>
+      <p>
+        <a href={href} className="font-medium text-foreground underline-offset-2 hover:underline">
+          Continue to enroll
+        </a>
       </p>
     </div>
   );
+}
+
+export default function StudentEnrollment() {
+  return <RedirectTo href="/students/enroll" />;
 }

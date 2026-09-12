@@ -15,6 +15,7 @@ import {
   addStudentDiscipline,
   addStudentSibling,
   bulkUpdateEnrollmentStatus,
+  createEnrollment,
   createStudent,
   deleteStudent,
   getStudentEnrollments,
@@ -25,6 +26,7 @@ import {
   updateStudent,
   uploadStudentPhoto,
   type BulkImportRequest,
+  type CreateEnrollmentInput,
   type CreateStudentInput,
   type ImportProgress,
   type ImportResult,
@@ -33,8 +35,10 @@ import {
 } from '@/lib/api/students';
 import { GatewayError } from '@/lib/api/gateway';
 import {
+  enrollmentFormSchema,
   studentFormSchema,
   transferFormSchema,
+  type EnrollmentFormValues,
   type StudentFormValues,
   type TransferFormValues,
 } from '@/lib/validation/student-schema';
@@ -267,6 +271,48 @@ function toErrorState<T = unknown>(error: unknown, fallback: string): ActionStat
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/* ----------------------------------------------------------------- Enroll */
+
+export async function enrollStudentAction(
+  studentId: string,
+  values: EnrollmentFormValues,
+): Promise<ActionState<{ enrollmentId: string }>> {
+  if (!UUID_RE.test(studentId)) {
+    return { status: 'error', message: 'Invalid student.' };
+  }
+
+  const parsed = enrollmentFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Please fix the highlighted fields.',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+
+  const payload: CreateEnrollmentInput = {
+    studentId,
+    institutionId: parsed.data.institutionId,
+    gradeId: parsed.data.gradeId,
+    academicPeriodId: parsed.data.academicPeriodId,
+    enrolledAt: parsed.data.enrolledAt,
+    ...(parsed.data.classId ? { classId: parsed.data.classId } : {}),
+  };
+
+  try {
+    const enrollment = await createEnrollment(payload);
+    revalidatePath('/students');
+    revalidatePath(`/students/${studentId}`);
+    return {
+      status: 'success',
+      message: 'Student enrolled successfully.',
+      data: { enrollmentId: enrollment.id },
+    };
+  } catch (error) {
+    return toErrorState<{ enrollmentId: string }>(error, 'Failed to enroll student');
+  }
+}
 
 function revalidateStudent(studentId: string) {
   revalidatePath(`/students/${studentId}`);
