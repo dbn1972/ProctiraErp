@@ -69,7 +69,9 @@ export class InMemoryHostelRepository implements HostelRepository {
   ): Promise<HostelAssignmentEntity> {
     // No await between check and write — concurrent callers serialize on the
     // sync critical section (same invariant as Pg FOR UPDATE).
-    const bedIndex = this.beds.findIndex((b) => b.id === data.bedId && b.tenantId === data.tenantId);
+    const bedIndex = this.beds.findIndex(
+      (b) => b.id === data.bedId && b.tenantId === data.tenantId,
+    );
     if (bedIndex === -1) {
       throw new BedAssignmentConflictError('BED_UNAVAILABLE', 'Bed not found for assignment');
     }

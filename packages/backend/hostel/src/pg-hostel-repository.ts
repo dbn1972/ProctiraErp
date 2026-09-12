@@ -409,14 +409,7 @@ export class PgHostelRepository implements HostelRepository {
           `INSERT INTO hostel_assignments
              (id, tenant_id, student_id, bed_id, start_date, end_date, is_active)
            VALUES ($1,$2,$3,$4,$5,$6,true) RETURNING *`,
-          [
-            data.id,
-            data.tenantId,
-            data.studentId,
-            data.bedId,
-            data.startDate,
-            data.endDate,
-          ],
+          [data.id, data.tenantId, data.studentId, data.bedId, data.startDate, data.endDate],
         );
         await client.query(
           `UPDATE hostel_beds
