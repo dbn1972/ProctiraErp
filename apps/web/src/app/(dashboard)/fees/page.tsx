@@ -2,7 +2,16 @@
  * Staff fees hub (Server Component).
  */
 import Link from 'next/link';
-import { FileText, Receipt, Wallet, Layers, BarChart3, GraduationCap, Bell } from 'lucide-react';
+import {
+  FileText,
+  Receipt,
+  Wallet,
+  Layers,
+  BarChart3,
+  GraduationCap,
+  Bell,
+  Scale,
+} from 'lucide-react';
 
 import {
   Button,
@@ -100,12 +109,28 @@ export default async function FeesOverviewPage() {
               <BarChart3 className="h-4 w-4" aria-hidden="true" />
               Reports
             </CardTitle>
-            <CardDescription>Dues summary, CSV export, reconciliation import.</CardDescription>
+            <CardDescription>Dues summary and CSV export.</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
               <Link href="/fees/reports" data-testid="open-reports">
                 Open reports
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Scale className="h-4 w-4" aria-hidden="true" />
+              Reconciliation
+            </CardTitle>
+            <CardDescription>CSV import, match/exception list, and resolve audit.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/reconciliation" data-testid="open-reconciliation">
+                Open reconciliation
               </Link>
             </Button>
           </CardContent>

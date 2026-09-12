@@ -133,7 +133,49 @@ const ReconciliationImportSchema = Type.Object({
   filename: Type.Optional(Type.String({ maxLength: 255 })),
 });
 
+const ResolveReconExceptionSchema = Type.Object({
+  status: Type.Union([Type.Literal('resolved'), Type.Literal('ignored')]),
+  resolutionNote: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
 type IdParams = Static<typeof IdParamsSchema>;
+
+function formatReconBatch(batch: {
+  id: string;
+  tenantId: string;
+  filename: string;
+  matchedCount: number;
+  unmatchedCount: number;
+  createdBy: string | null;
+  createdAt: Date;
+}) {
+  return {
+    ...batch,
+    createdAt: batch.createdAt.toISOString(),
+  };
+}
+
+function formatReconRow(row: {
+  id: string;
+  tenantId: string;
+  batchId: string;
+  invoiceNumber: string;
+  amountCents: number;
+  matched: boolean;
+  invoiceId: string | null;
+  note: string | null;
+  exceptionStatus: string;
+  resolvedBy: string | null;
+  resolvedAt: Date | null;
+  resolutionNote: string | null;
+  createdAt: Date;
+}) {
+  return {
+    ...row,
+    resolvedAt: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
 
 export interface ParentFeeBinding {
   listLinkedStudentIds(tenantId: string, parentUserId: string): Promise<string[]>;
@@ -918,6 +960,88 @@ export const feesPlugin = fp(
             matched: imported.matched,
             unmatched: imported.unmatched,
           });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.get(
+      `${prefix}/reconciliation/batches`,
+      async function listReconBatches(request, reply) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const batches = await feesService.listReconciliationBatches(tenantId);
+        return reply.status(200).send({ data: batches.map(formatReconBatch) });
+      },
+    );
+
+    fastify.get(
+      `${prefix}/reconciliation/batches/:id/rows`,
+      async function listReconRows(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid batch ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const rows = await feesService.listReconciliationRows(tenantId, paramsResult.data.id);
+        return reply.status(200).send({ data: rows.map(formatReconRow) });
+      },
+    );
+
+    fastify.post(
+      `${prefix}/reconciliation/rows/:id/resolve`,
+      async function resolveReconException(
+        request: FastifyRequest<{
+          Params: IdParams;
+          Body: { status: 'resolved' | 'ignored'; resolutionNote: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid row ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(ResolveReconExceptionSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          assertFeesAccess(getRoles(request), 'payment.record');
+          const updated = await feesService.resolveReconciliationException(
+            tenantId,
+            getActorId(request),
+            {
+              rowId: paramsResult.data.id,
+              status: bodyResult.data.status,
+              resolutionNote: bodyResult.data.resolutionNote,
+            },
+          );
+          return reply.status(200).send(formatReconRow(updated));
         } catch (error: unknown) {
           if (error instanceof AppError) {
             return reply.status(error.statusCode).send(error.toJSON());

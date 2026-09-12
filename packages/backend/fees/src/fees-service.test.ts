@@ -228,4 +228,73 @@ describe('FeesService', () => {
       await expect(service.voidInvoice(TENANT_A, paidInv.id)).rejects.toThrow(BusinessRuleError);
     });
   });
+
+  describe('reconciliation exceptions (F3)', () => {
+    it('lists match/exception rows and resolves with audit', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Recon target',
+        amountCents: 5000,
+      });
+      const csv = `invoiceNumber,amountCents\n${invoice.invoiceNumber},5000\nMISSING,100`;
+      const imported = await service.importReconciliationCsv(
+        TENANT_A,
+        'cashier-1',
+        csv,
+        'bank.csv',
+      );
+      expect(imported.matched).toHaveLength(1);
+      expect(imported.unmatched).toHaveLength(1);
+
+      const batches = await service.listReconciliationBatches(TENANT_A);
+      expect(batches[0]?.id).toBe(imported.batch.id);
+      expect(batches[0]?.createdBy).toBe('cashier-1');
+
+      const rows = await service.listReconciliationRows(TENANT_A, imported.batch.id);
+      const matched = rows.find((row) => row.matched);
+      const exception = rows.find((row) => !row.matched);
+      expect(matched?.exceptionStatus).toBe('none');
+      expect(exception?.exceptionStatus).toBe('open');
+
+      const resolved = await service.resolveReconciliationException(TENANT_A, 'bursar-1', {
+        rowId: exception!.id,
+        status: 'resolved',
+        resolutionNote: 'Bank memo typo — write-off',
+      });
+      expect(resolved.exceptionStatus).toBe('resolved');
+      expect(resolved.resolvedBy).toBe('bursar-1');
+      expect(resolved.resolutionNote).toBe('Bank memo typo — write-off');
+      expect(resolved.resolvedAt).toBeInstanceOf(Date);
+
+      await expect(
+        service.resolveReconciliationException(TENANT_A, 'bursar-1', {
+          rowId: exception!.id,
+          status: 'ignored',
+          resolutionNote: 'again',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+
+      await expect(
+        service.resolveReconciliationException(TENANT_A, 'bursar-1', {
+          rowId: matched!.id,
+          status: 'resolved',
+          resolutionNote: 'nope',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('isolates recon batches by tenant', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'A only',
+        amountCents: 1000,
+      });
+      await service.importReconciliationCsv(
+        TENANT_A,
+        'staff-1',
+        `invoiceNumber,amountCents\n${invoice.invoiceNumber},1000`,
+      );
+      expect(await service.listReconciliationBatches(TENANT_B)).toEqual([]);
+    });
+  });
 });

@@ -8,13 +8,6 @@ import { Button } from '@proctira/ui/components';
 
 import { payInvoiceAction } from '../../../parent-actions';
 
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: currency || 'USD',
-  }).format(cents / 100);
-}
-
 export function PayInvoiceButton({ invoiceId, status }: { invoiceId: string; status: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -57,5 +50,3 @@ export function PayInvoiceButton({ invoiceId, status }: { invoiceId: string; sta
     </div>
   );
 }
-
-export { formatAmount };

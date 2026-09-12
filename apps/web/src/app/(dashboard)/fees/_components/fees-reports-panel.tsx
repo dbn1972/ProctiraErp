@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useTransition, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
 
 import {
   Button,
@@ -10,11 +9,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  FormField,
-  Textarea,
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
-import { importReconciliationAction } from '@/lib/fees/actions';
 import type { DuesReport } from '@/lib/api/fees';
 
 function formatAmount(cents: number): string {
@@ -26,30 +22,7 @@ function formatAmount(cents: number): string {
 }
 
 export function FeesReportsPanel({ report, header }: { report: DuesReport; header: ReactNode }) {
-  const router = useRouter();
   const hydrated = useHydrated();
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [summary, setSummary] = useState<string | null>(null);
-
-  function onImport(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const fd = new FormData(event.currentTarget);
-    startTransition(async () => {
-      setError(null);
-      setSummary(null);
-      const result = await importReconciliationAction({
-        csv: String(fd.get('csv') ?? ''),
-        filename: 'staff-import.csv',
-      });
-      if (!result.success) {
-        setError(result.error);
-        return;
-      }
-      setSummary(`Matched ${result.data.matched}, unmatched ${result.data.unmatched}`);
-      router.refresh();
-    });
-  }
 
   return (
     <div className="space-y-6">
@@ -113,43 +86,15 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Reconciliation import</CardTitle>
-          <CardDescription>CSV columns: invoiceNumber,amountCents</CardDescription>
+          <CardTitle className="text-base">Reconciliation</CardTitle>
+          <CardDescription>
+            Bank/PSP CSV match and exception triage moved to the dedicated reconciliation console.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form
-            onSubmit={onImport}
-            className="space-y-3"
-            data-testid="recon-import-form"
-            data-hydrated={hydrated ? 'true' : 'false'}
-          >
-            <FormField id="recon-csv" label="CSV" required>
-              <Textarea
-                id="recon-csv"
-                name="csv"
-                rows={6}
-                required
-                disabled={!hydrated || pending}
-              />
-            </FormField>
-            {error ? (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-            {summary ? (
-              <p
-                className="text-sm text-muted-foreground"
-                role="status"
-                data-testid="recon-summary"
-              >
-                {summary}
-              </p>
-            ) : null}
-            <Button type="submit" disabled={!hydrated || pending} data-testid="submit-recon">
-              {pending ? 'Importing…' : 'Import'}
-            </Button>
-          </form>
+          <Button asChild data-testid="open-reconciliation-from-reports">
+            <a href="/fees/reconciliation">Open reconciliation</a>
+          </Button>
         </CardContent>
       </Card>
     </div>

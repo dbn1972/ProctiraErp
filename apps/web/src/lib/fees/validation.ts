@@ -41,6 +41,12 @@ export const reconciliationFormSchema = z.object({
   filename: z.string().max(255).optional(),
 });
 
+export const resolveReconExceptionFormSchema = z.object({
+  rowId: z.string().regex(UUID, 'Row is required'),
+  status: z.enum(['resolved', 'ignored']),
+  resolutionNote: z.string().min(1, 'Resolution note is required').max(2000),
+});
+
 /** Staff F1 — POST /fees/scholarships/net body (amount in major units → cents in action). */
 export const scholarshipNettingFormSchema = z.object({
   studentId: z.string().regex(UUID, 'Student must be a UUID'),
@@ -78,6 +84,7 @@ export type BulkInvoiceFormValues = z.infer<typeof bulkInvoiceFormSchema>;
 export type ConcessionFormValues = z.infer<typeof concessionFormSchema>;
 export type RefundFormValues = z.infer<typeof refundFormSchema>;
 export type ReconciliationFormValues = z.infer<typeof reconciliationFormSchema>;
+export type ResolveReconExceptionFormValues = z.infer<typeof resolveReconExceptionFormSchema>;
 export type ScholarshipNettingFormValues = z.infer<typeof scholarshipNettingFormSchema>;
 export type ReminderSendFormValues = z.infer<typeof reminderSendFormSchema>;
 export type ReminderSuppressionFormValues = z.infer<typeof reminderSuppressionFormSchema>;

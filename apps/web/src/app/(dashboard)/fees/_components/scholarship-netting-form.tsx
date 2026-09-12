@@ -55,7 +55,7 @@ export function ScholarshipNettingForm() {
     <div className="space-y-4 max-w-[720px]">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Apply scholarship netting</CardTitle>
+          <CardTitle className="text-base">Apply disbursement credit</CardTitle>
           <CardDescription>
             Credits an open fee invoice from a paid scholarship disbursement (
             <code className="text-xs">POST /fees/scholarships/net</code>). Idempotent on

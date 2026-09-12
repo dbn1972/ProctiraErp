@@ -95,6 +95,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql023);
       const sql031 = readFileSync(resolveSqlPath('031_fees_structures_schema.sql'), 'utf8');
       await pool.query(sql031);
+      const sql048 = readFileSync(resolveSqlPath('048_fees_recon_exception_audit.sql'), 'utf8');
+      await pool.query(sql048);
     })();
   }
   await schemaReady;
@@ -280,15 +282,30 @@ function mapReconBatch(row: Record<string, unknown>): FeeReconciliationBatchEnti
 }
 
 function mapReconRow(row: Record<string, unknown>): FeeReconciliationRowEntity {
+  const matched = Boolean(row.matched);
+  const rawStatus = row.exception_status == null ? null : String(row.exception_status);
+  const exceptionStatus =
+    rawStatus === 'open' ||
+    rawStatus === 'resolved' ||
+    rawStatus === 'ignored' ||
+    rawStatus === 'none'
+      ? rawStatus
+      : matched
+        ? 'none'
+        : 'open';
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
     batchId: String(row.batch_id),
     invoiceNumber: String(row.invoice_number),
     amountCents: Number(row.amount_cents),
-    matched: Boolean(row.matched),
+    matched,
     invoiceId: row.invoice_id == null ? null : String(row.invoice_id),
     note: row.note == null ? null : String(row.note),
+    exceptionStatus,
+    resolvedBy: row.resolved_by == null ? null : String(row.resolved_by),
+    resolvedAt: row.resolved_at == null ? null : toDate(row.resolved_at),
+    resolutionNote: row.resolution_note == null ? null : String(row.resolution_note),
     createdAt: toDate(row.created_at),
   };
 }
@@ -984,8 +1001,9 @@ export class PgFeesRepository implements FeesRepository {
       for (const row of rows) {
         const result = await client.query(
           `INSERT INTO fee_reconciliation_rows (
-             id, tenant_id, batch_id, invoice_number, amount_cents, matched, invoice_id, note
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+             id, tenant_id, batch_id, invoice_number, amount_cents, matched, invoice_id, note,
+             exception_status, resolved_by, resolved_at, resolution_note
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
           [
             row.id,
             row.tenantId,
@@ -995,6 +1013,10 @@ export class PgFeesRepository implements FeesRepository {
             row.matched,
             row.invoiceId,
             row.note,
+            row.exceptionStatus,
+            row.resolvedBy,
+            row.resolvedAt,
+            row.resolutionNote,
           ],
         );
         out.push(mapReconRow(result.rows[0] as Record<string, unknown>));
@@ -1021,10 +1043,72 @@ export class PgFeesRepository implements FeesRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        `SELECT * FROM fee_reconciliation_rows WHERE tenant_id = $1 AND batch_id = $2`,
+        `SELECT * FROM fee_reconciliation_rows WHERE tenant_id = $1 AND batch_id = $2 ORDER BY created_at ASC`,
         [tenantId, batchId],
       );
       return result.rows.map((row) => mapReconRow(row as Record<string, unknown>));
+    });
+  }
+
+  async findReconciliationRowById(
+    tenantId: string,
+    rowId: string,
+  ): Promise<FeeReconciliationRowEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reconciliation_rows WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, rowId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapReconRow(row) : null;
+    });
+  }
+
+  async updateReconciliationRow(
+    tenantId: string,
+    rowId: string,
+    data: Partial<
+      Pick<
+        FeeReconciliationRowEntity,
+        'exceptionStatus' | 'resolvedBy' | 'resolvedAt' | 'resolutionNote' | 'note'
+      >
+    >,
+  ): Promise<FeeReconciliationRowEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const existing = await client.query(
+        `SELECT * FROM fee_reconciliation_rows WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, rowId],
+      );
+      const current = existing.rows[0] as Record<string, unknown> | undefined;
+      if (!current) return null;
+      const next = mapReconRow(current);
+      if (data.exceptionStatus !== undefined) next.exceptionStatus = data.exceptionStatus;
+      if (data.resolvedBy !== undefined) next.resolvedBy = data.resolvedBy;
+      if (data.resolvedAt !== undefined) next.resolvedAt = data.resolvedAt;
+      if (data.resolutionNote !== undefined) next.resolutionNote = data.resolutionNote;
+      if (data.note !== undefined) next.note = data.note;
+      const result = await client.query(
+        `UPDATE fee_reconciliation_rows SET
+           exception_status = $3,
+           resolved_by = $4,
+           resolved_at = $5,
+           resolution_note = $6,
+           note = $7
+         WHERE tenant_id = $1 AND id = $2
+         RETURNING *`,
+        [
+          tenantId,
+          rowId,
+          next.exceptionStatus,
+          next.resolvedBy,
+          next.resolvedAt,
+          next.resolutionNote,
+          next.note,
+        ],
+      );
+      return mapReconRow(result.rows[0] as Record<string, unknown>);
     });
   }
 }
