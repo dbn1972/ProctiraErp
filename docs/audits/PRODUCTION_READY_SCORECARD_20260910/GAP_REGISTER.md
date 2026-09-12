@@ -56,7 +56,8 @@ IDs `PRD-*` are new planning IDs from this scorecard. `G-*` reuse the enterprise
 | PRD-005                                       | **CLOSED (proofs)** — Health PHI deny → 403 `ForbiddenError`; fees `assertFeesAccess` on pay; student `assertStudentWriteAccess` on create/update + unit tests. |
 | PRD-006                                       | **CLOSED** — `docs/testing/E2E_GATE_MATRIX.md` published.                                                                                                       |
 | PRD-008                                       | **CLOSED** — Report-cards already use `createReportCard*Repository()` (PG/`024` when DB); mount matrix corrected.                                               |
-| G-107 / G-202 / G-709                         | **WAIVER REFRESHED** — secrets not available on this headless run; remain release-board WAIVED (dated 2026-09-10).                                              |
+| G-107 / G-709                                 | **WAIVER** — secrets not available; remain release-board WAIVED (dated 2026-09-10 board; see also `WAIVER_BOARD_20260912.md`).                                  |
+| G-202                                         | **WAIVER REFRESHED 2026-09-12** — no sandbox PSP keys in agent env; residual tip e2e paid→receipt against provider. Board: `WAIVER_BOARD_20260912.md`. **Do not claim Blackbaud-complete.** See `DEV_FEES_G202_WAIVER.md`. |
 | PRD-007 / PRD-010 / PRD-011 / PRD-012 / G-506 | **NON-GOAL / WAIVED** — device-farm, MapLibre, sealed PDF, LTI/SCORM, statuspage — not funded this pass.                                                        |
 | PRD-001                                       | **CLOSED** — tip CI SUCCESS on `38b3f2a` (CI + E2E Backend Ready + DoD/PR Check/Supply Chain).                                                                  |
 

@@ -1,5 +1,7 @@
 # Waiver board refresh — 2026-09-10 (headless)
 
+> **Superseded for G-202:** see `docs/audits/WAIVER_BOARD_20260912.md` (Fees F4 refresh, 2026-09-12 UTC). Other rows below remain historical unless re-dated on the newer board.
+
 Owner: cloud agent on `cursor/w10-health-dw-ux-56c3` (PR #48).  
 Secrets / vendors **not** available this run — do not fake live proofs.
 
