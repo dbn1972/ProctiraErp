@@ -375,6 +375,33 @@ export async function getApplicationBundle(id: string): Promise<ApplicationBundl
   return result.data ?? null;
 }
 
+export async function setApplicationPlacement(
+  applicationId: string,
+  input: {
+    academicPeriodId: string;
+    gradeId: string;
+    quota?: string;
+    interviewScore?: number;
+    testScore?: number;
+  },
+): Promise<ApplicationBundle['placement']> {
+  const result = await gatewayFetch<NonNullable<ApplicationBundle['placement']>>(
+    `/admissions/applications/${applicationId}/placement`,
+    {
+      method: 'PATCH',
+      json: input,
+    },
+  );
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'PLACEMENT_FAILED',
+      message: result.error?.message ?? 'Failed to save placement / scores',
+    });
+  }
+  return result.data;
+}
+
 export async function createAdmissionOffer(input: {
   applicationId: string;
   feeAmount?: number;
