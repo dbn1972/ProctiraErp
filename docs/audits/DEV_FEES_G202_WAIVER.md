@@ -9,12 +9,12 @@
 
 **G-202 remains WAIVED.** No sandbox PSP keys in this agent environment; pay/receipt stays honesty-stub / sandbox adapter only.
 
-| Item        | Detail                                                                 |
-| ----------- | ---------------------------------------------------------------------- |
-| Reason      | No sandbox PSP keys in agent env                                       |
-| Residual    | Tip e2e **paid → receipt against provider** when keys are available    |
-| Scorecard   | Fees stays **~8.4 PROD_WAIVED** — not a live-provider close            |
-| Non-claim   | **Do not claim Blackbaud-complete** while G-202 is waived              |
+| Item      | Detail                                                              |
+| --------- | ------------------------------------------------------------------- |
+| Reason    | No sandbox PSP keys in agent env                                    |
+| Residual  | Tip e2e **paid → receipt against provider** when keys are available |
+| Scorecard | Fees stays **~8.4 PROD_WAIVED** — not a live-provider close         |
+| Non-claim | **Do not claim Blackbaud-complete** while G-202 is waived           |
 
 ## Explicit non-goals (this slice)
 
