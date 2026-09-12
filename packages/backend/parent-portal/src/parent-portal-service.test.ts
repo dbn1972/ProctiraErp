@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 
 import { InMemoryParentPortalRepository } from './in-memory-repository.js';
 import { ParentPortalService } from './parent-portal-service.js';
@@ -8,6 +8,8 @@ const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-000000000002';
 const STUDENT_ID = '00000000-0000-4000-8000-000000000099';
 const PARENT_USER = 'parent-a';
+const PARENT_PRIMARY = 'parent-primary';
+const PARENT_LIMITED = 'parent-limited';
 
 describe('ParentPortalService', () => {
   let repository: InMemoryParentPortalRepository;
@@ -30,6 +32,23 @@ describe('ParentPortalService', () => {
       expect(link.studentId).toBe(STUDENT_ID);
       expect(link.relationship).toBe('guardian');
       expect(link.status).toBe('active');
+      expect(link.isPrimary).toBe(true);
+      expect(link.canConsentMedical).toBe(true);
+      expect(link.canViewFees).toBe(true);
+    });
+
+    it('persists explicit authority flags on the link', async () => {
+      const link = await service.linkChild(TENANT_A, PARENT_LIMITED, {
+        studentId: STUDENT_ID,
+        relationship: 'other',
+        isPrimary: false,
+        canConsentMedical: false,
+        canViewFees: false,
+      });
+
+      expect(link.isPrimary).toBe(false);
+      expect(link.canConsentMedical).toBe(false);
+      expect(link.canViewFees).toBe(false);
     });
 
     it('rejects duplicate active links', async () => {
@@ -119,6 +138,104 @@ describe('ParentPortalService', () => {
       await expect(
         service.decideConsent(TENANT_A, 'other-parent', consent.id, { status: 'approved' }),
       ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('relationship-scoped authority (P0-03)', () => {
+    it('allows medical consent decide when canConsentMedical; denies sibling guardian without flag', async () => {
+      await service.linkChild(TENANT_A, PARENT_PRIMARY, {
+        studentId: STUDENT_ID,
+        relationship: 'mother',
+        isPrimary: true,
+        canConsentMedical: true,
+        canViewFees: true,
+      });
+      await service.linkChild(TENANT_A, PARENT_LIMITED, {
+        studentId: STUDENT_ID,
+        relationship: 'father',
+        isPrimary: false,
+        canConsentMedical: false,
+        canViewFees: false,
+      });
+
+      const medicalPrimary = await service.createConsentRequest(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        parentUserId: PARENT_PRIMARY,
+        consentType: 'medical_treatment',
+        title: 'Emergency treatment',
+      });
+      const medicalLimited = await service.createConsentRequest(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        parentUserId: PARENT_LIMITED,
+        consentType: 'medical_treatment',
+        title: 'Emergency treatment (limited)',
+      });
+
+      const approved = await service.decideConsent(TENANT_A, PARENT_PRIMARY, medicalPrimary.id, {
+        status: 'approved',
+      });
+      expect(approved.status).toBe('approved');
+
+      await expect(
+        service.decideConsent(TENANT_A, PARENT_LIMITED, medicalLimited.id, { status: 'approved' }),
+      ).rejects.toThrow(ForbiddenError);
+    });
+
+    it('allows fee view/pay when canViewFees; denies sibling guardian without flag', async () => {
+      await service.linkChild(TENANT_A, PARENT_PRIMARY, {
+        studentId: STUDENT_ID,
+        canConsentMedical: true,
+        canViewFees: true,
+      });
+      await service.linkChild(TENANT_A, PARENT_LIMITED, {
+        studentId: STUDENT_ID,
+        canConsentMedical: false,
+        canViewFees: false,
+      });
+
+      const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        title: 'Term fee',
+        amountCents: 10000,
+      });
+
+      const visiblePrimary = await service.listInvoicesForParent(TENANT_A, PARENT_PRIMARY);
+      const visibleLimited = await service.listInvoicesForParent(TENANT_A, PARENT_LIMITED);
+      expect(visiblePrimary.map((row) => row.id)).toEqual([invoice.id]);
+      expect(visibleLimited).toHaveLength(0);
+
+      const paid = await service.payInvoice(TENANT_A, PARENT_PRIMARY, invoice.id, {
+        method: 'sandbox',
+      });
+      expect(paid.invoice.status).toBe('paid');
+
+      const invoice2 = await service.createInvoice(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        title: 'Lab fee',
+        amountCents: 5000,
+      });
+      await expect(service.payInvoice(TENANT_A, PARENT_LIMITED, invoice2.id)).rejects.toThrow(
+        ForbiddenError,
+      );
+    });
+
+    it('still 404s unlinked parents and isolates across tenants for fee pay', async () => {
+      await service.linkChild(TENANT_A, PARENT_PRIMARY, {
+        studentId: STUDENT_ID,
+        canViewFees: true,
+      });
+      const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        title: 'Cross-tenant probe',
+        amountCents: 1000,
+      });
+
+      await expect(service.payInvoice(TENANT_A, PARENT_LIMITED, invoice.id)).rejects.toThrow(
+        NotFoundError,
+      );
+      await expect(service.payInvoice(TENANT_B, PARENT_PRIMARY, invoice.id)).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 

@@ -24,9 +24,18 @@ export interface ParentChildLinkEntity {
   studentId: string;
   relationship: LinkRelationship;
   status: LinkStatus;
+  /** Primary household contact (custody/authority signal). */
+  isPrimary: boolean;
+  /** Required to decide medical_treatment consents. */
+  canConsentMedical: boolean;
+  /** Required to list or pay student fee invoices. */
+  canViewFees: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
+
+/** Named authority flags enforced beyond binary parent↔student link. */
+export type ParentLinkAuthorityFlag = 'canConsentMedical' | 'canViewFees';
 
 export interface MessageThreadEntity {
   id: string;
@@ -129,6 +138,11 @@ export interface ParentPortalRepository {
   listChildLinksForParent(tenantId: string, parentUserId: string): Promise<ParentChildLinkEntity[]>;
   listChildLinksForStudent(tenantId: string, studentId: string): Promise<ParentChildLinkEntity[]>;
   findChildLink(id: string, tenantId: string): Promise<ParentChildLinkEntity | null>;
+  findActiveLink(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+  ): Promise<ParentChildLinkEntity | null>;
   hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean>;
 
   createThread(

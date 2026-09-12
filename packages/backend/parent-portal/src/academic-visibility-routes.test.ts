@@ -83,6 +83,9 @@ describe('parent/student academic visibility routes', () => {
       studentId: STUDENT_ID,
       relationship: 'guardian',
       status: 'active',
+      isPrimary: true,
+      canConsentMedical: true,
+      canViewFees: true,
     });
 
     for (const view of VIEWS) {
@@ -113,6 +116,9 @@ describe('parent/student academic visibility routes', () => {
       studentId: STUDENT_ID,
       relationship: 'guardian',
       status: 'active',
+      isPrimary: true,
+      canConsentMedical: true,
+      canViewFees: true,
     });
 
     const cross = await app.inject({

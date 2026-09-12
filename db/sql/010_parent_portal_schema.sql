@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS parent_child_links (
     CHECK (relationship IN ('guardian', 'mother', 'father', 'other')),
   status TEXT NOT NULL DEFAULT 'active'
     CHECK (status IN ('active', 'pending', 'revoked')),
+  -- Authority flags (P0-03). Defaults true so existing seeds keep full access.
+  is_primary BOOLEAN NOT NULL DEFAULT true,
+  can_consent_medical BOOLEAN NOT NULL DEFAULT true,
+  can_view_fees BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (tenant_id, parent_user_id, student_id)

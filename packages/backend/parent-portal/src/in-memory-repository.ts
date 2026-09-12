@@ -55,14 +55,24 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return this.links.find((link) => link.id === id && link.tenantId === tenantId) ?? null;
   }
 
-  async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
-    return this.links.some(
-      (link) =>
-        link.tenantId === tenantId &&
-        link.parentUserId === parentUserId &&
-        link.studentId === studentId &&
-        link.status === 'active',
+  async findActiveLink(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+  ): Promise<ParentChildLinkEntity | null> {
+    return (
+      this.links.find(
+        (link) =>
+          link.tenantId === tenantId &&
+          link.parentUserId === parentUserId &&
+          link.studentId === studentId &&
+          link.status === 'active',
+      ) ?? null
     );
+  }
+
+  async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
+    return (await this.findActiveLink(tenantId, parentUserId, studentId)) != null;
   }
 
   async createThread(
