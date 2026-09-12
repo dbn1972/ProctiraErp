@@ -148,6 +148,7 @@ const STANDARD_ROUTES = [
   '/student/pal',
   '/fees/structures',
   '/fees/reports',
+  '/fees/dunning',
   '/admissions/enquiries',
   '/admissions/seat-matrix',
   '/admissions/merit',
@@ -544,6 +545,7 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
 const WAVE9_ROUTES = [
   '/fees/structures',
   '/fees/reports',
+  '/fees/dunning',
   '/admissions/enquiries',
   '/admissions/seat-matrix',
   '/admissions/merit',

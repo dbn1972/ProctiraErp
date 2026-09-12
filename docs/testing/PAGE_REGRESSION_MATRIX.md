@@ -82,6 +82,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/fees/receipts` | a11y | `a11y-axe.spec.ts` |
 | `/fees/reports` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/fees/scholarship-netting` | a11y, functional | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees/dunning` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/fees/structures` | a11y, dark, functional, touch | `39-fees-structures-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/[studentId]` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`17c-module-a11y-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |

@@ -72,6 +72,7 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await expect(page.getByTestId('open-structures')).toBeVisible();
     await expect(page.getByTestId('open-reports')).toBeVisible();
     await expect(page.getByTestId('open-scholarship-netting')).toBeVisible();
+    await expect(page.getByTestId('open-dunning')).toBeVisible();
   });
 
   test('/fees/structures renders with the New structure action', async ({ page }) => {
@@ -91,6 +92,13 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { name: /scholarship netting/i })).toBeVisible();
     await expect(page.getByTestId('scholarship-netting-form')).toBeVisible();
     await expect(page.getByTestId('submit-scholarship-netting')).toBeVisible();
+  });
+
+  test('/fees/dunning renders the reminder console', async ({ page }) => {
+    await page.goto('/fees/dunning', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /dunning \/ reminders/i })).toBeVisible();
+    await expect(page.getByTestId('dunning-console')).toBeVisible();
+    await expect(page.getByTestId('dunning-sandbox-banner')).toBeVisible();
   });
 });
 

@@ -2,7 +2,7 @@
  * Staff fees hub (Server Component).
  */
 import Link from 'next/link';
-import { FileText, Receipt, Wallet, Layers, BarChart3, GraduationCap } from 'lucide-react';
+import { FileText, Receipt, Wallet, Layers, BarChart3, GraduationCap, Bell } from 'lucide-react';
 
 import {
   Button,
@@ -124,6 +124,24 @@ export default async function FeesOverviewPage() {
             <Button asChild>
               <Link href="/fees/scholarship-netting" data-testid="open-scholarship-netting">
                 Open netting
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Bell className="h-4 w-4" aria-hidden="true" />
+              Dunning / reminders
+            </CardTitle>
+            <CardDescription>
+              Overdue feed, suppressions, and sandbox email/SMS send audit.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/dunning" data-testid="open-dunning">
+                Open dunning
               </Link>
             </Button>
           </CardContent>

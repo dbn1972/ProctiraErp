@@ -332,3 +332,132 @@ export async function applyScholarshipNetting(
   });
   return throwIfMissing(result, 'Failed to apply scholarship netting');
 }
+
+/** F2 — overdue reminder feed row (GET /fees/reminders/overdue). */
+export interface OverdueReminderRow {
+  invoiceId: string;
+  invoiceNumber: string | null;
+  studentId: string;
+  classId: string | null;
+  amountCents: number;
+  currency: string;
+  dueAt: string;
+  overdueDays: number;
+  suppressed: boolean;
+}
+
+export interface ReminderSuppression {
+  id: string;
+  tenantId: string;
+  studentId: string | null;
+  invoiceId: string | null;
+  reason: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface ReminderSendAudit {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  studentId: string;
+  channel: 'email' | 'sms';
+  messageId: string;
+  mode: 'sandbox';
+  honestyNote: string;
+  actorId: string;
+  createdAt: string;
+}
+
+export interface SendRemindersInput {
+  invoiceIds: string[];
+  channels: Array<'email' | 'sms'>;
+  minOverdueDays?: number;
+  cadenceDays?: number;
+}
+
+export interface SendRemindersResult {
+  mode: 'sandbox';
+  honestyNote: string;
+  results: Array<{
+    invoiceId: string;
+    studentId: string;
+    channel: 'email' | 'sms';
+    messageId: string | null;
+    suppressed: boolean;
+    skippedReason?: string;
+    auditId?: string;
+  }>;
+}
+
+export async function listOverdueReminders(asOf?: string): Promise<{
+  data: OverdueReminderRow[];
+  asOf: string;
+}> {
+  const qs = asOf ? `?asOf=${encodeURIComponent(asOf)}` : '';
+  const result = await gatewayFetch<{ data: OverdueReminderRow[]; asOf: string }>(
+    `/fees/reminders/overdue${qs}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return {
+    data: result.data?.data ?? [],
+    asOf: result.data?.asOf ?? new Date().toISOString(),
+  };
+}
+
+export async function listReminderSuppressions(): Promise<ReminderSuppression[]> {
+  const result = await gatewayFetch<{ data: ReminderSuppression[] }>(
+    '/fees/reminders/suppressions',
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function addReminderSuppression(input: {
+  studentId?: string;
+  invoiceId?: string;
+  reason: string;
+}): Promise<ReminderSuppression> {
+  const result = await gatewayFetch<ReminderSuppression>('/fees/reminders/suppressions', {
+    method: 'POST',
+    json: input,
+  });
+  return throwIfMissing(result, 'Failed to add reminder suppression');
+}
+
+export async function removeReminderSuppression(id: string): Promise<void> {
+  const result = await gatewayFetch<null>(`/fees/reminders/suppressions/${id}`, {
+    method: 'DELETE',
+    throwOnError: false,
+  });
+  if (result.status >= 400) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'FEES_ERROR',
+      message: result.error?.message ?? 'Failed to remove suppression',
+    });
+  }
+}
+
+export async function listReminderSendAudits(): Promise<{
+  data: ReminderSendAudit[];
+  honestyNote: string;
+}> {
+  const result = await gatewayFetch<{ data: ReminderSendAudit[]; honestyNote: string }>(
+    '/fees/reminders/audit',
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return {
+    data: result.data?.data ?? [],
+    honestyNote:
+      result.data?.honestyNote ?? 'Sandbox fee reminders — no live Twilio/SES claim (G-709).',
+  };
+}
+
+export async function sendFeeReminders(input: SendRemindersInput): Promise<SendRemindersResult> {
+  const result = await gatewayFetch<SendRemindersResult>('/fees/reminders/send', {
+    method: 'POST',
+    json: input,
+  });
+  return throwIfMissing(result, 'Failed to send fee reminders');
+}

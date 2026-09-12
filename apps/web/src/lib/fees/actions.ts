@@ -6,13 +6,17 @@ import { GatewayError } from '@/lib/api/gateway';
 import {
   applyConcession,
   applyScholarshipNetting,
+  addReminderSuppression,
   bulkInvoiceStructure,
   createFeeStructure,
   generateInstalments,
   importReconciliation,
   recordInvoicePayment,
   refundInvoice,
+  removeReminderSuppression,
+  sendFeeReminders,
   type ScholarshipNettingResult,
+  type SendRemindersResult,
 } from '@/lib/api/fees';
 import {
   bulkInvoiceFormSchema,
@@ -20,12 +24,16 @@ import {
   feeStructureFormSchema,
   reconciliationFormSchema,
   refundFormSchema,
+  reminderSendFormSchema,
+  reminderSuppressionFormSchema,
   scholarshipNettingFormSchema,
   type BulkInvoiceFormValues,
   type ConcessionFormValues,
   type FeeStructureFormValues,
   type ReconciliationFormValues,
   type RefundFormValues,
+  type ReminderSendFormValues,
+  type ReminderSuppressionFormValues,
   type ScholarshipNettingFormValues,
 } from './validation';
 
@@ -62,6 +70,7 @@ function refreshFees() {
   revalidatePath('/fees/invoices');
   revalidatePath('/fees/reports');
   revalidatePath('/fees/scholarship-netting');
+  revalidatePath('/fees/dunning');
   revalidatePath('/parent/fees');
 }
 
@@ -214,6 +223,62 @@ export async function applyScholarshipNettingAction(
     });
     refreshFees();
     return { success: true, data: result };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function sendFeeRemindersAction(
+  values: ReminderSendFormValues,
+): Promise<ActionResult<SendRemindersResult>> {
+  const parsed = reminderSendFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+  }
+  try {
+    const result = await sendFeeReminders({
+      invoiceIds: parsed.data.invoiceIds,
+      channels: parsed.data.channels,
+      minOverdueDays: parsed.data.minOverdueDays,
+      cadenceDays: parsed.data.cadenceDays,
+    });
+    refreshFees();
+    return { success: true, data: result };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function addReminderSuppressionAction(
+  values: ReminderSuppressionFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = reminderSuppressionFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+  }
+  try {
+    const row = await addReminderSuppression({
+      studentId: parsed.data.studentId || undefined,
+      invoiceId: parsed.data.invoiceId || undefined,
+      reason: parsed.data.reason,
+    });
+    refreshFees();
+    return { success: true, data: { id: row.id } };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function removeReminderSuppressionAction(
+  suppressionId: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!suppressionId?.trim()) {
+    return { success: false, error: 'Suppression id is required' };
+  }
+  try {
+    await removeReminderSuppression(suppressionId.trim());
+    refreshFees();
+    return { success: true, data: { id: suppressionId.trim() } };
   } catch (error) {
     return fail(error);
   }

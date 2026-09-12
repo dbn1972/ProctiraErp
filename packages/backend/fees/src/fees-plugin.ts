@@ -21,6 +21,7 @@ import {
   type RecordRefundInput,
 } from './fees-service.js';
 import type { PaymentAdapter } from './payment-adapter.js';
+import { FEES_REMINDER_SANDBOX_HONESTY_NOTE } from './reminder-sandbox.js';
 
 const UUID_PATTERN =
   '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
@@ -927,7 +928,7 @@ export const feesPlugin = fp(
     );
 
     /**
-     * Dues reminder feed for the notification scheduler (G-903).
+     * Dues reminder feed for the notification scheduler (G-903) + F2 console.
      * `@proctira/backend-notification` has no fee-rule hook; poll
      * GET /fees/reminders/overdue?asOf=ISO and emit from the scheduler.
      */
@@ -939,6 +940,131 @@ export const feesPlugin = fp(
       const data = await feesService.listOverdueForReminder(tenantId, asOf);
       return reply.status(200).send({ data, asOf: asOf.toISOString() });
     });
+
+    fastify.get(
+      `${prefix}/reminders/suppressions`,
+      async function listSuppressions(request, reply) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const data = await feesService.listReminderSuppressions(tenantId);
+        return reply.status(200).send({
+          data: data.map((row) => ({
+            ...row,
+            createdAt: row.createdAt.toISOString(),
+          })),
+        });
+      },
+    );
+
+    fastify.post(
+      `${prefix}/reminders/suppressions`,
+      async function addSuppression(
+        request: FastifyRequest<{
+          Body: { studentId?: string; invoiceId?: string; reason: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const body = request.body;
+        if (!body?.reason) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'reason is required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const row = await feesService.addReminderSuppression(tenantId, getActorId(request), {
+            studentId: body.studentId,
+            invoiceId: body.invoiceId,
+            reason: body.reason,
+          });
+          return reply.status(201).send({
+            ...row,
+            createdAt: row.createdAt.toISOString(),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.delete(
+      `${prefix}/reminders/suppressions/:id`,
+      async function removeSuppression(
+        request: FastifyRequest<{ Params: { id: string } }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          await feesService.removeReminderSuppression(tenantId, request.params.id);
+          return reply.status(204).send();
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.get(`${prefix}/reminders/audit`, async function listReminderAudit(request, reply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const data = await feesService.listReminderSendAudits(tenantId);
+      return reply.status(200).send({
+        data: data.map((row) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+        })),
+        honestyNote: FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+      });
+    });
+
+    fastify.post(
+      `${prefix}/reminders/send`,
+      async function sendReminders(
+        request: FastifyRequest<{
+          Body: {
+            invoiceIds: string[];
+            channels: Array<'email' | 'sms'>;
+            minOverdueDays?: number;
+            cadenceDays?: number;
+          };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        const body = request.body;
+        if (!body?.invoiceIds?.length || !body?.channels?.length) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'invoiceIds and channels are required',
+            statusCode: 400,
+          });
+        }
+        try {
+          const result = await feesService.sendReminders(tenantId, getActorId(request), {
+            invoiceIds: body.invoiceIds,
+            channels: body.channels,
+            minOverdueDays: body.minOverdueDays,
+            cadenceDays: body.cadenceDays,
+          });
+          return reply.status(200).send(result);
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
 
     fastify.post(
       `${prefix}/scholarships/net`,

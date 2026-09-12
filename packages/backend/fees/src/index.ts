@@ -8,7 +8,11 @@
 export { feesPlugin } from './fees-plugin.js';
 export type { FeesPluginOptions, ParentFeeBinding } from './fees-plugin.js';
 
-export { FeesService, parseReconciliationCsv } from './fees-service.js';
+export {
+  FeesService,
+  parseReconciliationCsv,
+  FEES_REMINDER_SANDBOX_HONESTY_NOTE,
+} from './fees-service.js';
 export type {
   CreateFeePlanInput,
   CreateInvoiceInput,
@@ -18,8 +22,12 @@ export type {
   BulkInvoiceInput,
   ApplyConcessionInput,
   RecordRefundInput,
+  ReminderChannel,
+  ReminderSendAuditEntity,
+  ReminderSuppressionEntity,
+  AddReminderSuppressionInput,
+  SendRemindersInput,
 } from './fees-service.js';
-
 export type {
   FeePlanEntity,
   FeeInvoiceEntity,
