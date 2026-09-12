@@ -616,6 +616,15 @@ export async function addStudentDiscipline(
   return result.data;
 }
 
+export async function removeStudentDiscipline(
+  studentId: string,
+  incidentId: string,
+): Promise<void> {
+  await gatewayFetch<void>(`/students/${studentId}/discipline/${incidentId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function getStudentAttendanceHeatmap(
   studentId: string,
   range?: { from?: string; to?: string },

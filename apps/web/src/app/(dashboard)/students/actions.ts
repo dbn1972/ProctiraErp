@@ -19,6 +19,7 @@ import {
   createStudent,
   deleteStudent,
   getStudentEnrollments,
+  removeStudentDiscipline,
   setStudentConsent,
   submitBulkImport,
   transferStudent,
@@ -418,6 +419,22 @@ export async function addStudentDisciplineAction(
     return { status: 'success', message: 'Incident recorded.' };
   } catch (error) {
     return toErrorState(error, 'Failed to record incident');
+  }
+}
+
+export async function removeStudentDisciplineAction(
+  studentId: string,
+  incidentId: string,
+): Promise<ActionState> {
+  if (!UUID_RE.test(studentId) || !UUID_RE.test(incidentId)) {
+    return { status: 'error', message: 'Invalid incident' };
+  }
+  try {
+    await removeStudentDiscipline(studentId, incidentId);
+    revalidateStudent(studentId);
+    return { status: 'success', message: 'Incident removed.' };
+  } catch (error) {
+    return toErrorState(error, 'Failed to remove incident');
   }
 }
 

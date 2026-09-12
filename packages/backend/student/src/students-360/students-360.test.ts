@@ -154,6 +154,62 @@ describe('G-914 students 360', () => {
     });
   });
 
+  describe('discipline CRUD', () => {
+    it('creates, lists, and deletes an incident; denies cross-tenant', async () => {
+      const student = await createStudent(repo, TENANT_A);
+      const foreign = await createStudent(repo, TENANT_B);
+
+      const created = await service.addDiscipline(
+        TENANT_A,
+        student.id,
+        {
+          incidentType: 'Late to class',
+          severity: 'low',
+          description: 'Arrived after the bell.',
+          actionTaken: 'Verbal warning',
+          incidentDate: '2026-09-12',
+          visibleToParent: false,
+        },
+        'teacher-1',
+      );
+      expect(created.incidentType).toBe('Late to class');
+      expect(created.reporterId).toBe('teacher-1');
+
+      const listed = await service.listDiscipline(TENANT_A, student.id);
+      expect(listed).toHaveLength(1);
+      expect(listed[0]?.id).toBe(created.id);
+
+      await expect(
+        service.addDiscipline(
+          TENANT_B,
+          student.id,
+          {
+            incidentType: 'Cross tenant',
+            severity: 'high',
+            description: 'Should not land',
+            incidentDate: '2026-09-12',
+          },
+          'intruder',
+        ),
+      ).rejects.toBeInstanceOf(NotFoundError);
+
+      await expect(service.listDiscipline(TENANT_B, student.id)).rejects.toBeInstanceOf(
+        NotFoundError,
+      );
+
+      await expect(
+        service.removeDiscipline(TENANT_A, foreign.id, created.id),
+      ).rejects.toBeInstanceOf(NotFoundError);
+
+      await service.removeDiscipline(TENANT_A, student.id, created.id);
+      expect(await service.listDiscipline(TENANT_A, student.id)).toHaveLength(0);
+
+      await expect(
+        service.removeDiscipline(TENANT_A, student.id, created.id),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
   describe('heatmap aggregation', () => {
     it('matches (present + late) / total * 100 and maps daily slots', async () => {
       const student = await createStudent(repo, TENANT_A);

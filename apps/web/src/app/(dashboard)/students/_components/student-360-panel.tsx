@@ -6,7 +6,7 @@
  */
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { IdCard, Loader2, Plus, Upload } from 'lucide-react';
+import { IdCard, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 
 import {
   Button,
@@ -47,6 +47,7 @@ import type {
 import {
   addStudentDisciplineAction,
   addStudentSiblingAction,
+  removeStudentDisciplineAction,
   setStudentConsentAction,
   uploadStudentPhotoAction,
 } from '../actions';
@@ -342,7 +343,8 @@ function DisciplineCard({
         <div>
           <CardTitle className="text-sm font-semibold">Discipline log</CardTitle>
           <CardDescription className="text-xs">
-            Behaviour incidents with optional parent visibility.
+            Behaviour incidents with optional parent visibility. Correct entries by removing and
+            re-recording — not a safeguarding case file.
           </CardDescription>
         </div>
         <Button
@@ -370,20 +372,64 @@ function DisciplineCard({
                 <TableHead>Type</TableHead>
                 <TableHead>Severity</TableHead>
                 <TableHead>Parent</TableHead>
+                <TableHead className="w-12">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {incidents.map((row) => (
                 <TableRow key={row.id} data-testid="discipline-row">
-                  <TableCell>{row.incidentDate}</TableCell>
-                  <TableCell>{row.incidentType}</TableCell>
-                  <TableCell className="capitalize">{row.severity}</TableCell>
-                  <TableCell>{row.visibleToParent ? 'Visible' : 'Staff only'}</TableCell>
+                  <TableCell className="align-top whitespace-nowrap">{row.incidentDate}</TableCell>
+                  <TableCell className="align-top">
+                    <p className="font-medium">{row.incidentType}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                      {row.description}
+                    </p>
+                    {row.actionTaken ? (
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Action: {row.actionTaken}
+                      </p>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="align-top capitalize">{row.severity}</TableCell>
+                  <TableCell className="align-top">
+                    {row.visibleToParent ? 'Visible' : 'Staff only'}
+                  </TableCell>
+                  <TableCell className="align-top">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={isPending}
+                      data-testid="discipline-remove"
+                      aria-label={`Remove incident ${row.incidentType} on ${row.incidentDate}`}
+                      onClick={() => {
+                        setError(null);
+                        startTransition(async () => {
+                          const outcome = await removeStudentDisciplineAction(studentId, row.id);
+                          if (outcome.status === 'error') {
+                            setError(outcome.message ?? 'Could not remove incident');
+                            return;
+                          }
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         )}
+        {error && !open ? (
+          <p className="mt-2 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
       </CardContent>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
