@@ -1,19 +1,31 @@
 /**
- * StudentTransfer — workflow for transferring a student between institutions.
+ * StudentTransfer — federated bridge for `/app/students/:id/transfer`.
  *
- * Migrated from `School Platform Design/src/app/components/StudentTransfer.tsx`
- * per task 60.2. Real data wiring is task 60.3.
+ * App Router owns the real transfer workflow at `/students/[id]/transfer`.
  */
 import { useParams } from 'react-router-dom';
 
-export default function StudentTransfer() {
-  const { id } = useParams<{ id: string }>();
+function RedirectTo({ href }: { href: string }) {
+  if (typeof window !== 'undefined') window.location.replace(href);
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold">Transfer Student {id}</h1>
-      <p className="text-muted-foreground mt-2">
-        Inter-institution and cross-board transfer workflow. Placeholder pending task 60.3.
+    <div
+      role="status"
+      aria-live="polite"
+      className="space-y-3 p-6 text-muted-foreground"
+      data-testid="student-transfer-redirect"
+    >
+      <p>Opening the transfer workspace…</p>
+      <p>
+        <a href={href} className="font-medium text-foreground underline-offset-2 hover:underline">
+          Continue to transfer
+        </a>
       </p>
     </div>
   );
+}
+
+export default function StudentTransfer() {
+  const { id } = useParams<{ id: string }>();
+  const href = id ? `/students/${id}/transfer` : '/students';
+  return <RedirectTo href={href} />;
 }

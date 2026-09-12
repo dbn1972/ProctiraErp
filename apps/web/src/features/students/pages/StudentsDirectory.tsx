@@ -76,11 +76,19 @@ export default function StudentsDirectory() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Students Directory</h1>
-        <span className="text-sm text-muted-foreground">
-          {meta.totalItems > 0 && `${meta.totalItems} students`}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {meta.totalItems > 0 && `${meta.totalItems} students`}
+          </span>
+          <a
+            href="/students/enroll"
+            className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+          >
+            Enrol student
+          </a>
+        </div>
       </div>
 
       {/* Search */}
@@ -134,7 +142,12 @@ export default function StudentsDirectory() {
                 students.map((student) => (
                   <tr key={student.id} className="border-b hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">
-                      {student.firstName} {student.lastName}
+                      <a
+                        href={`/students/${student.id}`}
+                        className="text-foreground underline-offset-2 hover:underline"
+                      >
+                        {student.firstName} {student.lastName}
+                      </a>
                     </td>
                     <td className="px-4 py-3">{student.dateOfBirth}</td>
                     <td className="px-4 py-3 capitalize">{student.gender}</td>

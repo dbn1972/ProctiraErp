@@ -15,6 +15,7 @@ ProctiraERP Unified Platform spec:
 | `07-tenant-isolation.spec.ts`                | Tenant A data is not visible to Tenant B                                                                    |
 | `15-overview-people-inventory-smoke.spec.ts` | Ungated: people routes → `/login`; optional authenticated inventory when `E2E_BACKEND_READY=1`              |
 | `16-institutions-inventory-smoke.spec.ts`    | Ungated: institution routes → `/login`; optional authenticated inventory when `E2E_BACKEND_READY=1`         |
+| `55-enrol-progression-smoke.spec.ts`         | P0-04 enroll hub CTAs (ungated) + live enroll happy-path soft-skip when gateway offline                     |
 
 ## Prerequisites
 

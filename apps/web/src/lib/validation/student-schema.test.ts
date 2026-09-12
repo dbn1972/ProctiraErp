@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  enrollmentFormSchema,
   guardianSchema,
   identityDocumentSchema,
   studentFormSchema,
@@ -158,6 +159,41 @@ describe('transferFormSchema', () => {
     const result = transferFormSchema.safeParse({
       ...baseTransfer,
       reason: 'x'.repeat(501),
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('enrollmentFormSchema', () => {
+  const baseEnrollment = {
+    institutionId: 'a8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
+    gradeId: '1a7f1a7f-1a7f-4f51-b1ad-3eaa4c3df24f',
+    classId: '',
+    academicPeriodId: 'b8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
+    enrolledAt: '2025-09-01',
+  };
+
+  it('accepts a complete enrollment payload (Requirement 6.2)', () => {
+    expect(enrollmentFormSchema.safeParse(baseEnrollment).success).toBe(true);
+  });
+
+  it('rejects a missing institution', () => {
+    const result = enrollmentFormSchema.safeParse({ ...baseEnrollment, institutionId: '' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors['institutionId']?.[0]).toMatch(/required/i);
+    }
+  });
+
+  it('rejects a missing grade', () => {
+    const result = enrollmentFormSchema.safeParse({ ...baseEnrollment, gradeId: '' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a malformed enrollment date', () => {
+    const result = enrollmentFormSchema.safeParse({
+      ...baseEnrollment,
+      enrolledAt: '01-09-2025',
     });
     expect(result.success).toBe(false);
   });

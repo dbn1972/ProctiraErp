@@ -269,10 +269,15 @@ export default async function StudentTransferPage(props: PageProps) {
             </CardHeader>
             <CardContent>
               {activeEnrollments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  This student has no active enrollment. Enroll the student before initiating a
-                  transfer.
-                </p>
+                <div className="space-y-3" data-testid="transfer-needs-enroll">
+                  <p className="text-sm text-muted-foreground">
+                    This student has no active enrollment. Enroll the student before initiating a
+                    transfer.
+                  </p>
+                  <Button asChild size="sm">
+                    <Link href={`/students/${student.id}/enroll`}>Enroll student</Link>
+                  </Button>
+                </div>
               ) : (
                 <TransferForm
                   studentId={student.id}

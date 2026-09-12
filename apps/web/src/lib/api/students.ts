@@ -292,6 +292,26 @@ export async function deleteStudent(id: string): Promise<void> {
 
 /* --------------------------------------------------------- Enrollments */
 
+export interface CreateEnrollmentInput {
+  studentId: string;
+  institutionId: string;
+  gradeId: string;
+  classId?: string;
+  academicPeriodId: string;
+  enrolledAt: string;
+}
+
+export async function createEnrollment(input: CreateEnrollmentInput): Promise<EnrollmentEntry> {
+  const result = await gatewayFetch<EnrollmentEntry>('/enrollments', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new Error('Empty response from enrollment-service');
+  }
+  return result.data;
+}
+
 export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {
   const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
     `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,

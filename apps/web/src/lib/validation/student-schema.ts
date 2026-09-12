@@ -69,3 +69,14 @@ export const transferFormSchema = z.object({
 });
 
 export type TransferFormValues = z.infer<typeof transferFormSchema>;
+
+/** Place an existing student into an institution / grade / period (Requirement 6.2). */
+export const enrollmentFormSchema = z.object({
+  institutionId: z.string().min(1, 'Institution is required'),
+  gradeId: z.string().min(1, 'Grade is required'),
+  classId: z.string().or(z.literal('')),
+  academicPeriodId: z.string().min(1, 'Academic period is required'),
+  enrolledAt: isoDate,
+});
+
+export type EnrollmentFormValues = z.infer<typeof enrollmentFormSchema>;
