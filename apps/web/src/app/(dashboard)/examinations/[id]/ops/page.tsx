@@ -1,5 +1,6 @@
 /**
- * Examination ops tab — sessions/invigilators, seating, double entry, re-eval (G-908).
+ * Examination ops tab — sessions/invigilators, seating, double entry, appeal/re-eval (G-908).
+ * IA: appeal ≡ re-evaluation; malpractice / formal appeals beyond re-eval = PRD-017 NON-GOAL.
  */
 import { notFound } from 'next/navigation';
 
