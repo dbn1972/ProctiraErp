@@ -73,6 +73,7 @@ function formatExecutionResponse(entity: PipelineExecution) {
     loadedCount: entity.loadedCount,
     errorCount: entity.errorCount,
     errors: entity.errors,
+    lineage: entity.lineage ?? null,
   };
 }
 

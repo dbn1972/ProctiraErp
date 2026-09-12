@@ -20,6 +20,7 @@ import type { PipelineRepository, PipelineListFilter } from './pipeline-reposito
 import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
 import { transformRows } from './transformations/index.js';
 import { ExecutionLogger, type LogSink } from './execution-logger.js';
+import { buildExecutionLineage } from './lineage.js';
 import {
   RetryExecutor,
   TestableRetryExecutor,
@@ -361,6 +362,7 @@ export class ETLService {
           data: null,
         },
       ],
+      lineage: buildExecutionLineage(pipeline),
     };
 
     await this.repository.createExecution(failedExecution);
@@ -382,7 +384,7 @@ export class ETLService {
     // Log execution start
     this.logger.logExecutionStart(executionId, pipeline.id, tenantId, attempt);
 
-    // Create execution record
+    // Create execution record (thin lineage breadcrumb — P2-WH / PRD-018)
     const execution: PipelineExecution = {
       id: executionId,
       pipelineId: pipeline.id,
@@ -395,6 +397,7 @@ export class ETLService {
       loadedCount: 0,
       errorCount: 0,
       errors: [],
+      lineage: buildExecutionLineage(pipeline),
     };
 
     await this.repository.createExecution(execution);

@@ -346,6 +346,20 @@ export interface Pipeline {
 
 export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+/**
+ * Thin run lineage (P2-WH) — breadcrumb only, not a governed catalog/graph.
+ * See docs/audits/PRODUCT_WAREHOUSE_ETL_LINEAGE.md (PRD-018).
+ */
+export interface ExecutionLineage {
+  sourceType: SourceType;
+  destinationType: DestinationType;
+  /** Short label: path, inline marker, truncated query, or URL (no secrets). */
+  sourceLabel: string;
+  /** Short label: table (optionally schema-qualified) or URL. */
+  destinationLabel: string;
+  fieldMappingCount: number;
+}
+
 export interface PipelineExecution {
   id: string;
   pipelineId: string;
@@ -358,6 +372,8 @@ export interface PipelineExecution {
   loadedCount: number;
   errorCount: number;
   errors: ExecutionError[];
+  /** Present on runs created after P2-WH thin lineage. */
+  lineage?: ExecutionLineage;
 }
 
 export interface ExecutionError {
