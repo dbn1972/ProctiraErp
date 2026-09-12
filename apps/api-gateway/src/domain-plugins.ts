@@ -108,6 +108,7 @@ import {
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import {
+  createEscalationPublisherFromEnv,
   createWorkflowRepositories,
   WorkflowService,
   workflowPlugin,
@@ -632,10 +633,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // G-715: real @proctira/backend-workflow engine (definitions, instances,
       // transitions + audit, cases). Pg on db/sql/025 when DATABASE_URL is set.
+      // P1-WF: durable escalation publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       const { repository, caseRepository } = workflowRepositories();
+      const escalationHandle = await createEscalationPublisherFromEnv();
+      if (escalationHandle) {
+        scope.addHook('onClose', async () => {
+          await escalationHandle.disconnect();
+        });
+      }
       await scope.register(workflowPlugin, {
         repository,
         caseRepository,
+        escalationPublisher: escalationHandle?.publisher,
         prefix: '/workflow-engine',
       });
     },

@@ -92,6 +92,17 @@ export type {
   EscalationNotification,
 } from './escalation-service.js';
 
+export { QueueEscalationPublisher } from './queue-escalation-publisher.js';
+export { createEscalationPublisherFromEnv } from './escalation-publisher-factory.js';
+export type { EscalationPublisherHandle } from './escalation-publisher-factory.js';
+export { createWorkflowEscalationWorker } from './escalation-worker.js';
+export type {
+  WorkflowEscalationWorker,
+  WorkflowEscalationWorkerOptions,
+  WorkflowEscalationProcessor,
+  WorkflowEscalationWorkerLogger,
+} from './escalation-worker.js';
+
 // ─── Case Management (Req 13.5) ─────────────────────────────────────────────
 
 export { CaseService } from './case-service.js';

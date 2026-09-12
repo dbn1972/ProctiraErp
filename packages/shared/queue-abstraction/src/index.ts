@@ -49,7 +49,16 @@ export type {
 export { createQueueAdapter, createQueueAdapterFromEnv } from './factory';
 
 /** Well-known job type for examination document generation workers (P0-06). */
-export const EXAM_DOCUMENT_JOB_TYPE = 'exam.document.generate' as const;
+export const EXAM_DOCUMENT_JOB_TYPE = 'exam.document.generate';
 
 /** Consumer binding pattern for all tenants' exam document jobs. */
-export const EXAM_DOCUMENT_CONSUME_TOPIC = 'tenant.*.exam.document.generate' as const;
+export const EXAM_DOCUMENT_CONSUME_TOPIC = 'tenant.*.exam.document.generate';
+
+/** Well-known job type for workflow timeout escalations (P1-WF). */
+export const WORKFLOW_ESCALATION_JOB_TYPE = 'workflow.escalation';
+
+/** Consumer binding pattern for all tenants' workflow escalation jobs. */
+export const WORKFLOW_ESCALATION_CONSUME_TOPIC = 'tenant.*.workflow.escalation';
+
+/** Optional side-channel when an escalation transition notifies a role. */
+export const WORKFLOW_ESCALATION_NOTIFY_TYPE = 'workflow.escalation.notified';
