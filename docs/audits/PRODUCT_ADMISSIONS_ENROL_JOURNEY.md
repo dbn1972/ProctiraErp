@@ -168,3 +168,18 @@ Checked against shipped product on `main` (2026-09-12):
 | Pipeline plugin factory                               | PG when `DATABASE_URL` via factory; A1 closes silent in-memory                    |
 
 **Conclusion (A3, 2026-09-12):** Convert **A-1** from open residual to **dated NON-GOAL** until a funded IdP + public-apply epic. Record on the waiver board as **PRD-016**. **Stop claiming peer CRM public-apply parity.** Basic registration-portal intake may remain; it is not peer-class apply + applicant account/IdP. OCR (A-4 / PRD-014) stays NON-GOAL.
+
+---
+
+## 10. P1-ADM honesty residual (2026-09-12) — append only
+
+**Register close:** `P1-ADM` → **DONE** with dated NON-GOAL residuals on `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md`.  
+**Does not rewrite** A0–A9 history above.
+
+| Tip proves                                                                                                                                  | Residual (dated)                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Staff enquiry → merit → seat → offer → parent sandbox pay → enrol (`/admissions/*`, parent offers, `41-admissions-crm-write-smoke.spec.ts`) | Public apply + applicant IdP **NON-GOAL** (PRD-016 / A-1) |
+| PG pipeline when `DATABASE_URL` (`DEV_ADMISSIONS_PIPELINE_PG.md`); seat/merit polish (`DEV_ADMISSIONS_SEAT_MERIT_POLISH.md`)                | OCR / document AI **NON-GOAL** (PRD-014 / A-4)            |
+| A5 tip journey pack (`DEV_ADMISSIONS_ENROL_JOURNEY_E2E.md`)                                                                                 | Peer CRM “world-class complete” — **not claimable**       |
+
+Link: `DEV_ADMISSIONS_PUBLIC_APPLY_WAIVER.md`.

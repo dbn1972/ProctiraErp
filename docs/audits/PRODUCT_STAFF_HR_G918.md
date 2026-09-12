@@ -80,3 +80,17 @@ Tenant boundary notes: every new table has `tenant_id` + FORCE RLS on `app.tenan
 | Security   | RLS unit + in-memory tenant isolate tests |
 | Test       | e2e spec authored; Playwright not run     |
 | Release    | not claimed                               |
+
+---
+
+## 9. P1-PAY honesty residual (2026-09-12) — append only
+
+**Register close:** `P1-PAY` → **DONE-with-dated-NON-GOAL** on `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md`.  
+**Does not rewrite** G-918 scope above.
+
+| Tip proves                                                                                        | Dated NON-GOAL (2026-09-12)                                       |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Payroll **CSV export** at `/staff/payroll` + `GET /staff/payroll/export` (contracts × attendance) | Statutory payroll engines (PF / ESI / tax / payslips / bank file) |
+| `db/sql/043_staff_hr_schema.sql`, `52-staff-hr-write-smoke.spec.ts`, `DEV_STAFF_HR_G918.md`       | Payroll → accounting / GL integration (`payroll-statutory-gl`)    |
+
+**Forbidden claims:** statutory payroll complete; payroll GL posting shipped. Re-open when funded.

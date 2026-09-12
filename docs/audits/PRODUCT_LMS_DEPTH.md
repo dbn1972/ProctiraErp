@@ -91,3 +91,17 @@ Tenant boundary notes: every new table has `tenant_id` + FORCE RLS using `app.te
 | Security   | RLS unit + route IDOR tests; no SEC\_ pack claimed                 |
 | Test       | `apps/web/e2e/47-lms-depth-write-smoke.spec.ts` + backend vitest   |
 | Release    | Not shipped; no production-ready claim                             |
+
+---
+
+## 9. P2-LMS honesty residual — LTI (2026-09-12) — append only
+
+**Register close:** `P2-LMS` → **DONE-with-dated-WAIVER** on `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md`.  
+**Does not rewrite** G-915 depth scope above. LTI remains out of product per §3 and `docs/plans/LMS_LTI_EPIC.md` (plan only).
+
+| Tip proves                                                              | Dated WAIVER / residual (2026-09-12)                       |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Question bank, rubrics, uploads, discussions, content, class analytics  | **LTI 1.3 / SCORM / xAPI** + live Canvas/Moodle connectors |
+| `db/sql/038_lms_depth_schema.sql`, `/lms/*`, `47-lms-depth-write-smoke` | **PRD-012 WAIVED** — keep LMS waiver; epic stays plan-only |
+
+**Forbidden claims:** LTI Advantage complete; external LMS grade/roster sync shipped. Re-open when live LMS sandbox credentials exist and PRD-012 is reversed.

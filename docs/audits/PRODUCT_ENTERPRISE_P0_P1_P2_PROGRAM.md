@@ -49,3 +49,5 @@ Operators can run ProctiraERP as a **tenant-safe, durable, money-correct, PHI-aw
 ## 6. Handoff
 
 Build slices per `TASKS_ENTERPRISE_P0_P1_P2_GAPS.md` §1 packs A–E. Next: P1 packs (ACAD/ADM/HR/ASSESS/EXAM/TT/FIN-GL/PAY/PROC/SAFE/WF); P2 tracked.
+
+**P1/P2 honesty (2026-09-12):** residual/waiver pack at `docs/audits/WAIVER_BOARD_P1_P2_2026-09-12.md` closes P1-ADM, P1-FIN-GL, P1-PAY, P1-PROC, P2-LMS, P2-CANTEEN, P2-TRANSPORT, P2-ALUMNI, P2-MOBILE, P2-SURVEY as DONE-with-dated-NON-GOAL/WAIVER/PARKED (parent reconciles TASKS).
