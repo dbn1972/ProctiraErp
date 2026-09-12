@@ -5,6 +5,7 @@
  * Implements the HealthRepository interface with Map-based stores.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { v4 as uuidv4 } from 'uuid';
 
 import type {
   HealthRepository,
@@ -21,6 +22,13 @@ import type {
   ScreeningProgramEntity,
   NurseIncidentEntity,
 } from './health-repository.js';
+import type { PhiAccessLogInput } from './pg-special-needs-store.js';
+import {
+  isBreakGlassGrantActive,
+  type CreateHealthBreakGlassInput,
+  type HealthBreakGlassGrant,
+  type HealthPhiFieldPath,
+} from './phi-field-acl.js';
 
 function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult<T> {
   const totalItems = items.length;
@@ -51,6 +59,18 @@ export class InMemoryHealthRepository implements HealthRepository {
   private counsellingSessions = new Map<string, CounsellingSessionEntity>();
   private screeningPrograms = new Map<string, ScreeningProgramEntity>();
   private nurseIncidents = new Map<string, NurseIncidentEntity>();
+  private phiAccessLogs: Array<{
+    id: string;
+    tenantId: string;
+    actorUserId: string;
+    studentId: string;
+    resourceType: string;
+    resourceId: string | null;
+    action: string;
+    breakGlassId: string | null;
+    createdAt: string;
+  }> = [];
+  private breakGlassGrants = new Map<string, HealthBreakGlassGrant>();
 
   // ─── Measurements ─────────────────────────────────────────────────────────
 
@@ -660,6 +680,174 @@ export class InMemoryHealthRepository implements HealthRepository {
       .map((e) => ({ ...e }));
   }
 
+  // ─── PHI access log + break-glass (P0-09) ──────────────────────────────────
+
+  async logPhiAccess(input: PhiAccessLogInput): Promise<void> {
+    this.phiAccessLogs.push({
+      id: uuidv4(),
+      tenantId: input.tenantId,
+      actorUserId: input.actorUserId,
+      studentId: input.studentId,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId ?? null,
+      action: 'READ',
+      breakGlassId: input.breakGlassId ?? null,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  async listPhiAccessLogs(
+    tenantId: string,
+    options: { studentId?: string; limit?: number } = {},
+  ): Promise<
+    Array<{
+      id: string;
+      tenantId: string;
+      actorUserId: string;
+      studentId: string;
+      resourceType: string;
+      resourceId: string | null;
+      action: string;
+      breakGlassId: string | null;
+      createdAt: string;
+    }>
+  > {
+    const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+    return this.phiAccessLogs
+      .filter(
+        (row) =>
+          row.tenantId === tenantId &&
+          (options.studentId == null || row.studentId === options.studentId),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit)
+      .map((row) => ({ ...row }));
+  }
+
+  async createBreakGlassGrant(input: CreateHealthBreakGlassInput): Promise<HealthBreakGlassGrant> {
+    const now = new Date().toISOString();
+    const grant: HealthBreakGlassGrant = {
+      id: uuidv4(),
+      tenantId: input.tenantId,
+      requesterUserId: input.requesterUserId,
+      approverUserId: null,
+      studentId: input.studentId,
+      fieldPath: input.fieldPath,
+      justification: input.justification,
+      status: 'pending',
+      durationMinutes: input.durationMinutes,
+      approvedAt: null,
+      expiresAt: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.breakGlassGrants.set(grant.id, grant);
+    return { ...grant };
+  }
+
+  async findBreakGlassGrantById(
+    id: string,
+    tenantId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    const grant = this.breakGlassGrants.get(id);
+    if (!grant || grant.tenantId !== tenantId) return null;
+    return { ...grant };
+  }
+
+  async findActiveBreakGlassGrant(
+    tenantId: string,
+    requesterUserId: string,
+    studentId: string,
+    fieldPath: HealthPhiFieldPath,
+    now: Date = new Date(),
+  ): Promise<HealthBreakGlassGrant | null> {
+    for (const grant of this.breakGlassGrants.values()) {
+      if (
+        grant.tenantId === tenantId &&
+        grant.requesterUserId === requesterUserId &&
+        grant.studentId === studentId &&
+        grant.fieldPath === fieldPath &&
+        grant.status === 'approved' &&
+        !isBreakGlassGrantActive(grant, now)
+      ) {
+        const expired = { ...grant, status: 'expired' as const, updatedAt: now.toISOString() };
+        this.breakGlassGrants.set(grant.id, expired);
+      }
+    }
+    const active = Array.from(this.breakGlassGrants.values())
+      .filter(
+        (g) =>
+          g.tenantId === tenantId &&
+          g.requesterUserId === requesterUserId &&
+          g.studentId === studentId &&
+          g.fieldPath === fieldPath &&
+          isBreakGlassGrantActive(g, now),
+      )
+      .sort((a, b) => (b.expiresAt ?? '').localeCompare(a.expiresAt ?? ''))[0];
+    return active ? { ...active } : null;
+  }
+
+  async approveBreakGlassGrant(
+    id: string,
+    tenantId: string,
+    approverUserId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    const existing = await this.findBreakGlassGrantById(id, tenantId);
+    if (!existing) return null;
+    if (existing.status !== 'pending') return { ...existing };
+    if (existing.requesterUserId === approverUserId) {
+      throw new Error('DUAL_CONTROL_VIOLATION');
+    }
+    const approvedAt = new Date();
+    const updated: HealthBreakGlassGrant = {
+      ...existing,
+      status: 'approved',
+      approverUserId,
+      approvedAt: approvedAt.toISOString(),
+      expiresAt: new Date(approvedAt.getTime() + existing.durationMinutes * 60_000).toISOString(),
+      updatedAt: approvedAt.toISOString(),
+    };
+    this.breakGlassGrants.set(id, updated);
+    return { ...updated };
+  }
+
+  async denyBreakGlassGrant(
+    id: string,
+    tenantId: string,
+    approverUserId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    const existing = await this.findBreakGlassGrantById(id, tenantId);
+    if (!existing) return null;
+    if (existing.status !== 'pending') return { ...existing };
+    if (existing.requesterUserId === approverUserId) {
+      throw new Error('DUAL_CONTROL_VIOLATION');
+    }
+    const updated: HealthBreakGlassGrant = {
+      ...existing,
+      status: 'denied',
+      approverUserId,
+      updatedAt: new Date().toISOString(),
+    };
+    this.breakGlassGrants.set(id, updated);
+    return { ...updated };
+  }
+
+  async listBreakGlassGrants(
+    tenantId: string,
+    options: { studentId?: string; limit?: number } = {},
+  ): Promise<HealthBreakGlassGrant[]> {
+    const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
+    return Array.from(this.breakGlassGrants.values())
+      .filter(
+        (g) =>
+          g.tenantId === tenantId &&
+          (options.studentId == null || g.studentId === options.studentId),
+      )
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit)
+      .map((g) => ({ ...g }));
+  }
+
   // ─── Test Helpers ─────────────────────────────────────────────────────────
 
   clear(): void {
@@ -675,5 +863,7 @@ export class InMemoryHealthRepository implements HealthRepository {
     this.counsellingSessions.clear();
     this.screeningPrograms.clear();
     this.nurseIncidents.clear();
+    this.phiAccessLogs = [];
+    this.breakGlassGrants.clear();
   }
 }

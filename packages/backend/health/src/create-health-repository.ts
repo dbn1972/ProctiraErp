@@ -24,6 +24,7 @@ import type {
   VaccinationEntity,
 } from './health-repository.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
+import { createPgBreakGlassStore, type PgBreakGlassStore } from './pg-break-glass-store.js';
 import {
   createPgCounsellingStore,
   isPgCounsellingEnabled,
@@ -39,6 +40,11 @@ import {
   type PgSpecialNeedsStore,
   type PhiAccessLogInput,
 } from './pg-special-needs-store.js';
+import type {
+  CreateHealthBreakGlassInput,
+  HealthBreakGlassGrant,
+  HealthPhiFieldPath,
+} from './phi-field-acl.js';
 
 function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult<T> {
   const totalItems = items.length;
@@ -82,6 +88,7 @@ export class HybridHealthRepository implements HealthRepository {
     private readonly phi: PgPhiStore | null,
     private readonly specialNeeds: PgSpecialNeedsStore | null = null,
     private readonly nurseIncidents: PgNurseIncidentStore | null = null,
+    private readonly breakGlass: PgBreakGlassStore | null = null,
   ) {
     const sn = this.specialNeeds;
     this.createAssessment = (sn?.createAssessment ?? this.memory.createAssessment).bind(
@@ -137,7 +144,9 @@ export class HybridHealthRepository implements HealthRepository {
   async logPhiAccess(input: PhiAccessLogInput): Promise<void> {
     if (this.specialNeeds) {
       await this.specialNeeds.logPhiAccess(input);
+      return;
     }
+    await this.memory.logPhiAccess(input);
   }
 
   async listPhiAccessLogs(
@@ -152,13 +161,72 @@ export class HybridHealthRepository implements HealthRepository {
       resourceType: string;
       resourceId: string | null;
       action: string;
+      breakGlassId: string | null;
       createdAt: string;
     }>
   > {
     if (this.specialNeeds && typeof this.specialNeeds.listPhiAccessLogs === 'function') {
       return this.specialNeeds.listPhiAccessLogs(tenantId, options);
     }
-    return [];
+    return this.memory.listPhiAccessLogs(tenantId, options);
+  }
+
+  async createBreakGlassGrant(input: CreateHealthBreakGlassInput): Promise<HealthBreakGlassGrant> {
+    if (this.breakGlass) return this.breakGlass.create(input);
+    return this.memory.createBreakGlassGrant(input);
+  }
+
+  async findBreakGlassGrantById(
+    id: string,
+    tenantId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    if (this.breakGlass) return this.breakGlass.findById(id, tenantId);
+    return this.memory.findBreakGlassGrantById(id, tenantId);
+  }
+
+  async findActiveBreakGlassGrant(
+    tenantId: string,
+    requesterUserId: string,
+    studentId: string,
+    fieldPath: HealthPhiFieldPath,
+    now?: Date,
+  ): Promise<HealthBreakGlassGrant | null> {
+    if (this.breakGlass) {
+      return this.breakGlass.findActiveGrant(tenantId, requesterUserId, studentId, fieldPath, now);
+    }
+    return this.memory.findActiveBreakGlassGrant(
+      tenantId,
+      requesterUserId,
+      studentId,
+      fieldPath,
+      now,
+    );
+  }
+
+  async approveBreakGlassGrant(
+    id: string,
+    tenantId: string,
+    approverUserId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    if (this.breakGlass) return this.breakGlass.approve(id, tenantId, approverUserId);
+    return this.memory.approveBreakGlassGrant(id, tenantId, approverUserId);
+  }
+
+  async denyBreakGlassGrant(
+    id: string,
+    tenantId: string,
+    approverUserId: string,
+  ): Promise<HealthBreakGlassGrant | null> {
+    if (this.breakGlass) return this.breakGlass.deny(id, tenantId, approverUserId);
+    return this.memory.denyBreakGlassGrant(id, tenantId, approverUserId);
+  }
+
+  async listBreakGlassGrants(
+    tenantId: string,
+    options: { studentId?: string; limit?: number } = {},
+  ): Promise<HealthBreakGlassGrant[]> {
+    if (this.breakGlass) return this.breakGlass.list(tenantId, options);
+    return this.memory.listBreakGlassGrants(tenantId, options);
   }
 
   // ─── Profile PHI ──────────────────────────────────────────────────────────
@@ -485,18 +553,33 @@ export function createHealthRepository(): HybridHealthRepository {
   const enabled = isPgCounsellingEnabled() || isPgPhiEnabled();
   if (!enabled) {
     assertInMemoryFallbackAllowed('health');
-    return new HybridHealthRepository(memory, null, null, null, null);
+    return new HybridHealthRepository(memory, null, null, null, null, null);
   }
   // P0-05: DATABASE_URL set ⇒ PG overlays required (no silent all-memory hybrid).
   const counselling = createPgCounsellingStore();
   const phi = createPgPhiStore();
   const specialNeeds = createPgSpecialNeedsStore();
   const nurseIncidents = createPgNurseIncidentStore();
+  const breakGlass = createPgBreakGlassStore();
   assertPostgresRepositoryAvailable('health.counselling', counselling);
   assertPostgresRepositoryAvailable('health.phi', phi);
   assertPostgresRepositoryAvailable('health.special-needs', specialNeeds);
   assertPostgresRepositoryAvailable('health.nurse-incidents', nurseIncidents);
-  return new HybridHealthRepository(memory, counselling, phi, specialNeeds, nurseIncidents);
+  assertPostgresRepositoryAvailable('health.break-glass', breakGlass);
+  return new HybridHealthRepository(
+    memory,
+    counselling,
+    phi,
+    specialNeeds,
+    nurseIncidents,
+    breakGlass,
+  );
 }
 
-export type { PgCounsellingStore, PgPhiStore, PgSpecialNeedsStore, PgNurseIncidentStore };
+export type {
+  PgCounsellingStore,
+  PgPhiStore,
+  PgSpecialNeedsStore,
+  PgNurseIncidentStore,
+  PgBreakGlassStore,
+};

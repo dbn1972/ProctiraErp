@@ -253,4 +253,107 @@ describe('Health Routes', () => {
       expect(response.statusCode).toBe(403);
     });
   });
+
+  describe('Health PHI break-glass field ACL (P0-09)', () => {
+    const studentId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+    const sensitiveNotes = 'Discussed coping strategies — confidential';
+
+    it('redacts counselling caseNotes without grant; unredacts after dual-control approve', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/health/counselling/sessions',
+        payload: {
+          studentId,
+          counsellorId: 'b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e',
+          sessionDate: '2024-03-20',
+          sessionType: 'individual',
+          reason: 'Exam anxiety',
+          caseNotes: sensitiveNotes,
+          followUpRequired: false,
+          status: 'completed',
+        },
+      });
+
+      const denied = await app.inject({
+        method: 'GET',
+        url: `/health/counselling/sessions/student/${studentId}`,
+      });
+      expect(denied.statusCode).toBe(200);
+      const deniedBody = JSON.parse(denied.body);
+      expect(deniedBody.data[0].caseNotes).toBe('[REDACTED]');
+
+      healthOfficerContext.userId = 'user-requester';
+      healthOfficerContext.roles = ['counsellor'];
+      const createBg = await app.inject({
+        method: 'POST',
+        url: '/health/break-glass',
+        payload: {
+          studentId,
+          fieldPath: 'counselling.case_notes',
+          justification: 'Need plaintext case notes for safeguarding case conference',
+          durationMinutes: 60,
+        },
+      });
+      expect(createBg.statusCode).toBe(201);
+      const grant = JSON.parse(createBg.body);
+      expect(grant.status).toBe('pending');
+
+      healthOfficerContext.userId = 'user-approver';
+      healthOfficerContext.roles = ['health_admin'];
+      const approve = await app.inject({
+        method: 'POST',
+        url: `/health/break-glass/${grant.id}/approve`,
+      });
+      expect(approve.statusCode).toBe(200);
+      expect(JSON.parse(approve.body).status).toBe('approved');
+
+      healthOfficerContext.userId = 'user-requester';
+      healthOfficerContext.roles = ['counsellor'];
+      const allowed = await app.inject({
+        method: 'GET',
+        url: `/health/counselling/sessions/student/${studentId}`,
+      });
+      expect(allowed.statusCode).toBe(200);
+      const allowedBody = JSON.parse(allowed.body);
+      expect(allowedBody.data[0].caseNotes).toBe(sensitiveNotes);
+
+      healthOfficerContext.roles = ['health_admin'];
+      const audit = await app.inject({
+        method: 'GET',
+        url: `/health/phi-access?studentId=${studentId}`,
+      });
+      expect(audit.statusCode).toBe(200);
+      const auditBody = JSON.parse(audit.body);
+      const unredact = (
+        auditBody.data as Array<{ resourceType: string; breakGlassId: string | null }>
+      ).find((row) => row.resourceType === 'counselling_session.case_notes');
+      expect(unredact?.breakGlassId).toBe(grant.id);
+
+      healthOfficerContext.userId = 'user-health-officer';
+      healthOfficerContext.roles = ['health_officer'];
+    });
+
+    it('rejects self-approval on break-glass route', async () => {
+      healthOfficerContext.userId = 'user-same';
+      healthOfficerContext.roles = ['counsellor'];
+      const createBg = await app.inject({
+        method: 'POST',
+        url: '/health/break-glass',
+        payload: {
+          studentId,
+          fieldPath: 'counselling.case_notes',
+          justification: 'Need plaintext case notes for safeguarding case conference',
+        },
+      });
+      const grant = JSON.parse(createBg.body);
+      healthOfficerContext.roles = ['health_admin', 'counsellor'];
+      const approve = await app.inject({
+        method: 'POST',
+        url: `/health/break-glass/${grant.id}/approve`,
+      });
+      expect(approve.statusCode).toBeGreaterThanOrEqual(400);
+      healthOfficerContext.userId = 'user-health-officer';
+      healthOfficerContext.roles = ['health_officer'];
+    });
+  });
 });

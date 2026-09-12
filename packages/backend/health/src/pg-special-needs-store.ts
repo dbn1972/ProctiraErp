@@ -17,6 +17,7 @@ import type {
   ReferralEntity,
   SpecialNeedsAssessmentEntity,
 } from './health-repository.js';
+import { ensureBreakGlassSchema } from './pg-break-glass-store.js';
 import {
   getSharedCounsellingPool,
   isPgCounsellingEnabled,
@@ -177,6 +178,8 @@ export interface PhiAccessLogInput {
   studentId: string;
   resourceType: string;
   resourceId?: string | null;
+  /** Set when a sensitive field was unredacted via health break-glass (P0-09). */
+  breakGlassId?: string | null;
 }
 
 export class PgSpecialNeedsStore {
@@ -192,11 +195,12 @@ export class PgSpecialNeedsStore {
 
   async logPhiAccess(input: PhiAccessLogInput): Promise<void> {
     await this.ensureSchema();
+    await ensureBreakGlassSchema(this.pool);
     await this.withTenant(input.tenantId, async (client) => {
       await client.query(
         `INSERT INTO health_phi_access_log
-           (id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, 'READ', NOW())`,
+           (id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action, break_glass_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'READ', $7, NOW())`,
         [
           randomUUID(),
           input.tenantId,
@@ -204,6 +208,7 @@ export class PgSpecialNeedsStore {
           input.studentId,
           input.resourceType,
           input.resourceId ?? null,
+          input.breakGlassId ?? null,
         ],
       );
     });
@@ -221,6 +226,7 @@ export class PgSpecialNeedsStore {
       resourceType: string;
       resourceId: string | null;
       action: string;
+      breakGlassId: string | null;
       createdAt: string;
     }>
   > {
@@ -229,14 +235,16 @@ export class PgSpecialNeedsStore {
       const limit = Math.min(Math.max(options.limit ?? 100, 1), 500);
       const result = options.studentId
         ? await client.query(
-            `SELECT id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action, created_at
+            `SELECT id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action,
+                    break_glass_id, created_at
              FROM health_phi_access_log
              WHERE tenant_id=$1 AND student_id=$2
              ORDER BY created_at DESC LIMIT $3`,
             [tenantId, options.studentId, limit],
           )
         : await client.query(
-            `SELECT id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action, created_at
+            `SELECT id, tenant_id, actor_user_id, student_id, resource_type, resource_id, action,
+                    break_glass_id, created_at
              FROM health_phi_access_log
              WHERE tenant_id=$1
              ORDER BY created_at DESC LIMIT $2`,
@@ -252,6 +260,7 @@ export class PgSpecialNeedsStore {
           resourceType: String(r.resource_type),
           resourceId: r.resource_id == null ? null : String(r.resource_id),
           action: String(r.action),
+          breakGlassId: r.break_glass_id == null ? null : String(r.break_glass_id),
           createdAt:
             r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
         };

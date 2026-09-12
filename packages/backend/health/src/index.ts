@@ -23,6 +23,31 @@ export type { HealthPluginOptions } from './health-plugin.js';
 export { HealthService, hasHealthAccess } from './health-service.js';
 export type { HealthAccessContext } from './health-service.js';
 
+export {
+  PHI_FIELD_COUNSELLING_CASE_NOTES,
+  PHI_FIELD_REDACTED,
+  HEALTH_BREAK_GLASS_MAX_MINUTES,
+  HEALTH_BREAK_GLASS_DEFAULT_MINUTES,
+  HEALTH_BREAK_GLASS_APPROVER_ROLES,
+  applyCounsellingCaseNotesAcl,
+  canApproveHealthBreakGlass,
+  isBreakGlassGrantActive,
+  isHealthPhiFieldPath,
+} from './phi-field-acl.js';
+export type {
+  HealthBreakGlassGrant,
+  HealthBreakGlassStatus,
+  HealthPhiFieldPath,
+  CreateHealthBreakGlassInput,
+} from './phi-field-acl.js';
+
+export {
+  createPgBreakGlassStore,
+  ensureBreakGlassSchema,
+  isPgBreakGlassEnabled,
+  PgBreakGlassStore,
+} from './pg-break-glass-store.js';
+
 // Repository
 export type {
   HealthRepository,
@@ -99,6 +124,7 @@ export {
   UpdateAccommodationPlanSchema,
   CreateCounsellingSessionSchema,
   UpdateCounsellingSessionSchema,
+  CreateHealthBreakGlassRequestSchema,
   CreateScreeningProgramSchema,
   UpdateScreeningProgramSchema,
   UuidParamsSchema,
@@ -124,6 +150,7 @@ export type {
   UpdateAccommodationPlanInput,
   CreateCounsellingSessionInput,
   UpdateCounsellingSessionInput,
+  CreateHealthBreakGlassRequestInput,
   CreateScreeningProgramInput,
   UpdateScreeningProgramInput,
 } from './schemas.js';

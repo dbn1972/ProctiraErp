@@ -389,6 +389,32 @@ export const UpdateCounsellingSessionSchema = Type.Object({
 });
 export type UpdateCounsellingSessionInput = Static<typeof UpdateCounsellingSessionSchema>;
 
+// ─── Health PHI break-glass (P0-09) ───────────────────────────────────────────
+
+export const CreateHealthBreakGlassRequestSchema = Type.Object({
+  studentId: Type.String({
+    minLength: 1,
+    description: 'Student whose PHI field will be unredacted',
+  }),
+  fieldPath: Type.String({
+    enum: ['counselling.case_notes'],
+    description: 'Sensitive field path to request temporary plaintext access for',
+  }),
+  justification: Type.String({
+    minLength: 20,
+    maxLength: 2000,
+    description: 'Clinical / compliance justification (≥20 chars)',
+  }),
+  durationMinutes: Type.Optional(
+    Type.Integer({
+      minimum: 1,
+      maximum: 240,
+      description: 'Grant TTL in minutes (default 60, max 240)',
+    }),
+  ),
+});
+export type CreateHealthBreakGlassRequestInput = Static<typeof CreateHealthBreakGlassRequestSchema>;
+
 // ─── Health Screening Program Schemas ─────────────────────────────────────────
 
 export const CreateScreeningProgramSchema = Type.Object({
