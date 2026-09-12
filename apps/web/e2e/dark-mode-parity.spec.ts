@@ -99,6 +99,7 @@ const DASHBOARD_ROUTES = [
   { path: '/fees/structures', label: 'fees-structures' },
   { path: '/fees/reports', label: 'fees-reports' },
   { path: '/fees/dunning', label: 'fees-dunning' },
+  { path: '/fees/reconciliation', label: 'fees-reconciliation' },
   { path: '/admissions/enquiries', label: 'admissions-enquiries' },
   { path: '/admissions/seat-matrix', label: 'admissions-seat-matrix' },
   { path: '/admissions/merit', label: 'admissions-merit' },

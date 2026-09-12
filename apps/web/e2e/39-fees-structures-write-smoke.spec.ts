@@ -71,6 +71,7 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByTestId('open-structures')).toBeVisible();
     await expect(page.getByTestId('open-reports')).toBeVisible();
+    await expect(page.getByTestId('open-reconciliation')).toBeVisible();
     await expect(page.getByTestId('open-scholarship-netting')).toBeVisible();
     await expect(page.getByTestId('open-dunning')).toBeVisible();
   });
@@ -85,6 +86,14 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await page.goto('/fees/reports', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /fee reports/i })).toBeVisible();
     await expect(page.getByTestId('download-dues-csv')).toBeVisible();
+    await expect(page.getByTestId('open-reconciliation-from-reports')).toBeVisible();
+  });
+
+  test('/fees/reconciliation renders import and audit empty state', async ({ page }) => {
+    await page.goto('/fees/reconciliation', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /reconciliation/i })).toBeVisible();
+    await expect(page.getByTestId('recon-import-form')).toBeVisible();
+    await expect(page.getByTestId('submit-recon')).toBeVisible();
   });
 
   test('/fees/scholarship-netting renders the apply form', async ({ page }) => {
@@ -222,6 +231,43 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     const reconBody = await recon.json();
     expect(reconBody.matched).toHaveLength(1);
     expect(reconBody.unmatched).toHaveLength(1);
+
+    const batches = await request.get(`${GATEWAY_URL}/api/v1/fees/reconciliation/batches`, {
+      headers: headers(),
+    });
+    expect(batches.status()).toBe(200);
+    const batchList = (await batches.json()).data as Array<{ id: string }>;
+    expect(batchList.some((row) => row.id === reconBody.batch.id)).toBe(true);
+
+    const rowsRes = await request.get(
+      `${GATEWAY_URL}/api/v1/fees/reconciliation/batches/${reconBody.batch.id}/rows`,
+      { headers: headers() },
+    );
+    expect(rowsRes.status()).toBe(200);
+    const rows = (await rowsRes.json()).data as Array<{
+      id: string;
+      matched: boolean;
+      exceptionStatus: string;
+    }>;
+    const exception = rows.find((row) => !row.matched);
+    expect(exception?.exceptionStatus).toBe('open');
+
+    const resolve = await request.post(
+      `${GATEWAY_URL}/api/v1/fees/reconciliation/rows/${exception!.id}/resolve`,
+      {
+        headers: headers(),
+        data: { status: 'resolved', resolutionNote: 'E2E write-off' },
+      },
+    );
+    expect(resolve.status(), await resolve.text()).toBe(200);
+    expect(await resolve.json()).toMatchObject({
+      exceptionStatus: 'resolved',
+      resolutionNote: 'E2E write-off',
+    });
+
+    await page.goto('/fees/reconciliation', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('recon-import-form')).toBeVisible();
+    await expect(page.getByTestId('recon-batch-list')).toBeVisible();
 
     await page.goto('/fees/reports', { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('dues-status-row').first()).toBeVisible();

@@ -1008,6 +1008,10 @@ export class FeesService {
         matched: true,
         invoiceId: row.invoiceId,
         note: null as string | null,
+        exceptionStatus: 'none' as const,
+        resolvedBy: null as string | null,
+        resolvedAt: null as Date | null,
+        resolutionNote: null as string | null,
       })),
       ...unmatched.map((row) => ({
         id: uuidv4(),
@@ -1018,10 +1022,53 @@ export class FeesService {
         matched: false,
         invoiceId: null as string | null,
         note: row.note,
+        exceptionStatus: 'open' as const,
+        resolvedBy: null as string | null,
+        resolvedAt: null as Date | null,
+        resolutionNote: null as string | null,
       })),
     ];
     await this.repository.createReconciliationRows(rows);
     return { batch, matched, unmatched };
+  }
+
+  async listReconciliationBatches(tenantId: string) {
+    return this.repository.listReconciliationBatches(tenantId);
+  }
+
+  async listReconciliationRows(tenantId: string, batchId: string) {
+    return this.repository.listReconciliationRows(tenantId, batchId);
+  }
+
+  async resolveReconciliationException(
+    tenantId: string,
+    actorId: string,
+    input: { rowId: string; status: 'resolved' | 'ignored'; resolutionNote: string },
+  ) {
+    const row = await this.repository.findReconciliationRowById(tenantId, input.rowId);
+    if (!row) {
+      throw new NotFoundError(`Reconciliation row with id '${input.rowId}' not found`);
+    }
+    if (row.matched || row.exceptionStatus === 'none') {
+      throw new BusinessRuleError('Matched reconciliation rows cannot be resolved as exceptions');
+    }
+    if (row.exceptionStatus === 'resolved' || row.exceptionStatus === 'ignored') {
+      throw new BusinessRuleError('Exception already closed');
+    }
+    const note = input.resolutionNote.trim();
+    if (note.length === 0) {
+      throw new BusinessRuleError('resolutionNote is required');
+    }
+    const updated = await this.repository.updateReconciliationRow(tenantId, row.id, {
+      exceptionStatus: input.status,
+      resolvedBy: actorId,
+      resolvedAt: new Date(),
+      resolutionNote: note,
+    });
+    if (!updated) {
+      throw new NotFoundError(`Reconciliation row with id '${input.rowId}' not found`);
+    }
+    return updated;
   }
 
   async listInvoicesForStudentIds(tenantId: string, studentIds: string[]) {

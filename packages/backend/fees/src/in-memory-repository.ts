@@ -327,7 +327,10 @@ export class InMemoryFeesRepository implements FeesRepository {
   }
 
   async listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]> {
-    return this.reconBatches.filter((row) => row.tenantId === tenantId);
+    return this.reconBatches
+      .filter((row) => row.tenantId === tenantId)
+      .slice()
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
   async listReconciliationRows(
@@ -335,6 +338,31 @@ export class InMemoryFeesRepository implements FeesRepository {
     batchId: string,
   ): Promise<FeeReconciliationRowEntity[]> {
     return this.reconRows.filter((row) => row.tenantId === tenantId && row.batchId === batchId);
+  }
+
+  async findReconciliationRowById(
+    tenantId: string,
+    rowId: string,
+  ): Promise<FeeReconciliationRowEntity | null> {
+    return this.reconRows.find((row) => row.tenantId === tenantId && row.id === rowId) ?? null;
+  }
+
+  async updateReconciliationRow(
+    tenantId: string,
+    rowId: string,
+    data: Partial<
+      Pick<
+        FeeReconciliationRowEntity,
+        'exceptionStatus' | 'resolvedBy' | 'resolvedAt' | 'resolutionNote' | 'note'
+      >
+    >,
+  ): Promise<FeeReconciliationRowEntity | null> {
+    const idx = this.reconRows.findIndex((row) => row.tenantId === tenantId && row.id === rowId);
+    if (idx < 0) return null;
+    const current = this.reconRows[idx]!;
+    const next = { ...current, ...data };
+    this.reconRows[idx] = next;
+    return { ...next };
   }
 
   async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {

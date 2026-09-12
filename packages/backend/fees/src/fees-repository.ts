@@ -206,6 +206,8 @@ export interface FeeReconciliationBatchEntity {
   createdAt: Date;
 }
 
+export type ReconExceptionStatus = 'none' | 'open' | 'resolved' | 'ignored';
+
 export interface FeeReconciliationRowEntity {
   id: string;
   tenantId: string;
@@ -215,6 +217,10 @@ export interface FeeReconciliationRowEntity {
   matched: boolean;
   invoiceId: string | null;
   note: string | null;
+  exceptionStatus: ReconExceptionStatus;
+  resolvedBy: string | null;
+  resolvedAt: Date | null;
+  resolutionNote: string | null;
   createdAt: Date;
 }
 
@@ -303,6 +309,20 @@ export interface FeesRepository {
   ): Promise<FeeReconciliationRowEntity[]>;
   listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]>;
   listReconciliationRows(tenantId: string, batchId: string): Promise<FeeReconciliationRowEntity[]>;
+  findReconciliationRowById(
+    tenantId: string,
+    rowId: string,
+  ): Promise<FeeReconciliationRowEntity | null>;
+  updateReconciliationRow(
+    tenantId: string,
+    rowId: string,
+    data: Partial<
+      Pick<
+        FeeReconciliationRowEntity,
+        'exceptionStatus' | 'resolvedBy' | 'resolvedAt' | 'resolutionNote' | 'note'
+      >
+    >,
+  ): Promise<FeeReconciliationRowEntity | null>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;

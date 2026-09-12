@@ -18,7 +18,7 @@ export default async function FeesReportsPage() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee reports</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Dues by class and status, plus bank reconciliation CSV import.
+              Dues by class and status. Bank reconciliation lives under Fees → Reconciliation.
             </p>
           </div>
         }

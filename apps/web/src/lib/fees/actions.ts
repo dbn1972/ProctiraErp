@@ -14,7 +14,9 @@ import {
   recordInvoicePayment,
   refundInvoice,
   removeReminderSuppression,
+  resolveReconciliationException,
   sendFeeReminders,
+  type FeeReconciliationRow,
   type ScholarshipNettingResult,
   type SendRemindersResult,
 } from '@/lib/api/fees';
@@ -26,6 +28,7 @@ import {
   refundFormSchema,
   reminderSendFormSchema,
   reminderSuppressionFormSchema,
+  resolveReconExceptionFormSchema,
   scholarshipNettingFormSchema,
   type BulkInvoiceFormValues,
   type ConcessionFormValues,
@@ -34,6 +37,7 @@ import {
   type RefundFormValues,
   type ReminderSendFormValues,
   type ReminderSuppressionFormValues,
+  type ResolveReconExceptionFormValues,
   type ScholarshipNettingFormValues,
 } from './validation';
 
@@ -69,6 +73,7 @@ function refreshFees() {
   revalidatePath('/fees/structures');
   revalidatePath('/fees/invoices');
   revalidatePath('/fees/reports');
+  revalidatePath('/fees/reconciliation');
   revalidatePath('/fees/scholarship-netting');
   revalidatePath('/fees/dunning');
   revalidatePath('/parent/fees');
@@ -189,7 +194,7 @@ export async function payInvoiceStaffAction(
 
 export async function importReconciliationAction(
   values: ReconciliationFormValues,
-): Promise<ActionResult<{ matched: number; unmatched: number }>> {
+): Promise<ActionResult<{ matched: number; unmatched: number; batchId: string }>> {
   const parsed = reconciliationFormSchema.safeParse(values);
   if (!parsed.success) {
     return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
@@ -199,8 +204,31 @@ export async function importReconciliationAction(
     refreshFees();
     return {
       success: true,
-      data: { matched: result.matched.length, unmatched: result.unmatched.length },
+      data: {
+        matched: result.matched.length,
+        unmatched: result.unmatched.length,
+        batchId: result.batch.id,
+      },
     };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function resolveReconExceptionAction(
+  values: ResolveReconExceptionFormValues,
+): Promise<ActionResult<FeeReconciliationRow>> {
+  const parsed = resolveReconExceptionFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed', fieldErrors: flattenZod(parsed.error) };
+  }
+  try {
+    const row = await resolveReconciliationException(parsed.data.rowId, {
+      status: parsed.data.status,
+      resolutionNote: parsed.data.resolutionNote,
+    });
+    refreshFees();
+    return { success: true, data: row };
   } catch (error) {
     return fail(error);
   }

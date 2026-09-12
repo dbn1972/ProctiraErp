@@ -216,6 +216,14 @@ export async function generateInstalments(
   return throwIfMissing(result, 'Failed to generate instalments').data;
 }
 
+export async function listInstalments(structureId: string): Promise<FeeInstalment[]> {
+  const result = await gatewayFetch<{ data: FeeInstalment[] }>(
+    `/fees/structures/${structureId}/instalments`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
 export async function bulkInvoiceStructure(
   structureId: string,
   input: { classId?: string; gradeId?: string; studentIds?: string[]; dueAt?: string },
@@ -273,14 +281,71 @@ export async function importReconciliation(
   csv: string,
   filename?: string,
 ): Promise<{
+  batch: FeeReconciliationBatch;
   matched: Array<{ invoiceNumber: string }>;
   unmatched: Array<{ invoiceNumber: string; note: string }>;
 }> {
   const result = await gatewayFetch<{
+    batch: FeeReconciliationBatch;
     matched: Array<{ invoiceNumber: string }>;
     unmatched: Array<{ invoiceNumber: string; note: string }>;
   }>('/fees/reconciliation/import', { method: 'POST', json: { csv, filename } });
   return throwIfMissing(result, 'Failed to import reconciliation');
+}
+
+export type ReconExceptionStatus = 'none' | 'open' | 'resolved' | 'ignored';
+
+export interface FeeReconciliationBatch {
+  id: string;
+  tenantId: string;
+  filename: string;
+  matchedCount: number;
+  unmatchedCount: number;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface FeeReconciliationRow {
+  id: string;
+  tenantId: string;
+  batchId: string;
+  invoiceNumber: string;
+  amountCents: number;
+  matched: boolean;
+  invoiceId: string | null;
+  note: string | null;
+  exceptionStatus: ReconExceptionStatus;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+}
+
+export async function listReconciliationBatches(): Promise<FeeReconciliationBatch[]> {
+  const result = await gatewayFetch<{ data: FeeReconciliationBatch[] }>(
+    '/fees/reconciliation/batches',
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function listReconciliationRows(batchId: string): Promise<FeeReconciliationRow[]> {
+  const result = await gatewayFetch<{ data: FeeReconciliationRow[] }>(
+    `/fees/reconciliation/batches/${batchId}/rows`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function resolveReconciliationException(
+  rowId: string,
+  input: { status: 'resolved' | 'ignored'; resolutionNote: string },
+): Promise<FeeReconciliationRow> {
+  const result = await gatewayFetch<FeeReconciliationRow>(
+    `/fees/reconciliation/rows/${rowId}/resolve`,
+    { method: 'POST', json: input },
+  );
+  return throwIfMissing(result, 'Failed to resolve reconciliation exception');
 }
 
 export async function recordInvoicePayment(invoiceId: string): Promise<FeeInvoice> {
