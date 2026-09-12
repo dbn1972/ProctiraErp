@@ -45,7 +45,11 @@ export default async function StudentEnrollPage(props: PageProps) {
   const displayName = `${student.firstName} ${student.lastName}`.trim();
 
   return (
-    <section aria-labelledby="enroll-heading" className="space-y-6" data-testid="student-enroll-page">
+    <section
+      aria-labelledby="enroll-heading"
+      className="space-y-6"
+      data-testid="student-enroll-page"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1
@@ -123,10 +127,16 @@ export default async function StudentEnrollPage(props: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3 pb-5 text-xs text-muted-foreground">
             <div className="flex items-start gap-2">
-              <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-foreground" aria-hidden="true" />
+              <GraduationCap
+                className="mt-0.5 h-4 w-4 shrink-0 text-foreground"
+                aria-hidden="true"
+              />
               <p>
                 New demographics start at{' '}
-                <Link href="/students/new" className="font-medium text-foreground underline-offset-2 hover:underline">
+                <Link
+                  href="/students/new"
+                  className="font-medium text-foreground underline-offset-2 hover:underline"
+                >
                   Add student
                 </Link>
                 , then return here to place them.

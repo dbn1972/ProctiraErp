@@ -221,7 +221,9 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
       >
         <Select
           value={institutionId}
-          onValueChange={(value: string) => setValue('institutionId', value, { shouldValidate: true })}
+          onValueChange={(value: string) =>
+            setValue('institutionId', value, { shouldValidate: true })
+          }
         >
           <SelectTrigger id="institutionId">
             <SelectValue placeholder="Select institution" />

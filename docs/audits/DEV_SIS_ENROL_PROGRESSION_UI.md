@@ -14,34 +14,34 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_DEV_CHECKLIST.md`.
 
 ## 0. Product contract
 
-| Item                   | Content                                                                                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Item                   | Content                                                                                                                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capability statement   | Staff enroll an existing student into an institution/grade/period; federated `/app/students/enroll` reaches the App Router hub; profile exposes Enroll when no active enrollment. |
-| In scope (peer parity) | Hub CTAs, `/students/[id]/enroll` form, `POST /enrollments` client + action, federated redirects, tip e2e |
-| Explicit non-goals     | Class roster assignment UI; promotion batch jobs; TASKS file edits; api-gateway RBAC / ETL / queue packages |
-| Roles (RBAC)           | Existing student/enrollment gateway authZ; no new roles                                                      |
-| Boards impacted        | CBSE ☐ ICSE ☐ State ☐ Other: N/A (placement fields are board-agnostic UUIDs)                                |
+| In scope (peer parity) | Hub CTAs, `/students/[id]/enroll` form, `POST /enrollments` client + action, federated redirects, tip e2e                                                                         |
+| Explicit non-goals     | Class roster assignment UI; promotion batch jobs; TASKS file edits; api-gateway RBAC / ETL / queue packages                                                                       |
+| Roles (RBAC)           | Existing student/enrollment gateway authZ; no new roles                                                                                                                           |
+| Boards impacted        | CBSE ☐ ICSE ☐ State ☐ Other: N/A (placement fields are board-agnostic UUIDs)                                                                                                      |
 
 Screen / API inventory:
 
-| Nav / surface        | Route                         | API                    | Tables       | PII      |
-| -------------------- | ----------------------------- | ---------------------- | ------------ | -------- |
-| Enrol hub            | `/students/enroll`            | —                      | —            | —        |
-| Add student          | `/students/new`               | `POST /students`       | students     | PII      |
-| Enroll placement     | `/students/[id]/enroll`       | `POST /enrollments`    | enrollments  | PII ids  |
-| Federated enroll     | `/app/students/enroll`        | redirect               | —            | —        |
-| Profile CTA          | `/students/[id]`              | —                      | —            | —        |
+| Nav / surface    | Route                   | API                 | Tables      | PII     |
+| ---------------- | ----------------------- | ------------------- | ----------- | ------- |
+| Enrol hub        | `/students/enroll`      | —                   | —           | —       |
+| Add student      | `/students/new`         | `POST /students`    | students    | PII     |
+| Enroll placement | `/students/[id]/enroll` | `POST /enrollments` | enrollments | PII ids |
+| Federated enroll | `/app/students/enroll`  | redirect            | —           | —       |
+| Profile CTA      | `/students/[id]`        | —                   | —           | —       |
 
 ---
 
 ## 1. Domain model (SQL-first)
 
-| Check                         | Done | Evidence                         |
-| ----------------------------- | ---- | -------------------------------- |
-| Versioned SQL under `db/sql/` | ☐    | N/A — reuse existing enrollments |
-| Constraints / indexes / FKs   | ☐    | N/A                              |
-| Multi-board seed fixtures     | ☐    | N/A                              |
-| Domain unit/property tests    | ☑    | `enrollmentFormSchema` unit tests |
+| Check                         | Done | Evidence                                                        |
+| ----------------------------- | ---- | --------------------------------------------------------------- |
+| Versioned SQL under `db/sql/` | ☐    | N/A — reuse existing enrollments                                |
+| Constraints / indexes / FKs   | ☐    | N/A                                                             |
+| Multi-board seed fixtures     | ☐    | N/A                                                             |
+| Domain unit/property tests    | ☑    | `enrollmentFormSchema` unit tests                               |
 | Invariants documented         | ☑    | Active enrollment blocks re-enroll UI; transfer CTA when active |
 
 ---
@@ -61,22 +61,22 @@ Screen / API inventory:
 
 ## 3. UI (redesign)
 
-| Screen                    | Empty/loading/error                         | Write works        | Board-aware | Evidence                          |
-| ------------------------- | ------------------------------------------- | ------------------ | ----------- | --------------------------------- |
-| `/students/enroll` hub    | ☑ clear CTAs                                | links to new/list  | N/A         | hub page                          |
-| `/students/[id]/enroll`   | ☑ no institutions / already enrolled        | EnrollForm submit  | N/A         | enroll page + form                |
-| Federated placeholder     | removed → redirect                          | N/A                | N/A         | `StudentEnrollment.tsx`           |
-| Profile                   | Enroll CTA when no active enrollment        | link               | N/A         | `[id]/page.tsx`                   |
+| Screen                  | Empty/loading/error                  | Write works       | Board-aware | Evidence                |
+| ----------------------- | ------------------------------------ | ----------------- | ----------- | ----------------------- |
+| `/students/enroll` hub  | ☑ clear CTAs                         | links to new/list | N/A         | hub page                |
+| `/students/[id]/enroll` | ☑ no institutions / already enrolled | EnrollForm submit | N/A         | enroll page + form      |
+| Federated placeholder   | removed → redirect                   | N/A               | N/A         | `StudentEnrollment.tsx` |
+| Profile                 | Enroll CTA when no active enrollment | link              | N/A         | `[id]/page.tsx`         |
 
 ---
 
 ## 4. Cross-module integration
 
-| Dependency              | Integrated | Evidence                                      |
-| ----------------------- | ---------- | --------------------------------------------- |
-| Institutions grades/periods | ☑      | `getInstitutionGradesAction` / periods        |
-| Transfer workflow       | ☑          | Already-active enroll → transfer CTA          |
-| Student create          | ☑          | Hub → `/students/new`                         |
+| Dependency                  | Integrated | Evidence                               |
+| --------------------------- | ---------- | -------------------------------------- |
+| Institutions grades/periods | ☑          | `getInstitutionGradesAction` / periods |
+| Transfer workflow           | ☑          | Already-active enroll → transfer CTA   |
+| Student create              | ☑          | Hub → `/students/new`                  |
 
 ---
 
@@ -90,9 +90,9 @@ Screen / API inventory:
 
 ## Exit (build bar for this slice)
 
-| Claim                         | Status | Notes                                      |
-| ----------------------------- | ------ | ------------------------------------------ |
-| Dead-end placeholder removed  | ☑      | Federated redirect + App Router hub/form   |
-| Happy-path + empty/error      | ☑      | Form empty institutions + already-active   |
-| Tip e2e fragment              | ☑      | `55-enrol-progression-smoke.spec.ts`       |
-| Product 10/10                 | ☐      | Requires full test skill evidence pack     |
+| Claim                        | Status | Notes                                    |
+| ---------------------------- | ------ | ---------------------------------------- |
+| Dead-end placeholder removed | ☑      | Federated redirect + App Router hub/form |
+| Happy-path + empty/error     | ☑      | Form empty institutions + already-active |
+| Tip e2e fragment             | ☑      | `55-enrol-progression-smoke.spec.ts`     |
+| Product 10/10                | ☐      | Requires full test skill evidence pack   |
