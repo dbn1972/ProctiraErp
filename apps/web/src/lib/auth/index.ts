@@ -18,6 +18,7 @@ export {
   signOut,
   signUp,
   fetchSignupRoles,
+  fetchSession,
   DEFAULT_TERMS_VERSION,
   DEFAULT_PRIVACY_VERSION,
   logout,
@@ -36,6 +37,14 @@ export type {
   SignUpResult,
   TermsAcceptancePayload,
   TokenPayload,
+  ClientSessionSnapshot,
 } from './session';
 
+export {
+  authUserFromTokenPayload,
+  rolesFromTokenPayload,
+  scopeFromTokenPayload,
+  normaliseAuthRole,
+} from './auth-user';
+export type { AuthUserFromToken, AuthUserScope, AuthScopeLevel } from './auth-user';
 export { sanitizeReturnTo } from './return-to';

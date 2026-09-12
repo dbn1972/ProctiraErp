@@ -17,7 +17,8 @@ import {
   Label,
 } from '@proctira/ui/components';
 import { OAuthIcon } from '@/components/auth/oauth-icon';
-import { OAUTH_PROVIDERS, getOAuthAuthorizeUrl, sanitizeReturnTo, signIn } from '@/lib/auth';
+import { AuthDemoModeBanner } from '@/components/auth/auth-demo-mode-banner';
+import { AUTH_ENDPOINTS, OAUTH_PROVIDERS, getOAuthAuthorizeUrl, sanitizeReturnTo, signIn } from '@/lib/auth';
 
 /**
  * Client component for the login form. Submits credentials to
@@ -74,6 +75,8 @@ export function LoginForm(): JSX.Element {
           <p className="text-sm text-muted-foreground">{t('signInSubtitle')}</p>
         </header>
 
+        <AuthDemoModeBanner />
+
         {wasExpired && (
           <Alert variant="warning" className="mb-4">
             <AlertDescription>{t('sessionExpired')}</AlertDescription>
@@ -91,6 +94,18 @@ export function LoginForm(): JSX.Element {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        <div className="mb-4">
+          <Button variant="outline" className="w-full justify-center gap-2" asChild>
+            <a
+              href={`${AUTH_ENDPOINTS.KEYCLOAK}?returnTo=${encodeURIComponent(returnTo)}`}
+              data-testid="keycloak-sso"
+              aria-label="Sign in with Keycloak SSO"
+            >
+              Sign in with SSO (Keycloak)
+            </a>
+          </Button>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">

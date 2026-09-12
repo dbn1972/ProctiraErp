@@ -43,6 +43,7 @@ vi.mock('@/providers/AuthProvider', () => ({
     },
     status: 'authenticated' as const,
     isAuthenticated: true,
+    isDemoMode: false,
     signIn: vi.fn(),
     signOut: vi.fn(),
     refreshToken: vi.fn(),
