@@ -1,5 +1,7 @@
 /**
  * @proctira/backend-library — catalog, circulation, holds, OPAC, fines (G-916).
+ * Acquisitions (vendors/POs/receiving) = NON-GOAL dated 2026-09-12 (PRD-017).
+ * See packages/backend/library/README.md and docs/audits/DEV_P2_LIB_CIRCULATION_ACQ.md.
  */
 
 export { libraryPlugin } from './library-plugin.js';
