@@ -8,14 +8,14 @@
 
 **P0-12 closed for tip path-alignment.** Deploy and CI reference charts that exist in-repo; `helm template` dry-run passes locally via `tools/scripts/helm-template-check.sh` (same script invoked by `.github/workflows/helm-template.yml`).
 
-| Check | Result |
-| ----- | ------ |
+| Check                                                            | Result                                                                  |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | `deploy.yml` chart path `./infrastructure/helm/proctira-service` | Present (`Chart.yaml` + `values-{development,staging,production}.yaml`) |
-| Umbrella `./infrastructure/helm/proctira-platform` | Present; used by DR / restore-drill path filters |
-| Legacy `infrastructure/helm/openemis-platform` | Absent (historical only; G-501 renamed) |
-| Spurious `infrastructure/helm/proctira/` (no suffix) | Absent — not a deploy target |
-| `./tools/scripts/helm-template-check.sh` | PASS (lint + template + probe/HPA/ESO/DR asserts) |
-| Secrets in chart/CI | None — placeholders only (`ci-placeholder`, `ci-store`) |
+| Umbrella `./infrastructure/helm/proctira-platform`               | Present; used by DR / restore-drill path filters                        |
+| Legacy `infrastructure/helm/openemis-platform`                   | Absent (historical only; G-501 renamed)                                 |
+| Spurious `infrastructure/helm/proctira/` (no suffix)             | Absent — not a deploy target                                            |
+| `./tools/scripts/helm-template-check.sh`                         | PASS (lint + template + probe/HPA/ESO/DR asserts)                       |
+| Secrets in chart/CI                                              | None — placeholders only (`ci-placeholder`, `ci-store`)                 |
 
 ## Evidence (agent run)
 
