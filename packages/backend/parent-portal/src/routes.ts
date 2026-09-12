@@ -6,8 +6,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import type { ParentPortalService } from './parent-portal-service.js';
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
+import type { ParentPortalService } from './parent-portal-service.js';
 import {
   AddMessageSchema,
   ConsentParamsSchema,
