@@ -137,3 +137,16 @@ export const StudentQuerySchema = Type.Object({
 });
 
 export type StudentQuery = Static<typeof StudentQuerySchema>;
+
+export const OfferParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type OfferParams = Static<typeof OfferParamsSchema>;
+
+export const AcceptGuardianOfferSchema = Type.Object({
+  paymentRef: Type.String({ minLength: 1, maxLength: 200 }),
+  offerFeeInvoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+});
+
+export type AcceptGuardianOfferInput = Static<typeof AcceptGuardianOfferSchema>;

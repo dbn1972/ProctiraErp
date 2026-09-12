@@ -87,7 +87,7 @@ enquiry  →  convert/application  →  merit  →  seat reserve  →  offer  �
 | Merit list             | `/admissions/merit`                        | `POST/GET /admissions/merit-lists`                                        | merit lists + entries                            | Staff                          |
 | Seat matrix            | `/admissions/seat-matrix`                  | `GET/PUT /admissions/seat-matrix`                                         | seat matrix rows; filled from accepted offers    | Staff                          |
 | Parent fees (pay path) | `/parent/fees`                             | Parent-portal / fees invoice pay (existing)                               | fee invoices / payments                          | Parent                         |
-| Parent offer-pay (A2)  | TBD under `/parent/*` (e.g. offer accept)  | Offer read + accept with payment ref; reuse fee pay                       | offers + invoice + enrol                         | Parent (build A2)              |
+| Parent offer-pay (A2)  | `/parent/offers`                           | `GET/POST /parent-portal/offers` (+ accept)                               | offers + invoice + enrol                         | Parent                         |
 | Public apply (A3)      | `registration-portal` `/apply/*`, `/track` | `POST /registrations`, `GET` status (DOB-gated)                           | applications (`014`); **no** applicant IdP today | Public — **deferred residual** |
 
 Staff admissions chrome: `apps/web` dashboard `/admissions/*`. Backend: `packages/backend/registration` pipeline + CRM stores.
@@ -126,7 +126,7 @@ Tenant boundary notes:
 ### Program exit (A1–A5 — not claimed by A0)
 
 - [ ] A1: PG pipeline store when `DATABASE_URL`; restart-safe; no silent in-memory
-- [ ] A2: Parent/applicant offer-pay UX with honesty banners; tenant deny
+- [x] A2: Parent/applicant offer-pay UX with honesty banners; tenant deny
 - [ ] A3: Public apply + IdP **or** dated NON-GOAL/waiver on release board
 - [ ] A4: Seat/category + optional entrance-score per IA
 - [ ] A5: One tip-CI journey e2e enquiry → … → enrol (soft-fail if gateway offline)

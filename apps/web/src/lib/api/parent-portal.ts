@@ -592,3 +592,51 @@ export async function payInvoice(
   }
   return result.data;
 }
+
+export interface ParentAdmissionOffer {
+  id: string;
+  applicationId: string;
+  status: string;
+  feeAmount: number;
+  feeCurrency: string;
+  paymentRef: string | null;
+  offerFeeInvoiceId: string | null;
+  enrolledStudentId: string | null;
+  expiresAt: string | null;
+  applicantFirstName: string;
+  applicantLastName: string;
+  guardianEmail: string | null;
+}
+
+export async function listGuardianOffers(): Promise<ParentAdmissionOffer[]> {
+  const result = await gatewayFetch<{ data: ParentAdmissionOffer[] }>('/parent-portal/offers', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  if (result.status >= 400) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'OFFERS_LIST_FAILED',
+      message: result.error?.message ?? 'Failed to load admission offers',
+    });
+  }
+  return result.data?.data ?? [];
+}
+
+export async function acceptGuardianOffer(
+  id: string,
+  input: { paymentRef: string; offerFeeInvoiceId?: string },
+): Promise<ParentAdmissionOffer> {
+  const result = await gatewayFetch<ParentAdmissionOffer>(`/parent-portal/offers/${id}/accept`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'OFFER_ACCEPT_FAILED',
+      message: result.error?.message ?? 'Failed to accept offer',
+    });
+  }
+  return result.data;
+}

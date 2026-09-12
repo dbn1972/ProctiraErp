@@ -7,6 +7,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { ParentPortalService } from './parent-portal-service.js';
+import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import {
   AddMessageSchema,
   ConsentParamsSchema,
@@ -21,6 +22,8 @@ import {
   ReceiptParamsSchema,
   ThreadParamsSchema,
   ChildParamsSchema,
+  OfferParamsSchema,
+  AcceptGuardianOfferSchema,
   type AddMessageInput,
   type CreateConsentInput,
   type CreateFeePlanInput,
@@ -34,10 +37,13 @@ import {
   type InvoiceParams,
   type ReceiptParams,
   type ChildParams,
+  type OfferParams,
+  type AcceptGuardianOfferInput,
 } from './schemas.js';
 
 export interface ParentPortalRoutesOptions {
   parentPortalService: ParentPortalService;
+  admissionsOffers?: AdmissionsOffersPort;
   prefix?: string;
   studentPrefix?: string;
 }
@@ -262,6 +268,7 @@ export async function registerParentPortalRoutes(
 ): Promise<void> {
   const {
     parentPortalService,
+    admissionsOffers,
     prefix = '/parent-portal',
     studentPrefix = '/student-portal',
   } = options;
@@ -931,6 +938,69 @@ export async function registerParentPortalRoutes(
       throw error;
     }
   }
+
+  // A2 — guardian offer-pay (sandbox honesty; scopes by JWT email ↔ guardianEmail)
+  fastify.get(`${prefix}/offers`, async (request, reply) => {
+    const tenantId = await requireTenant(request, reply);
+    if (!tenantId) return;
+    if (!admissionsOffers) {
+      return reply.status(503).send({
+        code: 'OFFERS_UNAVAILABLE',
+        message: 'Admission offers are not configured for the family portal',
+        statusCode: 503,
+      });
+    }
+    const email = actorEmail(request);
+    if (!email) {
+      return reply.status(400).send({
+        code: 'EMAIL_REQUIRED',
+        message: 'A verified email on your account is required to view admission offers',
+        statusCode: 400,
+      });
+    }
+    return sendOrAppError(reply, async () => ({
+      data: await admissionsOffers.listGuardianOffers(tenantId, email),
+    }));
+  });
+
+  fastify.post(
+    `${prefix}/offers/:id/accept`,
+    async (
+      request: FastifyRequest<{ Params: OfferParams; Body: AcceptGuardianOfferInput }>,
+      reply: FastifyReply,
+    ) => {
+      const tenantId = await requireTenant(request, reply);
+      if (!tenantId) return;
+      if (!admissionsOffers) {
+        return reply.status(503).send({
+          code: 'OFFERS_UNAVAILABLE',
+          message: 'Admission offers are not configured for the family portal',
+          statusCode: 503,
+        });
+      }
+      const params = validate(OfferParamsSchema, request.params);
+      const body = validate(AcceptGuardianOfferSchema, request.body);
+      if (!params.success || !body.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid offer accept',
+          statusCode: 400,
+          errors: [...(params.success ? [] : params.errors), ...(body.success ? [] : body.errors)],
+        });
+      }
+      const email = actorEmail(request);
+      if (!email) {
+        return reply.status(400).send({
+          code: 'EMAIL_REQUIRED',
+          message: 'A verified email on your account is required to accept an offer',
+          statusCode: 400,
+        });
+      }
+      return sendOrAppError(reply, () =>
+        admissionsOffers.acceptOfferForGuardian(tenantId, params.data.id, email, body.data),
+      );
+    },
+  );
 
   const childViews = [
     {

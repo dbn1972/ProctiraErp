@@ -109,10 +109,10 @@ One slice per PR. Copy PRODUCT checklist before build. Tip CI green before merge
 
 ### Slice A2 — Parent/applicant offer-pay (closes A-2)
 
-- [ ] Parent (or applicant) surface: view offer, pay sandbox invoice, accept enrol
-- [ ] Staff offer panel already has payment ref — keep consistent honesty banners
-- [ ] Cross-tenant deny + e2e journey fragment
-- **Exit:** tip CI
+- [x] Parent (or applicant) surface: view offer, pay sandbox invoice, accept enrol
+- [x] Staff offer panel already has payment ref — keep consistent honesty banners
+- [x] Cross-tenant deny + e2e journey fragment (ungated login-redirect + guardian unit deny)
+- **Exit:** tip CI — **DONE** on `cursor/adm-offer-pay-parent-56c3` (sandbox honesty; OCR/A3 not claimed)
 
 ### Slice A3 — Public apply (closes A-1) **or** waiver
 
@@ -175,3 +175,4 @@ Until then, status remains: **solid v1 / PROD_WAIVED — not world-class complet
 | 2026-09-12 | **A0** PRODUCT IA lock: `docs/audits/PRODUCT_ADMISSIONS_ENROL_JOURNEY.md` — A-1 deferred to A3; A-4 OCR remains NON-GOAL; A-3 → build A1                                                                                           |
 | 2026-09-12 | **A1 DONE** — plugin defaults `pipelineStore` via `createAdmissionsPipelineStore()`; `docs/audits/DEV_ADMISSIONS_PIPELINE_PG.md`; merged PR #56                                                                                    |
 | 2026-09-12 | **F1 UI** — staff `/fees/scholarship-netting` + `applyScholarshipNetting` client; DEV `docs/audits/DEV_FEES_SCHOLARSHIP_NETTING_UI.md` (branch `cursor/fees-scholarship-net-ui-56c3`); tip CI / Blackbaud-complete **not** claimed |
+| 2026-09-12 | **A2 DONE** — parent `/parent/offers` + `GET/POST /parent-portal/offers` (guardian email scope); sandbox pay-ref accept; `docs/audits/DEV_ADMISSIONS_OFFER_PAY_PARENT.md` (branch `cursor/adm-offer-pay-parent-56c3`)              |

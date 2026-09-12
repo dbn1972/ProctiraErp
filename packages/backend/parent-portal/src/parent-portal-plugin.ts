@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AcademicVisibilityStore } from './academic-visibility.js';
+import type { AdmissionsOffersPort } from './admissions-offers-port.js';
 import { createAcademicVisibilityStore } from './create-parent-portal-repository.js';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
 import { ParentPortalService, type FeesLedgerPort } from './parent-portal-service.js';
@@ -10,6 +11,7 @@ import { registerParentPortalRoutes } from './routes.js';
 export interface ParentPortalPluginOptions {
   repository: ParentPortalRepository;
   academicStore?: AcademicVisibilityStore;
+  admissionsOffers?: AdmissionsOffersPort;
   prefix?: string;
   studentPrefix?: string;
   feesService?: FeesLedgerPort;
@@ -29,6 +31,7 @@ export const parentPortalPlugin = fp(
     const {
       repository,
       academicStore,
+      admissionsOffers,
       prefix = '/parent-portal',
       studentPrefix = '/student-portal',
       feesService,
@@ -39,7 +42,12 @@ export const parentPortalPlugin = fp(
       feesService,
     );
     fastify.decorate('parentPortalService', parentPortalService);
-    await registerParentPortalRoutes(fastify, { parentPortalService, prefix, studentPrefix });
+    await registerParentPortalRoutes(fastify, {
+      parentPortalService,
+      admissionsOffers,
+      prefix,
+      studentPrefix,
+    });
   },
   {
     name: '@proctira/backend-parent-portal',

@@ -81,6 +81,7 @@ const DASHBOARD_ROUTES = [
   { path: '/parent/messages', label: 'parent-messages' },
   { path: '/parent/consents', label: 'parent-consents' },
   { path: '/parent/fees', label: 'parent-fees' },
+  { path: '/parent/offers', label: 'parent-offers' },
   { path: '/parent/attendance', label: 'parent-attendance' },
   { path: '/parent/grades', label: 'parent-grades' },
   { path: '/parent/timetable', label: 'parent-timetable' },

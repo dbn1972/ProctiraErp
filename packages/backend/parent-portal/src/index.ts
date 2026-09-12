@@ -19,6 +19,8 @@ export type {
   ParentPortalRepository,
 } from './parent-portal-repository.js';
 
+export type { AdmissionsOffersPort, ParentAdmissionOffer } from './admissions-offers-port.js';
+
 export { InMemoryParentPortalRepository } from './in-memory-repository.js';
 
 export {

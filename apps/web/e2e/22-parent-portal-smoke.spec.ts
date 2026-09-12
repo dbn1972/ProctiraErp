@@ -20,6 +20,7 @@ const PARENT_ROUTES = [
   { id: 'messages', path: '/parent/messages' },
   { id: 'consents', path: '/parent/consents' },
   { id: 'fees', path: '/parent/fees' },
+  { id: 'offers', path: '/parent/offers' },
   // G-804: page-wise matrix — the thread detail route must also be auth-gated.
   { id: 'thread', path: '/parent/messages/00000000-0000-4000-8000-0000000000e2' },
 ] as const;
