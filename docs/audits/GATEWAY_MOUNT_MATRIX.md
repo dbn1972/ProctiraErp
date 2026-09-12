@@ -110,5 +110,3 @@ Every unmounted package carries a **decision** and rationale (G-924 acceptance: 
 ## Wave 10 Option C note
 
 `backend/etl` is **mounted** on the gateway at `/pipelines` (PG document store via `db/sql/046_…` when `DATABASE_URL` is set). `backend/data-warehouse` remains **PARKED** (superseded by insights `/data-warehouse`).
-
-**P2-WH (2026-09-12):** Honesty close — Insights UI ≠ PARKED warehouse package; thin run lineage on ETL executions only; full governed warehouse = **PRD-018 NON-GOAL**. See `PRODUCT_WAREHOUSE_ETL_LINEAGE.md`.
