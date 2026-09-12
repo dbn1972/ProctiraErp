@@ -54,11 +54,12 @@ One slice per PR. Copy PRODUCT checklist before build. Tip CI green before merge
 
 ### Slice F0 — IA lock (Fees depth v2)
 
-- [ ] Copy `docs/audits/templates/ENTERPRISE_PRODUCT_IA_CHECKLIST.md` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md`
-- [ ] Lock peer table (Blackbaud Tuition): structures, instalments, refunds, recon, scholarship netting, dunning
-- [ ] Explicit non-goals: full ERP GL suite / multi-entity consolidation (unless funded)
-- [ ] Decision on **F-1**: reopen G-202 with sandbox keys **or** refresh waiver date
-- **Exit:** PRODUCT audit merged; handoff to build skill
+- [x] Copy `docs/audits/templates/ENTERPRISE_PRODUCT_IA_CHECKLIST.md` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md`
+- [x] Lock peer table (Blackbaud Tuition): structures, instalments, refunds, recon, scholarship netting, dunning
+- [x] Explicit non-goals: full ERP GL suite / multi-entity consolidation (unless funded)
+- [x] Decision on **F-1**: **keep dated G-202 waiver** until sandbox keys (do not block F1–F3)
+- **Exit:** PRODUCT audit **IN PR** on `cursor/fees-ia-lock-56c3`; handoff to build skill
+- **Status:** DONE (IA) — docs-only; see `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md`
 
 ### Slice F1 — Scholarship netting UI (closes F-2)
 
@@ -167,6 +168,7 @@ Until then, status remains: **solid v1 / PROD_WAIVED — not world-class complet
 
 ## 6. Progress log
 
-| Date (UTC) | Event                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------- |
-| 2026-09-12 | Task file created from honest residual audit (Fees ~8.4, Admissions ~8.0 PROD_WAIVED) |
+| Date (UTC) | Event                                                                                                                                                       |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-12 | Task file created from honest residual audit (Fees ~8.4, Admissions ~8.0 PROD_WAIVED)                                                                       |
+| 2026-09-12 | **F0 IN PR / done (IA)** — `cursor/fees-ia-lock-56c3` → `docs/audits/PRODUCT_FEES_BLACKBAUD_DEPTH.md` (F-1 keep G-202 waiver; F-4 GL/tax deferred; OCR N/A) |
