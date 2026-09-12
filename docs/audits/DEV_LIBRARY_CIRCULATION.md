@@ -38,4 +38,6 @@
 
 ## Residual
 
-WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
+WS6 enterprise pack closed in `LIBRARY_CATALOG_CIRCULATION.md`.
+
+**P2-LIB residual (2026-09-12):** circulation remains in scope (this audit + G-916 ops). **Acquisitions** = dated **NON-GOAL** — see `DEV_P2_LIB_CIRCULATION_ACQ.md` / PRD-017. Do not claim Destiny/Koha acquisitions parity.
