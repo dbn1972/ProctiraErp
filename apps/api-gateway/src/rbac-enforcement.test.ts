@@ -463,6 +463,80 @@ describe('G-301 campus module RBAC deny matrix', () => {
       deniedRole: 'teacher',
       allowedRole: 'admin',
     },
+    // P0-01 — remaining campus / control-plane prefixes previously missing from the matrix
+    {
+      id: 'examination',
+      method: 'POST',
+      url: '/api/v1/examinations',
+      payload: { name: 'Term 1', boardId: 'board', academicPeriodId: 'period' },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'assessment',
+      method: 'POST',
+      url: '/api/v1/assessments',
+      payload: { title: 'Quiz 1', type: 'QUIZ' },
+      deniedRole: 'parent',
+      allowedRole: 'teacher',
+    },
+    {
+      id: 'attendance',
+      method: 'POST',
+      url: '/api/v1/attendance/student',
+      payload: {
+        studentId: '33333333-3333-4333-8333-333333333333',
+        date: '2026-09-12',
+        status: 'PRESENT',
+      },
+      deniedRole: 'parent',
+      allowedRole: 'teacher',
+    },
+    {
+      id: 'staff',
+      method: 'POST',
+      url: '/api/v1/staff',
+      payload: {
+        firstName: 'Pat',
+        lastName: 'Lee',
+        email: 'pat.lee@example.com',
+        employeeId: 'EMP-RBAC-1',
+      },
+      deniedRole: 'teacher',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'registration',
+      method: 'POST',
+      url: '/api/v1/admissions/enquiries',
+      payload: { parentName: 'Alex', contactPhone: '+15550001111', gradeApplied: '10' },
+      deniedRole: 'teacher',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'billing',
+      method: 'POST',
+      url: '/api/v1/billing/plans',
+      payload: { name: 'Starter', code: 'starter' },
+      deniedRole: 'admin',
+      allowedRole: 'platform_admin',
+    },
+    {
+      id: 'workflow-ui',
+      method: 'POST',
+      url: '/api/v1/workflows/definitions',
+      payload: { name: 'Transfer', key: 'transfer-rbac' },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'workflow-engine',
+      method: 'POST',
+      url: '/api/v1/workflow-engine',
+      payload: { name: 'Leave', key: 'leave-rbac' },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
   ];
 
   function bearer(roleId: string) {
@@ -535,6 +609,13 @@ describe('G-301 campus module RBAC deny matrix', () => {
     expect(resourceForApiPath('/api/v1/communication/campaigns/x/send')).toBe('communication');
     expect(resourceForApiPath('/api/v1/developer/accounts')).toBe('developer');
     expect(resourceForApiPath('/api/v1/admissions/enquiries')).toBe('registration');
+    expect(resourceForApiPath('/api/v1/examinations')).toBe('examination');
+    expect(resourceForApiPath('/api/v1/assessments')).toBe('assessment');
+    expect(resourceForApiPath('/api/v1/attendance/student')).toBe('attendance');
+    expect(resourceForApiPath('/api/v1/staff')).toBe('staff');
+    expect(resourceForApiPath('/api/v1/billing/plans')).toBe('platform');
+    expect(resourceForApiPath('/api/v1/workflows/definitions')).toBe('workflow');
+    expect(resourceForApiPath('/api/v1/workflow-engine')).toBe('workflow');
   });
 });
 

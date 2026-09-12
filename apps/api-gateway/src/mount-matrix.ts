@@ -119,7 +119,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/students', '/enrollments'],
     persistence: 'prisma+rls',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Prisma when DATABASE_URL set, else in-memory. G-701: /enrollments + /students/import mounted (pg enrollment repo on 001/021). G-914: /students/:id/{photo,id-card.pdf,siblings,consents,discipline,attendance-heatmap} on 035 (no new prefix).',
     registrarName: 'student',
@@ -147,9 +147,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/staff'],
     persistence: 'prisma+rls',
-    rbacWired: false,
+    rbacWired: true,
     notes:
-      'Staff/HR CRUD + G-918 ops; domain RBAC via staff-access (rbacWired=false = gateway rbacPlugin not mounted).',
+      'Staff/HR CRUD + G-918 ops; domain RBAC via staff-access; gateway PATH_RESOURCE_MAP + onRequest gate (G-101/G-702).',
     registrarName: 'staff',
   },
   {
@@ -157,7 +157,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/attendance'],
     persistence: 'prisma+rls',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Prisma when DATABASE_URL set, else in-memory. G-919: /attendance/regularisation, /leave-requests, /devices, /ingest on 042 (FORCE RLS); EARLY_DEPARTURE present-partial 0.5. Self-contained request/approve (not WorkflowService).',
     registrarName: 'attendance',
@@ -167,9 +167,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/examinations'],
     persistence: 'prisma+rls',
-    rbacWired: false,
+    rbacWired: true,
     notes:
-      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set. Domain RBAC via examination-access (rbacWired=false = gateway rbacPlugin not mounted; mutations assertExaminationAccess).',
+      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set. Domain RBAC via examination-access (mutations assertExaminationAccess); gateway PATH_RESOURCE_MAP + onRequest gate (G-101/G-702).',
     registrarName: 'examination',
   },
   {
@@ -184,7 +184,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
       '/report-cards',
     ],
     persistence: 'prisma+rls',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Proxy prefix `/assessments`; `/report-cards` uses createReportCard*Repository() (PG/`024` when DATABASE_URL, else memory). Durable HTML also via gradebook `/gradebook/report-cards`. CA-sealed PDF = PRD-011 NON-GOAL.',
     registrarName: 'assessment',
@@ -194,7 +194,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/timetable'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (003 + 041) when DATABASE_URL set. Domain RBAC via timetable-access; meeting/substitution clashes → 409. G-917 generation-jobs + teacher-absences. iCal/federation = PRD-013 NON-GOAL.',
     registrarName: 'timetable',
@@ -204,7 +204,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/gradebook'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (003/004/032) when DATABASE_URL set. Domain RBAC via gradebook-access (mutations). Transcript HMAC stub; CA-sealed PDF = PRD-011 NON-GOAL.',
     registrarName: 'gradebook',
@@ -214,7 +214,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/curriculum'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (033_curriculum_schema.sql) when DATABASE_URL set; else in-memory. Syllabus units, lesson plans, outcomes, coverage % (G-923).',
     registrarName: 'curriculum',
@@ -224,7 +224,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/lms'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (026_lms_schema.sql + 038_lms_depth_schema.sql) when DATABASE_URL set; else in-memory. Board/school scoped assignments · homework · quizzes · Spiral PAL (G-801/G-802) plus question bank, rubrics, uploads, discussions, content library, class analytics (G-915).',
     registrarName: 'lms',
@@ -234,7 +234,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/scholarships'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (016_scholarships_schema.sql) when DATABASE_URL set; else in-memory + demo seed (G-204).',
     registrarName: 'scholarship',
@@ -244,7 +244,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/health'],
     persistence: 'mixed',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Counselling + profile/screening PHI + special-needs via raw pg when DATABASE_URL (G-203). Also mounts healthUiPlugin; its list aggregates are folded from domain rows (allergies/conditions, diagnoses/plans, screening programs, sessions) with the demo seed limited to dev/test (G-912).',
     registrarName: 'health',
@@ -254,7 +254,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/notifications'],
     persistence: 'mixed',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Deliveries via HybridNotificationRepository (PG when DATABASE_URL); prefs/devices raw pg when DATABASE_URL (005); providers sandbox/WAIVED (G-207).',
     registrarName: 'notification',
@@ -264,7 +264,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/transport'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (006 + 045 G-920) when DATABASE_URL; GPS ingest + live map, trip attendance, alerts; fees via FeesService (G-903). SVG map (no MapLibre).',
     registrarName: 'transport',
@@ -274,7 +274,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/communication'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (007+044) when DATABASE_URL; sandbox delivery + WhatsApp adapter (G-604/G-922). Live Twilio/SES/WhatsApp residual.',
     registrarName: 'communication',
@@ -284,7 +284,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/hostel'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (008 + 040_hostel_ops_schema.sql) when DATABASE_URL; allocation invoices → fees ledger (G-921).',
     registrarName: 'hostel',
@@ -294,7 +294,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/library'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (009 + 039_library_ops_schema.sql) when DATABASE_URL; fines → fees ledger via shared FeesService (G-603/G-916).',
     registrarName: 'library',
@@ -304,7 +304,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/parent-portal', '/student-portal'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg (010_parent_portal_schema.sql) when DATABASE_URL set. G-904 academic reads + /student-portal/me self-binding. Fee routes delegate to backend-fees (G-903) with parent self-binding.',
     registrarName: 'parent-portal',
@@ -314,7 +314,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/fees'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'feesPlugin (G-201/G-903); raw pg 010+011+031 when DATABASE_URL set; else shared in-memory. Structures/concessions/refunds/recon + overdue reminder feed. Sandbox PSP only (G-202 waived).',
     registrarName: 'fees',
@@ -324,7 +324,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/registrations', '/admissions'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     notes:
       'Raw pg 014 waitlist/interview + 034 enquiry/merit/seat/offer when DATABASE_URL set; else in-memory (G-205/G-717/G-906). Auto-enrol via student + enrollment services on offer accept.',
     registrarName: 'registration',
@@ -364,9 +364,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/billing'],
     persistence: 'in-memory',
-    rbacWired: false,
+    rbacWired: true,
     notes:
-      'billingPlugin mounted in `app.ts` (G-106). Suspend gate also checks JWT/in-memory store.',
+      'billingPlugin mounted in `app.ts` (G-106); RBAC resource `platform` via PATH_RESOURCE_MAP + onRequest. Suspend gate also checks JWT/in-memory store.',
   },
   {
     package: 'providers',
@@ -394,9 +394,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/data-warehouse'],
     persistence: 'mixed',
-    rbacWired: false,
+    rbacWired: true,
     notes:
-      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). G-809: GET /reports/board/:boardId/summary. G-909: catalogue generate/schedules/dashboard served by backend-report; this plugin keeps board rollup + /data-warehouse.',
+      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). G-809: GET /reports/board/:boardId/summary. G-909: catalogue generate/schedules/dashboard served by backend-report; this plugin keeps board rollup + /data-warehouse. Gateway RBAC resource `report` via PATH_RESOURCE_MAP.',
     registrarName: 'insights',
   },
   {
@@ -414,9 +414,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/workflows'],
     persistence: 'mixed',
-    rbacWired: false,
+    rbacWired: true,
     notes:
-      'G-924: workflowUiPlugin now served by EngineBackedWorkflowUiStore — the same `@proctira/backend-workflow` repositories as `/workflow-engine` (db/sql/025 when DATABASE_URL, else in-memory), so UI steps/approvals are engine definitions/transitions with audit. The former workflow-ui PG store is retained only for the isolated plugin unit test. Registrar name `workflow`.',
+      'G-924: workflowUiPlugin now served by EngineBackedWorkflowUiStore — the same `@proctira/backend-workflow` repositories as `/workflow-engine` (db/sql/025 when DATABASE_URL, else in-memory), so UI steps/approvals are engine definitions/transitions with audit. The former workflow-ui PG store is retained only for the isolated plugin unit test. Registrar name `workflow`. Gateway RBAC resource `workflow` via PATH_RESOURCE_MAP.',
     registrarName: 'workflow',
   },
 
@@ -545,10 +545,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/workflow-engine'],
     persistence: 'raw-pg',
-    rbacWired: false,
+    rbacWired: true,
     registrarName: 'workflow-engine',
     notes:
-      'G-715: real workflowPlugin (definitions/instances/transitions+audit/cases) mounted under `/workflow-engine`; Pg on db/sql/025 when DATABASE_URL set, else in-memory. `/workflows` stays with workflow-ui.',
+      'G-715: real workflowPlugin (definitions/instances/transitions+audit/cases) mounted under `/workflow-engine`; Pg on db/sql/025 when DATABASE_URL set, else in-memory. `/workflows` stays with workflow-ui. Gateway RBAC resource `workflow` via PATH_RESOURCE_MAP.',
   },
 ] as const;
 
