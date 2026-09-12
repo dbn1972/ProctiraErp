@@ -203,6 +203,13 @@ describe('ETLService', () => {
       expect(execution.status).toBe('completed');
       expect(execution.startedAt).toBeInstanceOf(Date);
       expect(execution.completedAt).toBeInstanceOf(Date);
+      expect(execution.lineage).toEqual({
+        sourceType: 'csv',
+        destinationType: 'postgresql',
+        sourceLabel: 'inline-csv',
+        destinationLabel: 'users',
+        fieldMappingCount: 2,
+      });
     });
 
     it('should throw error for disabled pipeline', async () => {

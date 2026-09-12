@@ -93,6 +93,7 @@ export {
   type PipelineListQuery,
   type Pipeline,
   type PipelineExecution,
+  type ExecutionLineage,
   type ExecutionError,
   type ExecutionStatus,
   type DataSourceConfig,
@@ -103,6 +104,8 @@ export {
   type SourceType,
   type DestinationType,
 } from './schemas.js';
+
+export { buildExecutionLineage } from './lineage.js';
 
 // Connectors
 export {
