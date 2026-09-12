@@ -305,10 +305,6 @@ export type {
   OffboardStaffParams,
   OffboardStatusResponse,
 } from './offboard-schemas.js';
-export {
-  OFFBOARD_CUSTOM_DATA_KEY,
-  readOffboardMeta,
-  writeOffboardMeta,
-} from './offboard-meta.js';
+export { OFFBOARD_CUSTOM_DATA_KEY, readOffboardMeta, writeOffboardMeta } from './offboard-meta.js';
 export type { StaffOffboardMeta } from './offboard-meta.js';
 export type { StaffOffboardStatusView } from './staff-service.js';
