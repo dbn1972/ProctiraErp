@@ -6,12 +6,13 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { HostelFeesPort } from './fees-ledger-port.js';
 import { canTransitionGatePass, isOverdueReturn } from './hostel-ops.js';
-import type {
-  GatePassStatus,
-  HostelAttendanceStatus,
-  HostelRepository,
-  LeaveStatus,
-  VisitorStatus,
+import {
+  BedAssignmentConflictError,
+  type GatePassStatus,
+  type HostelAttendanceStatus,
+  type HostelRepository,
+  type LeaveStatus,
+  type VisitorStatus,
 } from './hostel-repository.js';
 import type {
   CreateAssignmentInput,
@@ -64,11 +65,12 @@ export class HostelService {
     input: CreateAssignmentInput,
     actorId = 'hostel-system',
   ) {
+    const isActive = input.isActive ?? true;
     const bed = await this.repository.findBedById(input.bedId, tenantId);
     if (!bed) {
       throw new NotFoundError(`Bed with id '${input.bedId}' not found`);
     }
-    if (!bed.isAvailable && (input.isActive ?? true)) {
+    if (!bed.isAvailable && isActive) {
       throw new ConflictError('Bed is not available for assignment');
     }
 
@@ -91,21 +93,33 @@ export class HostelService {
       }
     }
 
-    const assignment = await this.repository.createAssignment({
+    const payload = {
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
       bedId: input.bedId,
       startDate: input.startDate,
       endDate: input.endDate ?? null,
-      isActive: input.isActive ?? true,
-    });
+      isActive,
+    };
 
-    if (assignment.isActive) {
-      await this.repository.updateBed(input.bedId, tenantId, { isAvailable: false });
+    try {
+      if (isActive) {
+        // P2-HOSTEL: unique-active-bed + concurrency guard (FOR UPDATE / sync claim).
+        const assignment = await this.repository.createActiveAssignment({
+          ...payload,
+          isActive: true,
+        });
+        return { ...assignment, invoice };
+      }
+      const assignment = await this.repository.createAssignment(payload);
+      return { ...assignment, invoice };
+    } catch (err) {
+      if (err instanceof BedAssignmentConflictError) {
+        throw new ConflictError(err.message);
+      }
+      throw err;
     }
-
-    return { ...assignment, invoice };
   }
 
   async listAssignments(tenantId: string) {

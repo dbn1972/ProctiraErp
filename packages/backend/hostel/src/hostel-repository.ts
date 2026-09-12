@@ -6,6 +6,17 @@ export type HostelStatus = 'active' | 'inactive' | 'maintenance';
 export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
 export type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'denied';
 
+/** Thrown when an active bed claim violates unique-active-bed / student invariants. */
+export class BedAssignmentConflictError extends Error {
+  readonly code: 'BED_UNAVAILABLE' | 'STUDENT_ALREADY_ASSIGNED';
+
+  constructor(code: BedAssignmentConflictError['code'], message: string) {
+    super(message);
+    this.name = 'BedAssignmentConflictError';
+    this.code = code;
+  }
+}
+
 export interface HostelEntity {
   id: string;
   tenantId: string;
@@ -182,6 +193,15 @@ export interface HostelRepository {
 
   createAssignment(
     data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelAssignmentEntity>;
+  /**
+   * Atomically claim a bed for an active assignment.
+   * Serializes concurrent claims (Pg: `SELECT … FOR UPDATE` on the bed row) and
+   * enforces one active assignment per bed and per student.
+   * @throws {BedAssignmentConflictError}
+   */
+  createActiveAssignment(
+    data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'> & { isActive: true },
   ): Promise<HostelAssignmentEntity>;
   listAssignments(tenantId: string): Promise<HostelAssignmentEntity[]>;
 

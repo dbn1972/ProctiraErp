@@ -21,6 +21,7 @@ export type {
   HostelAttendanceEntity,
   HostelRepository,
 } from './hostel-repository.js';
+export { BedAssignmentConflictError } from './hostel-repository.js';
 
 export { InMemoryHostelRepository } from './in-memory-repository.js';
 
