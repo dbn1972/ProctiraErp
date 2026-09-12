@@ -26,31 +26,35 @@ Close **production blockers first** (authZ depth, durable persistence, money int
 
 ## 1. P0 — Blockers (must clear before “enterprise ready”)
 
-| ID        | Gap                                                                                              | Slice                         | Primary packages / paths                          | Exit / DoD                                                                                | Status |
-| --------- | ------------------------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------- | ------ |
-| **P0-01** | Fine-grained backend authorization not consistently proven                                       | `authz-deny-matrix`           | gateway plugins, RBAC middleware, e2e deny matrix | Every mutating `/api/v1/*` route has permission + automated deny test; matrix doc         | OPEN   |
-| **P0-02** | One web authentication shell remains stubbed                                                     | `auth-shell-unstub`           | `apps/web` auth layout/shell                      | Real session gate; no stub login shell in prod build; axe + e2e                           | OPEN   |
-| **P0-03** | Guardian / household / custody / consent / relationship authZ missing                            | `guardian-relationship-authz` | parent portal, guardianship APIs, consent         | Relationship-scoped APIs; cross-household deny tests; PRODUCT + SEC audits                | OPEN   |
-| **P0-04** | Student enrollment / progression UI paths incomplete                                             | `enrol-progression-ui`        | SIS enrollment / promotion screens                | No dead-end CTAs; happy-path + empty/error; tip e2e fragment                              | OPEN   |
-| **P0-05** | Production modules can fall back to in-memory                                                    | `kill-memory-fallback`        | domain repos / factory switches                   | `DATABASE_URL` set ⇒ pg only (hard fail); CI proves no silent memory                      | OPEN   |
-| **P0-06** | Report cards, exam docs, notifications, scheduled reports, escalations, ETL lack durable workers | `durable-workers-spine`       | workers/, queues, notifications, reports, exams   | At least one durable worker path per domain with restart-safe proof **or** dated NON-GOAL | OPEN   |
-| **P0-07** | Finance floating-point money; needs transactional posting, safe sequencing, recon                | `finance-money-integrity`     | fees/finance schema + services                    | Integer minor units; transactional post; sequence safety; recon audit (builds on F3)      | OPEN   |
-| **P0-08** | Attendance audit lacks full tenant / RLS protection                                              | `attendance-rls-audit`        | attendance SQL + audit tables                     | RLS + tenant deny tests on attendance audit read/write                                    | OPEN   |
-| **P0-09** | Health / counselling need field-level + break-glass authZ                                        | `health-phi-breakglass`       | health/counselling plugins                        | Field ACL + break-glass dual control + PHI access audit                                   | OPEN   |
-| **P0-10** | ETL persistence in-memory; deploy health probes mismatch server                                  | `etl-persist-probes`          | ETL service + k8s/compose probes                  | PG (or documented store) + probes hit live `/health` of same process                      | OPEN   |
-| **P0-11** | Developer-portal API keys / webhook signatures non-cryptographic                                 | `devportal-crypto-keys`       | developer portal                                  | HMAC/crypto keys; signature verify tests; rotate/revoke                                   | OPEN   |
-| **P0-12** | Deployment references Helm chart path missing from repo                                          | `helm-chart-path`             | deploy/helm CI                                    | Chart path exists **or** deploy refs fixed; `helm template` CI green                      | OPEN   |
-| **P0-13** | Automated backup + restore-drill evidence unverified                                             | `backup-restore-drill`        | ops scripts / runbooks / CI evidence              | Documented backup job + restore drill artifact (or dated WAIVER)                          | OPEN   |
+| ID        | Gap                                                                                              | Slice                         | Primary packages / paths                          | Exit / DoD                                                                                | Status                                                                                                |
+| --------- | ------------------------------------------------------------------------------------------------ | ----------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------- |
+| **P0-01** | Fine-grained backend authorization not consistently proven                                       | `authz-deny-matrix`           | gateway plugins, RBAC middleware, e2e deny matrix | Every mutating `/api/v1/*` route has permission + automated deny test; matrix doc         | OPEN — tip **PARTIAL** (campus deny matrix exists; mount-matrix still has `rbacWired: false` domains) |
+| **P0-02** | One web authentication shell remains stubbed                                                     | `auth-shell-unstub`           | `apps/web` auth layout/shell                      | Real session gate; no stub login shell in prod build; axe + e2e                           | OPEN — tip **CONFIRMED** (`ForgotPassword` placeholder)                                               |
+| **P0-03** | Guardian / household / custody / consent / relationship authZ missing                            | `guardian-relationship-authz` | parent portal, guardianship APIs, consent         | Relationship-scoped APIs; cross-household deny tests; PRODUCT + SEC audits                | OPEN — tip **PARTIAL** (parent links/consent exist; no custody/household authZ model)                 |
+| **P0-04** | Student enrollment / progression UI paths incomplete                                             | `enrol-progression-ui`        | SIS enrollment / promotion screens                | No dead-end CTAs; happy-path + empty/error; tip e2e fragment                              | OPEN — tip **CONFIRMED** (`StudentEnrollment` placeholder)                                            |
+| **P0-05** | Production modules can fall back to in-memory                                                    | `kill-memory-fallback`        | domain repos / factory switches                   | `DATABASE_URL` set ⇒ pg only (hard fail); CI proves no silent memory                      | OPEN — tip **CONFIRMED** (policy + always-memory developer-portal mount)                              |
+| **P0-06** | Report cards, exam docs, notifications, scheduled reports, escalations, ETL lack durable workers | `durable-workers-spine`       | workers/, queues, notifications, reports, exams   | At least one durable worker path per domain with restart-safe proof **or** dated NON-GOAL | OPEN — tip **CONFIRMED** (NoOp queues / in-process schedulers)                                        |
+| **P0-07** | Finance floating-point money; needs transactional posting, safe sequencing, recon                | `finance-money-integrity`     | fees/finance schema + services                    | Integer minor units; transactional post; sequence safety; recon audit (builds on F3)      | OPEN — tip **PARTIAL** (SQL `amount_cents INTEGER` + ledger/recon exist; TS `number` residual)        |
+| **P0-08** | Attendance audit lacks full tenant / RLS protection                                              | `attendance-rls-audit`        | attendance SQL + audit tables                     | RLS + tenant deny tests on attendance audit read/write                                    | **DONE (refuted as gap)** — wave7 FORCE RLS + live cross-tenant deny test on tip                      |
+| **P0-09** | Health / counselling need field-level + break-glass authZ                                        | `health-phi-breakglass`       | health/counselling plugins                        | Field ACL + break-glass dual control + PHI access audit                                   | OPEN — tip **PARTIAL** (PHI encrypt exists; break-glass is platform-admin, not field dual-control)    |
+| **P0-10** | ETL persistence in-memory; deploy health probes mismatch server                                  | `etl-persist-probes`          | ETL service + k8s/compose probes                  | PG (or documented store) + probes hit live `/health` of same process                      | OPEN — tip **CONFIRMED** (memory fallback + `/health` vs `/health/live                                | ready` mismatch) |
+| **P0-11** | Developer-portal API keys / webhook signatures non-cryptographic                                 | `devportal-crypto-keys`       | developer portal                                  | HMAC/crypto keys; signature verify tests; rotate/revoke                                   | IN PR — tip was **CONFIRMED**; fix on `#68`                                                           |
+| **P0-12** | Deployment references Helm chart path missing from repo                                          | `helm-chart-path`             | deploy/helm CI                                    | Chart path exists **or** deploy refs fixed; `helm template` CI green                      | **MOSTLY DONE (path refuted)** — chart present; `#69` adds template-check parity hardening            |
+| **P0-13** | Automated backup + restore-drill evidence unverified                                             | `backup-restore-drill`        | ops scripts / runbooks / CI evidence              | Documented backup job + restore drill artifact (or dated WAIVER)                          | OPEN — tip **PARTIAL** (workflow exists; tip-committed drill artifact soft)                           |
 
 ### Suggested P0 parallel packs
 
-| Pack                         | Slices              | Notes                               |
-| ---------------------------- | ------------------- | ----------------------------------- |
-| A — AuthZ spine              | P0-01, P0-02, P0-03 | Serialize if shared auth middleware |
-| B — Persistence honesty      | P0-05, P0-06, P0-10 | Factories + workers                 |
-| C — Money / PHI / attendance | P0-07, P0-08, P0-09 | Highest sensitivity                 |
-| D — Platform ops             | P0-11, P0-12, P0-13 | Can run parallel to A–C             |
-| E — SIS UX blocker           | P0-04               | After or beside A                   |
+| Pack                    | Slices                | Notes                                       |
+| ----------------------- | --------------------- | ------------------------------------------- |
+| A — AuthZ spine         | P0-01, P0-02, P0-03   | Serialize if shared auth middleware         |
+| B — Persistence honesty | P0-05, P0-06, P0-10   | Factories + workers                         |
+| C — Money / PHI         | P0-07, P0-09          | P0-08 closed (RLS already on tip)           |
+| D — Platform ops        | P0-11, P0-12\*, P0-13 | \*P0-12 path ok; keep template CI hardening |
+| E — SIS UX blocker      | P0-04                 | After or beside A                           |
+
+### Tip verification (2026-09-12)
+
+Evidence pass against `origin/main`: **P0-08 REFUTED** (already RLS-protected); **P0-12 path REFUTED** (chart present — CI script still valuable); **P0-07 float columns REFUTED** (integer cents in SQL; TS `number` residual only). Prefer remaining **CONFIRMED** rows before re-litigating closed ones.
 
 ---
 
@@ -111,10 +115,10 @@ Close **production blockers first** (authZ depth, durable persistence, money int
 
 ## 6. Progress log (parent-owned)
 
-| Date (UTC) | Event                                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| 2026-09-12 | Register opened from product owner P0/P1/P2 list; Fees/Admissions queue demoted for sequencing (A5 still in flight; F5 → P1-FIN-GL). |
-|            |                                                                                                                                      |
+| Date (UTC) | Event                                                                                                                                     |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-12 | Register opened from product owner P0/P1/P2 list; Fees/Admissions queue demoted for sequencing (A5 still in flight; F5 → P1-FIN-GL).      |
+| 2026-09-12 | Tip evidence pass: P0-08 DONE (refuted); P0-12 path refuted (chart present); P0-07 float SQL refuted; P0-11/12 hardening PRs `#68`/`#69`. |
 
 ---
 
