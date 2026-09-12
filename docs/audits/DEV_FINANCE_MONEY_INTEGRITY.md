@@ -22,8 +22,8 @@ This slice rejects floating-point money at the fees plugin schemas and service e
 
 ## Evidence
 
-| Check                                              | Done | Evidence                                                                 |
-| -------------------------------------------------- | ---- | ------------------------------------------------------------------------ |
-| Plugin `amountCents` → `Type.Integer`              | ☑    | `packages/backend/fees/src/fees-plugin.ts`                               |
-| Service rejects non-integers                       | ☑    | `packages/backend/fees/src/fees-service.ts` (+ existing structure/refund) |
-| Unit: `10.5` rejected; integers accepted           | ☑    | `packages/backend/fees/src/fees-service.test.ts`                         |
+| Check                                    | Done | Evidence                                                                  |
+| ---------------------------------------- | ---- | ------------------------------------------------------------------------- |
+| Plugin `amountCents` → `Type.Integer`    | ☑    | `packages/backend/fees/src/fees-plugin.ts`                                |
+| Service rejects non-integers             | ☑    | `packages/backend/fees/src/fees-service.ts` (+ existing structure/refund) |
+| Unit: `10.5` rejected; integers accepted | ☑    | `packages/backend/fees/src/fees-service.test.ts`                          |
