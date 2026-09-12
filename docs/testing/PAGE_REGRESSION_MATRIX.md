@@ -43,7 +43,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/admissions/enquiries` | a11y, dark, functional, touch | `41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admissions/merit` | a11y, dark, functional, touch | `41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admissions/seat-matrix` | a11y, dark, functional, touch | `41-admissions-crm-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/assessments` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/assessments` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/assessments/items` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/assessments/outcomes` | a11y, dark, functional, touch | `42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/assessments/report-cards` | a11y, dark, functional, touch | `42-gradebook-workflow-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
