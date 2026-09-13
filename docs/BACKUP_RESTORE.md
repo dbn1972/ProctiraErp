@@ -157,6 +157,70 @@ the CronJobs read `dr.databaseUrlSecretKey`, default `BACKUP_DATABASE_URL`).
 `pg-backup.sh` exits `2` with an explanatory message when the role cannot
 bypass RLS — the weekly drill asserts this.
 
+### 3.6 Encryption at rest (W1-OPS-04)
+
+Logical dumps are **plaintext pg_dump custom format** unless encryption is
+configured. For production clusters, enable age encryption and an offsite copy
+so the mutable PVC is not the sole retention surface.
+
+**Encrypt with age (recommended):**
+
+```bash
+# Operator generates a keypair once; store the identity in a secret manager.
+age-keygen -o backup-recipient.txt   # BACKUP_AGE_IDENTITY_FILE for restore
+export BACKUP_AGE_RECIPIENT="$(age-keygen -y backup-recipient.txt)"
+
+DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
+  BACKUP_DIR=/backups BACKUP_RETENTION_DAYS=30 \
+  BACKUP_ENCRYPT=1 BACKUP_AGE_RECIPIENT="$BACKUP_AGE_RECIPIENT" \
+  bash tools/scripts/pg-backup.sh
+# → /backups/proctira-YYYYMMDDTHHMMSSZ.dump.age (plaintext .dump removed)
+```
+
+**Offsite copy (S3 with SSE — second copy):**
+
+```bash
+export BACKUP_OFFSITE_URI="s3://proctira-backups/pg/"
+export BACKUP_S3_SSE="AES256"   # or aws:kms + BACKUP_S3_SSE_KMS_KEY_ID
+export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=...
+# Runs after encryption; uploads the .dump.age artifact, not plaintext.
+bash tools/scripts/pg-backup.sh
+```
+
+**Kubernetes (Helm):** set `secrets.backupAgeRecipient`, then:
+
+```yaml
+dr:
+  backup:
+    encrypt:
+      enabled: true
+    offsite:
+      enabled: true
+      uri: s3://proctira-backups/pg/
+      sse: AES256
+```
+
+The `<release>-pg-backup` CronJob sets `BACKUP_ENCRYPT=1`, reads
+`BACKUP_AGE_RECIPIENT` from the platform Secret, and when offsite is enabled
+pushes each encrypted artifact via `aws s3 cp` with server-side encryption.
+Re-use `secrets.s3AccessKey` / `secrets.s3SecretKey` for the upload credentials.
+
+**Restore from encrypted artifact:**
+
+```bash
+export BACKUP_AGE_IDENTITY_FILE=/secure/backup-recipient.txt
+DATABASE_URL=postgresql://proctira:...@db:5432/proctira \
+  bash tools/scripts/pg-restore.sh /backups/proctira-20260913T020000Z.dump.age
+```
+
+`pg-restore.sh` decrypts `.dump.age` / `.dump.gpg` to a temp file, runs
+`pg_restore`, then removes the temp file. Plaintext `.dump` files still work
+for dev / legacy paths.
+
+**Alternative — GPG:** set `BACKUP_GPG_RECIPIENT` instead of
+`BACKUP_AGE_RECIPIENT`. Restore requires the matching private key in the
+operator's gpg keyring.
+
 ---
 
 ## 4. Object Storage Backup
@@ -353,7 +417,9 @@ change to the DR scripts, the dr-tools Dockerfile or the Helm DR templates):
    no dump written).
 4. Retention pruning: a 40-day-old dump is removed with
    `BACKUP_RETENTION_DAYS=30`.
-5. PHI-retention dry-run against the restored copy.
+5. Encrypted round-trip: ephemeral age keypair → `BACKUP_ENCRYPT=1` backup →
+   `pg-restore.sh` on `.dump.age` → row parity on restored DB.
+6. PHI-retention dry-run against the restored copy.
 6. The `proctira/dr-tools` image is built and smoke-run (backup + retention
    plan) so the CronJob runtime is exercised, not just the runner.
 
@@ -453,15 +519,22 @@ Configure alerts for:
 
 ## 10. Environment Variables
 
-| Variable                   | Description                           | Default     |
-| -------------------------- | ------------------------------------- | ----------- |
-| `DB_BACKUP_ENABLED`        | Enable automated backups              | `false`     |
-| `DB_BACKUP_SCHEDULE`       | Cron expression for backup timing     | `0 2 * * *` |
-| `DB_BACKUP_RETENTION_DAYS` | Days to retain local backups          | `30`        |
-| `BACKUP_S3_BUCKET`         | S3 bucket for offsite backup storage  | —           |
-| `BACKUP_ENCRYPTION_KEY`    | GPG key ID for backup encryption      | —           |
-| `LAST_BACKUP_TIMESTAMP`    | Set by backup script after success    | —           |
-| `BACKUP_ALERT_WEBHOOK`     | Webhook URL for backup failure alerts | —           |
+| Variable                   | Description                                      | Default     |
+| -------------------------- | ------------------------------------------------ | ----------- |
+| `DB_BACKUP_ENABLED`        | Enable automated backups                         | `false`     |
+| `DB_BACKUP_SCHEDULE`       | Cron expression for backup timing                | `0 2 * * *` |
+| `DB_BACKUP_RETENTION_DAYS` | Days to retain local backups                     | `30`        |
+| `BACKUP_AGE_RECIPIENT`     | age public key — encrypt dumps at rest           | —           |
+| `BACKUP_AGE_IDENTITY_FILE` | age private key file for restore                 | —           |
+| `BACKUP_AGE_IDENTITY`      | age private key inline (K8s secret)              | —           |
+| `BACKUP_GPG_RECIPIENT`     | GPG recipient for backup encryption              | —           |
+| `BACKUP_ENCRYPT`           | Require encryption keys (`1` / `true`)           | —           |
+| `BACKUP_OFFSITE_URI`       | Offsite destination (`s3://bucket/prefix/`)      | —           |
+| `BACKUP_S3_SSE`            | S3 server-side encryption (`AES256`, `aws:kms`)    | —           |
+| `BACKUP_S3_SSE_KMS_KEY_ID` | KMS key when `BACKUP_S3_SSE=aws:kms`             | —           |
+| `BACKUP_S3_BUCKET`         | Legacy object-storage bucket name                | —           |
+| `LAST_BACKUP_TIMESTAMP`    | Set by backup script after success               | —           |
+| `BACKUP_ALERT_WEBHOOK`     | Webhook URL for backup failure alerts            | —           |
 
 ---
 
@@ -501,5 +574,5 @@ npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup"
 
 ---
 
-_Last updated: 2026-09-12 (P0-13 tip-committed restore-drill evidence)_
+_Last updated: 2026-09-13 (W1-OPS-04 encrypt-at-rest + offsite copy)_
 _Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness_

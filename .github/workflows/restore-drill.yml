@@ -16,6 +16,7 @@ on:
     paths:
       - 'tools/scripts/pg-backup.sh'
       - 'tools/scripts/pg-restore.sh'
+      - 'tools/scripts/backup-crypto.sh'
       - 'tools/scripts/restore-drill.sh'
       - 'tools/scripts/phi-retention-job.mjs'
       - 'infrastructure/docker/Dockerfile.dr-tools'
@@ -70,7 +71,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # pg_dump/pg_restore must match the server major (16).
-      - name: Install PostgreSQL 16 client
+      - name: Install PostgreSQL 16 client + age (W1-OPS-04)
         run: |
           sudo apt-get update -qq
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -79,8 +80,9 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
-          sudo apt-get install -y -qq postgresql-client-16
+          sudo apt-get install -y -qq postgresql-client-16 age
           pg_dump --version
+          age --version
           psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
 
       - name: Run database migrations (Prisma)
@@ -150,6 +152,34 @@ jobs:
           BACKUP_DIR="$d" BACKUP_RETENTION_DAYS=30 bash tools/scripts/pg-backup.sh | tee "$ARTIFACT_DIR/prune.log"
           test ! -e "$d/proctira-old.dump" || { echo "old dump was not pruned"; exit 1; }
           echo "Retention pruning OK" >> "$GITHUB_STEP_SUMMARY"
+
+      # W1-OPS-04 — encrypted backup round-trip (age at rest)
+      - name: Encrypted backup → restore round-trip
+        run: |
+          set -euo pipefail
+          d=/tmp/restore-drill/dumps
+          key="$(mktemp)"
+          trap 'rm -f "$key"' EXIT
+          age-keygen -o "$key" >/dev/null
+          pub="$(age-keygen -y "$key")"
+          enc_out="$(BACKUP_DIR="$d" BACKUP_ENCRYPT=1 BACKUP_AGE_RECIPIENT="$pub" \
+            bash tools/scripts/pg-backup.sh "$d/encrypted-roundtrip.dump")"
+          test -f "$enc_out" || { echo "missing encrypted artifact: $enc_out"; exit 1; }
+          [[ "$enc_out" == *.age ]] || { echo "expected .dump.age suffix: $enc_out"; exit 1; }
+          test ! -e "$d/encrypted-roundtrip.dump" || { echo "plaintext dump must be removed"; exit 1; }
+          psql "$DATABASE_URL" -c 'DROP DATABASE IF EXISTS proctira_encrypted_drill;' \
+                               -c 'CREATE DATABASE proctira_encrypted_drill;'
+          BACKUP_AGE_IDENTITY_FILE="$key" \
+            DATABASE_URL="${DATABASE_URL%/*}/proctira_encrypted_drill" \
+            bash tools/scripts/pg-restore.sh "$enc_out" | tee "$ARTIFACT_DIR/encrypted-restore.log"
+          restored="$(psql "${DATABASE_URL%/*}/proctira_encrypted_drill" -At -c "
+            SELECT 'tenants', count(*) FROM tenants
+            UNION ALL SELECT 'boards', count(*) FROM boards
+            UNION ALL SELECT 'institutions', count(*) FROM institutions
+            ORDER BY 1;")"
+          echo "$restored" | tee "$ARTIFACT_DIR/encrypted-restored-counts.txt"
+          diff "$ARTIFACT_DIR/source-counts.txt" "$ARTIFACT_DIR/encrypted-restored-counts.txt"
+          echo "Encrypted round-trip OK" >> "$GITHUB_STEP_SUMMARY"
 
       - name: PHI retention dry-run against the restored copy
         run: node tools/scripts/phi-retention-job.mjs
