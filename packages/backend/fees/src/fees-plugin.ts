@@ -68,6 +68,7 @@ const RecordPaymentSchema = Type.Object({
     ]),
   ),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
+  idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
 
 const PayInvoiceSchema = Type.Object({
@@ -81,6 +82,7 @@ const PayInvoiceSchema = Type.Object({
   ),
   payerUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
+  idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
 
 const CreateFeeStructureSchema = Type.Object({
@@ -292,6 +294,7 @@ function formatPayment(entity: {
   method: string;
   status: string;
   paidAt: Date;
+  idempotencyKey?: string | null;
   createdAt: Date;
 }) {
   return {
@@ -303,6 +306,7 @@ function formatPayment(entity: {
     method: entity.method,
     status: entity.status,
     paidAt: entity.paidAt.toISOString(),
+    idempotencyKey: entity.idempotencyKey ?? null,
     createdAt: entity.createdAt.toISOString(),
   };
 }
@@ -499,10 +503,11 @@ export const feesPlugin = fp(
             invoiceId: paramsResult.data.id,
             ...bodyResult.data,
           });
-          return reply.status(201).send({
+          return reply.status(result.idempotent ? 200 : 201).send({
             invoice: formatInvoice(result.invoice),
             payment: formatPayment(result.payment),
             receipt: formatReceipt(result.receipt),
+            idempotent: result.idempotent,
           });
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -541,10 +546,11 @@ export const feesPlugin = fp(
         if (!requireFeesAction(request, reply, 'payment.record')) return;
         try {
           const paid = await feesService.recordPayment(tenantId, getActorId(request), result.data);
-          return reply.status(201).send({
+          return reply.status(paid.idempotent ? 200 : 201).send({
             invoice: formatInvoice(paid.invoice),
             payment: formatPayment(paid.payment),
             receipt: formatReceipt(paid.receipt),
+            idempotent: paid.idempotent,
           });
         } catch (error: unknown) {
           if (error instanceof AppError) {
