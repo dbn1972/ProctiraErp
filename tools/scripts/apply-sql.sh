@@ -7,8 +7,9 @@
 #   bash tools/scripts/apply-sql.sh --dry-run
 #
 # Connection:
-#   Prefers DATABASE_URL. If unset, uses libpq defaults (PGHOST/PGPORT/PGUSER/
-#   PGPASSWORD/PGDATABASE) with PGDATABASE defaulting to "proctira".
+#   Prefers MIGRATOR_DATABASE_URL (table-owning role for DDL), then DATABASE_URL.
+#   If unset, uses libpq defaults (PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE)
+#   with PGDATABASE defaulting to "proctira".
 #
 # Seeds under db/seeds/ are NOT applied here — they are demo/cert data and may
 # be destructive. Apply them explicitly (see db/README.md).
@@ -36,11 +37,12 @@ Apply all db/sql/[0-9]*.sql files in LC_ALL=C sort order via psql
   --help      Show this help
 
 Environment:
-  DATABASE_URL      Full Postgres URL (preferred)
-  PGDATABASE        Used when DATABASE_URL is unset (default: proctira)
+  MIGRATOR_DATABASE_URL  Table-owning / DDL role URL (preferred for apply)
+  DATABASE_URL           Used when MIGRATOR_DATABASE_URL is unset
+  PGDATABASE             Used when neither URL is set (default: proctira)
   PGHOST/PGPORT/PGUSER/PGPASSWORD  Standard libpq vars when URL unset
-  APPLY_SEEDS=1     Also apply db/sql/*b_*_seed.sql demo rows (never in prod)
-  APPLY_STRICT_FKS=1  Also apply 021b_tenant_fk_constraints.sql
+  APPLY_SEEDS=1          Also apply db/sql/*b_*_seed.sql demo rows (never in prod)
+  APPLY_STRICT_FKS=1     Also apply 021b_tenant_fk_constraints.sql
 EOF
 }
 
@@ -124,8 +126,13 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 PSQL_ARGS=(-v ON_ERROR_STOP=1)
-if [[ -n "${DATABASE_URL:-}" ]]; then
-  PSQL_TARGET=("$DATABASE_URL")
+# W1-DATA-01: DDL must run as the table owner (migrator), not the runtime app role.
+APPLY_DATABASE_URL="${MIGRATOR_DATABASE_URL:-${DATABASE_URL:-}}"
+if [[ -n "${APPLY_DATABASE_URL}" ]]; then
+  PSQL_TARGET=("$APPLY_DATABASE_URL")
+  if [[ -n "${MIGRATOR_DATABASE_URL:-}" ]]; then
+    echo "==> Using MIGRATOR_DATABASE_URL for domain SQL apply"
+  fi
 else
   export PGDATABASE="${PGDATABASE:-proctira}"
   echo "==> DATABASE_URL unset; using libpq defaults (PGDATABASE=$PGDATABASE)"

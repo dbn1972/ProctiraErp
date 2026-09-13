@@ -52,7 +52,16 @@ describe('apply-sql.sh', () => {
       expect(stdout).toContain(`db/sql/${name}`);
     }
 
-    const listed = [...stdout.matchAll(/^\s*-\s*(db\/sql\/[^\s]+)/gm)].map((m) => m[1]);
-    expect(listed).toEqual(expected.map((n) => `db/sql/${n}`));
+    // Only the apply-order section (before "==> Skipped") — skipped seeds/FKs
+    // also print as "  - db/sql/..." and must not be compared to readdir().
+    const applySection = stdout.split('==> Skipped')[0] ?? stdout;
+    const listed = [...applySection.matchAll(/^\s*-\s*(db\/sql\/[^\s]+)/gm)].map((m) => m[1]);
+    const expectedApplied = expected.filter((n) => {
+      if (/^[0-9]+b_.*_seed\.sql$/.test(n) && process.env.APPLY_SEEDS !== '1') return false;
+      if (n === '021b_tenant_fk_constraints.sql' && process.env.APPLY_STRICT_FKS !== '1')
+        return false;
+      return true;
+    });
+    expect(listed).toEqual(expectedApplied.map((n) => `db/sql/${n}`));
   });
 });
