@@ -86,7 +86,7 @@ export async function ensureParentPortalSchema(
       await pool.query(sql011);
       const sql049 = readFileSync(resolveSqlPath('049_parent_child_link_authority.sql'), 'utf8');
       await pool.query(sql049);
-      const sql051 = readFileSync(resolveSqlPath('051_parent_consent_version.sql'), 'utf8');
+      const sql051 = readFileSync(resolveSqlPath('052_parent_consent_version.sql'), 'utf8');
       await pool.query(sql051);
     })();
   }
