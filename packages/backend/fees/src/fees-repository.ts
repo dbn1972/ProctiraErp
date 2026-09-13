@@ -1,3 +1,4 @@
+import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 /**
  * Fees / finance repository interfaces (plans, invoices, payments, receipts).
  * Tables: parent_fee_* from db/sql/010 + 011.
@@ -338,4 +339,13 @@ export interface FeesRepository {
   createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity>;
   listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]>;
   findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null>;
+
+  /** W2-FIN-06 durable dunning state */
+  listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]>;
+  createReminderSuppression(
+    data: ReminderSuppressionEntity,
+  ): Promise<ReminderSuppressionEntity>;
+  deleteReminderSuppression(tenantId: string, suppressionId: string): Promise<boolean>;
+  listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]>;
+  createReminderSendAudit(data: ReminderSendAuditEntity): Promise<ReminderSendAuditEntity>;
 }

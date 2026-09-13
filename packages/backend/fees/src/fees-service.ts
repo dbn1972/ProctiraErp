@@ -166,10 +166,6 @@ export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
 
 export class FeesService {
   private readonly paymentAdapter: PaymentAdapter;
-  /** F2 — process-local suppressions (sandbox console; not durable SQL). */
-  private readonly reminderSuppressions: ReminderSuppressionEntity[] = [];
-  /** F2 — process-local send audit trail (sandbox honesty). */
-  private readonly reminderSendAudits: ReminderSendAuditEntity[] = [];
 
   constructor(
     private readonly repository: FeesRepository,
@@ -829,22 +825,27 @@ export class FeesService {
     return refund;
   }
 
-  private isReminderSuppressed(tenantId: string, studentId: string, invoiceId: string): boolean {
-    return this.reminderSuppressions.some(
+  private async isReminderSuppressed(
+    tenantId: string,
+    studentId: string,
+    invoiceId: string,
+  ): Promise<boolean> {
+    const rows = await this.repository.listReminderSuppressions(tenantId);
+    return rows.some(
       (row) =>
-        row.tenantId === tenantId &&
-        ((row.invoiceId != null && row.invoiceId === invoiceId) ||
-          (row.studentId != null && row.studentId === studentId)),
+        (row.invoiceId != null && row.invoiceId === invoiceId) ||
+        (row.studentId != null && row.studentId === studentId),
     );
   }
 
   async listOverdueForReminder(tenantId: string, asOf: Date) {
     const invoices = await this.repository.listInvoicesForTenant(tenantId);
-    return invoices
-      .filter(
-        (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
-      )
-      .map((invoice) => ({
+    const openOverdue = invoices.filter(
+      (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
+    );
+    const rows = [];
+    for (const invoice of openOverdue) {
+      rows.push({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         studentId: invoice.studentId,
@@ -856,14 +857,14 @@ export class FeesService {
           1,
           Math.floor((asOf.getTime() - invoice.dueAt!.getTime()) / 86_400_000),
         ),
-        suppressed: this.isReminderSuppressed(tenantId, invoice.studentId, invoice.id),
-      }));
+        suppressed: await this.isReminderSuppressed(tenantId, invoice.studentId, invoice.id),
+      });
+    }
+    return rows;
   }
 
   async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
-    return this.reminderSuppressions
-      .filter((row) => row.tenantId === tenantId)
-      .map((row) => ({ ...row }));
+    return this.repository.listReminderSuppressions(tenantId);
   }
 
   async addReminderSuppression(
@@ -888,25 +889,18 @@ export class FeesService {
       createdBy: actorId,
       createdAt: new Date(),
     };
-    this.reminderSuppressions.push(entity);
-    return { ...entity };
+    return this.repository.createReminderSuppression(entity);
   }
 
   async removeReminderSuppression(tenantId: string, suppressionId: string): Promise<void> {
-    const index = this.reminderSuppressions.findIndex(
-      (row) => row.tenantId === tenantId && row.id === suppressionId,
-    );
-    if (index < 0) {
+    const deleted = await this.repository.deleteReminderSuppression(tenantId, suppressionId);
+    if (!deleted) {
       throw new NotFoundError(`Reminder suppression ${suppressionId} not found`);
     }
-    this.reminderSuppressions.splice(index, 1);
   }
 
   async listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]> {
-    return this.reminderSendAudits
-      .filter((row) => row.tenantId === tenantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((row) => ({ ...row }));
+    return this.repository.listReminderSendAudits(tenantId);
   }
 
   async sendReminders(
@@ -977,9 +971,9 @@ export class FeesService {
       for (const channel of channels) {
         if (cadenceDays > 0) {
           const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
-          const recent = this.reminderSendAudits.some(
+          const audits = await this.repository.listReminderSendAudits(tenantId);
+          const recent = audits.some(
             (audit) =>
-              audit.tenantId === tenantId &&
               audit.invoiceId === invoiceId &&
               audit.channel === channel &&
               audit.createdAt.getTime() >= cutoff,
@@ -1010,7 +1004,7 @@ export class FeesService {
           actorId,
           createdAt: new Date(),
         };
-        this.reminderSendAudits.push(audit);
+        await this.repository.createReminderSendAudit(audit);
         results.push({
           invoiceId,
           studentId: row.studentId,
