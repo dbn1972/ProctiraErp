@@ -46,6 +46,7 @@ import {
   createInstitutionBrandingRepository,
   createOutcomeRepository,
   createReportCardJobRepository,
+  createReportCardPublisherFromEnv,
   createReportCardTemplateRepository,
   createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
@@ -449,6 +450,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       // G-210: report-card factories use pg `024` when DATABASE_URL is set.
       // Durable board HTML report cards also live at `/gradebook/report-cards`.
+      // W2-JOB-02: durable queue publisher when QUEUE_BACKEND / RABBITMQ_URL set.
+      const reportCardQueueHandle = await createReportCardPublisherFromEnv();
+      if (reportCardQueueHandle) {
+        scope.addHook('onClose', async () => {
+          await reportCardQueueHandle.disconnect();
+        });
+      }
       await scope.register(assessmentPlugin, {
         gradingSchemeRepository: createGradingSchemeRepository(),
         assessmentItemRepository: createAssessmentItemRepository(),
@@ -458,6 +466,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         teacherCommentRepository: createTeacherCommentRepository(),
         institutionBrandingRepository: createInstitutionBrandingRepository(),
         reportCardJobRepository: createReportCardJobRepository(),
+        taskQueuePublisher: reportCardQueueHandle?.publisher,
       });
     },
   },

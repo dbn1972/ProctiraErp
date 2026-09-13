@@ -69,6 +69,12 @@ export const NOTIFICATION_DELIVERY_JOB_TYPE = 'notification.delivery';
 /** Consumer binding pattern for all tenants' notification delivery jobs. */
 export const NOTIFICATION_DELIVERY_CONSUME_TOPIC = 'tenant.*.notification.delivery';
 
+/** Well-known job type for assessment report-card generation workers (W2-JOB-02). */
+export const REPORT_CARD_JOB_TYPE = 'report-card.generate';
+
+/** Consumer binding pattern for all tenants' report-card generation jobs. */
+export const REPORT_CARD_CONSUME_TOPIC = 'tenant.*.report-card.generate';
+
 // Transactional outbox (W2-JOB-04)
 export {
   InMemoryOutboxStore,

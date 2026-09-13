@@ -180,4 +180,10 @@ export interface ReportCardJobRepository {
     studentId: string,
     academicPeriodId: string,
   ): Promise<ReportCardJobEntity[]>;
+
+  /**
+   * List jobs by status (W2-JOB-02 reclaim of orphaned `queued` rows after
+   * create→publish dual-write crash).
+   */
+  listByStatus(tenantId: string, status: ReportCardJobStatus): Promise<ReportCardJobEntity[]>;
 }

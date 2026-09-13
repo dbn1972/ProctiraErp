@@ -21,6 +21,7 @@
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",
     "@proctira/pdf-lite": "workspace:*",
+    "@proctira/queue-abstraction": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0",
