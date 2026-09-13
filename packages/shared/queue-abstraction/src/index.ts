@@ -101,3 +101,9 @@ export const STUDENT_IMPORT_JOB_TYPE = 'student.import';
 
 /** Consumer binding pattern for all tenants' student import jobs. */
 export const STUDENT_IMPORT_CONSUME_TOPIC = 'tenant.*.student.import';
+
+/** Well-known job type for developer-portal webhook HTTP delivery (W2-JOB-07). */
+export const WEBHOOK_DELIVERY_JOB_TYPE = 'webhook.delivery';
+
+/** Consumer binding pattern for all tenants' webhook delivery jobs. */
+export const WEBHOOK_DELIVERY_CONSUME_TOPIC = 'tenant.*.webhook.delivery';

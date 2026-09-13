@@ -59,6 +59,7 @@ import {
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
   createDeveloperPortalRepository,
+  createWebhookDeliveryPublisherFromEnv,
   developerPortalPlugin,
   ensureDeveloperPortalPersistence,
 } from '@proctira/backend-developer-portal';
@@ -914,9 +915,17 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // G-607 / W1-ARCH-01: AuthZ via gateway RBAC; Postgres API keys when DATABASE_URL
       // is set (hashed at rest, tenant-scoped); docs remain in-memory. Live IdP mint residual.
+      // W2-JOB-07: durable webhook delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       await ensureDeveloperPortalPersistence();
+      const webhookDelivery = await createWebhookDeliveryPublisherFromEnv();
+      if (webhookDelivery) {
+        scope.addHook('onClose', async () => {
+          await webhookDelivery.disconnect();
+        });
+      }
       await scope.register(developerPortalPlugin, {
         repository: createDeveloperPortalRepository(),
+        deliveryPublisher: webhookDelivery?.publisher,
         prefix: '/developer',
       });
     },
