@@ -75,3 +75,11 @@ export const PAGINATION_DEFAULTS = {
   PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,
 } as const;
+
+export {
+  ERROR_CODE_REGISTRY,
+  getErrorCodeDefinition,
+  applyDeprecationHeaders,
+  defaultSunsetDate,
+} from './error-code-registry.js';
+export type { ErrorCodeDefinition, DeprecationPolicy } from './error-code-registry.js';
