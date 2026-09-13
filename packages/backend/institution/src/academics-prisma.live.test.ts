@@ -7,6 +7,7 @@
  * Skips cleanly when DATABASE_URL is unset.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { createPrismaClient, getSharedPgPool, withPgTenant } from '@proctira/database';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -15,7 +16,7 @@ import { AcademicPeriodService } from './academic-period/academic-period-service
 import { createTenantBoundPrisma } from './tenant-bound-prisma.js';
 import { tenantContext } from './tenant-context.js';
 
-const DATABASE_URL = process.env['DATABASE_URL']?.trim();
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'academics-prisma.live.test' });
 
 async function seedTenant(tenantId: string): Promise<void> {
   const pool = getSharedPgPool(DATABASE_URL);

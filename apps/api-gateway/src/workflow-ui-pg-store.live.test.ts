@@ -5,19 +5,22 @@
  * the caller's tenant under FORCE RLS. Skipped without DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'workflow-ui-pg-store.live.test' });
+
   createWorkflowUiStore,
   isPgWorkflowUiEnabled,
   PgWorkflowUiStore,
 } from './workflow-ui-pg-store.js';
 
 const enabled = isPgWorkflowUiEnabled();
-const pool = enabled ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : null;
+const pool = enabled ? new pg.Pool({ connectionString: DATABASE_URL }) : null;
 
 afterAll(async () => {
   await pool?.end();

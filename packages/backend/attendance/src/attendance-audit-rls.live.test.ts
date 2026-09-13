@@ -3,6 +3,7 @@
  * Skips when DATABASE_URL is unset (Prisma migrations must be applied).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { createPrismaClient, withTenantTransaction } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
@@ -10,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PrismaAttendanceRepository } from './prisma-attendance-repository.js';
 
-const DATABASE_URL = process.env['DATABASE_URL'];
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'attendance-audit-rls.live.test' });
 
 describe.skipIf(!DATABASE_URL)('attendance_audit RLS (G-732)', () => {
   let prisma: PrismaClient;

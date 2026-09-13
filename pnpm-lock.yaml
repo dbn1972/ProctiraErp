@@ -300,6 +300,9 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../packages/shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -947,6 +950,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -996,6 +1002,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -1524,6 +1533,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -1576,6 +1588,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -1781,6 +1796,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -1977,6 +1995,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -2273,6 +2294,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -2518,6 +2542,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -2625,6 +2652,9 @@ importers:
         specifier: ^9.0.0
         version: 9.0.1
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../../shared/testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
@@ -2719,6 +2749,9 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
     devDependencies:
+      '@proctira/testing':
+        specifier: workspace:*
+        version: link:../testing
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41

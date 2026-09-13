@@ -209,10 +209,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run unit tests (affected packages)
-        run: pnpm turbo run test --filter='...[HEAD~1]'
+      # W3-TEST-03: unit job must not silently "pass" skipped *.live.test.ts
+      # suites. Exclude them here; integration-test runs them with DATABASE_URL
+      # and assert-live-test-execution.mjs enforces a minimum executed count.
+      - name: Run unit tests (affected packages, exclude live Postgres suites)
+        run: pnpm turbo run test --filter='...[HEAD~1]' -- --exclude '**/*.live.test.ts'
         env:
           CI: true
+          ALLOW_LIVE_TEST_SKIP: '1'
 
       - name: Upload test coverage
         if: always()
@@ -548,6 +552,18 @@ jobs:
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
+          REQUIRE_LIVE_TESTS: '1'
+
+      # W3-TEST-03: collect *.live.test.ts JSON and fail if any skipped or
+      # executed count is below LIVE_TEST_MIN_EXECUTED.
+      - name: Assert live Postgres suites executed (W3-TEST-03)
+        run: pnpm test:live:gate
+        env:
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          CI: true
+          REQUIRE_LIVE_TESTS: '1'
+          LIVE_TEST_MIN_EXECUTED: '10'
+          NODE_ENV: test
 
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
