@@ -17,6 +17,13 @@ use the table-owning migrator role via `MIGRATOR_DATABASE_URL` (falls back to
 
 See `db/sql/050_app_runtime_role.sql` and `db/docker-init/01_app_runtime_role.sql`.
 
+## Immutability privileges (W1-DATA-08)
+
+Append-only tables (fee ledger, audit log, workflow transition audit, issued
+transcripts) ship `BEFORE UPDATE OR DELETE` triggers. `053_immutability_privileges.sql`
+also **REVOKEs UPDATE/DELETE/TRUNCATE/TRIGGER** on those tables from `proctira_app`
+so runtime cannot mutate rows or disable guards even if connected with broad DML grants.
+
 ## Apply order (required)
 
 ```bash
