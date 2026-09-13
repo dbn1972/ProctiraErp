@@ -72,8 +72,6 @@ function hasHealthUiAccess(roles: string[]): boolean {
 function resolveTenantId(request: FastifyRequest): string | null {
   const fromRequest = (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (fromRequest) return fromRequest;
-  const header = request.headers['x-tenant-id'];
-  if (typeof header === 'string' && header.length > 0) return header;
   const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
   return user?.tenantId ?? null;
 }
