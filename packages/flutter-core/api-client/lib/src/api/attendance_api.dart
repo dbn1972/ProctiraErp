@@ -16,12 +16,14 @@ class AttendanceApi extends BaseApi {
   /// Persist a brand-new attendance record. Returns the server-assigned
   /// canonical row (including `id` and `updatedAt`).
   Future<AttendanceRecord> createStudentAttendance(
-    AttendanceRecord record,
-  ) async {
+    AttendanceRecord record, {
+    String? idempotencyKey,
+  }) async {
     final Response<dynamic> response = await request<dynamic>(
       _basePath,
       method: 'POST',
       data: record.toCreatePayload(),
+      idempotencyKey: idempotencyKey,
     );
     return AttendanceRecord.fromJson(_unwrap(response.data));
   }
@@ -31,12 +33,14 @@ class AttendanceApi extends BaseApi {
   Future<AttendanceRecord> updateStudentAttendance(
     AttendanceRecord record, {
     required String ifMatch,
+    String? idempotencyKey,
   }) async {
     final Response<dynamic> response = await request<dynamic>(
       '$_basePath/${record.id}',
       method: 'PUT',
       data: record.toUpdatePayload(),
       ifMatch: ifMatch,
+      idempotencyKey: idempotencyKey,
     );
     return AttendanceRecord.fromJson(_unwrap(response.data));
   }
@@ -45,11 +49,13 @@ class AttendanceApi extends BaseApi {
   Future<bool> deleteStudentAttendance(
     String id, {
     required String ifMatch,
+    String? idempotencyKey,
   }) async {
     final Response<dynamic> response = await request<dynamic>(
       '$_basePath/$id',
       method: 'DELETE',
       ifMatch: ifMatch,
+      idempotencyKey: idempotencyKey,
     );
     final int? status = response.statusCode;
     return status != null && status >= 200 && status < 300;
