@@ -8,6 +8,8 @@
 import { NextResponse } from 'next/server';
 
 import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import { canAccessExaminationRoutes } from '@/lib/auth/examination-route-guards';
+import { getSession } from '@/lib/auth/server';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -18,6 +20,18 @@ export async function GET(
   const { id, jobId } = await context.params;
   if (!UUID.test(id) || !UUID.test(jobId)) {
     return NextResponse.json({ code: 'VALIDATION_ERROR', message: 'Invalid id' }, { status: 400 });
+  }
+
+  const session = await getSession();
+  if (!session || session.isExpired) {
+    return NextResponse.json({ code: 'UNAUTHENTICATED', message: 'Sign in' }, { status: 401 });
+  }
+
+  if (!canAccessExaminationRoutes(session)) {
+    return NextResponse.json(
+      { code: 'FORBIDDEN', message: 'Insufficient permissions' },
+      { status: 403 },
+    );
   }
 
   const { tenantId, accessToken } = await getSessionContext();
