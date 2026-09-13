@@ -38,6 +38,7 @@ import type {
   PaymentStatus,
   RefundStatus,
 } from './fees-repository.js';
+import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
 const { Pool } = pg;
 
@@ -99,6 +100,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql048);
       const sql057 = readFileSync(resolveSqlPath('057_fees_payment_idempotency.sql'), 'utf8');
       await pool.query(sql057);
+      const sql058 = readFileSync(resolveSqlPath('058_fees_reminder_durable_state.sql'), 'utf8');
+      await pool.query(sql058);
     })();
   }
   await schemaReady;
@@ -144,6 +147,34 @@ function mapInvoice(row: Record<string, unknown>): FeeInvoiceEntity {
     structureId: row.structure_id == null ? null : String(row.structure_id),
     classId: row.class_id == null ? null : String(row.class_id),
     gradeId: row.grade_id == null ? null : String(row.grade_id),
+  };
+}
+
+
+function mapReminderSuppression(row: Record<string, unknown>): ReminderSuppressionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    studentId: row.student_id == null ? null : String(row.student_id),
+    invoiceId: row.invoice_id == null ? null : String(row.invoice_id),
+    reason: String(row.reason),
+    createdBy: String(row.created_by),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapReminderSendAudit(row: Record<string, unknown>): ReminderSendAuditEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    invoiceId: String(row.invoice_id),
+    studentId: String(row.student_id),
+    channel: String(row.channel) as ReminderSendAuditEntity['channel'],
+    messageId: String(row.message_id),
+    mode: 'sandbox',
+    honestyNote: String(row.honesty_note),
+    actorId: String(row.actor_id),
+    createdAt: toDate(row.created_at),
   };
 }
 
@@ -723,6 +754,88 @@ export class PgFeesRepository implements FeesRepository {
       );
       if (!result.rows[0]) return null;
       return mapReceipt(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reminder_suppressions WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return result.rows.map((row) => mapReminderSuppression(row as Record<string, unknown>));
+    });
+  }
+
+  async createReminderSuppression(
+    data: ReminderSuppressionEntity,
+  ): Promise<ReminderSuppressionEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO fee_reminder_suppressions (
+           id, tenant_id, student_id, invoice_id, reason, created_by, created_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.invoiceId,
+          data.reason,
+          data.createdBy,
+          data.createdAt,
+        ],
+      );
+      return mapReminderSuppression(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async deleteReminderSuppression(tenantId: string, suppressionId: string): Promise<boolean> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `DELETE FROM fee_reminder_suppressions WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, suppressionId],
+      );
+      return Number(result.rowCount ?? 0) > 0;
+    });
+  }
+
+  async listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_reminder_send_audits WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return result.rows.map((row) => mapReminderSendAudit(row as Record<string, unknown>));
+    });
+  }
+
+  async createReminderSendAudit(
+    data: ReminderSendAuditEntity,
+  ): Promise<ReminderSendAuditEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO fee_reminder_send_audits (
+           id, tenant_id, invoice_id, student_id, channel, message_id, mode, honesty_note, actor_id, created_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.invoiceId,
+          data.studentId,
+          data.channel,
+          data.messageId,
+          data.mode,
+          data.honestyNote,
+          data.actorId,
+          data.createdAt,
+        ],
+      );
+      return mapReminderSendAudit(result.rows[0] as Record<string, unknown>);
     });
   }
 

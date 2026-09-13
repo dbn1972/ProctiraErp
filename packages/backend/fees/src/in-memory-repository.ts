@@ -19,8 +19,11 @@ import {
   type LedgerAccount,
   type LedgerTrialBalance,
 } from './fees-repository.js';
+import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
 export class InMemoryFeesRepository implements FeesRepository {
+  private readonly reminderSuppressions: ReminderSuppressionEntity[] = [];
+  private readonly reminderSendAudits: ReminderSendAuditEntity[] = [];
   private plans: FeePlanEntity[] = [];
   private invoices: FeeInvoiceEntity[] = [];
   private payments: FeePaymentEntity[] = [];
@@ -411,5 +414,41 @@ export class InMemoryFeesRepository implements FeesRepository {
     return (
       this.receipts.find((receipt) => receipt.id === id && receipt.tenantId === tenantId) ?? null
     );
+  }
+
+  async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
+    return this.reminderSuppressions
+      .filter((row) => row.tenantId === tenantId)
+      .map((row) => ({ ...row }));
+  }
+
+  async createReminderSuppression(
+    data: ReminderSuppressionEntity,
+  ): Promise<ReminderSuppressionEntity> {
+    this.reminderSuppressions.push(data);
+    return { ...data };
+  }
+
+  async deleteReminderSuppression(tenantId: string, suppressionId: string): Promise<boolean> {
+    const index = this.reminderSuppressions.findIndex(
+      (row) => row.tenantId === tenantId && row.id === suppressionId,
+    );
+    if (index < 0) return false;
+    this.reminderSuppressions.splice(index, 1);
+    return true;
+  }
+
+  async listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]> {
+    return this.reminderSendAudits
+      .filter((row) => row.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((row) => ({ ...row }));
+  }
+
+  async createReminderSendAudit(
+    data: ReminderSendAuditEntity,
+  ): Promise<ReminderSendAuditEntity> {
+    this.reminderSendAudits.push(data);
+    return { ...data };
   }
 }
