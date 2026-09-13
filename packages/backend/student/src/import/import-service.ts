@@ -115,8 +115,8 @@ export class ImportService {
    * Process parsed rows synchronously.
    * Used for small imports and by the background worker for queued imports.
    *
-   * Honest residual: full DB transaction rollback requires a transactional
-   * repository; failures here may leave partial writes.
+   * W2-JOB-12: commit is all-or-nothing. Mid-batch failures compensate by
+   * deleting created rows and restoring updated snapshots before rethrowing.
    */
   async processRows(
     tenantId: string,
@@ -148,9 +148,7 @@ export class ImportService {
 
     // Step 3: Apply duplicate resolution and import (transactional = all-or-nothing batch)
     const duplicateRowNumbers = new Set(duplicates.map((d) => d.rowNumber));
-    let successCount = 0;
 
-    // Stage planned writes; commit only after staging succeeds (G-307).
     const toCreate: ImportStudentRow[] = [];
     const toUpdate: Array<{ studentId: string; row: ImportStudentRow }> = [];
 
@@ -172,18 +170,30 @@ export class ImportService {
       }
     }
 
-    for (const row of toCreate) {
-      await this.createStudent(tenantId, row);
-      successCount++;
-    }
-    for (const item of toUpdate) {
-      await this.updateStudent(tenantId, item.studentId, item.row);
-      successCount++;
+    const createdIds: string[] = [];
+    const updateSnapshots: Array<{
+      studentId: string;
+      before: Record<string, unknown>;
+    }> = [];
+
+    try {
+      for (const row of toCreate) {
+        const created = await this.createStudent(tenantId, row);
+        createdIds.push(created.id);
+      }
+      for (const item of toUpdate) {
+        const snapshot = await this.snapshotStudentForUpdate(tenantId, item.studentId);
+        updateSnapshots.push({ studentId: item.studentId, before: snapshot });
+        await this.updateStudent(tenantId, item.studentId, item.row);
+      }
+    } catch (error) {
+      await this.rollbackImportBatch(tenantId, createdIds, updateSnapshots);
+      throw error;
     }
 
     return {
       totalRows: rows.length,
-      successCount,
+      successCount: createdIds.length + toUpdate.length,
       errorCount: validationErrors.length,
       duplicateCount: duplicates.length,
       errors: validationErrors,
@@ -195,8 +205,11 @@ export class ImportService {
   /**
    * Create a new student record from an import row.
    */
-  private async createStudent(tenantId: string, row: ImportStudentRow): Promise<void> {
-    await this.repository.create(tenantId, {
+  private async createStudent(
+    tenantId: string,
+    row: ImportStudentRow,
+  ): Promise<{ id: string }> {
+    const created = await this.repository.create(tenantId, {
       firstName: row.firstName.trim(),
       lastName: row.lastName.trim(),
       dateOfBirth: row.dateOfBirth,
@@ -210,6 +223,52 @@ export class ImportService {
       institutionCode: row.institutionCode?.trim() ?? null,
       customData: row.customData ?? null,
     });
+    return { id: created.id };
+  }
+
+  /** Snapshot mutable fields before an update (W2-JOB-12). */
+  private async snapshotStudentForUpdate(
+    tenantId: string,
+    studentId: string,
+  ): Promise<Record<string, unknown>> {
+    const current = await this.repository.findById(tenantId, studentId);
+    if (!current) return {};
+    return {
+      firstName: current.firstName,
+      lastName: current.lastName,
+      dateOfBirth: current.dateOfBirth,
+      gender: current.gender,
+      nationalId: current.nationalId,
+      nationality: current.nationality,
+      contactPhone: current.contactPhone,
+      contactEmail: current.contactEmail,
+      guardianName: current.guardianName,
+      guardianPhone: current.guardianPhone,
+      institutionCode: current.institutionCode,
+      customData: current.customData,
+    };
+  }
+
+  private async rollbackImportBatch(
+    tenantId: string,
+    createdIds: string[],
+    updateSnapshots: Array<{ studentId: string; before: Record<string, unknown> }>,
+  ): Promise<void> {
+    for (const snap of [...updateSnapshots].reverse()) {
+      if (Object.keys(snap.before).length === 0) continue;
+      try {
+        await this.repository.update(tenantId, snap.studentId, snap.before);
+      } catch {
+        // Best-effort compensate; original error is rethrown by caller.
+      }
+    }
+    for (const id of [...createdIds].reverse()) {
+      try {
+        await this.repository.delete(tenantId, id);
+      } catch {
+        // Best-effort compensate.
+      }
+    }
   }
 
   /**

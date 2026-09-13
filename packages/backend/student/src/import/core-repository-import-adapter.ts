@@ -91,6 +91,11 @@ function toEntityPatch(data: RecordInput): Partial<StudentEntity> {
 export class CoreRepositoryImportAdapter implements ImportStudentRepository {
   constructor(private readonly core: CoreStudentRepository) {}
 
+  async findById(tenantId: string, id: string): Promise<StudentRecord | null> {
+    const entity = await this.core.findById(id, tenantId);
+    return entity ? toRecord(entity) : null;
+  }
+
   async findByNationalId(tenantId: string, nationalId: string): Promise<StudentRecord | null> {
     const entity = await this.core.findByNationalId(nationalId, tenantId);
     return entity ? toRecord(entity) : null;
@@ -150,5 +155,9 @@ export class CoreRepositoryImportAdapter implements ImportStudentRepository {
 
   async nationalIdExists(tenantId: string, nationalId: string): Promise<boolean> {
     return (await this.findByNationalId(tenantId, nationalId)) !== null;
+  }
+
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    return this.core.delete(id, tenantId);
   }
 }
