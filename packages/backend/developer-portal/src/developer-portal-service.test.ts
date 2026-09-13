@@ -11,6 +11,8 @@ import { DeveloperPortalService, DEFAULT_CONFIG } from './developer-portal-servi
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import type { DeveloperAccountEntity } from './developer-portal-repository.js';
 
+const TEST_TENANT_ID = '11111111-1111-4111-8111-111111111111';
+
 describe('DeveloperPortalService', () => {
   let service: DeveloperPortalService;
   let repository: InMemoryDeveloperPortalRepository;
@@ -57,7 +59,7 @@ describe('DeveloperPortalService', () => {
 
   describe('API Key Management', () => {
     it('should create an API key', async () => {
-      const { entity, rawKey } = await service.createApiKey(testAccount.id, {
+      const { entity, rawKey } = await service.createApiKey(testAccount.id, TEST_TENANT_ID, {
         name: 'Test Key',
         scopes: ['read:students', 'write:students'],
       });
@@ -67,7 +69,7 @@ describe('DeveloperPortalService', () => {
     });
 
     it('should validate an API key', async () => {
-      const { rawKey } = await service.createApiKey(testAccount.id, {
+      const { rawKey } = await service.createApiKey(testAccount.id, TEST_TENANT_ID, {
         name: 'Validate Key',
         scopes: ['read:all'],
       });
@@ -77,7 +79,7 @@ describe('DeveloperPortalService', () => {
     });
 
     it('should revoke an API key', async () => {
-      const { entity } = await service.createApiKey(testAccount.id, {
+      const { entity } = await service.createApiKey(testAccount.id, TEST_TENANT_ID, {
         name: 'Revoke Key',
         scopes: ['read:all'],
       });
@@ -89,11 +91,20 @@ describe('DeveloperPortalService', () => {
       const config = { ...DEFAULT_CONFIG, maxApiKeysPerAccount: 2 };
       const limitedService = new DeveloperPortalService(repository, config);
 
-      await limitedService.createApiKey(testAccount.id, { name: 'Key 1', scopes: ['read'] });
-      await limitedService.createApiKey(testAccount.id, { name: 'Key 2', scopes: ['read'] });
+      await limitedService.createApiKey(testAccount.id, TEST_TENANT_ID, {
+        name: 'Key 1',
+        scopes: ['read'],
+      });
+      await limitedService.createApiKey(testAccount.id, TEST_TENANT_ID, {
+        name: 'Key 2',
+        scopes: ['read'],
+      });
 
       await expect(
-        limitedService.createApiKey(testAccount.id, { name: 'Key 3', scopes: ['read'] }),
+        limitedService.createApiKey(testAccount.id, TEST_TENANT_ID, {
+          name: 'Key 3',
+          scopes: ['read'],
+        }),
       ).rejects.toThrow(BusinessRuleError);
     });
   });

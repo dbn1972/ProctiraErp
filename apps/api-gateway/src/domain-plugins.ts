@@ -57,8 +57,9 @@ import {
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
+  createDeveloperPortalRepository,
   developerPortalPlugin,
-  InMemoryDeveloperPortalRepository,
+  ensureDeveloperPortalPersistence,
 } from '@proctira/backend-developer-portal';
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import {
@@ -878,10 +879,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'developer',
     proxyPrefixes: ['/developer'],
     register: async (scope) => {
-      // G-607: AuthZ via gateway RBAC; in-memory API keys/docs; rate limits via
-      // global gateway rate-limit plugin. Live IdP key mint residual.
+      // G-607 / W1-ARCH-01: AuthZ via gateway RBAC; Postgres API keys when DATABASE_URL
+      // is set (hashed at rest, tenant-scoped); docs remain in-memory. Live IdP mint residual.
+      await ensureDeveloperPortalPersistence();
       await scope.register(developerPortalPlugin, {
-        repository: new InMemoryDeveloperPortalRepository(),
+        repository: createDeveloperPortalRepository(),
         prefix: '/developer',
       });
     },

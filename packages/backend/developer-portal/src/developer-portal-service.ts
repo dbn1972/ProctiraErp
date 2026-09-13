@@ -192,6 +192,7 @@ export class DeveloperPortalService {
 
   async createApiKey(
     accountId: string,
+    tenantId: string,
     input: CreateApiKeyInput,
   ): Promise<{ entity: ApiKeyEntity; rawKey: string }> {
     // Verify account exists and is active
@@ -204,7 +205,11 @@ export class DeveloperPortalService {
     }
 
     // Check key limit
-    const existing = await this.repository.listApiKeys({ accountId, status: 'active' }, 1, 1);
+    const existing = await this.repository.listApiKeys(
+      { accountId, tenantId, status: 'active' },
+      1,
+      1,
+    );
     if (existing.total >= this.config.maxApiKeysPerAccount) {
       throw new BusinessRuleError(
         `Maximum of ${this.config.maxApiKeysPerAccount} active API keys per account`,
@@ -221,6 +226,7 @@ export class DeveloperPortalService {
 
     const entity: ApiKeyEntity = {
       id: uuidv4(),
+      tenantId,
       accountId,
       name: input.name,
       keyHash,
@@ -238,11 +244,12 @@ export class DeveloperPortalService {
 
   async listApiKeys(
     accountId: string,
+    tenantId: string,
     page: number = 1,
     pageSize: number = 20,
     status?: 'active' | 'revoked' | 'expired',
   ): Promise<{ data: ApiKeyEntity[]; total: number }> {
-    return this.repository.listApiKeys({ accountId, status }, page, pageSize);
+    return this.repository.listApiKeys({ accountId, tenantId, status }, page, pageSize);
   }
 
   async revokeApiKey(accountId: string, keyId: string): Promise<ApiKeyEntity> {
