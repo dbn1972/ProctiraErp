@@ -916,6 +916,9 @@ importers:
       '@proctira/pdf-lite':
         specifier: workspace:*
         version: link:../../shared/pdf-lite
+      '@proctira/queue-abstraction':
+        specifier: workspace:*
+        version: link:../../shared/queue-abstraction
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

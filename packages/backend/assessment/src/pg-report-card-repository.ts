@@ -459,4 +459,19 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
       return (res.rows as Row[]).map(mapJob);
     });
   }
+
+  async listByStatus(
+    tenantId: string,
+    status: ReportCardJobStatus,
+  ): Promise<ReportCardJobEntity[]> {
+    return this.run(tenantId, async (c) => {
+      const res = await c.query(
+        `SELECT * FROM report_card_jobs
+          WHERE tenant_id = $1 AND status = $2
+          ORDER BY created_at ASC, id`,
+        [tenantId, status],
+      );
+      return (res.rows as Row[]).map(mapJob);
+    });
+  }
 }

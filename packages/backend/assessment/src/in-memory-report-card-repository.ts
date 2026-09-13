@@ -242,6 +242,13 @@ export class InMemoryReportCardJobRepository implements ReportCardJobRepository 
     );
   }
 
+  async listByStatus(
+    tenantId: string,
+    status: ReportCardJobStatus,
+  ): Promise<ReportCardJobEntity[]> {
+    return this.jobs.filter((j) => j.tenantId === tenantId && j.status === status);
+  }
+
   /** Reset for testing */
   clear(): void {
     this.jobs = [];
