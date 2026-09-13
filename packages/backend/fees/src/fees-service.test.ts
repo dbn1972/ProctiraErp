@@ -1,6 +1,8 @@
 /**
  * FeesService unit tests — plan → invoice → pay → receipt + amount invariant.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 
@@ -295,6 +297,73 @@ describe('FeesService', () => {
         `invoiceNumber,amountCents\n${invoice.invoiceNumber},1000`,
       );
       expect(await service.listReconciliationBatches(TENANT_B)).toEqual([]);
+    });
+  });
+
+
+  describe('W2-FIN-03 ledger amount foundation', () => {
+    it('postJournal posts an explicit amountCents argument (not invoice.amountCents)', () => {
+      const srcPath = fileURLToPath(new URL('./fees-service.ts', import.meta.url));
+      const src = readFileSync(srcPath, 'utf8');
+      const start = src.indexOf('private async postJournal');
+      const end = src.indexOf('async getInvoiceLedger');
+      expect(start).toBeGreaterThan(-1);
+      expect(end).toBeGreaterThan(start);
+      const body = src.slice(start, end);
+      // Foundation: journal legs take an explicit amount, not the invoice face amount.
+      expect(body).toMatch(/amountCents:\s*amountCents/);
+      expect(body).not.toMatch(/amountCents:\s*invoice\.amountCents/);
+    });
+
+    it('refund and concession journals use event amounts while invoice face stays independent', async () => {
+      const structure = await service.createFeeStructure(TENANT_A, 'staff-1', {
+        name: 'Tuition',
+        category: 'tuition',
+        amountCents: 10_000,
+      });
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Tuition',
+        amountCents: 10_000,
+      });
+
+      await service.applyConcession(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        structureId: structure.id,
+        invoiceId: invoice.id,
+        kind: 'amount',
+        amountCents: 1_500,
+        reason: 'sibling discount',
+      });
+
+      const afterConcession = await service.getInvoice(TENANT_A, invoice.id);
+      expect(afterConcession.amountCents).toBe(8_500);
+
+      const concessionLegs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'concession applied',
+      );
+      expect(concessionLegs).toHaveLength(2);
+      expect(concessionLegs.every((e) => e.amountCents === 1_500)).toBe(true);
+
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 8_500,
+      });
+
+      await service.recordRefund(TENANT_A, 'staff-1', {
+        invoiceId: invoice.id,
+        amountCents: 2_000,
+        reason: 'partial withdrawal',
+      });
+
+      const afterRefund = await service.getInvoice(TENANT_A, invoice.id);
+      expect(afterRefund.amountCents).toBe(8_500);
+
+      const refundLegs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'refund posted',
+      );
+      expect(refundLegs).toHaveLength(2);
+      expect(refundLegs.every((e) => e.amountCents === 2_000)).toBe(true);
     });
   });
 
