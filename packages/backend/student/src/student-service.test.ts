@@ -470,7 +470,6 @@ describe('StudentService', () => {
       await expect(service.delete(otherTenantId, created.id)).rejects.toThrow(NotFoundError);
     });
   });
-});
 
   describe('mergeDuplicates (W2-SIS-02)', () => {
     it('merges duplicate profile data into the survivor and soft-deletes the duplicate', async () => {
@@ -530,3 +529,4 @@ describe('StudentService', () => {
       expect(moved).toBe(2);
     });
   });
+});
