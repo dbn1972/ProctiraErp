@@ -330,6 +330,34 @@ export class NotificationService {
   }
 
   /**
+   * Idempotent handler for durable queue consumers (W2-JOB-01).
+   *
+   * Re-loads the notification + template and re-attempts delivery. Already
+   * delivered/read notifications are no-ops so redelivery after crash is safe.
+   *
+   * @returns true when delivery was attempted or already complete; false if missing
+   */
+  async processQueuedDelivery(tenantId: string, notificationId: string): Promise<boolean> {
+    const notification = await this.repository.getNotificationById(tenantId, notificationId);
+    if (!notification) {
+      return false;
+    }
+
+    if (notification.status === 'delivered' || notification.status === 'read') {
+      return true;
+    }
+
+    const template = await this.repository.getTemplateById(tenantId, notification.templateId);
+    if (!template) {
+      await this.handleDeliveryFailure(notification, `Template '${notification.templateId}' not found`);
+      return true;
+    }
+
+    await this.attemptDelivery(notification, template);
+    return true;
+  }
+
+  /**
    * Handle a delivery failure — either queue for retry or mark as permanently failed.
    *
    * Requirement 22.6: Retry email delivery up to 3 times with exponential backoff.
