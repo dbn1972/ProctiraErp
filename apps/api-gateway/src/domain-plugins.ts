@@ -106,6 +106,7 @@ import {
 import {
   bindAttendanceHeatmapSource,
   createEnrollmentRepository,
+  createStudentImportQueueFromEnv,
   createStudentRepository,
   EnrollmentService,
   StudentService,
@@ -254,8 +255,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // (Pg enrollment repository on db/sql/001 + 021 when DATABASE_URL set).
       // G-914 360 routes share the /students prefix (photo, id-card, siblings,
       // consents, discipline, attendance-heatmap).
+      // W2-JOB-06: durable import queue when QUEUE_BACKEND / RABBITMQ_URL set.
       const repository = createStudentRepository();
-      await scope.register(studentPlugin, { repository, prefix: '/students' });
+      const importHandle = await createStudentImportQueueFromEnv();
+      if (importHandle) {
+        scope.addHook('onClose', async () => {
+          await importHandle.disconnect();
+        });
+      }
+      await scope.register(studentPlugin, {
+        repository,
+        importQueue: importHandle?.importQueue,
+        prefix: '/students',
+      });
     },
   },
   {
