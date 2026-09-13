@@ -98,6 +98,9 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     pageSize: number,
   ): Promise<{ data: ApiKeyEntity[]; total: number }> {
     let keys = Array.from(this.apiKeys.values()).filter((k) => k.accountId === filter.accountId);
+    if (filter.tenantId) {
+      keys = keys.filter((k) => k.tenantId === filter.tenantId);
+    }
     if (filter.status) {
       keys = keys.filter((k) => k.status === filter.status);
     }

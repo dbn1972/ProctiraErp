@@ -78,6 +78,10 @@ export interface DeveloperPortalRoutesOptions {
   prefix?: string;
 }
 
+function getTenantId(request: FastifyRequest): string | undefined {
+  return (request as FastifyRequest & { tenantId?: string }).tenantId;
+}
+
 /**
  * Format account entity for API response.
  */
@@ -512,9 +516,19 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to create API keys',
+          statusCode: 400,
+        });
+      }
+
       try {
         const { entity, rawKey } = await service.createApiKey(
           paramsResult.data.accountId,
+          tenantId,
           bodyResult.data,
         );
         return reply.status(201).send({
@@ -550,12 +564,22 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to list API keys',
+          statusCode: 400,
+        });
+      }
+
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
       const result = await service.listApiKeys(
         paramsResult.data.accountId,
+        tenantId,
         page,
         pageSize,
         query.status,
