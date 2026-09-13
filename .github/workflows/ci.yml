@@ -43,11 +43,11 @@ jobs:
       has-frontend-changes: ${{ steps.filter.outputs.frontend }}
       has-shared-changes: ${{ steps.filter.outputs.shared }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -85,7 +85,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.packages-changed == 'true' || needs.detect-changes.outputs.apps-changed == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -93,11 +93,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -148,7 +148,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.packages-changed == 'true' || needs.detect-changes.outputs.apps-changed == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -156,11 +156,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -189,7 +189,7 @@ jobs:
       needs.typecheck.result != 'failure' &&
       needs.typecheck.result != 'cancelled'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -197,11 +197,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -216,7 +216,7 @@ jobs:
 
       - name: Upload test coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-reports
           path: '**/coverage/'
@@ -237,7 +237,7 @@ jobs:
        needs.detect-changes.outputs.has-shared-changes == 'true') &&
       needs.unit-test.result == 'success'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -245,11 +245,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -263,7 +263,7 @@ jobs:
           NODE_ENV: production
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
           path: |
@@ -289,7 +289,7 @@ jobs:
     needs: [build, detect-changes]
     if: needs.detect-changes.outputs.has-frontend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -297,11 +297,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -329,7 +329,7 @@ jobs:
 
       - name: Archive bundle budget JSON report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-budget-report
           path: bundle-budget.json
@@ -342,7 +342,7 @@ jobs:
         # exists so reviewers can inspect chunk sizes per PR (task 60.6
         # — "Enable bundle visualizer in CI").
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bundle-visualizer
           path: |
@@ -379,7 +379,7 @@ jobs:
       LHCI_PORT: '3001'
       LHCI_BASE_URL: 'http://localhost:3001'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -387,11 +387,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -432,7 +432,7 @@ jobs:
 
       - name: Upload Lighthouse reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lighthouse-reports
           path: tools/scripts/.lighthouseci/
@@ -478,7 +478,7 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -486,11 +486,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -559,7 +559,7 @@ jobs:
 
       - name: Upload integration test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: integration-test-results
           path: '**/test-results/'
@@ -586,7 +586,7 @@ jobs:
        needs.detect-changes.outputs.has-shared-changes == 'true') &&
       needs.unit-test.result == 'success'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -594,11 +594,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -617,7 +617,7 @@ jobs:
 
       - name: Upload DoD JSON report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dod-report
           path: tools/dod-checks/reports/dod-report.json
@@ -666,7 +666,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # pull_request checkout defaults to a merge commit, so HEAD~1 is the
           # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
@@ -674,11 +674,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -750,7 +750,7 @@ jobs:
 
       - name: Upload tenant isolation test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tenant-isolation-results
           path: |
@@ -782,7 +782,7 @@ jobs:
       - tenant-isolation
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify CI results (fail closed on failures and unproven skips)
         env:
