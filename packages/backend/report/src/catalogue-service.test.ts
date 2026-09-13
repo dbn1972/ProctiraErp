@@ -114,6 +114,9 @@ describe('G-909 role dashboards', () => {
     expect(inferDashboardRole([{ roleName: 'PRINCIPAL' }])).toBe('principal');
     expect(inferDashboardRole([{ roleName: 'PARENT' }])).toBe('parent');
     expect(inferDashboardRole([{ roleName: 'BOARD_ADMIN' }])).toBe('board');
+    expect(inferDashboardRole([{ roleName: 'STAFF' }])).toBe('staff');
+    expect(inferDashboardRole([{ roleName: 'librarian' }])).toBe('staff');
+    expect(buildRoleDashboard('staff').cards[0]?.id).toContain('staff');
   });
 
   it('parents cannot request principal aggregates', () => {
