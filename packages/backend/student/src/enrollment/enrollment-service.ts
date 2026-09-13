@@ -52,6 +52,13 @@ export class EnrollmentService {
       throw new BusinessRuleError('Cannot enroll student at an inactive institution');
     }
 
+    // W2-SIS-04: section/class placement is an enrollment invariant.
+    if (!input.classId) {
+      throw new BusinessRuleError(
+        'classId is required — students must be placed in a class/section on enrollment',
+      );
+    }
+
     const enrollmentId = uuidv4();
     const enrollment = await this.repository.createEnrollment({
       id: enrollmentId,
@@ -59,7 +66,7 @@ export class EnrollmentService {
       studentId: input.studentId,
       institutionId: input.institutionId,
       gradeId: input.gradeId,
-      classId: input.classId ?? null,
+      classId: input.classId,
       academicPeriodId: input.academicPeriodId,
       status: EnrollmentStatus.ENROLLED,
       enrolledAt: new Date(input.enrolledAt),
@@ -235,6 +242,13 @@ export class EnrollmentService {
       throw new BusinessRuleError(`Transfer rejected: destination institution is inactive`);
     }
 
+    // W2-SIS-04: destination class/section placement is required.
+    if (!input.destinationClassId) {
+      throw new BusinessRuleError(
+        'destinationClassId is required — transfer must place the student in a class/section',
+      );
+    }
+
     // Step 1: Set source enrollment to TRANSFERRED
     const updatedSource = await this.repository.updateEnrollment(
       input.sourceEnrollmentId,
@@ -269,7 +283,7 @@ export class EnrollmentService {
       studentId: input.studentId,
       institutionId: input.destinationInstitutionId,
       gradeId: input.destinationGradeId,
-      classId: input.destinationClassId ?? null,
+      classId: input.destinationClassId,
       academicPeriodId: input.academicPeriodId,
       status: EnrollmentStatus.ENROLLED,
       enrolledAt: new Date(input.transferDate),

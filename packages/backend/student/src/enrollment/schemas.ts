@@ -31,12 +31,10 @@ export const CreateEnrollmentSchema = Type.Object({
     pattern: UuidPattern,
     description: 'Grade UUID',
   }),
-  classId: Type.Optional(
-    Type.String({
-      pattern: UuidPattern,
-      description: 'Class UUID (optional)',
-    }),
-  ),
+  classId: Type.String({
+    pattern: UuidPattern,
+    description: 'Class / section UUID (required placement invariant — W2-SIS-04)',
+  }),
   academicPeriodId: Type.String({
     pattern: UuidPattern,
     description: 'Academic period UUID',
@@ -114,12 +112,10 @@ export const StudentTransferSchema = Type.Object({
     pattern: UuidPattern,
     description: 'Grade at destination institution',
   }),
-  destinationClassId: Type.Optional(
-    Type.String({
-      pattern: UuidPattern,
-      description: 'Class at destination institution (optional)',
-    }),
-  ),
+  destinationClassId: Type.String({
+    pattern: UuidPattern,
+    description: 'Class / section at destination (required placement invariant — W2-SIS-04)',
+  }),
   academicPeriodId: Type.String({
     pattern: UuidPattern,
     description: 'Academic period UUID for the new enrollment',

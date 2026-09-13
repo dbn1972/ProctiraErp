@@ -109,12 +109,14 @@ describe('EnrollmentService', () => {
       );
     });
 
-    it('should handle enrollment without classId', async () => {
+    it('W2-SIS-04: rejects enrollment without class/section placement', async () => {
       const input = validCreateInput();
       delete (input as Record<string, unknown>).classId;
-      const result = await service.createEnrollment(TENANT_ID, input);
 
-      expect(result.classId).toBeNull();
+      await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(BusinessRuleError);
+      await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(
+        'classId is required',
+      );
     });
   });
 
