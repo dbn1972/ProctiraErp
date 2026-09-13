@@ -16,11 +16,13 @@ import {
   CreateStudentSchema,
   UpdateStudentSchema,
   StudentParamsSchema,
+  MergeStudentsSchema,
   type CreateStudentInput,
   type UpdateStudentInput,
   type StudentListQuery,
   type StudentSearchQuery,
   type StudentParams,
+  type MergeStudentsInput,
 } from './schemas.js';
 import { assertStudentReadAccess, assertStudentWriteAccess } from './student-access.js';
 import type { StudentService } from './student-service.js';
@@ -122,6 +124,52 @@ export async function registerStudentRoutes(
         assertStudentWriteAccess(getRoles(request), 'student.create');
         const student = await studentService.create(tenantId, result.data);
         return reply.status(201).send(formatStudentResponse(student));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /students/merge — W2-SIS-02 merge duplicate into survivor.
+   */
+  fastify.post(
+    `${prefix}/merge`,
+    async function mergeHandler(
+      request: FastifyRequest<{ Body: MergeStudentsInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(MergeStudentsSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        assertStudentWriteAccess(getRoles(request), 'student.update');
+        const merged = await studentService.mergeDuplicates(tenantId, result.data);
+        return reply.status(200).send({
+          mergeId: merged.mergeId,
+          duplicateId: merged.duplicateId,
+          enrollmentsReassigned: merged.enrollmentsReassigned,
+          survivor: formatStudentResponse(merged.survivor),
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

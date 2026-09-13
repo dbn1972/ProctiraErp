@@ -13,7 +13,7 @@
  * - Contacts, guardians, identity documents management
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 import { InMemoryStudentRepository } from './in-memory-repository.js';
 import { StudentService } from './student-service.js';
@@ -492,6 +492,65 @@ describe('StudentService', () => {
 
       const otherTenantId = uuid();
       await expect(service.delete(otherTenantId, created.id)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('mergeDuplicates (W2-SIS-02)', () => {
+    it('merges duplicate profile data into the survivor and soft-deletes the duplicate', async () => {
+      const survivor = await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Ada', nationalId: null }),
+      );
+      const duplicate = await service.create(
+        TENANT_ID,
+        validCreateInput({
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          nationalId: 'NID-DUP-1',
+          nationality: 'British',
+          contacts: [{ type: 'email', value: 'ada@example.com', isPrimary: true }],
+        }),
+      );
+
+      const result = await service.mergeDuplicates(TENANT_ID, {
+        survivorId: survivor.id,
+        duplicateId: duplicate.id,
+        reason: 'Same person entered twice',
+      });
+
+      expect(result.survivor.nationalId).toBe('NID-DUP-1');
+      expect(result.survivor.nationality).toBe('British');
+      expect(result.survivor.contacts).toHaveLength(1);
+      expect(result.mergeId).toBeDefined();
+      await expect(service.getById(TENANT_ID, duplicate.id)).rejects.toThrow(NotFoundError);
+    });
+
+    it('rejects merging a student into itself', async () => {
+      const student = await service.create(TENANT_ID, validCreateInput());
+      await expect(
+        service.mergeDuplicates(TENANT_ID, {
+          survivorId: student.id,
+          duplicateId: student.id,
+          reason: 'noop',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('reassigns enrollments when a reassign hook is provided', async () => {
+      let moved = 0;
+      const wired = new StudentService(repository, async () => {
+        moved = 2;
+        return 2;
+      });
+      const survivor = await wired.create(TENANT_ID, validCreateInput({ firstName: 'Surv' }));
+      const duplicate = await wired.create(TENANT_ID, validCreateInput({ firstName: 'Dup' }));
+      const result = await wired.mergeDuplicates(TENANT_ID, {
+        survivorId: survivor.id,
+        duplicateId: duplicate.id,
+        reason: 'Duplicate import',
+      });
+      expect(result.enrollmentsReassigned).toBe(2);
+      expect(moved).toBe(2);
     });
   });
 });

@@ -71,7 +71,23 @@ export const studentPlugin = fp(
       registerEnrollmentAndImport = true,
     } = options;
 
-    const studentService = new StudentService(repository);
+    const enrollmentRepository = options.enrollmentRepository ?? createEnrollmentRepository();
+
+    const studentService = new StudentService(repository, async ({ tenantId, fromStudentId, toStudentId }) => {
+      const listed = await enrollmentRepository.listEnrollments(
+        tenantId,
+        { studentId: fromStudentId },
+        { page: 1, pageSize: 500 },
+      );
+      let moved = 0;
+      for (const row of listed.data) {
+        const updated = await enrollmentRepository.updateEnrollment(row.id, tenantId, {
+          studentId: toStudentId,
+        });
+        if (updated) moved += 1;
+      }
+      return moved;
+    });
     fastify.decorate('studentService', studentService);
 
     await registerStudentRoutes(fastify, {
@@ -98,7 +114,6 @@ export const studentPlugin = fp(
 
     if (!registerEnrollmentAndImport) return;
 
-    const enrollmentRepository = options.enrollmentRepository ?? createEnrollmentRepository();
     const enrollmentService = new EnrollmentService(enrollmentRepository);
     fastify.decorate('enrollmentService', enrollmentService);
     await registerEnrollmentRoutes(fastify, {
