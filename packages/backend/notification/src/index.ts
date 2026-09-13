@@ -109,6 +109,19 @@ export type {
 export { registerNotificationRoutes } from './routes.js';
 export type { NotificationRoutesOptions } from './routes.js';
 
+// Durable delivery queue spine (W2-JOB-01)
+export { QueueNotificationDeliveryPublisher } from './queue-notification-publisher.js';
+export type { NotificationDeliveryJobPayload } from './queue-notification-publisher.js';
+export { createNotificationDeliveryPublisherFromEnv } from './notification-delivery-publisher-factory.js';
+export type { NotificationDeliveryPublisherHandle } from './notification-delivery-publisher-factory.js';
+export { createNotificationDeliveryWorker } from './notification-delivery-worker.js';
+export type {
+  NotificationDeliveryWorker,
+  NotificationDeliveryWorkerOptions,
+  NotificationDeliveryProcessor,
+  NotificationDeliveryWorkerLogger,
+} from './notification-delivery-worker.js';
+
 // Default Templates (using {{brand_name}} variable substitution)
 export {
   DEFAULT_TEMPLATES,

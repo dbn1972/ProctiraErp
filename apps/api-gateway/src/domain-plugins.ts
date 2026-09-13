@@ -82,7 +82,11 @@ import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
-import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
+import {
+  createNotificationDeliveryPublisherFromEnv,
+  createNotificationStack,
+  notificationPlugin,
+} from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import {
   AdmissionsPipelineService,
@@ -686,10 +690,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/notifications'],
     register: async (scope) => {
       // In-memory notification records + prefs/devices (PG when DATABASE_URL).
+      // W2-JOB-01: durable delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       const { repository, prefsStore } = createNotificationStack();
+      const deliveryHandle = await createNotificationDeliveryPublisherFromEnv();
+      if (deliveryHandle) {
+        scope.addHook('onClose', async () => {
+          await deliveryHandle.disconnect();
+        });
+      }
       await scope.register(notificationPlugin, {
         repository,
         prefsStore,
+        queuePublisher: deliveryHandle?.publisher,
         prefix: '/notifications',
       });
     },

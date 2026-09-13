@@ -1888,6 +1888,9 @@ importers:
       '@proctira/observability':
         specifier: workspace:*
         version: link:../../shared/observability
+      '@proctira/queue-abstraction':
+        specifier: workspace:*
+        version: link:../../shared/queue-abstraction
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

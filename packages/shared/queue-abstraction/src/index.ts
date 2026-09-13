@@ -62,3 +62,9 @@ export const WORKFLOW_ESCALATION_CONSUME_TOPIC = 'tenant.*.workflow.escalation';
 
 /** Optional side-channel when an escalation transition notifies a role. */
 export const WORKFLOW_ESCALATION_NOTIFY_TYPE = 'workflow.escalation.notified';
+
+/** Well-known job type for notification delivery / retry workers (W2-JOB-01). */
+export const NOTIFICATION_DELIVERY_JOB_TYPE = 'notification.delivery';
+
+/** Consumer binding pattern for all tenants' notification delivery jobs. */
+export const NOTIFICATION_DELIVERY_CONSUME_TOPIC = 'tenant.*.notification.delivery';
