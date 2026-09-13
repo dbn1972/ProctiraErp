@@ -67,6 +67,7 @@ export interface ConsentEntity {
   title: string;
   description: string;
   status: ConsentStatus;
+  consentVersion: string;
   decidedAt: Date | null;
   createdBy: string | null;
   createdAt: Date;

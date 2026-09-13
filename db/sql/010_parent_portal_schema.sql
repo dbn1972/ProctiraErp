@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS parent_consents (
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'approved', 'denied', 'revoked')),
+  consent_version TEXT NOT NULL,
   decided_at TIMESTAMPTZ,
   created_by TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
