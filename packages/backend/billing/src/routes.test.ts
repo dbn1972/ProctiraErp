@@ -21,6 +21,11 @@ describe('Billing Routes', () => {
     repository = new InMemoryBillingRepository();
     service = new BillingService(repository);
     app = Fastify();
+    app.addHook('onRequest', async (request) => {
+      (request as { user?: { roles?: unknown } }).user = {
+        roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator' }],
+      };
+    });
     await registerBillingRoutes(app, { billingService: service, prefix: '/billing' });
     await app.ready();
   });
@@ -346,6 +351,58 @@ describe('Billing Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.used).toBe(42);
       expect(body.limit).toBe(500);
+    });
+  });
+
+  describe('RBAC deny proofs (W1-SEC-02 D1)', () => {
+    it('returns 403 when tenant admin creates a plan', async () => {
+      await app.close();
+      repository = new InMemoryBillingRepository();
+      service = new BillingService(repository);
+      app = Fastify();
+      app.addHook('onRequest', async (request) => {
+        (request as { user?: { roles?: unknown } }).user = {
+          roles: [{ roleId: 'admin', roleName: 'Administrator' }],
+        };
+      });
+      await registerBillingRoutes(app, { billingService: service, prefix: '/billing' });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/billing/plans',
+        payload: {
+          name: 'Blocked Plan',
+          tier: 'starter',
+          features: [],
+          quotas: [],
+        },
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(JSON.parse(response.body).code).toBe('FORBIDDEN');
+    });
+
+    it('returns 403 when tenant admin lists plans', async () => {
+      await app.close();
+      repository = new InMemoryBillingRepository();
+      service = new BillingService(repository);
+      app = Fastify();
+      app.addHook('onRequest', async (request) => {
+        (request as { user?: { roles?: unknown } }).user = {
+          roles: [{ roleId: 'admin', roleName: 'Administrator' }],
+        };
+      });
+      await registerBillingRoutes(app, { billingService: service, prefix: '/billing' });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/billing/plans',
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(JSON.parse(response.body).code).toBe('FORBIDDEN');
     });
   });
 });
