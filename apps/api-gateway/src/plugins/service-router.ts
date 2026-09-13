@@ -180,6 +180,14 @@ function buildForwardHeaders(request: FastifyRequest): Record<string, string> {
   out['x-forwarded-for'] = xff
     ? `${Array.isArray(xff) ? xff.join(', ') : xff}, ${request.ip}`
     : request.ip;
+  // W1-SEC-01 (A4): downstream services receive tenant only from verified
+  // gateway context (JWT / subdomain resolution), never from the client header.
+  const verifiedTenant =
+    (request as FastifyRequest & { tenantId?: string; user?: { tenantId?: string } }).tenantId ??
+    (request as FastifyRequest & { user?: { tenantId?: string } }).user?.tenantId;
+  if (verifiedTenant) {
+    out['x-tenant-id'] = verifiedTenant;
+  }
   return out;
 }
 

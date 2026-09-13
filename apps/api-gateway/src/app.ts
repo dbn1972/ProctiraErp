@@ -481,13 +481,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     request.user = payload as typeof request.user;
   });
 
-  // 7c. Strip forgeable actor headers AFTER auth (G-102).
-  // Clients must not be able to spoof identity via x-user-id / x-actor*.
+  // 7c. Strip forgeable client identity headers AFTER auth (G-102, W1-SEC-01).
   // Actor identity comes only from the verified JWT (request.user / getActor).
-  const FORGEABLE_ACTOR_HEADERS = new Set(['x-user-id', 'x-actor', 'x-actor-id', 'x-userid']);
+  // Tenant scope comes only from JWT claims or host subdomain — never from
+  // client-supplied X-Tenant-ID (see tenantPlugin registration below).
+  const FORGEABLE_CLIENT_HEADERS = new Set([
+    'x-user-id',
+    'x-actor',
+    'x-actor-id',
+    'x-userid',
+    'x-tenant-id',
+  ]);
   app.addHook('onRequest', async (request) => {
     for (const key of Object.keys(request.headers)) {
-      if (FORGEABLE_ACTOR_HEADERS.has(key.toLowerCase())) {
+      if (FORGEABLE_CLIENT_HEADERS.has(key.toLowerCase())) {
         delete request.headers[key];
       }
     }
