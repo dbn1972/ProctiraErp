@@ -6,6 +6,28 @@ import { AppError } from '@proctira/common';
 
 export type StudentWriteAction = 'student.create' | 'student.update' | 'student.delete';
 
+/** Roles that may list/read student records (aligned with gateway student.read). */
+const READ_ROLES = [
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'system-admin',
+  'principal',
+  'school_admin',
+  'school-admin',
+  'registrar',
+  'admissions_officer',
+  'student_affairs',
+  'data_clerk',
+  'teacher',
+  'staff',
+  'nurse',
+  'guardian',
+  'parent',
+  'student',
+] as const;
+
 const ADMIN_ROLES = [
   'admin',
   'super-admin',
@@ -55,5 +77,17 @@ export function hasStudentWriteAccess(roles: unknown, action: StudentWriteAction
 export function assertStudentWriteAccess(roles: unknown, action: StudentWriteAction): void {
   if (!hasStudentWriteAccess(roles, action)) {
     throw new AppError(`Forbidden: role cannot perform ${action}`, 'FORBIDDEN', 403);
+  }
+}
+
+export function hasStudentReadAccess(roles: unknown): boolean {
+  const normalized = normalizeStudentRoles(roles);
+  if (normalized.length === 0) return false;
+  return normalized.some((role) => (READ_ROLES as readonly string[]).includes(role));
+}
+
+export function assertStudentReadAccess(roles: unknown): void {
+  if (!hasStudentReadAccess(roles)) {
+    throw new AppError('Forbidden: role cannot read student records', 'FORBIDDEN', 403);
   }
 }

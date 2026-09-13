@@ -22,7 +22,7 @@ import {
   type StudentSearchQuery,
   type StudentParams,
 } from './schemas.js';
-import { assertStudentWriteAccess } from './student-access.js';
+import { assertStudentReadAccess, assertStudentWriteAccess } from './student-access.js';
 import type { StudentService } from './student-service.js';
 
 function getRoles(request: FastifyRequest): unknown {
@@ -211,15 +211,23 @@ export async function registerStudentRoutes(
         });
       }
 
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      try {
+        assertStudentReadAccess(getRoles(request));
+        const page = Number(query.page) || 1;
+        const pageSize = Number(query.pageSize) || 20;
 
-      const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
+        const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
 
-      return reply.status(200).send({
-        data: result.data.map(formatStudentResponse),
-        meta: result.meta,
-      });
+        return reply.status(200).send({
+          data: result.data.map(formatStudentResponse),
+          meta: result.meta,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -245,23 +253,31 @@ export async function registerStudentRoutes(
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
-      const sortBy = query.sortBy ?? 'lastName';
-      const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      try {
+        assertStudentReadAccess(getRoles(request));
+        const sortBy = query.sortBy ?? 'lastName';
+        const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
 
-      const result = await studentService.list(
-        tenantId,
-        {
-          gender: query.gender,
-          search: query.search,
-          institutionId: query.institutionId,
-        },
-        { page, pageSize, sortBy, sortOrder },
-      );
+        const result = await studentService.list(
+          tenantId,
+          {
+            gender: query.gender,
+            search: query.search,
+            institutionId: query.institutionId,
+          },
+          { page, pageSize, sortBy, sortOrder },
+        );
 
-      return reply.status(200).send({
-        data: result.data.map(formatStudentResponse),
-        meta: result.meta,
-      });
+        return reply.status(200).send({
+          data: result.data.map(formatStudentResponse),
+          meta: result.meta,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -295,6 +311,7 @@ export async function registerStudentRoutes(
       }
 
       try {
+        assertStudentReadAccess(getRoles(request));
         const student = await studentService.getById(tenantId, paramsResult.data.id);
         return reply.status(200).send(formatStudentResponse(student));
       } catch (error: unknown) {
@@ -336,6 +353,7 @@ export async function registerStudentRoutes(
       }
 
       try {
+        assertStudentWriteAccess(getRoles(request), 'student.delete');
         await studentService.delete(tenantId, paramsResult.data.id);
         return reply.status(204).send();
       } catch (error: unknown) {
