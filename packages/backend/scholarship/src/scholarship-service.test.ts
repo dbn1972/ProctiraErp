@@ -6,7 +6,7 @@
  *
  * Requirements: 11.1, 11.2, 11.3, 11.4, 11.5
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 
 import { ScholarshipService } from './scholarship-service.js';
@@ -767,4 +767,109 @@ describe('ScholarshipService', () => {
       }
     });
   });
+
+  describe('W2-FIN-08 scholarship cents consistency', () => {
+    it('stores reconciled amountCents and passes them on paid', async () => {
+      const program = await service.createProgram(
+        TENANT_ID,
+        makeProgramInput({ name: 'Cents Merit', amountPerRecipient: 19.99 }),
+      );
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      try {
+        const paid: Array<{ amountCents: number; amount: number }> = [];
+        service = new ScholarshipService(repository, mockWorkflowEngine, {
+          onDisbursementPaid: async (input) => {
+            paid.push({ amountCents: input.amountCents, amount: input.amount });
+          },
+        });
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        await service.approveApplication(TENANT_ID, application.id, {
+          scheduleFirstDisbursement: false,
+        });
+        const disbursement = await service.createDisbursement(TENANT_ID, {
+          applicationId: application.id,
+          amount: 19.99,
+          scheduledDate: '2024-04-01',
+        });
+        expect(disbursement.amountCents).toBe(1999);
+        await service.updateDisbursement(TENANT_ID, disbursement.id, {
+          paymentStatus: 'paid',
+          paidDate: '2024-04-01',
+        });
+        expect(paid).toEqual([{ amountCents: 1999, amount: 19.99 }]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('fires reverse hook when paid disbursement is cancelled', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+      const reversed: string[] = [];
+      service = new ScholarshipService(repository, mockWorkflowEngine, {
+        onDisbursementPaid: async () => undefined,
+        onDisbursementReversed: async (input) => {
+          reversed.push(input.disbursementId);
+        },
+      });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      try {
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        await service.approveApplication(TENANT_ID, application.id, {
+          scheduleFirstDisbursement: false,
+        });
+        const disbursement = await service.createDisbursement(TENANT_ID, {
+          applicationId: application.id,
+          amount: 100,
+          scheduledDate: '2024-04-01',
+        });
+        await service.updateDisbursement(TENANT_ID, disbursement.id, {
+          paymentStatus: 'paid',
+          paidDate: '2024-04-01',
+        });
+        await service.updateDisbursement(TENANT_ID, disbursement.id, {
+          paymentStatus: 'cancelled',
+        });
+        expect(reversed).toEqual([disbursement.id]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('rejects non-cent-representable disbursement amounts', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      try {
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        await service.approveApplication(TENANT_ID, application.id, {
+          scheduleFirstDisbursement: false,
+        });
+        await expect(
+          service.createDisbursement(TENANT_ID, {
+            applicationId: application.id,
+            amount: 1 / 3,
+            scheduledDate: '2024-04-01',
+          }),
+        ).rejects.toThrow(BusinessRuleError);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
 });

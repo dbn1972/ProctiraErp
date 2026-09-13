@@ -77,6 +77,24 @@ function schemaSqlPath(): string {
   return candidates[0]!;
 }
 
+function amountCentsSqlPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, '../../../../db/sql/060_scholarship_amount_cents.sql'),
+    join(process.cwd(), 'db/sql/060_scholarship_amount_cents.sql'),
+    join(process.cwd(), '../../db/sql/060_scholarship_amount_cents.sql'),
+  ];
+  for (const path of candidates) {
+    try {
+      readFileSync(path, 'utf8');
+      return path;
+    } catch {
+      // try next
+    }
+  }
+  return candidates[0]!;
+}
+
 export async function ensureScholarshipSchema(
   pool: PgPoolLike = getSharedScholarshipPool()!,
 ): Promise<void> {
@@ -85,6 +103,8 @@ export async function ensureScholarshipSchema(
     schemaReady = (async () => {
       const sql = readFileSync(schemaSqlPath(), 'utf8');
       await pool.query(sql);
+      const sql060 = readFileSync(amountCentsSqlPath(), 'utf8');
+      await pool.query(sql060);
     })();
   }
   await schemaReady;
@@ -168,6 +188,10 @@ function mapDisbursement(row: Record<string, unknown>): DisbursementEntity {
     tenantId: String(row.tenant_id),
     applicationId: String(row.application_id),
     amount: Number(row.amount),
+    amountCents:
+      row.amount_cents == null
+        ? Math.round(Number(row.amount) * 100)
+        : Number(row.amount_cents),
     scheduledDate: dateOnly(row.scheduled_date),
     paidDate: row.paid_date == null ? null : dateOnly(row.paid_date),
     paymentStatus: String(row.payment_status) as PaymentStatus,
@@ -539,14 +563,15 @@ export class PgScholarshipRepository implements ScholarshipRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO scholarship_disbursements (
-           id, tenant_id, application_id, amount, scheduled_date, paid_date,
+           id, tenant_id, application_id, amount, amount_cents, scheduled_date, paid_date,
            payment_status, payment_method, transaction_reference, notes
-         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10) RETURNING *`,
+         ) VALUES ($1,$2,$3,$4,$5,$6::date,$7::date,$8,$9,$10,$11) RETURNING *`,
         [
           data.id,
           data.tenantId,
           data.applicationId,
           data.amount,
+          data.amountCents,
           data.scheduledDate,
           data.paidDate,
           data.paymentStatus,
@@ -575,8 +600,9 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       const merged = { ...existing, ...data, id: existing.id, tenantId: existing.tenantId };
       const result = await client.query(
         `UPDATE scholarship_disbursements SET
-           application_id = $3, amount = $4, scheduled_date = $5::date, paid_date = $6::date,
-           payment_status = $7, payment_method = $8, transaction_reference = $9, notes = $10,
+           application_id = $3, amount = $4, amount_cents = $5,
+           scheduled_date = $6::date, paid_date = $7::date,
+           payment_status = $8, payment_method = $9, transaction_reference = $10, notes = $11,
            updated_at = now()
          WHERE id = $1 AND tenant_id = $2
          RETURNING *`,
@@ -585,6 +611,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
           tenantId,
           merged.applicationId,
           merged.amount,
+          merged.amountCents,
           merged.scheduledDate,
           merged.paidDate,
           merged.paymentStatus,

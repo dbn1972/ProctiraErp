@@ -86,6 +86,7 @@ describe('PgScholarshipRepository', () => {
         tenantId,
         applicationId,
         amount: 1000,
+        amountCents: 100000,
         scheduledDate: '2026-06-01',
         paidDate: null,
         paymentStatus: 'scheduled',

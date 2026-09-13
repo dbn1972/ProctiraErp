@@ -38,3 +38,9 @@ export {
 // Utilities
 export { CircuitBreaker, CircuitState, CircuitBreakerError } from './circuit-breaker.js';
 export type { CircuitBreakerOptions } from './circuit-breaker.js';
+
+export {
+  majorUnitsToCents,
+  centsToMajorUnits,
+  assertMajorMatchesCents,
+} from './money/cents.js';

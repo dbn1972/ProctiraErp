@@ -440,6 +440,7 @@ export const DisbursementResponseSchema = Type.Object({
   tenantId: Type.String(),
   applicationId: Type.String(),
   amount: Type.Number(),
+  amountCents: Type.Integer({ minimum: 0 }),
   scheduledDate: Type.String(),
   paidDate: Type.Union([Type.String(), Type.Null()]),
   paymentStatus: Type.String(),
