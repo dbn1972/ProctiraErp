@@ -11,6 +11,10 @@ import type { StudentRecord, StudentRepository } from './types.js';
 export class InMemoryStudentRepository implements StudentRepository {
   private students: StudentRecord[] = [];
 
+  async findById(tenantId: string, id: string): Promise<StudentRecord | null> {
+    return this.students.find((s) => s.id === id && s.tenantId === tenantId) ?? null;
+  }
+
   async findByNationalId(tenantId: string, nationalId: string): Promise<StudentRecord | null> {
     const normalized = nationalId.trim().toLowerCase();
     return (
@@ -72,6 +76,14 @@ export class InMemoryStudentRepository implements StudentRepository {
     };
     this.students[idx] = updated;
     return updated;
+  }
+
+
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const idx = this.students.findIndex((s) => s.id === id && s.tenantId === tenantId);
+    if (idx === -1) return false;
+    this.students.splice(idx, 1);
+    return true;
   }
 
   async nationalIdExists(tenantId: string, nationalId: string): Promise<boolean> {
