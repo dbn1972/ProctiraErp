@@ -289,7 +289,11 @@ export class DeveloperPortalService {
 
   // ─── Webhooks ───────────────────────────────────────────────────────────
 
-  async createWebhook(accountId: string, input: CreateWebhookInput): Promise<WebhookEntity> {
+  async createWebhook(
+    accountId: string,
+    tenantId: string,
+    input: CreateWebhookInput,
+  ): Promise<WebhookEntity> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -299,8 +303,8 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('Cannot create webhook for inactive account');
     }
 
-    // Check webhook limit
-    const existing = await this.repository.listWebhooks({ accountId }, 1, 1);
+    // Check webhook limit (per account + tenant, matching API key scoping)
+    const existing = await this.repository.listWebhooks({ accountId, tenantId }, 1, 1);
     if (existing.total >= this.config.maxWebhooksPerAccount) {
       throw new BusinessRuleError(
         `Maximum of ${this.config.maxWebhooksPerAccount} webhooks per account`,
@@ -314,6 +318,7 @@ export class DeveloperPortalService {
     const now = new Date();
     const webhook: WebhookEntity = {
       id: uuidv4(),
+      tenantId,
       accountId,
       url: input.url,
       events: input.events,
@@ -327,9 +332,9 @@ export class DeveloperPortalService {
     return this.repository.createWebhook(webhook);
   }
 
-  async getWebhook(accountId: string, webhookId: string): Promise<WebhookEntity> {
+  async getWebhook(accountId: string, tenantId: string, webhookId: string): Promise<WebhookEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
-    if (!webhook || webhook.accountId !== accountId) {
+    if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
     return webhook;
@@ -337,20 +342,22 @@ export class DeveloperPortalService {
 
   async listWebhooks(
     accountId: string,
+    tenantId: string,
     page: number = 1,
     pageSize: number = 20,
     active?: boolean,
   ): Promise<{ data: WebhookEntity[]; total: number }> {
-    return this.repository.listWebhooks({ accountId, active }, page, pageSize);
+    return this.repository.listWebhooks({ accountId, tenantId, active }, page, pageSize);
   }
 
   async updateWebhook(
     accountId: string,
+    tenantId: string,
     webhookId: string,
     input: UpdateWebhookInput,
   ): Promise<WebhookEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
-    if (!webhook || webhook.accountId !== accountId) {
+    if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
 
@@ -367,9 +374,9 @@ export class DeveloperPortalService {
     return updated!;
   }
 
-  async deleteWebhook(accountId: string, webhookId: string): Promise<void> {
+  async deleteWebhook(accountId: string, tenantId: string, webhookId: string): Promise<void> {
     const webhook = await this.repository.getWebhookById(webhookId);
-    if (!webhook || webhook.accountId !== accountId) {
+    if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
     await this.repository.deleteWebhook(webhookId);

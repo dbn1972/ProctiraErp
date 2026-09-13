@@ -4,7 +4,6 @@
  * Used for unit testing without database dependencies.
  */
 import type {
-  DeveloperPortalRepository,
   DeveloperPortalExtendedRepository,
   DeveloperAccountEntity,
   ApiKeyEntity,
@@ -148,6 +147,9 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     let webhooks = Array.from(this.webhooks.values()).filter(
       (w) => w.accountId === filter.accountId,
     );
+    if (filter.tenantId) {
+      webhooks = webhooks.filter((w) => w.tenantId === filter.tenantId);
+    }
     if (filter.active !== undefined) {
       webhooks = webhooks.filter((w) => w.active === filter.active);
     }

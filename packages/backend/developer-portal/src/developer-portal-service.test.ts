@@ -486,8 +486,11 @@ describe('DeveloperPortalService', () => {
   // ─── Webhooks ───────────────────────────────────────────────────────────
 
   describe('Webhooks', () => {
+    const TENANT_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    const TENANT_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
     it('should create a webhook', async () => {
-      const webhook = await service.createWebhook(testAccount.id, {
+      const webhook = await service.createWebhook(testAccount.id, TEST_TENANT_ID, {
         url: 'https://example.com/webhook',
         events: ['student.created', 'student.updated'],
         description: 'Test webhook',
@@ -495,10 +498,37 @@ describe('DeveloperPortalService', () => {
       expect(webhook.url).toBe('https://example.com/webhook');
       expect(webhook.events).toEqual(['student.created', 'student.updated']);
       expect(webhook.active).toBe(true);
+      expect(webhook.tenantId).toBe(TEST_TENANT_ID);
+    });
+
+    it('should isolate webhooks by tenant for the same account', async () => {
+      await service.createWebhook(testAccount.id, TENANT_A, {
+        url: 'https://a.example.com/hook',
+        events: ['*'],
+        description: 'Tenant A',
+      });
+      await service.createWebhook(testAccount.id, TENANT_B, {
+        url: 'https://b.example.com/hook',
+        events: ['*'],
+        description: 'Tenant B',
+      });
+
+      const listedA = await service.listWebhooks(testAccount.id, TENANT_A);
+      expect(listedA.total).toBe(1);
+      expect(listedA.data[0]!.tenantId).toBe(TENANT_A);
+      expect(listedA.data[0]!.url).toBe('https://a.example.com/hook');
+
+      const listedB = await service.listWebhooks(testAccount.id, TENANT_B);
+      expect(listedB.total).toBe(1);
+      expect(listedB.data[0]!.tenantId).toBe(TENANT_B);
+
+      await expect(
+        service.getWebhook(testAccount.id, TENANT_B, listedA.data[0]!.id),
+      ).rejects.toThrow(NotFoundError);
     });
 
     it('should track webhook deliveries', async () => {
-      const webhook = await service.createWebhook(testAccount.id, {
+      const webhook = await service.createWebhook(testAccount.id, TEST_TENANT_ID, {
         url: 'https://example.com/hook',
         events: ['*'],
       });
@@ -515,7 +545,7 @@ describe('DeveloperPortalService', () => {
     });
 
     it('should retry failed deliveries with exponential backoff', async () => {
-      const webhook = await service.createWebhook(testAccount.id, {
+      const webhook = await service.createWebhook(testAccount.id, TEST_TENANT_ID, {
         url: 'https://example.com/hook',
         events: ['*'],
       });
