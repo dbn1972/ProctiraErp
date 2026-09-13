@@ -30,7 +30,6 @@ import {
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
-  InMemoryAreaHierarchyResolver,
   InviteService,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
@@ -41,6 +40,10 @@ import {
   registerMfaRoutes,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
+import {
+  asTenantScopedResolver,
+  createAreaHierarchyResolver,
+} from '@proctira/backend-institution';
 import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
@@ -605,9 +608,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
-  const areaResolver = new InMemoryAreaHierarchyResolver([
-    { id: 'root', parentId: null, level: 0, path: '/root' },
-  ]);
+  const areaResolver = createAreaHierarchyResolver();
   await app.register(rbacPlugin, {
     registry: rbacRegistry,
     areaResolver,
@@ -743,6 +744,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       areas: user.areas,
       institutions: user.institutions,
     };
+
+    const scopedResolver = asTenantScopedResolver(areaResolver);
+    if (scopedResolver && authUser.tenantId) {
+      await scopedResolver.ensureTenantLoaded(authUser.tenantId);
+    }
 
     const result = await evaluatePermission(authUser, resource, action, rbacRegistry, areaResolver);
 

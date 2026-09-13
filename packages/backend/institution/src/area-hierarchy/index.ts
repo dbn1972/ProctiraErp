@@ -5,6 +5,20 @@
  * by the institution plugin and other consumers.
  */
 
+export {
+  TenantScopedAreaHierarchyResolver,
+  toAreaNodes,
+} from './area-hierarchy-resolver.js';
+export type { RegisterableArea } from './area-hierarchy-resolver.js';
+export {
+  createAreaHierarchyResolver,
+  demoGatewayAreaHierarchy,
+  asTenantScopedResolver,
+  GATEWAY_DEMO_TENANT_ID,
+  isPgAreaHierarchyEnabled,
+} from './create-area-hierarchy-resolver.js';
+export type { AreaHierarchyResolverConfig } from './create-area-hierarchy-resolver.js';
+
 export { AreaHierarchyService, MAX_AREA_DEPTH } from './area-hierarchy.service.js';
 export type {
   CreateAreaInput,
