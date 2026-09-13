@@ -15,7 +15,7 @@ the entire gate locally.
 | Category                     | Location           | Script                                   |
 | ---------------------------- | ------------------ | ---------------------------------------- |
 | 1. Unit (query scoping)      | `src/unit/`        | `pnpm test:tenant-isolation:unit`        |
-| 2. Integration (auth/authz)  | `src/integration/` | `pnpm test:tenant-isolation:integration` |
+| 2. Integration (auth/authz + live RLS) | `src/integration/` | `pnpm test:tenant-isolation:integration` (needs `DATABASE_URL` for `rls-live.test.ts`) |
 | 3. E2E (HTTP cross-tenant)   | `e2e/`             | `pnpm test:tenant-isolation:e2e`         |
 | 4. Queue / event routing     | `src/queue/`       | `pnpm test:tenant-isolation:queue`       |
 | 5. Search result trimming    | `src/search/`      | `pnpm test:tenant-isolation:search`      |
