@@ -243,6 +243,95 @@ export class ImportService {
   async getImportProgress(jobId: string): Promise<ImportProgress | null> {
     return this.queue.getProgress(jobId);
   }
+
+  /**
+   * Idempotent handler for durable queue consumers (W2-JOB-06).
+   *
+   * Re-parses the Excel buffer and runs processRows, updating progress along
+   * the way. Safe to re-run after crash when the repository write path is
+   * idempotent enough for the duplicate strategy in options.
+   */
+  async processQueuedImport(
+    tenantId: string,
+    jobId: string,
+    fileBuffer: Buffer,
+    options: ImportOptions,
+  ): Promise<ImportResult> {
+    await this.queue.updateProgress(jobId, {
+      jobId,
+      status: 'processing',
+      totalRows: 0,
+      processedRows: 0,
+      progressPercent: 0,
+      startedAt: new Date().toISOString(),
+    });
+
+    let parseResult: Awaited<ReturnType<typeof parseExcelBuffer>>;
+    try {
+      parseResult = await parseExcelBuffer(fileBuffer);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Excel parse failed';
+      await this.queue.updateProgress(jobId, {
+        status: 'failed',
+        progressPercent: 100,
+        errorMessage: message,
+        completedAt: new Date().toISOString(),
+      });
+      return {
+        totalRows: 0,
+        successCount: 0,
+        errorCount: 1,
+        duplicateCount: 0,
+        errors: [
+          {
+            rowNumber: 1,
+            field: 'file',
+            message,
+            code: 'INVALID_FORMAT' as const,
+          },
+        ],
+        duplicates: [],
+      };
+    }
+
+    if (parseResult.headerErrors.length > 0) {
+      const failed: ImportResult = {
+        totalRows: 0,
+        successCount: 0,
+        errorCount: parseResult.headerErrors.length,
+        duplicateCount: 0,
+        errors: parseResult.headerErrors.map((msg) => ({
+          rowNumber: 1,
+          field: 'header',
+          message: msg,
+          code: 'INVALID_FORMAT' as const,
+        })),
+        duplicates: [],
+      };
+      await this.queue.updateProgress(jobId, {
+        status: 'failed',
+        progressPercent: 100,
+        completedAt: new Date().toISOString(),
+      });
+      return failed;
+    }
+
+    await this.queue.updateProgress(jobId, {
+      totalRows: parseResult.rows.length,
+      progressPercent: 10,
+    });
+
+    const result = await this.processRows(tenantId, parseResult.rows, options);
+
+    await this.queue.updateProgress(jobId, {
+      status: 'completed',
+      processedRows: result.totalRows,
+      progressPercent: 100,
+      completedAt: new Date().toISOString(),
+    });
+
+    return result;
+  }
 }
 
 /**

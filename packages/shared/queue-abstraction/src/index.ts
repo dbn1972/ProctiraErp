@@ -95,3 +95,9 @@ export type {
   ExamDocumentOutboxInput,
   WorkflowEscalationOutboxInput,
 } from './outbox';
+
+/** Well-known job type for student bulk import workers (W2-JOB-06). */
+export const STUDENT_IMPORT_JOB_TYPE = 'student.import';
+
+/** Consumer binding pattern for all tenants' student import jobs. */
+export const STUDENT_IMPORT_CONSUME_TOPIC = 'tenant.*.student.import';
