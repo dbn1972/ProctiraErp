@@ -182,6 +182,8 @@ export interface FeeConcessionEntity {
   percent: number | null;
   amountCents: number | null;
   reason: string;
+  /** W2-FIN-09: stable scholarship disbursement key for netting idempotency. */
+  sourceDisbursementId: string | null;
   approverId: string | null;
   status: ConcessionStatus;
   createdBy: string | null;
@@ -324,6 +326,10 @@ export interface FeesRepository {
     data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null>;
   findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null>;
+  findConcessionBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity | null>;
 
 
   createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity>;

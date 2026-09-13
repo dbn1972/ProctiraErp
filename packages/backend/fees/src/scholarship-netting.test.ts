@@ -28,6 +28,7 @@ describe('G-1 scholarship netting', () => {
     });
     expect(first.idempotent).toBe(false);
     expect(first.invoice?.amountCents).toBe(7500);
+    expect(first.concession?.sourceDisbursementId).toBe('disb-1');
     const second = await service.applyScholarshipNetting(tenantId, 'staff', {
       studentId,
       disbursementId: 'disb-1',
@@ -79,5 +80,43 @@ describe('G-1 scholarship netting', () => {
     );
     expect(legs).toHaveLength(2);
     expect(legs.every((e) => e.amountCents === 1999)).toBe(true);
+  });
+
+  it('W2-FIN-09: does not treat disbursement id prefix as idempotent match', async () => {
+    const repo = new InMemoryFeesRepository();
+    const service = new FeesService(repo);
+    const tenantId = '11111111-1111-4111-8111-111111111111';
+    const studentId = '22222222-2222-4222-8222-222222222222';
+    const structure = await service.createFeeStructure(tenantId, 'staff', {
+      name: 'Tuition',
+      category: 'tuition',
+      amountCents: 20_000,
+    });
+    const { created } = await service.bulkInvoiceClass(tenantId, 'staff', {
+      structureId: structure.id,
+      studentIds: [studentId],
+    });
+
+    const longer = await service.applyScholarshipNetting(tenantId, 'staff', {
+      studentId,
+      disbursementId: 'disb-10',
+      amountCents: 1000,
+      invoiceId: created[0]!.id,
+    });
+    expect(longer.idempotent).toBe(false);
+    expect(longer.concession?.sourceDisbursementId).toBe('disb-10');
+    // Old includes(marker) would match because reason "scholarship_netting:disb-10"
+    // contains "scholarship_netting:disb-1".
+    expect(longer.concession!.reason.includes('scholarship_netting:disb-1')).toBe(true);
+
+    const prefix = await service.applyScholarshipNetting(tenantId, 'staff', {
+      studentId,
+      disbursementId: 'disb-1',
+      amountCents: 500,
+    });
+    // Must not replay the disb-10 concession as an idempotent hit.
+    expect(prefix.idempotent).toBe(false);
+    expect(prefix.concession?.id).not.toBe(longer.concession?.id);
+    expect(prefix.concession?.sourceDisbursementId).toBe('disb-1');
   });
 });
