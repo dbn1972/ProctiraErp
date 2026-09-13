@@ -23,7 +23,8 @@ import {
   isPgCounsellingEnabled,
   type PgPoolLike,
 } from './pg-counselling-store.js';
-import { decryptPhi, encryptPhi } from './phi-crypto.js';
+import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
+import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
 let schemaReady: Promise<void> | null = null;
 
@@ -199,6 +200,11 @@ function mapScreening(row: Record<string, unknown>): ScreeningProgramEntity {
 export class PgPhiStore {
   constructor(private readonly pool: PgPoolLike) {}
 
+  private async phiScope(tenantId: string, studentId: string): Promise<PhiCryptoScope> {
+    const institutionId = await findStudentInstitutionId(this.pool, tenantId, studentId);
+    return phiScopeForStudent(tenantId, studentId, institutionId);
+  }
+
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
     return withPgTenant(
@@ -217,6 +223,7 @@ export class PgPhiStore {
   ): Promise<HealthMeasurementEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO health_measurements (
@@ -237,7 +244,7 @@ export class PgPhiStore {
         data.heartRate,
         data.visionLeft,
         data.visionRight,
-        encryptPhi(data.notes),
+        encryptPhi(data.notes, scope),
         now,
         now,
       ],
@@ -262,6 +269,7 @@ export class PgPhiStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
+    const scope = await this.phiScope(tenantId, merged.studentId);
     const result = await this.query(
       tenantId,
       `UPDATE health_measurements SET
@@ -281,7 +289,7 @@ export class PgPhiStore {
         merged.heartRate,
         merged.visionLeft,
         merged.visionRight,
-        encryptPhi(merged.notes),
+        encryptPhi(merged.notes, scope),
         merged.updatedAt,
       ],
     );
@@ -332,6 +340,7 @@ export class PgPhiStore {
   ): Promise<AllergyEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO health_allergies (
@@ -342,10 +351,10 @@ export class PgPhiStore {
         data.tenantId,
         data.studentId,
         data.allergyType,
-        encryptPhi(data.description),
+        encryptPhi(data.description, scope),
         data.severity,
-        encryptPhi(data.reaction),
-        encryptPhi(data.treatment),
+        encryptPhi(data.reaction, scope),
+        encryptPhi(data.treatment, scope),
         data.diagnosedDate,
         now,
         now,
@@ -371,6 +380,7 @@ export class PgPhiStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
+    const scope = await this.phiScope(tenantId, merged.studentId);
     const result = await this.query(
       tenantId,
       `UPDATE health_allergies SET
@@ -381,10 +391,10 @@ export class PgPhiStore {
         id,
         tenantId,
         merged.allergyType,
-        encryptPhi(merged.description),
+        encryptPhi(merged.description, scope),
         merged.severity,
-        encryptPhi(merged.reaction),
-        encryptPhi(merged.treatment),
+        encryptPhi(merged.reaction, scope),
+        encryptPhi(merged.treatment, scope),
         merged.diagnosedDate,
         merged.updatedAt,
       ],
@@ -447,6 +457,7 @@ export class PgPhiStore {
   ): Promise<HealthConditionEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO health_conditions (
@@ -461,9 +472,9 @@ export class PgPhiStore {
         data.conditionType,
         data.diagnosedDate,
         data.status,
-        encryptPhi(data.treatment),
-        encryptPhi(data.medication),
-        encryptPhi(data.notes),
+        encryptPhi(data.treatment, scope),
+        encryptPhi(data.medication, scope),
+        encryptPhi(data.notes, scope),
         now,
         now,
       ],
@@ -488,6 +499,7 @@ export class PgPhiStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
+    const scope = await this.phiScope(tenantId, merged.studentId);
     const result = await this.query(
       tenantId,
       `UPDATE health_conditions SET
@@ -501,9 +513,9 @@ export class PgPhiStore {
         merged.conditionType,
         merged.diagnosedDate,
         merged.status,
-        encryptPhi(merged.treatment),
-        encryptPhi(merged.medication),
-        encryptPhi(merged.notes),
+        encryptPhi(merged.treatment, scope),
+        encryptPhi(merged.medication, scope),
+        encryptPhi(merged.notes, scope),
         merged.updatedAt,
       ],
     );
@@ -565,6 +577,7 @@ export class PgPhiStore {
   ): Promise<VaccinationEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO health_vaccinations (
@@ -581,7 +594,7 @@ export class PgPhiStore {
         data.administeredBy,
         data.batchNumber,
         data.nextDueDate,
-        encryptPhi(data.notes),
+        encryptPhi(data.notes, scope),
         now,
         now,
       ],
@@ -606,6 +619,7 @@ export class PgPhiStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
+    const scope = await this.phiScope(tenantId, merged.studentId);
     const result = await this.query(
       tenantId,
       `UPDATE health_vaccinations SET
@@ -621,7 +635,7 @@ export class PgPhiStore {
         merged.administeredBy,
         merged.batchNumber,
         merged.nextDueDate,
-        encryptPhi(merged.notes),
+        encryptPhi(merged.notes, scope),
         merged.updatedAt,
       ],
     );
@@ -683,6 +697,7 @@ export class PgPhiStore {
   ): Promise<InsuranceEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO health_insurance (
@@ -693,11 +708,11 @@ export class PgPhiStore {
         data.tenantId,
         data.studentId,
         data.provider,
-        encryptPhi(data.policyNumber),
+        encryptPhi(data.policyNumber, scope),
         data.coverageType,
         data.startDate,
         data.endDate,
-        encryptPhi(data.notes),
+        encryptPhi(data.notes, scope),
         now,
         now,
       ],
@@ -722,6 +737,7 @@ export class PgPhiStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
+    const scope = await this.phiScope(tenantId, merged.studentId);
     const result = await this.query(
       tenantId,
       `UPDATE health_insurance SET
@@ -732,11 +748,11 @@ export class PgPhiStore {
         id,
         tenantId,
         merged.provider,
-        encryptPhi(merged.policyNumber),
+        encryptPhi(merged.policyNumber, scope),
         merged.coverageType,
         merged.startDate,
         merged.endDate,
-        encryptPhi(merged.notes),
+        encryptPhi(merged.notes, scope),
         merged.updatedAt,
       ],
     );
