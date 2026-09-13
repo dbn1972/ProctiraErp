@@ -283,10 +283,14 @@ export class InMemoryFeesRepository implements FeesRepository {
     return this.concessions.filter((row) => row.tenantId === tenantId);
   }
 
+  async findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null> {
+    return this.concessions.find((row) => row.id === id && row.tenantId === tenantId) ?? null;
+  }
+
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null> {
     const index = this.concessions.findIndex((row) => row.id === id && row.tenantId === tenantId);
     if (index === -1) return null;
