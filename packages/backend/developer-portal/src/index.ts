@@ -56,6 +56,19 @@ export type {
   AnalyticsFilter,
 } from './developer-portal-repository.js';
 
+// Repository factories
+export {
+  createDeveloperPortalRepository,
+  ensureDeveloperPortalPersistence,
+  isPgDeveloperPortalApiKeysEnabled,
+} from './create-developer-portal-repository.js';
+export { HybridDeveloperPortalRepository } from './hybrid-repository.js';
+export {
+  PgApiKeyStore,
+  getSharedDeveloperPortalPool,
+  ensureDeveloperPortalApiKeySchema,
+} from './pg-api-key-store.js';
+
 // In-memory repository (for testing)
 export { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 
