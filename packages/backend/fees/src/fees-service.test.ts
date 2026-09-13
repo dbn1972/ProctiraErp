@@ -151,7 +151,7 @@ describe('FeesService', () => {
       ).rejects.toThrow(/unbalanced/);
     });
 
-    it('rejects mismatched amountCents override', async () => {
+    it('rejects overpayment beyond remaining balance (W2-FIN-01)', async () => {
       const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
         studentId: STUDENT_ID,
         title: 'Sports fee',
@@ -161,9 +161,9 @@ describe('FeesService', () => {
       await expect(
         service.recordPayment(TENANT_A, 'parent-a', {
           invoiceId: invoice.id,
-          amountCents: 1,
+          amountCents: 50001,
         }),
-      ).rejects.toThrow(BusinessRuleError);
+      ).rejects.toThrow(/exceeds remaining/i);
     });
 
     it('rejects paying a non-open invoice', async () => {
@@ -300,6 +300,61 @@ describe('FeesService', () => {
     });
   });
 
+
+
+  describe('W2-FIN-01 partial payments', () => {
+    it('accepts a partial payment and leaves the invoice open with remaining AR', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Term fee',
+        amountCents: 10_000,
+      });
+
+      const first = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 4_000,
+      });
+
+      expect(first.payment.amountCents).toBe(4_000);
+      expect(first.receipt.amountCents).toBe(4_000);
+      expect(first.invoice.status).toBe('open');
+
+      const ledger = await service.getInvoiceLedger(TENANT_A, invoice.id);
+      const paymentLegs = ledger.filter((e) => e.memo === 'payment received');
+      expect(paymentLegs).toHaveLength(2);
+      expect(paymentLegs.every((e) => e.amountCents === 4_000)).toBe(true);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(6_000);
+      expect(trial.accounts.cash).toBe(4_000);
+      expect(trial.accounts.fee_revenue).toBe(-10_000);
+    });
+
+    it('marks the invoice paid when successive partials cover the face amount', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Lab',
+        amountCents: 5_000,
+      });
+
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 2_000,
+      });
+      const second = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+      });
+
+      expect(second.invoice.status).toBe('paid');
+      expect(second.payment.amountCents).toBe(3_000);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+      expect(trial.accounts.cash).toBe(5_000);
+    });
+  });
 
   describe('W2-FIN-03 ledger amount foundation', () => {
     it('postJournal posts an explicit amountCents argument (not invoice.amountCents)', () => {
