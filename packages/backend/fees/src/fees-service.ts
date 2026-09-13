@@ -257,16 +257,24 @@ export class FeesService {
 
     // G-718: DR accounts_receivable / CR fee_revenue
     if (amountCents > 0) {
-      await this.postJournal(invoice, actorId, 'invoice issued', [
-        ['accounts_receivable', 'debit'],
-        ['fee_revenue', 'credit'],
-      ]);
+      await this.postJournal(
+        invoice,
+        actorId,
+        'invoice issued',
+        [
+          ['accounts_receivable', 'debit'],
+          ['fee_revenue', 'credit'],
+        ],
+        amountCents,
+      );
     }
     return invoice;
   }
 
   /**
    * Post one balanced journal for an invoice-scoped financial event (G-718).
+   * W2-FIN-03: amountCents is explicit (may differ from invoice face — refunds,
+   * concessions, future partial posts) so callers never forge a mutated invoice.
    * Both legs carry the same amount so the journal is balanced by construction;
    * the repository still rejects unbalanced journals defensively.
    */
@@ -275,8 +283,12 @@ export class FeesService {
     actorId: string | null,
     memo: string,
     legs: ReadonlyArray<readonly [LedgerAccount, 'debit' | 'credit']>,
+    amountCents: number,
     refs: { paymentId?: string; receiptId?: string } = {},
   ): Promise<FeeLedgerEntryEntity[]> {
+    if (!Number.isInteger(amountCents) || amountCents < 0) {
+      throw new BusinessRuleError('Journal amountCents must be a non-negative integer');
+    }
     const journalId = uuidv4();
     const postedAt = new Date();
     return this.repository.postLedgerEntries(
@@ -289,7 +301,7 @@ export class FeesService {
         receiptId: refs.receiptId ?? null,
         account,
         side,
-        amountCents: invoice.amountCents,
+        amountCents: amountCents,
         currency: invoice.currency,
         memo,
         postedBy: actorId,
@@ -332,10 +344,16 @@ export class FeesService {
     const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
     // G-718: reverse the issuance — DR fee_revenue / CR accounts_receivable
     if (invoice.amountCents > 0) {
-      await this.postJournal(invoice, null, 'invoice voided', [
-        ['fee_revenue', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ]);
+      await this.postJournal(
+        invoice,
+        null,
+        'invoice voided',
+        [
+          ['fee_revenue', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        invoice.amountCents,
+      );
     }
     return updated!;
   }
@@ -448,6 +466,7 @@ export class FeesService {
         ['cash', 'debit'],
         ['accounts_receivable', 'credit'],
       ],
+      invoice.amountCents,
       { paymentId: payment.id, receiptId: receipt.id },
     );
 
@@ -585,10 +604,16 @@ export class FeesService {
         gradeId: gradeId ?? null,
       });
       if (amountCents > 0) {
-        await this.postJournal(invoice, actorId, 'invoice issued', [
-          ['accounts_receivable', 'debit'],
-          ['fee_revenue', 'credit'],
-        ]);
+        await this.postJournal(
+          invoice,
+          actorId,
+          'invoice issued',
+          [
+            ['accounts_receivable', 'debit'],
+            ['fee_revenue', 'credit'],
+          ],
+          invoice.amountCents,
+        );
       }
       if (concession) {
         await this.repository.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
@@ -639,14 +664,16 @@ export class FeesService {
     }
     const nextAmount = Math.max(0, invoice.amountCents - discount);
     if (discount > 0 && invoice.amountCents > 0) {
-      const adjustment = {
-        ...invoice,
-        amountCents: discount,
-      };
-      await this.postJournal(adjustment, actorId, 'concession applied', [
-        ['fee_revenue', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ]);
+      await this.postJournal(
+        invoice,
+        actorId,
+        'concession applied',
+        [
+          ['fee_revenue', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        discount,
+      );
     }
     const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
       amountCents: nextAmount,
@@ -677,11 +704,16 @@ export class FeesService {
       status: 'posted',
       createdBy: actorId,
     });
-    const refundInvoice = { ...invoice, amountCents: input.amountCents };
-    await this.postJournal(refundInvoice, actorId, 'refund posted', [
-      ['fee_revenue', 'debit'],
-      ['cash', 'credit'],
-    ]);
+    await this.postJournal(
+      invoice,
+      actorId,
+      'refund posted',
+      [
+        ['fee_revenue', 'debit'],
+        ['cash', 'credit'],
+      ],
+      input.amountCents,
+    );
     return refund;
   }
 
