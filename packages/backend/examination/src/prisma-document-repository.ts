@@ -21,6 +21,7 @@
  */
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
+import type { NewOutboxEntry, OutboxQueryable, OutboxStore } from '@proctira/queue-abstraction';
 
 import type {
   CandidateResultData,
@@ -36,6 +37,22 @@ import type {
   CandidateSubjectResult,
   PublicationResult,
 } from './result-repository.js';
+
+/** Adapt Prisma transaction client to OutboxQueryable for same-TX outbox inserts. */
+function prismaTxAsOutboxClient(tx: Prisma.TransactionClient): OutboxQueryable {
+  return {
+    async query(text: string, values: unknown[] = []) {
+      // $executeRawUnsafe for INSERT/UPDATE; $queryRawUnsafe when SELECT needed.
+      const trimmed = text.trim().toUpperCase();
+      if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
+        const rows = (await tx.$queryRawUnsafe(text, ...values)) as unknown[];
+        return { rows: Array.isArray(rows) ? rows : [] };
+      }
+      const count = await tx.$executeRawUnsafe(text, ...values);
+      return { rows: [], rowCount: count };
+    },
+  };
+}
 
 interface JobRow {
   id: string;
@@ -292,6 +309,36 @@ export class PrismaDocumentRepository implements DocumentRepository {
           completedAt: job.completedAt ?? null,
         },
       })) as JobRow;
+      return toJob(row);
+    });
+  }
+
+  async createJobWithOutbox(
+    job: DocumentGenerationJob,
+    outboxEntry: NewOutboxEntry,
+    outboxStore: OutboxStore,
+  ): Promise<DocumentGenerationJob> {
+    return withTenantTransaction(this.prisma, job.tenantId, async (tx) => {
+      const row = (await tx.examinationDocumentJob.create({
+        data: {
+          id: job.id,
+          tenantId: job.tenantId,
+          examinationId: job.examinationId,
+          documentType: job.documentType,
+          status: job.status,
+          candidateIds: job.candidateIds as unknown as Prisma.InputJsonValue,
+          totalCandidates: job.totalCandidates,
+          processedCount: job.processedCount,
+          failedCount: job.failedCount,
+          errorMessage: job.errorMessage ?? null,
+          outputPath: job.outputPath ?? null,
+          durationMs: job.durationMs ?? null,
+          createdAt: job.createdAt,
+          startedAt: job.startedAt ?? null,
+          completedAt: job.completedAt ?? null,
+        },
+      })) as JobRow;
+      await outboxStore.enqueue(outboxEntry, prismaTxAsOutboxClient(tx));
       return toJob(row);
     });
   }

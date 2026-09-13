@@ -14,6 +14,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
+import type { OutboxStore } from '@proctira/queue-abstraction';
 
 import type { DocumentTaskQueue } from './document-generation-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
@@ -42,8 +43,10 @@ export interface ExaminationPluginOptions {
   documentRepository?: DocumentRepository;
   /** PDF generator implementation (optional — required for document generation features) */
   pdfGenerator?: PdfGenerator;
-  /** Document task queue implementation (optional — for RabbitMQ background processing) */
+  /** Document task queue implementation (optional — legacy dual-write; prefer outboxStore) */
   documentTaskQueue?: DocumentTaskQueue;
+  /** W2-JOB-04 transactional outbox (job + outbox same TX; relay publishes) */
+  outboxStore?: OutboxStore;
   /** G-908 ops store (sessions / invigilators / seating / double-entry / re-eval) */
   examOpsStore?: ExamOpsStore;
   /** Route prefix for examinations (default: '/examinations') */
@@ -74,6 +77,7 @@ export const examinationPlugin = fp(
       documentRepository,
       pdfGenerator,
       documentTaskQueue,
+      outboxStore,
       examOpsStore,
       prefix = '/examinations',
     } = options;
@@ -108,6 +112,8 @@ export const examinationPlugin = fp(
         documentRepository,
         pdfGenerator,
         documentTaskQueue,
+        undefined,
+        outboxStore,
       );
       fastify.decorate('documentGenerationService', documentGenerationService);
 
