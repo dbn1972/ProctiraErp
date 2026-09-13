@@ -13,7 +13,8 @@ import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type { CounsellingSessionEntity } from './health-repository.js';
-import { decryptPhi, encryptPhi } from './phi-crypto.js';
+import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
+import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
 const { Pool } = pg;
 
@@ -102,6 +103,11 @@ function mapRow(row: Record<string, unknown>): CounsellingSessionEntity {
 export class PgCounsellingStore {
   constructor(private readonly pool: PgPoolLike) {}
 
+  private async phiScope(tenantId: string, studentId: string): Promise<PhiCryptoScope> {
+    const institutionId = await findStudentInstitutionId(this.pool, tenantId, studentId);
+    return phiScopeForStudent(tenantId, studentId, institutionId);
+  }
+
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
     return withPgTenant(
@@ -120,6 +126,7 @@ export class PgCounsellingStore {
   ): Promise<CounsellingSessionEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO counselling_sessions (
@@ -137,9 +144,9 @@ export class PgCounsellingStore {
         data.counsellorId,
         data.sessionDate,
         data.sessionType,
-        encryptPhi(data.reason),
-        encryptPhi(data.caseNotes),
-        encryptPhi(data.outcome),
+        encryptPhi(data.reason, scope),
+        encryptPhi(data.caseNotes, scope),
+        encryptPhi(data.outcome, scope),
         data.followUpRequired,
         data.followUpDate,
         data.status,
@@ -167,6 +174,7 @@ export class PgCounsellingStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
+    const scope = await this.phiScope(tenantId, merged.studentId);
     const result = await this.query(
       tenantId,
       `UPDATE counselling_sessions SET
@@ -188,9 +196,9 @@ export class PgCounsellingStore {
         merged.counsellorId,
         merged.sessionDate,
         merged.sessionType,
-        encryptPhi(merged.reason),
-        encryptPhi(merged.caseNotes),
-        encryptPhi(merged.outcome),
+        encryptPhi(merged.reason, scope),
+        encryptPhi(merged.caseNotes, scope),
+        encryptPhi(merged.outcome, scope),
         merged.followUpRequired,
         merged.followUpDate,
         merged.status,

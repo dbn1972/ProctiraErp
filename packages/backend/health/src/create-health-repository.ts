@@ -25,6 +25,8 @@ import type {
 } from './health-repository.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 import { createPgBreakGlassStore, type PgBreakGlassStore } from './pg-break-glass-store.js';
+import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
+import { getSharedCounsellingPool } from './pg-counselling-store.js';
 import {
   createPgCounsellingStore,
   isPgCounsellingEnabled,
@@ -545,6 +547,12 @@ export class HybridHealthRepository implements HealthRepository {
   ): Promise<NurseIncidentEntity[]> {
     if (this.nurseIncidents) return this.nurseIncidents.listByStudent(tenantId, studentId);
     return this.memory.listNurseIncidentsByStudent(tenantId, studentId);
+  }
+
+  async findStudentInstitutionId(tenantId: string, studentId: string): Promise<string | null> {
+    const fromMemory = await this.memory.findStudentInstitutionId(tenantId, studentId);
+    if (fromMemory) return fromMemory;
+    return findStudentInstitutionId(getSharedCounsellingPool(), tenantId, studentId);
   }
 }
 

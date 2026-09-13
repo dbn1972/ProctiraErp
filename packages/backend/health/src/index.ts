@@ -20,8 +20,12 @@ export { healthPlugin } from './health-plugin.js';
 export type { HealthPluginOptions } from './health-plugin.js';
 
 // Service
-export { HealthService, hasHealthAccess } from './health-service.js';
-export type { HealthAccessContext } from './health-service.js';
+export {
+  HealthService,
+  hasHealthAccess,
+  isSchoolBoundHealthActor,
+} from './health-service.js';
+export type { HealthAccessContext, HealthAccessOptions } from './health-service.js';
 
 export {
   PHI_FIELD_COUNSELLING_CASE_NOTES,
@@ -97,8 +101,10 @@ export {
   encryptPhi,
   isPhiCiphertext,
   isPhiEncryptionEnabled,
+  phiScopeForStudent,
   PhiKeyMissingError,
 } from './phi-crypto.js';
+export type { PhiCryptoScope } from './phi-crypto.js';
 
 // Routes
 export { registerHealthRoutes } from './routes.js';

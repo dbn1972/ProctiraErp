@@ -292,12 +292,14 @@ export const healthUiPlugin = fp(
             userId: string;
             roles: string[];
             guardianOfStudentIds: string[];
+            institutionIds?: string[];
           };
         }
       ).healthAccessContext = {
         userId: user?.sub ?? user?.userId ?? '',
         roles,
         guardianOfStudentIds: user?.guardianOfStudentIds ?? [],
+        institutionIds: user?.institutions ?? [],
       };
     });
 
