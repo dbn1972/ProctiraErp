@@ -93,6 +93,7 @@ export type {
 } from './escalation-service.js';
 
 export { QueueEscalationPublisher } from './queue-escalation-publisher.js';
+export { OutboxEscalationPublisher } from './outbox-escalation-publisher.js';
 export { createEscalationPublisherFromEnv } from './escalation-publisher-factory.js';
 export type { EscalationPublisherHandle } from './escalation-publisher-factory.js';
 export { createWorkflowEscalationWorker } from './escalation-worker.js';

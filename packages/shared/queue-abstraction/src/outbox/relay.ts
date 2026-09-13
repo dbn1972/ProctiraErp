@@ -120,10 +120,18 @@ export class OutboxRelay {
       },
     };
 
+    const delay =
+      typeof row.metadata?.delay === 'number' ? row.metadata.delay : undefined;
+    const priority =
+      typeof row.metadata?.priority === 'number' ? row.metadata.priority : undefined;
+
     if (row.dispatchMode === 'publish') {
       await this.queue.publish(message);
     } else {
-      await this.queue.dispatch(message);
+      await this.queue.dispatch(message, {
+        ...(delay !== undefined ? { delay } : {}),
+        ...(priority !== undefined ? { priority } : {}),
+      });
     }
     this.logger?.info?.(
       { outboxId: row.id, eventType: row.eventType, tenantId: row.tenantId },
