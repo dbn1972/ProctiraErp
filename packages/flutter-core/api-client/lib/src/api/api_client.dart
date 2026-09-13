@@ -24,6 +24,7 @@ class BaseApi {
     Map<String, dynamic>? queryParameters,
     Object? data,
     String? ifMatch,
+    String? idempotencyKey,
     Options? options,
   }) async {
     final Options merged = (options ?? Options()).copyWith(
@@ -31,6 +32,7 @@ class BaseApi {
       headers: <String, dynamic>{
         ...?options?.headers,
         'If-Match': ?ifMatch,
+        'Idempotency-Key': ?idempotencyKey,
       },
     );
 

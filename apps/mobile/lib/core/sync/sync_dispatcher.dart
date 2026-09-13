@@ -70,7 +70,10 @@ class AttendanceSyncDispatcher implements SyncDispatcher {
       switch (row.operation) {
         case SyncOperation.create:
           final AttendanceRecord record = AttendanceRecord.fromJson(row.payload);
-          final AttendanceRecord saved = await api.createStudentAttendance(record);
+          final AttendanceRecord saved = await api.createStudentAttendance(
+            record,
+            idempotencyKey: row.idempotencyKey,
+          );
           return DispatchSuccess(
             serverEntity: <String, dynamic>{
               'id': saved.id,
@@ -97,7 +100,11 @@ class AttendanceSyncDispatcher implements SyncDispatcher {
           }
           final AttendanceRecord record = AttendanceRecord.fromJson(row.payload);
           final AttendanceRecord saved =
-              await api.updateStudentAttendance(record, ifMatch: ifMatch);
+              await api.updateStudentAttendance(
+            record,
+            ifMatch: ifMatch,
+            idempotencyKey: row.idempotencyKey,
+          );
           return DispatchSuccess(
             serverEntity: <String, dynamic>{
               'id': saved.id,
@@ -125,7 +132,11 @@ class AttendanceSyncDispatcher implements SyncDispatcher {
           if (ifMatch == null) {
             return const DispatchPermanent('Delete missing base version');
           }
-          await api.deleteStudentAttendance(id, ifMatch: ifMatch);
+          await api.deleteStudentAttendance(
+            id,
+            ifMatch: ifMatch,
+            idempotencyKey: row.idempotencyKey,
+          );
           return DispatchSuccess(
             serverEntity: const <String, dynamic>{},
             serverVersion: '',

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 
 import '../storage/database.dart';
 import '../tenant/tenant_provider.dart';
@@ -84,6 +85,7 @@ class SyncQueue {
     final Database db = await _database.database;
     final int nowMs = _now().millisecondsSinceEpoch;
 
+    final String idempotencyKey = const Uuid().v4();
     return db.insert('pending_sync', <String, Object?>{
       'tenant_id': tenantId,
       'entity_type': entityType.toWire(),
@@ -97,6 +99,7 @@ class SyncQueue {
       'base_version': baseVersion,
       'status': SyncStatus.pending.toWire(),
       'priority': priority.toWire(),
+      'idempotency_key': idempotencyKey,
     });
   }
 
@@ -121,6 +124,7 @@ class SyncQueue {
         cachePayload,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      final String idempotencyKey = const Uuid().v4();
       return txn.insert('pending_sync', <String, Object?>{
         'tenant_id': tenantId,
         'entity_type': entityType.toWire(),
@@ -134,6 +138,7 @@ class SyncQueue {
         'base_version': baseVersion,
         'status': SyncStatus.pending.toWire(),
         'priority': priority.toWire(),
+        'idempotency_key': idempotencyKey,
       });
     });
   }

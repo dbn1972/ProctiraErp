@@ -66,6 +66,7 @@ class PendingSyncRow {
     required this.lastError,
     required this.baseVersion,
     required this.status,
+    required this.idempotencyKey,
   });
 
   final int id;
@@ -80,6 +81,8 @@ class PendingSyncRow {
   final String? lastError;
   final String? baseVersion;
   final SyncStatus status;
+  /// Stable client key used as `Idempotency-Key` on replay (W2-MOB-03).
+  final String idempotencyKey;
 
   factory PendingSyncRow.fromDb(Map<String, Object?> row) {
     final String rawPayload = row['payload'] as String;
@@ -100,6 +103,8 @@ class PendingSyncRow {
       lastError: row['last_error'] as String?,
       baseVersion: row['base_version'] as String?,
       status: SyncStatus.fromWire(row['status'] as String? ?? 'pending'),
+      idempotencyKey: (row['idempotency_key'] as String?) ??
+          'missing-${(row['id'] as num).toInt()}',
     );
   }
 }

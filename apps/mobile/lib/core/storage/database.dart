@@ -10,7 +10,7 @@ import 'package:sqflite/sqflite.dart';
 class AppDatabase {
   AppDatabase({String? overridePath}) : _overridePath = overridePath;
 
-  static const int schemaVersion = 6;
+  static const int schemaVersion = 7;
   static const String _dbFileName = 'openemis_mobile.db';
 
   final String? _overridePath;
@@ -58,11 +58,16 @@ class AppDatabase {
           created_at INTEGER NOT NULL,
           last_attempt_at INTEGER,
           attempts INTEGER NOT NULL DEFAULT 0,
-          last_error TEXT
+          last_error TEXT,
+          idempotency_key TEXT NOT NULL
         )
       ''');
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_pending_sync_tenant ON pending_sync(tenant_id)',
+      );
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_sync_idempotency '
+        'ON pending_sync(tenant_id, idempotency_key)',
       );
 
       await db.execute('''
@@ -235,6 +240,36 @@ class AppDatabase {
       ''');
       await db.execute('DELETE FROM students_cache');
       await db.execute('DELETE FROM health_records_cache');
+    }
+    if (fromVersion < 7 && toVersion >= 7) {
+      // W2-MOB-03: stable idempotency keys for offline queue retries.
+      try {
+        await db.execute(
+          'ALTER TABLE pending_sync ADD COLUMN idempotency_key TEXT',
+        );
+      } catch (_) {
+        /* column already present */
+      }
+      final List<Map<String, Object?>> rows = await db.query(
+        'pending_sync',
+        columns: <String>['id'],
+        where: "idempotency_key IS NULL OR idempotency_key = ''",
+      );
+      for (final Map<String, Object?> row in rows) {
+        await db.update(
+          'pending_sync',
+          <String, Object?>{
+            'idempotency_key':
+                'legacy-${row['id']}-${DateTime.now().microsecondsSinceEpoch}',
+          },
+          where: 'id = ?',
+          whereArgs: <Object>[row['id'] as Object],
+        );
+      }
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_pending_sync_idempotency '
+        'ON pending_sync(tenant_id, idempotency_key)',
+      );
     }
   }
 
