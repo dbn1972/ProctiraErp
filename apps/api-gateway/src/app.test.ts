@@ -135,7 +135,7 @@ describe('API Gateway', () => {
       expect(body.status).toBe('up');
     });
 
-    it('GET /health/ready returns readiness status', async () => {
+    it('GET /health/ready returns readiness status with database dependency', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/health/ready',
@@ -144,7 +144,9 @@ describe('API Gateway', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.status).toBe('up');
-      expect(body.services).toBeDefined();
+      expect(body.dependencies).toBeDefined();
+      expect(body.dependencies.database).toBe('in-memory');
+      expect(Object.values(body.dependencies)).not.toContain('unknown');
     });
 
     it('health endpoints do not require authentication', async () => {
