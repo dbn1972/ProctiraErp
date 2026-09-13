@@ -294,6 +294,31 @@ export class PgReportStore implements ReportStore {
     });
   }
 
+  async claimDueSchedules(now: Date, leaseMs: number): Promise<ReportScheduleRecord[]> {
+    await ensureSchema(this.pool);
+    const leaseUntil = new Date(now.getTime() + Math.max(1_000, leaseMs));
+    return withPlatformScope(this.pool as never, async (client) => {
+      // W2-JOB-08: SKIP LOCKED so concurrent replicas claim disjoint rows.
+      const { rows } = await client.query(
+        `WITH due AS (
+           SELECT id
+             FROM report_schedules
+            WHERE enabled AND next_run_at <= $1
+            ORDER BY next_run_at ASC
+            FOR UPDATE SKIP LOCKED
+         )
+         UPDATE report_schedules AS s
+            SET next_run_at = $2,
+                updated_at = now()
+           FROM due
+          WHERE s.id = due.id
+          RETURNING s.*`,
+        [now, leaseUntil],
+      );
+      return (rows as Record<string, unknown>[]).map(mapSchedule);
+    });
+  }
+
   async insertRun(record: ReportRunRecord): Promise<ReportRunRecord> {
     return this.tenant(record.tenantId, async (client) => {
       const { rows } = await client.query(

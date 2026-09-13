@@ -10,6 +10,7 @@ import { CatalogueService } from './catalogue-service.js';
 import { buildRoleDashboard, inferDashboardRole, resolveDashboardRole } from './dashboards.js';
 import { generateCsv, generateReportBytes, sha256Hex } from './generators.js';
 import { InMemoryReportStore } from './report-store.js';
+import { InMemoryScheduleDelivery } from './schedule-delivery.js';
 import { computeNextRunAt, createReportScheduler } from './scheduler.js';
 
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
@@ -296,5 +297,85 @@ describe('G-909 catalogue plugin routes', () => {
     });
     expect(allowed.statusCode).toBe(200);
     expect((allowed.json() as { role: string }).role).toBe('parent');
+  });
+});
+
+
+describe('W2-JOB-08 / W2-JOB-09 scheduler lease + delivery', () => {
+  it('claimDueSchedules prevents a second replica from claiming the same schedule', async () => {
+    const store = new InMemoryReportStore();
+    const schedule = await store.insertSchedule({
+      id: 'sch-1',
+      tenantId: TENANT_A,
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      hour: 6,
+      nextRunAt: new Date(Date.now() - 60_000),
+      recipients: ['office@school.test'],
+      enabled: true,
+      createdBy: 'sched',
+      lastRunAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const now = new Date();
+    const first = await store.claimDueSchedules(now, 15 * 60_000);
+    expect(first.map((s) => s.id)).toEqual([schedule.id]);
+    const second = await store.claimDueSchedules(now, 15 * 60_000);
+    expect(second).toEqual([]);
+  });
+
+  it('tickDueSchedules delivers to recipients after a successful run', async () => {
+    const { service } = makeService();
+    const delivery = service.getDeliveryPort() as InMemoryScheduleDelivery;
+    const schedule = await service.createSchedule(TENANT_A, 'sched', {
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      recipients: ['office@school.test', 'principal@school.test'],
+    });
+    const past = new Date(Date.now() - 60_000);
+    await (service as unknown as { store: InMemoryReportStore }).store.updateSchedule(
+      TENANT_A,
+      schedule.id,
+      { nextRunAt: past },
+    );
+    const tick = await service.tickDueSchedules(new Date());
+    expect(tick.due).toBe(1);
+    expect(tick.completed).toBe(1);
+    expect(tick.delivered).toBe(1);
+    expect(delivery.sent).toHaveLength(1);
+    expect(delivery.sent[0]!.recipients).toEqual([
+      'office@school.test',
+      'principal@school.test',
+    ]);
+    expect(delivery.sent[0]!.downloadUrl).toContain('/api/v1/reports/artifacts/');
+  });
+
+  it('failed ticks retry with backoff instead of advancing cadence', async () => {
+    const store = new InMemoryReportStore();
+    const blobs = new InMemoryReportBlobStore();
+    const service = new CatalogueService(store, blobs);
+    const schedule = await service.createSchedule(TENANT_A, 'sched', {
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      recipients: ['office@school.test'],
+    });
+    const now = new Date('2026-03-01T12:00:00.000Z');
+    const past = new Date(now.getTime() - 60_000);
+    await store.updateSchedule(TENANT_A, schedule.id, { nextRunAt: past });
+
+    service.generate = (async () => {
+      throw new Error('generator boom');
+    }) as typeof service.generate;
+
+    const tick = await service.tickDueSchedules(now);
+    expect(tick.due).toBe(1);
+    expect(tick.failed).toBe(1);
+    expect(tick.completed).toBe(0);
+    const updated = await store.getSchedule(TENANT_A, schedule.id);
+    expect(updated!.nextRunAt.getTime()).toBe(now.getTime() + 5 * 60_000);
   });
 });
