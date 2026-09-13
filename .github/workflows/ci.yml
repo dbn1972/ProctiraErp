@@ -177,7 +177,17 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [lint, typecheck]
+    needs: [detect-changes, lint, typecheck]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.lint.result != 'failure' &&
+      needs.lint.result != 'cancelled' &&
+      needs.typecheck.result != 'failure' &&
+      needs.typecheck.result != 'cancelled'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -218,7 +228,14 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.unit-test.result == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -549,7 +566,14 @@ jobs:
   dod-checks:
     name: Definition of Done (Charter §32)
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.unit-test.result == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -601,7 +625,14 @@ jobs:
   tenant-isolation:
     name: Tenant Isolation Verification (Release Gate)
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.unit-test.result == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -667,3 +698,48 @@ jobs:
             tools/tenant-isolation-tests/test-results/
             tools/tenant-isolation-tests/playwright-report/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # CI Aggregate — required merge gate (W1-OPS-05 B2)
+  # ---------------------------------------------------------------------------
+  # Always runs (even when upstream jobs skip) and fails closed when any
+  # required job failed/cancelled or was skipped without a proven path-filter
+  # justification. Branch protection should require this job name instead of
+  # individual matrix jobs that can cascade-skip to green.
+  # ---------------------------------------------------------------------------
+  ci-aggregate:
+    name: CI Aggregate (Required)
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - lint
+      - typecheck
+      - unit-test
+      - build
+      - bundle-budget
+      - lighthouse
+      - integration-test
+      - dod-checks
+      - tenant-isolation
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify CI results (fail closed on failures and unproven skips)
+        env:
+          PACKAGES_CHANGED: ${{ needs.detect-changes.outputs.packages-changed }}
+          APPS_CHANGED: ${{ needs.detect-changes.outputs.apps-changed }}
+          SHARED_CHANGED: ${{ needs.detect-changes.outputs.has-shared-changes }}
+          FRONTEND_CHANGED: ${{ needs.detect-changes.outputs.has-frontend-changes }}
+          BACKEND_CHANGED: ${{ needs.detect-changes.outputs.has-backend-changes }}
+          DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          UNIT_TEST_RESULT: ${{ needs.unit-test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          BUNDLE_BUDGET_RESULT: ${{ needs.bundle-budget.result }}
+          LIGHTHOUSE_RESULT: ${{ needs.lighthouse.result }}
+          INTEGRATION_TEST_RESULT: ${{ needs.integration-test.result }}
+          DOD_CHECKS_RESULT: ${{ needs.dod-checks.result }}
+          TENANT_ISOLATION_RESULT: ${{ needs.tenant-isolation.result }}
+        run: node tools/scripts/ci-aggregate-gate.mjs
