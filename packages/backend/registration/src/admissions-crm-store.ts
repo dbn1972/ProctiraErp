@@ -68,6 +68,11 @@ export interface BookSlotInput {
 export interface AdmissionsCrmStore {
   listWaitlist(tenantId: string, institutionId?: string): Promise<WaitlistEntry[]>;
   enqueueWaitlist(input: EnqueueWaitlistInput): Promise<WaitlistEntry>;
+  /**
+   * W2-ADM-02: pop the head of the institution waitlist (lowest position).
+   * Returns null when the queue is empty.
+   */
+  dequeueWaitlistHead(tenantId: string, institutionId: string): Promise<WaitlistEntry | null>;
   createSlot(input: CreateSlotInput): Promise<InterviewSlot>;
   listSlots(tenantId: string, institutionId?: string): Promise<InterviewSlot[]>;
   findSlot(id: string, tenantId: string): Promise<InterviewSlot | null>;
@@ -113,6 +118,19 @@ export class InMemoryAdmissionsCrmStore implements AdmissionsCrmStore {
     };
     this.waitlist.push(entry);
     return entry;
+  }
+
+  async dequeueWaitlistHead(
+    tenantId: string,
+    institutionId: string,
+  ): Promise<WaitlistEntry | null> {
+    const ordered = this.waitlist
+      .filter((row) => row.tenantId === tenantId && row.institutionId === institutionId)
+      .sort((a, b) => a.position - b.position);
+    const head = ordered[0];
+    if (!head) return null;
+    this.waitlist = this.waitlist.filter((row) => row.id !== head.id);
+    return head;
   }
 
   async createSlot(input: CreateSlotInput): Promise<InterviewSlot> {
