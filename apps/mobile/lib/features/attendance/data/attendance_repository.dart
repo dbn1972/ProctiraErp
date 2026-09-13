@@ -4,6 +4,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_models.dart';
@@ -38,12 +39,14 @@ class AttendanceRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required SyncEngine syncEngine,
+    required CacheCrypto cacheCrypto,
     StudentApi? studentApi,
     Uuid uuid = const Uuid(),
     DateTime Function() now = _defaultNow,
   })  : _database = database,
         _tenantProvider = tenantProvider,
         _syncEngine = syncEngine,
+        _cacheCrypto = cacheCrypto,
         _studentApi = studentApi,
         _uuid = uuid,
         _now = now;
@@ -53,6 +56,7 @@ class AttendanceRepository {
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final SyncEngine _syncEngine;
+  final CacheCrypto _cacheCrypto;
   final StudentApi? _studentApi;
   final Uuid _uuid;
   final DateTime Function() _now;
@@ -88,7 +92,7 @@ class AttendanceRepository {
             for (final Student student in remote) {
               await txn.insert(
                 'students_cache',
-                _studentCacheRow(tenantId, student),
+                await _studentCacheRow(tenantId, student),
                 conflictAlgorithm: ConflictAlgorithm.replace,
               );
             }
@@ -124,7 +128,8 @@ class AttendanceRepository {
         row['student_id'] as String: row,
     };
 
-    return rows.map((Map<String, Object?> row) {
+    final List<AttendanceRosterEntry> roster = <AttendanceRosterEntry>[];
+    for (final Map<String, Object?> row in rows) {
       final String studentId = row['id'] as String;
       final Map<String, Object?>? attendance = byStudent[studentId];
       AttendanceStatus? status;
@@ -132,16 +137,19 @@ class AttendanceRepository {
       if (rawStatus != null) {
         status = AttendanceStatus.fromWire(rawStatus);
       }
-      return AttendanceRosterEntry(
-        studentId: studentId,
-        studentName: row['full_name'] as String,
-        recordId: attendance?['id'] as String?,
-        status: status,
-        comment: attendance?['remarks'] as String?,
-        version: attendance?['version'] as String?,
-        synced: ((attendance?['synced'] as int?) ?? 0) == 1,
+      roster.add(
+        AttendanceRosterEntry(
+          studentId: studentId,
+          studentName: await _cacheCrypto.decrypt(row['full_name'] as String),
+          recordId: attendance?['id'] as String?,
+          status: status,
+          comment: attendance?['remarks'] as String?,
+          version: attendance?['version'] as String?,
+          synced: ((attendance?['synced'] as int?) ?? 0) == 1,
+        ),
       );
-    }).toList(growable: false);
+    }
+    return roster;
   }
 
   /// Persist a new mark or replace an existing one. Always queues a sync op.
@@ -215,27 +223,31 @@ class AttendanceRepository {
     );
   }
 
-  Map<String, Object?> _studentCacheRow(String tenantId, Student student) {
+  Future<Map<String, Object?>> _studentCacheRow(
+    String tenantId,
+    Student student,
+  ) async {
+    final String payload = jsonEncode(<String, dynamic>{
+      'id': student.id,
+      'firstName': student.firstName,
+      'middleName': student.middleName,
+      'lastName': student.lastName,
+      'dateOfBirth': student.dateOfBirth,
+      'gender': student.gender,
+      'nationalId': student.nationalId,
+      'institutionId': student.institutionId,
+      'createdAt': student.createdAt,
+      'updatedAt': student.updatedAt,
+    });
     return <String, Object?>{
       'id': student.id,
       'tenant_id': tenantId,
       'institution_id': student.institutionId,
-      'full_name': student.fullName,
-      'national_id': student.nationalId,
+      'full_name': await _cacheCrypto.encrypt(student.fullName),
+      'national_id': await _cacheCrypto.encryptNullable(student.nationalId),
       'grade': null,
       'class_name': null,
-      'payload': jsonEncode(<String, dynamic>{
-        'id': student.id,
-        'firstName': student.firstName,
-        'middleName': student.middleName,
-        'lastName': student.lastName,
-        'dateOfBirth': student.dateOfBirth,
-        'gender': student.gender,
-        'nationalId': student.nationalId,
-        'institutionId': student.institutionId,
-        'createdAt': student.createdAt,
-        'updatedAt': student.updatedAt,
-      }),
+      'payload': await _cacheCrypto.encrypt(payload),
       'updated_at': _now().millisecondsSinceEpoch,
       'version': student.version,
     };

@@ -18,6 +18,7 @@ import '../notifications/fcm_service.dart';
 import '../notifications/local_notifications.dart';
 import '../notifications/notification_router.dart';
 import '../router/app_router.dart';
+import '../storage/cache_crypto.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 import '../sync/connectivity_monitor.dart';
@@ -53,6 +54,10 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   );
   final SecureStorage secureStorage = SecureStorage(rawStorage);
   getIt.registerSingleton<SecureStorage>(secureStorage);
+
+  final CacheCrypto cacheCrypto =
+      await CacheCrypto.fromSecureStorage(secureStorage);
+  getIt.registerSingleton<CacheCrypto>(cacheCrypto);
 
   final AppDatabase database = AppDatabase();
   getIt.registerSingleton<AppDatabase>(database);
@@ -209,6 +214,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       syncEngine: getIt<SyncEngine>(),
+      cacheCrypto: getIt<CacheCrypto>(),
       studentApi: getIt<StudentApi>(),
     ),
   );
@@ -217,6 +223,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       syncEngine: getIt<SyncEngine>(),
+      cacheCrypto: getIt<CacheCrypto>(),
       studentApi: getIt<StudentApi>(),
     ),
   );
@@ -232,6 +239,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),
+      cacheCrypto: getIt<CacheCrypto>(),
     ),
   );
   getIt.registerLazySingleton<ExaminationRepository>(
