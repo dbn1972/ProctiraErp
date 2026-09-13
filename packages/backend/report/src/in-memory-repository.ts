@@ -81,6 +81,41 @@ export class InMemoryReportRepository implements ReportRepository {
     };
   }
 
+  async findActiveJobByDedupeKey(
+    tenantId: string,
+    dedupeKey: string,
+  ): Promise<ReportJobEntity | null> {
+    const found = this.jobs.find(
+      (j) =>
+        j.tenantId === tenantId &&
+        j.dedupeKey === dedupeKey &&
+        (j.status === 'queued' || j.status === 'processing'),
+    );
+    return found ? { ...found } : null;
+  }
+
+  async claimQueuedJob(
+    tenantId: string,
+    jobId: string,
+    leaseMs: number,
+    now = new Date(),
+  ): Promise<ReportJobEntity | null> {
+    const index = this.jobs.findIndex((j) => j.id === jobId && j.tenantId === tenantId);
+    if (index === -1) return null;
+    const existing = this.jobs[index]!;
+    if (existing.status !== 'queued') return null;
+    const leaseExpiresAt = new Date(now.getTime() + Math.max(1_000, leaseMs));
+    const updated: ReportJobEntity = {
+      ...existing,
+      status: 'processing',
+      startedAt: now,
+      leaseExpiresAt,
+      updatedAt: now,
+    };
+    this.jobs[index] = updated;
+    return { ...updated };
+  }
+
   // ─── Report Templates ──────────────────────────────────────────────────
 
   async createTemplate(entity: ReportTemplateEntity): Promise<ReportTemplateEntity> {

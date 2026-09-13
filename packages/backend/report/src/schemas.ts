@@ -36,6 +36,7 @@ export const ReportJobStatusSchema = Type.Union(
     Type.Literal('processing'),
     Type.Literal('completed'),
     Type.Literal('failed'),
+    Type.Literal('cancelled'),
   ],
   { description: 'Report job processing status' },
 );
@@ -107,6 +108,14 @@ export const GenerateReportSchema = Type.Object({
     Type.String({
       maxLength: 255,
       description: 'Custom report title',
+    }),
+  ),
+  /** W2-JOB-13: idempotency / dedupe key for in-flight jobs */
+  dedupeKey: Type.Optional(
+    Type.String({
+      minLength: 1,
+      maxLength: 200,
+      description: 'Client dedupe key — returns the active job when one already exists',
     }),
   ),
 });
@@ -282,6 +291,8 @@ export const ReportJobResponseSchema = Type.Object({
   aggregations: Type.Optional(Type.Array(AggregationConfigSchema)),
   templateId: Type.Optional(Type.String()),
   title: Type.Optional(Type.String()),
+  dedupeKey: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  leaseExpiresAt: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   requestedBy: Type.String(),
   requestedByArea: Type.Optional(Type.String()),
   requestedByRole: Type.Optional(Type.String()),
