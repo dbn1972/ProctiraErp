@@ -1,15 +1,22 @@
 # =============================================================================
 # Deploy Pipeline - ProctiraERP Unified Platform
 # =============================================================================
-# Triggered on push to main (production) or develop (staging).
-# Builds container images for affected services and pushes to registry.
-# Deploys to the appropriate environment via Helm.
+# Gated on successful completion of the CI workflow for the same commit, so
+# only commits that pass lint, type-check, unit tests, build, and integration
+# tests are deployed. Builds container images for affected services, pushes to
+# the registry, and deploys to the appropriate environment via Helm.
+#
+# Triggers:
+#   - workflow_run: After CI completes successfully on main/develop
+#   - workflow_dispatch: Manual deploy for any ref (with optional service list)
 # =============================================================================
 
 name: Deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
     branches: [main, develop]
   workflow_dispatch:
     inputs:
@@ -26,7 +33,7 @@ on:
         type: string
 
 concurrency:
-  group: deploy-${{ github.ref_name }}
+  group: deploy-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
 env:
@@ -38,11 +45,38 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
+  # Gate: Only proceed if the upstream CI run succeeded (workflow_run trigger).
+  # workflow_dispatch bypasses this gate.
+  # ---------------------------------------------------------------------------
+  ci-gate:
+    name: Verify CI Passed
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      head-sha: ${{ steps.resolve.outputs.head-sha }}
+      head-branch: ${{ steps.resolve.outputs.head-branch }}
+    steps:
+      - name: Resolve commit and branch
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          else
+            HEAD_SHA="${{ github.sha }}"
+            HEAD_BRANCH="${{ github.ref_name }}"
+          fi
+          echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "Deploying commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
   # Determine environment and affected services
   # ---------------------------------------------------------------------------
   prepare:
     name: Prepare Deployment
     runs-on: ubuntu-latest
+    needs: ci-gate
     outputs:
       environment: ${{ steps.env.outputs.environment }}
       services: ${{ steps.affected.outputs.services }}
@@ -51,6 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
           fetch-depth: 0
 
       - name: Determine environment
@@ -58,7 +93,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.ref_name }}" = "main" ]; then
+          elif [ "${{ needs.ci-gate.outputs.head-branch }}" = "main" ]; then
             echo "environment=production" >> "$GITHUB_OUTPUT"
           else
             echo "environment=staging" >> "$GITHUB_OUTPUT"
@@ -157,12 +192,14 @@ jobs:
   build-images:
     name: Build Images
     runs-on: ubuntu-latest
-    needs: [prepare, matrix-prep]
+    needs: [ci-gate, prepare, matrix-prep]
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -236,11 +273,13 @@ jobs:
   deploy:
     name: Deploy to ${{ needs.prepare.outputs.environment }}
     runs-on: ubuntu-latest
-    needs: [prepare, build-images]
+    needs: [ci-gate, prepare, build-images]
     if: needs.prepare.outputs.can-deploy == 'true'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
 
       - name: Configure kubectl
         uses: azure/setup-kubectl@v4
