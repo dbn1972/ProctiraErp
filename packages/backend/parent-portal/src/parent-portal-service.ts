@@ -211,6 +211,7 @@ export class ParentPortalService {
       title: input.title,
       description: input.description ?? '',
       status: 'pending',
+      consentVersion: input.consentVersion,
       createdBy: actorId,
     });
   }

@@ -137,6 +137,7 @@ function formatConsent(entity: {
   title: string;
   description: string;
   status: string;
+  consentVersion: string;
   decidedAt: Date | null;
   createdBy: string | null;
   createdAt: Date;
@@ -151,6 +152,7 @@ function formatConsent(entity: {
     title: entity.title,
     description: entity.description,
     status: entity.status,
+    consentVersion: entity.consentVersion,
     decidedAt: entity.decidedAt?.toISOString() ?? null,
     createdBy: entity.createdBy,
     createdAt: entity.createdAt.toISOString(),

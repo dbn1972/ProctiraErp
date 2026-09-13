@@ -106,6 +106,25 @@ describe('ParentPortalService', () => {
   });
 
   describe('consent', () => {
+    const CONSENT_VERSION = 'photo-media-v2026-01';
+
+    it('requires consentVersion on create and exposes it on read (W1-PRIV-01)', async () => {
+      const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        parentUserId: PARENT_USER,
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        description: 'Allow school photos',
+        consentVersion: CONSENT_VERSION,
+      });
+
+      expect(consent.consentVersion).toBe(CONSENT_VERSION);
+
+      const listed = await service.listConsentsForParent(TENANT_A, PARENT_USER);
+      expect(listed).toHaveLength(1);
+      expect(listed[0]!.consentVersion).toBe(CONSENT_VERSION);
+    });
+
     it('allows parent to approve a pending consent', async () => {
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
@@ -113,6 +132,7 @@ describe('ParentPortalService', () => {
         consentType: 'photo_media',
         title: 'Photo consent',
         description: 'Allow school photos',
+        consentVersion: CONSENT_VERSION,
       });
 
       expect(consent.status).toBe('pending');
@@ -133,6 +153,7 @@ describe('ParentPortalService', () => {
         parentUserId: PARENT_USER,
         consentType: 'field_trip',
         title: 'Field trip',
+        consentVersion: 'field-trip-v2026-01',
       });
 
       await expect(
@@ -163,12 +184,14 @@ describe('ParentPortalService', () => {
         parentUserId: PARENT_PRIMARY,
         consentType: 'medical_treatment',
         title: 'Emergency treatment',
+        consentVersion: 'medical-v2026-01',
       });
       const medicalLimited = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_LIMITED,
         consentType: 'medical_treatment',
         title: 'Emergency treatment (limited)',
+        consentVersion: 'medical-v2026-01',
       });
 
       const approved = await service.decideConsent(TENANT_A, PARENT_PRIMARY, medicalPrimary.id, {
@@ -319,6 +342,7 @@ describe('ParentPortalService', () => {
         parentUserId: PARENT_USER,
         consentType: 'data_sharing',
         title: 'Data sharing',
+        consentVersion: 'data-sharing-v2026-01',
       });
       await service.createInvoice(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,

@@ -58,6 +58,7 @@ export const CreateConsentSchema = Type.Object({
   ]),
   title: Type.String({ minLength: 1, maxLength: 500 }),
   description: Type.Optional(Type.String({ maxLength: 5000 })),
+  consentVersion: Type.String({ minLength: 1, maxLength: 64 }),
 });
 
 export type CreateConsentInput = Static<typeof CreateConsentSchema>;

@@ -56,6 +56,7 @@ export interface ConsentRequest {
   title: string;
   description: string;
   status: string;
+  consentVersion: string;
   decidedAt: string | null;
   createdBy: string | null;
   createdAt: string;
