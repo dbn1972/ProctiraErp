@@ -1,4 +1,4 @@
-export { Students360Service, decodePhotoPayload } from './service.js';
+export { Students360Service, decodePhotoPayload, decodeDocumentPayload } from './service.js';
 export type { AttendanceHeatmapSource, Students360ServiceDeps } from './service.js';
 export { registerStudents360Routes } from './routes.js';
 export type { Students360RoutesOptions } from './routes.js';

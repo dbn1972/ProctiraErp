@@ -4,7 +4,7 @@
  */
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
-import type { ConsentKind, DisciplineSeverity } from './schemas.js';
+import type { ConsentKind, DisciplineSeverity, DocumentCategory } from './schemas.js';
 
 export interface PhotoRecord {
   id: string;
@@ -49,6 +49,20 @@ export interface DisciplineRecord {
   createdAt: Date;
 }
 
+/** W2-SIS-03 — registered student document metadata (blob bytes in StudentBlobStore). */
+export interface DocumentRecord {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  category: DocumentCategory;
+  fileName: string;
+  objectKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string;
+  createdAt: Date;
+}
+
 export interface Students360Store {
   upsertPhoto(record: PhotoRecord): Promise<PhotoRecord>;
   getPhoto(tenantId: string, studentId: string): Promise<PhotoRecord | null>;
@@ -73,6 +87,15 @@ export interface Students360Store {
     incidentId: string,
   ): Promise<DisciplineRecord | null>;
   deleteDiscipline(tenantId: string, studentId: string, incidentId: string): Promise<boolean>;
+
+  createDocument(record: DocumentRecord): Promise<DocumentRecord>;
+  listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]>;
+  findDocument(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<DocumentRecord | null>;
+  deleteDocument(tenantId: string, studentId: string, documentId: string): Promise<boolean>;
 }
 
 export class InMemoryStudents360Store implements Students360Store {
@@ -80,6 +103,7 @@ export class InMemoryStudents360Store implements Students360Store {
   private readonly siblings = new Map<string, SiblingRecord>();
   private readonly consents = new Map<string, ConsentRecord>();
   private readonly discipline = new Map<string, DisciplineRecord>();
+  private readonly documents = new Map<string, DocumentRecord>();
 
   private photoKey(tenantId: string, studentId: string): string {
     return `${tenantId}:${studentId}`;
@@ -191,6 +215,39 @@ export class InMemoryStudents360Store implements Students360Store {
     this.discipline.delete(incidentId);
     return true;
   }
+
+  async createDocument(record: DocumentRecord): Promise<DocumentRecord> {
+    const copy = { ...record };
+    this.documents.set(record.id, copy);
+    return { ...copy };
+  }
+
+  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+    return Array.from(this.documents.values())
+      .filter((row) => row.tenantId === tenantId && row.studentId === studentId)
+      .map((row) => ({ ...row }))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async findDocument(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<DocumentRecord | null> {
+    const row = this.documents.get(documentId);
+    return row && row.tenantId === tenantId && row.studentId === studentId ? { ...row } : null;
+  }
+
+  async deleteDocument(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<boolean> {
+    const row = this.documents.get(documentId);
+    if (!row || row.tenantId !== tenantId || row.studentId !== studentId) return false;
+    this.documents.delete(documentId);
+    return true;
+  }
 }
 
 function isoDate(value: string | Date): string {
@@ -287,6 +344,34 @@ function toDiscipline(row: DisciplineRow): DisciplineRecord {
     reporterId: row.reporter_id,
     incidentDate: isoDate(row.incident_date),
     visibleToParent: Boolean(row.visible_to_parent),
+    createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
+  };
+}
+
+type DocumentRow = {
+  id: string;
+  tenant_id: string;
+  student_id: string;
+  category: string;
+  file_name: string;
+  object_key: string;
+  mime_type: string;
+  size_bytes: number | string;
+  uploaded_by: string;
+  created_at: Date;
+};
+
+function toDocument(row: DocumentRow): DocumentRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenant_id,
+    studentId: row.student_id,
+    category: row.category as DocumentCategory,
+    fileName: row.file_name,
+    objectKey: row.object_key,
+    mimeType: row.mime_type,
+    sizeBytes: Number(row.size_bytes),
+    uploadedBy: row.uploaded_by,
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
   };
 }
@@ -500,6 +585,73 @@ export class PgStudents360Store implements Students360Store {
         `DELETE FROM student_discipline_incidents
           WHERE tenant_id = $1 AND student_id = $2 AND id = $3`,
         [tenantId, studentId, incidentId],
+      );
+      return Number((result as { rowCount?: number }).rowCount ?? 0) > 0;
+    });
+  }
+
+  async createDocument(record: DocumentRecord): Promise<DocumentRecord> {
+    return this.run(record.tenantId, async (client) => {
+      const { rows } = await client.query(
+        `INSERT INTO student_documents
+           (id, tenant_id, student_id, category, file_name, object_key, mime_type,
+            size_bytes, uploaded_by, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         RETURNING *`,
+        [
+          record.id,
+          record.tenantId,
+          record.studentId,
+          record.category,
+          record.fileName,
+          record.objectKey,
+          record.mimeType,
+          record.sizeBytes,
+          record.uploadedBy,
+          record.createdAt,
+        ],
+      );
+      return toDocument(rows[0] as DocumentRow);
+    });
+  }
+
+  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM student_documents
+          WHERE tenant_id = $1 AND student_id = $2
+          ORDER BY created_at DESC`,
+        [tenantId, studentId],
+      );
+      return (rows as DocumentRow[]).map(toDocument);
+    });
+  }
+
+  async findDocument(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<DocumentRecord | null> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT * FROM student_documents
+          WHERE tenant_id = $1 AND student_id = $2 AND id = $3 LIMIT 1`,
+        [tenantId, studentId, documentId],
+      );
+      return rows[0] ? toDocument(rows[0] as DocumentRow) : null;
+    });
+  }
+
+  async deleteDocument(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<boolean> {
+    return this.run(tenantId, async (client) => {
+      const result = await client.query(
+        `DELETE FROM student_documents
+          WHERE tenant_id = $1 AND student_id = $2 AND id = $3`,
+        [tenantId, studentId, documentId],
       );
       return Number((result as { rowCount?: number }).rowCount ?? 0) > 0;
     });
