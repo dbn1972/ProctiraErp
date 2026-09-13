@@ -16,19 +16,16 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { requireSession } from '@/lib/auth/server';
 import { canAccessPhiAccessLogs, listPhiAccessLogs } from '@/lib/api/health';
+import { PhiAccessDenied } from '@/lib/auth/health-route-guards';
+import { requireSession } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function PhiAccessPage() {
   const session = await requireSession('/health/phi-access');
   if (!canAccessPhiAccessLogs(session.user.roles ?? [])) {
-    return (
-      <p role="status" className="p-6 text-sm text-muted-foreground">
-        PHI access logs require a health admin or health officer role.
-      </p>
-    );
+    return <PhiAccessDenied />;
   }
   const { rows, accessDenied } = await listPhiAccessLogs();
 
