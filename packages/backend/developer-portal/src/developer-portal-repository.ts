@@ -35,6 +35,7 @@ export interface ApiKeyEntity {
 
 export interface WebhookEntity {
   id: string;
+  tenantId: string;
   accountId: string;
   url: string;
   events: string[];
@@ -80,6 +81,7 @@ export interface ApiKeyFilter {
 
 export interface WebhookFilter {
   accountId: string;
+  tenantId?: string;
   active?: boolean;
 }
 

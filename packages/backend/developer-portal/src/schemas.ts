@@ -173,6 +173,7 @@ export type ApiKeyCreatedResponse = Static<typeof ApiKeyCreatedResponseSchema>;
 
 export const WebhookResponseSchema = Type.Object({
   id: UuidString(),
+  tenantId: UuidString(),
   accountId: UuidString(),
   url: Type.String(),
   events: Type.Array(Type.String()),

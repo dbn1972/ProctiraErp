@@ -139,6 +139,7 @@ function formatApiKeyResponse(entity: {
  */
 function formatWebhookResponse(entity: {
   id: string;
+  tenantId: string;
   accountId: string;
   url: string;
   events: string[];
@@ -149,6 +150,7 @@ function formatWebhookResponse(entity: {
 }) {
   return {
     id: entity.id,
+    tenantId: entity.tenantId,
     accountId: entity.accountId,
     url: entity.url,
     events: entity.events,
@@ -704,8 +706,21 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to create webhooks',
+          statusCode: 400,
+        });
+      }
+
       try {
-        const webhook = await service.createWebhook(paramsResult.data.accountId, bodyResult.data);
+        const webhook = await service.createWebhook(
+          paramsResult.data.accountId,
+          tenantId,
+          bodyResult.data,
+        );
         return reply.status(201).send(formatWebhookResponse(webhook));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -736,12 +751,22 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to list webhooks',
+          statusCode: 400,
+        });
+      }
+
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
       const result = await service.listWebhooks(
         paramsResult.data.accountId,
+        tenantId,
         page,
         pageSize,
         query.active,
@@ -771,8 +796,17 @@ export async function registerDeveloperPortalRoutes(
     ) {
       const params = request.params;
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to get webhooks',
+          statusCode: 400,
+        });
+      }
+
       try {
-        const webhook = await service.getWebhook(params.accountId, params.webhookId);
+        const webhook = await service.getWebhook(params.accountId, tenantId, params.webhookId);
         return reply.status(200).send(formatWebhookResponse(webhook));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -808,9 +842,19 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to update webhooks',
+          statusCode: 400,
+        });
+      }
+
       try {
         const webhook = await service.updateWebhook(
           params.accountId,
+          tenantId,
           params.webhookId,
           bodyResult.data,
         );
@@ -836,8 +880,17 @@ export async function registerDeveloperPortalRoutes(
     ) {
       const params = request.params;
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to delete webhooks',
+          statusCode: 400,
+        });
+      }
+
       try {
-        await service.deleteWebhook(params.accountId, params.webhookId);
+        await service.deleteWebhook(params.accountId, tenantId, params.webhookId);
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -866,9 +919,18 @@ export async function registerDeveloperPortalRoutes(
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
-      // Verify webhook belongs to account
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required to list webhook deliveries',
+          statusCode: 400,
+        });
+      }
+
+      // Verify webhook belongs to account + tenant
       try {
-        await service.getWebhook(params.accountId, params.webhookId);
+        await service.getWebhook(params.accountId, tenantId, params.webhookId);
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
