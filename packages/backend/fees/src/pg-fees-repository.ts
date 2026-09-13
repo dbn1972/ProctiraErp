@@ -106,6 +106,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql058);
       const sql059 = readFileSync(resolveSqlPath('059_fees_writeoff_creditnote.sql'), 'utf8');
       await pool.query(sql059);
+      const sql061 = readFileSync(resolveSqlPath('061_fees_scholarship_netting_source.sql'), 'utf8');
+      await pool.query(sql061);
     })();
   }
   await schemaReady;
@@ -286,6 +288,8 @@ function mapConcession(row: Record<string, unknown>): FeeConcessionEntity {
     percent: row.percent == null ? null : Number(row.percent),
     amountCents: row.amount_cents == null ? null : Number(row.amount_cents),
     reason: String(row.reason),
+    sourceDisbursementId:
+      row.source_disbursement_id == null ? null : String(row.source_disbursement_id),
     approverId: row.approver_id == null ? null : String(row.approver_id),
     status: String(row.status) as ConcessionStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
@@ -1020,8 +1024,8 @@ export class PgFeesRepository implements FeesRepository {
       const result = await client.query(
         `INSERT INTO fee_concessions (
            id, tenant_id, student_id, structure_id, invoice_id, kind, percent,
-           amount_cents, reason, approver_id, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+           amount_cents, reason, source_disbursement_id, approver_id, status, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1032,6 +1036,7 @@ export class PgFeesRepository implements FeesRepository {
           data.percent,
           data.amountCents,
           data.reason,
+          data.sourceDisbursementId,
           data.approverId,
           data.status,
           data.createdBy,
@@ -1068,6 +1073,24 @@ export class PgFeesRepository implements FeesRepository {
         [tenantId],
       );
       return result.rows.map((row) => mapConcession(row as Record<string, unknown>));
+    });
+  }
+
+
+  async findConcessionBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_concessions
+          WHERE tenant_id = $1 AND source_disbursement_id = $2
+          LIMIT 1`,
+        [tenantId, sourceDisbursementId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapConcession(row) : null;
     });
   }
 

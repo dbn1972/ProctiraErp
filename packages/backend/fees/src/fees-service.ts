@@ -113,6 +113,8 @@ export interface ApplyConcessionInput {
   percent?: number;
   amountCents?: number;
   reason: string;
+  /** W2-FIN-09: when set, uniquely identifies scholarship netting source. */
+  sourceDisbursementId?: string;
   approverId?: string;
   /**
    * W2-FIN-04: when true (scholarship netting / system paths), approve immediately.
@@ -687,16 +689,29 @@ export class FeesService {
   async applyConcession(tenantId: string, actorId: string, input: ApplyConcessionInput) {
     const structure = await this.getFeeStructure(tenantId, input.structureId);
     const discount = concessionDiscountCents(structure.amountCents, input);
-    const existing = await this.repository.findConcessionForStudentStructure(
-      tenantId,
-      input.studentId,
-      input.structureId,
+    const peers = (await this.repository.listConcessions(tenantId)).filter(
+      (c) => c.studentId === input.studentId && c.structureId === input.structureId,
     );
-    if (existing) {
-      throw new BusinessRuleError('A concession already exists for this student and structure');
+    if (!input.sourceDisbursementId) {
+      const manual = peers.find((c) => c.sourceDisbursementId == null);
+      if (manual) {
+        throw new BusinessRuleError('A concession already exists for this student and structure');
+      }
     }
 
     const autoApprove = input.autoApprove === true;
+    if (input.sourceDisbursementId) {
+      const bySource = await this.repository.findConcessionBySourceDisbursementId(
+        tenantId,
+        input.sourceDisbursementId,
+      );
+      if (bySource) {
+        throw new BusinessRuleError(
+          'A concession already exists for this scholarship disbursement',
+        );
+      }
+    }
+
     const concession = await this.repository.createConcession({
       id: uuidv4(),
       tenantId,
@@ -707,6 +722,7 @@ export class FeesService {
       percent: input.kind === 'percent' ? (input.percent ?? 0) : null,
       amountCents: input.kind === 'amount' ? (input.amountCents ?? 0) : null,
       reason: input.reason,
+      sourceDisbursementId: input.sourceDisbursementId ?? null,
       approverId: autoApprove ? (input.approverId ?? actorId) : null,
       status: autoApprove ? 'approved' : 'pending',
       createdBy: actorId,
@@ -1388,8 +1404,9 @@ export class FeesService {
       throw new BusinessRuleError('Scholarship netting amountCents must be a positive integer');
     }
     const marker = `scholarship_netting:${input.disbursementId}`;
-    const prior = (await this.repository.listConcessions(tenantId)).find((c) =>
-      c.reason.includes(marker),
+    const prior = await this.repository.findConcessionBySourceDisbursementId(
+      tenantId,
+      input.disbursementId,
     );
     if (prior) {
       const invoice = prior.invoiceId
@@ -1433,6 +1450,7 @@ export class FeesService {
         kind: 'amount',
         amountCents: input.amountCents,
         reason: `${marker} (no open invoice — credit reserved)`,
+        sourceDisbursementId: input.disbursementId,
         autoApprove: true,
       });
       return { ...concession, idempotent: false as const };
@@ -1446,6 +1464,7 @@ export class FeesService {
         kind: 'amount',
         amountCents: Math.min(input.amountCents, invoice.amountCents),
         reason: marker,
+        sourceDisbursementId: input.disbursementId,
         autoApprove: true,
       })),
       idempotent: false as const,
@@ -1462,11 +1481,9 @@ export class FeesService {
     actorId: string,
     input: { disbursementId: string },
   ) {
-    const marker = `scholarship_netting:${input.disbursementId}`;
-    // Prefer exact marker / reserved-credit prefix (not bare substring includes).
-    // W2-FIN-09 replaces this with source_disbursement_id.
-    const prior = (await this.repository.listConcessions(tenantId)).find(
-      (c) => c.reason === marker || c.reason.startsWith(`${marker} `),
+    const prior = await this.repository.findConcessionBySourceDisbursementId(
+      tenantId,
+      input.disbursementId,
     );
     if (!prior) {
       return { reversed: false as const, concession: null, invoice: null };

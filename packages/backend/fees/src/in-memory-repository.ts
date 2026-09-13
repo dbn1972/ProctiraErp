@@ -295,6 +295,19 @@ export class InMemoryFeesRepository implements FeesRepository {
     return this.concessions.find((row) => row.id === id && row.tenantId === tenantId) ?? null;
   }
 
+  async findConcessionBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity | null> {
+    return (
+      this.concessions.find(
+        (row) =>
+          row.tenantId === tenantId && row.sourceDisbursementId === sourceDisbursementId,
+      ) ?? null
+    );
+  }
+
+
   async updateConcession(
     id: string,
     tenantId: string,
