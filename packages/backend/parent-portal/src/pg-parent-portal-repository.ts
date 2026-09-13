@@ -86,6 +86,8 @@ export async function ensureParentPortalSchema(
       await pool.query(sql011);
       const sql049 = readFileSync(resolveSqlPath('049_parent_child_link_authority.sql'), 'utf8');
       await pool.query(sql049);
+      const sql051 = readFileSync(resolveSqlPath('052_parent_consent_version.sql'), 'utf8');
+      await pool.query(sql051);
     })();
   }
   await schemaReady;
@@ -166,6 +168,7 @@ function mapConsent(row: Record<string, unknown>): ConsentEntity {
     title: String(row.title),
     description: String(row.description),
     status: String(row.status) as ConsentStatus,
+    consentVersion: String(row.consent_version),
     decidedAt: row.decided_at == null ? null : toDate(row.decided_at),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
@@ -417,8 +420,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     const result = await this.query(
       data.tenantId,
       `INSERT INTO parent_consents (
-         id, tenant_id, student_id, parent_user_id, consent_type, title, description, status, created_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+         id, tenant_id, student_id, parent_user_id, consent_type, title, description, status,
+         consent_version, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [
         data.id,
         data.tenantId,
@@ -428,6 +432,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
         data.title,
         data.description,
         data.status,
+        data.consentVersion,
         data.createdBy,
       ],
     );

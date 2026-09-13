@@ -87,6 +87,7 @@ test.describe('Parent portal — live JWT journeys (E2E_BACKEND_READY)', () => {
         parentUserId: parentSub,
         consentType: 'photo_media',
         title: 'E2E photo consent',
+        consentVersion: 'photo-media-v2026-01',
       },
     });
     const consentBody = await consent.json();

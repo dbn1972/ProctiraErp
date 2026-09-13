@@ -13,7 +13,8 @@ INSERT INTO parent_child_links (
 ) ON CONFLICT DO NOTHING;
 
 INSERT INTO parent_consents (
-  id, tenant_id, student_id, parent_user_id, consent_type, title, description, status, created_by
+  id, tenant_id, student_id, parent_user_id, consent_type, title, description, status,
+  consent_version, created_by
 ) VALUES (
   'e2000000-0000-4000-8000-000000000001',
   '00000000-0000-4000-8000-000000000001',
@@ -23,6 +24,7 @@ INSERT INTO parent_consents (
   'School photo & media consent',
   'Allow the school to use your child''s image in yearbooks and newsletters.',
   'pending',
+  'photo-media-v2026-01',
   'staff-admin'
 ) ON CONFLICT DO NOTHING;
 

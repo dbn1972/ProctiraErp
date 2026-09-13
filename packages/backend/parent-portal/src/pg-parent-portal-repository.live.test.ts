@@ -129,4 +129,53 @@ describe('PgParentPortalRepository (live)', () => {
       expect(paid?.updatedAt.getTime()).toBeGreaterThanOrEqual(invoice.updatedAt.getTime());
     },
   );
+
+  it.skipIf(!pool)(
+    'requires consent_version on write and exposes it on read (W1-PRIV-01)',
+    async () => {
+      const repo = new PgParentPortalRepository(pool!);
+      const tenantId = randomUUID();
+      await seedTenant(tenantId);
+      const parentUserId = randomUUID();
+      const studentId = randomUUID();
+      const consentVersion = 'photo-media-v2026-01';
+
+      const consent = await repo.createConsent({
+        id: randomUUID(),
+        tenantId,
+        studentId,
+        parentUserId,
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        description: '',
+        status: 'pending',
+        createdBy: 'staff-admin',
+        consentVersion,
+      });
+      expect(consent.consentVersion).toBe(consentVersion);
+      expect((await repo.findConsentById(consent.id, tenantId))?.consentVersion).toBe(
+        consentVersion,
+      );
+
+      await expect(
+        withPgTenant(pool!, tenantId, (client) =>
+          client.query(
+            `INSERT INTO parent_consents (
+               id, tenant_id, student_id, parent_user_id, consent_type, title, description, status
+             ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            [
+              randomUUID(),
+              tenantId,
+              studentId,
+              parentUserId,
+              'photo_media',
+              'Missing version',
+              '',
+              'pending',
+            ],
+          ),
+        ),
+      ).rejects.toThrow(/consent_version|null value/i);
+    },
+  );
 });
