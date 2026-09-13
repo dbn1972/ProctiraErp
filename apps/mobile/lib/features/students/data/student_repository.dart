@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/sync/sync_models.dart';
@@ -34,16 +35,21 @@ class CachedStudent {
 /// Cache-first repository for the student feature. Mirrors the design of
 /// [AttendanceRepository] — the cache is consulted first; the API is only
 /// invoked as a fallback to seed an empty cache.
+///
+/// Child PII in `students_cache` (`full_name`, `national_id`, `payload`) is
+/// sealed with [CacheCrypto] before write (W2-MOB-01).
 class StudentRepository {
   StudentRepository({
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required SyncEngine syncEngine,
+    required CacheCrypto cacheCrypto,
     StudentApi? studentApi,
     DateTime Function() now = _defaultNow,
   })  : _database = database,
         _tenantProvider = tenantProvider,
         _syncEngine = syncEngine,
+        _cacheCrypto = cacheCrypto,
         _studentApi = studentApi,
         _now = now;
 
@@ -52,8 +58,20 @@ class StudentRepository {
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final SyncEngine _syncEngine;
+  final CacheCrypto _cacheCrypto;
   final StudentApi? _studentApi;
   final DateTime Function() _now;
+
+  /// Write one student into the encrypted offline cache (no sync enqueue).
+  Future<void> cacheStudent(Student student) async {
+    final String tenantId = _requireTenantId();
+    final Database db = await _database.database;
+    await db.insert(
+      'students_cache',
+      await _toCacheRow(tenantId, student),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 
   /// Returns up to [limit] students that match [query] on [name] / national id.
   /// When the local cache is empty AND [seedFromApi] is true, the network is
@@ -66,8 +84,9 @@ class StudentRepository {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
 
-    List<Map<String, Object?>> rows = await _queryCache(db, tenantId, query, limit);
-    if (rows.isEmpty && seedFromApi && _studentApi != null) {
+    List<CachedStudent> results =
+        await _queryCache(db, tenantId, query, limit);
+    if (results.isEmpty && seedFromApi && _studentApi != null) {
       try {
         final List<Student> remote =
             await _studentApi.listStudents(pageSize: limit);
@@ -76,19 +95,19 @@ class StudentRepository {
             for (final Student s in remote) {
               await txn.insert(
                 'students_cache',
-                _toCacheRow(tenantId, s),
+                await _toCacheRow(tenantId, s),
                 conflictAlgorithm: ConflictAlgorithm.replace,
               );
             }
           });
-          rows = await _queryCache(db, tenantId, query, limit);
+          results = await _queryCache(db, tenantId, query, limit);
         }
       } on ApiException {
         // Network failure: return whatever we have locally.
       }
     }
 
-    return rows.map(_fromCacheRow).toList(growable: false);
+    return results;
   }
 
   Future<CachedStudent?> getStudent(String id) async {
@@ -106,8 +125,6 @@ class StudentRepository {
 
   /// Persist a captured document path locally and queue a `student.update`
   /// op so the sync engine can replay the upload when the device is online.
-  /// The mobile app stores file paths today; a real upload pipeline will
-  /// translate the path into a multi-part request server-side.
   Future<CachedStudent?> attachDocument({
     required String studentId,
     required String filePath,
@@ -122,21 +139,25 @@ class StudentRepository {
     );
     if (rows.isEmpty) return null;
 
-    final Map<String, Object?> row = rows.first;
-    final Map<String, dynamic> payload = jsonDecode(row['payload'] as String)
-        as Map<String, dynamic>;
-    final List<String> documents = (payload['documents'] is List)
-        ? List<String>.from(
-            (payload['documents'] as List).whereType<String>(),
-          )
-        : <String>[];
-    documents.add(filePath);
-    payload['documents'] = documents;
+    final CachedStudent existing = await _fromCacheRow(rows.first);
+    final List<String> documents = List<String>.from(existing.documents)
+      ..add(filePath);
+    final Map<String, dynamic> payload = <String, dynamic>{
+      ...existing.payload,
+      'documents': documents,
+    };
 
     final Map<String, Object?> updated = <String, Object?>{
-      ...row,
-      'payload': jsonEncode(payload),
+      'id': existing.id,
+      'tenant_id': tenantId,
+      'institution_id': existing.institutionId,
+      'full_name': await _cacheCrypto.encrypt(existing.fullName),
+      'national_id': await _cacheCrypto.encryptNullable(existing.nationalId),
+      'grade': rows.first['grade'],
+      'class_name': rows.first['class_name'],
+      'payload': await _cacheCrypto.encrypt(jsonEncode(payload)),
       'updated_at': _now().millisecondsSinceEpoch,
+      'version': rows.first['version'],
     };
 
     await _syncEngine.saveLocallyAndQueue(
@@ -149,73 +170,84 @@ class StudentRepository {
         'documents': documents,
       },
       entityId: studentId,
-      baseVersion: row['version'] as String?,
+      baseVersion: rows.first['version'] as String?,
     );
 
     return _fromCacheRow(updated);
   }
 
-  Future<List<Map<String, Object?>>> _queryCache(
+  Future<List<CachedStudent>> _queryCache(
     Database db,
     String tenantId,
     String query,
     int limit,
-  ) {
-    if (query.trim().isEmpty) {
-      return db.query(
-        'students_cache',
-        where: 'tenant_id = ?',
-        whereArgs: <Object>[tenantId],
-        orderBy: 'full_name ASC',
-        limit: limit,
-      );
-    }
-    final String like = '%${query.trim()}%';
-    return db.query(
+  ) async {
+    // Sealed columns are not LIKE-searchable — decrypt then filter in memory.
+    final List<Map<String, Object?>> rows = await db.query(
       'students_cache',
-      where: 'tenant_id = ? AND (full_name LIKE ? OR national_id LIKE ?)',
-      whereArgs: <Object>[tenantId, like, like],
-      orderBy: 'full_name ASC',
-      limit: limit,
+      where: 'tenant_id = ?',
+      whereArgs: <Object>[tenantId],
     );
+    final String needle = query.trim().toLowerCase();
+    final List<CachedStudent> decoded = <CachedStudent>[];
+    for (final Map<String, Object?> row in rows) {
+      final CachedStudent student = await _fromCacheRow(row);
+      if (needle.isEmpty ||
+          student.fullName.toLowerCase().contains(needle) ||
+          (student.nationalId?.toLowerCase().contains(needle) ?? false)) {
+        decoded.add(student);
+      }
+    }
+    decoded.sort(
+      (CachedStudent a, CachedStudent b) =>
+          a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+    );
+    if (decoded.length <= limit) {
+      return decoded;
+    }
+    return decoded.sublist(0, limit);
   }
 
-  Map<String, Object?> _toCacheRow(String tenantId, Student s) {
+  Future<Map<String, Object?>> _toCacheRow(String tenantId, Student s) async {
+    final String payloadJson = jsonEncode(<String, dynamic>{
+      'id': s.id,
+      'firstName': s.firstName,
+      'middleName': s.middleName,
+      'lastName': s.lastName,
+      'nationalId': s.nationalId,
+      'dateOfBirth': s.dateOfBirth,
+      'gender': s.gender,
+      'institutionId': s.institutionId,
+      'createdAt': s.createdAt,
+      'updatedAt': s.updatedAt,
+    });
     return <String, Object?>{
       'id': s.id,
       'tenant_id': tenantId,
       'institution_id': s.institutionId,
-      'full_name': s.fullName,
-      'national_id': s.nationalId,
+      'full_name': await _cacheCrypto.encrypt(s.fullName),
+      'national_id': await _cacheCrypto.encryptNullable(s.nationalId),
       'grade': null,
       'class_name': null,
-      'payload': jsonEncode(<String, dynamic>{
-        'id': s.id,
-        'firstName': s.firstName,
-        'middleName': s.middleName,
-        'lastName': s.lastName,
-        'nationalId': s.nationalId,
-        'dateOfBirth': s.dateOfBirth,
-        'gender': s.gender,
-        'institutionId': s.institutionId,
-        'createdAt': s.createdAt,
-        'updatedAt': s.updatedAt,
-      }),
+      'payload': await _cacheCrypto.encrypt(payloadJson),
       'updated_at': _now().millisecondsSinceEpoch,
       'version': s.version,
     };
   }
 
-  CachedStudent _fromCacheRow(Map<String, Object?> row) {
-    final Map<String, dynamic> payload = jsonDecode(row['payload'] as String)
-        as Map<String, dynamic>;
+  Future<CachedStudent> _fromCacheRow(Map<String, Object?> row) async {
+    final String payloadRaw =
+        await _cacheCrypto.decrypt(row['payload'] as String);
+    final Map<String, dynamic> payload =
+        jsonDecode(payloadRaw) as Map<String, dynamic>;
     final List<String> docs = (payload['documents'] is List)
         ? List<String>.from((payload['documents'] as List).whereType<String>())
         : const <String>[];
     return CachedStudent(
       id: row['id'] as String,
-      fullName: row['full_name'] as String,
-      nationalId: row['national_id'] as String?,
+      fullName: await _cacheCrypto.decrypt(row['full_name'] as String),
+      nationalId:
+          await _cacheCrypto.decryptNullable(row['national_id'] as String?),
       institutionId: row['institution_id'] as String?,
       dateOfBirth: payload['dateOfBirth'] as String?,
       gender: payload['gender'] as String?,

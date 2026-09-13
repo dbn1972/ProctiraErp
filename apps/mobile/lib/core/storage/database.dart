@@ -10,7 +10,7 @@ import 'package:sqflite/sqflite.dart';
 class AppDatabase {
   AppDatabase({String? overridePath}) : _overridePath = overridePath;
 
-  static const int schemaVersion = 5;
+  static const int schemaVersion = 6;
   static const String _dbFileName = 'openemis_mobile.db';
 
   final String? _overridePath;
@@ -220,6 +220,21 @@ class AppDatabase {
           'ALTER TABLE institutions_cache ADD COLUMN longitude REAL',
         );
       } catch (_) {/* column already present */}
+    }
+    if (fromVersion < 6 && toVersion >= 6) {
+      // W2-MOB-01: wipe plaintext child PII caches and ensure the health
+      // records table exists so subsequent writes are sealed by CacheCrypto.
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS health_records_cache (
+          tenant_id TEXT NOT NULL,
+          student_id TEXT NOT NULL,
+          payload TEXT NOT NULL,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (tenant_id, student_id)
+        )
+      ''');
+      await db.execute('DELETE FROM students_cache');
+      await db.execute('DELETE FROM health_records_cache');
     }
   }
 

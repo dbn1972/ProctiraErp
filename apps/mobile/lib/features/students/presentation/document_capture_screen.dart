@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/sync_engine.dart';
 import '../../../core/tenant/tenant_provider.dart';
@@ -29,6 +30,7 @@ class _DocumentCaptureScreenState extends State<DocumentCaptureScreen> {
     database: getIt<AppDatabase>(),
     tenantProvider: getIt<TenantProvider>(),
     syncEngine: getIt<SyncEngine>(),
+    cacheCrypto: getIt<CacheCrypto>(),
     studentApi: getIt<StudentApi>(),
   );
   late final DocumentService _service = DocumentService(_repository);
