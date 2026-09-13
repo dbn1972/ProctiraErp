@@ -1337,6 +1337,9 @@ importers:
       '@proctira/database':
         specifier: workspace:*
         version: link:../../shared/database
+      '@proctira/queue-abstraction':
+        specifier: workspace:*
+        version: link:../../shared/queue-abstraction
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

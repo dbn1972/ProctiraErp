@@ -39,6 +39,10 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
+import type {
+  WebhookDeliveryJobPayload,
+  WebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -117,13 +121,37 @@ export function verifyWebhookSignature(
   }
 }
 
+export type WebhookHttpFetch = (
+  url: string,
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body: string;
+  },
+) => Promise<{ status: number; ok: boolean }>;
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class DeveloperPortalService {
+  private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
+  private readonly httpFetch: WebhookHttpFetch;
+
   constructor(
     private readonly repository: DeveloperPortalExtendedRepository,
     private readonly config: DeveloperPortalServiceConfig = DEFAULT_CONFIG,
-  ) {}
+    options?: {
+      deliveryPublisher?: WebhookDeliveryPublisher;
+      httpFetch?: WebhookHttpFetch;
+    },
+  ) {
+    this.deliveryPublisher = options?.deliveryPublisher;
+    this.httpFetch =
+      options?.httpFetch ??
+      (async (url, init) => {
+        const res = await fetch(url, init);
+        return { status: res.status, ok: res.ok };
+      });
+  }
 
   // ─── Developer Accounts ─────────────────────────────────────────────────
 
@@ -388,6 +416,7 @@ export class DeveloperPortalService {
     webhookId: string,
     event: string,
     payload: Record<string, unknown>,
+    signingSecret?: string,
   ): Promise<WebhookDeliveryEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
     if (!webhook) {
@@ -413,7 +442,77 @@ export class DeveloperPortalService {
       createdAt: new Date(),
     };
 
-    return this.repository.createDelivery(delivery);
+    const created = await this.repository.createDelivery(delivery);
+
+    // W2-JOB-07: enqueue durable HTTP delivery (no-op publisher = pending-only residual)
+    if (this.deliveryPublisher) {
+      await this.deliveryPublisher.enqueueDelivery({
+        deliveryId: created.id,
+        webhookId: webhook.id,
+        tenantId: webhook.tenantId,
+        url: webhook.url,
+        event,
+        body: payload,
+        signingSecret,
+        attempt: 0,
+      });
+    }
+
+    return created;
+  }
+
+  /**
+   * Durable queue consumer handler (W2-JOB-07).
+   * POSTs the webhook payload; on failure marks retry with exponential backoff
+   * and re-enqueues when a publisher is configured.
+   */
+  async processQueuedDelivery(job: WebhookDeliveryJobPayload): Promise<void> {
+    const delivery = await this.repository.getDeliveryById(job.deliveryId);
+    if (!delivery) {
+      return;
+    }
+    if (delivery.status === 'delivered' || delivery.status === 'failed') {
+      return;
+    }
+
+    const body = JSON.stringify({
+      id: job.deliveryId,
+      event: job.event,
+      payload: job.body,
+    });
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      'x-proctira-event': job.event,
+      'x-proctira-delivery': job.deliveryId,
+    };
+    if (job.signingSecret) {
+      headers['x-proctira-signature'] = generateWebhookSignature(body, job.signingSecret);
+    }
+
+    try {
+      const res = await this.httpFetch(job.url, { method: 'POST', headers, body });
+      if (res.ok) {
+        await this.markDeliverySuccess(job.deliveryId, res.status);
+        return;
+      }
+      const updated = await this.markDeliveryFailed(job.deliveryId, res.status);
+      if (updated.status === 'pending' && this.deliveryPublisher) {
+        const delayMs = Math.pow(2, updated.attempts) * 30000;
+        await this.deliveryPublisher.enqueueDelivery(
+          { ...job, attempt: updated.attempts },
+          delayMs,
+        );
+      }
+    } catch {
+      const updated = await this.markDeliveryFailed(job.deliveryId, null);
+      if (updated.status === 'pending' && this.deliveryPublisher) {
+        const delayMs = Math.pow(2, updated.attempts) * 30000;
+        await this.deliveryPublisher.enqueueDelivery(
+          { ...job, attempt: updated.attempts },
+          delayMs,
+        );
+      }
+    }
   }
 
   async listDeliveries(
