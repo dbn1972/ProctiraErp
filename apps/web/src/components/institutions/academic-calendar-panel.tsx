@@ -581,6 +581,15 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                   }
                   testId="rollover-promoted"
                 />
+                <Stat
+                  label={summary.dryRun ? 'Students to retain' : 'Students retained'}
+                  value={
+                    summary.dryRun
+                      ? (summary.enrollments.toRetain ?? 0)
+                      : (summary.enrollments.retained ?? 0)
+                  }
+                  testId="rollover-retained"
+                />
                 <Stat label="Graduating (no next grade)" value={summary.enrollments.graduating} />
                 <Stat label="Already in target year" value={summary.enrollments.alreadyInTarget} />
                 {summary.feeStructures && (

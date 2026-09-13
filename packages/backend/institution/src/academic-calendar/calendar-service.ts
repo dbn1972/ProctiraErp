@@ -218,7 +218,15 @@ export class AcademicCalendarService {
         existing: sourceClasses.length - classesToCreate.length,
         created: 0,
       },
-      enrollments: { considered: 0, toPromote: 0, promoted: 0, graduating: 0, alreadyInTarget: 0 },
+      enrollments: {
+        considered: 0,
+        toPromote: 0,
+        promoted: 0,
+        toRetain: 0,
+        retained: 0,
+        graduating: 0,
+        alreadyInTarget: 0,
+      },
     };
 
     if (!dryRun) {
@@ -280,11 +288,31 @@ export class AcademicCalendarService {
       const targetSections = byInstitutionGrade(Array.from(targetByKey.values()));
 
       summary.enrollments.considered = sourceEnrollments.length;
-      const plan: Array<{ e: EnrollmentRow; nextGradeId: string; nextClassId: string | null }> = [];
+      const retainIds = new Set(dto.retainStudentIds ?? []);
+      const plan: Array<{
+        e: EnrollmentRow;
+        nextGradeId: string;
+        nextClassId: string | null;
+        retain: boolean;
+      }> = [];
       const graduating: EnrollmentRow[] = [];
       for (const e of sourceEnrollments) {
         if (inTarget.has(e.studentId)) {
           summary.enrollments.alreadyInTarget += 1;
+          continue;
+        }
+        const retain = retainIds.has(e.studentId);
+        if (retain) {
+          // W2-SIS-05: repeat the same grade/section band in the target year.
+          let nextClassId: string | null = null;
+          const sourceClass = e.classId ? sourceClassById.get(e.classId) : undefined;
+          if (sourceClass) {
+            const siblings = sourceSections.get(`${e.institutionId}|${e.gradeId}`) ?? [];
+            const position = siblings.findIndex((c) => c.id === sourceClass.id);
+            const candidates = targetSections.get(`${e.institutionId}|${e.gradeId}`) ?? [];
+            nextClassId = candidates[position]?.id ?? null;
+          }
+          plan.push({ e, nextGradeId: e.gradeId, nextClassId, retain: true });
           continue;
         }
         const order = gradeOrder.get(e.gradeId);
@@ -302,12 +330,13 @@ export class AcademicCalendarService {
           const candidates = targetSections.get(`${e.institutionId}|${nextGradeId}`) ?? [];
           nextClassId = candidates[position]?.id ?? null;
         }
-        plan.push({ e, nextGradeId, nextClassId });
+        plan.push({ e, nextGradeId, nextClassId, retain: false });
       }
-      summary.enrollments.toPromote = plan.length;
+      summary.enrollments.toPromote = plan.filter((p) => !p.retain).length;
+      summary.enrollments.toRetain = plan.filter((p) => p.retain).length;
 
       if (!dryRun) {
-        for (const { e, nextGradeId, nextClassId } of plan) {
+        for (const { e, nextGradeId, nextClassId, retain } of plan) {
           await this.prisma.enrollment.create({
             data: {
               tenantId,
@@ -320,7 +349,8 @@ export class AcademicCalendarService {
               enrolledAt: target.startDate,
             },
           });
-          summary.enrollments.promoted += 1;
+          if (retain) summary.enrollments.retained += 1;
+          else summary.enrollments.promoted += 1;
         }
         // Wave 11 — terminal-grade students are graduated on the source period
         // (not only counted). Idempotent: re-run skips non-ENROLLED rows.

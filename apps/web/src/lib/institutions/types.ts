@@ -152,6 +152,8 @@ export interface RolloverSummary {
     considered: number;
     toPromote: number;
     promoted: number;
+    toRetain?: number;
+    retained?: number;
     graduating: number;
     alreadyInTarget: number;
   };

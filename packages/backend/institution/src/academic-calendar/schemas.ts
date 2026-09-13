@@ -52,6 +52,11 @@ export const RolloverRequestSchema = Type.Object({
   institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   /** Also promote ENROLLED students to the next grade in the target period. */
   promoteEnrollments: Type.Optional(Type.Boolean()),
+  /**
+   * W2-SIS-05: student IDs to retain / repeat the same grade in the target
+   * period instead of promoting. Ignored unless promoteEnrollments is true.
+   */
+  retainStudentIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { maxItems: 5000 })),
   /** Compute the plan without writing anything (default true). */
   dryRun: Type.Optional(Type.Boolean()),
   /** Clone fee structures into the target period (G-5). */
@@ -74,6 +79,9 @@ export interface RolloverSummary {
     considered: number;
     toPromote: number;
     promoted: number;
+    /** W2-SIS-05: students repeating the same grade in the target period. */
+    toRetain: number;
+    retained: number;
     /** Students whose grade has no successor — left for graduation handling. */
     graduating: number;
     /** Students who already hold an enrollment in the target period. */
