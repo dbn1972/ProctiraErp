@@ -30,6 +30,9 @@ import type {
 import { computeNextRunAt } from './scheduler.js';
 import { createReportDownloadToken } from './signed-download.js';
 
+/** W2-RPT-01: hard cap — refuse unbounded synchronous generation. */
+export const MAX_CATALOGUE_REPORT_ROWS = 25_000;
+
 export interface GenerateInput {
   reportKey?: string;
   templateId?: string;
@@ -101,6 +104,19 @@ export class CatalogueService {
 
     try {
       const table = await fetchCatalogueTable(tenantId, reportKey, input.filters ?? {});
+      // W2-RPT-01: synchronous generate has no streaming — enforce a hard row cap.
+      if (table.rows.length > MAX_CATALOGUE_REPORT_ROWS) {
+        throw new ValidationError(
+          `Report exceeds maximum of ${MAX_CATALOGUE_REPORT_ROWS} rows; narrow filters or export asynchronously`,
+          [
+            {
+              field: 'filters',
+              rule: 'max',
+              message: `Row count ${table.rows.length} exceeds cap ${MAX_CATALOGUE_REPORT_ROWS}`,
+            },
+          ],
+        );
+      }
       const bytes = await generateReportBytes(reportKey, format, table);
       const digest = sha256Hex(bytes);
       const objectKey = `${tenantId}/reports/${artifactId}.${format}`;
