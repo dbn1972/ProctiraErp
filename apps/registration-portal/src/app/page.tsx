@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { GraduationCap, FileText, Search, Upload, CheckCircle2, ArrowRight } from 'lucide-react';
+import { GraduationCap, FileText, Search, Upload, CheckCircle2 } from 'lucide-react';
+import { DesignSystemApplyCta } from '@/components/design-system-apply-cta';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 
@@ -54,13 +55,7 @@ function Hero() {
               {t('heroSubtitle')}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="#apply"
-                className="inline-flex h-12 items-center justify-center gap-2 rounded-md bg-primary-600 px-6 text-base font-semibold text-white shadow-sm transition-colors hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                {t('applyCta')}
-                <ArrowRight className="h-5 w-5" aria-hidden="true" />
-              </Link>
+              <DesignSystemApplyCta href="#apply" label={t('applyCta')} />
               <Link href="/track" className="btn-secondary h-12 px-6 text-base font-semibold">
                 {t('trackCta')}
               </Link>
