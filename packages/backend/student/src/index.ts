@@ -118,3 +118,17 @@ export type {
   StudentImportProcessor,
   StudentImportQueueHandle,
 } from './import/index.js';
+
+// W2-REC-01 lifecycle certificates
+export {
+  LifecycleCertificateService,
+  InMemoryLifecycleCertificateRepository,
+  registerLifecycleCertificateRoutes,
+} from './certificates/index.js';
+export type {
+  LifecycleCertificate,
+  LifecycleCertificateType,
+  LifecycleCertificateStatus,
+  IssueLifecycleCertificateInput,
+  LifecycleCertificateRepository,
+} from './certificates/index.js';
