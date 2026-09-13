@@ -44,6 +44,7 @@ describe('PgParentPortalRepository (live)', () => {
       isPrimary: true,
       canConsentMedical: true,
       canViewFees: true,
+      householdId: null,
     });
     expect(link.relationship).toBe('mother');
     expect(link.isPrimary).toBe(true);
@@ -72,6 +73,7 @@ describe('PgParentPortalRepository (live)', () => {
         isPrimary: false,
         canConsentMedical: false,
         canViewFees: false,
+        householdId: null,
       }),
     ).rejects.toThrow(/duplicate key|unique/i);
   });

@@ -19,6 +19,7 @@ export const LinkChildSchema = Type.Object({
   isPrimary: Type.Optional(Type.Boolean()),
   canConsentMedical: Type.Optional(Type.Boolean()),
   canViewFees: Type.Optional(Type.Boolean()),
+  householdId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
 });
 
 export type LinkChildInput = Static<typeof LinkChildSchema>;

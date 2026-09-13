@@ -10,6 +10,10 @@ const STUDENT_ID = '00000000-0000-4000-8000-000000000099';
 const PARENT_USER = 'parent-a';
 const PARENT_PRIMARY = 'parent-primary';
 const PARENT_LIMITED = 'parent-limited';
+const PARENT_H2 = 'parent-h2';
+const STUDENT_S2 = '00000000-0000-4000-8000-000000000098';
+const HOUSEHOLD_H1 = '00000000-0000-4000-8000-000000000101';
+const HOUSEHOLD_H2 = '00000000-0000-4000-8000-000000000102';
 
 describe('ParentPortalService', () => {
   let repository: InMemoryParentPortalRepository;
@@ -326,6 +330,109 @@ describe('ParentPortalService', () => {
       await expect(service.payInvoice(TENANT_A, PARENT_USER, invoice.id)).rejects.toThrow(
         BusinessRuleError,
       );
+    });
+  });
+
+  describe('household custody authZ (W1-SEC-03)', () => {
+    it('allows access when guardian and student share an active custody household', async () => {
+      await service.createHousehold(TENANT_A, { id: HOUSEHOLD_H1, label: 'Household A' });
+      await service.addHouseholdMember(TENANT_A, {
+        householdId: HOUSEHOLD_H1,
+        parentUserId: PARENT_USER,
+        role: 'primary',
+      });
+      await service.assignStudentCustody(TENANT_A, {
+        studentId: STUDENT_ID,
+        householdId: HOUSEHOLD_H1,
+        custodyType: 'sole',
+      });
+      await service.linkChild(TENANT_A, PARENT_USER, {
+        studentId: STUDENT_ID,
+        householdId: HOUSEHOLD_H1,
+      });
+
+      const children = await service.listChildrenForParent(TENANT_A, PARENT_USER);
+      expect(children).toHaveLength(1);
+
+      const { thread } = await service.createThread(TENANT_A, PARENT_USER, {
+        studentId: STUDENT_ID,
+        subject: 'Same household',
+        body: 'Allowed',
+      });
+      expect(thread.studentId).toBe(STUDENT_ID);
+    });
+
+    it('denies cross-household access when custody graph excludes the guardian (404)', async () => {
+      await service.createHousehold(TENANT_A, { id: HOUSEHOLD_H1, label: 'Household A' });
+      await service.createHousehold(TENANT_A, { id: HOUSEHOLD_H2, label: 'Household B' });
+      await service.addHouseholdMember(TENANT_A, {
+        householdId: HOUSEHOLD_H1,
+        parentUserId: PARENT_USER,
+        role: 'primary',
+      });
+      await service.addHouseholdMember(TENANT_A, {
+        householdId: HOUSEHOLD_H2,
+        parentUserId: PARENT_H2,
+        role: 'primary',
+      });
+      await service.assignStudentCustody(TENANT_A, {
+        studentId: STUDENT_ID,
+        householdId: HOUSEHOLD_H1,
+        custodyType: 'sole',
+      });
+      await service.assignStudentCustody(TENANT_A, {
+        studentId: STUDENT_S2,
+        householdId: HOUSEHOLD_H2,
+        custodyType: 'sole',
+      });
+
+      await service.linkChild(TENANT_A, PARENT_USER, {
+        studentId: STUDENT_ID,
+        householdId: HOUSEHOLD_H1,
+      });
+
+      // Malicious/stale link: parent in H1 linked to student whose custody is H2 only.
+      await repository.createChildLink({
+        id: '00000000-0000-4000-8000-000000000201',
+        tenantId: TENANT_A,
+        parentUserId: PARENT_USER,
+        studentId: STUDENT_S2,
+        relationship: 'guardian',
+        status: 'active',
+        isPrimary: false,
+        canConsentMedical: true,
+        canViewFees: true,
+        householdId: HOUSEHOLD_H1,
+      });
+
+      await expect(
+        service.createThread(TENANT_A, PARENT_USER, {
+          studentId: STUDENT_S2,
+          subject: 'Cross-household probe',
+          body: 'Should not send',
+        }),
+      ).rejects.toThrow(NotFoundError);
+
+      await expect(service.getChildGrades(TENANT_A, PARENT_USER, STUDENT_S2)).rejects.toThrow(
+        NotFoundError,
+      );
+
+      const listed = await service.listChildrenForParent(TENANT_A, PARENT_USER);
+      expect(listed.map((link) => link.studentId)).toEqual([STUDENT_ID]);
+    });
+
+    it('preserves pre-custody link-only behaviour when no custody rows exist', async () => {
+      await service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID });
+
+      const children = await service.listChildrenForParent(TENANT_A, PARENT_USER);
+      expect(children).toHaveLength(1);
+
+      const { thread } = await service.createThread(TENANT_A, PARENT_USER, {
+        studentId: STUDENT_ID,
+        subject: 'Legacy link',
+        body: 'Still works without custody graph',
+      });
+      expect(thread.subject).toBe('Legacy link');
     });
   });
 
