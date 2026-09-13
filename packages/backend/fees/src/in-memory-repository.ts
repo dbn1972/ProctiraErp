@@ -381,6 +381,18 @@ export class InMemoryFeesRepository implements FeesRepository {
     );
   }
 
+  async findPaymentByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<FeePaymentEntity | null> {
+    return (
+      this.payments.find(
+        (payment) =>
+          payment.tenantId === tenantId && payment.idempotencyKey === idempotencyKey,
+      ) ?? null
+    );
+  }
+
   async createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity> {
     const entity: FeeReceiptEntity = { ...data, createdAt: new Date() };
     this.receipts.push(entity);

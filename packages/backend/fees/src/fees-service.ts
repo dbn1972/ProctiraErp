@@ -72,6 +72,8 @@ export interface RecordPaymentInput {
   payerUserId?: string;
   method?: PaymentMethod;
   amountCents?: number;
+  /** W2-FIN-02: replay-safe client/PSP event key (unique per tenant). */
+  idempotencyKey?: string;
 }
 
 export interface CreateFeeStructureInput {
@@ -388,7 +390,43 @@ export class FeesService {
     invoice: FeeInvoiceEntity;
     payment: FeePaymentEntity;
     receipt: FeeReceiptEntity;
+    idempotent: boolean;
   }> {
+    const idempotencyKey =
+      input.idempotencyKey != null && input.idempotencyKey.trim().length > 0
+        ? input.idempotencyKey.trim()
+        : null;
+
+    if (idempotencyKey) {
+      const existing = await this.repository.findPaymentByIdempotencyKey(
+        tenantId,
+        idempotencyKey,
+      );
+      if (existing) {
+        if (existing.invoiceId !== input.invoiceId) {
+          throw new BusinessRuleError(
+            'Idempotency key already used for a different invoice',
+          );
+        }
+        if (input.amountCents != null && input.amountCents !== existing.amountCents) {
+          throw new BusinessRuleError(
+            'Idempotency key already used for a different payment amount',
+          );
+        }
+        const invoice = await this.getInvoice(tenantId, existing.invoiceId);
+        const receipt =
+          (await this.repository.listReceiptsForTenant(tenantId)).find(
+            (r) => r.paymentId === existing.id,
+          ) ?? null;
+        if (!receipt) {
+          throw new BusinessRuleError(
+            'Idempotent payment is missing its receipt — refuse silent repair',
+          );
+        }
+        return { invoice, payment: existing, receipt, idempotent: true };
+      }
+    }
+
     const invoice = await this.getInvoice(tenantId, input.invoiceId);
 
     if (invoice.status !== 'open') {
@@ -441,6 +479,7 @@ export class FeesService {
       method: charge.method,
       status: 'succeeded',
       paidAt,
+      idempotencyKey,
     });
 
     if (payment.amountCents !== paymentAmountCents) {
@@ -482,7 +521,7 @@ export class FeesService {
       status: fullyPaid ? 'paid' : 'open',
     });
 
-    return { invoice: updatedInvoice!, payment, receipt };
+    return { invoice: updatedInvoice!, payment, receipt, idempotent: false };
   }
 
   async createFeeStructure(tenantId: string, actorId: string, input: CreateFeeStructureInput) {

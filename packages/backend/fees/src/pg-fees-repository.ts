@@ -97,6 +97,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql031);
       const sql048 = readFileSync(resolveSqlPath('048_fees_recon_exception_audit.sql'), 'utf8');
       await pool.query(sql048);
+      const sql057 = readFileSync(resolveSqlPath('057_fees_payment_idempotency.sql'), 'utf8');
+      await pool.query(sql057);
     })();
   }
   await schemaReady;
@@ -155,6 +157,7 @@ function mapPayment(row: Record<string, unknown>): FeePaymentEntity {
     method: String(row.method) as PaymentMethod,
     status: String(row.status) as PaymentStatus,
     paidAt: toDate(row.paid_at),
+    idempotencyKey: row.idempotency_key == null ? null : String(row.idempotency_key),
     createdAt: toDate(row.created_at),
   };
 }
@@ -619,8 +622,9 @@ export class PgFeesRepository implements FeesRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO parent_fee_payments (
-           id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status, paid_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+           id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status, paid_at,
+           idempotency_key
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           data.id,
           data.invoiceId,
@@ -630,6 +634,7 @@ export class PgFeesRepository implements FeesRepository {
           data.method,
           data.status,
           data.paidAt,
+          data.idempotencyKey,
         ],
       );
       return mapPayment(result.rows[0] as Record<string, unknown>);
@@ -653,6 +658,23 @@ export class PgFeesRepository implements FeesRepository {
       const result = await client.query(
         `SELECT * FROM parent_fee_payments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
         [id, tenantId],
+      );
+      if (!result.rows[0]) return null;
+      return mapPayment(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findPaymentByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<FeePaymentEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM parent_fee_payments
+          WHERE tenant_id = $1 AND idempotency_key = $2
+          LIMIT 1`,
+        [tenantId, idempotencyKey],
       );
       if (!result.rows[0]) return null;
       return mapPayment(result.rows[0] as Record<string, unknown>);

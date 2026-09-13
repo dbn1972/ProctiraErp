@@ -53,6 +53,8 @@ export interface FeePaymentEntity {
   method: PaymentMethod;
   status: PaymentStatus;
   paidAt: Date;
+  /** W2-FIN-02: optional client/PSP event key; unique per tenant when set. */
+  idempotencyKey: string | null;
   createdAt: Date;
 }
 
@@ -327,6 +329,10 @@ export interface FeesRepository {
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;
   findPaymentById(id: string, tenantId: string): Promise<FeePaymentEntity | null>;
+  findPaymentByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<FeePaymentEntity | null>;
 
   createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity>;
   listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]>;

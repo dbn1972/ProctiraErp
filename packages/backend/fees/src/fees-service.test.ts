@@ -302,6 +302,65 @@ describe('FeesService', () => {
 
 
 
+
+  describe('W2-FIN-02 payment idempotency', () => {
+    it('replays the same payment/receipt when idempotencyKey is reused', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Bus fee',
+        amountCents: 3_000,
+      });
+
+      const first = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+        idempotencyKey: 'pay-event-1',
+      });
+      const second = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+        idempotencyKey: 'pay-event-1',
+      });
+
+      expect(second.payment.id).toBe(first.payment.id);
+      expect(second.receipt.id).toBe(first.receipt.id);
+      expect(second.idempotent).toBe(true);
+      expect(first.idempotent).toBe(false);
+
+      const payments = await service.listPayments(TENANT_A);
+      expect(payments.filter((p) => p.invoiceId === invoice.id)).toHaveLength(1);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.accounts.cash).toBe(3_000);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+    });
+
+    it('rejects reusing an idempotencyKey for a different invoice or amount', async () => {
+      const a = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'A',
+        amountCents: 1_000,
+      });
+      const b = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'B',
+        amountCents: 2_000,
+      });
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: a.id,
+        amountCents: 1_000,
+        idempotencyKey: 'shared-key',
+      });
+      await expect(
+        service.recordPayment(TENANT_A, 'parent-a', {
+          invoiceId: b.id,
+          amountCents: 2_000,
+          idempotencyKey: 'shared-key',
+        }),
+      ).rejects.toThrow(/idempotency/i);
+    });
+  });
+
   describe('W2-FIN-01 partial payments', () => {
     it('accepts a partial payment and leaves the invoice open with remaining AR', async () => {
       const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
