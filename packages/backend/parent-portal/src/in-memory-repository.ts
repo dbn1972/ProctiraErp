@@ -7,6 +7,9 @@ import type {
   FeePaymentEntity,
   FeePlanEntity,
   FeeReceiptEntity,
+  GuardianHouseholdEntity,
+  GuardianHouseholdMemberEntity,
+  GuardianStudentCustodyEntity,
   MessageEntity,
   MessageThreadEntity,
   ParentChildLinkEntity,
@@ -15,6 +18,9 @@ import type {
 
 export class InMemoryParentPortalRepository implements ParentPortalRepository {
   private links: ParentChildLinkEntity[] = [];
+  private households: GuardianHouseholdEntity[] = [];
+  private householdMembers: GuardianHouseholdMemberEntity[] = [];
+  private studentCustody: GuardianStudentCustodyEntity[] = [];
   private threads: MessageThreadEntity[] = [];
   private messages: MessageEntity[] = [];
   private consents: ConsentEntity[] = [];
@@ -73,6 +79,67 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
 
   async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
     return (await this.findActiveLink(tenantId, parentUserId, studentId)) != null;
+  }
+
+  async createHousehold(
+    data: Omit<GuardianHouseholdEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianHouseholdEntity> {
+    const now = new Date();
+    const entity: GuardianHouseholdEntity = { ...data, createdAt: now, updatedAt: now };
+    this.households.push(entity);
+    return entity;
+  }
+
+  async addHouseholdMember(
+    data: Omit<GuardianHouseholdMemberEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianHouseholdMemberEntity> {
+    const now = new Date();
+    const entity: GuardianHouseholdMemberEntity = { ...data, createdAt: now, updatedAt: now };
+    this.householdMembers.push(entity);
+    return entity;
+  }
+
+  async assignStudentCustody(
+    data: Omit<GuardianStudentCustodyEntity, 'createdAt' | 'updatedAt' | 'effectiveTo'>,
+  ): Promise<GuardianStudentCustodyEntity> {
+    const now = new Date();
+    const entity: GuardianStudentCustodyEntity = {
+      ...data,
+      effectiveTo: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.studentCustody.push(entity);
+    return entity;
+  }
+
+  async listActiveCustodyHouseholdIdsForStudent(
+    tenantId: string,
+    studentId: string,
+  ): Promise<string[]> {
+    return this.studentCustody
+      .filter(
+        (row) =>
+          row.tenantId === tenantId &&
+          row.studentId === studentId &&
+          row.status === 'active' &&
+          row.custodyType !== 'none',
+      )
+      .map((row) => row.householdId);
+  }
+
+  async listActiveHouseholdIdsForParent(
+    tenantId: string,
+    parentUserId: string,
+  ): Promise<string[]> {
+    return this.householdMembers
+      .filter(
+        (row) =>
+          row.tenantId === tenantId &&
+          row.parentUserId === parentUserId &&
+          row.status === 'active',
+      )
+      .map((row) => row.householdId);
   }
 
   async createThread(
