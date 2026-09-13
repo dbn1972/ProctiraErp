@@ -55,6 +55,8 @@ export class ETLService {
   private readonly scheduler: PipelineScheduler;
   private readonly eventPublisher: PipelineEventPublisher;
   private readonly adminNotifier: AdminNotifier;
+  /** Tenants whose durable pipeline schedules have been loaded into the in-process Map. */
+  private readonly hydratedTenants = new Set<string>();
 
   constructor(
     private readonly repository: PipelineRepository,
@@ -96,9 +98,40 @@ export class ETLService {
   }
 
   /**
+   * W2-JOB-05: rebuild in-process schedule Map from durable pipeline rows.
+   * Tip PipelineScheduler keeps schedules only in memory — lost on restart.
+   */
+  async hydrateSchedules(tenantId: string): Promise<number> {
+    const { data } = await this.repository.list(tenantId, { enabled: true }, 1, 10_000);
+    let registered = 0;
+    for (const pipeline of data) {
+      if (pipeline.schedule && pipeline.enabled) {
+        this.scheduler.registerSchedule(
+          pipeline.id,
+          pipeline.tenantId,
+          pipeline.schedule,
+          true,
+        );
+        registered += 1;
+      } else {
+        this.scheduler.unregisterSchedule(pipeline.id);
+      }
+    }
+    this.hydratedTenants.add(tenantId);
+    return registered;
+  }
+
+  /** Ensure schedules for a tenant are loaded once after process start. */
+  private async ensureSchedulesHydrated(tenantId: string): Promise<void> {
+    if (this.hydratedTenants.has(tenantId)) return;
+    await this.hydrateSchedules(tenantId);
+  }
+
+  /**
    * Create a new pipeline definition.
    */
   async createPipeline(tenantId: string, input: CreatePipelineInput): Promise<Pipeline> {
+    await this.ensureSchedulesHydrated(tenantId);
     const now = new Date();
     const pipeline: Pipeline = {
       id: uuidv4(),
@@ -140,6 +173,7 @@ export class ETLService {
     pipelineId: string,
     input: UpdatePipelineInput,
   ): Promise<Pipeline> {
+    await this.ensureSchedulesHydrated(tenantId);
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Pipeline not found: ${pipelineId}`);
@@ -186,6 +220,7 @@ export class ETLService {
    * Delete a pipeline definition.
    */
   async deletePipeline(tenantId: string, pipelineId: string): Promise<void> {
+    await this.ensureSchedulesHydrated(tenantId);
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Pipeline not found: ${pipelineId}`);
@@ -224,6 +259,7 @@ export class ETLService {
     page: number,
     pageSize: number,
   ) {
+    await this.ensureSchedulesHydrated(tenantId);
     return this.repository.list(tenantId, filter, page, pageSize);
   }
 
@@ -232,6 +268,7 @@ export class ETLService {
    * This is the basic execution without retry logic.
    */
   async executePipeline(tenantId: string, pipelineId: string): Promise<PipelineExecution> {
+    await this.ensureSchedulesHydrated(tenantId);
     const pipeline = await this.getPipeline(tenantId, pipelineId);
 
     if (!pipeline.enabled) {
@@ -250,6 +287,7 @@ export class ETLService {
     pipelineId: string,
     scheduledExecution: boolean = false,
   ): Promise<PipelineExecution> {
+    await this.ensureSchedulesHydrated(tenantId);
     const pipeline = await this.getPipeline(tenantId, pipelineId);
 
     if (!pipeline.enabled) {
