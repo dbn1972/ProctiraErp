@@ -53,7 +53,7 @@ import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-
 import {
   communicationPlugin,
   createCommunicationRepository,
-  createSandboxDeliveryAdapter,
+  createDeliveryAdapterFromEnv,
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
@@ -737,7 +737,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createCommunicationRepository();
       await scope.register(communicationPlugin, {
         repository,
-        deliveryAdapter: createSandboxDeliveryAdapter(),
+        deliveryAdapter: createDeliveryAdapterFromEnv(),
         prefix: '/communication',
       });
     },

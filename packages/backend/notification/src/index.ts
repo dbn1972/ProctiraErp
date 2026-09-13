@@ -29,6 +29,17 @@ export type {
 export { createSandboxEmailSender, EMAIL_SANDBOX_HONESTY_NOTE } from './sandbox-email-sender.js';
 export { createSandboxPushSender, PUSH_SANDBOX_HONESTY_NOTE } from './sandbox-push-sender.js';
 export { createSandboxSmsSender, SMS_SANDBOX_HONESTY_NOTE } from './sandbox-sms-sender.js';
+export {
+  createEmailSenderFromEnv,
+  createPushSenderFromEnv,
+  createSmsSenderFromEnv,
+  createUnimplementedLiveEmailSender,
+  createUnimplementedLivePushSender,
+  createUnimplementedLiveSmsSender,
+  LIVE_EMAIL_UNIMPLEMENTED_NOTE,
+  LIVE_PUSH_UNIMPLEMENTED_NOTE,
+  LIVE_SMS_UNIMPLEMENTED_NOTE,
+} from './channel-sender-factory.js';
 
 // Repository
 export type {
