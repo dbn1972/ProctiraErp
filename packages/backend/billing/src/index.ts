@@ -90,6 +90,13 @@ export type {
 export { registerBillingRoutes } from './routes.js';
 export type { BillingRoutesOptions } from './routes.js';
 
+export {
+  assertBillingAccess,
+  hasBillingAccess,
+  normalizeBillingRoles,
+} from './billing-access.js';
+export type { BillingAction } from './billing-access.js';
+
 // Default tenant feature configuration
 export {
   LEGACY_MOBILE_ROUTES_FEATURE_KEY,

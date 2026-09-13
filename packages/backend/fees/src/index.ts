@@ -74,3 +74,10 @@ export {
 
 export { SandboxPaymentAdapter } from './payment-adapter.js';
 export type { PaymentAdapter, ChargeInput, ChargeResult } from './payment-adapter.js';
+
+export {
+  assertFeesAccess,
+  hasFeesAccess,
+  normalizeFeesRoles,
+} from './fees-access.js';
+export type { FeesAction } from './fees-access.js';
