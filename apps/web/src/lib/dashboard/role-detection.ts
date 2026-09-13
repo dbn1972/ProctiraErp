@@ -1,5 +1,5 @@
 /**
- * Infer the best-fit role dashboard from JWT role claims (G-1003).
+ * Infer the best-fit role dashboard from JWT role claims (G-1003 / W2-UX-04).
  */
 import type { TokenPayload } from '@/lib/auth/session';
 import type { DashboardRole } from '@/lib/api/reports';
@@ -10,17 +10,26 @@ export function detectDashboardRole(roles: TokenPayload['roles'] | undefined): D
     .join(' ');
 
   if (haystack.includes('parent') || haystack.includes('guardian')) return 'parent';
-  if (haystack.includes('board')) return 'board';
   if (haystack.includes('teacher') || haystack.includes('faculty')) return 'teacher';
+  if (
+    haystack.split(/\s+/).includes('staff') ||
+    haystack.includes('clerk') ||
+    haystack.includes('counsellor')
+  ) {
+    return 'staff';
+  }
+  if (haystack.includes('board') || haystack.includes('trustee')) return 'board';
   if (
     haystack.includes('principal') ||
     haystack.includes('administrator') ||
-    haystack.includes('admin')
+    haystack.includes('admin') ||
+    haystack.includes('super-admin')
   ) {
     return 'principal';
   }
 
-  return 'principal';
+  // W2-UX-04: do not collapse unknown roles into the principal dashboard.
+  return 'staff';
 }
 
 export function dashboardRoleLabel(role: DashboardRole): string {
@@ -31,6 +40,8 @@ export function dashboardRoleLabel(role: DashboardRole): string {
       return 'Principal';
     case 'teacher':
       return 'Teacher';
+    case 'staff':
+      return 'Staff';
     case 'parent':
       return 'Parent';
     default:
