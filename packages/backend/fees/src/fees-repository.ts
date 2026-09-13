@@ -296,8 +296,9 @@ export interface FeesRepository {
   updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null>;
+  findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null>;
 
   createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity>;
   listRefundsForInvoice(tenantId: string, invoiceId: string): Promise<FeeRefundEntity[]>;

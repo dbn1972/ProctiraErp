@@ -926,20 +926,39 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
+  async findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_concessions WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
+      );
+      if (!result.rows[0]) return null;
+      return mapConcession(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `UPDATE fee_concessions
          SET invoice_id = COALESCE($1, invoice_id),
-             status = COALESCE($2, status)
-         WHERE id = $3 AND tenant_id = $4
+             status = COALESCE($2, status),
+             approver_id = COALESCE($3, approver_id)
+         WHERE id = $4 AND tenant_id = $5
          RETURNING *`,
-        [data.invoiceId ?? null, data.status ?? null, id, tenantId],
+        [
+          data.invoiceId ?? null,
+          data.status ?? null,
+          data.approverId ?? null,
+          id,
+          tenantId,
+        ],
       );
       if (!result.rows[0]) return null;
       return mapConcession(result.rows[0] as Record<string, unknown>);

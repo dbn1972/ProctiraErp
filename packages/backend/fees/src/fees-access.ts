@@ -13,6 +13,7 @@ export type FeesAction =
   | 'invoice.void'
   | 'refund.record'
   | 'concession.apply'
+  | 'concession.approve'
   | 'reconciliation.import'
   | 'reminder.manage';
 
@@ -49,6 +50,7 @@ const ACTION_ROLES: Record<FeesAction, readonly string[]> = {
   'invoice.void': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
   'refund.record': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
   'concession.apply': ['finance_officer', 'bursar', 'accountant', 'principal', ...ADMIN_ROLES],
+  'concession.approve': ['finance_officer', 'bursar', 'principal', ...ADMIN_ROLES],
   'reconciliation.import': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
   'reminder.manage': FINANCE_ROLES,
 };

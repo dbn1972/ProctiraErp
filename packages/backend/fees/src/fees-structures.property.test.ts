@@ -126,7 +126,7 @@ describe('FeesService G-903 structures', () => {
     expect(again.created).toHaveLength(0);
     expect(again.skipped).toEqual([STUDENT]);
 
-    const concession = await service.applyConcession(TENANT, 'staff', {
+    const pendingConcession = await service.applyConcession(TENANT, 'clerk', {
       studentId: STUDENT,
       structureId: structure.id,
       invoiceId: first.created[0]!.id,
@@ -134,6 +134,12 @@ describe('FeesService G-903 structures', () => {
       percent: 20,
       reason: 'Sibling discount',
     });
+    expect(pendingConcession.concession.status).toBe('pending');
+    const concession = await service.approveConcession(
+      TENANT,
+      'bursar',
+      pendingConcession.concession.id,
+    );
     expect(concession.discountCents).toBe(20_000);
     expect(concession.invoice?.amountCents).toBe(80_000);
 

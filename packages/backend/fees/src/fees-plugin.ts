@@ -880,6 +880,88 @@ export const feesPlugin = fp(
     );
 
     fastify.post(
+      `${prefix}/concessions/:id/approve`,
+      async function approveConcession(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid concession ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        try {
+          const applied = await feesService.approveConcession(
+            tenantId,
+            getActorId(request),
+            paramsResult.data.id,
+          );
+          return reply.status(200).send({
+            concession: {
+              ...applied.concession,
+              createdAt: applied.concession.createdAt.toISOString(),
+            },
+            invoice: applied.invoice ? formatInvoice(applied.invoice) : null,
+            discountCents: applied.discountCents,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/concessions/:id/reject`,
+      async function rejectConcession(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid concession ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        try {
+          const rejected = await feesService.rejectConcession(
+            tenantId,
+            getActorId(request),
+            paramsResult.data.id,
+          );
+          return reply.status(200).send({
+            concession: {
+              ...rejected.concession,
+              createdAt: rejected.concession.createdAt.toISOString(),
+            },
+            invoice: null,
+            discountCents: 0,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
       `${prefix}/invoices/:id/refund`,
       async function refundInvoice(
         request: FastifyRequest<{ Params: IdParams; Body: RecordRefundInput }>,

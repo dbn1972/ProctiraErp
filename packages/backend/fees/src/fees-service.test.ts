@@ -303,6 +303,52 @@ describe('FeesService', () => {
 
 
 
+
+  describe('W2-FIN-04 concession approval', () => {
+    it('creates concessions as pending without changing invoice until four-eyes approve', async () => {
+      const structure = await service.createFeeStructure(TENANT_A, 'staff-1', {
+        name: 'Tuition',
+        category: 'tuition',
+        amountCents: 10_000,
+      });
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Tuition',
+        amountCents: 10_000,
+      });
+
+      const pending = await service.applyConcession(TENANT_A, 'clerk-1', {
+        studentId: STUDENT_ID,
+        structureId: structure.id,
+        invoiceId: invoice.id,
+        kind: 'amount',
+        amountCents: 2_000,
+        reason: 'hardship',
+      });
+      expect(pending.concession.status).toBe('pending');
+      expect(pending.invoice).toBeNull();
+      expect((await service.getInvoice(TENANT_A, invoice.id)).amountCents).toBe(10_000);
+
+      await expect(
+        service.approveConcession(TENANT_A, 'clerk-1', pending.concession.id),
+      ).rejects.toThrow(/self-approve/i);
+
+      const approved = await service.approveConcession(
+        TENANT_A,
+        'bursar-1',
+        pending.concession.id,
+      );
+      expect(approved.concession.status).toBe('approved');
+      expect(approved.concession.approverId).toBe('bursar-1');
+      expect(approved.invoice?.amountCents).toBe(8_000);
+
+      const legs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'concession applied',
+      );
+      expect(legs.every((e) => e.amountCents === 2_000)).toBe(true);
+    });
+  });
+
   describe('W2-FIN-02 payment idempotency', () => {
     it('replays the same payment/receipt when idempotencyKey is reused', async () => {
       const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
@@ -441,7 +487,7 @@ describe('FeesService', () => {
         amountCents: 10_000,
       });
 
-      await service.applyConcession(TENANT_A, 'staff-1', {
+      const pending = await service.applyConcession(TENANT_A, 'staff-1', {
         studentId: STUDENT_ID,
         structureId: structure.id,
         invoiceId: invoice.id,
@@ -449,6 +495,8 @@ describe('FeesService', () => {
         amountCents: 1_500,
         reason: 'sibling discount',
       });
+      expect(pending.concession.status).toBe('pending');
+      await service.approveConcession(TENANT_A, 'bursar-1', pending.concession.id);
 
       const afterConcession = await service.getInvoice(TENANT_A, invoice.id);
       expect(afterConcession.amountCents).toBe(8_500);

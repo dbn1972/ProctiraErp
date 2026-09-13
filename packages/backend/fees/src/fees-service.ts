@@ -6,6 +6,7 @@ import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
+  FeeConcessionEntity,
   FeeInvoiceEntity,
   FeeLedgerEntryEntity,
   FeePaymentEntity,
@@ -113,6 +114,11 @@ export interface ApplyConcessionInput {
   amountCents?: number;
   reason: string;
   approverId?: string;
+  /**
+   * W2-FIN-04: when true (scholarship netting / system paths), approve immediately.
+   * Staff UI defaults to pending and requires a different approver.
+   */
+  autoApprove?: boolean;
 }
 
 export interface RecordRefundInput {
@@ -681,6 +687,8 @@ export class FeesService {
     if (existing) {
       throw new BusinessRuleError('A concession already exists for this student and structure');
     }
+
+    const autoApprove = input.autoApprove === true;
     const concession = await this.repository.createConcession({
       id: uuidv4(),
       tenantId,
@@ -691,17 +699,73 @@ export class FeesService {
       percent: input.kind === 'percent' ? (input.percent ?? 0) : null,
       amountCents: input.kind === 'amount' ? (input.amountCents ?? 0) : null,
       reason: input.reason,
-      approverId: input.approverId ?? actorId,
-      status: 'approved',
+      approverId: autoApprove ? (input.approverId ?? actorId) : null,
+      status: autoApprove ? 'approved' : 'pending',
       createdBy: actorId,
     });
 
-    const invoice = input.invoiceId
-      ? await this.getInvoice(tenantId, input.invoiceId)
+    if (!autoApprove) {
+      return { concession, invoice: null, discountCents: discount };
+    }
+
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, concession, discount);
+  }
+
+  /**
+   * W2-FIN-04: second actor (≠ createdBy) approves a pending concession and posts ledger.
+   */
+  async approveConcession(tenantId: string, actorId: string, concessionId: string) {
+    const concession = await this.repository.findConcessionById(concessionId, tenantId);
+    if (!concession) {
+      throw new NotFoundError(`Concession with id '${concessionId}' not found`);
+    }
+    if (concession.status !== 'pending') {
+      throw new BusinessRuleError('Only pending concessions can be approved');
+    }
+    if (concession.createdBy === actorId) {
+      throw new BusinessRuleError('Concession creator cannot self-approve (four-eyes)');
+    }
+    const discount = concessionDiscountCents(
+      (await this.getFeeStructure(tenantId, concession.structureId)).amountCents,
+      concession,
+    );
+    const approved = await this.repository.updateConcession(concession.id, tenantId, {
+      status: 'approved',
+      approverId: actorId,
+    });
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount);
+  }
+
+  async rejectConcession(tenantId: string, actorId: string, concessionId: string) {
+    const concession = await this.repository.findConcessionById(concessionId, tenantId);
+    if (!concession) {
+      throw new NotFoundError(`Concession with id '${concessionId}' not found`);
+    }
+    if (concession.status !== 'pending') {
+      throw new BusinessRuleError('Only pending concessions can be rejected');
+    }
+    if (concession.createdBy === actorId) {
+      throw new BusinessRuleError('Concession creator cannot self-reject (four-eyes)');
+    }
+    const rejected = await this.repository.updateConcession(concession.id, tenantId, {
+      status: 'rejected',
+      approverId: actorId,
+    });
+    return { concession: rejected!, invoice: null, discountCents: 0 };
+  }
+
+  private async applyApprovedConcessionToInvoice(
+    tenantId: string,
+    actorId: string,
+    concession: FeeConcessionEntity,
+    discount: number,
+  ) {
+    const invoice = concession.invoiceId
+      ? await this.getInvoice(tenantId, concession.invoiceId)
       : await this.repository.findInvoiceForStructureStudent(
           tenantId,
-          input.structureId,
-          input.studentId,
+          concession.structureId,
+          concession.studentId,
         );
     if (!invoice) {
       return { concession, invoice: null, discountCents: discount };
@@ -726,7 +790,8 @@ export class FeesService {
       amountCents: nextAmount,
     });
     await this.repository.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
-    return { concession, invoice: updated, discountCents: discount };
+    const refreshed = await this.repository.findConcessionById(concession.id, tenantId);
+    return { concession: refreshed ?? concession, invoice: updated, discountCents: discount };
   }
 
   async recordRefund(tenantId: string, actorId: string, input: RecordRefundInput) {
@@ -1233,6 +1298,7 @@ export class FeesService {
         kind: 'amount',
         amountCents: input.amountCents,
         reason: `${marker} (no open invoice — credit reserved)`,
+        autoApprove: true,
       });
       return { ...concession, idempotent: false as const };
     }
@@ -1245,6 +1311,7 @@ export class FeesService {
         kind: 'amount',
         amountCents: Math.min(input.amountCents, invoice.amountCents),
         reason: marker,
+        autoApprove: true,
       })),
       idempotent: false as const,
     };
