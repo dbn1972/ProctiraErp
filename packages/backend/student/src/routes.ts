@@ -69,6 +69,12 @@ function formatStudentResponse(entity: {
     guardians: entity.guardians,
     identityDocuments: entity.identityDocuments,
     customData: entity.customData,
+    admissionNumber:
+      (typeof entity.customData?.['admissionNo'] === 'string' &&
+        entity.customData['admissionNo']) ||
+      (typeof entity.customData?.['admissionNumber'] === 'string' &&
+        entity.customData['admissionNumber']) ||
+      null,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };

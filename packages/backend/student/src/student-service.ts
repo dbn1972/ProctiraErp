@@ -43,6 +43,21 @@ export class StudentService {
       }
     }
 
+    // W2-SIS-01: always issue an admission number (UI displays customData.admissionNo).
+    const customData: Record<string, unknown> = { ...(input.customData ?? {}) };
+    const provided =
+      (typeof customData['admissionNo'] === 'string' && customData['admissionNo'].trim()) ||
+      (typeof customData['admissionNumber'] === 'string' && customData['admissionNumber'].trim()) ||
+      '';
+    if (provided) {
+      customData['admissionNo'] = provided;
+      customData['admissionNumber'] = provided;
+    } else {
+      const issued = await this.repository.allocateAdmissionNumber(tenantId);
+      customData['admissionNo'] = issued;
+      customData['admissionNumber'] = issued;
+    }
+
     const student: Omit<StudentEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
@@ -62,7 +77,7 @@ export class StudentService {
         contactEmail: g.contactEmail,
       })),
       identityDocuments: input.identityDocuments ?? [],
-      customData: input.customData ?? {},
+      customData,
     };
 
     return this.repository.create(student);

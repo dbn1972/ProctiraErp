@@ -73,6 +73,10 @@ export class CachedStudentRepository implements StudentRepository {
     return this.delegate.search(tenantId, query, pagination);
   }
 
+  async allocateAdmissionNumber(tenantId: string): Promise<string> {
+    return this.delegate.allocateAdmissionNumber(tenantId);
+  }
+
   async delete(id: string, tenantId: string): Promise<boolean> {
     const result = await this.delegate.delete(id, tenantId);
     if (result && this.cache) {

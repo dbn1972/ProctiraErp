@@ -65,6 +65,28 @@ describe('StudentService', () => {
       expect(result.updatedAt).toBeInstanceOf(Date);
     });
 
+    it('W2-SIS-01: issues a unique admission number when none is provided', async () => {
+      const first = await service.create(TENANT_ID, validCreateInput({ firstName: 'Ada' }));
+      const second = await service.create(TENANT_ID, validCreateInput({ firstName: 'Alan' }));
+
+      const firstNo = first.customData['admissionNo'];
+      const secondNo = second.customData['admissionNo'];
+      expect(typeof firstNo).toBe('string');
+      expect(firstNo).toMatch(/^ADM-\d{4}-\d{4,}$/);
+      expect(secondNo).toMatch(/^ADM-\d{4}-\d{4,}$/);
+      expect(firstNo).not.toBe(secondNo);
+      expect(first.customData['admissionNumber']).toBe(firstNo);
+    });
+
+    it('W2-SIS-01: preserves an explicitly provided admission number', async () => {
+      const result = await service.create(
+        TENANT_ID,
+        validCreateInput({ customData: { admissionNo: 'ADM-MANUAL-1' } }),
+      );
+      expect(result.customData['admissionNo']).toBe('ADM-MANUAL-1');
+      expect(result.customData['admissionNumber']).toBe('ADM-MANUAL-1');
+    });
+
     it('should create a student with optional fields', async () => {
       const input = validCreateInput({
         nationalId: 'NID-12345',
@@ -101,7 +123,8 @@ describe('StudentService', () => {
       expect(result.guardians[0].id).toBeDefined();
       expect(result.identityDocuments).toHaveLength(1);
       expect(result.identityDocuments[0].type).toBe('passport');
-      expect(result.customData).toEqual({ allergies: ['peanuts'], bloodType: 'O+' });
+      expect(result.customData).toMatchObject({ allergies: ['peanuts'], bloodType: 'O+' });
+      expect(result.customData['admissionNo']).toMatch(/^ADM-/);
     });
 
     it('should set optional fields to defaults when not provided', async () => {
@@ -113,7 +136,7 @@ describe('StudentService', () => {
       expect(result.contacts).toEqual([]);
       expect(result.guardians).toEqual([]);
       expect(result.identityDocuments).toEqual([]);
-      expect(result.customData).toEqual({});
+      expect(result.customData['admissionNo']).toMatch(/^ADM-/);
     });
 
     it('should throw ConflictError when national ID already exists in same tenant', async () => {
@@ -167,7 +190,8 @@ describe('StudentService', () => {
       const input = validCreateInput({ customData });
       const result = await service.create(TENANT_ID, input);
 
-      expect(result.customData).toEqual(customData);
+      expect(result.customData).toMatchObject(customData);
+      expect(result.customData['admissionNo']).toMatch(/^ADM-/);
     });
   });
 
