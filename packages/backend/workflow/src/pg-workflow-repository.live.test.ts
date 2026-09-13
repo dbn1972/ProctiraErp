@@ -5,6 +5,7 @@
  * Pg cases skip when DATABASE_URL is unset.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -14,6 +15,8 @@ import { createWorkflowRepositories } from './create-workflow-repositories.js';
 import { InMemoryWorkflowRepository } from './in-memory-repository.js';
 import { PgCaseRepository, PgWorkflowRepository } from './pg-workflow-repository.js';
 import { workflowPlugin } from './workflow-plugin.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-workflow-repository.live.test' });
+
 
 const pool = getSharedPgPool();
 const live = pool !== null;

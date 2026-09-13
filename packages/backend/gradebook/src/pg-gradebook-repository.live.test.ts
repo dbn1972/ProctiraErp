@@ -4,13 +4,17 @@
  * read them under FORCE RLS. Skipped without DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
 
 import { getSharedGradebookPool, PgGradebookRepository } from './pg-gradebook-repository.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-gradebook-repository.live.test' });
+
 
 const pool = getSharedGradebookPool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 async function seedTenant(tenantId: string): Promise<void> {
   await withPgTenant(pool!, tenantId, (client) =>
@@ -33,7 +37,7 @@ async function seedBoard(tenantId: string): Promise<string> {
 }
 
 describe('PgGradebookRepository (live)', () => {
-  it.skipIf(!pool)('persists credit rules per tenant and isolates them under RLS', async () => {
+  it.skipIf(!live)('persists credit rules per tenant and isolates them under RLS', async () => {
     const repo = new PgGradebookRepository(pool!);
     const tenantA = randomUUID();
     const tenantB = randomUUID();
@@ -71,7 +75,7 @@ describe('PgGradebookRepository (live)', () => {
     );
   });
 
-  it.skipIf(!pool)('reads grading scales only for the bound tenant', async () => {
+  it.skipIf(!live)('reads grading scales only for the bound tenant', async () => {
     const repo = new PgGradebookRepository(pool!);
     const tenantA = randomUUID();
     const tenantB = randomUUID();

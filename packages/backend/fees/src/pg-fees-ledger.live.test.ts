@@ -3,6 +3,7 @@
  * DATABASE_URL. Requires db/sql/021 + 023 applied (ensureFeesSchema applies 023).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
@@ -10,11 +11,14 @@ import { describe, expect, it } from 'vitest';
 import { FeesService } from './fees-service.js';
 import { SandboxPaymentAdapter } from './payment-adapter.js';
 import { getSharedFeesPool, PgFeesRepository } from './pg-fees-repository.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-fees-ledger.live.test' });
+
 
 const pool = getSharedFeesPool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 describe('fee ledger (live Postgres)', () => {
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'issue → pay posts two balanced journals and the trial balance nets to 0 AR',
     async () => {
       const repo = new PgFeesRepository(pool!);
@@ -41,7 +45,7 @@ describe('fee ledger (live Postgres)', () => {
     },
   );
 
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'database rejects an unbalanced journal at COMMIT and keeps it append-only',
     async () => {
       const repo = new PgFeesRepository(pool!);

@@ -5,16 +5,20 @@
  * Skipped without DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
 
 import {
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-parent-portal-repository.live.test' });
+
   getSharedParentPortalPool,
   PgParentPortalRepository,
 } from './pg-parent-portal-repository.js';
 
 const pool = getSharedParentPortalPool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 async function seedTenant(tenantId: string): Promise<void> {
   await withPgTenant(pool!, tenantId, (client) =>
@@ -26,7 +30,7 @@ async function seedTenant(tenantId: string): Promise<void> {
 }
 
 describe('PgParentPortalRepository (live)', () => {
-  it.skipIf(!pool)('persists guardian links and enforces the per-tenant unique pair', async () => {
+  it.skipIf(!live)('persists guardian links and enforces the per-tenant unique pair', async () => {
     const repo = new PgParentPortalRepository(pool!);
     const tenantA = randomUUID();
     const tenantB = randomUUID();
@@ -78,7 +82,7 @@ describe('PgParentPortalRepository (live)', () => {
     ).rejects.toThrow(/duplicate key|unique/i);
   });
 
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'persists fee plans and invoices; status updates stay tenant-bound',
     async () => {
       const repo = new PgParentPortalRepository(pool!);
@@ -132,7 +136,7 @@ describe('PgParentPortalRepository (live)', () => {
     },
   );
 
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'requires consent_version on write and exposes it on read (W1-PRIV-01)',
     async () => {
       const repo = new PgParentPortalRepository(pool!);

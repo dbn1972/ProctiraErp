@@ -6,11 +6,12 @@
  * (non-owner; explicit REVOKE TRIGGER).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-const DATABASE_URL = process.env['DATABASE_URL'];
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'immutability-privileges.live.test' });
 
 const IMMUTABLE_APPEND_ONLY_TRIGGERS = [
   { table: 'fee_ledger_entries', trigger: 'trg_fee_ledger_append_only' },

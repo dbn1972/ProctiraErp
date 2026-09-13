@@ -7,12 +7,13 @@
  * provision Postgres and set DATABASE_URL (see ci.yml → tenant-isolation).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-const DATABASE_URL = process.env['DATABASE_URL']?.trim();
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'rls-live.test' });
 
 describe.skipIf(!DATABASE_URL)('Live Postgres RLS (W1-OPS-06 release gate)', () => {
   let pool: pg.Pool;

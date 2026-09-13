@@ -5,13 +5,17 @@
  * Skipped without DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
 
 import { getSharedTimetablePool, PgTimetableRepository } from './pg-timetable-repository.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-timetable-repository.live.test' });
+
 
 const pool = getSharedTimetablePool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 interface Fixture {
   tenantId: string;
@@ -51,7 +55,7 @@ async function seedFixture(): Promise<Fixture> {
 }
 
 describe('PgTimetableRepository (live)', () => {
-  it.skipIf(!pool)('persists rooms per institution and hides them from other tenants', async () => {
+  it.skipIf(!live)('persists rooms per institution and hides them from other tenants', async () => {
     const repo = new PgTimetableRepository(pool!);
     const a = await seedFixture();
     const b = await seedFixture();
@@ -80,7 +84,7 @@ describe('PgTimetableRepository (live)', () => {
     expect(await repo.listRooms(b.tenantId)).toEqual([]);
   });
 
-  it.skipIf(!pool)('round-trips bell schedules + periods and cascades deletes', async () => {
+  it.skipIf(!live)('round-trips bell schedules + periods and cascades deletes', async () => {
     const repo = new PgTimetableRepository(pool!);
     const a = await seedFixture();
     const b = await seedFixture();

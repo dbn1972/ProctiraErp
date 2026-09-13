@@ -78,3 +78,11 @@ export {
   capacityArb,
   percentageArb,
 } from './property-testing/index.js';
+
+// W3-TEST-03 — live Postgres suite visibility
+export {
+  liveTestsRequired,
+  requireLiveDatabaseUrl,
+  resolveLiveDatabaseUrl,
+} from './live-database.js';
+export type { LiveDatabaseOptions } from './live-database.js';
