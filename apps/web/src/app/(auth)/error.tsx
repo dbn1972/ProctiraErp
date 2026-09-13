@@ -2,12 +2,12 @@
 
 import { RouteErrorPanel } from '@/components/route-state/route-error';
 
-export default function DashboardError({
+export default function AuthError({
   error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  return <RouteErrorPanel error={error} reset={reset} title="Dashboard error" />;
+  return <RouteErrorPanel error={error} reset={reset} title="Sign-in error" />;
 }
