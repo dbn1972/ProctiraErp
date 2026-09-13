@@ -4,6 +4,7 @@
  * POST   /reports/generate                - Generate a report
  * GET    /reports/jobs                     - List report jobs
  * GET    /reports/jobs/:jobId              - Get report job status
+ * POST   /reports/jobs/:jobId/cancel       - Cancel a queued report job (W2-JOB-13)
  * GET    /reports/jobs/:jobId/download     - Download completed report
  * POST   /reports/templates               - Create a report template
  * GET    /reports/templates               - List report templates
@@ -90,6 +91,8 @@ function formatJobResponse(entity: {
   aggregations: unknown[] | null;
   templateId: string | null;
   title: string | null;
+  dedupeKey?: string | null;
+  leaseExpiresAt?: Date | null;
   requestedBy: string;
   requestedByArea: string | null;
   requestedByRole: string | null;
@@ -113,6 +116,8 @@ function formatJobResponse(entity: {
     aggregations: entity.aggregations,
     templateId: entity.templateId,
     title: entity.title,
+    dedupeKey: entity.dedupeKey ?? null,
+    leaseExpiresAt: entity.leaseExpiresAt ? entity.leaseExpiresAt.toISOString() : null,
     requestedBy: entity.requestedBy,
     requestedByArea: entity.requestedByArea,
     requestedByRole: entity.requestedByRole,
@@ -120,8 +125,8 @@ function formatJobResponse(entity: {
     fileSize: entity.fileSize,
     rowCount: entity.rowCount,
     errorMessage: entity.errorMessage,
-    startedAt: entity.startedAt?.toISOString() ?? null,
-    completedAt: entity.completedAt?.toISOString() ?? null,
+    startedAt: entity.startedAt ? entity.startedAt.toISOString() : null,
+    completedAt: entity.completedAt ? entity.completedAt.toISOString() : null,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };
@@ -339,6 +344,47 @@ export async function registerReportRoutes(
 
       try {
         const job = await reportService.getReportStatus(tenantId, paramsResult.data.jobId);
+        return reply.status(200).send(formatJobResponse(job));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /reports/jobs/:jobId/cancel
+   * W2-JOB-13: cancel a queued report job.
+   */
+  fastify.post(
+    `${prefix}/jobs/:jobId/cancel`,
+    async function cancelJobHandler(
+      request: FastifyRequest<{ Params: { jobId: string } }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ReportJobIdParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const job = await reportService.cancelReportJob(tenantId, paramsResult.data.jobId);
         return reply.status(200).send(formatJobResponse(job));
       } catch (error: unknown) {
         if (error instanceof AppError) {
