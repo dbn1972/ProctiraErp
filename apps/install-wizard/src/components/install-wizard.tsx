@@ -10,6 +10,7 @@ import {
   AdminStep,
   CompleteStep,
 } from '@/components/steps';
+import { Button } from '@/lib/design-system';
 import { getInstallDocsUrl, getInstallSupportUrl } from '@/lib/site';
 import { useWizard } from '@/lib/use-wizard';
 
@@ -75,19 +76,16 @@ export function InstallWizard() {
         </>
       )}
 
-      <p className="mt-6 text-center text-xs text-gray-500">
-        ProctiraERP · Installer ·{' '}
-        <a
-          href={docsUrl}
-          className="font-semibold text-primary-700 hover:underline"
-          rel="noopener noreferrer"
-        >
-          Installation guide
-        </a>{' '}
-        ·{' '}
-        <a href={supportUrl} className="font-semibold text-primary-700 hover:underline">
-          Get help
-        </a>
+      <p className="mt-6 flex flex-wrap items-center justify-center gap-3 text-center text-xs text-gray-500">
+        <span>ProctiraERP · Installer</span>
+        <Button asChild variant="outline" size="sm">
+          <a href={docsUrl} rel="noopener noreferrer">
+            Installation guide
+          </a>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <a href={supportUrl}>Get help</a>
+        </Button>
       </p>
     </div>
   );

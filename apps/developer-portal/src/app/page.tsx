@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { DesignSystemDocsCta } from '@/components/design-system-docs-cta';
 import { SiteHeader } from '@/components/layout/site-header';
 
 /**
@@ -246,12 +247,7 @@ export default function HomePage() {
                   Get API key
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link
-                  href="/docs"
-                  className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-100"
-                >
-                  Read the docs
-                </Link>
+                <DesignSystemDocsCta href="/docs" label="Read the docs" />
               </div>
             </div>
 
