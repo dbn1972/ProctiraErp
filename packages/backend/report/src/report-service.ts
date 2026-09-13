@@ -99,6 +99,9 @@ const DEFAULT_CONFIG: ReportServiceConfig = {
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
+/** W2-RPT-01: sync fallback without a queue publisher cannot stream. */
+export const MAX_SYNC_REPORT_ROWS = 10_000;
+
 export class ReportService {
   private readonly config: ReportServiceConfig;
 
@@ -201,6 +204,20 @@ export class ReportService {
         job.aggregations,
         userContext,
       );
+
+      // W2-RPT-01: when processing inline (no queue / worker), enforce a sync row cap.
+      if (!this.queuePublisher && data.totalRows > MAX_SYNC_REPORT_ROWS) {
+        throw new ValidationError(
+          `Synchronous report generation capped at ${MAX_SYNC_REPORT_ROWS} rows; configure a report queue or narrow filters`,
+          [
+            {
+              field: 'filters',
+              rule: 'max',
+              message: `Row count ${data.totalRows} exceeds sync cap ${MAX_SYNC_REPORT_ROWS}`,
+            },
+          ],
+        );
+      }
 
       // Export to requested format
       const fileBuffer = await this.exportToFormat(job, data);
