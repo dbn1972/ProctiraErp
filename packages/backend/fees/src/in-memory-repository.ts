@@ -11,7 +11,9 @@ import {
   type FeeReceiptEntity,
   type FeeReconciliationBatchEntity,
   type FeeReconciliationRowEntity,
+  type FeeCreditNoteEntity,
   type FeeRefundEntity,
+  type FeeWriteOffEntity,
   type FeeStructureComponentEntity,
   type FeeStructureEntity,
   type FeeStructureInstalmentEntity,
@@ -34,6 +36,8 @@ export class InMemoryFeesRepository implements FeesRepository {
   private instalments: FeeStructureInstalmentEntity[] = [];
   private concessions: FeeConcessionEntity[] = [];
   private refunds: FeeRefundEntity[] = [];
+  private creditNotes: FeeCreditNoteEntity[] = [];
+  private writeOffs: FeeWriteOffEntity[] = [];
   private reconBatches: FeeReconciliationBatchEntity[] = [];
   private reconRows: FeeReconciliationRowEntity[] = [];
   private classRoster = new Map<string, string[]>();
@@ -72,6 +76,7 @@ export class InMemoryFeesRepository implements FeesRepository {
       accounts_receivable: 0,
       cash: 0,
       fee_revenue: 0,
+      bad_debt_expense: 0,
     };
     let debitCents = 0;
     let creditCents = 0;
@@ -300,6 +305,35 @@ export class InMemoryFeesRepository implements FeesRepository {
     const updated = { ...this.concessions[index]!, ...data };
     this.concessions[index] = updated;
     return updated;
+  }
+
+
+  async createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity> {
+    const entity: FeeCreditNoteEntity = { ...data, createdAt: new Date() };
+    this.creditNotes.push(entity);
+    return entity;
+  }
+
+  async listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]> {
+    return this.creditNotes.filter((row) => row.tenantId === tenantId && row.invoiceId === invoiceId);
+  }
+
+  async listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]> {
+    return this.creditNotes.filter((row) => row.tenantId === tenantId);
+  }
+
+  async createWriteOff(data: Omit<FeeWriteOffEntity, 'createdAt'>): Promise<FeeWriteOffEntity> {
+    const entity: FeeWriteOffEntity = { ...data, createdAt: new Date() };
+    this.writeOffs.push(entity);
+    return entity;
+  }
+
+  async listWriteOffsForInvoice(tenantId: string, invoiceId: string): Promise<FeeWriteOffEntity[]> {
+    return this.writeOffs.filter((row) => row.tenantId === tenantId && row.invoiceId === invoiceId);
+  }
+
+  async listWriteOffsForTenant(tenantId: string): Promise<FeeWriteOffEntity[]> {
+    return this.writeOffs.filter((row) => row.tenantId === tenantId);
   }
 
   async createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity> {

@@ -130,6 +130,16 @@ const RecordRefundSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
 });
 
+const IssueCreditNoteSchema = Type.Object({
+  amountCents: Type.Integer({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
+const WriteOffInvoiceSchema = Type.Object({
+  amountCents: Type.Integer({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
 const ReconciliationImportSchema = Type.Object({
   csv: Type.String({ minLength: 1 }),
   filename: Type.Optional(Type.String({ maxLength: 255 })),
@@ -996,6 +1006,111 @@ export const feesPlugin = fp(
           return reply.status(201).send({
             ...refund,
             createdAt: refund.createdAt.toISOString(),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+
+    fastify.post(
+      `${prefix}/invoices/:id/credit-notes`,
+      async function issueCreditNote(
+        request: FastifyRequest<{
+          Params: IdParams;
+          Body: { amountCents: number; reason: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(IssueCreditNoteSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'credit_note.issue')) return;
+        try {
+          const result = await feesService.issueCreditNote(tenantId, getActorId(request), {
+            invoiceId: paramsResult.data.id,
+            amountCents: bodyResult.data.amountCents,
+            reason: bodyResult.data.reason,
+          });
+          return reply.status(201).send({
+            creditNote: {
+              ...result.creditNote,
+              createdAt: result.creditNote.createdAt.toISOString(),
+            },
+            invoice: formatInvoice(result.invoice),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/invoices/:id/write-offs`,
+      async function writeOffInvoice(
+        request: FastifyRequest<{
+          Params: IdParams;
+          Body: { amountCents: number; reason: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(WriteOffInvoiceSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'write_off.record')) return;
+        try {
+          const result = await feesService.writeOffInvoice(tenantId, getActorId(request), {
+            invoiceId: paramsResult.data.id,
+            amountCents: bodyResult.data.amountCents,
+            reason: bodyResult.data.reason,
+          });
+          return reply.status(201).send({
+            writeOff: {
+              ...result.writeOff,
+              createdAt: result.writeOff.createdAt.toISOString(),
+            },
+            invoice: formatInvoice(result.invoice),
           });
         } catch (error: unknown) {
           if (error instanceof AppError) {

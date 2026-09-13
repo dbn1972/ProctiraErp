@@ -12,6 +12,8 @@ export type FeesAction =
   | 'payment.record'
   | 'invoice.void'
   | 'refund.record'
+  | 'credit_note.issue'
+  | 'write_off.record'
   | 'concession.apply'
   | 'concession.approve'
   | 'reconciliation.import'
@@ -49,6 +51,8 @@ const ACTION_ROLES: Record<FeesAction, readonly string[]> = {
   'payment.record': [...SELF_PAY_ROLES, ...FINANCE_ROLES],
   'invoice.void': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
   'refund.record': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
+  'credit_note.issue': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
+  'write_off.record': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
   'concession.apply': ['finance_officer', 'bursar', 'accountant', 'principal', ...ADMIN_ROLES],
   'concession.approve': ['finance_officer', 'bursar', 'principal', ...ADMIN_ROLES],
   'reconciliation.import': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
