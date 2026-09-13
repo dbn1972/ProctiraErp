@@ -73,7 +73,12 @@ import {
   examinationPlugin,
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
-import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
+import {
+  createFeesRepository,
+  FeesService,
+  feesPlugin,
+  majorUnitsToCents,
+} from '@proctira/backend-fees';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import {
   assertPhiKeyConfigured,
@@ -547,8 +552,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/scholarships',
         serviceOptions: {
           onDisbursementPaid: async (input) => {
-            // Scholarship amounts are major units; fees ledger is cents.
-            const amountCents = Math.round(Number(input.amount) * 100);
+            // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
+            const amountCents =
+              input.amountCents ?? majorUnitsToCents(input.amount);
             if (amountCents <= 0) return;
             await feesForScholarships.applyScholarshipNetting(
               input.tenantId,
@@ -559,6 +565,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
                 amountCents,
                 currency: input.currency,
               },
+            );
+          },
+          onDisbursementReversed: async (input) => {
+            await feesForScholarships.reverseScholarshipNetting(
+              input.tenantId,
+              'scholarship-netting',
+              { disbursementId: input.disbursementId },
             );
           },
         },

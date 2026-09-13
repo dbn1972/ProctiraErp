@@ -1452,6 +1452,69 @@ export class FeesService {
     };
   }
 
+
+  /**
+   * W2-FIN-08: reverse a prior scholarship netting when a paid disbursement is cancelled/failed.
+   * Restores invoice face and posts the inverse journal (DR AR / CR fee_revenue).
+   */
+  async reverseScholarshipNetting(
+    tenantId: string,
+    actorId: string,
+    input: { disbursementId: string },
+  ) {
+    const marker = `scholarship_netting:${input.disbursementId}`;
+    // Prefer exact marker / reserved-credit prefix (not bare substring includes).
+    // W2-FIN-09 replaces this with source_disbursement_id.
+    const prior = (await this.repository.listConcessions(tenantId)).find(
+      (c) => c.reason === marker || c.reason.startsWith(`${marker} `),
+    );
+    if (!prior) {
+      return { reversed: false as const, concession: null, invoice: null };
+    }
+    if (prior.status === 'rejected') {
+      return { reversed: true as const, concession: prior, invoice: null, idempotent: true as const };
+    }
+
+    const discountCents =
+      prior.kind === 'amount' ? (prior.amountCents ?? 0) : 0;
+    if (!Number.isInteger(discountCents) || discountCents <= 0) {
+      throw new BusinessRuleError('Cannot reverse scholarship netting without a positive amount');
+    }
+
+    let invoice = prior.invoiceId
+      ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
+      : null;
+
+    if (invoice) {
+      const restored = await this.repository.updateInvoice(invoice.id, tenantId, {
+        amountCents: invoice.amountCents + discountCents,
+        ...(invoice.status === 'written_off' ? { status: 'open' as const } : {}),
+      });
+      invoice = restored;
+      await this.postJournal(
+        invoice!,
+        actorId,
+        'scholarship netting reversed',
+        [
+          ['accounts_receivable', 'debit'],
+          ['fee_revenue', 'credit'],
+        ],
+        discountCents,
+      );
+    }
+
+    const rejected = await this.repository.updateConcession(prior.id, tenantId, {
+      status: 'rejected',
+    });
+    return {
+      reversed: true as const,
+      concession: rejected ?? prior,
+      invoice,
+      discountCents,
+      idempotent: false as const,
+    };
+  }
+
   /** G-5 — clone fee structures (+ instalments) into a target academic period. */
   async cloneStructuresForPeriod(
     tenantId: string,

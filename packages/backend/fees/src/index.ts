@@ -89,3 +89,9 @@ export {
   normalizeFeesRoles,
 } from './fees-access.js';
 export type { FeesAction } from './fees-access.js';
+
+export {
+  majorUnitsToCents,
+  centsToMajorUnits,
+  assertMajorMatchesCents,
+} from './money-cents.js';
