@@ -375,8 +375,10 @@ export class FeesService {
   }
 
   /**
-   * Charge via payment adapter, persist payment + receipt, mark invoice paid.
-   * Enforces: receipt.amountCents === payment.amountCents === invoice.amountCents.
+   * Charge via payment adapter, persist payment + receipt, update invoice status.
+   * W2-FIN-01: partial payments allowed — receipt.amountCents === payment.amountCents
+   * and payment must be within the remaining balance. Invoice stays open until
+   * succeeded payments cover the face amount.
    */
   async recordPayment(
     tenantId: string,
@@ -393,20 +395,30 @@ export class FeesService {
       throw new BusinessRuleError('Invoice is not open for payment');
     }
 
-    if (input.amountCents != null) {
-      if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
-        throw new BusinessRuleError('Payment amountCents must be a non-negative integer');
-      }
-      if (input.amountCents !== invoice.amountCents) {
-        throw new BusinessRuleError('Payment amountCents must equal invoice.amountCents');
-      }
+    const priorPayments = (await this.repository.listPaymentsForTenant(tenantId)).filter(
+      (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
+    );
+    const alreadyPaidCents = priorPayments.reduce((sum, p) => sum + p.amountCents, 0);
+    const remainingCents = invoice.amountCents - alreadyPaidCents;
+    if (remainingCents <= 0) {
+      throw new BusinessRuleError('Invoice has no remaining balance');
+    }
+
+    const paymentAmountCents = input.amountCents ?? remainingCents;
+    if (!Number.isInteger(paymentAmountCents) || paymentAmountCents <= 0) {
+      throw new BusinessRuleError('Payment amountCents must be a positive integer');
+    }
+    if (paymentAmountCents > remainingCents) {
+      throw new BusinessRuleError(
+        `Payment amountCents ${paymentAmountCents} exceeds remaining balance ${remainingCents}`,
+      );
     }
 
     const charge = await this.paymentAdapter.charge({
       tenantId,
       invoiceId: invoice.id,
       payerUserId: input.payerUserId ?? actorId,
-      amountCents: invoice.amountCents,
+      amountCents: paymentAmountCents,
       currency: invoice.currency,
       method: input.method ?? 'sandbox',
     });
@@ -415,8 +427,8 @@ export class FeesService {
       throw new BusinessRuleError(`Payment charge failed with status '${charge.status}'`);
     }
 
-    if (charge.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError('Charge amountCents must equal invoice.amountCents');
+    if (charge.amountCents !== paymentAmountCents) {
+      throw new BusinessRuleError('Charge amountCents must equal payment amountCents');
     }
 
     const paidAt = new Date();
@@ -425,14 +437,14 @@ export class FeesService {
       invoiceId: invoice.id,
       tenantId,
       payerUserId: input.payerUserId ?? actorId,
-      amountCents: invoice.amountCents,
+      amountCents: paymentAmountCents,
       method: charge.method,
       status: 'succeeded',
       paidAt,
     });
 
-    if (payment.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError('payment.amountCents must equal invoice.amountCents');
+    if (payment.amountCents !== paymentAmountCents) {
+      throw new BusinessRuleError('payment.amountCents must equal charged amountCents');
     }
 
     const receipt = await this.repository.createReceipt({
@@ -441,23 +453,18 @@ export class FeesService {
       paymentId: payment.id,
       invoiceId: invoice.id,
       receiptNumber: receiptNumberFor(payment.id),
-      amountCents: invoice.amountCents,
+      amountCents: paymentAmountCents,
       currency: invoice.currency,
       issuedAt: paidAt,
     });
 
-    if (
-      receipt.amountCents !== payment.amountCents ||
-      payment.amountCents !== invoice.amountCents ||
-      receipt.amountCents !== invoice.amountCents
-    ) {
+    if (receipt.amountCents !== payment.amountCents) {
       throw new BusinessRuleError(
-        'receipt.amountCents === payment.amountCents === invoice.amountCents invariant violated',
+        'receipt.amountCents === payment.amountCents invariant violated',
       );
     }
 
-    // G-718: DR cash / CR accounts_receivable — the receivable opened at
-    // issuance is cleared by exactly the invoice amount.
+    // G-718: DR cash / CR accounts_receivable for this payment amount only.
     await this.postJournal(
       invoice,
       actorId,
@@ -466,12 +473,13 @@ export class FeesService {
         ['cash', 'debit'],
         ['accounts_receivable', 'credit'],
       ],
-      invoice.amountCents,
+      paymentAmountCents,
       { paymentId: payment.id, receiptId: receipt.id },
     );
 
+    const fullyPaid = alreadyPaidCents + paymentAmountCents >= invoice.amountCents;
     const updatedInvoice = await this.repository.updateInvoice(invoice.id, tenantId, {
-      status: 'paid',
+      status: fullyPaid ? 'paid' : 'open',
     });
 
     return { invoice: updatedInvoice!, payment, receipt };
