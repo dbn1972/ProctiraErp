@@ -32,6 +32,7 @@ const TENANT_ID = uuid();
 const STUDENT_ID = uuid();
 const INSTITUTION_ID = uuid();
 const GRADE_ID = uuid();
+const DEST_CLASS_ID = uuid();
 const CLASS_ID = uuid();
 const ACADEMIC_PERIOD_ID = uuid();
 
@@ -105,6 +106,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -142,6 +144,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -172,6 +175,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -220,6 +224,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -234,6 +239,7 @@ describe('Enrollment Routes', () => {
           sourceEnrollmentId: created.id,
           destinationInstitutionId: DEST_INSTITUTION_ID,
           destinationGradeId: DEST_GRADE_ID,
+          destinationClassId: DEST_CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           transferDate: '2024-03-01',
           reason: 'Family relocation',
@@ -257,6 +263,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -272,6 +279,7 @@ describe('Enrollment Routes', () => {
           sourceEnrollmentId: created.id,
           destinationInstitutionId: nonExistentId,
           destinationGradeId: DEST_GRADE_ID,
+          destinationClassId: DEST_CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           transferDate: '2024-03-01',
           reason: 'Family relocation',
@@ -294,6 +302,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -308,6 +317,7 @@ describe('Enrollment Routes', () => {
           sourceEnrollmentId: created.id,
           destinationInstitutionId: inactiveId,
           destinationGradeId: DEST_GRADE_ID,
+          destinationClassId: DEST_CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           transferDate: '2024-03-01',
           reason: 'Family relocation',
@@ -330,6 +340,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -374,6 +385,7 @@ describe('Enrollment Routes', () => {
           studentId: STUDENT_ID,
           institutionId: INSTITUTION_ID,
           gradeId: GRADE_ID,
+          classId: CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           enrolledAt: '2024-01-15',
         },
@@ -388,6 +400,7 @@ describe('Enrollment Routes', () => {
           sourceEnrollmentId: created.id,
           destinationInstitutionId: destId,
           destinationGradeId: GRADE_ID,
+          destinationClassId: DEST_CLASS_ID,
           academicPeriodId: ACADEMIC_PERIOD_ID,
           transferDate: '2024-03-01',
           reason: 'Family relocation',
