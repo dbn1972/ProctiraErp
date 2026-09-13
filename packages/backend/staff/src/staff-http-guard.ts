@@ -34,6 +34,7 @@ export function requireStaffAction(
 
 /**
  * Skip GET/HEAD/OPTIONS; assert `action` on mutating methods.
+ * When denied, reply is sent and Fastify skips the route because `reply.sent`.
  */
 export function staffWritePreHandler(
   request: FastifyRequest,
@@ -42,5 +43,7 @@ export function staffWritePreHandler(
 ): void {
   const method = request.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return;
-  requireStaffAction(request, reply, action);
+  if (!requireStaffAction(request, reply, action)) {
+    return;
+  }
 }

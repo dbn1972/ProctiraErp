@@ -288,6 +288,25 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
     );
   }
 
+  // W1-SEC-02 (D4): HR / registrar roles — gateway must align with
+  // `@proctira/backend-staff` staff-access HR_OFFICER_ROLES (not only admin/principal).
+  const STAFF_HR_PERMISSIONS: Permission[] = [{ resource: 'staff', action: 'manage' }];
+  for (const roleId of [
+    'hr_officer',
+    'staff_admin',
+    'registrar',
+    'admissions_officer',
+  ] as const) {
+    roles.push({
+      roleId,
+      roleName: roleId
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' '),
+      permissions: STAFF_HR_PERMISSIONS.map((p) => ({ ...p })),
+    });
+  }
+
   roles.push({
     roleId: 'nurse',
     roleName: 'Nurse',
