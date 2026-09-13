@@ -166,6 +166,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/admin/roles',
     '/admin/permissions',
     '/admin/tenant',
+    '/admin/notification-rules',
     '/reports',
     '/reports/new',
     '/data-warehouse',
