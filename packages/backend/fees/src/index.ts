@@ -72,7 +72,11 @@ export {
   ensureFeesSchema,
 } from './pg-fees-repository.js';
 
-export { SandboxPaymentAdapter } from './payment-adapter.js';
+export {
+  SandboxPaymentAdapter,
+  UnimplementedLivePaymentAdapter,
+  createPaymentAdapterFromEnv,
+} from './payment-adapter.js';
 export type { PaymentAdapter, ChargeInput, ChargeResult } from './payment-adapter.js';
 
 export {

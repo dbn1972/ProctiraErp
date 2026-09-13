@@ -25,11 +25,13 @@ import {
   type NotificationQueuePublisher,
   type NotificationServiceConfig,
 } from './notification-service.js';
+import {
+  createEmailSenderFromEnv,
+  createPushSenderFromEnv,
+  createSmsSenderFromEnv,
+} from './channel-sender-factory.js';
 import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
-import { createSandboxEmailSender } from './sandbox-email-sender.js';
-import { createSandboxPushSender } from './sandbox-push-sender.js';
-import { createSandboxSmsSender } from './sandbox-sms-sender.js';
 
 /**
  * Options for the notification plugin.
@@ -73,10 +75,10 @@ export const notificationPlugin = fp(
     const {
       repository,
       prefsStore,
-      emailSender = createSandboxEmailSender(),
-      pushSender = createSandboxPushSender(),
+      emailSender = createEmailSenderFromEnv(),
+      pushSender = createPushSenderFromEnv(),
       webhookSender,
-      smsSender = createSandboxSmsSender(),
+      smsSender = createSmsSenderFromEnv(),
       queuePublisher,
       config,
       prefix = '/notifications',

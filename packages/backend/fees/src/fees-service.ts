@@ -21,7 +21,7 @@ import {
   assertRefundWithinPaid,
   concessionDiscountCents,
 } from './instalment-schedule.js';
-import { SandboxPaymentAdapter, type PaymentAdapter } from './payment-adapter.js';
+import { createPaymentAdapterFromEnv, type PaymentAdapter } from './payment-adapter.js';
 import {
   FEES_REMINDER_SANDBOX_HONESTY_NOTE,
   type ReminderChannel,
@@ -167,7 +167,7 @@ export class FeesService {
     private readonly repository: FeesRepository,
     paymentAdapter?: PaymentAdapter,
   ) {
-    this.paymentAdapter = paymentAdapter ?? new SandboxPaymentAdapter();
+    this.paymentAdapter = paymentAdapter ?? createPaymentAdapterFromEnv();
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
