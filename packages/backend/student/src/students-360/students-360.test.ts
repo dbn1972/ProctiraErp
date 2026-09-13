@@ -15,7 +15,7 @@ import { StudentService } from '../student-service.js';
 import { InMemoryStudentBlobStore } from './blob-store.js';
 import { aggregateAttendanceHeatmap } from './heatmap.js';
 import { registerStudents360Routes } from './routes.js';
-import { decodePhotoPayload, Students360Service } from './service.js';
+import { decodePhotoPayload, decodeDocumentPayload, Students360Service } from './service.js';
 import { InMemoryStudents360Store } from './store.js';
 
 const PNG_1X1 =
@@ -95,6 +95,50 @@ describe('G-914 students 360', () => {
       const bytes = await service.getPhotoBytes(TENANT_A, student.id);
       expect(bytes.mimeType).toBe('image/png');
       expect(bytes.bytes.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47]))).toBe(true);
+    });
+  });
+
+  describe('W2-SIS-03 document registry', () => {
+    it('rejects non-PDF bytes declared as application/pdf', () => {
+      expect(() =>
+        decodeDocumentPayload({
+          category: 'other',
+          fileName: 'fake.pdf',
+          mimeType: 'application/pdf',
+          contentBase64: Buffer.from('not-a-pdf').toString('base64'),
+        }),
+      ).toThrow(ValidationError);
+    });
+
+    it('uploads, lists, downloads, and deletes a PDF document', async () => {
+      const student = await createStudent(repo, TENANT_A);
+      const pdf = Buffer.from('%PDF-1.4 registry-fixture');
+      const doc = await service.uploadDocument(
+        TENANT_A,
+        student.id,
+        {
+          category: 'passport',
+          fileName: 'passport.pdf',
+          mimeType: 'application/pdf',
+          contentBase64: pdf.toString('base64'),
+        },
+        'registrar-docs',
+      );
+      expect(doc.category).toBe('passport');
+      expect(doc.uploadedBy).toBe('registrar-docs');
+      const listed = await service.listDocuments(TENANT_A, student.id);
+      expect(listed).toHaveLength(1);
+      const got = await service.getDocumentBytes(TENANT_A, student.id, doc.id);
+      expect(got.bytes.equals(pdf)).toBe(true);
+      await service.removeDocument(TENANT_A, student.id, doc.id);
+      expect(await service.listDocuments(TENANT_A, student.id)).toEqual([]);
+    });
+
+    it('denies cross-tenant document list', async () => {
+      const student = await createStudent(repo, TENANT_A);
+      await expect(service.listDocuments(TENANT_B, student.id)).rejects.toBeInstanceOf(
+        NotFoundError,
+      );
     });
   });
 
@@ -339,5 +383,81 @@ describe('G-914 students 360 routes', () => {
       headers: { 'x-tenant-id': TENANT_B },
     });
     expect(foreign.statusCode).toBe(404);
+  });
+
+  it('W2-SIS-03 registers student document blobs (upload, list, download, delete)', async () => {
+    const created = await app.inject({
+      method: 'POST',
+      url: '/students',
+      payload: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        dateOfBirth: '2008-12-10',
+        gender: 'female',
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const studentId = created.json().id as string;
+
+    const pdfBytes = Buffer.from('%PDF-1.4 student-doc-fixture');
+    const uploaded = await app.inject({
+      method: 'POST',
+      url: `/students/${studentId}/documents`,
+      payload: {
+        category: 'birth_certificate',
+        fileName: 'birth-cert.pdf',
+        mimeType: 'application/pdf',
+        contentBase64: pdfBytes.toString('base64'),
+      },
+    });
+    expect(uploaded.statusCode).toBe(201);
+    const doc = uploaded.json() as {
+      id: string;
+      category: string;
+      fileName: string;
+      mimeType: string;
+      sizeBytes: number;
+      uploadedBy: string;
+    };
+    expect(doc).toMatchObject({
+      category: 'birth_certificate',
+      fileName: 'birth-cert.pdf',
+      mimeType: 'application/pdf',
+      uploadedBy: actor,
+    });
+    expect(doc.sizeBytes).toBe(pdfBytes.length);
+    expect(doc.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+
+    const listed = await app.inject({
+      method: 'GET',
+      url: `/students/${studentId}/documents`,
+    });
+    expect(listed.statusCode).toBe(200);
+    expect(listed.json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: doc.id, fileName: 'birth-cert.pdf' })]),
+    );
+
+    const downloaded = await app.inject({
+      method: 'GET',
+      url: `/students/${studentId}/documents/${doc.id}`,
+    });
+    expect(downloaded.statusCode).toBe(200);
+    expect(downloaded.headers['content-type']).toContain('application/pdf');
+    expect(Buffer.from(downloaded.rawPayload).equals(pdfBytes)).toBe(true);
+
+    const removed = await app.inject({
+      method: 'DELETE',
+      url: `/students/${studentId}/documents/${doc.id}`,
+    });
+    expect(removed.statusCode).toBe(204);
+
+    const afterDelete = await app.inject({
+      method: 'GET',
+      url: `/students/${studentId}/documents`,
+    });
+    expect(afterDelete.statusCode).toBe(200);
+    expect(afterDelete.json()).toEqual([]);
   });
 });

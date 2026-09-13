@@ -67,3 +67,53 @@ export const HeatmapQuerySchema = Type.Object(
   { additionalProperties: true },
 );
 export type HeatmapQueryDto = Static<typeof HeatmapQuerySchema>;
+
+/** W2-SIS-03 — general student document / blob registry (not profile photos). */
+export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const DOCUMENT_CATEGORIES = [
+  'birth_certificate',
+  'transfer_certificate',
+  'passport',
+  'national_id',
+  'medical',
+  'address_proof',
+  'previous_marksheet',
+  'other',
+] as const;
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
+export const ALLOWED_DOCUMENT_MIMES = [
+  'application/pdf',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+] as const;
+export type AllowedDocumentMime = (typeof ALLOWED_DOCUMENT_MIMES)[number];
+
+export const UploadDocumentSchema = Type.Object({
+  category: Type.Union([
+    Type.Literal('birth_certificate'),
+    Type.Literal('transfer_certificate'),
+    Type.Literal('passport'),
+    Type.Literal('national_id'),
+    Type.Literal('medical'),
+    Type.Literal('address_proof'),
+    Type.Literal('previous_marksheet'),
+    Type.Literal('other'),
+  ]),
+  fileName: Type.String({ minLength: 1, maxLength: 255 }),
+  mimeType: Type.Union([
+    Type.Literal('application/pdf'),
+    Type.Literal('image/jpeg'),
+    Type.Literal('image/png'),
+    Type.Literal('image/webp'),
+  ]),
+  contentBase64: Type.String({ minLength: 1, maxLength: 14_000_000 }),
+});
+export type UploadDocumentDto = Static<typeof UploadDocumentSchema>;
+
+export const DocumentParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+  docId: Type.String({ pattern: UUID_PATTERN }),
+});
+export type DocumentParamsDto = Static<typeof DocumentParamsSchema>;

@@ -16,16 +16,20 @@ import {
 } from './heatmap.js';
 import { renderStudentIdCardPdf } from './id-card-pdf.js';
 import {
+  ALLOWED_DOCUMENT_MIMES,
   ALLOWED_PHOTO_MIMES,
+  DOCUMENT_MAX_BYTES,
   PHOTO_MAX_BYTES,
   type CreateDisciplineDto,
   type CreateSiblingDto,
   type SetConsentDto,
+  type UploadDocumentDto,
   type UploadPhotoDto,
 } from './schemas.js';
 import type {
   ConsentRecord,
   DisciplineRecord,
+  DocumentRecord,
   PhotoRecord,
   SiblingRecord,
   Students360Store,
@@ -96,6 +100,74 @@ export function decodePhotoPayload(input: UploadPhotoDto): { bytes: Buffer; mime
 
 function photoObjectKey(tenantId: string, studentId: string): string {
   return `students/${studentId}/photo`;
+}
+
+function documentObjectKey(tenantId: string, studentId: string, documentId: string): string {
+  return `students/${tenantId}/${studentId}/documents/${documentId}`;
+}
+
+const PDF_SIG = Buffer.from('%PDF');
+
+export function decodeDocumentPayload(input: UploadDocumentDto): {
+  bytes: Buffer;
+  mimeType: string;
+  fileName: string;
+} {
+  const mime = input.mimeType;
+  if (!(ALLOWED_DOCUMENT_MIMES as readonly string[]).includes(mime)) {
+    throw new ValidationError('Unsupported document type', [
+      {
+        field: 'mimeType',
+        rule: 'enum',
+        message: 'Document must be PDF, JPEG, PNG, or WebP',
+      },
+    ]);
+  }
+  const fileName = input.fileName.trim();
+  if (!fileName) {
+    throw new ValidationError('File name is required', [
+      { field: 'fileName', rule: 'minLength', message: 'File name is required' },
+    ]);
+  }
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(input.contentBase64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+  } catch {
+    throw new ValidationError('Invalid document encoding', [
+      { field: 'contentBase64', rule: 'base64', message: 'Document must be valid base64' },
+    ]);
+  }
+  if (bytes.length === 0) {
+    throw new ValidationError('Document is empty', [
+      { field: 'contentBase64', rule: 'minLength', message: 'Document is empty' },
+    ]);
+  }
+  if (bytes.length > DOCUMENT_MAX_BYTES) {
+    throw new ValidationError('Document exceeds 10 MB', [
+      { field: 'contentBase64', rule: 'maxSize', message: 'Document must be 10 MB or smaller' },
+    ]);
+  }
+  if (mime === 'application/pdf' && bytes.subarray(0, 4).compare(PDF_SIG) !== 0) {
+    throw new ValidationError('Document bytes do not match the declared MIME type', [
+      { field: 'contentBase64', rule: 'magic', message: 'Not a PDF document' },
+    ]);
+  }
+  if (mime === 'image/png' && bytes.subarray(0, 4).compare(PNG_SIG) !== 0) {
+    throw new ValidationError('Document bytes do not match the declared MIME type', [
+      { field: 'contentBase64', rule: 'magic', message: 'Not a PNG image' },
+    ]);
+  }
+  if (mime === 'image/jpeg' && bytes.subarray(0, 3).compare(JPEG_SIG) !== 0) {
+    throw new ValidationError('Document bytes do not match the declared MIME type', [
+      { field: 'contentBase64', rule: 'magic', message: 'Not a JPEG image' },
+    ]);
+  }
+  if (mime === 'image/webp' && bytes.subarray(8, 12).compare(WEBP_SIG) !== 0) {
+    throw new ValidationError('Document bytes do not match the declared MIME type', [
+      { field: 'contentBase64', rule: 'magic', message: 'Not a WebP image' },
+    ]);
+  }
+  return { bytes, mimeType: mime, fileName };
 }
 
 export class Students360Service {
@@ -289,5 +361,78 @@ export class Students360Service {
       ? await this.deps.attendance.listStudentAttendanceInRange(tenantId, studentId, start, end)
       : [];
     return aggregateAttendanceHeatmap(records, start, end);
+  }
+
+  /** W2-SIS-03 — register a general student document blob (not the profile photo). */
+  async uploadDocument(
+    tenantId: string,
+    studentId: string,
+    input: UploadDocumentDto,
+    uploadedBy: string,
+  ): Promise<DocumentRecord> {
+    await this.requireStudent(tenantId, studentId);
+    const { bytes, mimeType, fileName } = decodeDocumentPayload(input);
+    const id = randomUUID();
+    const objectKey = await this.deps.blobs.put(
+      documentObjectKey(tenantId, studentId, id),
+      bytes,
+      mimeType,
+      tenantId,
+    );
+    return this.deps.store.createDocument({
+      id,
+      tenantId,
+      studentId,
+      category: input.category,
+      fileName,
+      objectKey,
+      mimeType,
+      sizeBytes: bytes.length,
+      uploadedBy,
+      createdAt: new Date(),
+    });
+  }
+
+  async listDocuments(tenantId: string, studentId: string): Promise<DocumentRecord[]> {
+    await this.requireStudent(tenantId, studentId);
+    return this.deps.store.listDocuments(tenantId, studentId);
+  }
+
+  async getDocumentMeta(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<DocumentRecord> {
+    await this.requireStudent(tenantId, studentId);
+    const doc = await this.deps.store.findDocument(tenantId, studentId, documentId);
+    if (!doc) throw new NotFoundError(`Document '${documentId}' not found`);
+    return doc;
+  }
+
+  async getDocumentBytes(
+    tenantId: string,
+    studentId: string,
+    documentId: string,
+  ): Promise<{ bytes: Buffer; mimeType: string; fileName: string; signedUrl: string | null }> {
+    const doc = await this.getDocumentMeta(tenantId, studentId, documentId);
+    const signedUrl = this.deps.blobs.getSignedUrl
+      ? await this.deps.blobs.getSignedUrl(doc.objectKey)
+      : null;
+    const bytes = await this.deps.blobs.get(doc.objectKey);
+    if (!bytes && !signedUrl) {
+      throw new NotFoundError(`Document bytes for '${documentId}' not found`);
+    }
+    return {
+      bytes: bytes ?? Buffer.alloc(0),
+      mimeType: doc.mimeType,
+      fileName: doc.fileName,
+      signedUrl,
+    };
+  }
+
+  async removeDocument(tenantId: string, studentId: string, documentId: string): Promise<void> {
+    await this.requireStudent(tenantId, studentId);
+    const removed = await this.deps.store.deleteDocument(tenantId, studentId, documentId);
+    if (!removed) throw new NotFoundError(`Document '${documentId}' not found`);
   }
 }

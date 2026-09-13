@@ -13,6 +13,10 @@
  * POST   /students/:id/discipline
  * DELETE /students/:id/discipline/:incidentId
  * GET    /students/:id/attendance-heatmap
+ * POST   /students/:id/documents          (W2-SIS-03)
+ * GET    /students/:id/documents          (W2-SIS-03)
+ * GET    /students/:id/documents/:docId   (W2-SIS-03)
+ * DELETE /students/:id/documents/:docId   (W2-SIS-03)
  */
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
@@ -23,17 +27,27 @@ import { StudentParamsSchema } from '../schemas.js';
 import {
   CreateDisciplineSchema,
   CreateSiblingSchema,
+  DocumentParamsSchema,
   HeatmapQuerySchema,
   SetConsentSchema,
+  UploadDocumentSchema,
   UploadPhotoSchema,
   type CreateDisciplineDto,
   type CreateSiblingDto,
+  type DocumentParamsDto,
   type HeatmapQueryDto,
   type SetConsentDto,
+  type UploadDocumentDto,
   type UploadPhotoDto,
 } from './schemas.js';
 import type { Students360Service } from './service.js';
-import type { ConsentRecord, DisciplineRecord, PhotoRecord, SiblingRecord } from './store.js';
+import type {
+  ConsentRecord,
+  DisciplineRecord,
+  DocumentRecord,
+  PhotoRecord,
+  SiblingRecord,
+} from './store.js';
 
 export interface Students360RoutesOptions {
   service: Students360Service;
@@ -104,6 +118,19 @@ function formatDiscipline(row: DisciplineRecord) {
     reporterId: row.reporterId,
     incidentDate: row.incidentDate,
     visibleToParent: row.visibleToParent,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function formatDocument(row: DocumentRecord) {
+  return {
+    id: row.id,
+    studentId: row.studentId,
+    category: row.category,
+    fileName: row.fileName,
+    mimeType: row.mimeType,
+    sizeBytes: row.sizeBytes,
+    uploadedBy: row.uploadedBy,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -483,6 +510,135 @@ export async function registerStudents360Routes(
           query.data.to,
         );
         return reply.status(200).send(heatmap);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  // --- W2-SIS-03 student document registry ---------------------------------
+
+  fastify.post(
+    `${prefix}/:id/documents`,
+    async (
+      request: FastifyRequest<{ Params: { id: string }; Body: UploadDocumentDto }>,
+      reply: FastifyReply,
+    ) => {
+      const tenantId = tenantOf(request);
+      if (!tenantId) return tenantRequired(reply);
+      const params = validate(StudentParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid student ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      const body = validate(UploadDocumentSchema, request.body);
+      if (!body.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid document payload',
+          statusCode: 400,
+          errors: body.errors,
+        });
+      }
+      try {
+        const doc = await service.uploadDocument(
+          tenantId,
+          params.data.id,
+          body.data,
+          actorOf(request),
+        );
+        return reply.status(201).send(formatDocument(doc));
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/:id/documents`,
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const tenantId = tenantOf(request);
+      if (!tenantId) return tenantRequired(reply);
+      const params = validate(StudentParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid student ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      try {
+        const docs = await service.listDocuments(tenantId, params.data.id);
+        return reply.status(200).send(docs.map(formatDocument));
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/:id/documents/:docId`,
+    async (
+      request: FastifyRequest<{ Params: DocumentParamsDto }>,
+      reply: FastifyReply,
+    ) => {
+      const tenantId = tenantOf(request);
+      if (!tenantId) return tenantRequired(reply);
+      const params = validate(DocumentParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid document path',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      try {
+        const { bytes, mimeType, fileName, signedUrl } = await service.getDocumentBytes(
+          tenantId,
+          params.data.id,
+          params.data.docId,
+        );
+        if (signedUrl) {
+          return reply.status(200).send({ url: signedUrl, mimeType, fileName });
+        }
+        return reply
+          .status(200)
+          .header('content-type', mimeType)
+          .header('content-disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`)
+          .header('cache-control', 'private, no-store')
+          .send(bytes);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  fastify.delete(
+    `${prefix}/:id/documents/:docId`,
+    async (
+      request: FastifyRequest<{ Params: DocumentParamsDto }>,
+      reply: FastifyReply,
+    ) => {
+      const tenantId = tenantOf(request);
+      if (!tenantId) return tenantRequired(reply);
+      const params = validate(DocumentParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid document path',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      try {
+        await service.removeDocument(tenantId, params.data.id, params.data.docId);
+        return reply.status(204).send();
       } catch (error) {
         return sendError(reply, error);
       }
