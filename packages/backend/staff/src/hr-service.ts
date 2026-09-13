@@ -24,6 +24,12 @@ import type {
   StaffHrStore,
   StaffQualificationRecord,
 } from './hr-store.js';
+import {
+  assertPayrollRowBalanced,
+  calendarDaysInMonth,
+  resolveMonthlyGrossCents,
+  unpaidAbsenceDeductionCents,
+} from './payroll-compute.js';
 import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
 import type { StaffService } from './staff-service.js';
 
@@ -77,8 +83,19 @@ export interface PayrollRow {
   salaryBand: string;
   daysPresent: number;
   leaveDays: number;
+  absentDays: number;
+  /** Alias of deductionsCents for one-release compatibility. */
   deductionsPlaceholder: number;
+  deductionsCents: number;
+  grossCents: number;
+  netCents: number;
   payableDays: number;
+}
+
+export interface PayrollLedgerTrial {
+  debitCents: number;
+  creditCents: number;
+  accounts: Record<'salary_expense' | 'payroll_deductions' | 'wages_payable', number>;
 }
 
 export interface PayrollExportResult {
@@ -86,6 +103,9 @@ export interface PayrollExportResult {
   filename: string;
   csv: string;
   rows: PayrollRow[];
+  runId: string;
+  idempotent: boolean;
+  trialBalance: PayrollLedgerTrial;
 }
 
 function todayIso(now = new Date()): string {
@@ -130,6 +150,9 @@ function assertDateOrder(start: string, end: string | null | undefined): void {
 }
 
 export class StaffHrService {
+  /** W2-HR-01: posted payroll runs keyed by tenant:month (idempotent re-export). */
+  private readonly payrollRuns = new Map<string, PayrollExportResult>();
+
   constructor(
     private readonly store: StaffHrStore,
     private readonly staffService: StaffService,
@@ -147,6 +170,10 @@ export class StaffHrService {
       startDate: input.startDate,
       endDate: input.endDate ?? null,
       salaryBand: input.salaryBand ?? '',
+      monthlyGrossCents:
+        input.monthlyGrossCents != null
+          ? input.monthlyGrossCents
+          : resolveMonthlyGrossCents({ salaryBand: input.salaryBand ?? '' }),
       status: (input.status ?? 'active') as StaffContractStatus,
       notes: input.notes ?? null,
       createdAt: now,
@@ -431,7 +458,14 @@ export class StaffHrService {
   }
 
   async exportPayroll(tenantId: string, query: PayrollExportQuery): Promise<PayrollExportResult> {
+    const cacheKey = `${tenantId}:${query.month}`;
+    const prior = this.payrollRuns.get(cacheKey);
+    if (prior) {
+      return { ...prior, idempotent: true };
+    }
+
     const { from, to } = monthRange(query.month);
+    const daysInMonth = calendarDaysInMonth(query.month);
     const staffPage = await this.staffService.list(tenantId, {}, { page: 1, pageSize: 500 });
     const contracts = await this.store.listContracts(tenantId);
     const attendance = await this.store.listAttendance(tenantId, { from, to });
@@ -460,16 +494,49 @@ export class StaffHrService {
         from,
         to,
       );
-      return {
+      const absentDays = summary?.absent ?? 0;
+      const grossCents = resolveMonthlyGrossCents({
+        monthlyGrossCents: contract?.monthlyGrossCents,
+        salaryBand: contract?.salaryBand,
+      });
+      const deductionsCents = unpaidAbsenceDeductionCents(grossCents, absentDays, daysInMonth);
+      const netCents = grossCents - deductionsCents;
+      const row: PayrollRow = {
         staffId: staff.id,
         name: `${staff.firstName} ${staff.lastName}`.trim(),
         salaryBand: contract?.salaryBand ?? '',
         daysPresent: summary?.present ?? 0,
         leaveDays: summary?.leave ?? 0,
-        deductionsPlaceholder: 0,
+        absentDays,
+        deductionsPlaceholder: deductionsCents,
+        deductionsCents,
+        grossCents,
+        netCents,
         payableDays: summary?.payableDays ?? 0,
       };
+      assertPayrollRowBalanced(row);
+      return row;
     });
+
+    const grossTotal = rows.reduce((s, r) => s + r.grossCents, 0);
+    const deductionsTotal = rows.reduce((s, r) => s + r.deductionsCents, 0);
+    const netTotal = rows.reduce((s, r) => s + r.netCents, 0);
+    if (netTotal !== grossTotal - deductionsTotal) {
+      throw new BusinessRuleError('Payroll run totals do not balance');
+    }
+
+    const trialBalance: PayrollLedgerTrial = {
+      debitCents: grossTotal,
+      creditCents: deductionsTotal + netTotal,
+      accounts: {
+        salary_expense: grossTotal,
+        payroll_deductions: -deductionsTotal,
+        wages_payable: -netTotal,
+      },
+    };
+    if (trialBalance.debitCents !== trialBalance.creditCents) {
+      throw new BusinessRuleError('Payroll ledger trial balance does not balance');
+    }
 
     const csv = toCsv(
       [
@@ -478,7 +545,10 @@ export class StaffHrService {
         'salaryBand',
         'daysPresent',
         'leaveDays',
-        'deductionsPlaceholder',
+        'absentDays',
+        'grossCents',
+        'deductionsCents',
+        'netCents',
         'payableDays',
       ],
       rows.map((row) => [
@@ -487,10 +557,25 @@ export class StaffHrService {
         row.salaryBand,
         row.daysPresent,
         row.leaveDays,
-        row.deductionsPlaceholder,
+        row.absentDays,
+        row.grossCents,
+        row.deductionsCents,
+        row.netCents,
         row.payableDays,
       ]),
     );
+
+    const runId = randomUUID();
+    const result: PayrollExportResult = {
+      month: query.month,
+      filename: `payroll-${query.month}.csv`,
+      csv,
+      rows,
+      runId,
+      idempotent: false,
+      trialBalance,
+    };
+    this.payrollRuns.set(cacheKey, result);
 
     // eslint-disable-next-line no-console
     console.info(
@@ -499,16 +584,16 @@ export class StaffHrService {
         tenantId,
         month: query.month,
         rows: rows.length,
+        runId,
+        grossCents: grossTotal,
+        deductionsCents: deductionsTotal,
+        netCents: netTotal,
       }),
     );
 
-    return {
-      month: query.month,
-      filename: `payroll-${query.month}.csv`,
-      csv,
-      rows,
-    };
+    return result;
   }
+
 }
 
 function pickContractForMonth(

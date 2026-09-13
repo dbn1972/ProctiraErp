@@ -139,7 +139,8 @@ test.describe('Staff HR — live chain (E2E_BACKEND_READY)', () => {
     expect(body.csv).toMatch(/staffId,name,salaryBand/);
     const row = body.rows.find((r: { staffId: string }) => r.staffId === staffId);
     expect(row.daysPresent).toBeGreaterThanOrEqual(1);
-    expect(row.deductionsPlaceholder).toBe(0);
+    expect(row.deductionsCents ?? row.deductionsPlaceholder).toBe(0);
+    expect(row.grossCents ?? 0).toBe(0);
 
     await page.goto('/staff/payroll', { waitUntil: 'domcontentloaded' });
     await hydrated(page, 'staff-payroll-panel');

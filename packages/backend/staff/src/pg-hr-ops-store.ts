@@ -41,10 +41,31 @@ function schemaSqlPath(): string {
   return join(roots[0]!, name);
 }
 
+function payrollSqlPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const name = '062_staff_payroll_posting.sql';
+  const roots = [
+    join(here, '../../../../db/sql'),
+    join(process.cwd(), 'db/sql'),
+    join(process.cwd(), '../../db/sql'),
+  ];
+  for (const root of roots) {
+    const path = join(root, name);
+    try {
+      readFileSync(path, 'utf8');
+      return path;
+    } catch {
+      // try next
+    }
+  }
+  return join(roots[0]!, name);
+}
+
 export async function ensureStaffHrSchema(pool: PgHrOpsPool): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
       await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
+      await pool.query(readFileSync(payrollSqlPath(), 'utf8'));
     })().catch((err: unknown) => {
       schemaReady = null;
       throw err;
@@ -71,6 +92,7 @@ function mapContract(row: Record<string, unknown>): StaffContractRecord {
     startDate: toDateStr(row.start_date),
     endDate: row.end_date == null ? null : toDateStr(row.end_date),
     salaryBand: String(row.salary_band ?? ''),
+    monthlyGrossCents: Number(row.monthly_gross_cents ?? 0),
     status: String(row.status) as StaffContractStatus,
     notes: row.notes == null ? null : String(row.notes),
     createdAt: toDate(row.created_at),
@@ -119,8 +141,9 @@ export class PgStaffHrStore implements StaffHrStore {
     return this.run(record.tenantId, async (client) => {
       const { rows } = await client.query(
         `INSERT INTO staff_contracts (
-           id, tenant_id, staff_id, contract_type, start_date, end_date, salary_band, status, notes, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10,$11)
+           id, tenant_id, staff_id, contract_type, start_date, end_date, salary_band,
+           monthly_gross_cents, status, notes, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10,$11,$12)
          RETURNING *`,
         [
           record.id,
@@ -130,6 +153,7 @@ export class PgStaffHrStore implements StaffHrStore {
           record.startDate,
           record.endDate,
           record.salaryBand,
+          record.monthlyGrossCents,
           record.status,
           record.notes,
           record.createdAt,
@@ -174,7 +198,7 @@ export class PgStaffHrStore implements StaffHrStore {
     patch: Partial<
       Pick<
         StaffContractRecord,
-        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'status' | 'notes'
+        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'monthlyGrossCents' | 'status' | 'notes'
       >
     >,
   ): Promise<StaffContractRecord | null> {
@@ -198,6 +222,10 @@ export class PgStaffHrStore implements StaffHrStore {
       if (patch.salaryBand !== undefined) {
         sets.push(`salary_band = $${i++}`);
         values.push(patch.salaryBand);
+      }
+      if (patch.monthlyGrossCents !== undefined) {
+        sets.push(`monthly_gross_cents = $${i++}`);
+        values.push(patch.monthlyGrossCents);
       }
       if (patch.status !== undefined) {
         sets.push(`status = $${i++}`);

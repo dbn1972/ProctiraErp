@@ -42,7 +42,10 @@ export function PayrollExportPanel({ initial }: { initial: PayrollExport | null 
         'salaryBand',
         'daysPresent',
         'leaveDays',
-        'deductionsPlaceholder',
+        'absentDays',
+        'grossCents',
+        'deductionsCents',
+        'netCents',
         'payableDays',
       ],
       payroll.rows.map((row) => [
@@ -51,7 +54,10 @@ export function PayrollExportPanel({ initial }: { initial: PayrollExport | null 
         row.salaryBand,
         row.daysPresent,
         row.leaveDays,
-        row.deductionsPlaceholder,
+        row.absentDays,
+        row.grossCents,
+        row.deductionsCents,
+        row.netCents,
         row.payableDays,
       ]),
     );

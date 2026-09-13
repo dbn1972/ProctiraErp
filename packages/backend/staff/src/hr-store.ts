@@ -14,6 +14,8 @@ export interface StaffContractRecord {
   startDate: string;
   endDate: string | null;
   salaryBand: string;
+  /** W2-HR-01: monthly gross pay in integer cents (0 if unset). */
+  monthlyGrossCents: number;
   status: StaffContractStatus;
   notes: string | null;
   createdAt: Date;
@@ -55,7 +57,7 @@ export interface StaffHrStore {
     patch: Partial<
       Pick<
         StaffContractRecord,
-        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'status' | 'notes'
+        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'monthlyGrossCents' | 'status' | 'notes'
       >
     >,
   ): Promise<StaffContractRecord | null>;
@@ -117,7 +119,7 @@ export class InMemoryStaffHrStore implements StaffHrStore {
     patch: Partial<
       Pick<
         StaffContractRecord,
-        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'status' | 'notes'
+        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'monthlyGrossCents' | 'status' | 'notes'
       >
     >,
   ): Promise<StaffContractRecord | null> {

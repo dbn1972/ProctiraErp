@@ -36,6 +36,7 @@ export const CreateContractSchema = Type.Object({
   startDate: Type.String({ pattern: DATE_PATTERN }),
   endDate: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
   salaryBand: Type.Optional(Type.String({ maxLength: 64 })),
+  monthlyGrossCents: Type.Optional(Type.Integer({ minimum: 0 })),
   status: Type.Optional(ContractStatusSchema),
   notes: Type.Optional(Type.String({ maxLength: 2000 })),
 });
@@ -46,6 +47,7 @@ export const UpdateContractSchema = Type.Object({
   startDate: Type.Optional(Type.String({ pattern: DATE_PATTERN })),
   endDate: Type.Optional(Type.Union([Type.String({ pattern: DATE_PATTERN }), Type.Null()])),
   salaryBand: Type.Optional(Type.String({ maxLength: 64 })),
+  monthlyGrossCents: Type.Optional(Type.Integer({ minimum: 0 })),
   status: Type.Optional(ContractStatusSchema),
   notes: Type.Optional(Type.Union([Type.String({ maxLength: 2000 }), Type.Null()])),
 });
