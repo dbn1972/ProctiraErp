@@ -51,7 +51,9 @@ concurrency:
 env:
   NODE_VERSION: '20'
   PNPM_VERSION: '10.33.2'
-  DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+  # W1-DATA-01: runtime URL is the non-owner app role; DDL uses MIGRATOR_DATABASE_URL.
+  MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+  DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
   REDIS_URL: redis://localhost:6379
   JWT_SECRET: dev-secret-change-in-production
   E2E_GATEWAY_URL: http://127.0.0.1:3000
@@ -146,9 +148,9 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          # Bootstrap superuser only; the gateway connects as `proctira`, a
-          # NOSUPERUSER / NOBYPASSRLS owner provisioned below so the live
-          # cross-tenant checks exercise RLS the way production does.
+          # Bootstrap superuser only. Provision below creates:
+          #   - proctira: table owner for Prisma + apply-sql
+          #   - proctira_app: non-owner runtime role for DATABASE_URL (W1-DATA-01)
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
@@ -185,29 +187,35 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Provision non-superuser app role + database (production RLS posture)
+      - name: Provision migrator + runtime roles and database (W1-DATA-01)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
           export PGPASSWORD=postgres
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c "CREATE ROLE proctira_app LOGIN PASSWORD 'proctira_app_test' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;" \
             -c 'CREATE DATABASE proctira_test OWNER proctira;'
           psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
             -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
-            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";' \
+            -c 'GRANT CONNECT ON DATABASE proctira_test TO proctira_app;'
           PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: migrator role bypasses RLS' ELSE 'migrator role OK: NOSUPERUSER NOBYPASSRLS' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^migrator role OK'
+          PGPASSWORD=proctira_app_test psql -h localhost -U proctira_app -d proctira_test -Atc \
             "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: app role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
             | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
 
       - name: Run database migrations (Prisma)
         run: pnpm --filter @proctira/database run prisma:migrate:deploy
         env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
 
       - name: Apply domain SQL schemas (G-002) with production FK posture (G-718)
         run: bash tools/scripts/apply-sql.sh
         env:
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
           DATABASE_URL: ${{ env.DATABASE_URL }}
           APPLY_SEEDS: '1'
           # Same tenant FK posture as production; the harness seeds the E2E
@@ -221,7 +229,9 @@ jobs:
           # apply-sql is idempotent; seed tears down prior cert tenant.
           bash tools/scripts/setup-live-db-and-onboard.sh
         env:
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          # Cert seed/DDL as migrator; runtime gateways still use DATABASE_URL.
+          DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
           ARTIFACT_DIR: /opt/cursor/artifacts/multi-board-onboard
 
       - name: Upload multi-board certify artifacts (G-408)

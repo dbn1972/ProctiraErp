@@ -434,10 +434,11 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          # The bootstrap role is a superuser and therefore bypasses RLS. The
-          # suites connect as `proctira`, a NOSUPERUSER / NOBYPASSRLS owner
-          # provisioned below, so tenant-isolation assertions are real (the
-          # production posture; FORCE RLS applies to owners).
+          # The bootstrap role is a superuser and therefore bypasses RLS.
+          # Provision below creates:
+          #   - proctira: NOSUPERUSER NOBYPASSRLS table owner (Prisma + apply-sql)
+          #   - proctira_app: non-owner runtime role used by DATABASE_URL suites
+          #     (W1-DATA-01 — ENABLE RLS constrains non-owners without FORCE)
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
@@ -480,31 +481,40 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Provision non-superuser app role + database (production RLS posture)
+      - name: Provision migrator + runtime roles and database (W1-DATA-01)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
           export PGPASSWORD=postgres
+          # Migrator/owner: runs Prisma + apply-sql; owns tables.
+          # Runtime: non-owner proctira_app used by DATABASE_URL for suites.
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c "CREATE ROLE proctira_app LOGIN PASSWORD 'proctira_app_test' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;" \
             -c 'CREATE DATABASE proctira_test OWNER proctira;'
           psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
             -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
-            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";' \
+            -c 'GRANT CONNECT ON DATABASE proctira_test TO proctira_app;'
           PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
-            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: test role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: migrator role bypasses RLS' ELSE 'migrator role OK: NOSUPERUSER NOBYPASSRLS' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^migrator role OK'
+          PGPASSWORD=proctira_app_test psql -h localhost -U proctira_app -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: app role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
             | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
 
       - name: Run database migrations
         run: pnpm --filter @proctira/database run prisma:migrate:deploy
         env:
+          # DDL as table owner (migrator).
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 
       # G-002: domain SQL (db/sql/001–N) after Prisma so raw-SQL modules use Postgres
       - name: Apply domain SQL schemas
         run: bash tools/scripts/apply-sql.sh
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           # G-705: demo seed files are opt-in; CI wants them, production never sets this.
           APPLY_SEEDS: '1'
 
@@ -516,7 +526,8 @@ jobs:
       - name: Run backend Postgres repository suites
         run: pnpm turbo run test --filter='./packages/backend/*' --force --continue
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # W1-DATA-01: runtime suites must use the non-owner app role.
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
@@ -524,7 +535,7 @@ jobs:
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true

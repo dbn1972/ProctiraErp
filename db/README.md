@@ -7,6 +7,16 @@ ProctiraERP uses **two** schema layers:
 
 If only Prisma is applied, raw-SQL modules fall back to in-memory stores in tests (gap **G-002**).
 
+## Runtime vs migrator roles (W1-DATA-01)
+
+PostgreSQL table owners bypass RLS unless `FORCE ROW LEVEL SECURITY` is set.
+Application runtimes must therefore connect as **`proctira_app`** (non-owner,
+`NOSUPERUSER` / `NOBYPASSRLS`). Prisma migrate and `tools/scripts/apply-sql.sh`
+use the table-owning migrator role via `MIGRATOR_DATABASE_URL` (falls back to
+`DATABASE_URL` for backwards compatibility).
+
+See `db/sql/050_app_runtime_role.sql` and `db/docker-init/01_app_runtime_role.sql`.
+
 ## Apply order (required)
 
 ```bash
@@ -20,7 +30,7 @@ bash tools/scripts/apply-sql.sh
 
 `tools/scripts/apply-sql.sh`:
 
-- Prefers `DATABASE_URL`; otherwise uses libpq env vars (`PGDATABASE` defaults to `proctira`)
+- Prefers `MIGRATOR_DATABASE_URL`, then `DATABASE_URL`; otherwise libpq (`PGDATABASE` defaults to `proctira`)
 - Applies every `db/sql/[0-9]*.sql` in **`LC_ALL=C` sort order** (so `006_…schema` runs before `006b_…seed`)
 - Uses `psql -v ON_ERROR_STOP=1` and exits non-zero on failure
 - Supports `--dry-run` to list files without applying
