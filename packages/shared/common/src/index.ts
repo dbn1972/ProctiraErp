@@ -23,7 +23,12 @@ export {
   AttendanceStatus,
   WorkflowStateType,
   PAGINATION_DEFAULTS,
+  ERROR_CODE_REGISTRY,
+  getErrorCodeDefinition,
+  applyDeprecationHeaders,
+  defaultSunsetDate,
 } from './constants/index.js';
+export type { ErrorCodeDefinition, DeprecationPolicy } from './constants/index.js';
 
 // Exceptions
 export {

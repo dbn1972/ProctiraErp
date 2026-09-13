@@ -65,6 +65,7 @@ import {
   operationForMethod,
   shouldAuditMutation,
 } from './mutation-audit.js';
+import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
@@ -219,6 +220,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   // 5. Register health check (before auth, so it's always accessible)
+  await app.register(apiContractPlugin);
   await app.register(healthPlugin, {
     services: config.services,
   });
