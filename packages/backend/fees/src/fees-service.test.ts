@@ -606,4 +606,137 @@ describe('FeesService', () => {
       expect(refund.amountCents).toBe(500);
     });
   });
+
+  describe('W2-FIN-05 write-off / credit-note integrity', () => {
+    it('issues a credit note against unpaid AR and posts DR fee_revenue / CR AR', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Tuition',
+        amountCents: 10_000,
+      });
+      const { creditNote, invoice: updated } = await service.issueCreditNote(
+        TENANT_A,
+        'bursar-1',
+        { invoiceId: invoice.id, amountCents: 2_500, reason: 'billing error' },
+      );
+      expect(creditNote.amountCents).toBe(2_500);
+      expect(creditNote.status).toBe('posted');
+      expect(updated.amountCents).toBe(7_500);
+
+      const legs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'credit note posted',
+      );
+      expect(legs).toHaveLength(2);
+      expect(legs.every((e) => e.amountCents === 2_500)).toBe(true);
+      expect(legs.map((e) => `${e.account}:${e.side}`).sort()).toEqual([
+        'accounts_receivable:credit',
+        'fee_revenue:debit',
+      ]);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(7_500);
+      expect(trial.accounts.fee_revenue).toBe(-7_500);
+    });
+
+    it('rejects credit notes that exceed unpaid balance or target paid invoices', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Lab',
+        amountCents: 5_000,
+      });
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 2_000,
+      });
+      await expect(
+        service.issueCreditNote(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 3_001,
+          reason: 'too much',
+        }),
+      ).rejects.toThrow(/exceeds unpaid balance/);
+
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+      });
+      const paid = await service.getInvoice(TENANT_A, invoice.id);
+      expect(paid.status).toBe('paid');
+      await expect(
+        service.issueCreditNote(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 100,
+          reason: 'after pay',
+        }),
+      ).rejects.toThrow(/paid invoice/);
+    });
+
+    it('writes off remaining AR to bad_debt_expense and marks written_off', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Uncollectible',
+        amountCents: 8_000,
+      });
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+      });
+      const { writeOff, invoice: updated } = await service.writeOffInvoice(
+        TENANT_A,
+        'bursar-1',
+        { invoiceId: invoice.id, amountCents: 5_000, reason: 'left school' },
+      );
+      expect(writeOff.amountCents).toBe(5_000);
+      expect(updated.amountCents).toBe(3_000);
+      expect(updated.status).toBe('written_off');
+
+      const legs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'write-off posted',
+      );
+      expect(legs).toHaveLength(2);
+      expect(legs.map((e) => `${e.account}:${e.side}`).sort()).toEqual([
+        'accounts_receivable:credit',
+        'bad_debt_expense:debit',
+      ]);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+      expect(trial.accounts.cash).toBe(3_000);
+      expect(trial.accounts.bad_debt_expense).toBe(5_000);
+      expect(trial.accounts.fee_revenue).toBe(-8_000);
+
+      await expect(
+        service.writeOffInvoice(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 1,
+          reason: 'again',
+        }),
+      ).rejects.toThrow(/written_off/);
+    });
+
+    it('rejects write-off above unpaid balance and floating amounts', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Partial',
+        amountCents: 4_000,
+      });
+      await expect(
+        service.writeOffInvoice(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 4_000.5,
+          reason: 'float',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+      await expect(
+        service.writeOffInvoice(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 4_001,
+          reason: 'over',
+        }),
+      ).rejects.toThrow(/exceeds unpaid balance/);
+    });
+  });
+
 });

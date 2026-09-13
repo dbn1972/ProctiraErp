@@ -27,7 +27,9 @@ import type {
   FeeReceiptEntity,
   FeeReconciliationBatchEntity,
   FeeReconciliationRowEntity,
+  FeeCreditNoteEntity,
   FeeRefundEntity,
+  FeeWriteOffEntity,
   FeeStructureComponentEntity,
   FeeStructureEntity,
   FeeStructureInstalmentEntity,
@@ -102,6 +104,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql057);
       const sql058 = readFileSync(resolveSqlPath('058_fees_reminder_durable_state.sql'), 'utf8');
       await pool.query(sql058);
+      const sql059 = readFileSync(resolveSqlPath('059_fees_writeoff_creditnote.sql'), 'utf8');
+      await pool.query(sql059);
     })();
   }
   await schemaReady;
@@ -289,6 +293,33 @@ function mapConcession(row: Record<string, unknown>): FeeConcessionEntity {
   };
 }
 
+
+function mapCreditNote(row: Record<string, unknown>): FeeCreditNoteEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    invoiceId: String(row.invoice_id),
+    amountCents: Number(row.amount_cents),
+    reason: String(row.reason),
+    status: String(row.status) as FeeCreditNoteEntity['status'],
+    createdBy: row.created_by == null ? null : String(row.created_by),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapWriteOff(row: Record<string, unknown>): FeeWriteOffEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    invoiceId: String(row.invoice_id),
+    amountCents: Number(row.amount_cents),
+    reason: String(row.reason),
+    status: String(row.status) as FeeWriteOffEntity['status'],
+    createdBy: row.created_by == null ? null : String(row.created_by),
+    createdAt: toDate(row.created_at),
+  };
+}
+
 function mapRefund(row: Record<string, unknown>): FeeRefundEntity {
   return {
     id: String(row.id),
@@ -429,6 +460,7 @@ export class PgFeesRepository implements FeesRepository {
         accounts_receivable: 0,
         cash: 0,
         fee_revenue: 0,
+        bad_debt_expense: 0,
       };
       let debitCents = 0;
       let creditCents = 0;
@@ -1075,6 +1107,93 @@ export class PgFeesRepository implements FeesRepository {
       );
       if (!result.rows[0]) return null;
       return mapConcession(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+
+  async createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO fee_credit_notes (
+           id, tenant_id, invoice_id, amount_cents, reason, status, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.invoiceId,
+          data.amountCents,
+          data.reason,
+          data.status,
+          data.createdBy,
+        ],
+      );
+      return mapCreditNote(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_credit_notes WHERE tenant_id = $1 AND invoice_id = $2`,
+        [tenantId, invoiceId],
+      );
+      return result.rows.map((row) => mapCreditNote(row as Record<string, unknown>));
+    });
+  }
+
+  async listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_credit_notes WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return result.rows.map((row) => mapCreditNote(row as Record<string, unknown>));
+    });
+  }
+
+  async createWriteOff(data: Omit<FeeWriteOffEntity, 'createdAt'>): Promise<FeeWriteOffEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO fee_write_offs (
+           id, tenant_id, invoice_id, amount_cents, reason, status, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.invoiceId,
+          data.amountCents,
+          data.reason,
+          data.status,
+          data.createdBy,
+        ],
+      );
+      return mapWriteOff(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listWriteOffsForInvoice(tenantId: string, invoiceId: string): Promise<FeeWriteOffEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_write_offs WHERE tenant_id = $1 AND invoice_id = $2`,
+        [tenantId, invoiceId],
+      );
+      return result.rows.map((row) => mapWriteOff(row as Record<string, unknown>));
+    });
+  }
+
+  async listWriteOffsForTenant(tenantId: string): Promise<FeeWriteOffEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_write_offs WHERE tenant_id = $1 ORDER BY created_at DESC`,
+        [tenantId],
+      );
+      return result.rows.map((row) => mapWriteOff(row as Record<string, unknown>));
     });
   }
 

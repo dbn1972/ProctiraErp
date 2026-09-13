@@ -22,6 +22,8 @@ export type {
   BulkInvoiceInput,
   ApplyConcessionInput,
   RecordRefundInput,
+  IssueCreditNoteInput,
+  WriteOffInvoiceInput,
   ReminderChannel,
   ReminderSendAuditEntity,
   ReminderSuppressionEntity,
@@ -46,6 +48,8 @@ export type {
   FeeStructureEntity,
   FeeStructureInstalmentEntity,
   FeeConcessionEntity,
+  FeeCreditNoteEntity,
+  FeeWriteOffEntity,
   FeeRefundEntity,
 } from './fees-repository.js';
 export { UnbalancedJournalError, assertJournalBalanced } from './fees-repository.js';

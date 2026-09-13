@@ -4,7 +4,7 @@ import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './remin
  * Tables: parent_fee_* from db/sql/010 + 011.
  */
 
-export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue';
+export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue' | 'written_off';
 export type PaymentMethod = 'sandbox' | 'upi' | 'card' | 'cash';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
 export type FeePlanFrequency = 'once' | 'term' | 'month' | 'year';
@@ -73,7 +73,7 @@ export interface FeeReceiptEntity {
 
 // ─── Double-entry ledger (G-718) ─────────────────────────────────────────────
 
-export type LedgerAccount = 'accounts_receivable' | 'cash' | 'fee_revenue';
+export type LedgerAccount = 'accounts_receivable' | 'cash' | 'fee_revenue' | 'bad_debt_expense';
 export type LedgerSide = 'debit' | 'credit';
 
 export interface FeeLedgerEntryEntity {
@@ -131,6 +131,7 @@ export type FeeStructureStatus = 'active' | 'archived';
 export type ConcessionKind = 'percent' | 'amount';
 export type ConcessionStatus = 'pending' | 'approved' | 'rejected';
 export type RefundStatus = 'pending' | 'posted' | 'rejected';
+export type AdjustmentStatus = 'posted' | 'voided';
 
 export interface FeeStructureEntity {
   id: string;
@@ -183,6 +184,29 @@ export interface FeeConcessionEntity {
   reason: string;
   approverId: string | null;
   status: ConcessionStatus;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+
+export interface FeeCreditNoteEntity {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+  status: AdjustmentStatus;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+export interface FeeWriteOffEntity {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+  status: AdjustmentStatus;
   createdBy: string | null;
   createdAt: Date;
 }
@@ -300,6 +324,15 @@ export interface FeesRepository {
     data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null>;
   findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null>;
+
+
+  createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity>;
+  listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]>;
+  listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]>;
+
+  createWriteOff(data: Omit<FeeWriteOffEntity, 'createdAt'>): Promise<FeeWriteOffEntity>;
+  listWriteOffsForInvoice(tenantId: string, invoiceId: string): Promise<FeeWriteOffEntity[]>;
+  listWriteOffsForTenant(tenantId: string): Promise<FeeWriteOffEntity[]>;
 
   createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity>;
   listRefundsForInvoice(tenantId: string, invoiceId: string): Promise<FeeRefundEntity[]>;

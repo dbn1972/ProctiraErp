@@ -128,6 +128,18 @@ export interface RecordRefundInput {
   reason: string;
 }
 
+export interface IssueCreditNoteInput {
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+}
+
+export interface WriteOffInvoiceInput {
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+}
+
 export interface ReconciliationCsvRow {
   invoiceNumber: string;
   amountCents: number;
@@ -824,6 +836,135 @@ export class FeesService {
     );
     return refund;
   }
+
+  /**
+   * Unpaid AR on an open/overdue invoice: face amount minus succeeded payments.
+   * Credit notes / write-offs reduce face (and thus remaining) after posting.
+   */
+  private async unpaidBalanceCents(tenantId: string, invoice: FeeInvoiceEntity): Promise<number> {
+    const payments = (await this.repository.listPaymentsForTenant(tenantId)).filter(
+      (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
+    );
+    const paidCents = payments.reduce((sum, p) => sum + p.amountCents, 0);
+    return Math.max(0, invoice.amountCents - paidCents);
+  }
+
+  /**
+   * W2-FIN-05: credit note reduces outstanding AR (unpaid face) without cash movement.
+   * Journal: DR fee_revenue / CR accounts_receivable. Caps at unpaid balance.
+   * Rejects paid/void/written_off invoices — post-payment cash return uses refunds.
+   */
+  async issueCreditNote(tenantId: string, actorId: string, input: IssueCreditNoteInput) {
+    const invoice = await this.getInvoice(tenantId, input.invoiceId);
+    if (invoice.status === 'void' || invoice.status === 'written_off') {
+      throw new BusinessRuleError(`Cannot credit-note a ${invoice.status} invoice`);
+    }
+    if (invoice.status === 'paid') {
+      throw new BusinessRuleError(
+        'Cannot credit-note a paid invoice — use refund for post-payment cash return',
+      );
+    }
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+      throw new BusinessRuleError('Credit note amountCents must be a positive integer');
+    }
+    const reason = input.reason.trim();
+    if (reason.length === 0) {
+      throw new BusinessRuleError('Credit note reason is required');
+    }
+    const unpaid = await this.unpaidBalanceCents(tenantId, invoice);
+    if (input.amountCents > unpaid) {
+      throw new BusinessRuleError(
+        `Credit note amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+      );
+    }
+
+    const creditNote = await this.repository.createCreditNote({
+      id: uuidv4(),
+      tenantId,
+      invoiceId: invoice.id,
+      amountCents: input.amountCents,
+      reason,
+      status: 'posted',
+      createdBy: actorId,
+    });
+
+    const nextAmount = invoice.amountCents - input.amountCents;
+    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
+      amountCents: nextAmount,
+    });
+
+    await this.postJournal(
+      invoice,
+      actorId,
+      'credit note posted',
+      [
+        ['fee_revenue', 'debit'],
+        ['accounts_receivable', 'credit'],
+      ],
+      input.amountCents,
+    );
+
+    return { creditNote, invoice: updated! };
+  }
+
+  /**
+   * W2-FIN-05: write off uncollectible unpaid AR.
+   * Journal: DR bad_debt_expense / CR accounts_receivable. Caps at unpaid balance.
+   * When remaining unpaid hits zero, invoice status becomes written_off.
+   */
+  async writeOffInvoice(tenantId: string, actorId: string, input: WriteOffInvoiceInput) {
+    const invoice = await this.getInvoice(tenantId, input.invoiceId);
+    if (invoice.status === 'void' || invoice.status === 'written_off') {
+      throw new BusinessRuleError(`Cannot write off a ${invoice.status} invoice`);
+    }
+    if (invoice.status === 'paid') {
+      throw new BusinessRuleError('Cannot write off a paid invoice — use refund if needed');
+    }
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+      throw new BusinessRuleError('Write-off amountCents must be a positive integer');
+    }
+    const reason = input.reason.trim();
+    if (reason.length === 0) {
+      throw new BusinessRuleError('Write-off reason is required');
+    }
+    const unpaid = await this.unpaidBalanceCents(tenantId, invoice);
+    if (input.amountCents > unpaid) {
+      throw new BusinessRuleError(
+        `Write-off amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+      );
+    }
+
+    const writeOff = await this.repository.createWriteOff({
+      id: uuidv4(),
+      tenantId,
+      invoiceId: invoice.id,
+      amountCents: input.amountCents,
+      reason,
+      status: 'posted',
+      createdBy: actorId,
+    });
+
+    const nextAmount = invoice.amountCents - input.amountCents;
+    const nextUnpaid = unpaid - input.amountCents;
+    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
+      amountCents: nextAmount,
+      ...(nextUnpaid === 0 ? { status: 'written_off' as const } : {}),
+    });
+
+    await this.postJournal(
+      invoice,
+      actorId,
+      'write-off posted',
+      [
+        ['bad_debt_expense', 'debit'],
+        ['accounts_receivable', 'credit'],
+      ],
+      input.amountCents,
+    );
+
+    return { writeOff, invoice: updated! };
+  }
+
 
   private async isReminderSuppressed(
     tenantId: string,
