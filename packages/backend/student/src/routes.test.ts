@@ -79,7 +79,8 @@ describe('Student Routes', () => {
       expect(json.contacts).toEqual([]);
       expect(json.guardians).toEqual([]);
       expect(json.identityDocuments).toEqual([]);
-      expect(json.customData).toEqual({});
+      expect(json.customData['admissionNo']).toMatch(/^ADM-/);
+      expect(json.admissionNumber).toMatch(/^ADM-/);
       expect(json.createdAt).toBeDefined();
       expect(json.updatedAt).toBeDefined();
     });
@@ -109,7 +110,8 @@ describe('Student Routes', () => {
       expect(json.guardians).toHaveLength(1);
       expect(json.guardians[0].id).toBeDefined();
       expect(json.identityDocuments).toHaveLength(1);
-      expect(json.customData).toEqual({ house: 'Gryffindor' });
+      expect(json.customData).toMatchObject({ house: 'Gryffindor' });
+      expect(json.customData.admissionNo).toMatch(/^ADM-/);
     });
 
     it('should return 400 when firstName is missing', async () => {
