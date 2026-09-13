@@ -238,6 +238,29 @@ class AppDatabase {
     }
   }
 
+  /// Wipe every offline cache / queue table that may hold prior-user or
+  /// prior-tenant data. Called on logout so a shared device cannot surface
+  /// the previous session's child PII (W2-MOB-02).
+  Future<void> purgeAllUserData() async {
+    final Database db = await database;
+    await db.transaction((Transaction txn) async {
+      for (final String table in _userDataTables) {
+        await txn.delete(table);
+      }
+    });
+  }
+
+  static const List<String> _userDataTables = <String>[
+    'pending_sync',
+    'attendance_offline',
+    'students_cache',
+    'sync_conflicts',
+    'notifications_cache',
+    'institutions_cache',
+    'enrollments_cache',
+    'health_records_cache',
+  ];
+
   Future<void> close() async {
     final Database? existing = _db;
     if (existing != null) {

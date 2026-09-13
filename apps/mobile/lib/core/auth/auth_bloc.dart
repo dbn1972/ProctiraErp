@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
+import '../storage/database.dart';
 import '../storage/secure_storage.dart';
 
 // ---------------------------------------------------------------------------
@@ -77,8 +78,10 @@ class AuthState extends Equatable {
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   AuthBloc({
     required SecureStorage secureStorage,
+    AppDatabase? database,
     AuthApi? authApi,
   })  : _storage = secureStorage,
+        _database = database,
         _authApi = authApi,
         super(const AuthState.unknown()) {
     on<AuthBootstrapRequested>(_onBootstrap);
@@ -87,6 +90,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   final SecureStorage _storage;
+  final AppDatabase? _database;
   final AuthApi? _authApi;
 
   Future<void> _onBootstrap(
@@ -135,6 +139,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       }
     }
     await _storage.clearTokens();
+    await _storage.clearTenant();
+    final AppDatabase? database = _database;
+    if (database != null) {
+      await database.purgeAllUserData();
+    }
     emit(const AuthState.unauthenticated());
   }
 }
