@@ -276,6 +276,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   // Auth bloc + router.
   final AuthBloc authBloc = AuthBloc(
     secureStorage: secureStorage,
+    database: database,
     authApi: getIt<AuthApi>(),
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
