@@ -644,6 +644,27 @@ jobs:
        needs.detect-changes.outputs.apps-changed == 'true' ||
        needs.detect-changes.outputs.has-shared-changes == 'true') &&
       needs.unit-test.result == 'success'
+    # W1-OPS-06: live RLS tests (src/integration/rls-live.test.ts) require a
+    # migrated Postgres with the non-superuser app role — same posture as
+    # integration-test. Without this service the suite skipped vacuously.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          # The bootstrap role is a superuser and therefore bypasses RLS. The
+          # suites connect as `proctira`, a NOSUPERUSER / NOBYPASSRLS owner
+          # provisioned below, so tenant-isolation assertions are real (the
+          # production posture; FORCE RLS applies to owners).
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -665,14 +686,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Provision non-superuser app role + database (production RLS posture)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          export PGPASSWORD=postgres
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c 'CREATE DATABASE proctira_test OWNER proctira;'
+          psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: test role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
+
+      - name: Run database migrations
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+
+      - name: Apply domain SQL schemas
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          APPLY_SEEDS: '1'
+
       - name: Run unit isolation tests
         run: pnpm test:tenant-isolation:unit
         env:
           CI: true
 
-      - name: Run integration isolation tests
+      - name: Run integration isolation tests (incl. live Postgres RLS)
         run: pnpm test:tenant-isolation:integration
         env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           CI: true
 
       - name: Run queue/event isolation tests
