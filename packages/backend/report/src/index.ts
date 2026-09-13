@@ -108,3 +108,10 @@ export { sha256Hex } from './generators.js';
 export { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
 export { buildRoleDashboard, inferDashboardRole } from './dashboards.js';
 export type { DashboardRole, RoleDashboard } from './dashboards.js';
+
+export {
+  InMemoryScheduleDelivery,
+  NoopScheduleDelivery,
+} from './schedule-delivery.js';
+export type { ScheduleDeliveryPort, ScheduleDeliveryRequest } from './schedule-delivery.js';
+export { REPORT_SCHEDULE_LEASE_MS, REPORT_SCHEDULE_RETRY_MS } from './catalogue-service.js';

@@ -1,7 +1,7 @@
 import type { ScheduleCadence } from './report-store.js';
 
 export interface ScheduleTicker {
-  tickDueSchedules(now: Date): Promise<{ due: number; completed: number; failed: number }>;
+  tickDueSchedules(now: Date): Promise<{ due: number; completed: number; failed: number; delivered?: number }>;
 }
 
 export function computeNextRunAt(cadence: ScheduleCadence, from: Date, hour = 6): Date {
@@ -37,7 +37,7 @@ export interface ReportSchedulerOptions {
 export interface ReportScheduler {
   start(): void;
   stop(): void;
-  runOnce(now?: Date): Promise<{ due: number; completed: number; failed: number }>;
+  runOnce(now?: Date): Promise<{ due: number; completed: number; failed: number; delivered?: number }>;
   readonly running: boolean;
 }
 
