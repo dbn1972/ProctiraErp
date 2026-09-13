@@ -1,7 +1,7 @@
 /**
  * Postgres-backed API key store (W1-ARCH-01 / C3).
  *
- * Persists developer-portal API keys via db/sql/054_developer_portal_api_keys_schema.sql.
+ * Persists developer-portal API keys via db/sql/055_developer_portal_api_keys_schema.sql.
  * Uses withPgTenant for tenant-scoped CRUD and withPlatformScope for hash lookup
  * (validate-key has no tenant context upfront).
  */
@@ -38,9 +38,9 @@ export function getSharedDeveloperPortalPool(): pg.Pool | null {
 function schemaSqlPath(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, '../../../../db/sql/054_developer_portal_api_keys_schema.sql'),
-    join(process.cwd(), 'db/sql/054_developer_portal_api_keys_schema.sql'),
-    join(process.cwd(), '../../db/sql/054_developer_portal_api_keys_schema.sql'),
+    join(here, '../../../../db/sql/055_developer_portal_api_keys_schema.sql'),
+    join(process.cwd(), 'db/sql/055_developer_portal_api_keys_schema.sql'),
+    join(process.cwd(), '../../db/sql/055_developer_portal_api_keys_schema.sql'),
   ];
   for (const path of candidates) {
     try {
