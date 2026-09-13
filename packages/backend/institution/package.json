@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@proctira/auth": "workspace:*",
     "@proctira/cache": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
