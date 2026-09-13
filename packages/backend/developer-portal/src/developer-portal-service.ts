@@ -332,11 +332,7 @@ export class DeveloperPortalService {
     return this.repository.createWebhook(webhook);
   }
 
-  async getWebhook(
-    accountId: string,
-    tenantId: string,
-    webhookId: string,
-  ): Promise<WebhookEntity> {
+  async getWebhook(accountId: string, tenantId: string, webhookId: string): Promise<WebhookEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
     if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);

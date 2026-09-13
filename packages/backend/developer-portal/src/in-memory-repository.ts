@@ -4,7 +4,6 @@
  * Used for unit testing without database dependencies.
  */
 import type {
-  DeveloperPortalRepository,
   DeveloperPortalExtendedRepository,
   DeveloperAccountEntity,
   ApiKeyEntity,
