@@ -11,6 +11,7 @@
     "./adapters/rabbitmq": "./src/adapters/rabbitmq-adapter.ts",
     "./adapters/sqs": "./src/adapters/sqs-adapter.ts",
     "./adapters/memory-durable": "./src/adapters/in-memory-durable-adapter.ts",
+    "./outbox": "./src/outbox/index.ts",
     "./factory": "./src/factory.ts"
   },
   "scripts": {

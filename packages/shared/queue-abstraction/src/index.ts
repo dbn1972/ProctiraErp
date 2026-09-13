@@ -68,3 +68,24 @@ export const NOTIFICATION_DELIVERY_JOB_TYPE = 'notification.delivery';
 
 /** Consumer binding pattern for all tenants' notification delivery jobs. */
 export const NOTIFICATION_DELIVERY_CONSUME_TOPIC = 'tenant.*.notification.delivery';
+
+// Transactional outbox (W2-JOB-04)
+export {
+  InMemoryOutboxStore,
+  PgOutboxStore,
+  OutboxRelay,
+  buildExamDocumentOutboxEntry,
+  buildWorkflowEscalationOutboxEntry,
+} from './outbox';
+export type {
+  OutboxStore,
+  NewOutboxEntry,
+  OutboxRecord,
+  OutboxStatus,
+  OutboxDispatchMode,
+  OutboxQueryable,
+  OutboxRelayOptions,
+  PgOutboxPool,
+  ExamDocumentOutboxInput,
+  WorkflowEscalationOutboxInput,
+} from './outbox';

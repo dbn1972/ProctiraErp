@@ -8,6 +8,7 @@
  * - 10.6: Generate examination documents (admit cards, seating plans, result certificates)
  *         as PDF files within 60 seconds per batch of up to 500 candidates
  */
+import type { NewOutboxEntry, OutboxStore } from '@proctira/queue-abstraction';
 
 /**
  * Types of examination documents that can be generated.
@@ -127,6 +128,16 @@ export interface DocumentRepository {
 
   /** Create a document generation job */
   createJob(job: DocumentGenerationJob): Promise<DocumentGenerationJob>;
+
+  /**
+   * W2-JOB-04: create the job and an outbox row in the same unit of work.
+   * Implementations that share a DB transaction must insert both atomically.
+   */
+  createJobWithOutbox(
+    job: DocumentGenerationJob,
+    outboxEntry: NewOutboxEntry,
+    outboxStore: OutboxStore,
+  ): Promise<DocumentGenerationJob>;
 
   /** Update a document generation job */
   updateJob(

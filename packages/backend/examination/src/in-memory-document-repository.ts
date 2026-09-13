@@ -4,6 +4,8 @@
  * Used for unit testing without database dependencies.
  * Implements the DocumentRepository interface with simple Map-based stores.
  */
+import type { NewOutboxEntry, OutboxStore } from '@proctira/queue-abstraction';
+
 import type {
   DocumentRepository,
   DocumentCandidate,
@@ -88,6 +90,22 @@ export class InMemoryDocumentRepository implements DocumentRepository {
 
   async createJob(job: DocumentGenerationJob): Promise<DocumentGenerationJob> {
     this.jobs.set(job.id, job);
+    return job;
+  }
+
+  async createJobWithOutbox(
+    job: DocumentGenerationJob,
+    outboxEntry: NewOutboxEntry,
+    outboxStore: OutboxStore,
+  ): Promise<DocumentGenerationJob> {
+    // Same unit of work: both succeed or neither is visible to callers.
+    this.jobs.set(job.id, job);
+    try {
+      await outboxStore.enqueue(outboxEntry);
+    } catch (err) {
+      this.jobs.delete(job.id);
+      throw err;
+    }
     return job;
   }
 
