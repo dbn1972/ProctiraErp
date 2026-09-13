@@ -45,6 +45,39 @@ describe('fee ledger (live Postgres)', () => {
     },
   );
 
+  // W3-TEST-01 — payment/receipt amount integrity after pay (re-read from Postgres).
+  it.skipIf(!live)(
+    'recordPayment persists payment.amountCents === receipt.amountCents on re-read',
+    async () => {
+      const repo = new PgFeesRepository(pool!);
+      const service = new FeesService(repo, new SandboxPaymentAdapter());
+      const tenantId = randomUUID();
+
+      const invoice = await service.createInvoice(tenantId, 'staff-1', {
+        studentId: randomUUID(),
+        title: 'Library fee',
+        amountCents: 42_500,
+      });
+      const paid = await service.recordPayment(tenantId, 'parent-1', {
+        invoiceId: invoice.id,
+        method: 'sandbox',
+      });
+
+      expect(paid.payment.amountCents).toBe(42_500);
+      expect(paid.receipt.amountCents).toBe(paid.payment.amountCents);
+      expect(paid.receipt.paymentId).toBe(paid.payment.id);
+
+      const payments = await service.listPayments(tenantId);
+      const receipts = await service.listReceipts(tenantId);
+      const payment = payments.find((p) => p.id === paid.payment.id);
+      const receipt = receipts.find((r) => r.id === paid.receipt.id);
+      expect(payment?.amountCents).toBe(42_500);
+      expect(receipt?.amountCents).toBe(payment?.amountCents);
+      expect(receipt?.paymentId).toBe(payment?.id);
+      expect(receipt?.invoiceId).toBe(invoice.id);
+    },
+  );
+
   it.skipIf(!live)(
     'database rejects an unbalanced journal at COMMIT and keeps it append-only',
     async () => {

@@ -2,6 +2,8 @@
  * Live Postgres proof for PgGradebookRepository (G-732): credit rules and
  * grading scales persist through `withPgTenant`, and a second tenant cannot
  * read them under FORCE RLS. Skipped without DATABASE_URL.
+ *
+ * W3-TEST-01 — also covers grade workflow transitions persisted + reloaded.
  */
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
@@ -9,6 +11,7 @@ import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
 
+import { GradebookService } from './gradebook-service.js';
 import { getSharedGradebookPool, PgGradebookRepository } from './pg-gradebook-repository.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-gradebook-repository.live.test' });
 
@@ -34,6 +37,18 @@ async function seedBoard(tenantId: string): Promise<string> {
     ),
   );
   return boardId;
+}
+
+async function seedStudent(tenantId: string): Promise<string> {
+  const studentId = randomUUID();
+  await withPgTenant(pool!, tenantId, (client) =>
+    client.query(
+      `INSERT INTO students (id, tenant_id, first_name, last_name, date_of_birth, gender)
+       VALUES ($1, $2, 'Live', 'Student', '2008-01-15', 'F')`,
+      [studentId, tenantId],
+    ),
+  );
+  return studentId;
 }
 
 describe('PgGradebookRepository (live)', () => {
@@ -108,4 +123,52 @@ describe('PgGradebookRepository (live)', () => {
     expect(await repo.getDefaultGradingScale(tenantB, boardId)).toBeNull();
     expect((await repo.listGradingScales(tenantB)).some((s) => s.id === scaleId)).toBe(false);
   });
+
+  it.skipIf(!live)(
+    'transitionGradeEntry persists workflow + lock and blocks edits after lock (W3-TEST-01)',
+    async () => {
+      const repo = new PgGradebookRepository(pool!);
+      const service = new GradebookService(repo);
+      const tenantId = randomUUID();
+      await seedTenant(tenantId);
+      const studentId = await seedStudent(tenantId);
+
+      const entry = await service.upsertGradeEntry(tenantId, {
+        studentId,
+        assessmentCode: `LIVE-${randomUUID().slice(0, 6)}`,
+        numericScore: 91,
+      });
+      expect(entry.metadata.workflowStatus).toBe('DRAFT');
+
+      const submitted = await service.transitionGradeEntry(tenantId, entry.id, 'submit');
+      expect(submitted.metadata.workflowStatus).toBe('SUBMITTED');
+
+      await expect(
+        service.upsertGradeEntry(tenantId, {
+          studentId,
+          assessmentCode: entry.assessmentCode ?? undefined,
+          numericScore: 80,
+        }),
+      ).rejects.toThrow(/SUBMITTED/);
+
+      await service.transitionGradeEntry(tenantId, entry.id, 'approve');
+      const locked = await service.transitionGradeEntry(tenantId, entry.id, 'lock');
+      expect(locked.metadata.workflowStatus).toBe('LOCKED');
+      expect(locked.lockedAt).toBeTruthy();
+
+      const reloaded = await repo.getGradeEntry(tenantId, entry.id);
+      expect(reloaded?.metadata.workflowStatus).toBe('LOCKED');
+      expect(reloaded?.lockedAt).toBeTruthy();
+
+      await expect(
+        service.upsertGradeEntry(tenantId, {
+          studentId,
+          assessmentCode: entry.assessmentCode ?? undefined,
+          numericScore: 70,
+        }),
+      ).rejects.toThrow(/locked/i);
+
+      await expect(service.transitionGradeEntry(tenantId, entry.id, 'approve')).rejects.toThrow();
+    },
+  );
 });
