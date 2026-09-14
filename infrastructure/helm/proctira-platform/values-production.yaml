@@ -73,6 +73,7 @@ web:
     enabled: true
     minAvailable: 2
 
+# W1-OPS-17 — HA floors aligned with infrastructure/ops/production-replica-policy.yaml
 etlWorker:
   replicaCount: 2
   autoscaling:
@@ -87,6 +88,9 @@ etlWorker:
     limits:
       cpu: '2'
       memory: 2Gi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
 registrationPortal:
   replicaCount: 2
@@ -102,6 +106,9 @@ registrationPortal:
     limits:
       cpu: 500m
       memory: 512Mi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
 publicWebsite:
   replicaCount: 2
@@ -110,6 +117,9 @@ publicWebsite:
     minReplicas: 2
     maxReplicas: 6
     targetCPUUtilizationPercentage: 70
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
 adminConsole:
   replicaCount: 2
@@ -120,6 +130,9 @@ adminConsole:
     limits:
       cpu: 500m
       memory: 512Mi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
 developerPortal:
   replicaCount: 2
@@ -130,6 +143,9 @@ developerPortal:
     limits:
       cpu: 300m
       memory: 256Mi
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
 
 # -- Backend domain services (W1-OPS-16: disabled in production; lab-only templates)
 institutionService:

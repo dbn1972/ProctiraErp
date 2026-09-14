@@ -15,7 +15,10 @@ components:
   - ../../components/image-tag
 
 patches:
-  # Production replicas — canonical services only
+  # ---------------------------------------------------------------------------
+  # W1-OPS-17 — Production replicas / HPA (must match production-replica-policy)
+  # Canonical policy: infrastructure/ops/production-replica-policy.yaml
+  # ---------------------------------------------------------------------------
   - target:
       kind: Deployment
       name: api-gateway
@@ -30,7 +33,41 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 3
-  # Production HPA settings
+  - target:
+      kind: Deployment
+      name: etl-worker
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: registration-portal
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: public-website
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: admin-console
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: developer-portal
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
   - target:
       kind: HorizontalPodAutoscaler
       name: api-gateway
@@ -41,6 +78,26 @@ patches:
       - op: replace
         path: /spec/maxReplicas
         value: 20
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: web
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 15
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: etl-worker
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
   # Production ConfigMap overrides
   - target:
       kind: ConfigMap

@@ -1,3 +1,5 @@
+# W1-OPS-17 — PDBs coherent with production-replica-policy.yaml
+# minAvailable < replicas so voluntary disruptions remain possible.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -39,6 +41,48 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: registration-portal
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: public-website-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: public-website
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: public-website
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: admin-console-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: admin-console
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: admin-console
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: developer-portal-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: developer-portal
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: developer-portal
 ---
 # W1-OPS-16: PDBs for split-domain services removed from production overlay.
 # Reintroduce only with components/split-domain-services (lab).

@@ -41,3 +41,5 @@ helm template proctira ./infrastructure/helm/proctira-platform \
 ## CI honesty
 
 `tools/scripts/check-topology-canonical.sh` fails when production Helm values or the production kustomize overlay reintroduce enabled split-domain services as the default path.
+
+`tools/scripts/check-replica-policy.sh` (W1-OPS-17) fails when production Helm / Kustomize drift below the HA floors in `infrastructure/ops/production-replica-policy.yaml` (min replicas + PDB coherence).

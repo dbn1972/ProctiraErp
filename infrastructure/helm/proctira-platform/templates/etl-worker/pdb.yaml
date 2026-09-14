@@ -1,0 +1,16 @@
+{{- if and .Values.etlWorker.enabled .Values.etlWorker.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "proctira.fullname" . }}-etl-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: etl-worker
+spec:
+  minAvailable: {{ .Values.etlWorker.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: etl-worker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

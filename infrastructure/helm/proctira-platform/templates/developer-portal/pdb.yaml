@@ -1,0 +1,16 @@
+{{- if and .Values.developerPortal.enabled .Values.developerPortal.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "proctira.fullname" . }}-developer-portal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: developer-portal
+spec:
+  minAvailable: {{ .Values.developerPortal.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: developer-portal
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

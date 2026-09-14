@@ -1,0 +1,81 @@
+# =============================================================================
+# W1-OPS-17 — Canonical production replica policy
+# =============================================================================
+# Single source of truth for HA floors across:
+#   - infrastructure/helm/proctira-platform/values-production.yaml
+#   - infrastructure/helm/proctira-service/values-production.yaml (uniform floor)
+#   - infrastructure/k8s/overlays/production/
+#
+# Rules:
+#   1. Every listed service MUST run ≥ `replicas` in production (never silent 1).
+#   2. When HPA is enabled, minReplicas ≥ replicas (HPA must not scale below HA).
+#   3. PDB minAvailable ≥ 1 and minAvailable < replicas (voluntary disruption OK).
+#   4. Thin chart (proctira-service) may EXCEED these floors with a uniform profile.
+#
+# Enforced by: tools/scripts/check-replica-policy.sh
+# =============================================================================
+
+version: 1
+finding: W1-OPS-17
+
+# Services that must never silently run single-replica in production.
+haServices:
+  api-gateway:
+    replicas: 3
+    hpa:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 20
+    pdb:
+      minAvailable: 2
+  web:
+    replicas: 3
+    hpa:
+      enabled: true
+      minReplicas: 3
+      maxReplicas: 15
+    pdb:
+      minAvailable: 2
+  etl-worker:
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+    pdb:
+      minAvailable: 1
+  registration-portal:
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 8
+    pdb:
+      minAvailable: 1
+  public-website:
+    replicas: 2
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+    pdb:
+      minAvailable: 1
+  admin-console:
+    replicas: 2
+    hpa:
+      enabled: false
+    pdb:
+      minAvailable: 1
+  developer-portal:
+    replicas: 2
+    hpa:
+      enabled: false
+    pdb:
+      minAvailable: 1
+
+# Thin chart (deploy.yml) uses one values-production.yaml for all releases.
+# Floor below; actual replicaCount/minReplicas may be higher.
+thinChartFloor:
+  replicaCount: 2
+  minReplicas: 2
+  pdbMinAvailable: 1
