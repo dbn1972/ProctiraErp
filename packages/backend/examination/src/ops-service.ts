@@ -13,12 +13,7 @@ import {
 } from '@proctira/common';
 import type { FieldError } from '@proctira/common';
 
-import {
-  findRoomClashes,
-  findStaffClashes,
-  type AllocationConflict,
-  type TimedSlot,
-} from './clash.js';
+import type { AllocationConflict } from './clash.js';
 import type { DocumentRepository } from './document-repository.js';
 import type { ExaminationRepository } from './examination-repository.js';
 import type {
@@ -112,16 +107,6 @@ export interface MarksPairView {
   variance: number | null;
   finalMarks: number | null;
   resolved: boolean;
-}
-
-function toSlot(session: ExamSessionRecord): TimedSlot {
-  return {
-    id: session.id,
-    date: session.date,
-    startTime: session.startTime,
-    endTime: session.endTime,
-    roomId: session.roomId,
-  };
 }
 
 export class ExamOpsService {
@@ -221,24 +206,22 @@ export class ExamOpsService {
       createdAt: now,
       updatedAt: now,
     };
-    const existing = await this.store.listSessionsByTenant(tenantId);
-    const conflicts = findRoomClashes(toSlot(session), existing.map(toSlot));
-    if (conflicts.length > 0) return { ok: false, conflicts };
+    const outcome = await this.store.createSessionGuarded(session);
+    if (!outcome.ok) return outcome;
 
-    const saved = await this.store.createSession(session);
     await this.audit(
       tenantId,
       examinationId,
       'session.create',
       'exam_session',
-      saved.id,
+      outcome.session.id,
       actor.userId,
       {
-        roomId: saved.roomId,
-        date: saved.date,
+        roomId: outcome.session.roomId,
+        date: outcome.session.date,
       },
     );
-    return { ok: true, session: saved };
+    return { ok: true, session: outcome.session };
   }
 
   async deleteSession(tenantId: string, examinationId: string, sessionId: string): Promise<void> {
@@ -276,40 +259,29 @@ export class ExamOpsService {
       throw new NotFoundError(`Exam session '${sessionId}' not found`);
     }
 
-    const already = await this.store.listInvigilators(tenantId, sessionId);
-    if (already.some((row) => row.staffId === input.staffId)) {
-      throw new ConflictError(`Staff '${input.staffId}' is already allocated to this session`);
-    }
-
-    const examSessions = await this.store.listSessionsByTenant(tenantId);
-    const sessionsById = new Map(examSessions.map((s) => [s.id, toSlot(s)] as const));
-    const assignments = await this.store.listInvigilatorsByTenant(tenantId);
-    const conflicts = findStaffClashes(
-      toSlot(session),
-      input.staffId,
-      sessionsById,
-      assignments.map((a) => ({ sessionId: a.sessionId, staffId: a.staffId })),
+    const outcome = await this.store.createInvigilatorGuarded(
+      {
+        id: randomUUID(),
+        tenantId,
+        sessionId,
+        staffId: input.staffId,
+        allocatedAt: new Date(),
+        allocatedBy: actor.userId || null,
+      },
+      session,
     );
-    if (conflicts.length > 0) return { ok: false, conflicts };
+    if (!outcome.ok) return outcome;
 
-    const allocation = await this.store.createInvigilator({
-      id: randomUUID(),
-      tenantId,
-      sessionId,
-      staffId: input.staffId,
-      allocatedAt: new Date(),
-      allocatedBy: actor.userId || null,
-    });
     await this.audit(
       tenantId,
       examinationId,
       'invigilator.allocate',
       'exam_invigilator',
-      allocation.id,
+      outcome.allocation.id,
       actor.userId,
       { staffId: input.staffId, sessionId },
     );
-    return { ok: true, allocation };
+    return { ok: true, allocation: outcome.allocation };
   }
 
   async removeInvigilator(
@@ -389,7 +361,7 @@ export class ExamOpsService {
       generatedAt: now,
     }));
 
-    const saved = await this.store.replaceSeating(tenantId, examinationId, seats);
+    const saved = await this.store.replaceSeatingGuarded(tenantId, examinationId, seats);
     await this.audit(
       tenantId,
       examinationId,
