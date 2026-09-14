@@ -1,9 +1,12 @@
 /**
  * G-604 — Communication channel delivery adapter (sandbox stub).
  * W2-INT-03: PROVIDER_MODE=live must not silently mark sent via stub.
+ * W1-ARCH-08: production refuses silent sandbox default (explicit opt-in only).
  *
  * Mirrors notification sandbox senders until Twilio/SES/FCM credentials + live adapters exist.
  */
+import { resolveProviderDeliveryMode } from '@proctira/common';
+
 export type DeliveryChannel = 'email' | 'sms' | 'push' | 'in_app' | 'whatsapp';
 
 export interface DeliveryRequest {
@@ -60,7 +63,7 @@ export function createUnimplementedLiveDeliveryAdapter(): CommunicationDeliveryA
 export function createDeliveryAdapterFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): CommunicationDeliveryAdapter {
-  if (env.PROVIDER_MODE === 'live') {
+  if (resolveProviderDeliveryMode('communication', env) === 'live') {
     return createUnimplementedLiveDeliveryAdapter();
   }
   return createSandboxDeliveryAdapter();

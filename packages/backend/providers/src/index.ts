@@ -5,7 +5,12 @@
  * W2-INT-03: credentials / PROVIDER_MODE=live alone must NOT report liveReady.
  * Live SMS/email/push/PSP adapters are not implemented in-tree; claiming live
  * would enable silent stub success. IdP may report issuer URL presence only.
+ *
+ * W1-ARCH-08: production refuses silent sandbox defaults — callers must pass an
+ * env that either sets PROVIDER_MODE=live or explicitly opts into sandbox.
  */
+
+import { resolveProviderDeliveryMode } from '@proctira/common';
 
 export type ProviderMode = 'sandbox' | 'live';
 
@@ -83,11 +88,14 @@ export function issueSandboxIdpToken(input: {
  * W2-INT-03 honesty: SMS/email/push/PSP live adapters are **not** wired.
  * Env credentials must not flip `liveReady` or `mode: 'live'` — that previously
  * implied production delivery while sandbox stubs still silently succeeded.
+ *
+ * W1-ARCH-08: throws in production when sandbox would be the silent default.
  */
 export function listProviderCapabilities(
   env: Record<string, string | undefined> = {},
 ): ProviderCapability[] {
-  const wantsLive = env.PROVIDER_MODE === 'live';
+  const deliveryMode = resolveProviderDeliveryMode('providers', env);
+  const wantsLive = deliveryMode === 'live';
   const idpConfigured = Boolean(env.KEYCLOAK_URL || env.OIDC_ISSUER);
 
   return [
@@ -108,7 +116,7 @@ export function listProviderCapabilities(
       liveReady: false,
       notes: wantsLive
         ? 'PROVIDER_MODE=live requested but live PSP adapter not implemented — sandbox stub only (G-202); refuse silent live success.'
-        : 'Fees uses SandboxPaymentAdapter by default (G-202).',
+        : 'Fees uses SandboxPaymentAdapter when sandbox is allowed (G-202); production requires explicit opt-in (W1-ARCH-08).',
     },
     {
       channel: 'sms',
@@ -117,7 +125,7 @@ export function listProviderCapabilities(
       liveReady: false,
       notes: wantsLive || env.TWILIO_AUTH_TOKEN
         ? 'Twilio credentials/PROVIDER_MODE=live detected but live SMS adapter not implemented — sandbox stub only; refuse silent live success.'
-        : 'Notification package sandbox SMS (G-709).',
+        : 'Notification package sandbox SMS (G-709); production requires explicit opt-in (W1-ARCH-08).',
     },
     {
       channel: 'email',
@@ -126,7 +134,7 @@ export function listProviderCapabilities(
       liveReady: false,
       notes: wantsLive || env.SMTP_URL || env.SES_REGION
         ? 'SMTP/SES/PROVIDER_MODE=live detected but live email adapter not implemented — sandbox stub only; refuse silent live success.'
-        : 'Sandbox email unless a live adapter is wired.',
+        : 'Sandbox email unless a live adapter is wired; production requires explicit opt-in (W1-ARCH-08).',
     },
     {
       channel: 'push',
@@ -135,7 +143,7 @@ export function listProviderCapabilities(
       liveReady: false,
       notes: wantsLive || env.FCM_SERVER_KEY
         ? 'FCM/PROVIDER_MODE=live detected but live push adapter not implemented — sandbox stub only; refuse silent live success.'
-        : 'Push remains sandbox without a live FCM adapter.',
+        : 'Push remains sandbox without a live FCM adapter; production requires explicit opt-in (W1-ARCH-08).',
     },
   ];
 }

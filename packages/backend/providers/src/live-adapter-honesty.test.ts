@@ -1,6 +1,7 @@
 /**
  * W2-INT-03: live delivery adapters must not report success / liveReady
  * when only stubs exist (credentials alone ≠ live adapter).
+ * W1-ARCH-08: production refuses silent sandbox defaults.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -30,5 +31,17 @@ describe('W2-INT-03 live delivery adapter honesty', () => {
     const caps = listProviderCapabilities({});
     expect(caps.every((c) => c.mode === 'sandbox')).toBe(true);
     expect(caps.every((c) => c.liveReady === false)).toBe(true);
+  });
+
+  it('W1-ARCH-08: refuses silent sandbox listing in production', () => {
+    expect(() => listProviderCapabilities({ NODE_ENV: 'production' })).toThrow(/W1-ARCH-08/);
+  });
+
+  it('W1-ARCH-08: allows sandbox listing in production with explicit opt-in', () => {
+    const caps = listProviderCapabilities({
+      NODE_ENV: 'production',
+      ALLOW_SANDBOX_PROVIDERS: '1',
+    });
+    expect(caps.every((c) => c.mode === 'sandbox' || c.channel === 'idp')).toBe(true);
   });
 });

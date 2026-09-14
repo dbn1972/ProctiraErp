@@ -175,6 +175,9 @@ services:
       REDIS_URL: ${REDIS_URL}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
+      # W1-ARCH-08: compose defaults NODE_ENV=production — sandbox must be explicit.
+      ALLOW_SANDBOX_PROVIDERS: ${ALLOW_SANDBOX_PROVIDERS:-1}
+      PROVIDER_MODE: ${PROVIDER_MODE:-sandbox}
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-proctira-api}

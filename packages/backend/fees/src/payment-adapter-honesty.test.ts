@@ -1,5 +1,6 @@
 /**
  * W2-INT-03: live PSP mode must not silently succeed via sandbox stub.
+ * W1-ARCH-08: production refuses silent sandbox defaults.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -29,6 +30,26 @@ describe('W2-INT-03 fees payment adapter honesty', () => {
       invoiceId: 'inv-2',
       payerUserId: 'u1',
       amountCents: 500,
+      currency: 'INR',
+    });
+    expect(result.status).toBe('succeeded');
+    expect(result.reference).toMatch(/^sandbox-/);
+  });
+
+  it('W1-ARCH-08: throws when production would silently use sandbox PSP', () => {
+    expect(() => createPaymentAdapterFromEnv({ NODE_ENV: 'production' })).toThrow(/W1-ARCH-08/);
+  });
+
+  it('W1-ARCH-08: allows sandbox PSP in production with explicit opt-in', async () => {
+    const adapter = createPaymentAdapterFromEnv({
+      NODE_ENV: 'production',
+      ALLOW_SANDBOX_PROVIDERS: '1',
+    });
+    const result = await adapter.charge({
+      tenantId: 't1',
+      invoiceId: 'inv-3',
+      payerUserId: 'u1',
+      amountCents: 250,
       currency: 'INR',
     });
     expect(result.status).toBe('succeeded');

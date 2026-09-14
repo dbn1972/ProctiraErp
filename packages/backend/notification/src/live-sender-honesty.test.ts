@@ -1,5 +1,6 @@
 /**
  * W2-INT-03: PROVIDER_MODE=live must not silently succeed via sandbox stubs.
+ * W1-ARCH-08: production refuses silent sandbox defaults.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -49,5 +50,22 @@ describe('W2-INT-03 notification live sender honesty', () => {
     expect(sms.success).toBe(true);
     expect(sms.mode).toBe('sandbox');
     expect(sms.honestyNote).toMatch(/Sandbox SMS/);
+  });
+
+  it('W1-ARCH-08: throws when production would silently use sandbox senders', () => {
+    expect(() => createSmsSenderFromEnv({ NODE_ENV: 'production' })).toThrow(/W1-ARCH-08/);
+    expect(() => createEmailSenderFromEnv({ NODE_ENV: 'production' })).toThrow(/W1-ARCH-08/);
+    expect(() => createPushSenderFromEnv({ NODE_ENV: 'production' })).toThrow(/W1-ARCH-08/);
+  });
+
+  it('W1-ARCH-08: allows sandbox senders in production with explicit opt-in', async () => {
+    const env = { NODE_ENV: 'production', ALLOW_SANDBOX_PROVIDERS: '1' };
+    const sms = await createSmsSenderFromEnv(env).send({
+      to: '+1000',
+      body: 'hi',
+      tenantId: 't1',
+    });
+    expect(sms.success).toBe(true);
+    expect(sms.mode).toBe('sandbox');
   });
 });
