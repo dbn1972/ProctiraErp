@@ -1,7 +1,7 @@
 # OPS — W1-OPS-03 COMPLETE (gateway readiness fail-closed)
 
 **Module / slice:** `apps/api-gateway` `GET /health`, `/health/live`, `/health/ready`  
-**Branch / tip:** `cursor/w1-ops-03-readiness-complete-56c3` @ `8ba3883611ff9dc13a8cf0b38a49b83c12ec8d73`  
+**Branch / tip:** `cursor/w1-ops-03-readiness-complete-56c3` @ `4ada8cba72a1e0e32e926f24062a91e336aca5d0`  
 **Date (UTC):** 2026-09-14  
 **Skill gate:** enterprise-release-ops (Definition of Ship — ops honesty)  
 **Prior status:** PARTIAL (`#101` DB probe; Redis residual closed by W3-C1 `#171`; combined `/health` still HTTP 200 when unready)  
@@ -48,7 +48,7 @@ pnpm --filter @proctira/api-gateway exec vitest run src/plugins/health.test.ts s
 ## Tip SHA
 
 ```
-8ba3883611ff9dc13a8cf0b38a49b83c12ec8d73
+4ada8cba72a1e0e32e926f24062a91e336aca5d0
 ```
 
 Prior remediation: `929a674b` (#101), `83f75d21` (#171).
