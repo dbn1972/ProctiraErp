@@ -123,10 +123,19 @@ Turborepo's built-in filter detects which packages changed since the **merge-bas
 
 For coarser-grained decisions (e.g., skip integration tests if only frontend changed), the pipeline uses path-based filtering to categorize changes into:
 
-- `backend` — Backend services and shared packages
+- `backend` — Backend services, shared packages, `db/**`, and tool gates (`tools/scripts/**`, `tools/dod-checks/**`, `tools/tenant-isolation-tests/**`)
 - `frontend` — UI packages and web apps
-- `shared` — Core shared packages (triggers full rebuild)
-- `infra` — Infrastructure changes (triggers image rebuilds)
+- `shared` — Core shared packages **plus** `db/**`, `tools/**`, `docs/**`, and workflow/config roots (triggers the lint→unit→tenant-isolation chain; no silent skip)
+- `infra` — `infrastructure/**`, Dockerfiles, compose files (same code chain + integration; aggregate fails closed on skip)
+
+**W1-OPS-05:** the fail-closed `CI Aggregate (Required)` job proves skips against these filters. Matrix gate: `node tools/scripts/check-ci-path-filters.mjs` (also run from `ci-aggregate`).
+
+| Path | Filter buckets | Required validation (high level) |
+| --- | --- | --- |
+| `db/**` | backend + shared | integration (apply-sql) + always-on SQL gates + code chain |
+| `tools/**` | shared | code chain + tool/always-on gates |
+| `docs/**` | shared | code chain (no silent skip) |
+| `infrastructure/**` (+ Docker/compose) | infra | code chain + integration |
 
 ### 3. Service-level Detection (Deploy)
 

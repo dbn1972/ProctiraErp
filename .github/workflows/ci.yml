@@ -51,9 +51,10 @@ jobs:
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          # W1-OPS-05 residual: infra-only PRs must still run the unit→
-          # integration/tenant-isolation chain (db/tools/docs already in
-          # shared/backend via #181). Job ifs + aggregate read infra-changed.
+          # W1-OPS-05 COMPLETE: db/** + tools/** + docs/** map to shared
+          # (and backend where SQL/tool gates apply). Infra-only PRs still
+          # run the unit→integration/tenant-isolation chain via infra-changed.
+          # Matrix proof: tools/scripts/check-ci-path-filters.mjs
           # W1-OPS-12: secondary Next apps have dedicated Playwright smokes
           # (not covered by apps/web e2e-backend-ready / lighthouse).
           filters: |
@@ -1270,6 +1271,12 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v4
+
+      - name: Assert CI path-filter matrix (W1-OPS-05)
+        run: |
+          node --test tools/scripts/check-ci-path-filters.test.mjs
+          node tools/scripts/check-ci-path-filters.mjs
+          node --test tools/scripts/ci-aggregate-gate.test.mjs
 
       - name: Verify CI results (fail closed on failures and unproven skips)
         env:

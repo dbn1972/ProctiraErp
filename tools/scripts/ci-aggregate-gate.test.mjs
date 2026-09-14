@@ -78,11 +78,25 @@ function allSucceeded() {
   };
 }
 
-test('docs-only PR: all skips are proven and gate passes', () => {
+test('no path-filter match: optional jobs may skip; always-on gates still required', () => {
   const report = evaluate({ changes: noChanges, results: allSkipped() });
   assert.equal(report.ok, true);
   assert.equal(report.unprovenSkips.length, 0);
   assert.equal(report.provenSkips.length, 10);
+});
+
+test('docs via shared filter: skipped unit/tenant-isolation is unproven (W1-OPS-05)', () => {
+  // Path filters map docs/** onto shared. Aggregate must require the code chain.
+  const changes = {
+    ...noChanges,
+    sharedChanged: 'true',
+  };
+  const results = allSkipped();
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'unit-test'));
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'tenant-isolation'));
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'lint'));
 });
 
 test('restore-drill evidence skip fails closed even on docs-only PRs', () => {

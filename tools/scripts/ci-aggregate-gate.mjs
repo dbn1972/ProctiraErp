@@ -23,7 +23,7 @@ function codeChanged(changes) {
     truthy(changes.appsChanged) ||
     truthy(changes.sharedChanged) ||
     // Infra-only PRs still need the lint→unit→tenant-isolation chain
-    // (W1-OPS-05 residual — infra was filtered but never gated).
+    // (W1-OPS-05 COMPLETE — infra filtered + gated).
     truthy(changes.infraChanged)
   );
 }
