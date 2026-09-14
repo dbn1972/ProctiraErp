@@ -568,9 +568,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createNurseIncident(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: NurseIncidentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<NurseIncidentEntity> {
-    if (this.nurseIncidents) return this.nurseIncidents.create(data);
-    return this.memory.createNurseIncident(data);
+    if (this.nurseIncidents) return this.nurseIncidents.create(data, options);
+    return this.memory.createNurseIncident(data, options);
   }
 
   async listNurseIncidents(tenantId: string): Promise<NurseIncidentEntity[]> {

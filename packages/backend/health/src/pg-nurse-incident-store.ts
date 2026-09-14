@@ -102,31 +102,43 @@ export class PgNurseIncidentStore {
 
   async create(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: NurseIncidentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<NurseIncidentEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId, data.institutionId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_nurse_incidents (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_nurse_incidents (
         id, tenant_id, student_id, institution_id, incident_at, category, severity,
         notes, reported_by, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.institutionId,
-        data.incidentAt,
-        data.category,
-        data.severity,
-        encryptPhi(data.notes, scope),
-        data.reportedBy,
-        now,
-        now,
-      ],
-    );
-    return mapRow(result.rows[0] as Record<string, unknown>);
+        [
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.institutionId,
+          data.incidentAt,
+          data.category,
+          data.severity,
+          encryptPhi(data.notes, scope),
+          data.reportedBy,
+          now,
+          now,
+        ],
+      );
+      const entity = mapRow(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: nurse incident write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async listByTenant(tenantId: string): Promise<NurseIncidentEntity[]> {

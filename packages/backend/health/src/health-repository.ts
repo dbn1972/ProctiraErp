@@ -403,6 +403,12 @@ export interface HealthRepository {
   // Nurse incidents (Wave 10 Option B) — optional for older impls
   createNurseIncident?(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: NurseIncidentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<NurseIncidentEntity>;
   listNurseIncidents?(tenantId: string): Promise<NurseIncidentEntity[]>;
   listNurseIncidentsByStudent?(tenantId: string, studentId: string): Promise<NurseIncidentEntity[]>;
