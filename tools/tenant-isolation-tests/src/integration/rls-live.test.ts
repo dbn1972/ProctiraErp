@@ -86,20 +86,19 @@ describe.skipIf(!DATABASE_URL)('Live Postgres RLS (W1-OPS-06 release gate)', () 
     });
 
     const seenByA = await withPgTenant(pool, tenantA, async (client) => {
-      const result = await client.query<{ id: string }>(
-        `SELECT id::text FROM hostels WHERE id = $1::uuid`,
-        [hostelId],
-      );
-      return result.rows;
+      // PgQueryable.query is untyped (no generics); cast rows after fetch.
+      const result = await client.query(`SELECT id::text FROM hostels WHERE id = $1::uuid`, [
+        hostelId,
+      ]);
+      return result.rows as Array<{ id: string }>;
     });
     expect(seenByA).toHaveLength(1);
 
     const seenByB = await withPgTenant(pool, tenantB, async (client) => {
-      const result = await client.query<{ id: string }>(
-        `SELECT id::text FROM hostels WHERE id = $1::uuid`,
-        [hostelId],
-      );
-      return result.rows;
+      const result = await client.query(`SELECT id::text FROM hostels WHERE id = $1::uuid`, [
+        hostelId,
+      ]);
+      return result.rows as Array<{ id: string }>;
     });
     expect(seenByB).toHaveLength(0);
 
