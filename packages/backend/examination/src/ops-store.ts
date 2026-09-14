@@ -1,8 +1,26 @@
 /**
  * G-908 — examination ops persistence: raw pg (db/sql/036, RLS via
  * withPgTenant) or an in-memory map for dev / unit tests.
+ *
+ * W3-RACE-01: guarded create/replace methods serialise concurrent room,
+ * invigilator, and seating allocation (mutex in-memory; advisory lock + txn Pg).
  */
+import { ConflictError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
+
+import {
+  createAllocationMutex,
+  isPgUniqueViolation,
+  roomAllocationLockKey,
+  seatingLockKey,
+  staffAllocationLockKey,
+} from './allocation-lock.js';
+import {
+  findRoomClashes,
+  findStaffClashes,
+  sessionToSlot,
+  type AllocationConflict,
+} from './clash.js';
 
 export type ReevaluationStatus = 'requested' | 'assigned' | 'completed' | 'rejected';
 
@@ -93,14 +111,29 @@ export interface ExamOpsAuditRecord {
   details: Record<string, unknown>;
 }
 
+export type GuardedSessionResult =
+  | { ok: true; session: ExamSessionRecord }
+  | { ok: false; conflicts: AllocationConflict[] };
+
+export type GuardedInvigilatorResult =
+  | { ok: true; allocation: ExamInvigilatorRecord }
+  | { ok: false; conflicts: AllocationConflict[] };
+
 export interface ExamOpsStore {
   createSession(record: ExamSessionRecord): Promise<ExamSessionRecord>;
+  /** W3-RACE-01: clash recheck + insert under allocation lock. */
+  createSessionGuarded(record: ExamSessionRecord): Promise<GuardedSessionResult>;
   listSessions(tenantId: string, examinationId: string): Promise<ExamSessionRecord[]>;
   listSessionsByTenant(tenantId: string): Promise<ExamSessionRecord[]>;
   findSession(tenantId: string, sessionId: string): Promise<ExamSessionRecord | null>;
   deleteSession(tenantId: string, sessionId: string): Promise<boolean>;
 
   createInvigilator(record: ExamInvigilatorRecord): Promise<ExamInvigilatorRecord>;
+  /** W3-RACE-01: duplicate + clash recheck + insert under allocation lock. */
+  createInvigilatorGuarded(
+    record: ExamInvigilatorRecord,
+    session: ExamSessionRecord,
+  ): Promise<GuardedInvigilatorResult>;
   listInvigilators(tenantId: string, sessionId: string): Promise<ExamInvigilatorRecord[]>;
   listInvigilatorsForExamination(
     tenantId: string,
@@ -111,6 +144,12 @@ export interface ExamOpsStore {
   deleteInvigilator(tenantId: string, allocationId: string): Promise<boolean>;
 
   replaceSeating(
+    tenantId: string,
+    examinationId: string,
+    seats: ExamSeatingRecord[],
+  ): Promise<ExamSeatingRecord[]>;
+  /** W3-RACE-01: delete + insert under seating lock. */
+  replaceSeatingGuarded(
     tenantId: string,
     examinationId: string,
     seats: ExamSeatingRecord[],
@@ -157,10 +196,22 @@ export class InMemoryExamOpsStore implements ExamOpsStore {
   private readonly marks = new Map<string, ExamMarksEntryRecord>();
   private readonly reevaluations = new Map<string, ExamReevaluationRecord>();
   private readonly audits: ExamOpsAuditRecord[] = [];
+  private readonly allocationMutex = createAllocationMutex();
 
   async createSession(record: ExamSessionRecord): Promise<ExamSessionRecord> {
     this.sessions.set(record.id, clone(record));
     return clone(record);
+  }
+
+  async createSessionGuarded(record: ExamSessionRecord): Promise<GuardedSessionResult> {
+    const lockKey = roomAllocationLockKey(record.tenantId, record.roomId, record.date);
+    return this.allocationMutex.run(lockKey, async () => {
+      const existing = await this.listSessionsByTenant(record.tenantId);
+      const conflicts = findRoomClashes(sessionToSlot(record), existing.map(sessionToSlot));
+      if (conflicts.length > 0) return { ok: false, conflicts };
+      const saved = await this.createSession(record);
+      return { ok: true, session: saved };
+    });
   }
 
   async listSessions(tenantId: string, examinationId: string): Promise<ExamSessionRecord[]> {
@@ -191,6 +242,31 @@ export class InMemoryExamOpsStore implements ExamOpsStore {
   async createInvigilator(record: ExamInvigilatorRecord): Promise<ExamInvigilatorRecord> {
     this.invigilators.set(record.id, clone(record));
     return clone(record);
+  }
+
+  async createInvigilatorGuarded(
+    record: ExamInvigilatorRecord,
+    session: ExamSessionRecord,
+  ): Promise<GuardedInvigilatorResult> {
+    const lockKey = staffAllocationLockKey(record.tenantId, record.staffId, session.date);
+    return this.allocationMutex.run(lockKey, async () => {
+      const already = await this.listInvigilators(record.tenantId, record.sessionId);
+      if (already.some((row) => row.staffId === record.staffId)) {
+        throw new ConflictError(`Staff '${record.staffId}' is already allocated to this session`);
+      }
+      const examSessions = await this.listSessionsByTenant(record.tenantId);
+      const sessionsById = new Map(examSessions.map((s) => [s.id, sessionToSlot(s)] as const));
+      const assignments = await this.listInvigilatorsByTenant(record.tenantId);
+      const conflicts = findStaffClashes(
+        sessionToSlot(session),
+        record.staffId,
+        sessionsById,
+        assignments.map((a) => ({ sessionId: a.sessionId, staffId: a.staffId })),
+      );
+      if (conflicts.length > 0) return { ok: false, conflicts };
+      const saved = await this.createInvigilator(record);
+      return { ok: true, allocation: saved };
+    });
   }
 
   async listInvigilators(tenantId: string, sessionId: string): Promise<ExamInvigilatorRecord[]> {
@@ -246,6 +322,17 @@ export class InMemoryExamOpsStore implements ExamOpsStore {
       this.seating.set(seat.id, clone(seat));
     }
     return seats.map((s) => clone(s));
+  }
+
+  async replaceSeatingGuarded(
+    tenantId: string,
+    examinationId: string,
+    seats: ExamSeatingRecord[],
+  ): Promise<ExamSeatingRecord[]> {
+    const lockKey = seatingLockKey(tenantId, examinationId);
+    return this.allocationMutex.run(lockKey, async () =>
+      this.replaceSeating(tenantId, examinationId, seats),
+    );
   }
 
   async listSeating(tenantId: string, examinationId: string): Promise<ExamSeatingRecord[]> {
@@ -561,6 +648,42 @@ export class PgExamOpsStore implements ExamOpsStore {
     });
   }
 
+  async createSessionGuarded(record: ExamSessionRecord): Promise<GuardedSessionResult> {
+    return this.run(record.tenantId, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        roomAllocationLockKey(record.tenantId, record.roomId, record.date),
+      ]);
+      const { rows: existingRows } = await client.query(
+        `SELECT * FROM exam_sessions WHERE tenant_id = $1`,
+        [record.tenantId],
+      );
+      const existing = (existingRows as SessionRow[]).map(toSession);
+      const conflicts = findRoomClashes(sessionToSlot(record), existing.map(sessionToSlot));
+      if (conflicts.length > 0) return { ok: false, conflicts };
+
+      const { rows } = await client.query(
+        `INSERT INTO exam_sessions
+           (id, tenant_id, examination_id, subject_id, session_date, start_time, end_time, room_id, center_id, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5::date,$6::time,$7::time,$8,$9,$10,$11)
+         RETURNING *`,
+        [
+          record.id,
+          record.tenantId,
+          record.examinationId,
+          record.subjectId,
+          record.date,
+          record.startTime,
+          record.endTime,
+          record.roomId,
+          record.centerId,
+          record.createdAt,
+          record.updatedAt,
+        ],
+      );
+      return { ok: true, session: toSession(rows[0] as SessionRow) };
+    });
+  }
+
   async listSessions(tenantId: string, examinationId: string): Promise<ExamSessionRecord[]> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
@@ -619,6 +742,69 @@ export class PgExamOpsStore implements ExamOpsStore {
         ],
       );
       return toInvigilator(rows[0] as InvigilatorRow);
+    });
+  }
+
+  async createInvigilatorGuarded(
+    record: ExamInvigilatorRecord,
+    session: ExamSessionRecord,
+  ): Promise<GuardedInvigilatorResult> {
+    return this.run(record.tenantId, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        staffAllocationLockKey(record.tenantId, record.staffId, session.date),
+      ]);
+
+      const { rows: sessionInvRows } = await client.query(
+        `SELECT * FROM exam_invigilators WHERE tenant_id = $1 AND session_id = $2`,
+        [record.tenantId, record.sessionId],
+      );
+      const sessionInv = (sessionInvRows as InvigilatorRow[]).map(toInvigilator);
+      if (sessionInv.some((row) => row.staffId === record.staffId)) {
+        throw new ConflictError(`Staff '${record.staffId}' is already allocated to this session`);
+      }
+
+      const { rows: sessionRows } = await client.query(
+        `SELECT * FROM exam_sessions WHERE tenant_id = $1`,
+        [record.tenantId],
+      );
+      const examSessions = (sessionRows as SessionRow[]).map(toSession);
+      const sessionsById = new Map(examSessions.map((s) => [s.id, sessionToSlot(s)] as const));
+
+      const { rows: assignmentRows } = await client.query(
+        `SELECT * FROM exam_invigilators WHERE tenant_id = $1`,
+        [record.tenantId],
+      );
+      const assignments = (assignmentRows as InvigilatorRow[]).map(toInvigilator);
+      const conflicts = findStaffClashes(
+        sessionToSlot(session),
+        record.staffId,
+        sessionsById,
+        assignments.map((a) => ({ sessionId: a.sessionId, staffId: a.staffId })),
+      );
+      if (conflicts.length > 0) return { ok: false, conflicts };
+
+      try {
+        const { rows } = await client.query(
+          `INSERT INTO exam_invigilators
+             (id, tenant_id, session_id, staff_id, allocated_at, allocated_by)
+           VALUES ($1,$2,$3,$4,$5,$6)
+           RETURNING *`,
+          [
+            record.id,
+            record.tenantId,
+            record.sessionId,
+            record.staffId,
+            record.allocatedAt,
+            record.allocatedBy,
+          ],
+        );
+        return { ok: true, allocation: toInvigilator(rows[0] as InvigilatorRow) };
+      } catch (error) {
+        if (isPgUniqueViolation(error)) {
+          throw new ConflictError(`Staff '${record.staffId}' is already allocated to this session`);
+        }
+        throw error;
+      }
     });
   }
 
@@ -685,6 +871,50 @@ export class PgExamOpsStore implements ExamOpsStore {
     seats: ExamSeatingRecord[],
   ): Promise<ExamSeatingRecord[]> {
     return this.run(tenantId, async (client) => {
+      await client.query(`DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2`, [
+        tenantId,
+        examinationId,
+      ]);
+      const saved: ExamSeatingRecord[] = [];
+      for (const seat of seats) {
+        const { rows } = await client.query(
+          `INSERT INTO exam_seating
+             (id, tenant_id, examination_id, session_id, candidate_id, student_id, student_name,
+              roll_number, center_id, center_name, room_number, seat_number, subject_names, generated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+           RETURNING *`,
+          [
+            seat.id,
+            seat.tenantId,
+            seat.examinationId,
+            seat.sessionId,
+            seat.candidateId,
+            seat.studentId,
+            seat.studentName,
+            seat.rollNumber,
+            seat.centerId,
+            seat.centerName,
+            seat.roomNumber,
+            seat.seatNumber,
+            seat.subjectNames,
+            seat.generatedAt,
+          ],
+        );
+        saved.push(toSeating(rows[0] as SeatingRow));
+      }
+      return saved;
+    });
+  }
+
+  async replaceSeatingGuarded(
+    tenantId: string,
+    examinationId: string,
+    seats: ExamSeatingRecord[],
+  ): Promise<ExamSeatingRecord[]> {
+    return this.run(tenantId, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        seatingLockKey(tenantId, examinationId),
+      ]);
       await client.query(`DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2`, [
         tenantId,
         examinationId,
