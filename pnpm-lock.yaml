@@ -236,6 +236,9 @@ importers:
       '@proctira/backend-parent-portal':
         specifier: workspace:*
         version: link:../../packages/backend/parent-portal
+      '@proctira/backend-privacy':
+        specifier: workspace:*
+        version: link:../../packages/backend/privacy
       '@proctira/backend-providers':
         specifier: workspace:*
         version: link:../../packages/backend/providers
