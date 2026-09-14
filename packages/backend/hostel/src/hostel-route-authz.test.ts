@@ -84,6 +84,15 @@ describe('hostel-plugin RBAC deny proofs (W1-SEC-02 residual)', () => {
       expect(response.json().code).toBe('FORBIDDEN');
     });
 
+    it('returns 403 when teacher transitions a gate pass', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/hostel/gate-passes/00000000-0000-4000-8000-000000000077/approve',
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('FORBIDDEN');
+    });
+
     it('returns 403 when roles are empty (fail closed)', async () => {
       await app.close();
       app = await buildApp([], TENANT_A);

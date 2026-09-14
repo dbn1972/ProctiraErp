@@ -306,6 +306,7 @@ export async function registerHostelOpsRoutes(
       request: FastifyRequest<{ Params: GatePassParams; Body: TransitionGatePassInput }>,
       reply,
     ) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const paramsResult = validate(GatePassParamsSchema, request.params);
       const bodyResult = validate(TransitionGatePassSchema, request.body);
       if (!paramsResult.success || !bodyResult.success) {
@@ -350,6 +351,7 @@ export async function registerHostelOpsRoutes(
     reply: FastifyReply,
     status: TransitionGatePassInput['status'],
   ) {
+    if (!requireHostelAction(request, reply, 'ops.write')) return;
     const paramsResult = validate(GatePassParamsSchema, request.params);
     if (!paramsResult.success) {
       return reply.status(400).send({
