@@ -59,6 +59,7 @@ export_migration_timeout_pgoptions() {
 }
 
 emit_migration_timeout_banner() {
-  local prefix="${1:===> W1-DATA-17}"
+  # Use :- (not :=): positional $1 cannot be assigned via ${1:=…}.
+  local prefix="${1:-===> W1-DATA-17}"
   echo "${prefix} timeouts: lock_timeout=${APPLY_SQL_LOCK_TIMEOUT} statement_timeout=${APPLY_SQL_STATEMENT_TIMEOUT}"
 }

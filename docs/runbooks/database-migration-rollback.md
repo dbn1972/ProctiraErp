@@ -67,6 +67,13 @@ reset` and never hand-editing `_prisma_migrations`.**
    `ACCESS EXCLUSIVE`. Override with `MIGRATION_LOCK_TIMEOUT` /
    `MIGRATION_STATEMENT_TIMEOUT` when a rehearsed window needs longer
    `VALIDATE` / `CONCURRENTLY` runtime — never clear `lock_timeout` in prod.
+   **Resume:** re-run the Job / script after blockers end; the failed file is
+   not in `schema_migrations`. Prove with
+   `node tools/scripts/migration-lock-recovery-drill.mjs`.
+   **New DDL:** post-baseline files must pass the expand/contract hazard gate
+   or carry a maintenance-window entry in
+   `tools/scripts/migration-ddl-hazard-waiver.json`
+   (`docs/audits/DATA_W1_DATA_17_COMPLETE.md`).
 
 ---
 

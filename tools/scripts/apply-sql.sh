@@ -92,6 +92,8 @@ W1-DATA-10 bootstrap:
 
 W1-DATA-17 timeouts:
   Every psql session SETs lock_timeout + statement_timeout before DDL.
+  On lock_timeout / lock_not_available, re-run this script after blockers
+  release — the failed file is not ledger-recorded (per-file transaction).
 EOF
 }
 
@@ -259,8 +261,9 @@ for f in "${SQL_FILES[@]}"; do
   fi
 
   # status: missing | null | <hex>
+  # -q suppresses SET tags from the W1-DATA-17 timeout preamble on stdout.
   status="$(
-    psql_q -At -v name="$name" <<'SQL'
+    psql_q -Atq -v name="$name" <<'SQL'
 SELECT CASE
   WHEN NOT EXISTS (
     SELECT 1 FROM schema_migrations WHERE filename = :'name'
@@ -274,6 +277,8 @@ SELECT CASE
 END;
 SQL
   )"
+  # Tolerate incidental whitespace from psql wrappers.
+  status="$(printf '%s' "$status" | tr -d '\r' | awk 'NF{p=$0} END{print p}')"
 
   if [[ "$status" == "$sum" ]]; then
     echo "==> Skip $rel (ledger checksum match)"
@@ -318,13 +323,21 @@ SQL
   # Same psql session: \i the file then record checksum so --single-transaction
   # commits both or neither (when use_tx=1).
   sql_path_escaped="${f//\'/\'\'}"
-  psql_q "${TX_ARGS[@]}" -v name="$name" -v sum="$sum" <<SQL
+  if ! psql_q "${TX_ARGS[@]}" -v name="$name" -v sum="$sum" <<SQL
 \i '${sql_path_escaped}'
 INSERT INTO schema_migrations (filename, checksum)
 VALUES (:'name', :'sum')
 ON CONFLICT (filename) DO UPDATE
 SET checksum = EXCLUDED.checksum, applied_at = NOW();
 SQL
+  then
+    echo "error: W1-DATA-17 apply failed for $rel" >&2
+    echo "  If psql reported lock_not_available / canceling statement due to lock_timeout:" >&2
+    echo "  wait for the blocking session to end (or schedule a maintenance window), then" >&2
+    echo "  re-run this script. Ledger-safe resume: $name was not recorded in schema_migrations." >&2
+    echo "  Drill: node tools/scripts/migration-lock-recovery-drill.mjs" >&2
+    exit 1
+  fi
 
   APPLIED=$((APPLIED + 1))
 done
