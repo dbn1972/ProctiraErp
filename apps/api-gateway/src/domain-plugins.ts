@@ -90,8 +90,9 @@ import {
 } from '@proctira/backend-fees';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import {
-  assertPhiKeyConfigured,
+  assertPhiEnvelopeConfigured,
   createHealthRepository,
+  ensurePhiEnvelopeProvider,
   healthPlugin,
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
@@ -609,8 +610,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Postgres counselling + PHI + special-needs + nurse incidents when
       // DATABASE_URL is set (raw pg — SQL 002 + 012 + 017 + 046); else memory.
       // UI aggregates merge seed + live counselling writes for list sync.
-      // G-711: production must not boot without a PHI key (or explicit opt-out).
-      assertPhiKeyConfigured();
+      // W1-SEC-04 / G-711: production requires KMS envelope (or explicit stub/opt-out).
+      assertPhiEnvelopeConfigured();
+      await ensurePhiEnvelopeProvider();
       const repository = createHealthRepository();
       await scope.register(healthUiPlugin, {
         // G-705: production serves only live repository rows; the demo seed is

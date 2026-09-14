@@ -7,15 +7,23 @@ import {
   decryptPhi,
   encryptPhi,
   isPhiCiphertext,
+  resetPhiEnvelopeProviderForTests,
   type PhiCryptoScope,
 } from './phi-crypto.js';
 
 describe('W1-SEC-04 (D7) institution-scoped PHI crypto', () => {
   const previousKey = process.env.PHI_ENCRYPTION_KEY;
+  const previousProvider = process.env.PHI_ENVELOPE_PROVIDER;
+  const previousKms = process.env.PHI_KMS_KEY_ID;
 
   afterEach(() => {
+    resetPhiEnvelopeProviderForTests();
     if (previousKey === undefined) delete process.env.PHI_ENCRYPTION_KEY;
     else process.env.PHI_ENCRYPTION_KEY = previousKey;
+    if (previousProvider === undefined) delete process.env.PHI_ENVELOPE_PROVIDER;
+    else process.env.PHI_ENVELOPE_PROVIDER = previousProvider;
+    if (previousKms === undefined) delete process.env.PHI_KMS_KEY_ID;
+    else process.env.PHI_KMS_KEY_ID = previousKms;
   });
 
   const scopeA: PhiCryptoScope = {
@@ -29,6 +37,8 @@ describe('W1-SEC-04 (D7) institution-scoped PHI crypto', () => {
 
   it('uses enc:v2 and different ciphertext per institution for the same plaintext', () => {
     process.env.PHI_ENCRYPTION_KEY = 'w1-sec-04-scoped-master-key';
+    delete process.env.PHI_ENVELOPE_PROVIDER;
+    delete process.env.PHI_KMS_KEY_ID;
     const plain = 'same counselling note body';
     const cipherA = encryptPhi(plain, scopeA);
     const cipherB = encryptPhi(plain, scopeB);
@@ -40,13 +50,19 @@ describe('W1-SEC-04 (D7) institution-scoped PHI crypto', () => {
 
   it('decrypts only with the matching institution scope', () => {
     process.env.PHI_ENCRYPTION_KEY = 'w1-sec-04-scoped-master-key';
+    delete process.env.PHI_ENVELOPE_PROVIDER;
+    delete process.env.PHI_KMS_KEY_ID;
     const cipher = encryptPhi('scoped secret', scopeA);
     expect(decryptPhi(cipher, scopeA)).toBe('scoped secret');
-    expect(() => decryptPhi(cipher, scopeB)).toThrow(/Invalid enc:v2 PHI ciphertext|authentication tag/i);
+    expect(() => decryptPhi(cipher, scopeB)).toThrow(
+      /Invalid enc:v2 PHI ciphertext|authentication tag/i,
+    );
   });
 
   it('still decrypts legacy enc:v1 ciphertext without scope', () => {
     process.env.PHI_ENCRYPTION_KEY = 'legacy-global-key-for-v1-test';
+    delete process.env.PHI_ENVELOPE_PROVIDER;
+    delete process.env.PHI_KMS_KEY_ID;
     const legacy = encryptPhi('legacy row');
     expect(legacy).toMatch(/^enc:v1:/);
     expect(decryptPhi(legacy)).toBe('legacy row');
