@@ -114,9 +114,9 @@ Remote caching is configured in `turbo.json` with signature verification enabled
 
 The pipeline uses two complementary strategies:
 
-### 1. Turborepo Filter (`--filter='...[HEAD~1]'`)
+### 1. Turborepo Filter (merge-base with PR base / `origin/main`)
 
-Turborepo's built-in filter detects which packages changed since the last commit and includes their dependents. This is used for lint, typecheck, test, and build stages.
+Turborepo's built-in filter detects which packages changed since the **merge-base** with the PR target (`github.event.pull_request.base.sha`) or `origin/main`, and includes their dependents. CI resolves that SHA via `tools/scripts/resolve-turbo-filter-base.mjs` (W1-OPS-22) — not `HEAD~1`, which omitted packages touched only in earlier commits of a multi-commit PR. Used for typecheck, unit test, build, and integration `test:e2e` stages.
 
 ### 2. Path-based Detection (`dorny/paths-filter`)
 
@@ -194,12 +194,13 @@ GitHub Environments are used for deployment protection:
 To test the CI pipeline locally:
 
 ```bash
-# Run the same commands CI uses
-pnpm turbo run lint --filter='...[main]'
-pnpm turbo run typecheck --filter='...[main]'
-pnpm turbo run test --filter='...[main]'
-pnpm turbo run build --filter='...[main]'
+# Run the same commands CI uses (merge-base with main, not HEAD~1)
+BASE=$(node tools/scripts/resolve-turbo-filter-base.mjs --fallback origin/main)
+pnpm turbo run typecheck --filter="...[${BASE}]"
+pnpm turbo run test --filter="...[${BASE}]"
+pnpm turbo run build --filter="...[${BASE}]"
 ```
+
 
 To enable remote caching locally:
 
