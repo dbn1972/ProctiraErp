@@ -22,7 +22,10 @@ import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
 import type { RegistrationRepository } from './registration-repository.js';
 import { RegistrationService } from './registration-service.js';
-import { registerRegistrationRoutes } from './routes.js';
+import {
+  registerRegistrationRoutes,
+  type RegistrationSessionStore,
+} from './routes.js';
 
 /**
  * Options for the registration plugin.
@@ -30,6 +33,11 @@ import { registerRegistrationRoutes } from './routes.js';
 export interface RegistrationPluginOptions {
   /** Registration repository implementation */
   repository: RegistrationRepository;
+  /**
+   * W1-SEC-05: shared registration session store (required in production).
+   * Inject Redis/DB-backed implementation for multi-replica TTL sessions.
+   */
+  sessionStore?: RegistrationSessionStore;
   /** Waitlist / interview CRM store (G-717). Defaults to in-memory. */
   crmStore?: AdmissionsCrmStore;
   /**
@@ -72,6 +80,7 @@ export const registrationPlugin = fp(
   ) {
     const {
       repository,
+      sessionStore,
       crmStore,
       pipelineStore,
       enrolOnAccept,
@@ -94,6 +103,7 @@ export const registrationPlugin = fp(
       registrationService,
       prefix,
       defaultTenantId,
+      sessionStore,
     });
 
     const pipelineService = new AdmissionsPipelineService(

@@ -106,5 +106,15 @@ export type {
 } from './schemas.js';
 
 // Routes
-export { registerRegistrationRoutes, InMemorySessionStore } from './routes.js';
-export type { RegistrationRoutesOptions, SessionStore } from './routes.js';
+export {
+  registerRegistrationRoutes,
+  InMemorySessionStore,
+  mintRegistrationSessionId,
+  hashClientBinding,
+} from './routes.js';
+export type {
+  RegistrationRoutesOptions,
+  RegistrationSessionStore,
+  RegistrationSessionRecord,
+  SessionStore,
+} from './routes.js';
