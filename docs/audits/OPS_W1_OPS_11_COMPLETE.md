@@ -1,7 +1,7 @@
 # OPS — W1-OPS-11 COMPLETE (SAST / secrets / IaC / container CVE gates)
 
 **Module / slice:** Repo security-scan CI pack (PARTIAL → COMPLETE)  
-**Branch / tip:** `cursor/w1-ops-11-scans-complete-56c3` · tip SHA recorded after push (branch HEAD)  
+**Branch / tip:** `cursor/w1-ops-11-scans-complete-56c3` @ `889743c520469638b91f52807745a0ac10a2e363` (implementation) · docs tip follows branch HEAD  
 **Date (UTC):** 2026-09-14  
 **Prior:** `#179` added standalone `.github/workflows/security-scans.yml` (PARTIAL — not in CI Aggregate)
 
