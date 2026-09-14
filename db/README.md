@@ -25,7 +25,7 @@ auth session models (`RefreshToken` / `UserSession`) to exist in
    Fails when any Prisma `@@map` table has no `CREATE TABLE` in migrations or
    `db/sql/`, or when critical auth session columns are missing from `db/sql/`.
 
-## Runtime vs migrator roles (W1-DATA-01)
+## Runtime vs migrator roles (W1-DATA-01 / W1-DATA-10)
 
 PostgreSQL table owners bypass RLS unless `FORCE ROW LEVEL SECURITY` is set.
 Application runtimes must therefore connect as **`proctira_app`** (non-owner,
@@ -33,7 +33,22 @@ Application runtimes must therefore connect as **`proctira_app`** (non-owner,
 use the table-owning migrator role via `MIGRATOR_DATABASE_URL` (falls back to
 `DATABASE_URL` for backwards compatibility).
 
-See `db/sql/050_app_runtime_role.sql` and `db/docker-init/01_app_runtime_role.sql`.
+**Fresh install role bootstrap (W1-DATA-10):** do not hand-write `CREATE ROLE`.
+Use the documented, idempotent path:
+
+```bash
+export BOOTSTRAP_DATABASE_URL=postgresql://postgres:SECRET@host:5432/postgres
+export MIGRATOR_PASSWORD=…
+export APP_ROLE_PASSWORD=…
+export BOOTSTRAP_DB_NAME=proctira
+bash tools/scripts/bootstrap-db-roles.sh
+```
+
+`apply-sql.sh` and `setup-live-db-and-onboard.sh` invoke the same wrapper when
+`BOOTSTRAP_DATABASE_URL` is set. Local compose mounts
+`db/bootstrap/01_runtime_roles.sql` into `docker-entrypoint-initdb.d`.
+DML grants after schema exists remain in `db/sql/050_app_runtime_role.sql`.
+See `db/bootstrap/README.md`.
 
 ## Strict tenant foreign keys (W1-DATA-06)
 

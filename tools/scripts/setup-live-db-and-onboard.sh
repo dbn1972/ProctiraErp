@@ -10,8 +10,20 @@ mkdir -p "$ARTIFACT_DIR"
 export ARTIFACT_DIR
 export DATABASE_URL="$DB_URL"
 
+# W1-DATA-10: ensure migrator + runtime roles exist before apply (idempotent).
+# Operators only need a superuser URL once; subsequent runs are no-ops.
+if [[ -n "${BOOTSTRAP_DATABASE_URL:-}" ]]; then
+  echo "==> W1-DATA-10: bootstrapping DB roles via BOOTSTRAP_DATABASE_URL"
+  bash "$ROOT/tools/scripts/bootstrap-db-roles.sh" \
+    | tee "$ARTIFACT_DIR/role-bootstrap.log"
+else
+  echo "==> W1-DATA-10: BOOTSTRAP_DATABASE_URL unset — assuming roles already exist"
+  echo "    (set BOOTSTRAP_DATABASE_URL for first-boot role creation; see db/bootstrap/README.md)"
+fi
+
 echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh, APPLY_STRICT_FKS=1)"
 # W1-DATA-06: certification onboard uses production tenant FK + VALIDATE posture.
+# Pass through BOOTSTRAP_DATABASE_URL so apply-sql.sh can re-run bootstrap safely.
 DATABASE_URL="$DB_URL" APPLY_STRICT_FKS=1 bash "$ROOT/tools/scripts/apply-sql.sh" \
   | tee "$ARTIFACT_DIR/schema-apply.log"
 

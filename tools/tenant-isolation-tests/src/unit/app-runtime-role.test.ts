@@ -37,10 +37,13 @@ describe('W1-DATA-01 app runtime role split (static)', () => {
     expect(env).toMatch(/DATABASE_URL=postgresql:\/\/proctira_app/);
   });
 
-  it('CI provisions proctira_app and runs suites as that role', () => {
+  it('CI provisions proctira_app via bootstrap-db-roles.sh and runs suites as that role', () => {
     const ci = readFileSync(ciPath, 'utf8');
-    expect(ci).toMatch(/CREATE ROLE proctira_app/);
+    expect(ci).toMatch(/bootstrap-db-roles\.sh/);
+    expect(ci).toMatch(/BOOTSTRAP_DATABASE_URL=/);
     expect(ci).toMatch(/postgresql:\/\/proctira_app:proctira_app_test@/);
+    // Fresh install must not rely on hand-written CREATE ROLE in workflows.
+    expect(ci).not.toMatch(/CREATE ROLE proctira_app/);
   });
 
   it('tenant-isolation CI job runs live integration as proctira_app, not table owner', () => {
@@ -50,7 +53,7 @@ describe('W1-DATA-01 app runtime role split (static)', () => {
     );
     expect(jobMatch, 'tenant-isolation job block missing').toBeTruthy();
     const job = jobMatch![0];
-    expect(job).toMatch(/CREATE ROLE proctira_app/);
+    expect(job).toMatch(/bootstrap-db-roles\.sh/);
     expect(job).toMatch(
       /Run integration isolation tests[\s\S]*?DATABASE_URL:\s*postgresql:\/\/proctira_app:proctira_app_test@/,
     );

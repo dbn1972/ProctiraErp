@@ -18,6 +18,7 @@ script is a single `.mjs` file with no compile step so it runs without
 | (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                                           |
 | (internal)                 | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules.                                                         |
 | (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05: ledger-safe resume + checksum fail-closed. |
+| (CI / local)               | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                        |
 | `pnpm check:prisma-sql-drift` | `check-prisma-sql-drift.mjs`      | W1-DATA-04: fail when Prisma models and `db/sql` drift (auth session columns + missing CREATE TABLE).   |
 | `pnpm check:strict-tenant-fks` | `check-strict-tenant-fks.mjs`    | W1-DATA-06: fail when CI skips `APPLY_STRICT_FKS` without justification, or VALIDATE migration missing. |
 | (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset.                  |
