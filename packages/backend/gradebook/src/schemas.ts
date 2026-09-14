@@ -34,6 +34,8 @@ export type CreateReportCardJobInput = Static<typeof CreateReportCardJobSchema>;
 
 export const IssueTranscriptSchema = Type.Object({
   studentId: Type.String({ minLength: 1 }),
+  /** Institution scope for dedicated transcript signing keys (W1-DATA-08). */
+  institutionId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
   gpaSnapshotId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
   metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });

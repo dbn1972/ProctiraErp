@@ -96,7 +96,12 @@ so runtime cannot mutate rows or disable guards even if connected with broad DML
 `069_audit_archive_transcript_authenticity.sql` extends the same posture to
 `audit_log_archive` (permanent append-only + REVOKE) and requires
 `checksum_sha256` + `signature_hmac` on ISSUED `transcript_issuances` inserts.
-See `docs/audits/DATA_W1_DATA_08_IMMUTABILITY.md`.
+
+`076_transcript_authenticity_complete.sql` closes the residual: migrator
+backfill of every ISSUED row, `VALIDATE CONSTRAINT` on the authenticity CHECK,
+and `transcript_signing_keys` (rotated KMS/PKI refs). App signing uses
+`TRANSCRIPT_SIGNING_SECRET` + `TRANSCRIPT_SIGNING_KMS_KEY_REF` only — never
+`JWT_SECRET` / board-export secrets. See `docs/audits/DATA_W1_DATA_08_COMPLETE.md`.
 
 ## Migration session timeouts (W1-DATA-17)
 
