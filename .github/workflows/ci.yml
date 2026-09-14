@@ -64,6 +64,10 @@ jobs:
               - 'packages/shared/**'
               - 'apps/api-gateway/**'
               - 'apps/etl-worker/**'
+              - 'db/**'
+              - 'tools/tenant-isolation-tests/**'
+              - 'tools/scripts/apply-sql.sh'
+              - 'tools/scripts/ci-aggregate-gate.mjs'
             frontend:
               - 'packages/ui/**'
               - 'apps/web/**'
@@ -75,6 +79,9 @@ jobs:
               - 'pnpm-lock.yaml'
               - '.github/workflows/**'
               - '.eslintrc*'
+              - 'db/**'
+              - 'tools/**'
+              - 'docs/**'
 
   # ---------------------------------------------------------------------------
   # Lint - ESLint + Prettier check
