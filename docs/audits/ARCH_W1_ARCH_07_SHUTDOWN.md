@@ -4,7 +4,7 @@
 bounded resource closure. Medium, disposition **partial**.
 
 **Branch:** `cursor/aud-w1-arch-07-shutdown-56c3`  
-**Tip:** `1b88d6ae7f2b49da62a2f5738f9caad541428ae9`
+**Tip:** `05e45752f763e14394623e17d08934f9cf26f42f`
 **Date (UTC):** 2026-09-14  
 **Paired tests:** `graceful-shutdown.test.ts`, `close-database-resources.test.ts`,
 `pipeline-scheduler.test.ts` (stopAndDrain), `server.shutdown.test.ts` (etl-worker)
