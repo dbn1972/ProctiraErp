@@ -13,6 +13,8 @@ describe('W1-SEC-06 privacy legal hold SQL (static)', () => {
     expect(sql).toMatch(/privacy_legal_holds/);
     expect(sql).toMatch(/privacy_erasure_requests/);
     expect(sql).toMatch(/blocked_legal_hold/);
+    expect(sql).toMatch(/privacy_block_student_delete_on_legal_hold/);
+    expect(sql).toMatch(/FORCE ROW LEVEL SECURITY/);
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
     expect(sql).not.toMatch(/DROP COLUMN/i);
   });

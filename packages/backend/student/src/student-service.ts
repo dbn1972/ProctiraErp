@@ -24,12 +24,23 @@ export type ReassignEnrollments = (input: {
 }) => Promise<number>;
 
 /**
+ * W1-SEC-06 — fail-closed gate before soft-delete / merge-retire of a student.
+ * Typically PrivacyService.assertDestructiveDeleteAllowed adapted to this shape.
+ */
+export type AssertDestructiveDeleteAllowed = (input: {
+  tenantId: string;
+  subjectType: 'student';
+  subjectId: string;
+}) => Promise<void>;
+
+/**
  * Service handling student business logic.
  */
 export class StudentService {
   constructor(
     private readonly repository: StudentRepository,
     private readonly reassignEnrollments?: ReassignEnrollments,
+    private readonly assertDestructiveDeleteAllowed?: AssertDestructiveDeleteAllowed,
   ) {}
 
   /**
@@ -193,8 +204,16 @@ export class StudentService {
    * Delete a student (soft delete).
    *
    * @throws NotFoundError if student not found
+   * @throws BusinessRuleError if an active privacy legal hold blocks deletion (W1-SEC-06)
    */
   async delete(tenantId: string, id: string): Promise<void> {
+    if (this.assertDestructiveDeleteAllowed) {
+      await this.assertDestructiveDeleteAllowed({
+        tenantId,
+        subjectType: 'student',
+        subjectId: id,
+      });
+    }
     const deleted = await this.repository.delete(id, tenantId);
     if (!deleted) {
       throw new NotFoundError(`Student with id '${id}' not found`);
@@ -229,6 +248,14 @@ export class StudentService {
     }
     if (duplicate.customData?.['mergedInto']) {
       throw new ConflictError(`Student '${input.duplicateId}' was already merged`);
+    }
+    // Merge soft-deletes the duplicate — legal hold must block that path (W1-SEC-06).
+    if (this.assertDestructiveDeleteAllowed) {
+      await this.assertDestructiveDeleteAllowed({
+        tenantId,
+        subjectType: 'student',
+        subjectId: input.duplicateId,
+      });
     }
 
     const mergeId = uuidv4();

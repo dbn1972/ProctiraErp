@@ -493,6 +493,17 @@ describe('StudentService', () => {
       const otherTenantId = uuid();
       await expect(service.delete(otherTenantId, created.id)).rejects.toThrow(NotFoundError);
     });
+
+    it('W1-SEC-06: refuses soft-delete when privacy legal-hold guard throws', async () => {
+      const created = await service.create(TENANT_ID, validCreateInput());
+      const guarded = new StudentService(repository, undefined, async () => {
+        throw new BusinessRuleError(
+          'Destructive delete blocked by active privacy legal hold (W1-SEC-06)',
+        );
+      });
+      await expect(guarded.delete(TENANT_ID, created.id)).rejects.toThrow(BusinessRuleError);
+      await expect(service.getById(TENANT_ID, created.id)).resolves.toMatchObject({ id: created.id });
+    });
   });
 
   describe('mergeDuplicates (W2-SIS-02)', () => {
@@ -523,6 +534,26 @@ describe('StudentService', () => {
       expect(result.survivor.contacts).toHaveLength(1);
       expect(result.mergeId).toBeDefined();
       await expect(service.getById(TENANT_ID, duplicate.id)).rejects.toThrow(NotFoundError);
+    });
+
+    it('W1-SEC-06: refuses merge when duplicate is under legal-hold guard', async () => {
+      const survivor = await service.create(TENANT_ID, validCreateInput({ firstName: 'Surv' }));
+      const duplicate = await service.create(TENANT_ID, validCreateInput({ firstName: 'Dup' }));
+      const guarded = new StudentService(repository, undefined, async ({ subjectId }) => {
+        if (subjectId === duplicate.id) {
+          throw new BusinessRuleError('Destructive delete blocked (W1-SEC-06)');
+        }
+      });
+      await expect(
+        guarded.mergeDuplicates(TENANT_ID, {
+          survivorId: survivor.id,
+          duplicateId: duplicate.id,
+          reason: 'should block',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.getById(TENANT_ID, duplicate.id)).resolves.toMatchObject({
+        id: duplicate.id,
+      });
     });
 
     it('rejects merging a student into itself', async () => {
