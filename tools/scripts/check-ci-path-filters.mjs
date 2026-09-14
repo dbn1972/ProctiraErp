@@ -192,11 +192,60 @@ export function evaluateJobIfs(yaml) {
   return report;
 }
 
+/**
+ * GitHub Actions job maps require unique sibling keys. Duplicate keys (e.g.
+ * two `runtime-role-gate:` jobs) make the workflow invalid or silently drop a
+ * definition — the W1-OPS-05 regression on main @ 29fcc1be.
+ *
+ * @param {string} yaml
+ * @returns {{ ok: boolean, duplicates: Array<{ key: string, count: number, lines: number[] }> }}
+ */
+export function findDuplicateWorkflowJobKeys(yaml) {
+  /** @type {Map<string, number[]>} */
+  const seen = new Map();
+  let inJobs = false;
+  const lines = yaml.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (/^jobs:\s*$/.test(line)) {
+      inJobs = true;
+      continue;
+    }
+    if (!inJobs) continue;
+    // Next top-level document key ends jobs (rare); stop at non-indented non-empty.
+    if (/^[A-Za-z0-9_-]+:/.test(line) && !/^jobs:/.test(line)) {
+      break;
+    }
+    const match = line.match(/^  ([A-Za-z0-9_-]+):\s*$/);
+    if (match) {
+      const key = match[1];
+      const list = seen.get(key) ?? [];
+      list.push(i + 1);
+      seen.set(key, list);
+    }
+  }
+  /** @type {Array<{ key: string, count: number, lines: number[] }>} */
+  const duplicates = [];
+  for (const [key, keyLines] of seen) {
+    if (keyLines.length > 1) {
+      duplicates.push({ key, count: keyLines.length, lines: keyLines });
+    }
+  }
+  return { ok: duplicates.length === 0, duplicates };
+}
+
 export function checkCiPathFilters(yaml = readFileSync(CI_WORKFLOW, 'utf8')) {
   const buckets = parseDetectChangeFilters(yaml);
   const matrix = evaluatePathFilterMatrix(buckets);
   const jobIfs = evaluateJobIfs(yaml);
-  return { buckets, matrix, jobIfs, ok: matrix.ok && jobIfs.ok };
+  const uniqueJobs = findDuplicateWorkflowJobKeys(yaml);
+  return {
+    buckets,
+    matrix,
+    jobIfs,
+    uniqueJobs,
+    ok: matrix.ok && jobIfs.ok && uniqueJobs.ok,
+  };
 }
 
 function main() {
@@ -221,11 +270,17 @@ function main() {
       console.error(`  - ${id}`);
     }
   }
+  if (!result.uniqueJobs.ok) {
+    console.error('Duplicate workflow job keys (YAML mapping collision):');
+    for (const d of result.uniqueJobs.duplicates) {
+      console.error(`  - ${d.key} ×${d.count} at lines ${d.lines.join(', ')}`);
+    }
+  }
   if (!result.ok) {
     process.exitCode = 1;
     return;
   }
-  console.log('Status: pass — db/sql, tools, docs, infra paths are wired.');
+  console.log('Status: pass — db/sql, tools, docs, infra paths are wired; job keys unique.');
 }
 
 if (import.meta.url === new URL(process.argv[1], 'file:').href) {

@@ -126,6 +126,15 @@ test('ciWorkflowContract requires aggregate wiring', () => {
   assert.ok(ciWorkflowContract('runtime-role-gate:\n  run: true\n').length > 0);
 });
 
+test('ciWorkflowContract rejects duplicate runtime-role-gate job keys (W1-OPS-05)', () => {
+  const dup = `${GOOD_CI}\n  runtime-role-gate:\n    name: duplicate\n`;
+  const issues = ciWorkflowContract(dup);
+  assert.ok(
+    issues.some((i) => /defines runtime-role-gate 2 times/.test(i)),
+    JSON.stringify(issues),
+  );
+});
+
 test('secretDocsContract requires ExternalSecret + Helm proctira_app docs', () => {
   assert.equal(
     secretDocsContract({
