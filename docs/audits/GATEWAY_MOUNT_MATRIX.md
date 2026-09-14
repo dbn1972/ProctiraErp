@@ -3,7 +3,8 @@
 **Date (UTC):** 2026-09-12  
 **Source of truth (runtime):** `apps/api-gateway/src/domain-plugins.ts` → `DOMAIN_REGISTRAR_NAMES`  
 **Source of truth (audit rows):** `apps/api-gateway/src/mount-matrix.ts`  
-**Unit test:** `apps/api-gateway/src/gateway-mount-matrix.test.ts`
+**Unit test:** `apps/api-gateway/src/gateway-mount-matrix.test.ts`  
+**Executable composition (W1-ARCH-06):** `apps/api-gateway/src/arch06-mount-composition.test.ts` — boots the gateway and asserts mounted prefixes + in-process persistence (see `docs/audits/ARCH_W1_ARCH_06_MOUNT.md`).
 
 Documents which `packages/backend/*` plugins are live on the api-gateway under `/api/v1`, how they persist, and whether fine-grained RBAC (`rbacPlugin`) is wired.
 

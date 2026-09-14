@@ -4,9 +4,9 @@
  * Ensures `DOMAIN_REGISTRAR_NAMES` (exported from `domain-plugins.ts`), the
  * curated mounted/unmounted package lists, and `MOUNT_MATRIX` stay aligned.
  *
- * Registrar names are parsed from `domain-plugins.ts` source so this suite
- * does not need to load every backend package (Vitest workspace resolution).
- * The export `DOMAIN_REGISTRAR_NAMES` must still appear in that file.
+ * W1-ARCH-06: registrar names come from the executable
+ * `DOMAIN_REGISTRAR_NAMES` export (not source scraping). Composition and
+ * persistence are proven in `arch06-mount-composition.test.ts`.
  */
 
 import { readFileSync, readdirSync } from 'node:fs';
@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { DOMAIN_REGISTRAR_NAMES } from './domain-plugins.js';
 import {
   EXPECTED_MOUNTED,
   EXPECTED_PARKED,
@@ -28,29 +29,8 @@ import { PATH_RESOURCE_MAP, resourceForApiPath, UNMAPPED_API_RESOURCE } from './
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '../../..');
-const DOMAIN_PLUGINS_SRC = join(HERE, 'domain-plugins.ts');
 const BACKEND_PACKAGES_DIR = join(REPO_ROOT, 'packages/backend');
 const MATRIX_DOC = join(REPO_ROOT, 'docs/audits/GATEWAY_MOUNT_MATRIX.md');
-
-/**
- * Extract `DOMAIN_REGISTRARS` entry `name` values and confirm
- * `DOMAIN_REGISTRAR_NAMES` is exported from domain-plugins.ts.
- */
-function readDomainRegistrarNamesFromSource(): string[] {
-  const source = readFileSync(DOMAIN_PLUGINS_SRC, 'utf8');
-
-  expect(source).toMatch(/export const DOMAIN_REGISTRAR_NAMES/);
-
-  const arrayMatch = source.match(
-    /const DOMAIN_REGISTRARS:\s*DomainRegistrar\[]\s*=\s*\[([\s\S]*?)\];/,
-  );
-  expect(arrayMatch, 'DOMAIN_REGISTRARS array not found in domain-plugins.ts').toBeTruthy();
-
-  const body = arrayMatch![1]!;
-  const names = [...body.matchAll(/\bname:\s*'([^']+)'/g)].map((m) => m[1]!);
-  expect(names.length).toBeGreaterThan(0);
-  return names;
-}
 
 function listBackendPackageDirs(): string[] {
   return readdirSync(BACKEND_PACKAGES_DIR, { withFileTypes: true })
@@ -62,6 +42,8 @@ function listBackendPackageDirs(): string[] {
 /**
  * W1-ARCH-05 — detect packages that export a Fastify plugin via `fp(...)`
  * / `fastify-plugin` in their public entry or `*-plugin.ts` sources.
+ * Static export detection remains intentional (cannot execute unmounted
+ * packages without mounting them); composition is covered by W1-ARCH-06.
  */
 function packagesExportingFastifyPlugin(): string[] {
   const exporting: string[] = [];
@@ -101,7 +83,7 @@ function mountedBackendPackages(): Set<string> {
 }
 
 describe('G-003 gateway mount matrix', () => {
-  const domainRegistrarNames = readDomainRegistrarNamesFromSource();
+  const domainRegistrarNames = [...DOMAIN_REGISTRAR_NAMES];
 
   it('exports DOMAIN_REGISTRAR_NAMES and lists unique registrar names', () => {
     expect(domainRegistrarNames.length).toBeGreaterThan(0);
@@ -226,7 +208,6 @@ describe('G-003 gateway mount matrix', () => {
   it('W1-ARCH-05: PLUGIN_EXPORT_ALLOWLIST equals EXPECTED_UNMOUNTED', () => {
     expect([...PLUGIN_EXPORT_ALLOWLIST].sort()).toEqual([...EXPECTED_UNMOUNTED].sort());
   });
-
 });
 
 describe('G-702 — every mounted prefix has an RBAC resource mapping (default-deny)', () => {
