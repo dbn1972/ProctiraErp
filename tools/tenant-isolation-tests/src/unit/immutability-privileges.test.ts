@@ -128,3 +128,36 @@ describe('W1-DATA-08 residual audit archive + transcript authenticity (069)', ()
     expect(sql).toMatch(/ISSUED rows require signature_hmac/i);
   });
 });
+
+const AUTH_COMPLETE_MIGRATION = '076_transcript_authenticity_complete.sql';
+
+describe('W1-DATA-08 COMPLETE transcript authenticity (076)', () => {
+  it('ships 076 with signing-key registry and KMS/PKI ref (no JWT reuse)', () => {
+    const path = join(sqlDir(), AUTH_COMPLETE_MIGRATION);
+    expect(existsSync(path), `missing db/sql/${AUTH_COMPLETE_MIGRATION}`).toBe(true);
+    const sql = loadSql(AUTH_COMPLETE_MIGRATION);
+    expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS transcript_signing_keys/i);
+    expect(sql).toMatch(/kms_key_ref/i);
+    expect(sql).toMatch(/never JWT\/board-export secrets/i);
+    expect(sql).toMatch(/Must not be JWT_SECRET/i);
+  });
+
+  it('076 backfills ISSUED rows under disabled append-only trigger then re-enables', () => {
+    const sql = loadSql(AUTH_COMPLETE_MIGRATION);
+    expect(sql).toMatch(
+      /DISABLE TRIGGER trg_transcript_issuances_append_only/i,
+    );
+    expect(sql).toMatch(/transcript-legacy:/);
+    expect(sql).toMatch(/w1-data-08-legacy-seal:v1:/);
+    expect(sql).toMatch(
+      /ENABLE TRIGGER trg_transcript_issuances_append_only/i,
+    );
+  });
+
+  it('076 VALIDATEs transcript_issuances_issued_authenticity_chk', () => {
+    const sql = loadSql(AUTH_COMPLETE_MIGRATION);
+    expect(sql).toMatch(
+      /VALIDATE CONSTRAINT transcript_issuances_issued_authenticity_chk/i,
+    );
+  });
+});

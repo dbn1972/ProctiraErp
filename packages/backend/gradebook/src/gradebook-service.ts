@@ -50,7 +50,7 @@ import type {
 } from './schemas.js';
 import {
   createBoardExportDownloadToken,
-  signTranscriptChecksum,
+  signTranscriptChecksumWithMaterial,
   verifyBoardExportDownloadToken,
   type BoardExportSignedDownload,
 } from './signed-download.js';
@@ -766,7 +766,11 @@ export class GradebookService {
     };
     const body = JSON.stringify(payload);
     const checksum = createHash('sha256').update(body).digest('hex');
-    const signature = signTranscriptChecksum(checksum, tenantId);
+    const institutionId = input.institutionId ?? null;
+    const { signature, material } = signTranscriptChecksumWithMaterial(checksum, {
+      tenantId,
+      institutionId,
+    });
     const artifacts = writeTranscriptPdfLite({
       tenantId,
       studentId: input.studentId,
@@ -798,9 +802,15 @@ export class GradebookService {
         pdfLitePath: artifacts.pdfLitePath,
         jsonPath: artifacts.jsonPath,
         artifactKind: 'pdf',
-        signatureAlg: 'HMAC-SHA256',
+        signatureAlg: material.algorithm,
         signature,
         signedAt: now,
+        signingKeyId: material.keyId,
+        kmsKeyRef: material.kmsKeyRef,
+        signatureScope: {
+          tenantId,
+          institutionId: institutionId ?? 'tenant',
+        },
       },
       createdAt: now,
       updatedAt: now,
@@ -811,7 +821,14 @@ export class GradebookService {
       entityType: 'transcript_issuance',
       entityId: row.id,
       actorId: actorId(user),
-      details: { studentId: input.studentId, version: nextVersion, artifactUri, signature },
+      details: {
+        studentId: input.studentId,
+        version: nextVersion,
+        artifactUri,
+        signature,
+        signingKeyId: material.keyId,
+        kmsKeyRef: material.kmsKeyRef,
+      },
     });
     return row;
   }

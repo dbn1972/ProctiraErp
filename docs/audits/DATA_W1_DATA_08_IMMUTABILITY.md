@@ -32,8 +32,8 @@ without first-class checksum/signature material.
 
 | Residual | Status |
 | -------- | ------ |
-| Soft CHECK `transcript_issuances_issued_authenticity_chk` is `NOT VALID` — pre-069 ISSUED rows without `signature_hmac` are not backfilled or force-validated | **Honest residual** |
-| HMAC uses app signing secret (`SIS_BOARD_EXPORT_SIGNING_SECRET` / `JWT_SECRET`), not a PKI / CA-sealed PDF signature | **Honest residual** — app already documents stub HMAC |
+| Soft CHECK `transcript_issuances_issued_authenticity_chk` is `NOT VALID` — pre-069 ISSUED rows without `signature_hmac` are not backfilled or force-validated | **Closed in `076` / `DATA_W1_DATA_08_COMPLETE.md`** |
+| HMAC uses app signing secret (`SIS_BOARD_EXPORT_SIGNING_SECRET` / `JWT_SECRET`), not a PKI / CA-sealed PDF signature | **Closed for transcripts in `076` + dedicated `TRANSCRIPT_SIGNING_*` (CA-sealed PDF remains non-goal)** |
 | Superuser / table-owner can still disable triggers; defense relies on migrator vs `proctira_app` role split (050) | **Accepted** (same as 053) |
 | Active `audit_log_entries` DELETE under `app.audit_archival='1'` remains the only archival move path | **By design** (022) |
 | `grade_change_audit` and other module audit tables not in this slice | **Out of scope** |

@@ -2,6 +2,10 @@ import { createGradebookRepository } from '../src/repository-factory.js';
 import { GradebookService } from '../src/gradebook-service.js';
 
 async function main() {
+  process.env.TRANSCRIPT_SIGNING_SECRET ??=
+    'live-smoke-dedicated-transcript-signing-secret';
+  process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF ??= 'env:TRANSCRIPT_SIGNING_SECRET';
+
   const TENANT = 'f342575b-5360-4937-9a2a-275c8543f1c6';
   const SECTION = '17b2fca3-0af2-429d-a8a4-f27115f762d0';
   const STUDENT = '47aa5dfc-169a-4664-a7a4-951364b0680c';

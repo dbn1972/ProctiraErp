@@ -19,6 +19,8 @@ const SCALE = '55555555-5555-4555-8555-555555555555';
 describe('GradebookService', () => {
   function setup() {
     process.env.SIS_TRANSCRIPT_DIR = mkdtempSync(join(tmpdir(), 'sis-transcripts-'));
+    process.env.TRANSCRIPT_SIGNING_SECRET = 'gradebook-test-transcript-signing-secret';
+    process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF = 'env:TRANSCRIPT_SIGNING_SECRET';
     const repo = new InMemoryGradebookRepository();
     repo.seedSection({
       id: SECTION,
@@ -89,6 +91,8 @@ describe('GradebookService', () => {
     expect(t1.checksumSha256).toHaveLength(64);
     expect(t1.artifactUri).toMatch(/transcript\.pdf$/);
     expect(t1.metadata.artifactKind).toBe('pdf');
+    expect(t1.metadata.signingKeyId).toBeTruthy();
+    expect(t1.metadata.kmsKeyRef).toBe('env:TRANSCRIPT_SIGNING_SECRET');
     expect(t1.metadata.pdfLitePath).toBeTruthy();
     const pdfBytes = readFileSync(t1.artifactUri!);
     expect(pdfBytes.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');

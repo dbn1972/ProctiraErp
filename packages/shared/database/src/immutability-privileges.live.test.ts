@@ -1,9 +1,10 @@
 /**
- * W1-DATA-08 (A3) — runtime role must not mutate or drop immutability guards.
+ * W1-DATA-08 — immutability privileges + transcript authenticity (053/069/076).
  *
  * Before 053/069: archive rows mutable; ISSUED transcripts lacked DB authenticity.
  * After 053+069: UPDATE/DELETE rejected on ledger/audit/archive/transcript;
  * ISSUED inserts require checksum_sha256 + signature_hmac; DROP TRIGGER denied.
+ * After 076: authenticity CHECK VALIDATED; transcript_signing_keys registry present.
  */
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
@@ -189,6 +190,41 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
     } finally {
       client.release();
     }
+  });
+
+  it('W1-DATA-08 COMPLETE: authenticity CHECK is VALID after 076 backfill', async () => {
+    const { rows } = await pool.query<{
+      conname: string;
+      convalidated: boolean;
+    }>(`
+      SELECT c.conname, c.convalidated
+      FROM pg_constraint c
+      JOIN pg_class rel ON rel.oid = c.conrelid
+      JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+      WHERE nsp.nspname = 'public'
+        AND rel.relname = 'transcript_issuances'
+        AND c.conname = 'transcript_issuances_issued_authenticity_chk'
+    `);
+    expect(rows.length).toBe(1);
+    expect(rows[0]!.convalidated).toBe(true);
+  });
+
+  it('W1-DATA-08 COMPLETE: transcript_signing_keys registry exists with kms_key_ref', async () => {
+    const { rows } = await pool.query<{ column_name: string }>(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'transcript_signing_keys'
+        AND column_name IN ('kms_key_ref', 'key_id', 'tenant_id', 'institution_id', 'status')
+      ORDER BY column_name
+    `);
+    expect(rows.map((r) => r.column_name)).toEqual([
+      'institution_id',
+      'key_id',
+      'kms_key_ref',
+      'status',
+      'tenant_id',
+    ]);
   });
 
   it('runtime role cannot UPDATE fee_ledger_entries (existing append-only trigger)', async () => {

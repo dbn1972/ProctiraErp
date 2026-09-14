@@ -75,11 +75,17 @@ export {
   type GradeWorkflowStatus,
 } from './grade-workflow.js';
 export {
+  assertTranscriptSigningConfigured,
   createBoardExportDownloadToken,
+  resolveTranscriptSigningMaterial,
   signTranscriptChecksum,
+  signTranscriptChecksumWithMaterial,
   verifyBoardExportDownloadToken,
   verifyTranscriptSignature,
+  TranscriptSigningKeyMissingError,
   type BoardExportSignedDownload,
+  type TranscriptSigningMaterial,
+  type TranscriptSigningScope,
 } from './signed-download.js';
 export {
   buildTranscriptPdf,
