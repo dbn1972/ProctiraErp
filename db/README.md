@@ -18,12 +18,19 @@ auth session models (`RefreshToken` / `UserSession`) to exist in
 | Prisma migrations | Platform tables that ship under `prisma/migrations/` | Be skipped before `apply-sql.sh` |
 | Numbered `db/sql/` | Domain schemas **and** Prisma-mapped tables that lack a Prisma migration (e.g. `066_auth_session_tables.sql`) | Drift from Prisma `@map` / column names for SQL-backed critical models |
 
+**Every Prisma-mapped table declares exactly one DDL authority** in
+`tools/scripts/prisma-sql-schema-authority.json` (`prisma` | `sql`). Dual
+`CREATE TABLE` is fail-closed unless `mirrorOk: true` (bootstrap IF NOT EXISTS
+copy only).
+
 **Enforce:**
 
 1. Apply order below (Prisma → `apply-sql.sh`) — required in CI and live setup.
 2. Executable gate: `pnpm check:prisma-sql-drift` (`tools/scripts/check-prisma-sql-drift.mjs`).
-   Fails when any Prisma `@@map` table has no `CREATE TABLE` in migrations or
-   `db/sql/`, or when critical auth session columns are missing from `db/sql/`.
+   Fail-closed catalog parity for every Prisma model: columns, types,
+   nullability, defaults, PK / UNIQUE / CHECK / FK / INDEX, plus authority
+   declaration. Critical auth session tables must remain `authority: sql`.
+   Additive fix for known residuals: `db/sql/081_prisma_sql_catalog_parity.sql`.
 
 ## Runtime vs migrator roles (W1-DATA-01 / W1-DATA-10)
 
