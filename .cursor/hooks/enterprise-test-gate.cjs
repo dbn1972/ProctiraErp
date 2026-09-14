@@ -200,6 +200,7 @@ function skillContext(extra) {
     'Pillars required before claiming done: Functionality, E2E (live when possible), UX/a11y, Multidevice captures, Security/tenant/RBAC, CI gates, Evidence pack.',
     'Do not equate route-smoke or skipped Playwright with enterprise production-ready.',
     'Do not claim product 10/10 without development skill exit criteria + test skill evidence.',
+    'FALSE CLAIMS CANNOT BE ENTERTAINED: no COMPLETE / Wave-N-all-closed / N/N done from *_COMPLETE.md or stale ledgers; tip Done-when + dispositions FULLY_CLOSED|PARTIAL|OPEN|REGRESSED|EXTERNALLY_UNVERIFIED only; third-party tip re-audit outranks self-score.',
     extra || '',
   ]
     .filter(Boolean)
@@ -257,7 +258,7 @@ async function beforeSubmitPrompt(input) {
   }
   if (isTest) {
     messages.push(
-      `Enterprise test hooks armed. Follow ${SKILL} and ${CHECKLIST_TEMPLATE} before claiming production-ready.`,
+      `Enterprise test hooks armed. Follow ${SKILL} and ${CHECKLIST_TEMPLATE} before claiming production-ready. False claims (COMPLETE / Wave closed without tip Done-when) cannot be entertained.`,
     );
   }
 
@@ -303,8 +304,8 @@ async function stop(input) {
     'Remaining:',
     ...gaps.map((g) => `- ${g}`),
     loopCount >= 3
-      ? 'Either finish remaining pillars with evidence, or document dated waivers in the audit markdown and set status to "complete" with a waiver note in the session JSON. Do not claim world-class production-ready until then.'
-      : 'Continue testing now; update the audit checklist and session pillars as you finish each pillar.',
+      ? 'Either finish remaining pillars with evidence, or document dated waivers in the audit markdown and set status to "complete" with a waiver note in the session JSON. Do not claim world-class production-ready until then. False COMPLETE / Wave-closed claims cannot be entertained.'
+      : 'Continue testing now; update the audit checklist and session pillars as you finish each pillar. Do not mark FULLY_CLOSED without tip evidence.',
   ].join('\n');
 
   out({ followup_message: body });

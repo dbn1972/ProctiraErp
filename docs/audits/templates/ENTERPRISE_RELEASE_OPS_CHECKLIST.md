@@ -41,4 +41,6 @@ Copy → `docs/audits/RELEASE_<SLICE>.md`.
 
 **Ship claim:** ☐ Ready · ☐ Ready w/ waivers · ☐ Not ready
 
+**False-claim ban:** ☐ Tip SHA + Done-when cited — no Wave‑N / N/N COMPLETE claim from docs-only or stale ledger
+
 **Waivers:**

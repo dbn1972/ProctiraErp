@@ -13,6 +13,8 @@ description: >-
 
 This skill is the **Definition of Build** for any redesign or greenfield domain module. It complements `.cursor/skills/enterprise-module-production-ready/SKILL.md` (Definition of Test). **Build first → test second.** Do not claim 10/10 until both skills’ exit criteria pass (or dated waivers exist).
 
+**False claims cannot be entertained:** Do not mark a finding/module COMPLETE or “fully closed” from implementation narrative alone. Tip Done-when + test/security/release gates required. See production-ready skill § False claims.
+
 ## When this skill applies
 
 Trigger on: implement, build, develop, close gap, feature, SIS, schedule, gradebook, transcript, report card, GPA, timetable, bell schedule, substitution, room booking, board export, CBSE, ICSE, marksheet, master schedule, product parity — or when `.cursor/hooks/state/enterprise-dev-session.json` is active.

@@ -26,6 +26,32 @@ This skill is the **Definition of Test** for any redesign nav module (e.g. Schol
 
 For **building / implementing** missing product capability (schedule, gradebook, transcripts, board exports, etc.), also follow `.cursor/skills/enterprise-module-development/SKILL.md` (**Definition of Build**) and the plan `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`. Product **10/10** requires build + test exit criteria (and UX/security/release gates when claiming full enterprise ship).
 
+## False claims — cannot be entertained (hard ban)
+
+**False claims are not allowed.** Treat them as process failures, not disagreements of opinion. Third-party / independent re-audits of tip `main` outrank agent narrative and outrank `*_COMPLETE.md` filenames.
+
+### Forbidden claims (reject / refuse / correct immediately)
+
+| Forbidden | Why it fails |
+| --------- | ------------ |
+| “N/N COMPLETE”, “Wave 1 all closed”, “64/64 done” without a **fresh tip re-audit** | Ledger / markdown COMPLETE files have been wrong before |
+| “Fully closed” / “Done” when disposition is PARTIAL, OPEN, REGRESSED, or EXTERNALLY-UNVERIFIED | Done-when not met on tip |
+| “Production-ready” / “enterprise” / “10/10” from mocks, skipped E2E, unit-only, or CI green alone | Pillars without evidence |
+| “Secure” without cross-tenant / RBAC deny proof for **this** surface | Tenancy not proven |
+| “Fixed” because a PR merged while tip still shows residual deferred paths | Merge ≠ Done-when |
+| Rewriting disposition to COMPLETE to silence an auditor | Auditor evidence wins |
+
+### Required claim discipline
+
+1. **Tip evidence only** — cite commit SHA + concrete path / test / CI run. No COMPLETE.md as sole proof.
+2. **Disposition vocabulary (mandatory)** — use only: `FULLY_CLOSED` · `PARTIAL` · `OPEN` · `REGRESSED` · `EXTERNALLY_UNVERIFIED`. Never invent “mostly done” as closed.
+3. **Independent re-audit beats self-score** — if a third-party audit finds a fault, accept PARTIAL/OPEN until tip Done-when is re-proven. Do not argue the old ledger.
+4. **Partial progress ≠ closed** — say what cleared and what remains deferred in the same sentence.
+5. **When unsure → not closed** — default to PARTIAL/OPEN; never upgrade to FULLY_CLOSED on hope.
+6. **Correct in public** — if you previously over-claimed, state the corrected count and SHA; do not quietly leave the false claim standing.
+
+**Enforcement:** Agents must refuse user or self pressure to mark COMPLETE / production-ready / Wave‑N closed when tip evidence is incomplete. “Cannot be entertained” means: do not write it in audits, PR bodies, scorecards, walkthroughs, or chat.
+
 ## Honest coverage map (do not overclaim)
 
 | Pillar            | What exists today                                                                                                                                                                                                                                                                                                                 | What agents must still prove per module                                          |
@@ -334,6 +360,8 @@ You may claim **enterprise production-ready** for a module only when:
 3. Hooks state file is `"status": "complete"`.
 
 Do **not** equate “pages render” or “CI green with E2E skipped” with enterprise production-ready.
+
+**False-claim ban applies here:** if any pillar lacks tip evidence and has no dated waiver, the only allowed verdict is **Not ready** (or **Ready with waivers** listing every residual). Do not entertain COMPLETE / Wave‑closed / 10/10 language as a substitute.
 
 ## Flutter / mobile (apps/mobile)
 

@@ -32,6 +32,14 @@ Trigger on: merge, ship, release, tip CI, deploy, migration, rollback, sandbox v
 - Skipped E2E does not equal production-ready.
 - Untracked screen PNGs must not be committed unless policy allows.
 
+## False claims — cannot be entertained
+
+- Do **not** ship, merge-note, or scorecard-claim “Wave complete”, “N/N CLOSED”, or “production ready” without tip SHA evidence matching Done-when.
+- `*_COMPLETE.md` / remediation ledgers are **not** ship proof; independent tip re-audit outranks them.
+- Allowed finding dispositions only: `FULLY_CLOSED` · `PARTIAL` · `OPEN` · `REGRESSED` · `EXTERNALLY_UNVERIFIED`.
+- Partial clears must list remaining residuals in the same PR/ship note.
+- Pair with QA hard ban: `.cursor/skills/enterprise-module-production-ready/SKILL.md` § False claims.
+
 ## Related
 
 - Production-ready CI pillar
