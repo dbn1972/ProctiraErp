@@ -1,7 +1,7 @@
 # ARCH — W1-ARCH-01 COMPLETE (developer-portal durable persistence)
 
 **Module / slice:** `@proctira/backend-developer-portal` + gateway mount  
-**Branch / tip:** `cursor/w1-arch-01-persist-complete-56c3` @ `PENDING`  
+**Branch / tip:** `cursor/w1-arch-01-persist-complete-56c3` @ `add43409be865b99007d75e7414c26d508ec27dc`  
 **Date (UTC):** 2026-09-14  
 **Prior status:** PARTIAL (`#111` / `055` — API keys only; hybrid left accounts/webhooks/deliveries in process memory)  
 **Paired finding:** Developer portal persists important state in memory, bypassing fail-closed persistence
