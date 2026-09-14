@@ -1,7 +1,7 @@
 # DATA — W1-DATA-15 cross-domain UUID foreign keys
 
 **Module / slice:** Student / enrollment / fee / grade referential integrity  
-**Branch / tip:** `cursor/aud-w1-data-15-dangling-fks-56c3` @ `d007077debf477332d635854dc349672787d2687`
+**Branch / tip:** `cursor/aud-w1-data-15-dangling-fks-56c3`
 **Date (UTC):** 2026-09-14  
 **Environment:** local Postgres (`apply-sql.sh`) + static SQL review
 
