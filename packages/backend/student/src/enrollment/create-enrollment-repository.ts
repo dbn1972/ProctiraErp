@@ -4,16 +4,11 @@
  *   - `DATABASE_URL` set → {@link PgEnrollmentRepository} (raw pg + RLS)
  *   - otherwise          → {@link InMemoryEnrollmentRepository} (dev / tests)
  */
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
-import pg from 'pg';
+import { assertInMemoryFallbackAllowed, getSharedPgPool } from '@proctira/database';
 
 import type { EnrollmentRepository } from './enrollment-repository.js';
 import { InMemoryEnrollmentRepository } from './in-memory-enrollment-repository.js';
 import { PgEnrollmentRepository } from './pg-enrollment-repository.js';
-
-const { Pool } = pg;
-
-let sharedPool: pg.Pool | null = null;
 
 export interface EnrollmentRepositoryConfig {
   databaseUrl?: string;
@@ -27,8 +22,10 @@ export function createEnrollmentRepository(
     assertInMemoryFallbackAllowed('student.enrollment');
     return new InMemoryEnrollmentRepository();
   }
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: databaseUrl });
+  const pool = getSharedPgPool(databaseUrl);
+  if (!pool) {
+    assertInMemoryFallbackAllowed('student.enrollment');
+    return new InMemoryEnrollmentRepository();
   }
-  return new PgEnrollmentRepository(sharedPool);
+  return new PgEnrollmentRepository(pool);
 }

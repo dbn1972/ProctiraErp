@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
@@ -27,29 +27,16 @@ import type {
   RecipientQuery,
 } from './schemas.js';
 
-const { Pool } = pg;
-
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
-function resolveDatabaseUrl(): string | null {
-  const url = process.env.DATABASE_URL?.trim();
-  return url && url.length > 0 ? url : null;
-}
-
 export function isPgNotificationEnabled(): boolean {
-  return resolveDatabaseUrl() !== null;
+  return Boolean(process.env.DATABASE_URL?.trim());
 }
 
 export function getSharedNotificationPool(): pg.Pool | null {
-  const url = resolveDatabaseUrl();
-  if (!url) return null;
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: url });
-  }
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 function schemaSqlPath(): string {

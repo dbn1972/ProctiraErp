@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type {
@@ -37,25 +37,12 @@ import type {
   VehicleStatus,
 } from './transport-repository.js';
 
-const { Pool } = pg;
-
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
-function resolveDatabaseUrl(): string | null {
-  const url = process.env.DATABASE_URL?.trim();
-  return url && url.length > 0 ? url : null;
-}
-
 export function getSharedTransportPool(): pg.Pool | null {
-  const url = resolveDatabaseUrl();
-  if (!url) return null;
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: url });
-  }
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 function resolveSqlFile(name: string): string {

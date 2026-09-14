@@ -3,7 +3,7 @@
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql (+ 004 indexes).
  */
 import { ValidationError } from '@proctira/common';
-import { withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type { GradeBand } from './gpa-engine.js';
@@ -27,28 +27,14 @@ import type {
   TranscriptIssuanceEntity,
 } from './gradebook-repository.js';
 
-const { Pool } = pg;
-
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let sharedPool: pg.Pool | null = null;
-
-function resolveDatabaseUrl(): string | null {
-  const url = process.env.DATABASE_URL?.trim();
-  return url && url.length > 0 ? url : null;
-}
-
 export function isPgGradebookEnabled(): boolean {
-  return resolveDatabaseUrl() !== null;
+  return Boolean(process.env.DATABASE_URL?.trim());
 }
 
 export function getSharedGradebookPool(): pg.Pool | null {
-  const url = resolveDatabaseUrl();
-  if (!url) return null;
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: url });
-  }
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 /** Schema is applied via psql (003/004). Do not re-run from node-pg. */

@@ -2,18 +2,11 @@
  * Optional live audience counts from hostel / transport tables (raw pg).
  * Falls back to null when DATABASE_URL is unset or queries fail.
  */
-import { withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
-
-const { Pool } = pg;
-
-let pool: pg.Pool | null = null;
+import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import type pg from 'pg';
 
 function getPool(): pg.Pool | null {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) return null;
-  if (!pool) pool = new Pool({ connectionString: url });
-  return pool;
+  return getSharedPgPool();
 }
 
 export interface LiveAudienceCounts {
