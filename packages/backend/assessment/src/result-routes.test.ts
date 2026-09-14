@@ -55,6 +55,14 @@ describe('Assessment Result Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
     });
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+        sub: 'test-user',
+        roles: ['teacher'],
+      };
+    });
+
 
     await registerAssessmentRoutes(app, { assessmentService });
     await registerResultRoutes(app, { resultService });

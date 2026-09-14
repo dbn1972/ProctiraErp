@@ -74,6 +74,14 @@ describe('Report Card Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
     });
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+        sub: 'test-user',
+        roles: ['teacher'],
+      };
+    });
+
 
     await registerReportCardRoutes(app, { reportCardService });
     await app.ready();

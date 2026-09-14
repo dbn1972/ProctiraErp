@@ -43,6 +43,8 @@ import {
   type OutcomeParams,
 } from './schemas.js';
 
+import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
+
 /**
  * Options for registering assessment routes.
  */
@@ -153,7 +155,14 @@ export async function registerAssessmentRoutes(
   fastify: FastifyInstance,
   options: AssessmentRoutesOptions,
 ): Promise<void> {
-  const {
+  
+  // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAssessmentRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+const {
     assessmentService,
     gradingSchemesPrefix = '/grading-schemes',
     assessmentItemsPrefix = '/assessment-items',

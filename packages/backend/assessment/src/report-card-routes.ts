@@ -42,6 +42,7 @@ import {
   type ReportCardJobParams,
 } from './report-card-schemas.js';
 import type { ReportCardService } from './report-card-service.js';
+import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
 
 /**
  * Options for registering report card routes.
@@ -151,7 +152,14 @@ export async function registerReportCardRoutes(
   fastify: FastifyInstance,
   options: ReportCardRoutesOptions,
 ): Promise<void> {
-  const { reportCardService, prefix = '/report-cards' } = options;
+  
+  // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAssessmentRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+const { reportCardService, prefix = '/report-cards' } = options;
 
   // ─── Template Routes ───────────────────────────────────────────────────
 
