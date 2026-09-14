@@ -103,19 +103,40 @@ function createMockFeesPool(): PgPoolLike {
     }
 
     if (/UPDATE parent_fee_invoices/i.test(sql)) {
-      const status = values[0];
-      const amountCents = values[1];
-      const id = values[2];
-      const tenantId = values[3];
-      const idx = invoices.findIndex((row) => row.id === id && row.tenant_id === tenantId);
+      const idx =
+        /amount_cents/i.test(sql)
+          ? invoices.findIndex(
+              (row) => row.id === values[2] && row.tenant_id === values[3],
+            )
+          : invoices.findIndex(
+              (row) => row.id === values[1] && row.tenant_id === values[2],
+            );
       if (idx < 0) return { rows: [] };
       invoices[idx] = {
         ...invoices[idx]!,
-        status: status ?? invoices[idx]!.status,
-        amount_cents: amountCents ?? invoices[idx]!.amount_cents,
+        status: /amount_cents/i.test(sql)
+          ? (values[0] ?? invoices[idx]!.status)
+          : (values[0] ?? invoices[idx]!.status),
+        amount_cents: /amount_cents/i.test(sql)
+          ? (values[1] ?? invoices[idx]!.amount_cents)
+          : invoices[idx]!.amount_cents,
         updated_at: now(),
       };
       return { rows: [invoices[idx]!] };
+    }
+
+    if (/COALESCE\(SUM\(amount_cents\)/i.test(sql)) {
+      const tenantId = values[0];
+      const invoiceId = values[1];
+      const paid = payments
+        .filter(
+          (payment) =>
+            payment.tenant_id === tenantId &&
+            payment.invoice_id === invoiceId &&
+            payment.status === 'succeeded',
+        )
+        .reduce((sum, payment) => sum + Number(payment.amount_cents), 0);
+      return { rows: [{ paid: String(paid) }] };
     }
 
     if (/SELECT \* FROM parent_fee_invoices WHERE id/i.test(sql)) {

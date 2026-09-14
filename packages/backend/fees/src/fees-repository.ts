@@ -253,6 +253,22 @@ export interface FeeReconciliationRowEntity {
   createdAt: Date;
 }
 
+/** Invoice balance read under row lock (W3-RACE-03). */
+export interface InvoicePaymentBalance {
+  invoice: FeeInvoiceEntity;
+  paidCents: number;
+  remainingCents: number;
+}
+
+/** Atomic payment settlement payload produced while the invoice row is locked. */
+export interface RecordPaymentOnInvoiceSettlement {
+  paymentAmountCents: number;
+  payment: Omit<FeePaymentEntity, 'createdAt'>;
+  receipt: Omit<FeeReceiptEntity, 'createdAt'>;
+  ledgerEntries: Omit<FeeLedgerEntryEntity, 'createdAt'>[];
+  invoiceStatus: InvoiceStatus;
+}
+
 export interface FeesRepository {
   /**
    * Post one or more balanced journals atomically. Implementations MUST
@@ -366,6 +382,20 @@ export interface FeesRepository {
       >
     >,
   ): Promise<FeeReconciliationRowEntity | null>;
+
+  /**
+   * Lock the invoice row, read succeeded payment total, run `build`, then persist
+   * payment + receipt + ledger + invoice status in the same transaction (Pg: FOR UPDATE).
+   */
+  recordPaymentOnInvoice(
+    tenantId: string,
+    invoiceId: string,
+    build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+  ): Promise<{
+    invoice: FeeInvoiceEntity;
+    payment: FeePaymentEntity;
+    receipt: FeeReceiptEntity;
+  }>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;

@@ -1,6 +1,8 @@
 /**
  * In-memory fees repository (unit tests / gateway without DATABASE_URL).
  */
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
+
 import {
   assertJournalBalanced,
   type FeeConcessionEntity,
@@ -18,8 +20,10 @@ import {
   type FeeStructureEntity,
   type FeeStructureInstalmentEntity,
   type FeesRepository,
+  type InvoicePaymentBalance,
   type LedgerAccount,
   type LedgerTrialBalance,
+  type RecordPaymentOnInvoiceSettlement,
 } from './fees-repository.js';
 import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
@@ -41,6 +45,23 @@ export class InMemoryFeesRepository implements FeesRepository {
   private reconBatches: FeeReconciliationBatchEntity[] = [];
   private reconRows: FeeReconciliationRowEntity[] = [];
   private classRoster = new Map<string, string[]>();
+  private readonly invoicePaymentChains = new Map<string, Promise<unknown>>();
+
+  private runSerializedOnInvoice<T>(
+    tenantId: string,
+    invoiceId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const key = `${tenantId}:${invoiceId}`;
+    const prev = this.invoicePaymentChains.get(key) ?? Promise.resolve();
+    const result = prev.catch(() => undefined).then(fn);
+    this.invoicePaymentChains.set(key, result);
+    return result.finally(() => {
+      if (this.invoicePaymentChains.get(key) === result) {
+        this.invoicePaymentChains.delete(key);
+      }
+    }) as Promise<T>;
+  }
 
   /** Test helper — students billed when bulk-invoicing a class/grade. */
   seedClassRoster(
@@ -417,6 +438,62 @@ export class InMemoryFeesRepository implements FeesRepository {
     const next = { ...current, ...data };
     this.reconRows[idx] = next;
     return { ...next };
+  }
+
+  async recordPaymentOnInvoice(
+    tenantId: string,
+    invoiceId: string,
+    build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+  ): Promise<{
+    invoice: FeeInvoiceEntity;
+    payment: FeePaymentEntity;
+    receipt: FeeReceiptEntity;
+  }> {
+    return this.runSerializedOnInvoice(tenantId, invoiceId, async () => {
+      const invoice = this.invoices.find((row) => row.id === invoiceId && row.tenantId === tenantId);
+      if (!invoice) {
+        throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+      }
+      if (invoice.status !== 'open') {
+        throw new BusinessRuleError('Invoice is not open for payment');
+      }
+
+      const paidCents = this.payments
+        .filter(
+          (payment) =>
+            payment.tenantId === tenantId &&
+            payment.invoiceId === invoiceId &&
+            payment.status === 'succeeded',
+        )
+        .reduce((sum, payment) => sum + payment.amountCents, 0);
+      const remainingCents = invoice.amountCents - paidCents;
+      if (remainingCents <= 0) {
+        throw new BusinessRuleError('Invoice has no remaining balance');
+      }
+
+      const settlement = await build({ invoice, paidCents, remainingCents });
+      if (
+        !Number.isInteger(settlement.paymentAmountCents) ||
+        settlement.paymentAmountCents <= 0
+      ) {
+        throw new BusinessRuleError('Payment amountCents must be a positive integer');
+      }
+      if (settlement.paymentAmountCents > remainingCents) {
+        throw new BusinessRuleError(
+          `Payment amountCents ${settlement.paymentAmountCents} exceeds remaining balance ${remainingCents}`,
+        );
+      }
+      assertJournalBalanced(settlement.ledgerEntries);
+
+      const payment = await this.createPayment(settlement.payment);
+      const receipt = await this.createReceipt(settlement.receipt);
+      await this.postLedgerEntries(settlement.ledgerEntries);
+      const updatedInvoice = await this.updateInvoice(invoiceId, tenantId, {
+        status: settlement.invoiceStatus,
+      });
+
+      return { invoice: updatedInvoice!, payment, receipt };
+    });
   }
 
   async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {

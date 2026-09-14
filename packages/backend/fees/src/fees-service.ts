@@ -443,101 +443,92 @@ export class FeesService {
       }
     }
 
-    const invoice = await this.getInvoice(tenantId, input.invoiceId);
-
-    if (invoice.status !== 'open') {
-      throw new BusinessRuleError('Invoice is not open for payment');
-    }
-
-    const priorPayments = (await this.repository.listPaymentsForTenant(tenantId)).filter(
-      (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
-    );
-    const alreadyPaidCents = priorPayments.reduce((sum, p) => sum + p.amountCents, 0);
-    const remainingCents = invoice.amountCents - alreadyPaidCents;
-    if (remainingCents <= 0) {
-      throw new BusinessRuleError('Invoice has no remaining balance');
-    }
-
-    const paymentAmountCents = input.amountCents ?? remainingCents;
-    if (!Number.isInteger(paymentAmountCents) || paymentAmountCents <= 0) {
-      throw new BusinessRuleError('Payment amountCents must be a positive integer');
-    }
-    if (paymentAmountCents > remainingCents) {
-      throw new BusinessRuleError(
-        `Payment amountCents ${paymentAmountCents} exceeds remaining balance ${remainingCents}`,
-      );
-    }
-
-    const charge = await this.paymentAdapter.charge({
+    const { invoice, payment, receipt } = await this.repository.recordPaymentOnInvoice(
       tenantId,
-      invoiceId: invoice.id,
-      payerUserId: input.payerUserId ?? actorId,
-      amountCents: paymentAmountCents,
-      currency: invoice.currency,
-      method: input.method ?? 'sandbox',
-    });
+      input.invoiceId,
+      async ({ invoice, paidCents, remainingCents }) => {
+        const paymentAmountCents = input.amountCents ?? remainingCents;
+        if (!Number.isInteger(paymentAmountCents) || paymentAmountCents <= 0) {
+          throw new BusinessRuleError('Payment amountCents must be a positive integer');
+        }
+        if (paymentAmountCents > remainingCents) {
+          throw new BusinessRuleError(
+            `Payment amountCents ${paymentAmountCents} exceeds remaining balance ${remainingCents}`,
+          );
+        }
 
-    if (charge.status !== 'succeeded') {
-      throw new BusinessRuleError(`Payment charge failed with status '${charge.status}'`);
-    }
+        const charge = await this.paymentAdapter.charge({
+          tenantId,
+          invoiceId: invoice.id,
+          payerUserId: input.payerUserId ?? actorId,
+          amountCents: paymentAmountCents,
+          currency: invoice.currency,
+          method: input.method ?? 'sandbox',
+        });
 
-    if (charge.amountCents !== paymentAmountCents) {
-      throw new BusinessRuleError('Charge amountCents must equal payment amountCents');
-    }
+        if (charge.status !== 'succeeded') {
+          throw new BusinessRuleError(`Payment charge failed with status '${charge.status}'`);
+        }
 
-    const paidAt = new Date();
-    const payment = await this.repository.createPayment({
-      id: uuidv4(),
-      invoiceId: invoice.id,
-      tenantId,
-      payerUserId: input.payerUserId ?? actorId,
-      amountCents: paymentAmountCents,
-      method: charge.method,
-      status: 'succeeded',
-      paidAt,
-      idempotencyKey,
-    });
+        if (charge.amountCents !== paymentAmountCents) {
+          throw new BusinessRuleError('Charge amountCents must equal payment amountCents');
+        }
 
-    if (payment.amountCents !== paymentAmountCents) {
-      throw new BusinessRuleError('payment.amountCents must equal charged amountCents');
-    }
+        const paidAt = new Date();
+        const paymentId = uuidv4();
+        const receiptId = uuidv4();
+        const journalId = uuidv4();
+        const postedAt = paidAt;
 
-    const receipt = await this.repository.createReceipt({
-      id: uuidv4(),
-      tenantId,
-      paymentId: payment.id,
-      invoiceId: invoice.id,
-      receiptNumber: receiptNumberFor(payment.id),
-      amountCents: paymentAmountCents,
-      currency: invoice.currency,
-      issuedAt: paidAt,
-    });
-
-    if (receipt.amountCents !== payment.amountCents) {
-      throw new BusinessRuleError(
-        'receipt.amountCents === payment.amountCents invariant violated',
-      );
-    }
-
-    // G-718: DR cash / CR accounts_receivable for this payment amount only.
-    await this.postJournal(
-      invoice,
-      actorId,
-      'payment received',
-      [
-        ['cash', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ],
-      paymentAmountCents,
-      { paymentId: payment.id, receiptId: receipt.id },
+        return {
+          paymentAmountCents,
+          payment: {
+            id: paymentId,
+            invoiceId: invoice.id,
+            tenantId,
+            payerUserId: input.payerUserId ?? actorId,
+            amountCents: paymentAmountCents,
+            method: charge.method,
+            status: 'succeeded' as const,
+            paidAt,
+            idempotencyKey,
+          },
+          receipt: {
+            id: receiptId,
+            tenantId,
+            paymentId,
+            invoiceId: invoice.id,
+            receiptNumber: receiptNumberFor(paymentId),
+            amountCents: paymentAmountCents,
+            currency: invoice.currency,
+            issuedAt: paidAt,
+          },
+          ledgerEntries: [
+            ['cash', 'debit'],
+            ['accounts_receivable', 'credit'],
+          ].map(([account, side]) => ({
+            id: uuidv4(),
+            tenantId: invoice.tenantId,
+            journalId,
+            invoiceId: invoice.id,
+            paymentId,
+            receiptId,
+            account: account as LedgerAccount,
+            side: side as 'debit' | 'credit',
+            amountCents: paymentAmountCents,
+            currency: invoice.currency,
+            memo: 'payment received',
+            postedBy: actorId,
+            postedAt,
+          })),
+          invoiceStatus: (paidCents + paymentAmountCents >= invoice.amountCents
+            ? 'paid'
+            : 'open') as FeeInvoiceEntity['status'],
+        };
+      },
     );
 
-    const fullyPaid = alreadyPaidCents + paymentAmountCents >= invoice.amountCents;
-    const updatedInvoice = await this.repository.updateInvoice(invoice.id, tenantId, {
-      status: fullyPaid ? 'paid' : 'open',
-    });
-
-    return { invoice: updatedInvoice!, payment, receipt, idempotent: false };
+    return { invoice, payment, receipt, idempotent: false };
   }
 
   async createFeeStructure(tenantId: string, actorId: string, input: CreateFeeStructureInput) {

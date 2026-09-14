@@ -179,6 +179,34 @@ describe('FeesService', () => {
       ).rejects.toThrow(BusinessRuleError);
     });
 
+    it('serializes concurrent full payments so only one receipt is issued (W3-RACE-03)', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Race',
+        amountCents: 10000,
+      });
+
+      const outcomes = await Promise.allSettled(
+        Array.from({ length: 5 }, (_, index) =>
+          service.recordPayment(TENANT_A, `parent-${index}`, { invoiceId: invoice.id }),
+        ),
+      );
+
+      const ok = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+      const fail = outcomes.filter((outcome) => outcome.status === 'rejected');
+      expect(ok).toHaveLength(1);
+      expect(fail).toHaveLength(4);
+
+      const payments = await service.listPayments(TENANT_A);
+      const receipts = await service.listReceipts(TENANT_A);
+      const invoicePayments = payments.filter(
+        (payment) => payment.invoiceId === invoice.id && payment.status === 'succeeded',
+      );
+      expect(invoicePayments).toHaveLength(1);
+      expect(receipts.filter((receipt) => receipt.invoiceId === invoice.id)).toHaveLength(1);
+      expect(invoicePayments[0]!.amountCents).toBe(invoice.amountCents);
+    });
+
     it('rejects charge adapter amount mismatch', async () => {
       const badAdapter: PaymentAdapter = {
         async charge(input) {
