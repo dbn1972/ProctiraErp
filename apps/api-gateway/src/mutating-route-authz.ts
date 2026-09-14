@@ -101,6 +101,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'notification',
   'communication',
   'lms',
+  'attendance',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -204,6 +205,12 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     id: 'lms.staff',
     pathPrefix: '/api/v1/lms',
     resource: 'lms',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'attendance.record',
+    pathPrefix: '/api/v1/attendance',
+    resource: 'attendance',
     deferredDomainGuard: false,
   },
   {

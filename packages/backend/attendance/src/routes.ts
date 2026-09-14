@@ -33,6 +33,8 @@ import {
   type AbsenceThresholdCheckQueryInput,
 } from './schemas.js';
 
+import { enforceAttendanceRouteAccess } from './attendance-http-guard.js';
+
 /**
  * Options for registering attendance routes.
  */
@@ -114,6 +116,13 @@ export async function registerAttendanceRoutes(
   options: AttendanceRoutesOptions,
 ): Promise<void> {
   const { attendanceService, prefix = '/attendance' } = options;
+
+  // W1-SEC-02: package-level RBAC (clears deferred attendance inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAttendanceRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
 
   /**
    * POST /attendance/student

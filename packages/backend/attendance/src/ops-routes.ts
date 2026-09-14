@@ -21,6 +21,8 @@ import {
 } from './ops-schemas.js';
 import type { AttendanceOpsService, OpsActor } from './ops-service.js';
 
+import { enforceAttendanceRouteAccess } from './attendance-http-guard.js';
+
 export interface AttendanceOpsRoutesOptions {
   opsService: AttendanceOpsService;
   prefix?: string;
@@ -76,6 +78,13 @@ export async function registerAttendanceOpsRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/attendance';
   const { opsService } = options;
+
+  // W1-SEC-02: package-level RBAC (clears deferred attendance inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAttendanceRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
 
   fastify.get(`${prefix}/regularisation`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
