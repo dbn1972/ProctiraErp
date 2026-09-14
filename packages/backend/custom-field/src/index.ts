@@ -42,6 +42,14 @@ export {
   InMemoryCustomFieldValueRepository,
 } from './in-memory-repository.js';
 
+// Persistence factory (W1-SEC-12)
+export {
+  createCustomFieldRepositories,
+  isPgCustomFieldEnabled,
+  resetSharedCustomFieldRepositoriesForTests,
+} from './create-custom-field-repositories.js';
+export type { CustomFieldRepositories } from './create-custom-field-repositories.js';
+
 // Schemas
 export {
   CustomFieldTypeSchema,

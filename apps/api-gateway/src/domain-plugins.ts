@@ -58,13 +58,12 @@ import {
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
+  createCustomFieldRepositories,
   customFieldPlugin,
-  InMemoryCustomFieldDefinitionRepository,
-  InMemoryCustomFieldValueRepository,
 } from '@proctira/backend-custom-field';
 import {
+  createDashboardRepository,
   dashboardsPlugin,
-  InMemoryDashboardRepository,
 } from '@proctira/backend-dashboards';
 import {
   createDeveloperPortalRepository,
@@ -983,11 +982,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'custom-field',
     proxyPrefixes: ['/custom-fields'],
     register: async (scope) => {
-      // W1-ARCH-05: unpark custom-field — definitions/values for student/staff/institution.
-      // In-memory only this wave (no durable schema); product UI residual.
+      // W1-ARCH-05 / W1-SEC-12: unpark custom-field — definitions/values for
+      // student/staff/institution. No durable schema yet: factory fails closed
+      // when DATABASE_URL is set (honesty over fake Pg / silent memory).
+      const { definitionRepository, valueRepository } = createCustomFieldRepositories();
       await scope.register(customFieldPlugin, {
-        definitionRepository: new InMemoryCustomFieldDefinitionRepository(),
-        valueRepository: new InMemoryCustomFieldValueRepository(),
+        definitionRepository,
+        valueRepository,
         prefix: '/custom-fields',
       });
     },
@@ -996,10 +997,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'dashboards',
     proxyPrefixes: ['/dashboards'],
     register: async (scope) => {
-      // W1-ARCH-05: unpark dashboards — AreaHierarchyResolver wired (W1-ARCH-04).
-      // In-memory aggregates; G-909 role dashboards remain on backend-report.
+      // W1-ARCH-05 / W1-SEC-12: unpark dashboards — AreaHierarchyResolver wired
+      // (W1-ARCH-04). No durable aggregate schema yet: factory fails closed when
+      // DATABASE_URL is set. G-909 role dashboards remain on backend-report.
       await scope.register(dashboardsPlugin, {
-        repository: new InMemoryDashboardRepository(),
+        repository: createDashboardRepository(),
         areaResolver: createAreaHierarchyResolver(),
         prefix: '/dashboards',
       });

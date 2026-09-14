@@ -18,6 +18,7 @@
     "@proctira/auth": "workspace:*",
     "@proctira/backend-auth": "workspace:*",
     "@proctira/common": "workspace:*",
+    "@proctira/database": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0"
   },

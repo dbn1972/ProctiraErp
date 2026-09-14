@@ -29,6 +29,13 @@ export type {
   SchoolDashboardQuery,
 } from './dashboard-repository.js';
 
+// Persistence factory (W1-SEC-12)
+export {
+  createDashboardRepository,
+  isPgDashboardEnabled,
+  resetSharedDashboardRepositoryForTests,
+} from './create-dashboard-repository.js';
+
 export type {
   DashboardKpi,
   CountryDashboardAggregate,
