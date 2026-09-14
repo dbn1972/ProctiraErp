@@ -53,6 +53,10 @@ describe('Notification Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { tenantId: string }).tenantId = tenantId;
+      // W1-SEC-02 package guards — staff principal for send/rules/templates.
+      (request as typeof request & {
+        user?: { sub: string; roles: string[] };
+      }).user = { sub: userId1, roles: ['notification_admin'] };
     });
 
     await registerNotificationRoutes(app, {
