@@ -1,10 +1,10 @@
 # Architecture — W1-ARCH-07 COMPLETE (graceful shutdown)
 
 **Module / slice:** process SIGTERM/SIGINT drain for gateway · ETL worker · backend standalones · exam-document worker · shared DB/pool close  
-**Branch / tip:** `cursor/w1-arch-07-shutdown-complete-56c3` @ `6dfa985cc78e551d38ebdc5e4b6ffa40b5a362ee`  
+**Branch / tip:** `cursor/w1-arch-07-shutdown-complete-56c3` @ `00f3b10e9e9feec0d04fdfe95c94d36ea60ccc32` (implementation; docs tip follows)  
 **Date (UTC):** 2026-09-14  
 **Paired finding:** W1-ARCH-07 (medium) PARTIAL → COMPLETE  
-**Prior evidence:** PR #237 · `docs/audits/ARCH_W1_ARCH_07_SHUTDOWN.md` @ `6dfa985cc78e551d38ebdc5e4b6ffa40b5a362ee`
+**Prior evidence:** PR #237 · `docs/audits/ARCH_W1_ARCH_07_SHUTDOWN.md` @ `05e45752f763e14394623e17d08934f9cf26f42f`
 
 ---
 
