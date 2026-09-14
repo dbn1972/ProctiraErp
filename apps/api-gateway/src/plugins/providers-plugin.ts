@@ -1,13 +1,15 @@
 import { issueSandboxIdpToken, listProviderCapabilities } from '@proctira/backend-providers';
+import { resolveProviderDeliveryMode } from '@proctira/common';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 /**
  * G-7 / G-10 adjacent — provider capability discovery + sandbox IdP mint.
+ * W1-ARCH-08: top-level mode uses fail-closed production policy.
  */
 export const providersPlugin = fp(async (app: FastifyInstance) => {
   app.get('/providers/capabilities', async () => ({
-    mode: process.env.PROVIDER_MODE === 'live' ? 'live' : 'sandbox',
+    mode: resolveProviderDeliveryMode('providers', process.env),
     capabilities: listProviderCapabilities(process.env),
   }));
 

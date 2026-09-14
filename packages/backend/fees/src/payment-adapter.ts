@@ -1,8 +1,12 @@
 /**
  * Payment adapter interface + sandbox stub (G-202 waived for live PSP).
  * W2-INT-03: PROVIDER_MODE=live must not silently succeed via the sandbox stub.
+ * W1-ARCH-08: production refuses silent sandbox default (explicit opt-in only).
  */
+import { resolveProviderDeliveryMode } from '@proctira/common';
+
 import type { PaymentMethod } from './fees-repository.js';
+
 
 export interface ChargeInput {
   tenantId: string;
@@ -52,11 +56,11 @@ export class UnimplementedLivePaymentAdapter implements PaymentAdapter {
   }
 }
 
-/** Env-driven payment adapter — refuse silent live success (W2-INT-03). */
+/** Env-driven payment adapter — refuse silent live success (W2-INT-03) and silent prod sandbox (W1-ARCH-08). */
 export function createPaymentAdapterFromEnv(
   env: Record<string, string | undefined> = process.env,
 ): PaymentAdapter {
-  if (env.PROVIDER_MODE === 'live') {
+  if (resolveProviderDeliveryMode('fees', env) === 'live') {
     return new UnimplementedLivePaymentAdapter();
   }
   return new SandboxPaymentAdapter();

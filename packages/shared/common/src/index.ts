@@ -51,3 +51,11 @@ export {
   pgIntegerCents,
   pgOptionalIntegerCents,
 } from './money/cents.js';
+
+// W1-ARCH-08: fail-closed production provider mode (sandbox opt-in only)
+export {
+  readProviderModeEnv,
+  resolveProviderDeliveryMode,
+  isSandboxProvidersExplicitlyAllowed,
+} from './provider-mode-policy.js';
+export type { ProviderDeliveryMode, ProviderModeEnv } from './provider-mode-policy.js';

@@ -220,6 +220,9 @@ services:
       RABBITMQ_URL: ${RABBITMQ_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+      # W1-ARCH-08: sandbox providers require explicit opt-in under NODE_ENV=production
+      ALLOW_SANDBOX_PROVIDERS: ${ALLOW_SANDBOX_PROVIDERS:-1}
+      PROVIDER_MODE: ${PROVIDER_MODE:-sandbox}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}

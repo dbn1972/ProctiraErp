@@ -77,7 +77,7 @@ Tenant → Board → Institution → classes / people. Enforced with JWT claims,
 | Capability                    | Design                                          |
 | ----------------------------- | ----------------------------------------------- |
 | **Identity**                  | **Keycloak (required for product)**             |
-| Payments / SMS / email / push | Providers facade; sandbox default until secrets |
+| Payments / SMS / email / push | Providers facade; sandbox only with explicit prod opt-in (W1-ARCH-08); live adapters secret-gated |
 
 ## Local stack
 
