@@ -82,10 +82,13 @@ export const staffPlugin = fp(
     // Decorate fastify with the staff service
     fastify.decorate('staffService', staffService);
 
-    // Register staff routes
-    await registerStaffRoutes(fastify, {
-      staffService,
-      prefix,
+    // Encapsulate each route module that installs plugin-wide preHandlers so
+    // `fp` does not leak staff RBAC onto other gateway domains (W1-SEC-02).
+    await fastify.register(async (scope) => {
+      await registerStaffRoutes(scope, {
+        staffService,
+        prefix,
+      });
     });
 
     // Register assignment routes if repository is provided
@@ -93,23 +96,29 @@ export const staffPlugin = fp(
       const assignmentService = new StaffAssignmentService(assignmentRepository);
       fastify.decorate('staffAssignmentService', assignmentService);
 
-      await registerAssignmentRoutes(fastify, {
-        assignmentService,
-        prefix: `${prefix}/assignments`,
+      await fastify.register(async (scope) => {
+        await registerAssignmentRoutes(scope, {
+          assignmentService,
+          prefix: `${prefix}/assignments`,
+        });
       });
     }
 
     const leaveService = new StaffLeaveService(leaveRepository);
     fastify.decorate('staffLeaveService', leaveService);
-    await registerStaffLeaveRoutes(fastify, {
-      leaveService,
-      prefix,
+    await fastify.register(async (scope) => {
+      await registerStaffLeaveRoutes(scope, {
+        leaveService,
+        prefix,
+      });
     });
 
     const hrStore = options.hrStore ?? createStaffHrStore();
     const hrService = new StaffHrService(hrStore, staffService);
     fastify.decorate('staffHrService', hrService);
-    await registerStaffHrRoutes(fastify, { hrService, prefix });
+    await fastify.register(async (scope) => {
+      await registerStaffHrRoutes(scope, { hrService, prefix });
+    });
 
     // G-717: appraisals + training were implemented but never mounted.
     const appraisalRepos = options.appraisalRepositories ?? createAppraisalRepositories();
@@ -119,9 +128,11 @@ export const staffPlugin = fp(
       options.appraisalWorkflowIntegration,
     );
     fastify.decorate('staffAppraisalService', appraisalService);
-    await registerAppraisalRoutes(fastify, {
-      appraisalService,
-      prefix: `${prefix}/appraisals`,
+    await fastify.register(async (scope) => {
+      await registerAppraisalRoutes(scope, {
+        appraisalService,
+        prefix: `${prefix}/appraisals`,
+      });
     });
 
     const trainingRepos = options.trainingRepositories ?? createTrainingRepositories();
@@ -133,9 +144,11 @@ export const staffPlugin = fp(
       options.trainingNotificationIntegration,
     );
     fastify.decorate('staffTrainingService', trainingService);
-    await registerTrainingRoutes(fastify, {
-      trainingService,
-      prefix: `${prefix}/training`,
+    await fastify.register(async (scope) => {
+      await registerTrainingRoutes(scope, {
+        trainingService,
+        prefix: `${prefix}/training`,
+      });
     });
   },
   {

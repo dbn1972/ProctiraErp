@@ -82,6 +82,11 @@ import { providersPlugin } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
 import {
+  attachMutatingRouteAuthzTracker,
+  evaluateExactMutatingAuthzGate,
+  MUTATING_HTTP_METHODS,
+} from './mutating-route-authz.js';
+import {
   actionForMethod,
   createGatewayRbacRegistry,
   PLATFORM_ADMIN_ROLE_IDS,
@@ -139,6 +144,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
   });
+
+  // W1-SEC-02: track mutating route registration for inventory coverage tests.
+  // Must run before domain plugins register routes.
+  attachMutatingRouteAuthzTracker(app);
 
   // Fastify's default JSON parser 500s on Content-Type: application/json with
   // an empty body (common for bodyless POSTs from clients that always set the
@@ -798,8 +807,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     return JSON.stringify(MUTATION_AUDIT_UNAVAILABLE_BODY);
   });
 
-  // G-702 / G-712: every /api/v1 request (reads included) is evaluated against
-  // the RBAC registry. Unmapped segments are denied for non-platform-admins.
+  // G-702 / G-712 / W1-SEC-02: every /api/v1 request is evaluated against the
+  // RBAC registry. Reads still use coarse URL-segment + HTTP-method mapping.
+  // Mutating verbs require an inventory-declared exact resource/action guard
+  // and fail closed when the inventory has no covering rule.
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
     if (method === 'OPTIONS') return;
@@ -807,9 +818,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
-
-    const resource = resourceForApiPath(url);
-    if (!resource) return;
 
     const user = request.user;
     if (!user) {
@@ -825,6 +833,30 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       const id = typeof r === 'string' ? r : r.roleId;
       return PLATFORM_ADMIN_ROLE_IDS.has(id);
     });
+
+    let resource: string | undefined;
+    let action = actionForMethod(method);
+
+    if (MUTATING_HTTP_METHODS.has(method)) {
+      const gate = evaluateExactMutatingAuthzGate({
+        method,
+        url,
+        isPlatformAdmin,
+      });
+      if (!gate.ok) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: gate.message,
+          statusCode: 403,
+        });
+      }
+      if (!gate.guard) return;
+      resource = gate.guard.resource;
+      action = gate.guard.action;
+    } else {
+      resource = resourceForApiPath(url);
+      if (!resource) return;
+    }
 
     // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
     if (resource === 'platform') {
@@ -845,7 +877,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       });
     }
 
-    const action = actionForMethod(method);
     // Self-service resources every authenticated principal may read (own scope
     // is enforced inside the domain plugin).
     if (action === 'read' && SELF_SERVICE_READ_RESOURCES.has(resource)) return;
