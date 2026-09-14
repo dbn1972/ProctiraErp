@@ -40,6 +40,11 @@ import {
   type ReturnInput,
 } from './schemas.js';
 
+import {
+  requireLibraryAction,
+  resolveLibraryAction,
+} from './library-http-guard.js';
+
 /**
  * Parent/guardian → child linkage used to bind portal reads of loans and holds
  * to the caller's own children (G-916). Staff principals are never bound.
@@ -292,6 +297,15 @@ export async function registerLibraryRoutes(
   options: LibraryRoutesOptions,
 ): Promise<void> {
   const { libraryService, prefix = '/library', patronBinding = null } = options;
+
+  // W1-SEC-02: package-level RBAC (clears deferred library inventory residual).
+  // Staff: read/write. Portal parent/guardian/student: bound GETs only (library.portal).
+  fastify.addHook('preHandler', async (request, reply) => {
+    const action = resolveLibraryAction(request);
+    if (!requireLibraryAction(request, reply, action)) {
+      return reply;
+    }
+  });
 
   fastify.get(
     `${prefix}/items`,

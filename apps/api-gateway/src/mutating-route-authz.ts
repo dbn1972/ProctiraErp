@@ -96,6 +96,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'gradebook',
   'timetable',
   'transport',
+  'library',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -172,10 +173,10 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: false,
   },
   {
-    id: 'library.deferred',
+    id: 'library.circulation',
     pathPrefix: '/api/v1/library',
     resource: 'library',
-    deferredDomainGuard: true,
+    deferredDomainGuard: false,
   },
   {
     id: 'registration.deferred',
@@ -461,7 +462,7 @@ export const INVENTORY_DENY_SAMPLES: ReadonlyArray<{
     payload: { plateNumber: 'SEC02-1', capacity: 20 },
   },
   {
-    id: 'library.deferred',
+    id: 'library.circulation',
     method: 'POST',
     url: '/api/v1/library/circulation/checkout',
     deniedRole: 'parent',
