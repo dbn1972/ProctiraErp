@@ -42,6 +42,26 @@ transcripts) ship `BEFORE UPDATE OR DELETE` triggers. `053_immutability_privileg
 also **REVOKEs UPDATE/DELETE/TRUNCATE/TRIGGER** on those tables from `proctira_app`
 so runtime cannot mutate rows or disable guards even if connected with broad DML grants.
 
+## Domain SQL apply ledger (W1-DATA-05)
+
+Numbered `db/sql/` apply is **not** whole-set atomic (Postgres cannot wrap every
+DDL form across dozens of files in one safe transaction). Resume safety comes
+from the `schema_migrations` ledger instead:
+
+| Behavior | Rule |
+| --- | --- |
+| Record | After each successful file: `filename` + sha256 in `schema_migrations` |
+| Skip | Ledger checksum matches current file → do not re-apply |
+| Fail-closed | Ledger checksum differs → exit non-zero (do not overwrite) |
+| Legacy NULL | Pre-checksum self-insert rows get the current digest adopted; file is not re-applied |
+| Per-file TX | Default `psql --single-transaction` for the file + ledger INSERT |
+
+**Multi-statement limits:** statements that cannot run inside a transaction
+(`CREATE INDEX CONCURRENTLY`, `VACUUM`, some older `ALTER TYPE … ADD VALUE`
+forms) are applied without `-1` when the file text contains `CONCURRENTLY`, or
+for every file when `APPLY_SQL_NO_TX=1`. Prefer avoiding those forms under
+`db/sql/` so per-file atomicity holds.
+
 ## Apply order (required)
 
 ```bash
@@ -58,6 +78,7 @@ bash tools/scripts/apply-sql.sh
 - Prefers `MIGRATOR_DATABASE_URL`, then `DATABASE_URL`; otherwise libpq (`PGDATABASE` defaults to `proctira`)
 - Applies every `db/sql/[0-9]*.sql` in **`LC_ALL=C` sort order** (so `006_…schema` runs before `006b_…seed`)
 - Uses `psql -v ON_ERROR_STOP=1` and exits non-zero on failure
+- **W1-DATA-05:** ledger-safe resume via `schema_migrations` (skip match / fail mismatch / per-file TX)
 - Supports `--dry-run` to list files without applying
 
 CI Integration Tests run step (2) immediately after `prisma:migrate:deploy`.
