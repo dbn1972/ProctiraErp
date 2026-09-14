@@ -29,3 +29,7 @@ Prefer wiring clear plugins + an allowlist/regression gate over mounting all nin
 - Registrars: `custom-field`, `dashboards`, `privacy` in `domain-plugins.ts`
 - Mount smoke: `arch05-compose-mount.test.ts`
 - Matrix + allowlist: `mount-matrix.ts`, `GATEWAY_MOUNT_MATRIX.md`
+
+## Residual follow-up (#202)
+
+Restored `packages/shared/queue-abstraction/src/job-types.ts` leaf (outbox builders already imported it; file was missing on tip after squash). Unblocks circular-safe job-type imports for compose/outbox.
