@@ -5,6 +5,10 @@
  * access (mitigates XSS token theft). Cookies are scoped to "/" so they are
  * available for the entire application surface, including API route handlers
  * and middleware.
+ *
+ * W1-SEC-09: refresh cookies use SameSite=Strict. Access cookies stay Lax so
+ * top-level OAuth return navigations can still present the session; CSRF
+ * double-submit + Origin checks (see csrf.ts) cover the Lax residual.
  */
 
 /** Cookie option shape compatible with both Edge runtime and Node runtime cookies. */
@@ -56,9 +60,8 @@ export function isSecureCookieContext(request?: Request | null): boolean {
 }
 
 /**
- * Cookie options for the access token. httpOnly + lax is the safest default
- * for flows that still need to send the cookie on top-level navigations
- * triggered by OAuth callbacks.
+ * Cookie options for the access token. httpOnly + Lax so top-level OAuth
+ * callback navigations can still send the cookie; CSRF mitigations cover POSTs.
  */
 export function accessTokenCookieOptions(
   maxAge: number = ACCESS_TOKEN_MAX_AGE,
@@ -73,7 +76,11 @@ export function accessTokenCookieOptions(
   };
 }
 
-/** Cookie options for the refresh token (longer-lived, same security flags). */
+/**
+ * Cookie options for the refresh token (W1-SEC-09).
+ * SameSite=Strict — never sent on cross-site navigations; refresh is always
+ * same-origin API (`/api/auth/refresh`). Pair with Secure when TLS is active.
+ */
 export function refreshTokenCookieOptions(
   maxAge: number = REFRESH_TOKEN_MAX_AGE,
   request?: Request | null,
@@ -81,18 +88,32 @@ export function refreshTokenCookieOptions(
   return {
     httpOnly: true,
     secure: isSecureCookieContext(request),
-    sameSite: 'lax',
+    sameSite: 'strict',
     path: '/',
     maxAge,
   };
 }
 
-/** Cookie options used to delete a cookie (set maxAge to 0). */
+/** Cookie options used to delete the access (or session) cookie. */
 export function clearCookieOptions(request?: Request | null): AuthCookieOptions {
   return {
     httpOnly: true,
     secure: isSecureCookieContext(request),
     sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  };
+}
+
+/**
+ * Clear options for the refresh cookie — SameSite must match the set attributes
+ * or browsers may ignore the delete (W1-SEC-09).
+ */
+export function clearRefreshTokenCookieOptions(request?: Request | null): AuthCookieOptions {
+  return {
+    httpOnly: true,
+    secure: isSecureCookieContext(request),
+    sameSite: 'strict',
     path: '/',
     maxAge: 0,
   };

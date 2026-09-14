@@ -3,6 +3,12 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 
 import {
+  assertAccessTokenNotRevoked,
+  createAccessTokenRevocationStore,
+  type AccessTokenRevocationStore,
+} from '../access-token-revocation.js';
+
+import {
   identityInputFromClaims,
   linkKeycloakIdentity,
   type KeycloakIdentityStore,
@@ -19,6 +25,11 @@ export interface KeycloakAuthPluginOptions {
   config: KeycloakAuthConfig;
   excludePaths?: string[];
   identityStore?: KeycloakIdentityStore;
+  /**
+   * Access-token jti/sid denylist (W1-SEC-09).
+   * Defaults to an in-process memory store when omitted.
+   */
+  revocationStore?: AccessTokenRevocationStore;
 }
 
 function isExcludedPath(path: string, excludePaths: string[]): boolean {
@@ -45,10 +56,15 @@ export const keycloakAuthPlugin = fp(
     options: KeycloakAuthPluginOptions,
   ) {
     const jwks = new KeycloakJwksClient(options.config.jwksUri);
+    const revocationStore = options.revocationStore ?? createAccessTokenRevocationStore();
 
     // Fastify 5 decorateRequest requires a concrete default (GetterSetter).
     // Handlers overwrite `request.user` after JWT verification.
     fastify.decorateRequest('user', null as unknown as JwtPayload);
+
+    if (!fastify.hasDecorator('accessTokenRevocationStore')) {
+      fastify.decorate('accessTokenRevocationStore', revocationStore);
+    }
 
     fastify.decorate(
       'authenticate',
@@ -63,6 +79,21 @@ export const keycloakAuthPlugin = fp(
         }
         try {
           const payload = await hydrateKeycloakUser(token, options, jwks, request);
+          const revocation = await assertAccessTokenNotRevoked(
+            { jti: payload.jti, sessionId: payload.sessionId },
+            { store: revocationStore },
+          );
+          if (!revocation.ok) {
+            return reply.status(401).send({
+              code: 'TOKEN_REVOKED',
+              message:
+                revocation.reason === 'store_unavailable'
+                  ? 'Access token revocation check unavailable'
+                  : 'Access token has been revoked',
+              statusCode: 401,
+              reason: revocation.reason,
+            });
+          }
           (request as FastifyRequest & { user: JwtPayload }).user = payload;
         } catch (error) {
           const message =
@@ -82,6 +113,17 @@ export const keycloakAuthPlugin = fp(
         const token = readBearer(this);
         if (!token) throw new KeycloakTokenError('Missing Keycloak access token');
         const payload = await hydrateKeycloakUser(token, options, jwks, this);
+        const revocation = await assertAccessTokenNotRevoked(
+          { jti: payload.jti, sessionId: payload.sessionId },
+          { store: revocationStore },
+        );
+        if (!revocation.ok) {
+          throw new KeycloakTokenError(
+            revocation.reason === 'store_unavailable'
+              ? 'Access token revocation check unavailable'
+              : 'Access token has been revoked',
+          );
+        }
         (this as FastifyRequest & { user: JwtPayload }).user = payload;
         return payload;
       },

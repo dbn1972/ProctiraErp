@@ -49,6 +49,25 @@ export { hashPassword, verifyPassword } from './local-auth.js';
 export { TokenService, InvalidRefreshTokenError } from './token-service.js';
 export type { JwtSigner, RefreshTokenStore } from './token-service.js';
 
+// Access-token jti/sid revocation (W1-SEC-09)
+export {
+  assertAccessTokenNotRevoked,
+  createAccessTokenRevocationStore,
+  defaultAccessTokenRevocationTtlSeconds,
+  MemoryAccessTokenRevocationStore,
+  RedisAccessTokenRevocationStore,
+  revokeAccessTokenIdentifiers,
+} from './access-token-revocation.js';
+export type {
+  AccessTokenClaimsForRevocation,
+  AccessTokenRevocationCheckResult,
+  AccessTokenRevocationFailure,
+  AccessTokenRevocationKind,
+  AccessTokenRevocationStore,
+  AssertAccessTokenNotRevokedOptions,
+  RedisLikeForAccessTokenRevocation,
+} from './access-token-revocation.js';
+
 // Session Service
 export { SessionService } from './session-service.js';
 export type { SessionStore } from './session-service.js';

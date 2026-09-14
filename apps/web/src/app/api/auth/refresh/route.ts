@@ -1,8 +1,10 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+
 import {
   accessTokenCookieOptions,
   clearCookieOptions,
+  clearRefreshTokenCookieOptions,
   getAuthServiceUrl,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
@@ -55,7 +57,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 401 },
     );
     failure.cookies.set(AUTH_COOKIES.ACCESS_TOKEN, '', clearCookieOptions(request));
-    failure.cookies.set(AUTH_COOKIES.REFRESH_TOKEN, '', clearCookieOptions(request));
+    failure.cookies.set(AUTH_COOKIES.REFRESH_TOKEN, '', clearRefreshTokenCookieOptions(request));
     failure.cookies.set(AUTH_COOKIES.SESSION_ID, '', clearCookieOptions(request));
     return failure;
   }

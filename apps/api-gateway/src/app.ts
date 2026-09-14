@@ -24,7 +24,9 @@ import {
   DEFAULT_RETENTION_INTERVAL_MS,
 } from '@proctira/backend-audit';
 import {
+  assertAccessTokenNotRevoked,
   authPlugin,
+  createAccessTokenRevocationStore,
   createKeycloakIdentityStore,
   createOtpChallengeStore,
   createSmsProviderFromEnv,
@@ -38,6 +40,7 @@ import {
   registerInviteAndTenantDirectoryRoutes,
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
+  type AccessTokenRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
 import {
@@ -94,6 +97,8 @@ import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.j
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 export interface BuildAppOptions {
   config: GatewayConfig;
+  /** Optional access-token revocation store override (tests / DI). */
+  accessTokenRevocationStore?: AccessTokenRevocationStore;
 }
 
 /**
@@ -255,6 +260,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
+  // W1-SEC-09: access-token jti/sid denylist (share Redis with rate-limit when available).
+  const accessTokenRevocationStore =
+    options.accessTokenRevocationStore ??
+    createAccessTokenRevocationStore({
+      redis: rateLimitRedis,
+    });
+  if (!app.hasDecorator('accessTokenRevocationStore')) {
+    app.decorate('accessTokenRevocationStore', accessTokenRevocationStore);
+  }
+
   // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
   await app.register(paginationCapPlugin);
 
@@ -376,6 +391,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       config: keycloak,
       excludePaths: authExcludePaths,
       identityStore,
+      revocationStore: accessTokenRevocationStore,
     });
     await registerKeycloakAuthRoutes(app, {
       ...keycloak,
@@ -411,6 +427,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         },
       },
       excludePaths: authExcludePaths,
+      revocationStore: accessTokenRevocationStore,
     });
   }
 
@@ -484,15 +501,24 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (isExcluded) {
       // Public path: never 401, but if the caller presents a valid token, bind
       // the principal so downstream keying (rate limit, audit) is per-user
-      // rather than per-IP (G-731). Invalid tokens are simply ignored here.
+      // rather than per-IP (G-731). Invalid / revoked tokens are ignored here.
       if (bearer && !keycloak) {
         const payload = verifyLocalBearer(bearer);
-        if (payload) request.user = payload as typeof request.user;
+        if (payload) {
+          const claims = payload as { jti?: string; sessionId?: string };
+          const revocation = await assertAccessTokenNotRevoked(claims, {
+            store: accessTokenRevocationStore,
+            requireStore: false,
+          });
+          if (revocation.ok) {
+            request.user = payload as typeof request.user;
+          }
+        }
       }
       return;
     }
 
-    // Keycloak mode: plugin decorates jwtVerify with JWKS validation.
+    // Keycloak mode: plugin decorates jwtVerify with JWKS validation + revocation.
     if (keycloak) {
       try {
         await request.jwtVerify();
@@ -522,6 +548,23 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         statusCode: 401,
       });
     }
+
+    const claims = payload as { jti?: string; sessionId?: string };
+    const revocation = await assertAccessTokenNotRevoked(claims, {
+      store: accessTokenRevocationStore,
+    });
+    if (!revocation.ok) {
+      return reply.status(401).send({
+        code: 'TOKEN_REVOKED',
+        message:
+          revocation.reason === 'store_unavailable'
+            ? 'Access token revocation check unavailable'
+            : 'Access token has been revoked',
+        statusCode: 401,
+        reason: revocation.reason,
+      });
+    }
+
     request.user = payload as typeof request.user;
   });
 
