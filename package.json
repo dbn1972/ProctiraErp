@@ -35,7 +35,8 @@
     "test:tenant-isolation:report": "pnpm --filter @proctira/tenant-isolation-tests run test:report",
     "test:live": "vitest run --config tools/vitest.live-gate.config.ts",
     "test:live:assert": "node tools/scripts/assert-live-test-execution.mjs",
-    "test:live:gate": "node tools/scripts/run-live-test-gate.mjs"
+    "test:live:gate": "node tools/scripts/run-live-test-gate.mjs",
+    "check:restore-drill": "bash tools/scripts/check-restore-drill-evidence.sh"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

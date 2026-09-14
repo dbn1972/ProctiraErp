@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# P0-13 — Tip check: restore-drill evidence pack present and coherent.
-# Does not re-run Postgres backup/restore (see restore-drill.sh / CI).
+# P0-13 / W3-OPS-C6 — Tip check: restore-drill evidence pack present and coherent.
+# Wired into CI (restore-drill-evidence job) and ci-aggregate; fails closed.
+# Does not re-run Postgres backup/restore (see restore-drill.sh / restore-drill.yml).
 #
 # Usage (repo root):
 #   ./tools/scripts/check-restore-drill-evidence.sh
@@ -49,7 +50,18 @@ console.log("OK", p);
 console.log("  mode=", mode);
 console.log("  counts=", JSON.stringify(counts));
 console.log("  run=", runUrl);
+const scripts = j.scriptsExercised || [];
+for (const rel of scripts) {
+  if (typeof rel !== "string" || !rel.startsWith("tools/scripts/")) {
+    console.error("invalid scriptsExercised entry:", rel);
+    process.exit(1);
+  }
+}
 ' "$latest"
+
+for rel in $(node -p "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).scriptsExercised.join('\n')" "$latest" 2>/dev/null); do
+  [[ -f "$rel" ]] || die "scriptsExercised missing on disk: $rel"
+done
 
 # Runbook must point at tip evidence (§7)
 grep -q 'docs/audits/evidence/restore-drill-' docs/BACKUP_RESTORE.md \

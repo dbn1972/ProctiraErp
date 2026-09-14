@@ -36,6 +36,7 @@ function allSkipped() {
     integrationTest: 'skipped',
     dodChecks: 'skipped',
     tenantIsolation: 'skipped',
+    restoreDrillEvidence: 'success',
   };
 }
 
@@ -51,6 +52,7 @@ function allSucceeded() {
     integrationTest: 'success',
     dodChecks: 'success',
     tenantIsolation: 'success',
+    restoreDrillEvidence: 'success',
   };
 }
 
@@ -59,6 +61,14 @@ test('docs-only PR: all skips are proven and gate passes', () => {
   assert.equal(report.ok, true);
   assert.equal(report.unprovenSkips.length, 0);
   assert.equal(report.provenSkips.length, 9);
+});
+
+test('restore-drill evidence skip fails closed even on docs-only PRs', () => {
+  const results = allSkipped();
+  results.restoreDrillEvidence = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'restore-drill-evidence'));
 });
 
 test('failing proof: skip cascade with code changes is unproven and gate fails', () => {

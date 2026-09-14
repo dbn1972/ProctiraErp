@@ -81,6 +81,11 @@ export function evaluate({ changes, results }) {
       result: results.tenantIsolation,
       requiredWhen: () => codeChanged(changes),
     },
+    {
+      job: 'restore-drill-evidence',
+      result: results.restoreDrillEvidence,
+      requiredWhen: () => true,
+    },
   ];
 
   for (const gate of gates) {
@@ -189,6 +194,7 @@ function readEnv() {
       integrationTest: process.env.INTEGRATION_TEST_RESULT,
       dodChecks: process.env.DOD_CHECKS_RESULT,
       tenantIsolation: process.env.TENANT_ISOLATION_RESULT,
+      restoreDrillEvidence: process.env.RESTORE_DRILL_EVIDENCE_RESULT,
     },
   };
 }
