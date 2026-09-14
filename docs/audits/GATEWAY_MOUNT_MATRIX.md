@@ -52,21 +52,27 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `backend/workflow`            | Yes      | `/workflow-engine`                                                                                                           | Postgres when `DATABASE_URL` (`025`; else in-memory)                                                 | Yes                     | Registrar `workflow-engine` (G-715): definitions, instances, transitions + append-only audit, cases.                                                                                                                                                                         |
 | `backend/etl`                 | Yes      | `/pipelines`                                                                                                                 | Raw pg `046` (else in-memory)                                                                        | Yes (report)            | Wave 10 Option C thin un-park. `data-warehouse` package remains PARKED (insights owns `/data-warehouse`).                                                                                                                                                                    |
 
-## Unmounted / PARKED (G-605, G-924)
+## Unmounted / PARKED (G-605, G-924, W1-ARCH-05)
 
-Every unmounted package carries a **decision** and rationale (G-924 acceptance: no "unmounted-undecided" rows). `EXPECTED_PARKED` equals `EXPECTED_UNMOUNTED` in `mount-matrix.ts`; the matrix test enforces `parked: true` + `parkedReason` on each.
+Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` equals `EXPECTED_UNMOUNTED` equals `PLUGIN_EXPORT_ALLOWLIST` in `mount-matrix.ts`. The matrix test fails when a package exports a Fastify plugin that is neither mounted nor allowlisted (W1-ARCH-05).
 
 | Package                   | Mounted? | Prefix(es)           | Persistence | RBAC wired? | Decision / Notes                                                                                                                           |
 | ------------------------- | -------- | -------------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `backend/admin-dashboard` | No       | `/admin/scalability` | n/a         | No          | **PARKED — superseded (G-924)**: platform-admin UI + insights own every dashboard surface. Retire when no importer remains.                |
-| `backend/custom-field`    | No       | `/custom-fields`     | n/a         | No          | **PARKED (G-605)** — in-memory only; no redesign UI/E2E. Institution `customData` JSON covers today's extensibility need.                  |
-| `backend/dashboards`      | No       | `/dashboards`        | n/a         | No          | **PARKED (G-605)** — needs AreaHierarchyResolver product wiring; G-909 role dashboards ship in `backend/report` `GET /reports/dashboard`.  |
 | `backend/data-warehouse`  | No       | `/warehouses`        | n/a         | No          | **PARKED — superseded (G-924)**: insights UI owns `/data-warehouse` (G-209); connector model needs an unfunded ETL runtime.                |
 | `backend/install`         | No       | `/install`           | n/a         | No          | **PARKED — out of gateway scope (G-924)**: install wizard is portal/demo scoped; must never be reachable on a live tenant gateway.         |
 | `backend/plugin`          | No       | `/plugins`           | n/a         | No          | **PARKED — superseded (G-924)**: `/plugins` served by platform-admin UI; marketplace runtime deferred.                                     |
 | `backend/policy`          | No       | `/policies`          | n/a         | No          | **PARKED — superseded (G-924)**: runtime retention is the audit `RetentionScheduler` (G-913); generic policy engine has no other consumer. |
 | `backend/survey`          | No       | `/surveys`           | n/a         | No          | **PARKED (G-605)** — plugin ready; no gateway product surface/E2E.                                                                         |
 | `backend/theme`           | No       | `/themes`            | n/a         | No          | **PARKED (G-605)** — `/themes` owned by platform-admin UI stub (prefix conflict).                                                          |
+
+### W1-ARCH-05 newly mounted
+
+| Package                | Mounted? | Prefix(es)       | Persistence | RBAC wired? | Notes                                                                                                                           |
+| ---------------------- | -------- | ---------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `backend/custom-field` | Yes      | `/custom-fields` | In-memory   | Yes         | Unparked: definitions/values for student/staff/institution. Durable schema + redesign UI residual.                              |
+| `backend/dashboards`   | Yes      | `/dashboards`    | In-memory   | Yes         | Unparked with `AreaHierarchyResolver` (W1-ARCH-04). Role-scoped dashboards; G-909 report dashboards remain on `backend/report`. |
+| `backend/privacy`      | Yes      | `/privacy`       | In-memory   | Yes         | Composed legal-hold + erasure HTTP (W1-SEC-06). Schema `067` Pg repository residual.                                            |
 
 ## Registrar ↔ package map
 
@@ -100,12 +106,16 @@ Every unmounted package carries a **decision** and rationale (G-924 acceptance: 
 | `fees`                   | `backend/fees`                                             |
 | `registration`           | `backend/registration`                                     |
 | `developer`              | `backend/developer-portal`                                 |
+| `custom-field`           | `backend/custom-field` (W1-ARCH-05)                        |
+| `dashboards`             | `backend/dashboards` (W1-ARCH-05)                          |
+| `privacy`                | `backend/privacy` (W1-ARCH-05 / W1-SEC-06)                 |
 
 ## Maintenance
 
 1. Adding a domain to `DOMAIN_REGISTRARS` → add/update a row in `mount-matrix.ts` and this doc; extend `EXPECTED_MOUNTED` / shrink `EXPECTED_UNMOUNTED` as needed.
-2. Mounting a previously unmounted package → flip `mounted: true`, set prefixes/persistence, move between curated lists.
-3. `gateway-mount-matrix.test.ts` fails if a new registrar name appears without a matrix row, or if curated mounted/unmounted lists drift from `MOUNT_MATRIX`.
+2. Mounting a previously unmounted package → flip `mounted: true`, set prefixes/persistence, move between curated lists **and** remove from `PLUGIN_EXPORT_ALLOWLIST`.
+3. Shipping a new `packages/backend/*` Fastify plugin without mounting it → add it to `PLUGIN_EXPORT_ALLOWLIST` + `EXPECTED_UNMOUNTED`/`EXPECTED_PARKED` with a parkedReason, or the W1-ARCH-05 gate fails.
+4. `gateway-mount-matrix.test.ts` fails if a new registrar name appears without a matrix row, if curated lists drift, or if a Fastify plugin export is neither mounted nor allowlisted.
 
 ## Wave 10 Option C note
 

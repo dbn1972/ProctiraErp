@@ -52,8 +52,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return updated!;
   }
 
+  async listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]> {
+    return this.repository.listActiveLegalHolds(tenantId);
+  }
+
   async isOnLegalHold(tenantId: string, subjectType?: string, subjectId?: string): Promise<boolean> {
-    const active = await this.repository.listActiveLegalHolds(tenantId);
+    const active = await this.listActiveLegalHolds(tenantId);
     if (active.some((h) => h.scope === 'tenant')) return true;
     if (subjectType && subjectId) {
       return active.some((h) => h.scope === 'subject' && h.subjectType === subjectType && h.subjectId === subjectId);

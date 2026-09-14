@@ -22,6 +22,7 @@ import {
   MATRIX_BACKEND_PACKAGES,
   MATRIX_REGISTRAR_NAMES,
   MOUNT_MATRIX,
+  PLUGIN_EXPORT_ALLOWLIST,
 } from './mount-matrix.js';
 import { PATH_RESOURCE_MAP, resourceForApiPath, UNMAPPED_API_RESOURCE } from './rbac-registry.js';
 
@@ -56,6 +57,47 @@ function listBackendPackageDirs(): string[] {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
+}
+
+/**
+ * W1-ARCH-05 — detect packages that export a Fastify plugin via `fp(...)`
+ * / `fastify-plugin` in their public entry or `*-plugin.ts` sources.
+ */
+function packagesExportingFastifyPlugin(): string[] {
+  const exporting: string[] = [];
+  for (const pkg of listBackendPackageDirs()) {
+    const srcDir = join(BACKEND_PACKAGES_DIR, pkg, 'src');
+    let files: string[] = [];
+    try {
+      files = readdirSync(srcDir).filter(
+        (name) =>
+          name.endsWith('-plugin.ts') ||
+          name === 'plugin.ts' ||
+          name === 'index.ts',
+      );
+    } catch {
+      continue;
+    }
+    const hit = files.some((file) => {
+      const source = readFileSync(join(srcDir, file), 'utf8');
+      return (
+        /from ['"]fastify-plugin['"]/.test(source) &&
+        (/\bfp\s*\(/.test(source) ||
+          /fastify-plugin\s*\(/.test(source) ||
+          /export const \w+Plugin\b/.test(source))
+      );
+    });
+    if (hit) exporting.push(pkg);
+  }
+  return exporting.sort();
+}
+
+function mountedBackendPackages(): Set<string> {
+  return new Set(
+    MOUNT_MATRIX.filter((row) => row.mounted && !row.package.endsWith('-ui')).map(
+      (row) => row.package,
+    ),
+  );
 }
 
 describe('G-003 gateway mount matrix', () => {
@@ -163,6 +205,28 @@ describe('G-003 gateway mount matrix', () => {
       expect(row.prefixes.length, `${row.package} mounted but has no prefixes`).toBeGreaterThan(0);
     }
   });
+
+  it('W1-ARCH-05: every Fastify-plugin export is mounted or allowlisted', () => {
+    const mounted = mountedBackendPackages();
+    const allowlisted = new Set(PLUGIN_EXPORT_ALLOWLIST);
+    const offenders = packagesExportingFastifyPlugin().filter(
+      (pkg) => !mounted.has(pkg) && !allowlisted.has(pkg),
+    );
+    expect(
+      offenders,
+      `Exporting Fastify plugin but neither mounted nor in PLUGIN_EXPORT_ALLOWLIST: ${offenders.join(', ')}`,
+    ).toEqual([]);
+
+    for (const pkg of PLUGIN_EXPORT_ALLOWLIST) {
+      expect(EXPECTED_UNMOUNTED, `${pkg} allowlisted but not in EXPECTED_UNMOUNTED`).toContain(pkg);
+      expect(EXPECTED_PARKED, `${pkg} allowlisted but not PARKED`).toContain(pkg);
+    }
+  });
+
+  it('W1-ARCH-05: PLUGIN_EXPORT_ALLOWLIST equals EXPECTED_UNMOUNTED', () => {
+    expect([...PLUGIN_EXPORT_ALLOWLIST].sort()).toEqual([...EXPECTED_UNMOUNTED].sort());
+  });
+
 });
 
 describe('G-702 — every mounted prefix has an RBAC resource mapping (default-deny)', () => {

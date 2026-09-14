@@ -200,6 +200,12 @@ importers:
       '@proctira/backend-curriculum':
         specifier: workspace:*
         version: link:../../packages/backend/curriculum
+      '@proctira/backend-custom-field':
+        specifier: workspace:*
+        version: link:../../packages/backend/custom-field
+      '@proctira/backend-dashboards':
+        specifier: workspace:*
+        version: link:../../packages/backend/dashboards
       '@proctira/backend-developer-portal':
         specifier: workspace:*
         version: link:../../packages/backend/developer-portal
@@ -2120,6 +2126,9 @@ importers:
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../shared/logging
+      '@proctira/validation':
+        specifier: workspace:*
+        version: link:../../shared/validation
       '@sinclair/typebox':
         specifier: ^0.32.0
         version: 0.32.35

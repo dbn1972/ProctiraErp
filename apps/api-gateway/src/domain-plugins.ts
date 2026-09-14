@@ -58,6 +58,15 @@ import {
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
+  customFieldPlugin,
+  InMemoryCustomFieldDefinitionRepository,
+  InMemoryCustomFieldValueRepository,
+} from '@proctira/backend-custom-field';
+import {
+  dashboardsPlugin,
+  InMemoryDashboardRepository,
+} from '@proctira/backend-dashboards';
+import {
   createDeveloperPortalRepository,
   createWebhookDeliveryPublisherFromEnv,
   developerPortalPlugin,
@@ -86,7 +95,11 @@ import {
   healthPlugin,
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
-import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import {
+  createAreaHierarchyResolver,
+  createInstitutionRepository,
+  institutionPlugin,
+} from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import {
@@ -118,7 +131,11 @@ import {
   StudentService,
   studentPlugin,
 } from '@proctira/backend-student';
-import { InMemoryPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
+import {
+  InMemoryPrivacyRepository,
+  PrivacyService,
+  privacyPlugin,
+} from '@proctira/backend-privacy';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import {
@@ -945,6 +962,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository: createDeveloperPortalRepository(),
         deliveryPublisher: webhookDelivery?.publisher,
         prefix: '/developer',
+      });
+    },
+  },
+  {
+    name: 'custom-field',
+    proxyPrefixes: ['/custom-fields'],
+    register: async (scope) => {
+      // W1-ARCH-05: unpark custom-field — definitions/values for student/staff/institution.
+      // In-memory only this wave (no durable schema); product UI residual.
+      await scope.register(customFieldPlugin, {
+        definitionRepository: new InMemoryCustomFieldDefinitionRepository(),
+        valueRepository: new InMemoryCustomFieldValueRepository(),
+        prefix: '/custom-fields',
+      });
+    },
+  },
+  {
+    name: 'dashboards',
+    proxyPrefixes: ['/dashboards'],
+    register: async (scope) => {
+      // W1-ARCH-05: unpark dashboards — AreaHierarchyResolver wired (W1-ARCH-04).
+      // In-memory aggregates; G-909 role dashboards remain on backend-report.
+      await scope.register(dashboardsPlugin, {
+        repository: new InMemoryDashboardRepository(),
+        areaResolver: createAreaHierarchyResolver(),
+        prefix: '/dashboards',
+      });
+    },
+  },
+  {
+    name: 'privacy',
+    proxyPrefixes: ['/privacy'],
+    register: async (scope) => {
+      // W1-ARCH-05: compose @proctira/backend-privacy (W1-SEC-06). In-memory store;
+      // Pg repository residual (schema 067 exists). Legal hold + erasure HTTP routes.
+      await scope.register(privacyPlugin, {
+        repository: new InMemoryPrivacyRepository(),
+        prefix: '/privacy',
       });
     },
   },
