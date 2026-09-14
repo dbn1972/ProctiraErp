@@ -66,3 +66,13 @@
 - `ALLOW_PHI_KMS_STUB=1` and `ALLOW_PLAINTEXT_PHI=1` must never be set in normal production.
 - Historical `enc:v1` / `enc:v2` ciphertext remains readable with the unwrapped root; re-encrypt to `enc:v3` on key rotation is an ops playbook residual.
 - Authoritative assignment SQL depends on `staff.custom_data.userId` linkage; when the join is unavailable the service falls back to JWT claims but still denies empty scope for school-bound roles.
+
+## Follow-up (KMS client injection)
+
+PARTIAL residual closed: gateway health boot now calls `createPhiKmsClientFromEnv()`
+and injects the client into `ensurePhiEnvelopeProvider`.
+
+- `AwsKmsPhiClient` wraps `@aws-sdk/client-kms`
+- CI / non-AWS: `PHI_KMS_CLIENT=local-stub` + `ALLOW_PHI_KMS_STUB=1`
+- Evidence: `aws-kms-phi-client.test.ts`; `apps/api-gateway/src/domain-plugins.ts` health mount
+
