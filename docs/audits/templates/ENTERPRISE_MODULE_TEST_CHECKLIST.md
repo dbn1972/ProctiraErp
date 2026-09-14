@@ -9,6 +9,14 @@
 
 Copy this file to `docs/audits/<MODULE>_<SCREENS>.md` and complete every section. Hooks treat missing evidence as incomplete.
 
+### False claims — cannot be entertained
+
+- Tip evidence (SHA + path/test/CI) required for every pass. `*_COMPLETE.md` alone is **not** evidence.
+- Allowed dispositions only: `FULLY_CLOSED` · `PARTIAL` · `OPEN` · `REGRESSED` · `EXTERNALLY_UNVERIFIED`.
+- Independent / third-party tip re-audit outranks self-score and outranks old ledgers.
+- Partial progress must name what remains open in the same verdict.
+- When unsure → mark **Not ready** / PARTIAL / OPEN — never upgrade to closed to satisfy narrative.
+
 ---
 
 ## 0. Screen inventory
@@ -97,5 +105,9 @@ Horizontal scroll / clipped CTA issues: none / listed:
 - [ ] All pillars have evidence **or** dated waivers above
 - [ ] Walkthrough artifacts attached to PR
 - [ ] Session state set to `complete` via hooks helper
+- [ ] No false closed / COMPLETE / Wave‑N-all-done claim without tip re-audit evidence above
+- [ ] Residuals named explicitly if verdict is not full enterprise production-ready
 
 **Verdict:** ☐ Not ready · ☐ Ready with waivers · ☐ Enterprise production-ready
+
+**False-claim attestation:** I did **not** mark closed/COMPLETE based on docs-only or stale ledger. Tip SHA cited: ________
