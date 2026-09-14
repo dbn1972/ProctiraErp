@@ -13,6 +13,7 @@ import type {
   AcademicPeriodStatusType,
   AcademicPeriodKindType,
 } from './academic-period-schemas.js';
+import { isEffectiveOn, toUtcDateOnly } from './effective-dating.js';
 
 export interface AcademicPeriodServiceDeps {
   prisma: PrismaClient;
@@ -232,8 +233,10 @@ export class AcademicPeriodService {
    */
   async list(
     tenantId: string,
-    options?: { status?: string; parentId?: string; kind?: string },
+    options?: { status?: string; parentId?: string; kind?: string; asOf?: string },
   ): Promise<AcademicPeriod[]> {
+    const asOf = options?.asOf ? toUtcDateOnly(options.asOf) : undefined;
+    const asOfDate = asOf ? new Date(`${asOf}T00:00:00.000Z`) : undefined;
     return this.prisma.academicPeriod.findMany({
       where: {
         tenantId,
@@ -241,6 +244,10 @@ export class AcademicPeriodService {
         ...(options?.status && { status: options.status }),
         ...(options?.kind && { kind: options.kind }),
         ...(options?.parentId && { parentId: options.parentId }),
+        ...(asOfDate && {
+          startDate: { lte: asOfDate },
+          endDate: { gte: asOfDate },
+        }),
       },
       orderBy: { startDate: 'desc' },
     });
@@ -279,7 +286,11 @@ export class AcademicPeriodService {
    *
    * @throws BusinessRuleError if the period is not active
    */
-  async validateActivePeriod(tenantId: string, academicPeriodId: string): Promise<AcademicPeriod> {
+  async validateActivePeriod(
+    tenantId: string,
+    academicPeriodId: string,
+    asOf: Date | string = new Date(),
+  ): Promise<AcademicPeriod> {
     const period = await this.prisma.academicPeriod.findFirst({
       where: { id: academicPeriodId, tenantId, deletedAt: null },
     });
@@ -292,6 +303,13 @@ export class AcademicPeriodService {
       throw new BusinessRuleError(
         `The referenced academic period '${period.name}' is not currently active. ` +
           `Current status: ${period.status}. Only active periods allow enrollment, attendance, and assessment operations.`,
+      );
+    }
+
+    if (!isEffectiveOn(period.startDate, period.endDate, asOf)) {
+      throw new BusinessRuleError(
+        `The referenced academic period '${period.name}' is not effective on ${toUtcDateOnly(asOf)}. ` +
+          `Valid window: ${toUtcDateOnly(period.startDate)} .. ${toUtcDateOnly(period.endDate)}.`,
       );
     }
 
