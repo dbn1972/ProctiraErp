@@ -65,6 +65,8 @@ export type TranscriptIssuanceEntity = {
   issuedBy: string | null;
   artifactUri: string | null;
   checksumSha256: string | null;
+  /** HMAC-SHA256 over checksum; required for ISSUED rows at the DB (068). */
+  signatureHmac?: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

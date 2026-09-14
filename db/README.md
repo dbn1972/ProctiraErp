@@ -54,6 +54,11 @@ transcripts) ship `BEFORE UPDATE OR DELETE` triggers. `053_immutability_privileg
 also **REVOKEs UPDATE/DELETE/TRUNCATE/TRIGGER** on those tables from `proctira_app`
 so runtime cannot mutate rows or disable guards even if connected with broad DML grants.
 
+`069_audit_archive_transcript_authenticity.sql` extends the same posture to
+`audit_log_archive` (permanent append-only + REVOKE) and requires
+`checksum_sha256` + `signature_hmac` on ISSUED `transcript_issuances` inserts.
+See `docs/audits/DATA_W1_DATA_08_IMMUTABILITY.md`.
+
 ## Domain SQL apply ledger (W1-DATA-05)
 
 Numbered `db/sql/` apply is **not** whole-set atomic (Postgres cannot wrap every

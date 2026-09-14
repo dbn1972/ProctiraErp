@@ -96,3 +96,35 @@ describe('W1-DATA-08 immutability privileges (053_immutability_privileges.sql)',
     expect(immutability).toMatch(/proctira_app/);
   });
 });
+
+const ARCHIVE_AUTH_MIGRATION = '069_audit_archive_transcript_authenticity.sql';
+
+describe('W1-DATA-08 residual audit archive + transcript authenticity (069)', () => {
+  it('ships 069 with append-only trigger on audit_log_archive', () => {
+    const path = join(sqlDir(), ARCHIVE_AUTH_MIGRATION);
+    expect(existsSync(path), `missing db/sql/${ARCHIVE_AUTH_MIGRATION}`).toBe(true);
+    const sql = loadSql(ARCHIVE_AUTH_MIGRATION);
+    expect(sql).toMatch(/audit_log_archive_append_only/i);
+    expect(sql).toMatch(
+      /CREATE TRIGGER trg_audit_log_archive_append_only[\s\S]*BEFORE UPDATE OR DELETE ON audit_log_archive/i,
+    );
+  });
+
+  it('069 REVOKEs UPDATE/DELETE/TRUNCATE/TRIGGER on audit_log_archive from proctira_app', () => {
+    const sql = loadSql(ARCHIVE_AUTH_MIGRATION);
+    expect(sql).toMatch(/REVOKE UPDATE, DELETE ON audit_log_archive FROM proctira_app/i);
+    expect(sql).toMatch(/REVOKE TRUNCATE ON audit_log_archive FROM proctira_app/i);
+    expect(sql).toMatch(/REVOKE TRIGGER ON audit_log_archive FROM proctira_app/i);
+  });
+
+  it('069 requires ISSUED transcript checksum_sha256 + signature_hmac on INSERT', () => {
+    const sql = loadSql(ARCHIVE_AUTH_MIGRATION);
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS signature_hmac/i);
+    expect(sql).toMatch(/transcript_issuances_require_authenticity/i);
+    expect(sql).toMatch(
+      /CREATE TRIGGER trg_transcript_issuances_authenticity[\s\S]*BEFORE INSERT ON transcript_issuances/i,
+    );
+    expect(sql).toMatch(/ISSUED rows require checksum_sha256/i);
+    expect(sql).toMatch(/ISSUED rows require signature_hmac/i);
+  });
+});
