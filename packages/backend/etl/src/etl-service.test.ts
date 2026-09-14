@@ -1,7 +1,8 @@
 /**
  * ETL Service Unit Tests
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { AppError } from '@proctira/common';
 import { ETLService } from './etl-service.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type { CreatePipelineInput } from './schemas.js';
@@ -227,6 +228,71 @@ describe('ETLService', () => {
       await expect(
         service.executePipeline(tenantId, '00000000-0000-4000-8000-000000000000'),
       ).rejects.toThrow('Pipeline not found');
+    });
+  });
+
+  describe('stopAcceptingAndDrain (W1-ARCH-07)', () => {
+    it('drains an in-flight /execute and refuses new work', async () => {
+      const pipeline = await service.createPipeline(tenantId, validPipelineInput);
+
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let entered = false;
+      let finished = false;
+
+      const original = (
+        service as unknown as {
+          runPipelineExecution: (...args: unknown[]) => Promise<unknown>;
+        }
+      ).runPipelineExecution.bind(service);
+
+      vi.spyOn(
+        service as unknown as { runPipelineExecution: (...args: unknown[]) => Promise<unknown> },
+        'runPipelineExecution',
+      ).mockImplementation(async (...args: unknown[]) => {
+        entered = true;
+        await gate;
+        finished = true;
+        return original(...args);
+      });
+
+      const executionPromise = service.executePipeline(tenantId, pipeline.id);
+      await vi.waitFor(() => {
+        expect(entered).toBe(true);
+      });
+      expect(service.getInFlightExecutionCount()).toBe(1);
+      expect(finished).toBe(false);
+
+      const drain = service.stopAcceptingAndDrain();
+      expect(service.isAcceptingWork()).toBe(false);
+
+      await expect(service.executePipeline(tenantId, pipeline.id)).rejects.toMatchObject({
+        code: 'SERVICE_UNAVAILABLE',
+        statusCode: 503,
+      });
+
+      expect(finished).toBe(false);
+      release();
+      await drain;
+      const execution = await executionPromise;
+      expect(finished).toBe(true);
+      expect(execution.status).toBe('completed');
+      expect(service.getInFlightExecutionCount()).toBe(0);
+    });
+
+    it('refuses executePipelineWithRetry after drain starts', async () => {
+      const pipeline = await service.createPipeline(tenantId, validPipelineInput);
+      await service.stopAcceptingAndDrain();
+
+      try {
+        await service.executePipelineWithRetry(tenantId, pipeline.id, true);
+        expect.fail('expected SERVICE_UNAVAILABLE');
+      } catch (err) {
+        expect(err).toBeInstanceOf(AppError);
+        expect(err).toMatchObject({ code: 'SERVICE_UNAVAILABLE', statusCode: 503 });
+      }
     });
   });
 });

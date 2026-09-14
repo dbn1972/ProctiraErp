@@ -219,5 +219,25 @@ describe('ETL Routes', () => {
       expect(body.status).toBe('completed');
       expect(body.startedAt).toBeDefined();
     });
+
+    it('returns 503 when execute is refused during shutdown (W1-ARCH-07)', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      const created = JSON.parse(createResponse.payload);
+
+      await etlService.stopAcceptingAndDrain();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/pipelines/${created.id}/execute`,
+      });
+
+      expect(response.statusCode).toBe(503);
+      const body = JSON.parse(response.payload);
+      expect(body.code).toBe('SERVICE_UNAVAILABLE');
+    });
   });
 });
