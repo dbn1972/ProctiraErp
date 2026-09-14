@@ -25,13 +25,13 @@
 
 | Check | Pass | Evidence |
 | ----- | ---- | -------- |
-| Effective-dated restriction table | ☑ | `db/sql/076_guardian_custody_restrictions.sql` |
+| Effective-dated restriction table | ☑ | `db/sql/077_guardian_custody_restrictions.sql` |
 | Custody effective window enforced | ☑ | `listActiveCustodyHouseholdIdsForStudent` filters `effective_from` / `effective_to` |
 | Missing custody denies access | ☑ | `hasHouseholdCustodyAccess` returns false when no active custody; unit test `denies access when custody data is missing` |
 | Governed ops require non-restricted authority | ☑ | `assertParentAuthority` + fee list filter; unit test `suspends governed medical/fee authority…` |
 | Cross-household deny retained | ☑ | Existing W1-SEC-03 cross-household suite |
 | RLS on guardian_* + restrictions | ☑ | 076 ENABLE/FORCE + `tenant_isolation` (app_tenant_id when present) |
-| Demo seed fail-closed compatible | ☑ | `076b_guardian_custody_demo_seed.sql` |
+| Demo seed fail-closed compatible | ☑ | `077b_guardian_custody_demo_seed.sql` |
 | No secrets in git | ☑ | Schema + service only |
 
 ---

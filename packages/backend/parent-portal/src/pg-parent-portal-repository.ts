@@ -88,7 +88,7 @@ export async function ensureParentPortalSchema(
       await pool.query(sql051);
       const sql054 = readFileSync(resolveSqlPath('054_guardian_household_custody.sql'), 'utf8');
       await pool.query(sql054);
-      const sql076 = readFileSync(resolveSqlPath('076_guardian_custody_restrictions.sql'), 'utf8');
+      const sql076 = readFileSync(resolveSqlPath('077_guardian_custody_restrictions.sql'), 'utf8');
       await pool.query(sql076);
     })();
   }
@@ -111,7 +111,7 @@ export async function ensureParentPortalSeed(
       const sql = readFileSync(resolveSqlPath('010b_parent_portal_seed.sql'), 'utf8');
       await pool.query(sql);
       const custodySeed = readFileSync(
-        resolveSqlPath('076b_guardian_custody_demo_seed.sql'),
+        resolveSqlPath('077b_guardian_custody_demo_seed.sql'),
         'utf8',
       );
       await pool.query(custodySeed);
