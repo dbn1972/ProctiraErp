@@ -169,37 +169,40 @@ export class PgPipelineRepository implements PipelineRepository {
     id: string,
     updates: Partial<PipelineExecution>,
   ): Promise<PipelineExecution> {
-    // Load without tenant filter for update path used by executor
-    const pool = this.pool;
-    const found = await pool.query(
-      `SELECT tenant_id, document FROM etl_pipeline_runs WHERE id=$1`,
-      [id],
-    );
-    const row = found.rows[0] as
-      | { tenant_id: string; document: Record<string, unknown> }
-      | undefined;
-    if (!row) throw new Error(`Execution not found: ${id}`);
-    const existing = reviveExecution(row.document);
-    const updated: PipelineExecution = { ...existing, ...updates, id };
-    const doc = {
-      ...updated,
-      startedAt: updated.startedAt.toISOString(),
-      completedAt: updated.completedAt?.toISOString() ?? null,
-    };
-    await this.withTenant(row.tenant_id, async (client) => {
+    // W1-DATA-13: deny missing tenant — never unbound pool.query against RLS.
+    const tenantId = updates.tenantId;
+    if (typeof tenantId !== 'string' || tenantId.trim().length === 0) {
+      throw new Error('updateExecution: tenantId is required');
+    }
+    return this.withTenant(tenantId, async (client) => {
+      const found = await client.query(
+        `SELECT tenant_id, document FROM etl_pipeline_runs WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      );
+      const row = found.rows[0] as
+        | { tenant_id: string; document: Record<string, unknown> }
+        | undefined;
+      if (!row) throw new Error(`Execution not found: ${id}`);
+      const existing = reviveExecution(row.document);
+      const updated: PipelineExecution = { ...existing, ...updates, id, tenantId };
+      const doc = {
+        ...updated,
+        startedAt: updated.startedAt.toISOString(),
+        completedAt: updated.completedAt?.toISOString() ?? null,
+      };
       await client.query(
         `UPDATE etl_pipeline_runs SET status=$3, document=$4::jsonb, completed_at=$5
          WHERE id=$1 AND tenant_id=$2`,
         [
           id,
-          row.tenant_id,
+          tenantId,
           updated.status,
           JSON.stringify(doc),
           updated.completedAt?.toISOString() ?? null,
         ],
       );
+      return updated;
     });
-    return updated;
   }
 
   async getExecution(id: string, tenantId: string): Promise<PipelineExecution | null> {

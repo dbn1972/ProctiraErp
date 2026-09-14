@@ -1745,57 +1745,40 @@ export class PgLmsRepository implements LmsRepository {
       };
     });
   }
+  // W1-DATA-13: module APIs must bind app.tenant_id (same as every other LMS table).
   async createModule(data: LmsModuleEntity) {
-    await this.pool.query(
-      `INSERT INTO lms_modules (id, tenant_id, institution_id, academic_period_id, class_key, title, position, published, created_by, created_at, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-      [
-        data.id,
-        data.tenantId,
-        data.institutionId,
-        data.academicPeriodId,
-        data.classKey,
-        data.title,
-        data.position,
-        data.published,
-        data.createdBy,
-        data.createdAt,
-        data.updatedAt,
-      ],
-    );
-    return data;
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      await client.query(
+        `INSERT INTO lms_modules (id, tenant_id, institution_id, academic_period_id, class_key, title, position, published, created_by, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [
+          data.id,
+          data.tenantId,
+          data.institutionId,
+          data.academicPeriodId,
+          data.classKey,
+          data.title,
+          data.position,
+          data.published,
+          data.createdBy,
+          data.createdAt,
+          data.updatedAt,
+        ],
+      );
+      return data;
+    });
   }
   async findModule(tenantId: string, id: string): Promise<LmsModuleEntity | null> {
-    const res = await this.pool.query(`SELECT * FROM lms_modules WHERE tenant_id=$1 AND id=$2`, [
-      tenantId,
-      id,
-    ]);
-    const row = res.rows[0] as Record<string, unknown> | undefined;
-    if (!row) return null;
-    return {
-      id: String(row.id),
-      tenantId: String(row.tenant_id),
-      institutionId: row.institution_id ? String(row.institution_id) : null,
-      academicPeriodId: row.academic_period_id ? String(row.academic_period_id) : null,
-      classKey: row.class_key ? String(row.class_key) : null,
-      title: String(row.title),
-      position: Number(row.position),
-      published: Boolean(row.published),
-      createdBy: row.created_by ? String(row.created_by) : null,
-      createdAt: row.created_at as Date,
-      updatedAt: row.updated_at as Date,
-    };
-  }
-  async listModules(
-    tenantId: string,
-    filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
-  ) {
-    const res = await this.pool.query(
-      `SELECT * FROM lms_modules WHERE tenant_id=$1 ORDER BY position ASC`,
-      [tenantId],
-    );
-    return res.rows
-      .map((row: Record<string, unknown>) => ({
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const res = await client.query(`SELECT * FROM lms_modules WHERE tenant_id=$1 AND id=$2`, [
+        tenantId,
+        id,
+      ]);
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return {
         id: String(row.id),
         tenantId: String(row.tenant_id),
         institutionId: row.institution_id ? String(row.institution_id) : null,
@@ -1807,51 +1790,84 @@ export class PgLmsRepository implements LmsRepository {
         createdBy: row.created_by ? String(row.created_by) : null,
         createdAt: row.created_at as Date,
         updatedAt: row.updated_at as Date,
-      }))
-      .filter(
-        (m: {
-          classKey: string | null;
-          academicPeriodId: string | null;
-          institutionId: string | null;
-        }) =>
-          (filter.classKey ? m.classKey === filter.classKey : true) &&
-          (filter.academicPeriodId ? m.academicPeriodId === filter.academicPeriodId : true) &&
-          (filter.institutionId ? m.institutionId === filter.institutionId : true),
+      };
+    });
+  }
+  async listModules(
+    tenantId: string,
+    filter: { classKey?: string; academicPeriodId?: string; institutionId?: string },
+  ) {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const res = await client.query(
+        `SELECT * FROM lms_modules WHERE tenant_id=$1 ORDER BY position ASC`,
+        [tenantId],
       );
+      return res.rows
+        .map((row: Record<string, unknown>) => ({
+          id: String(row.id),
+          tenantId: String(row.tenant_id),
+          institutionId: row.institution_id ? String(row.institution_id) : null,
+          academicPeriodId: row.academic_period_id ? String(row.academic_period_id) : null,
+          classKey: row.class_key ? String(row.class_key) : null,
+          title: String(row.title),
+          position: Number(row.position),
+          published: Boolean(row.published),
+          createdBy: row.created_by ? String(row.created_by) : null,
+          createdAt: row.created_at as Date,
+          updatedAt: row.updated_at as Date,
+        }))
+        .filter(
+          (m: {
+            classKey: string | null;
+            academicPeriodId: string | null;
+            institutionId: string | null;
+          }) =>
+            (filter.classKey ? m.classKey === filter.classKey : true) &&
+            (filter.academicPeriodId ? m.academicPeriodId === filter.academicPeriodId : true) &&
+            (filter.institutionId ? m.institutionId === filter.institutionId : true),
+        );
+    });
   }
   async createModuleItem(data: LmsModuleItemEntity) {
-    await this.pool.query(
-      `INSERT INTO lms_module_items (id, tenant_id, module_id, item_type, item_id, title, position, required, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [
-        data.id,
-        data.tenantId,
-        data.moduleId,
-        data.itemType,
-        data.itemId,
-        data.title,
-        data.position,
-        data.required,
-        data.createdAt,
-      ],
-    );
-    return data;
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      await client.query(
+        `INSERT INTO lms_module_items (id, tenant_id, module_id, item_type, item_id, title, position, required, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          data.id,
+          data.tenantId,
+          data.moduleId,
+          data.itemType,
+          data.itemId,
+          data.title,
+          data.position,
+          data.required,
+          data.createdAt,
+        ],
+      );
+      return data;
+    });
   }
   async listModuleItems(tenantId: string, moduleId: string) {
-    const res = await this.pool.query(
-      `SELECT * FROM lms_module_items WHERE tenant_id=$1 AND module_id=$2 ORDER BY position ASC`,
-      [tenantId, moduleId],
-    );
-    return res.rows.map((row: Record<string, unknown>) => ({
-      id: String(row.id),
-      tenantId: String(row.tenant_id),
-      moduleId: String(row.module_id),
-      itemType: row.item_type as 'assignment' | 'content' | 'discussion' | 'url',
-      itemId: row.item_id ? String(row.item_id) : null,
-      title: String(row.title),
-      position: Number(row.position),
-      required: Boolean(row.required),
-      createdAt: row.created_at as Date,
-    }));
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const res = await client.query(
+        `SELECT * FROM lms_module_items WHERE tenant_id=$1 AND module_id=$2 ORDER BY position ASC`,
+        [tenantId, moduleId],
+      );
+      return res.rows.map((row: Record<string, unknown>) => ({
+        id: String(row.id),
+        tenantId: String(row.tenant_id),
+        moduleId: String(row.module_id),
+        itemType: row.item_type as 'assignment' | 'content' | 'discussion' | 'url',
+        itemId: row.item_id ? String(row.item_id) : null,
+        title: String(row.title),
+        position: Number(row.position),
+        required: Boolean(row.required),
+        createdAt: row.created_at as Date,
+      }));
+    });
   }
 }
