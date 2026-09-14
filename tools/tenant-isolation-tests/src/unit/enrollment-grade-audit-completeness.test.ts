@@ -1,9 +1,9 @@
 /**
  * W1-DATA-14 — enrollment history + grade-change audit completeness (static).
  *
- * Triggers must ship so status/score changes cannot skip audit rows; audit
- * tables must be append-only with REVOKE from proctira_app; grade_change_audit
- * must FK to grade_entries.
+ * 071 ships write triggers + append-only + REVOKE. 076 hardens REGRESSED gaps:
+ * RESTRICT FKs (no CASCADE erase), SECURITY DEFINER + search_path on writers,
+ * and re-asserted SELECT/INSERT-only grants for proctira_app.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const MIGRATION = '071_enrollment_grade_audit_completeness.sql';
+const MIGRATION_071 = '071_enrollment_grade_audit_completeness.sql';
+const MIGRATION_076 = '080_enrollment_grade_audit_harden.sql';
 
 function sqlDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -35,14 +36,18 @@ function loadSql(file: string): string {
   return readFileSync(join(sqlDir(), file), 'utf8');
 }
 
-describe('W1-DATA-14 enrollment / grade audit completeness (071)', () => {
-  it('ships 071 migration', () => {
-    const path = join(sqlDir(), MIGRATION);
-    expect(existsSync(path), `missing db/sql/${MIGRATION}`).toBe(true);
+describe('W1-DATA-14 enrollment / grade audit completeness (071 + 076)', () => {
+  it('ships 071 and 076 migrations', () => {
+    expect(existsSync(join(sqlDir(), MIGRATION_071)), `missing db/sql/${MIGRATION_071}`).toBe(
+      true,
+    );
+    expect(existsSync(join(sqlDir(), MIGRATION_076)), `missing db/sql/${MIGRATION_076}`).toBe(
+      true,
+    );
   });
 
-  it('writes enrollment_history from enrollments INSERT/UPDATE OF status', () => {
-    const sql = loadSql(MIGRATION);
+  it('071 writes enrollment_history from enrollments INSERT/UPDATE OF status', () => {
+    const sql = loadSql(MIGRATION_071);
     expect(sql).toMatch(/enrollments_write_history/i);
     expect(sql).toMatch(
       /CREATE TRIGGER trg_enrollments_write_history[\s\S]*AFTER INSERT OR UPDATE OF status ON enrollments/i,
@@ -50,8 +55,8 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071)', () => {
     expect(sql).toMatch(/INSERT INTO enrollment_history/i);
   });
 
-  it('writes grade_change_audit from grade_entries INSERT/UPDATE', () => {
-    const sql = loadSql(MIGRATION);
+  it('071 writes grade_change_audit from grade_entries INSERT/UPDATE', () => {
+    const sql = loadSql(MIGRATION_071);
     expect(sql).toMatch(/grade_entries_write_change_audit/i);
     expect(sql).toMatch(
       /CREATE TRIGGER trg_grade_entries_write_change_audit[\s\S]*AFTER INSERT OR UPDATE ON grade_entries/i,
@@ -60,8 +65,8 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071)', () => {
     expect(sql).toMatch(/workflowStatus/);
   });
 
-  it('makes enrollment_history and grade_change_audit append-only + REVOKE', () => {
-    const sql = loadSql(MIGRATION);
+  it('071 makes enrollment_history and grade_change_audit append-only + REVOKE', () => {
+    const sql = loadSql(MIGRATION_071);
     expect(sql).toMatch(
       /CREATE TRIGGER trg_enrollment_history_append_only[\s\S]*BEFORE UPDATE OR DELETE ON enrollment_history/i,
     );
@@ -74,16 +79,38 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071)', () => {
     expect(sql).toMatch(/REVOKE TRIGGER ON grade_change_audit FROM proctira_app/i);
   });
 
-  it('adds grade_change_audit → grade_entries FK', () => {
-    const sql = loadSql(MIGRATION);
-    expect(sql).toMatch(/grade_change_audit_grade_entry_fk/i);
+  it('076 hardens FKs to ON DELETE RESTRICT (no CASCADE erase)', () => {
+    const sql = loadSql(MIGRATION_076);
+    expect(sql).toMatch(/enrollment_history_enrollment_id_fkey/);
+    expect(sql).toMatch(/grade_change_audit_grade_entry_id_fkey/);
     expect(sql).toMatch(
-      /FOREIGN KEY \(grade_entry_id\) REFERENCES grade_entries\(id\)/i,
+      /FOREIGN KEY \(enrollment_id\) REFERENCES enrollments\(id\)\s+ON DELETE RESTRICT/i,
+    );
+    expect(sql).toMatch(
+      /FOREIGN KEY \(grade_entry_id\) REFERENCES grade_entries\(id\)\s+ON DELETE RESTRICT/i,
+    );
+    // DDL must not recreate CASCADE FKs (comments may still name the prior bug).
+    expect(sql).not.toMatch(
+      /FOREIGN KEY \([^)]+\) REFERENCES \w+\(id\)\s+ON DELETE CASCADE/i,
     );
   });
 
-  it('records itself in schema_migrations', () => {
-    const sql = loadSql(MIGRATION);
-    expect(sql).toMatch(/071_enrollment_grade_audit_completeness\.sql/);
+  it('076 SECURITY DEFINER + search_path on write functions; SELECT/INSERT-only for runtime', () => {
+    const sql = loadSql(MIGRATION_076);
+    expect(sql).toMatch(
+      /CREATE OR REPLACE FUNCTION enrollments_write_history\(\)[\s\S]*SECURITY DEFINER[\s\S]*SET search_path = public/i,
+    );
+    expect(sql).toMatch(
+      /CREATE OR REPLACE FUNCTION grade_entries_write_change_audit\(\)[\s\S]*SECURITY DEFINER[\s\S]*SET search_path = public/i,
+    );
+    expect(sql).toMatch(/REVOKE ALL ON enrollment_history FROM proctira_app/i);
+    expect(sql).toMatch(/GRANT SELECT, INSERT ON enrollment_history TO proctira_app/i);
+    expect(sql).toMatch(/REVOKE ALL ON grade_change_audit FROM proctira_app/i);
+    expect(sql).toMatch(/GRANT SELECT, INSERT ON grade_change_audit TO proctira_app/i);
+  });
+
+  it('records both migrations in schema_migrations', () => {
+    expect(loadSql(MIGRATION_071)).toMatch(/071_enrollment_grade_audit_completeness\.sql/);
+    expect(loadSql(MIGRATION_076)).toMatch(/080_enrollment_grade_audit_harden\.sql/);
   });
 });

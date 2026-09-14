@@ -1,6 +1,10 @@
 /**
  * W1-DATA-14 — live Postgres proofs that enrollment status / grade changes
- * cannot skip audit rows (database triggers, not application convention).
+ * cannot skip audit rows (database triggers), and that proctira_app cannot
+ * mutate audit/history rows (append-only + REVOKE).
+ *
+ * Requires DATABASE_URL as proctira_app against a DB that applied through 076.
+ * Optional MIGRATOR_DATABASE_URL applies 071+076 when the ledger is behind.
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -15,16 +19,37 @@ const DATABASE_URL = requireLiveDatabaseUrl({
   suite: 'enrollment-grade-audit-completeness.live.test',
 });
 
-const MIGRATION = '071_enrollment_grade_audit_completeness.sql';
+const MIGRATIONS = [
+  '071_enrollment_grade_audit_completeness.sql',
+  '080_enrollment_grade_audit_harden.sql',
+] as const;
+
+const AUDIT_TRIGGERS = [
+  { table: 'enrollment_history', trigger: 'trg_enrollment_history_append_only' },
+  { table: 'grade_change_audit', trigger: 'trg_grade_change_audit_append_only' },
+  { table: 'enrollments', trigger: 'trg_enrollments_write_history' },
+  { table: 'grade_entries', trigger: 'trg_grade_entries_write_change_audit' },
+] as const;
 
 describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness (live)', () => {
   let pool: pg.Pool;
 
   beforeAll(async () => {
+    const migratorUrl = process.env['MIGRATOR_DATABASE_URL'];
+    if (migratorUrl) {
+      const migrator = new pg.Pool({ connectionString: migratorUrl });
+      try {
+        const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
+        for (const file of MIGRATIONS) {
+          const sql = readFileSync(path.join(root, 'db/sql', file), 'utf8');
+          await migrator.query(sql);
+        }
+      } finally {
+        await migrator.end();
+      }
+    }
+
     pool = new pg.Pool({ connectionString: DATABASE_URL });
-    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
-    const sql = readFileSync(path.join(root, 'db/sql', MIGRATION), 'utf8');
-    await pool.query(sql);
   });
 
   afterAll(async () => {
@@ -45,6 +70,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
     const institutionId = randomUUID();
     const academicPeriodId = randomUUID();
     const gradeId = randomUUID();
+    const classId = randomUUID();
     const studentId = randomUUID();
     const enrollmentId = randomUUID();
     const gradeEntryId = randomUUID();
@@ -79,15 +105,30 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
       [gradeId, tenantId, `G6-${suffix}`],
     );
     await client.query(
+      `INSERT INTO classes (
+         id, tenant_id, institution_id, grade_id, academic_period_id, name
+       ) VALUES ($1, $2, $3, $4, $5, '6A')`,
+      [classId, tenantId, institutionId, gradeId, academicPeriodId],
+    );
+    await client.query(
       `INSERT INTO students (id, tenant_id, first_name, last_name, date_of_birth, gender)
        VALUES ($1, $2, 'Audit', 'Student', '2012-01-01', 'unspecified')`,
       [studentId, tenantId],
     );
     await client.query(
       `INSERT INTO enrollments (
-         id, tenant_id, student_id, institution_id, grade_id, academic_period_id, status, enrolled_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, 'ENROLLED', CURRENT_DATE)`,
-      [enrollmentId, tenantId, studentId, institutionId, gradeId, academicPeriodId],
+         id, tenant_id, student_id, institution_id, grade_id, class_id,
+         academic_period_id, status, enrolled_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'ENROLLED', CURRENT_DATE)`,
+      [
+        enrollmentId,
+        tenantId,
+        studentId,
+        institutionId,
+        gradeId,
+        classId,
+        academicPeriodId,
+      ],
     );
     await client.query(
       `INSERT INTO grade_entries (
@@ -106,6 +147,52 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
       gradeEntryId,
     };
   }
+
+  it('DATABASE_URL connects as non-owner proctira_app', async () => {
+    const { rows } = await pool.query<{ current_user: string; rolsuper: boolean }>(`
+      SELECT
+        current_user,
+        (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) AS rolsuper
+    `);
+    expect(rows[0]!.current_user).toBe('proctira_app');
+    expect(rows[0]!.rolsuper).toBe(false);
+  });
+
+  it('runtime has SELECT/INSERT but not UPDATE/DELETE/TRUNCATE/TRIGGER on audit tables', async () => {
+    for (const table of ['enrollment_history', 'grade_change_audit'] as const) {
+      const { rows } = await pool.query<{
+        sel: boolean;
+        ins: boolean;
+        upd: boolean;
+        del: boolean;
+        trunc: boolean;
+        trig: boolean;
+      }>(
+        `SELECT
+           has_table_privilege(current_user, $1, 'SELECT') AS sel,
+           has_table_privilege(current_user, $1, 'INSERT') AS ins,
+           has_table_privilege(current_user, $1, 'UPDATE') AS upd,
+           has_table_privilege(current_user, $1, 'DELETE') AS del,
+           has_table_privilege(current_user, $1, 'TRUNCATE') AS trunc,
+           has_table_privilege(current_user, $1, 'TRIGGER') AS trig`,
+        [table],
+      );
+      expect(rows[0]!.sel, `${table} SELECT`).toBe(true);
+      expect(rows[0]!.ins, `${table} INSERT`).toBe(true);
+      expect(rows[0]!.upd, `${table} UPDATE`).toBe(false);
+      expect(rows[0]!.del, `${table} DELETE`).toBe(false);
+      expect(rows[0]!.trunc, `${table} TRUNCATE`).toBe(false);
+      expect(rows[0]!.trig, `${table} TRIGGER`).toBe(false);
+    }
+  });
+
+  it('runtime cannot DROP audit completeness triggers', async () => {
+    for (const { table, trigger } of AUDIT_TRIGGERS) {
+      await expect(pool.query(`DROP TRIGGER IF EXISTS ${trigger} ON ${table}`)).rejects.toThrow(
+        /must be owner|permission denied/i,
+      );
+    }
+  });
 
   it('enrollment INSERT writes enrollment_history without app INSERT', async () => {
     const client = await pool.connect();
@@ -202,32 +289,61 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
       await client.query('BEGIN');
       const fx = await seedTenantGraph(client);
 
-      const expectAppendOnlyReject = async (label: string, sql: string, params: unknown[]) => {
+      const expectMutateReject = async (label: string, sql: string, params: unknown[]) => {
         await client.query(`SAVEPOINT ${label}`);
-        await expect(client.query(sql, params)).rejects.toThrow(/append-only/i);
+        await expect(client.query(sql, params)).rejects.toThrow(
+          /append-only|permission denied/i,
+        );
         await client.query(`ROLLBACK TO SAVEPOINT ${label}`);
       };
 
-      await expectAppendOnlyReject(
+      await expectMutateReject(
         'sp_enr_upd',
         `UPDATE enrollment_history SET reason = 'tamper' WHERE enrollment_id = $1`,
         [fx.enrollmentId],
       );
-      await expectAppendOnlyReject(
+      await expectMutateReject(
         'sp_enr_del',
         `DELETE FROM enrollment_history WHERE enrollment_id = $1`,
         [fx.enrollmentId],
       );
-      await expectAppendOnlyReject(
+      await expectMutateReject(
         'sp_grd_upd',
         `UPDATE grade_change_audit SET action = 'tamper' WHERE grade_entry_id = $1`,
         [fx.gradeEntryId],
       );
-      await expectAppendOnlyReject(
+      await expectMutateReject(
         'sp_grd_del',
         `DELETE FROM grade_change_audit WHERE grade_entry_id = $1`,
         [fx.gradeEntryId],
       );
+
+      await client.query('ROLLBACK');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  });
+
+  it('RESTRICT FK blocks parent DELETE while audit/history rows exist', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const fx = await seedTenantGraph(client);
+
+      await client.query(`SAVEPOINT sp_del_enr`);
+      await expect(
+        client.query(`DELETE FROM enrollments WHERE id = $1`, [fx.enrollmentId]),
+      ).rejects.toThrow(/foreign key|restrict|violates|append-only/i);
+      await client.query(`ROLLBACK TO SAVEPOINT sp_del_enr`);
+
+      await client.query(`SAVEPOINT sp_del_ge`);
+      await expect(
+        client.query(`DELETE FROM grade_entries WHERE id = $1`, [fx.gradeEntryId]),
+      ).rejects.toThrow(/foreign key|restrict|violates|append-only/i);
+      await client.query(`ROLLBACK TO SAVEPOINT sp_del_ge`);
 
       await client.query('ROLLBACK');
     } catch (err) {
@@ -250,7 +366,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
            ) VALUES ($1, $2, 'orphan', '{}'::jsonb)`,
           [fx.tenantId, randomUUID()],
         ),
-      ).rejects.toThrow(/foreign key|grade_change_audit_grade_entry_fk/i);
+      ).rejects.toThrow(/foreign key|grade_change_audit_grade_entry/i);
       await client.query('ROLLBACK');
     } catch (err) {
       await client.query('ROLLBACK').catch(() => undefined);
