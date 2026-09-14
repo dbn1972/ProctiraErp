@@ -1,0 +1,74 @@
+# =============================================================================
+# W1-OPS-07 — Flutter mobile CI (analyze + unit/widget tests)
+# =============================================================================
+# Path-filtered coverage for apps/mobile. Fail-closed on analyze/test failures.
+# No device farm / integration_test device runs — flutter test only (test/).
+# Check name suitable for branch protection: "Mobile Flutter CI (Required)".
+# =============================================================================
+
+name: Mobile Flutter
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/mobile-flutter.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/mobile-flutter.yml'
+
+concurrency:
+  group: mobile-flutter-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  flutter-ci:
+    name: Mobile Flutter CI (Required)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # pubspec environment.sdk: ^3.11.5 — Flutter stable ships a compatible Dart SDK.
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze (fail closed)
+        run: flutter analyze
+
+      - name: Test (fail closed)
+        # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without
+        # --update-goldens; integration_test/ is not invoked (no device farm).
+        run: flutter test
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Mobile Flutter CI (W1-OPS-07)"
+            echo ""
+            echo "- Working directory: \`apps/mobile\`"
+            echo "- Channel: Flutter **stable** (Dart SDK must satisfy \`^3.11.5\`)"
+            echo "- Commands: \`flutter pub get\` → \`flutter analyze\` → \`flutter test\`"
+            echo "- Fail closed: analyze or test non-zero exits fail this check"
+          } >> "$GITHUB_STEP_SUMMARY"
