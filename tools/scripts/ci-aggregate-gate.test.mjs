@@ -15,6 +15,7 @@ const noChanges = {
   frontendChanged: 'false',
   backendChanged: 'false',
   infraChanged: 'false',
+  secondaryAppsChanged: 'false',
 };
 
 const codeChanges = {
@@ -24,6 +25,7 @@ const codeChanges = {
   frontendChanged: 'false',
   backendChanged: 'true',
   infraChanged: 'false',
+  secondaryAppsChanged: 'false',
 };
 
 function allSkipped() {
@@ -41,6 +43,7 @@ function allSkipped() {
     restoreDrillEvidence: 'success',
     prismaSqlDrift: 'success',
     strictTenantFks: 'success',
+    secondaryAppsE2e: 'skipped',
   };
 }
 
@@ -59,6 +62,7 @@ function allSucceeded() {
     restoreDrillEvidence: 'success',
     prismaSqlDrift: 'success',
     strictTenantFks: 'success',
+    secondaryAppsE2e: 'success',
   };
 }
 
@@ -66,7 +70,7 @@ test('docs-only PR: all skips are proven and gate passes', () => {
   const report = evaluate({ changes: noChanges, results: allSkipped() });
   assert.equal(report.ok, true);
   assert.equal(report.unprovenSkips.length, 0);
-  assert.equal(report.provenSkips.length, 9);
+  assert.equal(report.provenSkips.length, 10);
 });
 
 test('restore-drill evidence skip fails closed even on docs-only PRs', () => {
@@ -180,3 +184,47 @@ test('infra-only PR with required jobs succeeding passes', () => {
   assert.ok(report.provenSkips.some((item) => item.job === 'bundle-budget'));
   assert.ok(report.provenSkips.some((item) => item.job === 'lighthouse'));
 });
+
+test('secondary-apps change with skipped e2e is unproven (W1-OPS-12)', () => {
+  const changes = {
+    ...noChanges,
+    appsChanged: 'true',
+    secondaryAppsChanged: 'true',
+  };
+  const results = allSkipped();
+  // Required always-on gates still succeed in this fixture; secondary e2e skipped.
+  results.restoreDrillEvidence = 'success';
+  results.prismaSqlDrift = 'success';
+  results.strictTenantFks = 'success';
+  results.secondaryAppsE2e = 'skipped';
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'secondary-apps-e2e'));
+});
+
+test('secondary-apps change with e2e success passes when other required jobs succeed', () => {
+  const changes = {
+    ...noChanges,
+    appsChanged: 'true',
+    secondaryAppsChanged: 'true',
+  };
+  const results = allSucceeded();
+  // Secondary-only: lighthouse/bundle/integration not required.
+  results.bundleBudget = 'skipped';
+  results.lighthouse = 'skipped';
+  results.integrationTest = 'skipped';
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, true);
+  assert.equal(report.failures.length, 0);
+  assert.ok(report.provenSkips.some((item) => item.job === 'bundle-budget'));
+  assert.ok(report.provenSkips.some((item) => item.job === 'integration-test'));
+});
+
+test('secondary-apps skip is proven when path filter is false', () => {
+  const results = allSucceeded();
+  results.secondaryAppsE2e = 'skipped';
+  const report = evaluate({ changes: codeChanges, results });
+  assert.equal(report.ok, true);
+  assert.ok(report.provenSkips.some((item) => item.job === 'secondary-apps-e2e'));
+});
+

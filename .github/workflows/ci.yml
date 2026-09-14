@@ -42,6 +42,7 @@ jobs:
       has-backend-changes: ${{ steps.filter.outputs.backend }}
       has-frontend-changes: ${{ steps.filter.outputs.frontend }}
       has-shared-changes: ${{ steps.filter.outputs.shared }}
+      secondary-apps-changed: ${{ steps.filter.outputs.secondary_apps }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,6 +54,8 @@ jobs:
           # W1-OPS-05 residual: infra-only PRs must still run the unit→
           # integration/tenant-isolation chain (db/tools/docs already in
           # shared/backend via #181). Job ifs + aggregate read infra-changed.
+          # W1-OPS-12: secondary Next apps have dedicated Playwright smokes
+          # (not covered by apps/web e2e-backend-ready / lighthouse).
           filters: |
             packages:
               - 'packages/**'
@@ -75,6 +78,16 @@ jobs:
               - 'packages/ui/**'
               - 'apps/web/**'
               - 'apps/registration-portal/**'
+            secondary_apps:
+              - 'apps/admin-console/**'
+              - 'apps/developer-portal/**'
+              - 'apps/install-wizard/**'
+              - 'apps/public-website/**'
+              - 'apps/registration-portal/**'
+              - '.github/workflows/ci.yml'
+              - 'tools/scripts/run-secondary-apps-e2e.sh'
+              - 'tools/scripts/ci-aggregate-gate.mjs'
+              - 'tools/scripts/ci-aggregate-gate.test.mjs'
             shared:
               - 'packages/shared/**'
               - 'turbo.json'
@@ -894,6 +907,87 @@ jobs:
         run: node tools/scripts/check-strict-tenant-fks.mjs
 
   # ---------------------------------------------------------------------------
+  # Secondary Apps Playwright — path-filtered (W1-OPS-12)
+  # ---------------------------------------------------------------------------
+  # Runs ungated Chromium smokes for Next secondary apps that are not covered
+  # by apps/web e2e-backend-ready / visual-regression. Backend-gated describes
+  # still skip without E2E_BACKEND_READY (honest residuals — see audit doc).
+  # Does not expand the apps/web lighthouse/bundle frontend filter.
+  # ---------------------------------------------------------------------------
+  secondary-apps-e2e:
+    name: Secondary Apps Playwright (W1-OPS-12)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.secondary-apps-changed == 'true'
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: apps
+        with:
+          filters: |
+            admin-console:
+              - 'apps/admin-console/**'
+            developer-portal:
+              - 'apps/developer-portal/**'
+            install-wizard:
+              - 'apps/install-wizard/**'
+            public-website:
+              - 'apps/public-website/**'
+            registration-portal:
+              - 'apps/registration-portal/**'
+            harness:
+              - '.github/workflows/ci.yml'
+              - 'tools/scripts/run-secondary-apps-e2e.sh'
+              - 'tools/scripts/ci-aggregate-gate.mjs'
+              - 'tools/scripts/ci-aggregate-gate.test.mjs'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run secondary-app Playwright smokes (Chromium)
+        env:
+          CI: '1'
+          ADMIN_CONSOLE: ${{ steps.apps.outputs.admin-console }}
+          DEVELOPER_PORTAL: ${{ steps.apps.outputs.developer-portal }}
+          INSTALL_WIZARD: ${{ steps.apps.outputs.install-wizard }}
+          PUBLIC_WEBSITE: ${{ steps.apps.outputs.public-website }}
+          REGISTRATION_PORTAL: ${{ steps.apps.outputs.registration-portal }}
+          HARNESS: ${{ steps.apps.outputs.harness }}
+        run: bash tools/scripts/run-secondary-apps-e2e.sh
+
+      - name: Upload secondary-app Playwright reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secondary-apps-playwright-report
+          path: |
+            apps/admin-console/playwright-report/
+            apps/admin-console/test-results/
+            apps/developer-portal/playwright-report/
+            apps/developer-portal/test-results/
+            apps/install-wizard/playwright-report/
+            apps/install-wizard/test-results/
+            apps/public-website/playwright-report/
+            apps/public-website/test-results/
+            apps/registration-portal/playwright-report/
+            apps/registration-portal/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
   # CI Aggregate — required merge gate (W1-OPS-05 B2)
   # ---------------------------------------------------------------------------
   # Always runs (even when upstream jobs skip) and fails closed when any
@@ -918,6 +1012,7 @@ jobs:
       - restore-drill-evidence
       - prisma-sql-drift
       - strict-tenant-fks
+      - secondary-apps-e2e
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -930,6 +1025,7 @@ jobs:
           FRONTEND_CHANGED: ${{ needs.detect-changes.outputs.has-frontend-changes }}
           BACKEND_CHANGED: ${{ needs.detect-changes.outputs.has-backend-changes }}
           INFRA_CHANGED: ${{ needs.detect-changes.outputs.infra-changed }}
+          SECONDARY_APPS_CHANGED: ${{ needs.detect-changes.outputs.secondary-apps-changed }}
           DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TYPECHECK_RESULT: ${{ needs.typecheck.result }}
@@ -943,4 +1039,5 @@ jobs:
           RESTORE_DRILL_EVIDENCE_RESULT: ${{ needs.restore-drill-evidence.result }}
           PRISMA_SQL_DRIFT_RESULT: ${{ needs.prisma-sql-drift.result }}
           STRICT_TENANT_FKS_RESULT: ${{ needs.strict-tenant-fks.result }}
+          SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs
