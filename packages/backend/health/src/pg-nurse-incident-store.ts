@@ -14,6 +14,8 @@ import {
   isPgCounsellingEnabled,
   type PgPoolLike,
 } from './pg-counselling-store.js';
+import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
+import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
 let schemaReady: Promise<void> | null = null;
 
@@ -57,15 +59,19 @@ function toDate(value: unknown): Date {
 }
 
 function mapRow(row: Record<string, unknown>): NurseIncidentEntity {
+  const tenantId = String(row.tenant_id);
+  const studentId = String(row.student_id);
+  const institutionId = row.institution_id == null ? null : String(row.institution_id);
+  const scope = phiScopeForStudent(tenantId, studentId, institutionId);
   return {
     id: String(row.id),
-    tenantId: String(row.tenant_id),
-    studentId: String(row.student_id),
-    institutionId: row.institution_id == null ? null : String(row.institution_id),
+    tenantId,
+    studentId,
+    institutionId,
     incidentAt: toDate(row.incident_at),
     category: String(row.category),
     severity: String(row.severity) as NurseIncidentEntity['severity'],
-    notes: String(row.notes ?? ''),
+    notes: decryptPhi(row.notes == null ? null : String(row.notes), scope) ?? '',
     reportedBy: String(row.reported_by),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
@@ -79,6 +85,17 @@ export class PgNurseIncidentStore {
     await ensureNurseIncidentSchema(this.pool);
   }
 
+  private async phiScope(
+    tenantId: string,
+    studentId: string,
+    institutionId?: string | null,
+  ): Promise<PhiCryptoScope> {
+    const resolved =
+      institutionId ??
+      (await findStudentInstitutionId(this.pool, tenantId, studentId));
+    return phiScopeForStudent(tenantId, studentId, resolved);
+  }
+
   private async query(tenantId: string, text: string, params: unknown[] = []) {
     return withPgTenant(this.pool, tenantId, (client) => client.query(text, params));
   }
@@ -88,6 +105,7 @@ export class PgNurseIncidentStore {
   ): Promise<NurseIncidentEntity> {
     await this.ensureSchema();
     const now = new Date();
+    const scope = await this.phiScope(data.tenantId, data.studentId, data.institutionId);
     const result = await this.query(
       data.tenantId,
       `INSERT INTO health_nurse_incidents (
@@ -102,7 +120,7 @@ export class PgNurseIncidentStore {
         data.incidentAt,
         data.category,
         data.severity,
-        data.notes,
+        encryptPhi(data.notes, scope),
         data.reportedBy,
         now,
         now,
