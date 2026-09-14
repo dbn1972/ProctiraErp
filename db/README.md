@@ -62,6 +62,16 @@ live onboard set `APPLY_STRICT_FKS=1`. Executable gate:
 `pnpm check:strict-tenant-fks` fails when a workflow runs `apply-sql.sh` without
 that flag unless the step documents `# STRICT_FK_SKIP_JUSTIFIED: …`.
 
+## Leading tenant_id indexes (W1-DATA-16)
+
+Every table that declares a `tenant_id` column must have a btree index, UNIQUE,
+or PRIMARY KEY whose **first** column is `tenant_id` (composites that bury
+`tenant_id` do not count). Documented exceptions live in
+`tools/scripts/tenant-id-index-allowlist.json` and must include a reason.
+Executable gate: `pnpm check:tenant-id-indexes`. Additive fix migration:
+`db/sql/071_tenant_id_leading_indexes.sql`. See
+`docs/audits/DATA_W1_DATA_16_INDEXES.md`.
+
 ## Immutability privileges (W1-DATA-08)
 
 Append-only tables (fee ledger, audit log, workflow transition audit, issued

@@ -21,6 +21,7 @@ script is a single `.mjs` file with no compile step so it runs without
 | (CI / local)               | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                        |
 | `pnpm check:prisma-sql-drift` | `check-prisma-sql-drift.mjs`      | W1-DATA-04: fail when Prisma models and `db/sql` drift (auth session columns + missing CREATE TABLE).   |
 | `pnpm check:strict-tenant-fks` | `check-strict-tenant-fks.mjs`    | W1-DATA-06: fail when CI skips `APPLY_STRICT_FKS` without justification, or VALIDATE migration missing. |
+| `pnpm check:tenant-id-indexes` | `check-tenant-id-indexes.mjs`    | W1-DATA-16: fail when tenant-scoped tables lack a leading `tenant_id` index (allowlist documented). |
 | (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset.                  |
 | (CI / local)               | `helm-template-check.sh`             | P0-12 / G-501: lint + `helm template` for `proctira-service` + `proctira-platform` (deploy path parity). |
 
