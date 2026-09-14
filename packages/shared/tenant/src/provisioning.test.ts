@@ -120,8 +120,10 @@ describe('provisionTenant', () => {
     // First call creates tenant
     const firstCall = mockTx.$queryRawUnsafe.mock.calls[0]!;
     expect(firstCall[0]).toContain('INSERT INTO tenants');
+    expect(firstCall[0]).toContain('timezone');
     expect(firstCall[1]).toBe('Test Ministry');
     expect(firstCall[2]).toBe('test-ministry');
+    expect(firstCall[4]).toBe('UTC');
 
     // Second call creates root area
     const secondCall = mockTx.$queryRawUnsafe.mock.calls[1]!;

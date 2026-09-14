@@ -15,6 +15,8 @@
 
 import { createLogger } from '@proctira/logging';
 
+import { resolveTenantTimezone } from './tenant-timezone.js';
+
 const logger = createLogger({ name: 'tenant-provisioning' });
 
 /**
@@ -103,7 +105,8 @@ export async function provisionTenant(
     await tx.$executeRawUnsafe(`SELECT set_config('app.platform_admin', '1', true)`);
 
     // Step 1: Create the Tenant record
-    const tenantConfig = JSON.stringify(input.config ?? {});
+    const tenantConfig = input.config ?? {};
+    const timezone = resolveTenantTimezone({ config: tenantConfig });
     const tenantRows = await tx.$queryRawUnsafe<
       Array<{
         id: string;
@@ -113,12 +116,13 @@ export async function provisionTenant(
         created_at: Date;
       }>
     >(
-      `INSERT INTO tenants (name, slug, config, status, created_at, updated_at)
-       VALUES ($1, $2, $3::jsonb, 'active', NOW(), NOW())
+      `INSERT INTO tenants (name, slug, config, timezone, status, created_at, updated_at)
+       VALUES ($1, $2, $3::jsonb, $4, 'active', NOW(), NOW())
        RETURNING id, name, slug, status, created_at`,
       input.name,
       input.slug,
-      tenantConfig,
+      JSON.stringify(tenantConfig),
+      timezone,
     );
 
     const tenant = tenantRows[0];

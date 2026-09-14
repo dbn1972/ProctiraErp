@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./plugin": "./src/fastify-plugin.ts",
     "./resolution": "./src/tenant-resolution.ts",
-    "./provisioning": "./src/provisioning.ts"
+    "./provisioning": "./src/provisioning.ts",
+    "./timezone": "./src/tenant-timezone.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
