@@ -51,7 +51,8 @@
     "test:pg:assert": "node tools/scripts/assert-vitest-skips.mjs",
     "test:pg:gate": "node tools/scripts/run-pg-test-gate.mjs",
     "test:coverage:assert": "node tools/scripts/assert-coverage-gate.mjs",
-    "test:coverage:gate:test": "node --test tools/scripts/assert-coverage-gate.test.mjs"
+    "test:coverage:gate:test": "node --test tools/scripts/assert-coverage-gate.test.mjs",
+    "check:turbo-filter-base:test": "node --test tools/scripts/resolve-turbo-filter-base.test.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
