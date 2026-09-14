@@ -143,7 +143,7 @@ describe('G-914 students 360', () => {
   });
 
   describe('consent audit fields', () => {
-    it('sets actorId and recordedAt on grant and overwrite', async () => {
+    it('appends versions on change; prior remains in history (W1-PRIV-01)', async () => {
       const student = await createStudent(repo, TENANT_A);
       const first = await service.setConsent(
         TENANT_A,
@@ -153,6 +153,7 @@ describe('G-914 students 360', () => {
       );
       expect(first.granted).toBe(true);
       expect(first.actorId).toBe('registrar-1');
+      expect(first.version).toBe(1);
       expect(first.recordedAt).toBeInstanceOf(Date);
 
       const second = await service.setConsent(
@@ -163,11 +164,21 @@ describe('G-914 students 360', () => {
       );
       expect(second.granted).toBe(false);
       expect(second.actorId).toBe('registrar-2');
+      expect(second.version).toBe(2);
+      expect(second.supersedesId).toBe(first.id);
       expect(second.recordedAt.getTime()).toBeGreaterThanOrEqual(first.recordedAt.getTime());
 
       const listed = await service.listConsents(TENANT_A, student.id);
       expect(listed).toHaveLength(1);
       expect(listed[0]?.actorId).toBe('registrar-2');
+      expect(listed[0]?.version).toBe(2);
+
+      const history = await store.listConsentHistory(TENANT_A, student.id, 'photo');
+      expect(history).toHaveLength(2);
+      expect(history[0]?.granted).toBe(true);
+      expect(history[0]?.validTo).not.toBeNull();
+      expect(history[1]?.granted).toBe(false);
+      expect(history[1]?.validTo).toBeNull();
     });
   });
 

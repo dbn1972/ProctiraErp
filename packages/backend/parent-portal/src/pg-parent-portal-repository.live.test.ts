@@ -151,8 +151,9 @@ describe('PgParentPortalRepository (live)', () => {
       const studentId = randomUUID();
       const consentVersion = 'photo-media-v2026-01';
 
+      const consentId = randomUUID();
       const consent = await repo.createConsent({
-        id: randomUUID(),
+        id: consentId,
         tenantId,
         studentId,
         parentUserId,
@@ -162,8 +163,13 @@ describe('PgParentPortalRepository (live)', () => {
         status: 'pending',
         createdBy: 'staff-admin',
         consentVersion,
+        consentChainId: consentId,
+        version: 1,
+        supersedesId: null,
+        validFrom: new Date(),
       });
       expect(consent.consentVersion).toBe(consentVersion);
+      expect(consent.version).toBe(1);
       expect((await repo.findConsentById(consent.id, tenantId))?.consentVersion).toBe(
         consentVersion,
       );

@@ -76,6 +76,20 @@ export const DecideConsentSchema = Type.Object({
 
 export type DecideConsentInput = Static<typeof DecideConsentSchema>;
 
+export const SupersedeConsentSchema = Type.Object({
+  consentVersion: Type.String({ minLength: 1, maxLength: 64 }),
+  title: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+  description: Type.Optional(Type.String({ maxLength: 5000 })),
+});
+
+export type SupersedeConsentInput = Static<typeof SupersedeConsentSchema>;
+
+export const WithdrawConsentSchema = Type.Object({
+  reason: Type.Optional(Type.String({ maxLength: 2000 })),
+});
+
+export type WithdrawConsentInput = Static<typeof WithdrawConsentSchema>;
+
 export const CreateFeePlanSchema = Type.Object({
   code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
   name: Type.String({ minLength: 1, maxLength: 500 }),

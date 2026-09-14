@@ -231,42 +231,83 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
   }
 
   async createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'decidedAt'>,
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+      decidedAt?: Date | null;
+    },
   ): Promise<ConsentEntity> {
-    const now = new Date();
-    const entity: ConsentEntity = { ...data, decidedAt: null, createdAt: now, updatedAt: now };
+    const now = data.validFrom ?? new Date();
+    const entity: ConsentEntity = {
+      ...data,
+      consentChainId: data.consentChainId,
+      version: data.version,
+      supersedesId: data.supersedesId ?? null,
+      validFrom: now,
+      validTo: null,
+      decidedAt: data.decidedAt ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    // Refuse overlapping open versions for the same chain (mirrors SQL unique index).
+    const open = this.consents.find(
+      (c) =>
+        c.tenantId === entity.tenantId &&
+        c.consentChainId === entity.consentChainId &&
+        c.validTo == null,
+    );
+    if (open) {
+      throw new Error(
+        `parent_consents open version already exists for chain ${entity.consentChainId}`,
+      );
+    }
     this.consents.push(entity);
-    return entity;
+    return { ...entity };
   }
 
   async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {
-    return this.consents.filter(
-      (consent) => consent.tenantId === tenantId && consent.parentUserId === parentUserId,
-    );
+    return this.consents
+      .filter(
+        (consent) =>
+          consent.tenantId === tenantId &&
+          consent.parentUserId === parentUserId &&
+          consent.validTo == null,
+      )
+      .map((c) => ({ ...c }));
   }
 
   async findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null> {
-    return (
-      this.consents.find((consent) => consent.id === id && consent.tenantId === tenantId) ?? null
-    );
+    const row =
+      this.consents.find((consent) => consent.id === id && consent.tenantId === tenantId) ?? null;
+    return row ? { ...row } : null;
   }
 
-  async updateConsent(
-    id: string,
+  async listConsentVersions(tenantId: string, consentChainId: string): Promise<ConsentEntity[]> {
+    return this.consents
+      .filter((c) => c.tenantId === tenantId && c.consentChainId === consentChainId)
+      .sort((a, b) => a.version - b.version)
+      .map((c) => ({ ...c }));
+  }
+
+  async closeConsentValidTo(
     tenantId: string,
-    data: Partial<Pick<ConsentEntity, 'status' | 'decidedAt'>>,
+    id: string,
+    validTo: Date,
   ): Promise<ConsentEntity | null> {
-    const index = this.consents.findIndex(
-      (consent) => consent.id === id && consent.tenantId === tenantId,
-    );
+    const index = this.consents.findIndex((c) => c.id === id && c.tenantId === tenantId);
     if (index === -1) return null;
+    const prior = this.consents[index]!;
+    if (prior.validTo != null && validTo > prior.validTo) {
+      throw new Error('parent_consents valid_to can only narrow');
+    }
+    if (validTo < prior.validFrom) {
+      throw new Error('parent_consents valid_to must be on or after valid_from');
+    }
     const updated: ConsentEntity = {
-      ...this.consents[index]!,
-      ...data,
+      ...prior,
+      validTo,
       updatedAt: new Date(),
     };
     this.consents[index] = updated;
-    return updated;
+    return { ...updated };
   }
 
   async createFeePlan(

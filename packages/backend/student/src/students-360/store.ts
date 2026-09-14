@@ -33,6 +33,11 @@ export interface ConsentRecord {
   granted: boolean;
   actorId: string;
   recordedAt: Date;
+  /** W1-PRIV-01 append-only version within (tenant, student, kind). */
+  version: number;
+  supersedesId: string | null;
+  validFrom: Date;
+  validTo: Date | null;
 }
 
 export interface DisciplineRecord {
@@ -77,6 +82,14 @@ export interface Students360Store {
   deleteSiblingPair(tenantId: string, studentId: string, siblingId: string): Promise<boolean>;
 
   listConsents(tenantId: string, studentId: string): Promise<ConsentRecord[]>;
+  /** Append a new open version; closes any prior open row for the same kind. */
+  appendConsent(record: ConsentRecord): Promise<ConsentRecord>;
+  listConsentHistory(
+    tenantId: string,
+    studentId: string,
+    kind?: ConsentKind,
+  ): Promise<ConsentRecord[]>;
+  /** @deprecated Use appendConsent — kept name alias for call-site clarity. */
   upsertConsent(record: ConsentRecord): Promise<ConsentRecord>;
 
   listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]>;
@@ -164,21 +177,52 @@ export class InMemoryStudents360Store implements Students360Store {
 
   async listConsents(tenantId: string, studentId: string): Promise<ConsentRecord[]> {
     return Array.from(this.consents.values())
-      .filter((r) => r.tenantId === tenantId && r.studentId === studentId)
+      .filter((r) => r.tenantId === tenantId && r.studentId === studentId && r.validTo == null)
       .sort((a, b) => a.kind.localeCompare(b.kind));
   }
 
-  async upsertConsent(record: ConsentRecord): Promise<ConsentRecord> {
-    const existing = Array.from(this.consents.values()).find(
+  async listConsentHistory(
+    tenantId: string,
+    studentId: string,
+    kind?: ConsentKind,
+  ): Promise<ConsentRecord[]> {
+    return Array.from(this.consents.values())
+      .filter(
+        (r) =>
+          r.tenantId === tenantId &&
+          r.studentId === studentId &&
+          (kind == null || r.kind === kind),
+      )
+      .sort((a, b) => a.kind.localeCompare(b.kind) || a.version - b.version)
+      .map((r) => ({ ...r }));
+  }
+
+  async appendConsent(record: ConsentRecord): Promise<ConsentRecord> {
+    const open = Array.from(this.consents.values()).find(
       (r) =>
         r.tenantId === record.tenantId &&
         r.studentId === record.studentId &&
-        r.kind === record.kind,
+        r.kind === record.kind &&
+        r.validTo == null,
     );
-    const stored: ConsentRecord = existing ? { ...record, id: existing.id } : { ...record };
-    if (existing) this.consents.delete(existing.id);
+    const version = open ? open.version + 1 : 1;
+    const at = record.recordedAt;
+    if (open) {
+      this.consents.set(open.id, { ...open, validTo: at });
+    }
+    const stored: ConsentRecord = {
+      ...record,
+      version,
+      supersedesId: open?.id ?? null,
+      validFrom: at,
+      validTo: null,
+    };
     this.consents.set(stored.id, stored);
     return { ...stored };
+  }
+
+  async upsertConsent(record: ConsentRecord): Promise<ConsentRecord> {
+    return this.appendConsent(record);
   }
 
   async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
@@ -304,6 +348,10 @@ type ConsentRow = {
   granted: boolean;
   actor_id: string;
   recorded_at: Date;
+  version?: number;
+  supersedes_id?: string | null;
+  valid_from?: Date;
+  valid_to?: Date | null;
 };
 
 function toConsent(row: ConsentRow): ConsentRecord {
@@ -315,6 +363,18 @@ function toConsent(row: ConsentRow): ConsentRecord {
     granted: Boolean(row.granted),
     actorId: row.actor_id,
     recordedAt: row.recorded_at instanceof Date ? row.recorded_at : new Date(row.recorded_at),
+    version: Number(row.version ?? 1),
+    supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
+    validFrom:
+      row.valid_from instanceof Date
+        ? row.valid_from
+        : new Date(row.valid_from ?? row.recorded_at),
+    validTo:
+      row.valid_to == null
+        ? null
+        : row.valid_to instanceof Date
+          ? row.valid_to
+          : new Date(row.valid_to),
   };
 }
 
@@ -490,23 +550,61 @@ export class PgStudents360Store implements Students360Store {
   async listConsents(tenantId: string, studentId: string): Promise<ConsentRecord[]> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM student_consents WHERE tenant_id = $1 AND student_id = $2 ORDER BY kind ASC`,
+        `SELECT * FROM student_consents
+          WHERE tenant_id = $1 AND student_id = $2 AND valid_to IS NULL
+          ORDER BY kind ASC`,
         [tenantId, studentId],
       );
       return (rows as ConsentRow[]).map(toConsent);
     });
   }
 
-  async upsertConsent(record: ConsentRecord): Promise<ConsentRecord> {
+  async listConsentHistory(
+    tenantId: string,
+    studentId: string,
+    kind?: ConsentKind,
+  ): Promise<ConsentRecord[]> {
+    return this.run(tenantId, async (client) => {
+      const { rows } =
+        kind == null
+          ? await client.query(
+              `SELECT * FROM student_consents
+                WHERE tenant_id = $1 AND student_id = $2
+                ORDER BY kind ASC, version ASC`,
+              [tenantId, studentId],
+            )
+          : await client.query(
+              `SELECT * FROM student_consents
+                WHERE tenant_id = $1 AND student_id = $2 AND kind = $3
+                ORDER BY version ASC`,
+              [tenantId, studentId, kind],
+            );
+      return (rows as ConsentRow[]).map(toConsent);
+    });
+  }
+
+  async appendConsent(record: ConsentRecord): Promise<ConsentRecord> {
     return this.run(record.tenantId, async (client) => {
+      const prior = await client.query(
+        `SELECT * FROM student_consents
+          WHERE tenant_id = $1 AND student_id = $2 AND kind = $3 AND valid_to IS NULL
+          LIMIT 1`,
+        [record.tenantId, record.studentId, record.kind],
+      );
+      const open = prior.rows[0] as ConsentRow | undefined;
+      const version = open ? Number(open.version ?? 1) + 1 : 1;
+      const supersedesId = open ? String(open.id) : null;
+      if (open) {
+        await client.query(
+          `UPDATE student_consents SET valid_to = $1 WHERE id = $2 AND tenant_id = $3`,
+          [record.recordedAt, open.id, record.tenantId],
+        );
+      }
       const { rows } = await client.query(
         `INSERT INTO student_consents
-           (id, tenant_id, student_id, kind, granted, actor_id, recorded_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)
-         ON CONFLICT (tenant_id, student_id, kind) DO UPDATE SET
-           granted = EXCLUDED.granted,
-           actor_id = EXCLUDED.actor_id,
-           recorded_at = EXCLUDED.recorded_at
+           (id, tenant_id, student_id, kind, granted, actor_id, recorded_at,
+            version, supersedes_id, valid_from, valid_to)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NULL)
          RETURNING *`,
         [
           record.id,
@@ -516,10 +614,17 @@ export class PgStudents360Store implements Students360Store {
           record.granted,
           record.actorId,
           record.recordedAt,
+          version,
+          supersedesId,
+          record.recordedAt,
         ],
       );
       return toConsent(rows[0] as ConsentRow);
     });
+  }
+
+  async upsertConsent(record: ConsentRecord): Promise<ConsentRecord> {
+    return this.appendConsent(record);
   }
 
   async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {

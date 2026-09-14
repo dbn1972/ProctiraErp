@@ -23,6 +23,8 @@ import type {
   DecideConsentInput,
   LinkChildInput,
   PayInvoiceInput,
+  SupersedeConsentInput,
+  WithdrawConsentInput,
 } from './schemas.js';
 
 export { STUDENT_SELF_BINDING_ASSUMPTION };
@@ -390,8 +392,10 @@ export class ParentPortalService {
   }
 
   async createConsentRequest(tenantId: string, actorId: string, input: CreateConsentInput) {
+    const id = uuidv4();
+    const validFrom = new Date();
     return this.repository.createConsent({
-      id: uuidv4(),
+      id,
       tenantId,
       studentId: input.studentId,
       parentUserId: input.parentUserId,
@@ -400,12 +404,33 @@ export class ParentPortalService {
       description: input.description ?? '',
       status: 'pending',
       consentVersion: input.consentVersion,
+      consentChainId: id,
+      version: 1,
+      supersedesId: null,
+      validFrom,
       createdBy: actorId,
     });
   }
 
   async listConsentsForParent(tenantId: string, parentUserId: string) {
     return this.repository.listConsentsForParent(tenantId, parentUserId);
+  }
+
+  async listConsentHistory(tenantId: string, parentUserId: string, consentId: string) {
+    const consent = await this.repository.findConsentById(consentId, tenantId);
+    if (!consent || consent.parentUserId !== parentUserId) {
+      throw new NotFoundError(`Consent with id '${consentId}' not found`);
+    }
+    return this.repository.listConsentVersions(tenantId, consent.consentChainId);
+  }
+
+  /**
+   * W1-PRIV-01: historical consent bodies are immutable. Callers must withdraw/supersede.
+   */
+  refuseConsentBodyMutation(): never {
+    throw new BusinessRuleError(
+      'Consent body fields are immutable; use withdraw or supersede to create a new version',
+    );
   }
 
   async decideConsent(
@@ -420,6 +445,9 @@ export class ParentPortalService {
     }
     if (consent.parentUserId !== parentUserId) {
       throw new NotFoundError(`Consent with id '${consentId}' not found`);
+    }
+    if (consent.validTo != null) {
+      throw new BusinessRuleError('Consent version is closed; operate on the current open version');
     }
     if (consent.status !== 'pending') {
       throw new BusinessRuleError('Consent has already been decided');
@@ -438,11 +466,126 @@ export class ParentPortalService {
       await this.assertParentLinkedToStudent(tenantId, parentUserId, consent.studentId);
     }
 
-    const updated = await this.repository.updateConsent(consentId, tenantId, {
+    const decidedAt = new Date();
+    await this.repository.closeConsentValidTo(tenantId, consent.id, decidedAt);
+    return this.repository.createConsent({
+      id: uuidv4(),
+      tenantId,
+      studentId: consent.studentId,
+      parentUserId: consent.parentUserId,
+      consentType: consent.consentType,
+      title: consent.title,
+      description: consent.description,
       status: input.status,
-      decidedAt: new Date(),
+      consentVersion: consent.consentVersion,
+      consentChainId: consent.consentChainId,
+      version: consent.version + 1,
+      supersedesId: consent.id,
+      validFrom: decidedAt,
+      decidedAt,
+      createdBy: consent.createdBy,
     });
-    return updated!;
+  }
+
+  /**
+   * Withdraw (revoke) the current open consent version by appending a revoked successor.
+   */
+  async withdrawConsent(
+    tenantId: string,
+    parentUserId: string,
+    consentId: string,
+    _input: WithdrawConsentInput = {},
+  ) {
+    const consent = await this.repository.findConsentById(consentId, tenantId);
+    if (!consent || consent.parentUserId !== parentUserId) {
+      throw new NotFoundError(`Consent with id '${consentId}' not found`);
+    }
+    if (consent.validTo != null) {
+      throw new BusinessRuleError('Consent version is closed; operate on the current open version');
+    }
+    if (consent.status === 'revoked') {
+      throw new BusinessRuleError('Consent is already withdrawn');
+    }
+    if (consent.status === 'pending') {
+      throw new BusinessRuleError('Pending consents cannot be withdrawn; deny or supersede instead');
+    }
+
+    if (consent.consentType === 'medical_treatment') {
+      await this.assertParentAuthority(
+        tenantId,
+        parentUserId,
+        consent.studentId,
+        'canConsentMedical',
+      );
+    } else {
+      await this.assertParentLinkedToStudent(tenantId, parentUserId, consent.studentId);
+    }
+
+    const at = new Date();
+    await this.repository.closeConsentValidTo(tenantId, consent.id, at);
+    return this.repository.createConsent({
+      id: uuidv4(),
+      tenantId,
+      studentId: consent.studentId,
+      parentUserId: consent.parentUserId,
+      consentType: consent.consentType,
+      title: consent.title,
+      description: consent.description,
+      status: 'revoked',
+      consentVersion: consent.consentVersion,
+      consentChainId: consent.consentChainId,
+      version: consent.version + 1,
+      supersedesId: consent.id,
+      validFrom: at,
+      decidedAt: at,
+      createdBy: parentUserId,
+    });
+  }
+
+  /**
+   * Supersede with a new policy/form version: closes prior and appends a pending successor.
+   */
+  async supersedeConsent(
+    tenantId: string,
+    actorId: string,
+    consentId: string,
+    input: SupersedeConsentInput,
+  ) {
+    const consent = await this.repository.findConsentById(consentId, tenantId);
+    if (!consent) {
+      throw new NotFoundError(`Consent with id '${consentId}' not found`);
+    }
+    if (consent.validTo != null) {
+      throw new BusinessRuleError('Consent version is closed; operate on the current open version');
+    }
+    if (
+      input.consentVersion === consent.consentVersion &&
+      !input.title &&
+      input.description === undefined
+    ) {
+      throw new BusinessRuleError(
+        'Supersede requires a new consentVersion (or title/description change)',
+      );
+    }
+
+    const at = new Date();
+    await this.repository.closeConsentValidTo(tenantId, consent.id, at);
+    return this.repository.createConsent({
+      id: uuidv4(),
+      tenantId,
+      studentId: consent.studentId,
+      parentUserId: consent.parentUserId,
+      consentType: consent.consentType,
+      title: input.title ?? consent.title,
+      description: input.description ?? consent.description,
+      status: 'pending',
+      consentVersion: input.consentVersion,
+      consentChainId: consent.consentChainId,
+      version: consent.version + 1,
+      supersedesId: consent.id,
+      validFrom: at,
+      createdBy: actorId,
+    });
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {

@@ -16,6 +16,8 @@ import {
   CreateInvoiceSchema,
   CreateThreadSchema,
   DecideConsentSchema,
+  SupersedeConsentSchema,
+  WithdrawConsentSchema,
   InvoiceParamsSchema,
   LinkChildSchema,
   PayInvoiceSchema,
@@ -30,6 +32,8 @@ import {
   type CreateInvoiceInput,
   type CreateThreadInput,
   type DecideConsentInput,
+  type SupersedeConsentInput,
+  type WithdrawConsentInput,
   type LinkChildInput,
   type PayInvoiceInput,
   type ThreadParams,
@@ -138,6 +142,11 @@ function formatConsent(entity: {
   description: string;
   status: string;
   consentVersion: string;
+  consentChainId: string;
+  version: number;
+  supersedesId: string | null;
+  validFrom: Date;
+  validTo: Date | null;
   decidedAt: Date | null;
   createdBy: string | null;
   createdAt: Date;
@@ -153,6 +162,11 @@ function formatConsent(entity: {
     description: entity.description,
     status: entity.status,
     consentVersion: entity.consentVersion,
+    consentChainId: entity.consentChainId,
+    version: entity.version,
+    supersedesId: entity.supersedesId,
+    validFrom: entity.validFrom.toISOString(),
+    validTo: entity.validTo?.toISOString() ?? null,
     decidedAt: entity.decidedAt?.toISOString() ?? null,
     createdBy: entity.createdBy,
     createdAt: entity.createdAt.toISOString(),
@@ -607,6 +621,157 @@ export async function registerParentPortalRoutes(
           bodyResult.data,
         );
         return reply.status(200).send(formatConsent(consent));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/consents/:id/withdraw`,
+    async function withdrawConsentHandler(
+      request: FastifyRequest<{ Params: ConsentParams; Body: WithdrawConsentInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ConsentParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid consent ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(WithdrawConsentSchema, request.body ?? {});
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const consent = await parentPortalService.withdrawConsent(
+          tenantId,
+          parentUserId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
+        return reply.status(200).send(formatConsent(consent));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/consents/:id/supersede`,
+    async function supersedeConsentHandler(
+      request: FastifyRequest<{ Params: ConsentParams; Body: SupersedeConsentInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ConsentParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid consent ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(SupersedeConsentSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const actorId = getActorId(request);
+
+      try {
+        const consent = await parentPortalService.supersedeConsent(
+          tenantId,
+          actorId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
+        return reply.status(201).send(formatConsent(consent));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/consents/:id/history`,
+    async function consentHistoryHandler(
+      request: FastifyRequest<{ Params: ConsentParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ConsentParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid consent ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const versions = await parentPortalService.listConsentHistory(
+          tenantId,
+          parentUserId,
+          paramsResult.data.id,
+        );
+        return reply.status(200).send({ data: versions.map(formatConsent) });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
