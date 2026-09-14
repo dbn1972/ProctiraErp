@@ -18,10 +18,11 @@
   "dependencies": {
     "@proctira/common": "workspace:*",
     "@proctira/logging": "workspace:*",
+    "@proctira/queue-abstraction": "workspace:*",
+    "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0",
-    "uuid": "^9.0.0",
-    "@proctira/validation": "workspace:*"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

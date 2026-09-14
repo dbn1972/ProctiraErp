@@ -98,6 +98,10 @@ export const PROTECTED_ENTITY_TYPES = [
   'permission',
   'academic_period',
   'custom_field',
+  'privacy_legal_hold',
+  'privacy_erasure',
+  'privacy_correction',
+  'privacy_offboard',
 ] as const;
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Privacy lifecycle HTTP routes (W1-ARCH-05 composition + W1-SEC-06 residual).
+ * Privacy lifecycle HTTP routes (W1-ARCH-05 + W1-SEC-06 complete).
  *
  * POST   /privacy/legal-holds
  * GET    /privacy/legal-holds
@@ -9,6 +9,14 @@
  * GET    /privacy/erasure-requests/:id
  * POST   /privacy/erasure-requests/:id/transition
  * POST   /privacy/erasure-requests/:id/execute
+ * POST   /privacy/correction-requests
+ * GET    /privacy/correction-requests
+ * GET    /privacy/correction-requests/:id
+ * POST   /privacy/correction-requests/:id/transition
+ * POST   /privacy/correction-requests/:id/apply
+ * POST   /privacy/tenant-offboard
+ * GET    /privacy/tenant-offboard
+ * GET    /privacy/tenant-offboard/:id
  */
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
@@ -17,9 +25,13 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { PrivacyService } from './privacy-service.js';
 import {
+  CorrectionStatusEnum,
+  CreateCorrectionRequestSchema,
   CreateErasureRequestSchema,
   ErasureStatusEnum,
   PlaceLegalHoldSchema,
+  RequestTenantOffboardSchema,
+  type CorrectionStatus,
   type ErasureStatus,
 } from './schemas.js';
 
@@ -35,11 +47,26 @@ type HttpPlaceLegalHold = Static<typeof HttpPlaceLegalHoldSchema>;
 const HttpCreateErasureSchema = Type.Omit(CreateErasureRequestSchema, ['tenantId', 'requestedBy']);
 type HttpCreateErasure = Static<typeof HttpCreateErasureSchema>;
 
+const HttpCreateCorrectionSchema = Type.Omit(CreateCorrectionRequestSchema, [
+  'tenantId',
+  'requestedBy',
+]);
+type HttpCreateCorrection = Static<typeof HttpCreateCorrectionSchema>;
+
+const HttpOffboardSchema = Type.Omit(RequestTenantOffboardSchema, ['tenantId', 'requestedBy']);
+type HttpOffboard = Static<typeof HttpOffboardSchema>;
+
 const TransitionBodySchema = Type.Object({
   status: ErasureStatusEnum,
   statusReason: Type.Optional(Type.String({ maxLength: 2000 })),
 });
 type TransitionBody = Static<typeof TransitionBodySchema>;
+
+const CorrectionTransitionBodySchema = Type.Object({
+  status: CorrectionStatusEnum,
+  statusReason: Type.Optional(Type.String({ maxLength: 2000 })),
+});
+type CorrectionTransitionBody = Static<typeof CorrectionTransitionBodySchema>;
 
 function tenantIdOf(request: FastifyRequest): string | undefined {
   return (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -119,6 +146,72 @@ function formatErasure(entity: {
     requestedBy: entity.requestedBy,
     reviewedBy: entity.reviewedBy,
     statusReason: entity.statusReason,
+    completedAt: entity.completedAt?.toISOString() ?? null,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatCorrection(entity: {
+  id: string;
+  tenantId: string;
+  subjectType: string;
+  subjectId: string;
+  fieldPath: string;
+  currentValue: string | null;
+  requestedValue: string;
+  reason: string | null;
+  status: string;
+  requestedBy: string;
+  reviewedBy: string | null;
+  statusReason: string | null;
+  appliedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    subjectType: entity.subjectType,
+    subjectId: entity.subjectId,
+    fieldPath: entity.fieldPath,
+    currentValue: entity.currentValue,
+    requestedValue: entity.requestedValue,
+    reason: entity.reason,
+    status: entity.status,
+    requestedBy: entity.requestedBy,
+    reviewedBy: entity.reviewedBy,
+    statusReason: entity.statusReason,
+    appliedAt: entity.appliedAt?.toISOString() ?? null,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatOffboard(entity: {
+  id: string;
+  tenantId: string;
+  status: string;
+  reason: string;
+  requestedBy: string;
+  statusReason: string | null;
+  checklist: Array<{ domain: string; status: string; note?: string }>;
+  residualNote: string | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    status: entity.status,
+    reason: entity.reason,
+    requestedBy: entity.requestedBy,
+    statusReason: entity.statusReason,
+    checklist: entity.checklist,
+    residualNote: entity.residualNote,
+    startedAt: entity.startedAt?.toISOString() ?? null,
     completedAt: entity.completedAt?.toISOString() ?? null,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
@@ -282,6 +375,170 @@ export async function registerPrivacyRoutes(
       } catch (error) {
         return sendError(reply, error);
       }
+    },
+  );
+
+  // ─── Correction ──────────────────────────────────────────────────────────
+
+  fastify.post(`${prefix}/correction-requests`, async (request, reply) => {
+    const tenantId = tenantIdOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const parsed = validate(HttpCreateCorrectionSchema, request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: parsed.errors,
+      });
+    }
+    const body = parsed.data as HttpCreateCorrection;
+    try {
+      const row = await privacyService.createCorrectionRequest({
+        ...body,
+        tenantId,
+        requestedBy: actorIdOf(request),
+      });
+      return reply.status(201).send(formatCorrection(row));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/correction-requests`, async (request, reply) => {
+    const tenantId = tenantIdOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const rows = await privacyService.listCorrectionRequests(tenantId);
+    return reply.send({ data: rows.map(formatCorrection) });
+  });
+
+  fastify.get<{ Params: { id: string } }>(
+    `${prefix}/correction-requests/:id`,
+    async (request, reply) => {
+      const row = await privacyService.getCorrectionRequest(request.params.id);
+      if (!row) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: `Correction request '${request.params.id}' not found`,
+          statusCode: 404,
+        });
+      }
+      return reply.send(formatCorrection(row));
+    },
+  );
+
+  fastify.post<{ Params: { id: string }; Body: CorrectionTransitionBody }>(
+    `${prefix}/correction-requests/:id/transition`,
+    async (request, reply) => {
+      const parsed = validate(CorrectionTransitionBodySchema, request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: parsed.errors,
+        });
+      }
+      const body = parsed.data as CorrectionTransitionBody;
+      try {
+        const row = await privacyService.transitionCorrectionRequest(
+          request.params.id,
+          body.status as CorrectionStatus,
+          actorIdOf(request),
+          body.statusReason,
+        );
+        return reply.send(formatCorrection(row));
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  fastify.post<{ Params: { id: string } }>(
+    `${prefix}/correction-requests/:id/apply`,
+    async (request, reply) => {
+      try {
+        const row = await privacyService.applyCorrection(
+          request.params.id,
+          actorIdOf(request),
+        );
+        return reply.send(formatCorrection(row));
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  // ─── Tenant offboard ─────────────────────────────────────────────────────
+
+  fastify.post(`${prefix}/tenant-offboard`, async (request, reply) => {
+    const tenantId = tenantIdOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const parsed = validate(HttpOffboardSchema, request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: parsed.errors,
+      });
+    }
+    const body = parsed.data as HttpOffboard;
+    try {
+      const job = await privacyService.requestTenantOffboardWipe({
+        ...body,
+        tenantId,
+        requestedBy: actorIdOf(request),
+      });
+      return reply.status(201).send(formatOffboard(job));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/tenant-offboard`, async (request, reply) => {
+    const tenantId = tenantIdOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const rows = await privacyService.listTenantOffboardJobs(tenantId);
+    return reply.send({ data: rows.map(formatOffboard) });
+  });
+
+  fastify.get<{ Params: { id: string } }>(
+    `${prefix}/tenant-offboard/:id`,
+    async (request, reply) => {
+      const row = await privacyService.getTenantOffboardJob(request.params.id);
+      if (!row) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: `Tenant offboard job '${request.params.id}' not found`,
+          statusCode: 404,
+        });
+      }
+      return reply.send(formatOffboard(row));
     },
   );
 }

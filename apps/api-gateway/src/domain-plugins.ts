@@ -132,7 +132,8 @@ import {
   studentPlugin,
 } from '@proctira/backend-student';
 import {
-  InMemoryPrivacyRepository,
+  createPrivacyQueuePublishersFromEnv,
+  getSharedInMemoryPrivacyRepository,
   PrivacyService,
   privacyPlugin,
 } from '@proctira/backend-privacy';
@@ -287,8 +288,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           await importHandle.disconnect();
         });
       }
-      // W1-SEC-06: legal-hold gate on student soft-delete / merge (in-memory this slice).
-      const privacyService = new PrivacyService(new InMemoryPrivacyRepository());
+      // W1-SEC-06: legal-hold gate on student soft-delete / merge — shared store
+      // with /privacy plugin + tenant lifecycle delete guard.
+      const privacyService = new PrivacyService(getSharedInMemoryPrivacyRepository());
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
@@ -995,11 +997,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'privacy',
     proxyPrefixes: ['/privacy'],
     register: async (scope) => {
-      // W1-ARCH-05: compose @proctira/backend-privacy (W1-SEC-06). In-memory store;
-      // Pg repository residual (schema 067 exists). Legal hold + erasure HTTP routes.
+      // W1-ARCH-05 / W1-SEC-06: compose privacy HTTP. Shared in-memory store with
+      // student/tenant destructive gates. Durable anonymization/offboard publishers
+      // when QUEUE_BACKEND / RABBITMQ_URL set. Pg repository residual (067/076).
+      const queueHandle = await createPrivacyQueuePublishersFromEnv();
+      if (queueHandle) {
+        scope.addHook('onClose', async () => {
+          await queueHandle.disconnect();
+        });
+      }
       await scope.register(privacyPlugin, {
-        repository: new InMemoryPrivacyRepository(),
+        repository: getSharedInMemoryPrivacyRepository(),
         prefix: '/privacy',
+        anonymizationPublisher: queueHandle?.anonymizationPublisher,
+        offboardPublisher: queueHandle?.offboardPublisher,
       });
     },
   },
