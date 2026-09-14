@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: registration-portal
-          image: proctira/registration-portal:latest
+          image: proctira/registration-portal:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

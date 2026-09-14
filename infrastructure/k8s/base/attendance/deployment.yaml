@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: attendance-service
-          image: proctira/attendance-service:latest
+          image: proctira/attendance-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

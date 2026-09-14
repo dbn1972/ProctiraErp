@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: report-service
-          image: proctira/report-service:latest
+          image: proctira/report-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

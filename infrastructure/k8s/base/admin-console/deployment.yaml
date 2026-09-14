@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: admin-console
-          image: proctira/admin-console:latest
+          image: proctira/admin-console:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

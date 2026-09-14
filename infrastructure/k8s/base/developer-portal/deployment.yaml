@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: developer-portal
-          image: proctira/developer-portal:latest
+          image: proctira/developer-portal:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

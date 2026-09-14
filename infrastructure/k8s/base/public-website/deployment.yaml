@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: public-website
-          image: proctira/public-website:latest
+          image: proctira/public-website:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
