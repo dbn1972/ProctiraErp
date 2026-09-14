@@ -4,6 +4,14 @@ metadata:
   name: {{ include "proctira-service.fullname" . }}
   labels:
     {{- include "proctira-service.labels" . | nindent 4 }}
+  {{- if .Values.progressiveDelivery.canary.enabled }}
+  annotations:
+    proctira.io/progressive-delivery: canary
+    proctira.io/canary-weight: {{ .Values.progressiveDelivery.canary.weight | quote }}
+    {{- with .Values.progressiveDelivery.canary.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}

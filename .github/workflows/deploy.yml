@@ -306,6 +306,10 @@ jobs:
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
             echo "Deploying ${SERVICE} to ${ENVIRONMENT}..."
 
+            # W1-OPS-09: --atomic auto-rolls back the release on failure;
+            # --wait blocks until resources are ready (or timeout).
+            # Progressive baseline: chart strategy is RollingUpdate maxUnavailable=0.
+            # Optional canary annotations: --set progressiveDelivery.canary.enabled=true
             helm upgrade --install "proctira-${SERVICE}" \
               ./infrastructure/helm/proctira-service \
               --namespace "${NAMESPACE}" \
@@ -315,6 +319,7 @@ jobs:
               --set environment="${ENVIRONMENT}" \
               --set service.name="${SERVICE}" \
               --values "./infrastructure/helm/proctira-service/values-${ENVIRONMENT}.yaml" \
+              --atomic \
               --wait \
               --timeout 300s
           done

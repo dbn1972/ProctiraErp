@@ -14,14 +14,18 @@ on:
     paths:
       - 'infrastructure/helm/**'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/rollback.yml'
       - '.github/workflows/helm-template.yml'
       - 'tools/scripts/helm-template-check.sh'
+      - 'tools/scripts/deploy-rollback-check.sh'
   push:
     branches: [main]
     paths:
       - 'infrastructure/helm/**'
       - '.github/workflows/deploy.yml'
+      - '.github/workflows/rollback.yml'
       - 'tools/scripts/helm-template-check.sh'
+      - 'tools/scripts/deploy-rollback-check.sh'
 
 concurrency:
   group: helm-template-${{ github.ref }}
@@ -43,4 +47,6 @@ jobs:
           version: 'v3.14.0'
 
       - name: Lint + template charts (deploy path check)
-        run: ./tools/scripts/helm-template-check.sh
+        run: |
+          ./tools/scripts/helm-template-check.sh
+          ./tools/scripts/deploy-rollback-check.sh
