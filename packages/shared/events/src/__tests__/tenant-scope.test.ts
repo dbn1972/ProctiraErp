@@ -9,6 +9,7 @@ import {
   TenantScopeError,
   assertTenantScopedEventName,
   isTenantScopedEventName,
+  shouldRequireTenantScopedEventNames,
 } from '../tenant-scope.js';
 
 describe('W1-SEC-11 events tenant namespaces', () => {
@@ -30,14 +31,35 @@ describe('W1-SEC-11 events tenant namespaces', () => {
   });
 
   it('rejects unscoped names', () => {
-    for (const name of ['student', 'reports', 'tenant..student', 'tenant.', '', 'global.events']) {
+    for (const name of [
+      'student',
+      'reports',
+      'tenant..student',
+      'tenant.',
+      '',
+      'global.events',
+      '#',
+      '*',
+    ]) {
       expect(isTenantScopedEventName(name)).toBe(false);
       expect(() => assertTenantScopedEventName(name)).toThrow(TenantScopeError);
     }
   });
 
-  it('accepts scoped names', () => {
+  it('accepts scoped names and tenant.#', () => {
     expect(isTenantScopedEventName('tenant.acme.student.enrolled')).toBe(true);
+    expect(isTenantScopedEventName('tenant.#')).toBe(true);
+    expect(isTenantScopedEventName('tenant.*.exam.document.generate')).toBe(true);
     expect(() => assertTenantScopedEventName('tenant.acme.student')).not.toThrow();
+  });
+
+  it('fails closed in production unless escape hatch set', () => {
+    expect(shouldRequireTenantScopedEventNames({ NODE_ENV: 'production' })).toBe(true);
+    expect(
+      shouldRequireTenantScopedEventNames({
+        NODE_ENV: 'production',
+        ALLOW_UNSCOPED_TENANT_NAMESPACES: '1',
+      }),
+    ).toBe(false);
   });
 });

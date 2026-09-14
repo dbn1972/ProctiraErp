@@ -1,10 +1,12 @@
 # Security — tenant namespaces for cache / queue / storage / events (W1-SEC-11)
 
+> **Status:** PARTIAL → **COMPLETE** — see `docs/audits/SEC_W1_SEC_11_COMPLETE.md` (subscribe/consume gate + tip SHA).
+
 **Module / slice:** `@proctira/cache` · `@proctira/events` · `@proctira/queue-abstraction` · `@proctira/storage`  
-**Branch / tip:** `cursor/aud-w1-sec-11-tenant-namespaces-56c3`  
+**Branch / tip:** `cursor/aud-w1-sec-11-tenant-namespaces-56c3` (PARTIAL slice; COMPLETE on `cursor/w1-sec-11-namespaces-complete-56c3`)  
 **Date (UTC):** 2026-09-14  
 **Data classes:** shared infrastructure (PII / financial / PHI when domain payloads ride these buses)  
-**Paired test audit:** unit — `tenant-scope.test.ts` (cache, events), queue `types.test.ts`, storage `tenant-namespace.test.ts`
+**Paired test audit:** unit — `tenant-scope.test.ts` (cache, events, queue), queue `types.test.ts`, storage `tenant-namespace.test.ts`
 
 ---
 
@@ -60,7 +62,7 @@
 **Residual risks:**
 
 - Object storage uses a **shared bucket** with key-level `tenants/{id}/` isolation (not per-tenant buckets). Bucket-level IAM separation remains an ops hardening option.
-- Queue subscribe paths still accept a caller-supplied topic string for binding; publishers use `buildTenantName`, but a misconfigured subscriber pattern is not rewritten by the adapter (defense-in-depth residual).
-- `ALLOW_UNSCOPED_TENANT_NAMESPACES=1` disables production fail-closed for cache keys and storage raw-key ops — emergency only; must never be set in normal production.
+- ~~Queue subscribe paths still accept a caller-supplied topic string for binding~~ — **CLOSED** in COMPLETE (`assertTenantScopedSubscribeTopic` on all adapters).
+- `ALLOW_UNSCOPED_TENANT_NAMESPACES=1` disables production fail-closed for cache keys, storage raw-key ops, and queue subscribe asserts — emergency only; must never be set in normal production.
 - CDN static (non-tenant) asset URLs remain intentionally unscoped; branding paths are separate from this finding.
 - Search-index / report helpers outside these four packages are out of scope for this PR.

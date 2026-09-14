@@ -16,6 +16,7 @@ import type {
   HealthCheckResult,
   RabbitMQAdapterConfig,
 } from '../types';
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 const DEFAULT_CONFIG: Partial<RabbitMQAdapterConfig> = {
@@ -118,6 +119,9 @@ export class RabbitMQAdapter implements QueueAdapter {
       throw new Error('RabbitMQAdapter is not connected. Call connect() first.');
     }
 
+    // W1-SEC-11: reject unscoped caller topics / binding patterns.
+    assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.rabbitmq.subscribe' });
+
     const queueName = buildTenantName(options.groupId ?? 'shared', `sub.${options.topic}`);
 
     // Assert queue with dead-letter exchange
@@ -167,6 +171,9 @@ export class RabbitMQAdapter implements QueueAdapter {
     if (!this.connected || !this.channel) {
       throw new Error('RabbitMQAdapter is not connected. Call connect() first.');
     }
+
+    // W1-SEC-11: reject unscoped caller topics / binding patterns.
+    assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.rabbitmq.consume' });
 
     // For consume (competing consumers), use a shared queue name
     const queueName = buildTenantName(options.groupId ?? 'workers', `task.${options.topic}`);

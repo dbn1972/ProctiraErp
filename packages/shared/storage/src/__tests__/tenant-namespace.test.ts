@@ -155,5 +155,23 @@ describe('W1-SEC-11 unscoped object key rejection', () => {
         env: { NODE_ENV: 'production' },
       }),
     ).not.toThrow();
+
+    expect(() =>
+      assertTenantScopedObjectKeyIfRequired('documents/file.pdf', {
+        env: { NODE_ENV: 'production', ALLOW_UNSCOPED_TENANT_NAMESPACES: '1' },
+      }),
+    ).not.toThrow();
+  });
+
+  it('shouldRequireTenantScopedObjectKeys fails closed in production', async () => {
+    const { shouldRequireTenantScopedObjectKeys } = await import('../tenant-namespace.js');
+    expect(shouldRequireTenantScopedObjectKeys({ NODE_ENV: 'production' })).toBe(true);
+    expect(shouldRequireTenantScopedObjectKeys({ NODE_ENV: 'test' })).toBe(false);
+    expect(
+      shouldRequireTenantScopedObjectKeys({
+        NODE_ENV: 'production',
+        ALLOW_UNSCOPED_TENANT_NAMESPACES: '1',
+      }),
+    ).toBe(false);
   });
 });

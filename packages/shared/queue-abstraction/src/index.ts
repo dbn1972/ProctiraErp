@@ -98,6 +98,9 @@ export {
   TenantScopeError,
   assertTenantId,
   assertTenantScopedQueueName,
+  assertTenantScopedSubscribeTopic,
   isTenantScopedQueueName,
+  isUnscopedTenantNamespaceAllowed,
+  shouldRequireTenantScopedQueueTopics,
 } from './tenant-scope';
 

@@ -23,6 +23,7 @@ import type {
   HealthCheckResult,
   SQSAdapterConfig,
 } from '../types';
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 const DEFAULT_CONFIG: Partial<SQSAdapterConfig> = {
@@ -133,6 +134,9 @@ export class SQSAdapter implements QueueAdapter {
     if (!this.connected || !this.client) {
       throw new Error('SQSAdapter is not connected. Call connect() first.');
     }
+
+    // W1-SEC-11: reject unscoped caller queue names.
+    assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.sqs.subscribe' });
 
     const queueName = options.topic;
     const queueUrl = await this.getOrCreateQueueUrl(queueName);

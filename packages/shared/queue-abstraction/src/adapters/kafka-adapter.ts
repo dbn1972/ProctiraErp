@@ -16,6 +16,7 @@ import type {
   HealthCheckResult,
   KafkaAdapterConfig,
 } from '../types';
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 const DEFAULT_CONFIG: Partial<KafkaAdapterConfig> = {
@@ -101,11 +102,13 @@ export class KafkaAdapter implements QueueAdapter {
       throw new Error('KafkaAdapter is not connected. Call connect() first.');
     }
 
+    // W1-SEC-11: reject unscoped caller topics (not convention-only).
+    assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.kafka.subscribe' });
+
     const groupId = options.groupId ?? this.config.groupId ?? `${this.config.clientId}-group`;
     const consumer = this.kafka.consumer({ groupId });
     await consumer.connect();
 
-    // Subscribe to the topic (already tenant-prefixed by caller or raw)
     const topic = options.topic;
     await consumer.subscribe({
       topic,

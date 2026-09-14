@@ -17,6 +17,7 @@ import type {
   MessageHandler,
   HealthCheckResult,
 } from '../types';
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 export interface DurableQueuedMessage {
@@ -184,6 +185,8 @@ export class InMemoryDurableQueueAdapter implements QueueAdapter {
     if (!this.connected) {
       throw new Error('InMemoryDurableQueueAdapter is not connected. Call connect() first.');
     }
+    // W1-SEC-11: reject unscoped caller topics / patterns (e.g. bare `#`).
+    assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.memory.consume' });
     this.handler = handler;
     this.consumeTopic = options.topic;
     if (!this.pollTimer) {
