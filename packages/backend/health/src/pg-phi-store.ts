@@ -742,30 +742,42 @@ export class PgPhiStore {
 
   async createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: InsuranceEntity,
+      ) => Promise<void>;
+    },
   ): Promise<InsuranceEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_insurance (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_insurance (
         id, tenant_id, student_id, provider, policy_number, coverage_type, start_date, end_date, notes, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7::date,$8::date,$9,$10,$11) RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.provider,
-        encryptPhi(data.policyNumber, scope),
-        data.coverageType,
-        data.startDate,
-        data.endDate,
-        encryptPhi(data.notes, scope),
-        now,
-        now,
-      ],
-    );
-    return mapInsurance(result.rows[0] as Record<string, unknown>);
+        [
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.provider,
+          encryptPhi(data.policyNumber, scope),
+          data.coverageType,
+          data.startDate,
+          data.endDate,
+          encryptPhi(data.notes, scope),
+          now,
+          now,
+        ],
+      );
+      const entity = mapInsurance(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: insurance write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async updateInsurance(
@@ -848,30 +860,42 @@ export class PgPhiStore {
 
   async createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ScreeningProgramEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_screening_programs (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_screening_programs (
         id, tenant_id, name, description, grade_level, academic_period_id,
         assessment_types, scheduled_date, status, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9,$10,$11) RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.name,
-        data.description,
-        data.gradeLevel,
-        data.academicPeriodId,
-        data.assessmentTypes,
-        data.scheduledDate,
-        data.status,
-        now,
-        now,
-      ],
-    );
-    return mapScreening(result.rows[0] as Record<string, unknown>);
+        [
+          data.id,
+          data.tenantId,
+          data.name,
+          data.description,
+          data.gradeLevel,
+          data.academicPeriodId,
+          data.assessmentTypes,
+          data.scheduledDate,
+          data.status,
+          now,
+          now,
+        ],
+      );
+      const entity = mapScreening(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: screening write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async updateScreeningProgram(

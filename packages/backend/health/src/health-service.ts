@@ -653,6 +653,12 @@ export class HealthService {
     tenantId: string,
     input: CreateInsuranceInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: InsuranceEntity,
+      ) => Promise<void>;
+    },
   ): Promise<InsuranceEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -666,7 +672,7 @@ export class HealthService {
       endDate: input.endDate ?? null,
       notes: input.notes ?? null,
     };
-    return this.repository.createInsurance(entity);
+    return this.repository.createInsurance(entity, options);
   }
 
   async updateInsurance(
@@ -973,6 +979,12 @@ export class HealthService {
   async createScreeningProgram(
     tenantId: string,
     input: CreateScreeningProgramInput,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ScreeningProgramEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity> {
     const entity = {
       id: uuidv4(),
@@ -985,7 +997,7 @@ export class HealthService {
       scheduledDate: input.scheduledDate ?? null,
       status: input.status,
     };
-    return this.repository.createScreeningProgram(entity);
+    return this.repository.createScreeningProgram(entity, options);
   }
 
   async updateScreeningProgram(

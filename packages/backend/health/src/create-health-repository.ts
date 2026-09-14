@@ -400,9 +400,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: InsuranceEntity,
+      ) => Promise<void>;
+    },
   ): Promise<InsuranceEntity> {
-    if (this.phi) return this.phi.createInsurance(data);
-    return this.memory.createInsurance(data);
+    if (this.phi) return this.phi.createInsurance(data, options);
+    return this.memory.createInsurance(data, options);
   }
 
   async updateInsurance(
@@ -437,9 +443,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ScreeningProgramEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity> {
-    if (this.phi) return this.phi.createScreeningProgram(data);
-    return this.memory.createScreeningProgram(data);
+    if (this.phi) return this.phi.createScreeningProgram(data, options);
+    return this.memory.createScreeningProgram(data, options);
   }
 
   async updateScreeningProgram(
