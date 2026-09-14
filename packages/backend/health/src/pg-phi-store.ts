@@ -349,16 +349,22 @@ export class PgPhiStore {
 
   async createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AllergyEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AllergyEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_allergies (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_allergies (
         id, tenant_id, student_id, allergy_type, description, severity, reaction, treatment, diagnosed_date, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11) RETURNING *`,
-      [
+        [
         data.id,
         data.tenantId,
         data.studentId,
@@ -371,8 +377,14 @@ export class PgPhiStore {
         now,
         now,
       ],
-    );
-    return mapAllergy(result.rows[0] as Record<string, unknown>);
+      );
+      const entity = mapAllergy(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async updateAllergy(
@@ -466,17 +478,23 @@ export class PgPhiStore {
 
   async createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthConditionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_conditions (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_conditions (
         id, tenant_id, student_id, condition_name, condition_type, diagnosed_date, status,
         treatment, medication, notes, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [
+        [
         data.id,
         data.tenantId,
         data.studentId,
@@ -490,8 +508,14 @@ export class PgPhiStore {
         now,
         now,
       ],
-    );
-    return mapCondition(result.rows[0] as Record<string, unknown>);
+      );
+      const entity = mapCondition(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async updateCondition(
@@ -586,17 +610,23 @@ export class PgPhiStore {
 
   async createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: VaccinationEntity,
+      ) => Promise<void>;
+    },
   ): Promise<VaccinationEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_vaccinations (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_vaccinations (
         id, tenant_id, student_id, vaccine_name, dose_number, date_administered,
         administered_by, batch_number, next_due_date, notes, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9::date,$10,$11,$12) RETURNING *`,
-      [
+        [
         data.id,
         data.tenantId,
         data.studentId,
@@ -610,8 +640,14 @@ export class PgPhiStore {
         now,
         now,
       ],
-    );
-    return mapVaccination(result.rows[0] as Record<string, unknown>);
+      );
+      const entity = mapVaccination(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async updateVaccination(

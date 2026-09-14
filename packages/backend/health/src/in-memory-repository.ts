@@ -162,6 +162,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AllergyEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AllergyEntity> {
     const now = new Date();
     const entity: AllergyEntity = { ...data, createdAt: now, updatedAt: now };
@@ -217,6 +223,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthConditionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity> {
     const now = new Date();
     const entity: HealthConditionEntity = { ...data, createdAt: now, updatedAt: now };
@@ -272,6 +284,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: VaccinationEntity,
+      ) => Promise<void>;
+    },
   ): Promise<VaccinationEntity> {
     const now = new Date();
     const entity: VaccinationEntity = { ...data, createdAt: now, updatedAt: now };

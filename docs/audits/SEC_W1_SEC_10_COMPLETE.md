@@ -67,3 +67,13 @@
 | Safe to merge from security view | ☑ with residuals documented |
 
 **Residual risks:** Unwired regulated routes can still acknowledge via post-hoc audit or 503 after durable write; extend `appendAuditInTxn` binders using the same helper. Production must never rely on `ALLOW_MUTATION_AUDIT_DEGRADE` (ignored).
+
+## Follow-up (allergy/condition/vaccination atomic audit)
+
+PARTIAL residual closed for create paths: allergies, conditions, and vaccinations now
+use `withPgTenant` + optional `appendAuditInTxn` (same pattern as measurements).
+
+Routes bind PHI write audit binders so insert + audit share one COMMIT.
+
+Evidence: `phi-write-txn-audit.test.ts`.
+

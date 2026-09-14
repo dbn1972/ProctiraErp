@@ -229,7 +229,15 @@ export interface HealthRepository {
   deleteMeasurement(id: string, tenantId: string): Promise<boolean>;
 
   // Allergies
-  createAllergy(data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>): Promise<AllergyEntity>;
+  createAllergy(
+    data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AllergyEntity,
+      ) => Promise<void>;
+    },
+  ): Promise<AllergyEntity>;
   updateAllergy(
     id: string,
     tenantId: string,
@@ -246,6 +254,12 @@ export interface HealthRepository {
   // Conditions
   createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthConditionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity>;
   updateCondition(
     id: string,
@@ -263,6 +277,12 @@ export interface HealthRepository {
   // Vaccinations
   createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: VaccinationEntity,
+      ) => Promise<void>;
+    },
   ): Promise<VaccinationEntity>;
   updateVaccination(
     id: string,
