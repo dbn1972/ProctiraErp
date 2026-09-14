@@ -1,7 +1,7 @@
 # Security — W1-SEC-02 COMPLETE (exact mutating-route authz inventory)
 
 **Module / slice:** `apps/api-gateway` mutating authz inventory + enforce helper · encapsulation fixes for billing / examination / staff plugin-wide hooks  
-**Branch / tip:** `cursor/w1-sec-02-authz-complete-56c3` @ `802ea1c3b28679f3e13559a1375650ae89c17582`  
+**Branch / tip:** `cursor/w1-sec-02-authz-complete-56c3` @ `319b9ac8e51d7523cf071b3de8b8bc1c4d71103d`  
 **Date (UTC):** 2026-09-14  
 **Data classes:** mixed (PII / PHI / financial / campus ops) via `/api/v1/*` mutations  
 **Paired finding:** W1-SEC-02 (critical) PARTIAL → COMPLETE  
