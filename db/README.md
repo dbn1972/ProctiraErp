@@ -215,6 +215,7 @@ grants come from `db/runtime-table-privileges.json`, applied by
 
 Executable gate: `pnpm check:runtime-table-privileges` (CI job
 `runtime-table-privileges`). New `CREATE TABLE` without a catalog entry fails CI.
+| `schema_migration_phases` | Full (non-txn phase resume) | **None** — class `denied` via `088` |
 
 Bootstrap role docs: `db/bootstrap/README.md`. Audits:
 `docs/audits/DATA_W1_DATA_11_COMPLETE.md` (COMPLETE),
@@ -225,7 +226,7 @@ Bootstrap role docs: `db/bootstrap/README.md`. Audits:
 
 Numbered `db/sql/` apply is **not** whole-set atomic (Postgres cannot wrap every
 DDL form across dozens of files in one safe transaction). Resume safety comes
-from the `schema_migrations` ledger instead:
+from the `schema_migrations` ledger (and, for non-txn files, statement phases):
 
 | Behavior | Rule |
 | --- | --- |
@@ -234,12 +235,15 @@ from the `schema_migrations` ledger instead:
 | Fail-closed | Ledger checksum differs → exit non-zero (do not overwrite) |
 | Legacy NULL | Pre-checksum self-insert rows get the current digest adopted; file is not re-applied |
 | Per-file TX | Default `psql --single-transaction` for the file + ledger INSERT |
+| Non-txn phases | `CONCURRENTLY` / `APPLY_SQL_NO_TX=1` files apply statement-by-statement with `schema_migration_phases` so a mid-file failure resumes at the next unapplied phase |
 
 **Multi-statement limits:** statements that cannot run inside a transaction
 (`CREATE INDEX CONCURRENTLY`, `VACUUM`, some older `ALTER TYPE … ADD VALUE`
 forms) are applied without `-1` when the file text contains `CONCURRENTLY`, or
-for every file when `APPLY_SQL_NO_TX=1`. Prefer avoiding those forms under
-`db/sql/` so per-file atomicity holds.
+for every file when `APPLY_SQL_NO_TX=1`. Non-txn phases **must** be written as
+idempotent compensating-forward DDL (`IF NOT EXISTS`, `OR REPLACE`,
+`ON CONFLICT`) so a crash between statement commit and phase-row insert can
+re-run safely. Prefer keeping CONCURRENTLY work in small dedicated files.
 
 ## Apply order (required)
 
@@ -257,7 +261,7 @@ bash tools/scripts/apply-sql.sh
 - Prefers `MIGRATOR_DATABASE_URL`, then `DATABASE_URL`; otherwise libpq (`PGDATABASE` defaults to `proctira`)
 - Applies every `db/sql/[0-9]*.sql` in **`LC_ALL=C` sort order** (so `006_…schema` runs before `006b_…seed`)
 - Uses `psql -v ON_ERROR_STOP=1` and exits non-zero on failure
-- **W1-DATA-05:** ledger-safe resume via `schema_migrations` (skip match / fail mismatch / per-file TX)
+- **W1-DATA-05:** ledger-safe resume via `schema_migrations` (skip match / fail mismatch / per-file TX); non-txn files use `schema_migration_phases`
 - **W1-DATA-17:** sets `lock_timeout` + `statement_timeout` on every psql session
 - Supports `--dry-run` to list files without applying
 

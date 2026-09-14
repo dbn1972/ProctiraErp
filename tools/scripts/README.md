@@ -18,7 +18,8 @@ script is a single `.mjs` file with no compile step so it runs without
 | (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                                           |
 | (CI / W1-OPS-24)           | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules; wired in `observability-config.yml`.                    |
 | (CI / W1-OPS-24)           | `assert-reusable-ci-assets.mjs`      | Fails if reusable-setup / setup-node-pnpm / validate-observability lose workflow callers.              |
-| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05 ledger + W1-DATA-17 lock/statement timeouts. |
+| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05 file + phase ledger + W1-DATA-17 lock/statement timeouts. |
+| (CI / local)               | `split-sql-phases.mjs`               | W1-DATA-05: split non-txn SQL files into resumable statement phases. |
 | (CI / local)               | `prisma-migrate-deploy.sh`           | W1-DATA-17: Prisma migrate deploy with lock_timeout + statement_timeout (URL options + PGOPTIONS). |
 | (CI / local)               | `migration-timeouts.sh`              | W1-DATA-17: shared timeout defaults/helpers sourced by apply-sql + prisma wrapper. |
 | (CI / local)               | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                        |

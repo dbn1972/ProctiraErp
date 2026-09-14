@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
 const scriptPath = resolve(here, '..', 'apply-sql.sh');
+const splitPhasesPath = resolve(here, '..', 'split-sql-phases.mjs');
 const sqlDir = resolve(repoRoot, 'db/sql');
 const scriptSource = readFileSync(scriptPath, 'utf8');
 
@@ -156,11 +157,16 @@ describe('apply-sql.sh', () => {
   it('W1-DATA-05 static contract: ledger skip, checksum fail-closed, per-file TX', () => {
     expect(scriptSource).toMatch(/W1-DATA-05/);
     expect(scriptSource).toMatch(/schema_migrations/);
+    expect(scriptSource).toMatch(/schema_migration_phases/);
     expect(scriptSource).toMatch(/checksum mismatch/);
     expect(scriptSource).toMatch(/--single-transaction/);
     expect(scriptSource).toMatch(/Multi-statement limits/);
     expect(scriptSource).toMatch(/APPLY_SQL_NO_TX/);
     expect(scriptSource).toMatch(/CREATE TABLE IF NOT EXISTS schema_migrations/);
+    expect(scriptSource).toMatch(/CREATE TABLE IF NOT EXISTS schema_migration_phases/);
+    expect(scriptSource).toMatch(/apply_file_with_phases/);
+    expect(scriptSource).toMatch(/APPLY_SQL_ALLOW_FAIL_INJECT/);
+    expect(scriptSource).toMatch(/split-sql-phases\.mjs/);
     // Must not blindly overwrite drifted checksums at end-of-run.
     expect(scriptSource).not.toMatch(
       /Recording \$\{#SQL_FILES\[@\]\} files in schema_migrations[\s\S]*ON CONFLICT \(filename\) DO UPDATE SET checksum = EXCLUDED\.checksum/,
@@ -188,6 +194,59 @@ describe('apply-sql.sh', () => {
   });
 });
 
+describe('splitSqlPhases (W1-DATA-05)', () => {
+  it('splits statements and preserves dollar-quoted bodies via CLI', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'w1-data05-split-'));
+    const input = join(dir, 'in.sql');
+    const out = join(dir, 'out');
+    writeFileSync(
+      input,
+      `
+CREATE TABLE t (id int);
+-- comment only line should not become a phase alone after prior ;
+CREATE OR REPLACE FUNCTION f() RETURNS void AS $$
+BEGIN
+  PERFORM 1;
+END;
+$$ LANGUAGE plpgsql;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS t_id_idx ON t (id);
+`,
+      'utf8',
+    );
+    try {
+      const result = spawnSync('node', [splitPhasesPath, input, out], {
+        encoding: 'utf8',
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout.trim()).toBe('3');
+      const files = readdirSync(out).sort();
+      expect(files).toEqual(['000.sql', '001.sql', '002.sql']);
+      expect(readFileSync(join(out, '000.sql'), 'utf8')).toMatch(/CREATE TABLE t/);
+      expect(readFileSync(join(out, '001.sql'), 'utf8')).toMatch(/CREATE OR REPLACE FUNCTION/);
+      expect(readFileSync(join(out, '001.sql'), 'utf8')).toMatch(/PERFORM 1;/);
+      expect(readFileSync(join(out, '002.sql'), 'utf8')).toMatch(/CREATE INDEX CONCURRENTLY/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('ignores comment-only trailing chunks', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'w1-data05-split2-'));
+    const input = join(dir, 'in.sql');
+    const out = join(dir, 'out');
+    writeFileSync(input, `SELECT 1;\n-- done\n`, 'utf8');
+    try {
+      const result = spawnSync('node', [splitPhasesPath, input, out], {
+        encoding: 'utf8',
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout.trim()).toBe('1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe.skipIf(!LIVE_URL)('apply-sql.sh W1-DATA-05 ledger (live Postgres)', () => {
   let fixtureRoot = '';
   let fixtureSql = '';
@@ -202,6 +261,9 @@ describe.skipIf(!LIVE_URL)('apply-sql.sh W1-DATA-05 ledger (live Postgres)', () 
     const r = psql(
       LIVE_URL,
       `DROP TABLE IF EXISTS w1_data05_probe CASCADE;
+       DROP TABLE IF EXISTS w1_data05_phase_probe CASCADE;
+       DROP INDEX IF EXISTS w1_data05_phase_probe_v_idx;
+       DROP TABLE IF EXISTS schema_migration_phases CASCADE;
        DROP TABLE IF EXISTS schema_migrations CASCADE;`,
     );
     expect(r.status, r.stderr).toBe(0);
@@ -339,6 +401,170 @@ INSERT INTO w1_data05_probe (id) VALUES (7);`,
       ).toBe(sum);
       // Still a single row — file was not re-applied.
       expect(psql(LIVE_URL, `SELECT count(*) FROM w1_data05_probe`).stdout).toBe('1');
+    } finally {
+      resetLedgerAndArtifacts();
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('non-txn phase ledger: mid-fail after phase record resumes deterministically', () => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), 'w1-data05-phases-'));
+    fixtureSql = join(fixtureRoot, 'sql');
+    mkdirSync(fixtureSql, { recursive: true });
+    chmodSync(scriptPath, 0o755);
+
+    try {
+      resetLedgerAndArtifacts();
+      writeFixture(
+        '001_phases_concurrent.sql',
+        `-- Idempotent compensating-forward phases (non-txn / CONCURRENTLY path)
+CREATE TABLE IF NOT EXISTS w1_data05_phase_probe (
+  id int PRIMARY KEY,
+  v text NOT NULL
+);
+INSERT INTO w1_data05_phase_probe (id, v) VALUES (1, 'a')
+  ON CONFLICT (id) DO UPDATE SET v = EXCLUDED.v;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS w1_data05_phase_probe_v_idx
+  ON w1_data05_phase_probe (v);
+INSERT INTO w1_data05_phase_probe (id, v) VALUES (2, 'b')
+  ON CONFLICT (id) DO UPDATE SET v = EXCLUDED.v;
+`,
+      );
+
+      const envBase = {
+        DATABASE_URL: LIVE_URL,
+        MIGRATOR_DATABASE_URL: LIVE_URL,
+        APPLY_SQL_DIR: fixtureSql,
+        APPLY_SEEDS: '0',
+        APPLY_STRICT_FKS: '0',
+        APPLY_SQL_ALLOW_FAIL_INJECT: '1',
+      };
+
+      // Fail after phase 1 is recorded (table + first insert done; index not yet).
+      const injected = runApply({
+        ...envBase,
+        APPLY_SQL_FAIL_AFTER_PHASE: '1',
+      });
+      expect(injected.status).not.toBe(0);
+      expect(`${injected.stderr}${injected.stdout}`).toMatch(/fail-inject APPLY_SQL_FAIL_AFTER_PHASE=1/);
+      expect(injected.stdout).toMatch(/Phase ledger/);
+      expect(injected.stdout).toMatch(/Applying phase 0/);
+      expect(injected.stdout).toMatch(/Applying phase 1/);
+
+      const midPhases = psql(
+        LIVE_URL,
+        `SELECT phase_idx::text FROM schema_migration_phases
+         WHERE filename = '001_phases_concurrent.sql' ORDER BY phase_idx`,
+      );
+      expect(midPhases.stdout).toBe('0\n1');
+      expect(
+        psql(LIVE_URL, `SELECT count(*) FROM schema_migrations`).stdout,
+      ).toBe('0');
+      expect(
+        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
+      ).toBe('1');
+
+      // Resume: skip phases 0–1, apply 2–3, record file ledger.
+      const resumed = runApply(envBase);
+      expect(resumed.status, resumed.stderr + resumed.stdout).toBe(0);
+      expect(resumed.stdout).toMatch(/Skip phase 0/);
+      expect(resumed.stdout).toMatch(/Skip phase 1/);
+      expect(resumed.stdout).toMatch(/Applying phase 2/);
+      expect(resumed.stdout).toMatch(/Applying phase 3/);
+      expect(resumed.stdout).toMatch(/applied=1/);
+
+      expect(
+        psql(
+          LIVE_URL,
+          `SELECT checksum IS NOT NULL FROM schema_migrations
+           WHERE filename = '001_phases_concurrent.sql'`,
+        ).stdout,
+      ).toBe('t');
+      expect(
+        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
+      ).toBe('2');
+      expect(
+        psql(
+          LIVE_URL,
+          `SELECT count(*) FROM pg_class WHERE relname = 'w1_data05_phase_probe_v_idx'`,
+        ).stdout,
+      ).toBe('1');
+
+      // Second resume: file-level skip.
+      const again = runApply(envBase);
+      expect(again.status, again.stderr + again.stdout).toBe(0);
+      expect(again.stdout).toMatch(/Skip .*001_phases_concurrent\.sql \(ledger checksum match\)/);
+      expect(again.stdout).toMatch(/applied=0/);
+    } finally {
+      resetLedgerAndArtifacts();
+      rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('non-txn phase ledger: fail after DDL before phase row, resume re-runs idempotent phase', () => {
+    fixtureRoot = mkdtempSync(join(tmpdir(), 'w1-data05-phases-ddl-'));
+    fixtureSql = join(fixtureRoot, 'sql');
+    mkdirSync(fixtureSql, { recursive: true });
+
+    try {
+      resetLedgerAndArtifacts();
+      writeFixture(
+        '001_idempotent_phases.sql',
+        `CREATE TABLE IF NOT EXISTS w1_data05_phase_probe (id int PRIMARY KEY);
+INSERT INTO w1_data05_phase_probe (id) VALUES (10) ON CONFLICT DO NOTHING;
+INSERT INTO w1_data05_phase_probe (id) VALUES (20) ON CONFLICT DO NOTHING;
+`,
+      );
+
+      const envBase = {
+        DATABASE_URL: LIVE_URL,
+        MIGRATOR_DATABASE_URL: LIVE_URL,
+        APPLY_SQL_DIR: fixtureSql,
+        APPLY_SQL_NO_TX: '1',
+        APPLY_SQL_ALLOW_FAIL_INJECT: '1',
+      };
+
+      const injected = runApply({
+        ...envBase,
+        APPLY_SQL_FAIL_AFTER_PHASE_DDL: '1',
+      });
+      expect(injected.status).not.toBe(0);
+      expect(`${injected.stderr}${injected.stdout}`).toMatch(
+        /fail-inject APPLY_SQL_FAIL_AFTER_PHASE_DDL=1/,
+      );
+
+      // Phase 0 recorded; phase 1 DDL applied but not recorded; phase 2 pending.
+      expect(
+        psql(
+          LIVE_URL,
+          `SELECT phase_idx::text FROM schema_migration_phases
+           WHERE filename = '001_idempotent_phases.sql' ORDER BY phase_idx`,
+        ).stdout,
+      ).toBe('0');
+      expect(
+        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
+      ).toBe('1');
+
+      const resumed = runApply({
+        DATABASE_URL: LIVE_URL,
+        MIGRATOR_DATABASE_URL: LIVE_URL,
+        APPLY_SQL_DIR: fixtureSql,
+        APPLY_SQL_NO_TX: '1',
+      });
+      expect(resumed.status, resumed.stderr + resumed.stdout).toBe(0);
+      expect(resumed.stdout).toMatch(/Skip phase 0/);
+      expect(resumed.stdout).toMatch(/Applying phase 1/);
+      expect(resumed.stdout).toMatch(/Applying phase 2/);
+      expect(
+        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
+      ).toBe('2');
+      expect(
+        psql(
+          LIVE_URL,
+          `SELECT count(*) FROM schema_migrations
+           WHERE filename = '001_idempotent_phases.sql'`,
+        ).stdout,
+      ).toBe('1');
     } finally {
       resetLedgerAndArtifacts();
       rmSync(fixtureRoot, { recursive: true, force: true });
