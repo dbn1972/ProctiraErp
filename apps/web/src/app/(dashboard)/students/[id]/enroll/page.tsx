@@ -59,7 +59,8 @@ export default async function StudentEnrollPage(props: PageProps) {
             Enroll student
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {displayName} · Choose institution, grade, and academic period for the first placement.
+            {displayName} · Choose institution, grade, academic period, and class section for the
+            first placement.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">

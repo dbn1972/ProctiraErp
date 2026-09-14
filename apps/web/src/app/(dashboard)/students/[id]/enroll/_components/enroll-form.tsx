@@ -26,6 +26,7 @@ import { enrollmentFormSchema, type EnrollmentFormValues } from '@/lib/validatio
 
 import {
   enrollStudentAction,
+  getInstitutionClassesAction,
   getInstitutionGradesAction,
   getInstitutionPeriodsAction,
   type ActionState,
@@ -78,6 +79,9 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
   const [grades, setGrades] = useState<{ id: string; name: string }[]>([]);
   const [periods, setPeriods] = useState<{ id: string; name: string }[]>([]);
+  const [classes, setClasses] = useState<
+    { id: string; name: string; gradeId: string; academicPeriodId: string }[]
+  >([]);
   const [serverState, setServerState] = useState<ActionState<{ enrollmentId: string }> | null>(
     null,
   );
@@ -105,7 +109,14 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
   } = form;
 
   const institutionId = watch('institutionId');
+  const gradeId = watch('gradeId');
+  const academicPeriodId = watch('academicPeriodId');
   const areaTree: AreaPickerNode[] = useMemo(() => buildAreaTree(areas), [areas]);
+
+  const filteredClasses = useMemo(() => {
+    if (!gradeId) return classes;
+    return classes.filter((section) => section.gradeId === gradeId);
+  }, [classes, gradeId]);
 
   const filteredInstitutions = useMemo(() => {
     if (selectedAreaIds.length === 0) return institutions;
@@ -117,6 +128,7 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
     if (!institutionId) {
       setGrades([]);
       setPeriods([]);
+      setClasses([]);
       return;
     }
     let cancelled = false;
@@ -129,13 +141,16 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
         if (!cancelled) {
           setGrades(gradeList);
           setPeriods(periodList);
+          setClasses([]);
           setValue('gradeId', '');
           setValue('academicPeriodId', '');
+          setValue('classId', '');
         }
       } catch {
         if (!cancelled) {
           setGrades([]);
           setPeriods([]);
+          setClasses([]);
         }
       }
     })();
@@ -143,6 +158,31 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
       cancelled = true;
     };
   }, [institutionId, setValue]);
+
+  useEffect(() => {
+    if (!institutionId || !academicPeriodId) {
+      setClasses([]);
+      setValue('classId', '');
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const classList = await getInstitutionClassesAction(institutionId, academicPeriodId);
+        if (!cancelled) {
+          setClasses(classList);
+          setValue('classId', '');
+        }
+      } catch {
+        if (!cancelled) {
+          setClasses([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [institutionId, academicPeriodId, setValue]);
 
   async function onSubmit(values: EnrollmentFormValues) {
     setIsPending(true);
@@ -279,7 +319,7 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
           error={errors.academicPeriodId?.message ?? null}
         >
           <Select
-            value={watch('academicPeriodId')}
+            value={academicPeriodId}
             onValueChange={(value: string) =>
               setValue('academicPeriodId', value, { shouldValidate: true })
             }
@@ -306,6 +346,60 @@ export function EnrollForm({ studentId, institutions, areas }: EnrollFormProps) 
           </Select>
         </FormField>
       </div>
+
+      <FormField
+        id="classId"
+        label="Class / section"
+        required
+        error={errors.classId?.message ?? null}
+        hint="Every enrollment must land in a class or section for the selected grade and period."
+      >
+        <Select
+          value={watch('classId')}
+          onValueChange={(value: string) => setValue('classId', value, { shouldValidate: true })}
+          disabled={!institutionId || !gradeId || !academicPeriodId || filteredClasses.length === 0}
+        >
+          <SelectTrigger id="classId" data-testid="enroll-class-select">
+            <SelectValue
+              placeholder={
+                !institutionId
+                  ? 'Select an institution first'
+                  : !gradeId
+                    ? 'Select a grade first'
+                    : !academicPeriodId
+                      ? 'Select an academic period first'
+                      : filteredClasses.length === 0
+                        ? 'No classes for this grade and period'
+                        : 'Select class / section'
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredClasses.length === 0 ? (
+              <SelectItem value="__none" disabled>
+                No classes match the selected grade and period
+              </SelectItem>
+            ) : (
+              filteredClasses.map((section) => (
+                <SelectItem key={section.id} value={section.id}>
+                  {section.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+      </FormField>
+
+      {institutionId && gradeId && academicPeriodId && filteredClasses.length === 0 && (
+        <div
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          role="status"
+          data-testid="enroll-empty-classes"
+        >
+          No class sections exist for this grade and period. Create a section under{' '}
+          <span className="font-medium">Institutions → Classes</span> before enrolling.
+        </div>
+      )}
 
       <FormField
         id="enrolledAt"

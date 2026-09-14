@@ -124,7 +124,7 @@ describe('transferFormSchema', () => {
     sourceEnrollmentId: '7d4d3a89-3ec0-4a1b-9f9e-7db8b4e2ad21',
     destinationInstitutionId: 'a8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
     destinationGradeId: '1a7f1a7f-1a7f-4f51-b1ad-3eaa4c3df24f',
-    destinationClassId: '',
+    destinationClassId: 'c8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
     academicPeriodId: 'b8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
     transferDate: '2025-09-01',
     reason: 'Family relocation across districts.',
@@ -162,13 +162,21 @@ describe('transferFormSchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('rejects a missing destination class / section (W2-SIS-04)', () => {
+    const result = transferFormSchema.safeParse({ ...baseTransfer, destinationClassId: '' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors['destinationClassId']?.[0]).toMatch(/required/i);
+    }
+  });
 });
 
 describe('enrollmentFormSchema', () => {
   const baseEnrollment = {
     institutionId: 'a8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
     gradeId: '1a7f1a7f-1a7f-4f51-b1ad-3eaa4c3df24f',
-    classId: '',
+    classId: 'c8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
     academicPeriodId: 'b8e3a89f-1a7f-4f51-b1ad-3eaa4c3df24f',
     enrolledAt: '2025-09-01',
   };
@@ -188,6 +196,14 @@ describe('enrollmentFormSchema', () => {
   it('rejects a missing grade', () => {
     const result = enrollmentFormSchema.safeParse({ ...baseEnrollment, gradeId: '' });
     expect(result.success).toBe(false);
+  });
+
+  it('rejects a missing class / section (W2-SIS-04)', () => {
+    const result = enrollmentFormSchema.safeParse({ ...baseEnrollment, classId: '' });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors['classId']?.[0]).toMatch(/required/i);
+    }
   });
 
   it('rejects a malformed enrollment date', () => {

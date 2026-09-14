@@ -29,6 +29,7 @@ import {
 import { transferFormSchema, type TransferFormValues } from '@/lib/validation/student-schema';
 
 import {
+  getInstitutionClassesAction,
   getInstitutionGradesAction,
   getInstitutionPeriodsAction,
   transferStudentAction,
@@ -72,6 +73,9 @@ export function TransferForm({
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
   const [grades, setGrades] = useState<{ id: string; name: string }[]>([]);
   const [periods, setPeriods] = useState<{ id: string; name: string }[]>([]);
+  const [classes, setClasses] = useState<
+    { id: string; name: string; gradeId: string; academicPeriodId: string }[]
+  >([]);
   const [serverState, setServerState] = useState<ActionState<{ transferId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
 
@@ -101,6 +105,13 @@ export function TransferForm({
   } = form;
 
   const destinationInstitutionId = watch('destinationInstitutionId');
+  const destinationGradeId = watch('destinationGradeId');
+  const academicPeriodId = watch('academicPeriodId');
+
+  const filteredClasses = useMemo(() => {
+    if (!destinationGradeId) return classes;
+    return classes.filter((section) => section.gradeId === destinationGradeId);
+  }, [classes, destinationGradeId]);
 
   // Build the area picker tree.
   const areaTree: AreaPickerNode[] = useMemo(() => buildAreaTree(areas), [areas]);
@@ -117,6 +128,7 @@ export function TransferForm({
     if (!destinationInstitutionId) {
       setGrades([]);
       setPeriods([]);
+      setClasses([]);
       return;
     }
     let cancelled = false;
@@ -129,18 +141,51 @@ export function TransferForm({
         if (!cancelled) {
           setGrades(gradeList);
           setPeriods(periodList);
+          setClasses([]);
+          setValue('destinationGradeId', '');
+          setValue('academicPeriodId', '');
+          setValue('destinationClassId', '');
         }
       } catch {
         if (!cancelled) {
           setGrades([]);
           setPeriods([]);
+          setClasses([]);
         }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [destinationInstitutionId]);
+  }, [destinationInstitutionId, setValue]);
+
+  useEffect(() => {
+    if (!destinationInstitutionId || !academicPeriodId) {
+      setClasses([]);
+      setValue('destinationClassId', '');
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const classList = await getInstitutionClassesAction(
+          destinationInstitutionId,
+          academicPeriodId,
+        );
+        if (!cancelled) {
+          setClasses(classList);
+          setValue('destinationClassId', '');
+        }
+      } catch {
+        if (!cancelled) {
+          setClasses([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [destinationInstitutionId, academicPeriodId, setValue]);
 
   async function onSubmit(values: TransferFormValues) {
     setIsPending(true);
@@ -314,34 +359,69 @@ export function TransferForm({
         </FormField>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField
-          id="transferDate"
-          label="Effective date"
-          required
-          error={errors.transferDate?.message ?? null}
+      <FormField
+        id="destinationClassId"
+        label="Destination class / section"
+        required
+        error={errors.destinationClassId?.message ?? null}
+        hint="Transfers must place the student in a destination section for the selected grade and period."
+      >
+        <Select
+          value={watch('destinationClassId')}
+          onValueChange={(value) =>
+            setValue('destinationClassId', value, { shouldValidate: true })
+          }
+          disabled={
+            !destinationInstitutionId ||
+            !destinationGradeId ||
+            !academicPeriodId ||
+            filteredClasses.length === 0
+          }
         >
-          <Input
-            id="transferDate"
-            type="date"
-            {...register('transferDate')}
-            aria-invalid={Boolean(errors.transferDate)}
-          />
-        </FormField>
+          <SelectTrigger id="destinationClassId" data-testid="transfer-class-select">
+            <SelectValue
+              placeholder={
+                !destinationInstitutionId
+                  ? 'Select a destination institution first'
+                  : !destinationGradeId
+                    ? 'Select a destination grade first'
+                    : !academicPeriodId
+                      ? 'Select an academic period first'
+                      : filteredClasses.length === 0
+                        ? 'No classes for this grade and period'
+                        : 'Select class / section'
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredClasses.length === 0 ? (
+              <SelectItem value="__none" disabled>
+                No classes match the selected grade and period
+              </SelectItem>
+            ) : (
+              filteredClasses.map((section) => (
+                <SelectItem key={section.id} value={section.id}>
+                  {section.name}
+                </SelectItem>
+              ))
+            )}
+          </SelectContent>
+        </Select>
+      </FormField>
 
-        <FormField
-          id="destinationClassId"
-          label="Destination class (optional)"
-          error={errors.destinationClassId?.message ?? null}
-          hint="Leave blank to let the receiving school assign a class on arrival."
-        >
-          <Input
-            id="destinationClassId"
-            {...register('destinationClassId')}
-            placeholder="Assigned on arrival"
-          />
-        </FormField>
-      </div>
+      <FormField
+        id="transferDate"
+        label="Effective date"
+        required
+        error={errors.transferDate?.message ?? null}
+      >
+        <Input
+          id="transferDate"
+          type="date"
+          {...register('transferDate')}
+          aria-invalid={Boolean(errors.transferDate)}
+        />
+      </FormField>
 
       <FormField
         id="reason"

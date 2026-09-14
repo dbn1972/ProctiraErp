@@ -27,8 +27,8 @@ export default function StudentsEnrollHubPage() {
             Enrol student
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Capture a new student record, then place them in an institution and grade. Existing
-            students enroll from their profile.
+            Capture a new student record, then place them in an institution, grade, and class
+            section. Existing students enroll from their profile.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">

@@ -27,6 +27,13 @@ export interface GradeSummary {
   level?: number | null;
 }
 
+export interface ClassSectionSummary {
+  id: string;
+  name: string;
+  gradeId: string;
+  academicPeriodId: string;
+}
+
 export interface AreaNode {
   id: string;
   name: string;
@@ -63,6 +70,22 @@ export async function listInstitutionGrades(institutionId: string): Promise<Grad
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
   return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function listInstitutionClasses(
+  institutionId: string,
+  academicPeriodId?: string,
+): Promise<ClassSectionSummary[]> {
+  const qs = new URLSearchParams({ institutionId });
+  if (academicPeriodId) qs.set('academicPeriodId', academicPeriodId);
+  const result = await gatewayFetch<ClassSectionSummary[] | { data: ClassSectionSummary[] }>(
+    `/classes?${qs.toString()}`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
+  );
+  if (!result.ok || !result.data) return [];
+  const payload = result.data;
+  if (Array.isArray(payload)) return payload;
+  return payload.data ?? [];
 }
 
 export async function listAreas(): Promise<AreaNode[]> {
