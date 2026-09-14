@@ -60,7 +60,7 @@ WHERE c.contype = 'f' AND NOT c.convalidated
 
 | Residual | Status |
 | -------- | ------ |
-| Hostel / library / LMS / transport `student_id` still UUID-only | **Deferred** — lower blast radius than fee/SIS; follow-up |
+| Hostel / library / LMS / transport `student_id` still UUID-only | **Closed** in residual `073` / `074` — see `DATA_W1_DATA_15_DANGLES.md` |
 | Prisma `student_attendance` / `assessment_results` `student_id` | **Deferred** — FORCE RLS + `app.current_tenant_id` without `missing_ok` / platform_admin breaks migrator VALIDATE |
 | Health counselling / special-needs `student_id TEXT` | **Out of scope** — type mismatch; needs typed UUID migration first |
 | Intentional bare cross-schema UUIDs (Phase 3–5 institution/attendance boundaries) | **Accepted** — product boundary, not a missing same-schema FK |
