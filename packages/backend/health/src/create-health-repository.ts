@@ -277,9 +277,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AllergyEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AllergyEntity> {
-    if (this.phi) return this.phi.createAllergy(data);
-    return this.memory.createAllergy(data);
+    if (this.phi) return this.phi.createAllergy(data, options);
+    return this.memory.createAllergy(data, options);
   }
 
   async updateAllergy(
@@ -312,9 +318,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthConditionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity> {
-    if (this.phi) return this.phi.createCondition(data);
-    return this.memory.createCondition(data);
+    if (this.phi) return this.phi.createCondition(data, options);
+    return this.memory.createCondition(data, options);
   }
 
   async updateCondition(
@@ -347,9 +359,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: VaccinationEntity,
+      ) => Promise<void>;
+    },
   ): Promise<VaccinationEntity> {
-    if (this.phi) return this.phi.createVaccination(data);
-    return this.memory.createVaccination(data);
+    if (this.phi) return this.phi.createVaccination(data, options);
+    return this.memory.createVaccination(data, options);
   }
 
   async updateVaccination(

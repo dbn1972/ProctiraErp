@@ -461,6 +461,12 @@ export class HealthService {
     tenantId: string,
     input: CreateAllergyInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AllergyEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AllergyEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -474,7 +480,7 @@ export class HealthService {
       treatment: input.treatment ?? null,
       diagnosedDate: input.diagnosedDate ?? null,
     };
-    return this.repository.createAllergy(entity);
+    return this.repository.createAllergy(entity, options);
   }
 
   async updateAllergy(
@@ -514,6 +520,12 @@ export class HealthService {
     tenantId: string,
     input: CreateConditionInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthConditionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -528,7 +540,7 @@ export class HealthService {
       medication: input.medication ?? null,
       notes: input.notes ?? null,
     };
-    return this.repository.createCondition(entity);
+    return this.repository.createCondition(entity, options);
   }
 
   async updateCondition(
@@ -568,6 +580,12 @@ export class HealthService {
     tenantId: string,
     input: CreateVaccinationInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: VaccinationEntity,
+      ) => Promise<void>;
+    },
   ): Promise<VaccinationEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -582,7 +600,7 @@ export class HealthService {
       nextDueDate: input.nextDueDate ?? null,
       notes: input.notes ?? null,
     };
-    return this.repository.createVaccination(entity);
+    return this.repository.createVaccination(entity, options);
   }
 
   async updateVaccination(

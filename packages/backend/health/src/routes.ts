@@ -91,7 +91,11 @@ function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
   ] = true;
 }
 
-function buildMeasurementAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildPhiWriteAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  opts: { path: string; regulated: string; idField: string },
+) {
   if (!isPgPhiEnabled()) return undefined;
   const access = getAccessContext(request);
   const user = (
@@ -114,13 +118,13 @@ function buildMeasurementAuditBinder(request: FastifyRequest, tenantId: string) 
           ipAddress: request.ip,
           beforeValues: null,
           afterValues: {
-            path: '/api/v1/health/measurements',
-            measurementId: entity.id,
+            path: opts.path,
+            [opts.idField]: entity.id,
           },
           metadata: {
             method: request.method,
             path: request.url.split('?')[0] ?? request.url,
-            regulated: 'health.measurement',
+            regulated: opts.regulated,
             atomic: true,
           },
         }),
@@ -128,6 +132,38 @@ function buildMeasurementAuditBinder(request: FastifyRequest, tenantId: string) 
       markRegulatedMutationAuditCommitted(request);
     },
   };
+}
+
+function buildMeasurementAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/measurements',
+    regulated: 'health.measurement',
+    idField: 'measurementId',
+  });
+}
+
+function buildAllergyAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/allergies',
+    regulated: 'health.allergy',
+    idField: 'allergyId',
+  });
+}
+
+function buildConditionAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/conditions',
+    regulated: 'health.condition',
+    idField: 'conditionId',
+  });
+}
+
+function buildVaccinationAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/vaccinations',
+    regulated: 'health.vaccination',
+    idField: 'vaccinationId',
+  });
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -297,6 +333,7 @@ export async function registerHealthRoutes(
         tenantId,
         result.data,
         getAccessContext(request),
+        buildAllergyAuditBinder(request, tenantId),
       );
       return reply.status(201).send(entity);
     } catch (error) {
@@ -393,6 +430,7 @@ export async function registerHealthRoutes(
         tenantId,
         result.data,
         getAccessContext(request),
+        buildConditionAuditBinder(request, tenantId),
       );
       return reply.status(201).send(entity);
     } catch (error) {
@@ -489,6 +527,7 @@ export async function registerHealthRoutes(
         tenantId,
         result.data,
         getAccessContext(request),
+        buildVaccinationAuditBinder(request, tenantId),
       );
       return reply.status(201).send(entity);
     } catch (error) {
