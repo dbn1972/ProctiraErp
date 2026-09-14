@@ -174,9 +174,17 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listPhiAccessLogs(tenantId, options);
   }
 
-  async createBreakGlassGrant(input: CreateHealthBreakGlassInput): Promise<HealthBreakGlassGrant> {
-    if (this.breakGlass) return this.breakGlass.create(input);
-    return this.memory.createBreakGlassGrant(input);
+  async createBreakGlassGrant(
+    input: CreateHealthBreakGlassInput,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthBreakGlassGrant,
+      ) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant> {
+    if (this.breakGlass) return this.breakGlass.create(input, options);
+    return this.memory.createBreakGlassGrant(input, options);
   }
 
   async findBreakGlassGrantById(

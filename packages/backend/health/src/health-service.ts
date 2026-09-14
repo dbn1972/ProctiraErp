@@ -85,14 +85,22 @@ type PhiAccessCapableRepository = HealthRepository & {
       createdAt: string;
     }>
   >;
-  createBreakGlassGrant?: (input: {
-    tenantId: string;
-    requesterUserId: string;
-    studentId: string;
-    fieldPath: HealthPhiFieldPath;
-    justification: string;
-    durationMinutes: number;
-  }) => Promise<HealthBreakGlassGrant>;
+  createBreakGlassGrant?: (
+    input: {
+      tenantId: string;
+      requesterUserId: string;
+      studentId: string;
+      fieldPath: HealthPhiFieldPath;
+      justification: string;
+      durationMinutes: number;
+    },
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthBreakGlassGrant,
+      ) => Promise<void>;
+    },
+  ) => Promise<HealthBreakGlassGrant>;
   findBreakGlassGrantById?: (id: string, tenantId: string) => Promise<HealthBreakGlassGrant | null>;
   findActiveBreakGlassGrant?: (
     tenantId: string,
@@ -1164,6 +1172,12 @@ export class HealthService {
     tenantId: string,
     input: CreateHealthBreakGlassRequestInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthBreakGlassGrant,
+      ) => Promise<void>;
+    },
   ): Promise<HealthBreakGlassGrant> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     if (!accessContext.userId) {
@@ -1189,7 +1203,7 @@ export class HealthService {
       fieldPath: input.fieldPath,
       justification: input.justification,
       durationMinutes,
-    });
+    }, options);
   }
 
   async approveBreakGlass(

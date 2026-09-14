@@ -232,6 +232,15 @@ function buildAccommodationPlanAuditBinder(request: FastifyRequest, tenantId: st
 }
 
 
+function buildBreakGlassAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/break-glass',
+    regulated: 'health.break_glass',
+    idField: 'breakGlassId',
+  });
+}
+
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
@@ -1443,6 +1452,7 @@ export async function registerHealthRoutes(
         tenantId,
         result.data,
         getAccessContext(request),
+        buildBreakGlassAuditBinder(request, tenantId),
       );
       return reply.status(201).send(grant);
     } catch (error) {
