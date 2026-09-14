@@ -126,6 +126,18 @@ the reference NOT VALID → VALIDATE split. See
 `docs/runbooks/database-migration-rollback.md` §1 long-lock review.
 
 Executable gate: `pnpm check:migration-timeouts`.
+## Global control-ledger privileges (W1-DATA-11)
+
+`050_app_runtime_role.sql` grants broad DML on **all** `public` tables to
+`proctira_app`. That included migrator-owned global control ledgers:
+
+| Table | Owner path | Runtime after `072_control_ledger_privileges.sql` |
+| --- | --- | --- |
+| `schema_migrations` | `apply-sql.sh` / `MIGRATOR_DATABASE_URL` | **No** `SELECT` / DML (`REVOKE ALL`) |
+| `_prisma_migrations` | `prisma migrate deploy` | **No** `SELECT` / DML (`REVOKE ALL`) |
+
+Bootstrap role docs: `db/bootstrap/README.md`. Audit:
+`docs/audits/DATA_W1_DATA_11_PRIVILEGES.md`.
 
 ## Domain SQL apply ledger (W1-DATA-05)
 

@@ -8,6 +8,19 @@ or `tools/scripts/apply-sql.sh` can establish the production RLS posture:
 | `proctira` | Migrator / table owner (`MIGRATOR_DATABASE_URL`) | `NOSUPERUSER` `NOBYPASSRLS` (CI/prod); may already be compose `POSTGRES_USER` |
 | `proctira_app` | Application runtime (`DATABASE_URL`) | `NOSUPERUSER` `NOBYPASSRLS` `NOCREATEDB` `NOCREATEROLE` `NOINHERIT` |
 
+### Control-ledger privileges (W1-DATA-11)
+
+After domain SQL `050` + `072`:
+
+| Object | `proctira` (migrator) | `proctira_app` (runtime) |
+| --- | --- | --- |
+| Tenant / domain tables | Owner (DDL) | DML via `050` (narrowed further by `053`/`069` where append-only) |
+| `schema_migrations` | Full (apply-sql ledger writes) | **None** — `REVOKE ALL` in `072` |
+| `_prisma_migrations` | Full (Prisma migrate) | **None** — `REVOKE ALL` in `072` |
+
+Runtime must never `SELECT` or mutate migration ledgers. New migrator-only
+tables need an additive `REVOKE` after `050`'s `ALL TABLES` / default privileges.
+
 ## Canonical SQL
 
 `01_runtime_roles.sql` — **idempotent** `CREATE ROLE` + `GRANT CONNECT` /
@@ -49,4 +62,6 @@ dev passwords from `.env.example`.
 ## Related
 
 - W1-DATA-01: `db/sql/050_app_runtime_role.sql` (DML grants after schema exists)
+- W1-DATA-11: `db/sql/072_control_ledger_privileges.sql` (REVOKE runtime on migration ledgers)
 - Audit: `docs/audits/DATA_W1_DATA_10_DB_BOOTSTRAP.md`
+- Audit: `docs/audits/DATA_W1_DATA_11_PRIVILEGES.md`
