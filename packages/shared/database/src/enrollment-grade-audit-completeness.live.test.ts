@@ -202,27 +202,32 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
       await client.query('BEGIN');
       const fx = await seedTenantGraph(client);
 
-      await expect(
-        client.query(
-          `UPDATE enrollment_history SET reason = 'tamper' WHERE enrollment_id = $1`,
-          [fx.enrollmentId],
-        ),
-      ).rejects.toThrow(/append-only/i);
+      const expectAppendOnlyReject = async (label: string, sql: string, params: unknown[]) => {
+        await client.query(`SAVEPOINT ${label}`);
+        await expect(client.query(sql, params)).rejects.toThrow(/append-only/i);
+        await client.query(`ROLLBACK TO SAVEPOINT ${label}`);
+      };
 
-      await expect(
-        client.query(`DELETE FROM enrollment_history WHERE enrollment_id = $1`, [fx.enrollmentId]),
-      ).rejects.toThrow(/append-only/i);
-
-      await expect(
-        client.query(
-          `UPDATE grade_change_audit SET action = 'tamper' WHERE grade_entry_id = $1`,
-          [fx.gradeEntryId],
-        ),
-      ).rejects.toThrow(/append-only/i);
-
-      await expect(
-        client.query(`DELETE FROM grade_change_audit WHERE grade_entry_id = $1`, [fx.gradeEntryId]),
-      ).rejects.toThrow(/append-only/i);
+      await expectAppendOnlyReject(
+        'sp_enr_upd',
+        `UPDATE enrollment_history SET reason = 'tamper' WHERE enrollment_id = $1`,
+        [fx.enrollmentId],
+      );
+      await expectAppendOnlyReject(
+        'sp_enr_del',
+        `DELETE FROM enrollment_history WHERE enrollment_id = $1`,
+        [fx.enrollmentId],
+      );
+      await expectAppendOnlyReject(
+        'sp_grd_upd',
+        `UPDATE grade_change_audit SET action = 'tamper' WHERE grade_entry_id = $1`,
+        [fx.gradeEntryId],
+      );
+      await expectAppendOnlyReject(
+        'sp_grd_del',
+        `DELETE FROM grade_change_audit WHERE grade_entry_id = $1`,
+        [fx.gradeEntryId],
+      );
 
       await client.query('ROLLBACK');
     } catch (err) {
