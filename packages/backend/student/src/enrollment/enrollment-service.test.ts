@@ -10,7 +10,7 @@
  * Requirements: 6.2, 6.3, 6.4
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ConflictError } from '@proctira/common';
 
 import { InMemoryEnrollmentRepository } from './in-memory-enrollment-repository.js';
 import { EnrollmentService } from './enrollment-service.js';
@@ -96,6 +96,27 @@ describe('EnrollmentService', () => {
       const input = validCreateInput({ institutionId: nonExistentInstitutionId });
 
       await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw ConflictError when student already has an active enrollment in the period', async () => {
+      const input = validCreateInput();
+      await service.createEnrollment(TENANT_ID, input);
+
+      await expect(service.createEnrollment(TENANT_ID, input)).rejects.toThrow(ConflictError);
+    });
+
+    it('allows a new enrollment after the prior one is withdrawn', async () => {
+      const input = validCreateInput();
+      const first = await service.createEnrollment(TENANT_ID, input);
+      await service.updateEnrollmentStatus(TENANT_ID, first.id, {
+        status: 'WITHDRAWN',
+        reason: 'Left school',
+        effectiveDate: '2024-04-01',
+      });
+
+      const second = await service.createEnrollment(TENANT_ID, input);
+      expect(second.status).toBe('ENROLLED');
+      expect(second.id).not.toBe(first.id);
     });
 
     it('should throw BusinessRuleError when institution is inactive', async () => {

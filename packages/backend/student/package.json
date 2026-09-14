@@ -34,6 +34,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@proctira/testing": "workspace:*",
     "@types/node": "^20.12.0",
     "@types/pg": "^8.11.0",
     "@types/uuid": "^9.0.8",

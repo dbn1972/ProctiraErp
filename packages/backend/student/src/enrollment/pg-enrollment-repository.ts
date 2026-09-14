@@ -5,6 +5,7 @@
  * records live in `enrollment_history` / `transfer_records` (db/sql/021).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 import type {
@@ -17,6 +18,17 @@ import type {
 } from './enrollment-repository.js';
 
 export type EnrollmentPgPool = PgQueryable & { connect?: () => Promise<unknown> };
+
+const ACTIVE_ENROLLMENT_UNIQUE = 'uq_enrollments_active_student_period';
+
+function mapActiveEnrollmentConflict(err: unknown): never | void {
+  const pgErr = err as { code?: string; constraint?: string };
+  if (pgErr.code === '23505' && String(pgErr.constraint ?? '').includes(ACTIVE_ENROLLMENT_UNIQUE)) {
+    throw new ConflictError(
+      'Student already has an active enrollment for this academic period',
+    );
+  }
+}
 
 function toDate(value: unknown): Date {
   return value instanceof Date ? value : new Date(String(value));
@@ -79,28 +91,33 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
   async createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<EnrollmentEntity> {
-    return this.withTenant(data.tenantId, async (client) => {
-      const result = await client.query(
-        `INSERT INTO enrollments (
-           id, tenant_id, student_id, institution_id, grade_id, class_id,
-           academic_period_id, status, enrolled_at, exited_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::enrollment_status,$9::date,$10::date)
-         RETURNING *`,
-        [
-          data.id,
-          data.tenantId,
-          data.studentId,
-          data.institutionId,
-          data.gradeId,
-          data.classId,
-          data.academicPeriodId,
-          data.status,
-          data.enrolledAt,
-          data.exitedAt,
-        ],
-      );
-      return mapEnrollment(result.rows[0] as Record<string, unknown>);
-    });
+    try {
+      return await this.withTenant(data.tenantId, async (client) => {
+        const result = await client.query(
+          `INSERT INTO enrollments (
+             id, tenant_id, student_id, institution_id, grade_id, class_id,
+             academic_period_id, status, enrolled_at, exited_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::enrollment_status,$9::date,$10::date)
+           RETURNING *`,
+          [
+            data.id,
+            data.tenantId,
+            data.studentId,
+            data.institutionId,
+            data.gradeId,
+            data.classId,
+            data.academicPeriodId,
+            data.status,
+            data.enrolledAt,
+            data.exitedAt,
+          ],
+        );
+        return mapEnrollment(result.rows[0] as Record<string, unknown>);
+      });
+    } catch (err) {
+      mapActiveEnrollmentConflict(err);
+      throw err;
+    }
   }
 
   async updateEnrollment(
@@ -146,6 +163,24 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
       const result = await client.query(
         `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
         [id, tenantId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapEnrollment(row) : null;
+    });
+  }
+
+  async findActiveEnrollment(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<EnrollmentEntity | null> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM enrollments
+           WHERE tenant_id = $1 AND student_id = $2 AND academic_period_id = $3
+             AND status = 'ENROLLED'::enrollment_status
+           LIMIT 1`,
+        [tenantId, studentId, academicPeriodId],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapEnrollment(row) : null;
