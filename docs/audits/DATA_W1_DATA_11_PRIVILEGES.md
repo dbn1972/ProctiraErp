@@ -53,11 +53,11 @@ psql "$DATABASE_URL" -c \
 
 | Residual | Status |
 | -------- | ------ |
-| `050` still uses `GRANT … ON ALL TABLES` + default privileges; 072 is a post-grant narrow | **Accepted** — same pattern as 053; changing 050 would churn older installs |
-| If `_prisma_migrations` is created *after* 072, re-apply 072 (or a follow-up REVOKE) | **Honest residual** — normal order is Prisma → `apply-sql.sh` |
+| `050` still uses `GRANT … ON ALL TABLES` for bootstrap; classification sync is authoritative | **Accepted** — closed by COMPLETE (`076` + catalog sync) |
+| If `_prisma_migrations` is created *after* apply without sync | **Mitigated** — `apply-sql.sh` always re-syncs; catalog class `denied` |
 | Fees `ensureFeesSchema` still attempts `CREATE TABLE schema_migrations` under runtime URL | **Out of scope / residual** — fails closed without schema `CREATE`; production must use migrator apply |
 | Superuser can still grant privileges back | **Accepted** — defense relies on role split + no app CONNECT as migrator |
-| Other non-tenant domain tables (e.g. `tenants`, insights UI) remain runtime-accessible under RLS | **By design** — not migration ledgers |
+| Other non-tenant domain tables (e.g. `tenants`, insights UI) remain runtime-accessible under RLS | **By design** for tenants; insights catalogs narrowed in `075` / COMPLETE |
 
 ## Rollback
 
@@ -67,4 +67,5 @@ break-glass read is required, use the migrator role, not the app runtime URL.
 
 ## Sign-off
 
-**Data claim:** Certified w/ waivers (residuals above).
+**Data claim:** Ledger half closed. Full finding CLOSED by
+`docs/audits/DATA_W1_DATA_11_COMPLETE.md`.

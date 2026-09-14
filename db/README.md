@@ -176,16 +176,27 @@ DATABASE_URL=… node tools/scripts/migration-lock-recovery-drill.mjs
 ```
 ## Global control-ledger privileges (W1-DATA-11)
 
-`050_app_runtime_role.sql` grants broad DML on **all** `public` tables to
-`proctira_app`. Additive narrowing:
+**COMPLETE** (see `docs/audits/DATA_W1_DATA_11_COMPLETE.md`).
 
-| Object | Runtime after fix |
-| --- | --- |
-| `schema_migrations`, `_prisma_migrations` | **No** `SELECT` / DML (`072_control_ledger_privileges.sql` — also `REVOKE` from `PUBLIC`) |
-| `insights_ui_templates`, `insights_ui_indicators`, `insights_ui_geo_features` | **SELECT, INSERT** only (`075_runtime_global_table_privileges.sql`) |
+`050_app_runtime_role.sql` bootstraps DML on tables present at apply time but
+**does not** install TABLE `DEFAULT PRIVILEGES` for `proctira_app`. Authoritative
+grants come from `db/runtime-table-privileges.json`, applied by
+`084_runtime_privilege_classification.sql` and re-synced at the end of every
+`apply-sql.sh` run.
+
+| Class | Runtime privileges | Examples |
+| --- | --- | --- |
+| `denied` | none | `schema_migrations`, `_prisma_migrations` (`072`) |
+| `select_insert` | SELECT, INSERT | insights platform catalogs (`075`) |
+| `append_only` | SELECT, INSERT | fee/audit/transcript/enrollment ledgers (`053`/`069`/`071`) |
+| `dml` | SELECT, INSERT, UPDATE, DELETE | Tenant/domain tables under RLS |
+
+Executable gate: `pnpm check:runtime-table-privileges` (CI job
+`runtime-table-privileges`). New `CREATE TABLE` without a catalog entry fails CI.
 
 Bootstrap role docs: `db/bootstrap/README.md`. Audits:
-`docs/audits/DATA_W1_DATA_11_PRIVILEGES.md` (ledgers) and
+`docs/audits/DATA_W1_DATA_11_COMPLETE.md` (COMPLETE),
+`docs/audits/DATA_W1_DATA_11_PRIVILEGES.md` (ledgers),
 `docs/audits/DATA_W1_DATA_11_PRIVS.md` (platform catalogs residual).
 
 ## Domain SQL apply ledger (W1-DATA-05)

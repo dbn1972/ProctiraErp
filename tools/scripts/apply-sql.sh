@@ -104,6 +104,11 @@ W1-DATA-17 timeouts:
   Every psql session SETs lock_timeout + statement_timeout before DDL.
   On lock_timeout / lock_not_available, re-run this script after blockers
   release — the failed file is not ledger-recorded (per-file transaction).
+
+W1-DATA-11 privileges:
+  After numbered SQL, runs apply-runtime-table-privileges.sh to sync
+  proctira_app grants from db/runtime-table-privileges.json (no table
+  DEFAULT PRIVILEGES blanket).
 EOF
 }
 
@@ -205,6 +210,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "==> Would run W1-DATA-10 bootstrap-db-roles.sh (BOOTSTRAP_DATABASE_URL set)"
   fi
   emit_migration_timeout_banner "==> W1-DATA-17 (dry-run would set)"
+  echo "==> Would sync W1-DATA-11 runtime table privileges (apply-runtime-table-privileges.sh)"
   echo "==> Dry run only (seeds under db/seeds/ are documented separately; not applied)"
   exit 0
 fi
@@ -365,4 +371,20 @@ SQL
 done
 
 echo "==> Domain SQL apply complete (applied=$APPLIED, ledger_skipped=$LEDGER_SKIPPED, null_checksum_adopted=$ADOPTED)"
+
+# W1-DATA-11 COMPLETE: classify proctira_app privileges from
+# db/runtime-table-privileges.json (no blanket TABLE DEFAULT PRIVILEGES).
+PRIV_SYNC="$ROOT/tools/scripts/apply-runtime-table-privileges.sh"
+if [[ ! -f "$PRIV_SYNC" ]]; then
+  echo "error: missing privilege sync script: $PRIV_SYNC" >&2
+  exit 1
+fi
+# Preserve migrator URL for the sync (same connection posture as numbered SQL).
+if [[ -n "${APPLY_DATABASE_URL}" ]]; then
+  MIGRATOR_DATABASE_URL="${MIGRATOR_DATABASE_URL:-$APPLY_DATABASE_URL}" \
+    bash "$PRIV_SYNC"
+else
+  bash "$PRIV_SYNC"
+fi
+
 echo "Note: db/seeds/*.sql (demo/cert data) were not applied. See db/README.md."

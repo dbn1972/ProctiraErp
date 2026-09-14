@@ -55,9 +55,9 @@ pnpm --filter @proctira/database exec vitest run src/runtime-global-privs.live.t
 
 | Residual | Status |
 | -------- | ------ |
-| Re-running 050 alone re-grants ALL DML until 072/075 re-applied | **Accepted** — same pattern as 053 |
+| Re-running 050 alone re-grants ALL DML until 072/075/076+sync re-applied | **Accepted** — same pattern as 053; `apply-sql.sh` always re-syncs |
 | Catalog rows inserted by runtime cannot be deleted by runtime | **Accepted** — cleanup is migrator/ops |
-| Other future non-tenant tables need an explicit follow-up REVOKE | **Residual** — 050 default privileges remain name-agnostic |
+| Other future non-tenant tables need an explicit follow-up REVOKE | **CLOSED** — see `docs/audits/DATA_W1_DATA_11_COMPLETE.md` (catalog + gate) |
 | `tenants` remains full DML under RLS | **By design** — not a platform-global catalog |
 
 ## Rollback
@@ -67,5 +67,6 @@ to `proctira_app`.
 
 ## Sign-off
 
-**Data claim:** Certified w/ waivers (residuals above). Ledger half closed by #235;
-this PR closes the platform-catalog residual.
+**Data claim:** Superseded by COMPLETE — `docs/audits/DATA_W1_DATA_11_COMPLETE.md`.
+Ledger half closed by #235; this PR closed the platform-catalog residual; COMPLETE
+removes blanket defaults.

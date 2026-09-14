@@ -26,6 +26,11 @@ describe('W1-DATA-01 app runtime role split (static)', () => {
     expect(sql).toMatch(/proctira_app/);
     expect(sql).toMatch(/GRANT\s+SELECT,\s*INSERT,\s*UPDATE,\s*DELETE/i);
     expect(sql).toMatch(/ALTER DEFAULT PRIVILEGES/i);
+    expect(sql).toMatch(/GRANT USAGE,\s*SELECT ON SEQUENCES/i);
+    // W1-DATA-11 COMPLETE: no blanket TABLE DEFAULT PRIVILEGES for proctira_app.
+    expect(sql).not.toMatch(
+      /ALTER\s+DEFAULT\s+PRIVILEGES[\s\S]*?GRANT\s+SELECT\s*,\s*INSERT\s*,\s*UPDATE\s*,\s*DELETE\s+ON\s+TABLES\s+TO\s+proctira_app/i,
+    );
     expect(sql).toMatch(/NOSUPERUSER/);
     expect(sql).toMatch(/NOBYPASSRLS/);
   });
