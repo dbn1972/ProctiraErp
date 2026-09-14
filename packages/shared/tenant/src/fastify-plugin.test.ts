@@ -35,6 +35,10 @@ describe('tenantPlugin', () => {
 
     // Verify PostgreSQL session variable was set via a bound parameter (G-720)
     expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining("set_config('app.tenant_id', $1, true)"),
+      tenantId,
+    );
+    expect(mockExecuteRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining("set_config('app.current_tenant_id', $1, true)"),
       tenantId,
     );
@@ -201,6 +205,10 @@ describe('tenantPlugin', () => {
       headers: { 'x-tenant-id': tenantId },
     });
 
+    expect(customExecute).toHaveBeenCalledWith(
+      expect.stringContaining("set_config('app.tenant_id', $1, true)"),
+      tenantId,
+    );
     expect(customExecute).toHaveBeenCalledWith(
       expect.stringContaining("set_config('app.current_tenant_id', $1, true)"),
       tenantId,

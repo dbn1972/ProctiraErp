@@ -10,10 +10,9 @@
 --
 --   SELECT set_config('app.tenant_id', '<tenant>', true);  -- transaction-local
 --
--- Prefer packages/shared/database `withPgTenant(pool, tenantId, fn)` which
--- BEGIN + set_config(app.tenant_id) + set_config(app.current_tenant_id) + COMMIT.
--- Prisma paths continue to use withTenantTransaction (app.current_tenant_id);
--- that helper also sets app.tenant_id so both variable names stay aligned.
+-- Prefer packages/shared/database `withPgTenant` / `bindTenantGuc` (W1-DATA-12)
+-- which bind canonical app.tenant_id and sync the legacy app.current_tenant_id
+-- alias. After 071_tenant_guc_canonical.sql, policies read via app_tenant_id().
 --
 -- Comparison uses tenant_id::text so TEXT (health) and UUID columns both work.
 -- Missing / empty app.tenant_id yields no visible rows (safe default).

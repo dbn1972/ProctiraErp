@@ -108,12 +108,15 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
         expect(body.tenantId).toBe(tenantId);
         expect(body.tenantSource).toBe('header');
 
-        const expected = `set_config('app.current_tenant_id', '${tenantId}', true)`;
-        expect(setConfigCalls.some((call) => call.includes(expected))).toBe(true);
-        // Both GUC spellings must be bound so Prisma-side and raw-pg policies agree.
+        // W1-DATA-12: canonical app.tenant_id is required; legacy alias synced.
         expect(
           setConfigCalls.some((call) =>
             call.includes(`set_config('app.tenant_id', '${tenantId}', true)`),
+          ),
+        ).toBe(true);
+        expect(
+          setConfigCalls.some((call) =>
+            call.includes(`set_config('app.current_tenant_id', '${tenantId}', true)`),
           ),
         ).toBe(true);
       }),

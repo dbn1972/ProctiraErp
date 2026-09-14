@@ -1,13 +1,14 @@
 /**
- * Tenant-scoped helper for raw `node-pg` repositories (G-103).
+ * Tenant-scoped helper for raw `node-pg` repositories (G-103 / W1-DATA-12).
  *
- * Raw-SQL domain tables (db/sql/015_rls_policies.sql) enforce RLS via
- * `current_setting('app.tenant_id', true)`. That setting must be transaction-
- * local (`set_config(..., true)` / SET LOCAL) on the *same* connection that
- * runs the queries — identical rationale to {@link withTenantTransaction}.
+ * Raw-SQL domain tables (db/sql/015_rls_policies.sql + 071) enforce RLS via
+ * the canonical `app.tenant_id` GUC (effective reader: `app_tenant_id()`).
+ * That setting must be transaction-local (`set_config(..., true)` / SET LOCAL)
+ * on the *same* connection that runs the queries — identical rationale to
+ * {@link withTenantTransaction}.
  *
- * Also sets `app.current_tenant_id` so Prisma RLS policies stay consistent
- * when the same connection is reused.
+ * Binding goes through {@link bindTenantGuc}, which also syncs the legacy
+ * `app.current_tenant_id` alias for residual Prisma-era policies.
  *
  * @example
  * ```ts
@@ -16,6 +17,8 @@
  * );
  * ```
  */
+
+import { bindTenantGuc } from './tenant-guc.js';
 
 /** Minimal queryable surface (pg.Pool, PoolClient, or test double). */
 export interface PgQueryable {
@@ -41,13 +44,8 @@ function assertTenantId(tenantId: string): void {
   }
 }
 
-async function bindTenant(client: PgQueryable, tenantId: string): Promise<void> {
-  await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
-  await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
-}
-
 /**
- * Runs `fn` with `app.tenant_id` (and `app.current_tenant_id`) bound for RLS.
+ * Runs `fn` with the canonical tenant GUC bound for RLS (legacy alias synced).
  *
  * When `pool.connect` exists, uses BEGIN/COMMIT so set_config(..., true) is
  * transaction-local on a dedicated client. When only `query` is available
@@ -65,7 +63,7 @@ export async function withPgTenant<T>(
     const client = await connectable.connect();
     try {
       await client.query('BEGIN');
-      await bindTenant(client, tenantId);
+      await bindTenantGuc(client, tenantId);
       const result = await fn(client);
       await client.query('COMMIT');
       return result;
@@ -81,6 +79,6 @@ export async function withPgTenant<T>(
     }
   }
 
-  await bindTenant(pool, tenantId);
+  await bindTenantGuc(pool, tenantId);
   return fn(pool);
 }

@@ -12,6 +12,7 @@
  * `app.platform_admin = '1'` bound — see {@link withPlatformScope}.
  */
 import type { PgPoolWithConnect, PgQueryable } from './pg-tenant';
+import { bindTenantGuc } from './tenant-guc';
 
 export interface DocumentRow<T> {
   id: string;
@@ -28,7 +29,7 @@ function toDate(v: unknown): Date {
 /**
  * Runs `fn` on a dedicated client with `app.platform_admin = '1'` bound
  * (transaction-local), so RLS policies that allow the control plane pass.
- * When `tenantId` is given, `app.tenant_id` is bound as well.
+ * When `tenantId` is given, the canonical tenant GUC is bound (W1-DATA-12).
  */
 export async function withPlatformScope<T>(
   pool: PgPoolWithConnect | PgQueryable,
@@ -38,8 +39,7 @@ export async function withPlatformScope<T>(
   const bind = async (client: PgQueryable) => {
     await client.query(`SELECT set_config('app.platform_admin', '1', true)`);
     if (tenantId) {
-      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
-      await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
+      await bindTenantGuc(client, tenantId);
     }
   };
   const connectable = pool as PgPoolWithConnect;
