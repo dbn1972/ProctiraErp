@@ -159,8 +159,8 @@ BEGIN
     ) THEN
       EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
-      -- Accept both GUC names: raw-SQL repos bind app.tenant_id, Prisma
-      -- paths bind app.current_tenant_id (withPgTenant binds both).
+      -- Prefer app_tenant_id() after 071; until then accept both GUC names
+      -- (bindTenantGuc sets canonical + syncs legacy).
       EXECUTE format(
         'CREATE POLICY tenant_isolation ON %I FOR ALL
            USING (tenant_id::text = COALESCE(

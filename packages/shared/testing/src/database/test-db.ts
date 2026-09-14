@@ -67,8 +67,10 @@ export class TestDatabase<TClient extends DatabaseClient = DatabaseClient> {
    */
   async setTenantContext(tenantId: string): Promise<void> {
     const client = this.getClient();
+    // W1-DATA-12: bind canonical app.tenant_id and sync legacy alias (parameterized).
     await client.$executeRawUnsafe(
-      `SELECT set_config('app.current_tenant_id', '${tenantId}', true)`,
+      `SELECT set_config('app.tenant_id', $1, true), set_config('app.current_tenant_id', $1, true)`,
+      tenantId,
     );
   }
 

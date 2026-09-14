@@ -169,9 +169,10 @@ describe('provisionTenant', () => {
 
     const gucCalls = mockTx.$executeRawUnsafe.mock.calls.map((c) => c[0] as string);
     expect(gucCalls[0]).toContain("set_config('app.platform_admin', '1', true)");
+    // W1-DATA-12: single bind sets canonical + legacy alias
     expect(gucCalls[1]).toContain("set_config('app.tenant_id', $1, true)");
+    expect(gucCalls[1]).toContain("set_config('app.current_tenant_id', $1, true)");
     expect(mockTx.$executeRawUnsafe.mock.calls[1]![1]).toBe('tid');
-    expect(gucCalls[2]).toContain("set_config('app.current_tenant_id', $1, true)");
     // platform scope is bound before the first INSERT, tenant scope before the second
     expect(mockTx.$executeRawUnsafe.mock.invocationCallOrder[0]!).toBeLessThan(
       mockTx.$queryRawUnsafe.mock.invocationCallOrder[0]!,

@@ -10,9 +10,10 @@
  * even the owning app role cannot insert a tenant row without control-plane
  * scope. Provisioning therefore binds `app.platform_admin = '1'` transaction-
  * locally for the tenant insert, then binds the freshly minted tenant id
- * (`app.tenant_id` / `app.current_tenant_id`) before seeding tenant-scoped rows.
+ * (canonical `app.tenant_id`, legacy alias synced) before seeding tenant-scoped rows.
  */
 
+import { bindTenantGucPrisma } from '@proctira/database';
 import { createLogger } from '@proctira/logging';
 
 import { resolveTenantTimezone } from './tenant-timezone.js';
@@ -132,9 +133,8 @@ export async function provisionTenant(
 
     logger.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant record created');
 
-    // Bind the new tenant so RLS WITH CHECK admits the seeded rows below.
-    await tx.$executeRawUnsafe(`SELECT set_config('app.tenant_id', $1, true)`, tenant.id);
-    await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id', $1, true)`, tenant.id);
+    // W1-DATA-12: bind canonical app.tenant_id (+ legacy alias) for seeded rows.
+    await bindTenantGucPrisma(tx, tenant.id);
 
     // Step 2: Seed default root area hierarchy node
     const areaRows = await tx.$queryRawUnsafe<

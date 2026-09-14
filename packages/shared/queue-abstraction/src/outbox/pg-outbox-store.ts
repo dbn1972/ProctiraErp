@@ -108,8 +108,11 @@ export class PgOutboxStore implements OutboxStore {
 
     const run = async (exec: OutboxQueryable) => {
       if (!client) {
-        await exec.query(`SELECT set_config('app.tenant_id', $1, true)`, [entry.tenantId]);
-        await exec.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [entry.tenantId]);
+        // W1-DATA-12: canonical app.tenant_id + legacy alias sync (same contract as bindTenantGuc).
+        await exec.query(
+          `SELECT set_config('app.tenant_id', $1, true), set_config('app.current_tenant_id', $1, true)`,
+          [entry.tenantId],
+        );
       }
       await exec.query(
         `INSERT INTO transactional_outbox (

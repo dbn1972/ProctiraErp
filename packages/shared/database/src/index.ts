@@ -51,6 +51,17 @@ export type { TenantTransactionClient, TenantTransactionOptions } from './tenant
 export { withPgTenant } from './pg-tenant';
 export type { PgQueryable, PgPoolWithConnect, PgClient } from './pg-tenant';
 
+// W1-DATA-12: canonical tenant GUC binder (app.tenant_id + legacy alias sync)
+export {
+  APP_TENANT_ID_GUC,
+  APP_TENANT_ID_LEGACY_GUC,
+  BIND_TENANT_GUC_SQL,
+  SET_APP_TENANT_ID_SQL,
+  bindTenantGuc,
+  bindTenantGucPrisma,
+} from './tenant-guc';
+export type { TenantGucQueryable, TenantGucPrismaLike } from './tenant-guc';
+
 // G-704: shared node-pg pool + JSONB document collection for control-plane stores
 export {
   PG_POOL_DEFAULTS,

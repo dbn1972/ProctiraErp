@@ -154,10 +154,16 @@ await withPgTenant(pool, tenantId, async (client) => {
 });
 ```
 
-`withPgTenant` runs `BEGIN`, `set_config('app.tenant_id', …, true)`, and also
-sets `app.current_tenant_id` for alignment with Prisma RLS.
-`withTenantTransaction` (Prisma) now sets both variables as well.
+`withPgTenant` / `withTenantTransaction` / `bindTenantGuc` (W1-DATA-12) bind
+the **canonical** GUC `app.tenant_id` and sync the legacy alias
+`app.current_tenant_id` in one parameterized statement. Prefer these helpers —
+never hand-roll a single GUC name.
+
+SQL helpers in `071_tenant_guc_canonical.sql`:
+- `app_tenant_id()` — effective tenant (canonical first, legacy alias fallback)
+- `set_app_tenant_id(text)` — writer that sets canonical + syncs legacy
 
 Reference wiring: `packages/backend/staff/src/pg-leave-repository.ts`.
 Other `pg-*-repository` modules must adopt the same pattern when touching
-RLS-protected tables. See also `tools/tenant-isolation-tests` (raw-sql-rls unit).
+RLS-protected tables. See also `tools/tenant-isolation-tests` (raw-sql-rls +
+tenant-guc-canonical unit) and `docs/audits/DATA_W1_DATA_12_GUC.md`.

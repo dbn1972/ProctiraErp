@@ -3,7 +3,7 @@
  *
  * Registers an onRequest hook that:
  * 1. Resolves the tenant ID from the incoming request
- * 2. Sets the PostgreSQL session variable `app.current_tenant_id` for RLS
+ * 2. Binds the canonical PostgreSQL GUC `app.tenant_id` for RLS (legacy alias synced)
  * 3. Decorates the request with `tenantId` for downstream handlers
  *
  * This plugin must be registered AFTER the auth plugin (so JWT claims are available)
@@ -13,6 +13,8 @@
 import { createLogger } from '@proctira/logging';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+
+import { bindTenantGucPrisma } from '@proctira/database';
 
 import {
   resolveTenantId,
@@ -138,15 +140,10 @@ export const tenantPlugin = fp(
           request.tenantId = tenantId;
           request.tenantSource = resolution.source;
 
-          // Set PostgreSQL session variable for RLS
+          // W1-DATA-12 / G-720: bind canonical app.tenant_id (+ legacy alias) as a parameter.
           const db = getDbClient?.(request) ?? fastify.prisma;
-          // G-720: bind the tenant id as a parameter (never string-interpolate
-          // into SQL). Both GUC names are set so Prisma and raw-pg RLS agree.
           if (db) {
-            await db.$executeRawUnsafe(
-              `SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_id', $1, true)`,
-              tenantId,
-            );
+            await bindTenantGucPrisma(db, tenantId);
           }
 
           logger.debug(
