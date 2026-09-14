@@ -14,6 +14,7 @@ import {
   checkCiPathFilters,
   evaluateJobIfs,
   evaluatePathFilterMatrix,
+  findDuplicateWorkflowJobKeys,
   parseDetectChangeFilters,
   parseFilterBody,
 } from './check-ci-path-filters.mjs';
@@ -77,4 +78,31 @@ test('matrix documents db, tools, docs, and infrastructure rows', () => {
   assert.ok(paths.includes('tools/**'));
   assert.ok(paths.includes('docs/**'));
   assert.ok(paths.includes('infrastructure/**'));
+});
+
+test('findDuplicateWorkflowJobKeys fails on duplicate sibling job keys', () => {
+  const yaml = `
+name: ci
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+  runtime-role-gate:
+    name: wrong body
+  runtime-role-gate:
+    name: real body
+  ci-aggregate:
+    needs: [runtime-role-gate]
+`;
+  const report = findDuplicateWorkflowJobKeys(yaml);
+  assert.equal(report.ok, false);
+  assert.equal(report.duplicates.length, 1);
+  assert.equal(report.duplicates[0].key, 'runtime-role-gate');
+  assert.equal(report.duplicates[0].count, 2);
+});
+
+test('on-disk ci.yml has unique job keys (W1-OPS-05 regression guard)', () => {
+  const report = findDuplicateWorkflowJobKeys(CI_YAML);
+  assert.equal(report.ok, true, JSON.stringify(report.duplicates));
+  const result = checkCiPathFilters(CI_YAML);
+  assert.equal(result.uniqueJobs.ok, true);
 });

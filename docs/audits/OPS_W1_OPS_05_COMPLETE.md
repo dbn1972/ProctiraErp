@@ -65,3 +65,25 @@ updating `check-ci-path-filters.mjs`.
 
 **Ops claim:** Path filters + aggregate fail-closed for db/sql, tools, docs, infra.  
 **Status:** W1-OPS-05 **COMPLETE** (PARTIAL cleared).
+
+---
+
+## Re-audit regression fix (2026-09-14) — duplicate `runtime-role-gate`
+
+Pinned `origin/main` @ `29fcc1be` redefined / reconfirmed **W1-OPS-05 REGRESSED**:
+`.github/workflows/ci.yml` defined sibling job key `runtime-role-gate` twice
+(privilege-catalog body + real role-gate body). YAML mapping uniqueness made the
+required aggregate graph untrustworthy.
+
+| Fix | Path |
+| --- | ---- |
+| Remove duplicate job (keep `runtime-table-privileges` + single role gate) | `.github/workflows/ci.yml` |
+| Fail closed on any duplicate job keys | `tools/scripts/check-ci-path-filters.mjs` |
+| Fail closed if `runtime-role-gate:` appears more than once | `tools/scripts/check-runtime-role-gate.mjs` |
+
+```bash
+node --test tools/scripts/check-ci-path-filters.test.mjs tools/scripts/check-runtime-role-gate.test.mjs
+node tools/scripts/check-ci-path-filters.mjs
+# Pre-fix tip content must fail:
+# findDuplicateWorkflowJobKeys(origin/main ci.yml) → runtime-role-gate ×2
+```

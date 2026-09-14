@@ -125,6 +125,13 @@ export function ciWorkflowContract(text) {
   if (!/runtime-role-gate:/.test(text) && !/Runtime Role Gate \(W1-DATA-01\)/.test(text)) {
     issues.push('ci.yml must define runtime-role-gate job (W1-DATA-01)');
   }
+  // Job keys must be unique sibling mapping keys (W1-OPS-05 regression).
+  const roleGateDefs = [...text.matchAll(/^  runtime-role-gate:\s*$/gm)];
+  if (roleGateDefs.length > 1) {
+    issues.push(
+      `ci.yml defines runtime-role-gate ${roleGateDefs.length} times — duplicate job keys invalidate the workflow`,
+    );
+  }
   if (!/check-runtime-role-gate\.mjs/.test(text)) {
     issues.push('ci.yml must run check-runtime-role-gate.mjs');
   }

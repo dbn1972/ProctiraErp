@@ -1132,28 +1132,11 @@ jobs:
   # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
   # ci-aggregate. Live probe runs in deploy.yml (and optionally with
   # DATABASE_URL in integration / tenant-isolation).
-  runtime-role-gate:
-    name: Runtime Role Gate (W1-DATA-01)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Unit-test runtime privilege catalog gate
-        run: node --test tools/scripts/check-runtime-table-privileges.test.mjs
-
-      - name: Fail when runtime privileges are unclassified or blanket-defaulted
-        run: node tools/scripts/check-runtime-table-privileges.mjs
-
+  #
+  # W1-OPS-05: job key must be unique. A prior merge duplicated this key with
+  # the privilege-catalog steps; YAML mapping uniqueness dropped one job and
+  # made the required aggregate graph untrustworthy.
   # ---------------------------------------------------------------------------
-  # Runtime DB role gate — data gate (W1-DATA-01)
-  # Static contract: deploy.yml must prove the *actual* runtime DATABASE_URL
-  # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
-  # ci-aggregate. Live probe runs in deploy.yml (and optionally with
-  # DATABASE_URL in integration / tenant-isolation).
   runtime-role-gate:
     name: Runtime Role Gate (W1-DATA-01)
     runs-on: ubuntu-latest
