@@ -41,9 +41,18 @@
 #   Files whose text matches CONCURRENTLY are applied without -1 automatically.
 #   Whole-set atomicity across all numbered files is intentionally not
 #   attempted; resume safety is the ledger + per-file transactions.
+#
+# W1-DATA-17 — session timeouts (online-safe apply):
+#   Every psql session sets lock_timeout + statement_timeout before DDL so a
+#   blocked ACCESS EXCLUSIVE wait fails the deploy instead of queuing app
+#   traffic. Defaults: lock 5s, statement 30min (override via
+#   APPLY_SQL_LOCK_TIMEOUT / APPLY_SQL_STATEMENT_TIMEOUT). See
+#   tools/scripts/migration-timeouts.sh and docs/audits/DATA_W1_DATA_17_TIMEOUTS.md.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=migration-timeouts.sh
+source "$ROOT/tools/scripts/migration-timeouts.sh"
 SQL_DIR="${APPLY_SQL_DIR:-$ROOT/db/sql}"
 DRY_RUN=0
 APPLY_SEEDS="${APPLY_SEEDS:-0}"
@@ -71,6 +80,8 @@ Environment:
   APPLY_STRICT_FKS=1     Also apply 021a/021b strict tenant FK files
   APPLY_SQL_DIR          Override SQL directory (tests / fixtures)
   APPLY_SQL_NO_TX=1      Disable per-file --single-transaction for all files
+  APPLY_SQL_LOCK_TIMEOUT     Session lock_timeout (default: 5s / MIGRATION_LOCK_TIMEOUT)
+  APPLY_SQL_STATEMENT_TIMEOUT Session statement_timeout (default: 30min)
 
 W1-DATA-05 ledger:
   Applied files are recorded in schema_migrations (filename + sha256).
@@ -78,6 +89,9 @@ W1-DATA-05 ledger:
 
 W1-DATA-10 bootstrap:
   See db/bootstrap/README.md and tools/scripts/bootstrap-db-roles.sh.
+
+W1-DATA-17 timeouts:
+  Every psql session SETs lock_timeout + statement_timeout before DDL.
 EOF
 }
 
@@ -166,6 +180,7 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   if [[ -n "${BOOTSTRAP_DATABASE_URL:-}" ]]; then
     echo "==> Would run W1-DATA-10 bootstrap-db-roles.sh (BOOTSTRAP_DATABASE_URL set)"
   fi
+  emit_migration_timeout_banner "==> W1-DATA-17 (dry-run would set)"
   echo "==> Dry run only (seeds under db/seeds/ are documented separately; not applied)"
   exit 0
 fi
@@ -189,8 +204,19 @@ if ! command -v psql >/dev/null 2>&1; then
   exit 1
 fi
 
+emit_migration_timeout_banner
+# Also export PGOPTIONS so any nested libpq helpers inherit the same bounds.
+export_migration_timeout_pgoptions
+
+# W1-DATA-17: prepend SET lock_timeout / statement_timeout on every session.
+# stdin (heredoc from callers) is concatenated after the SETs so --single-
+# transaction still wraps timeouts + file + ledger INSERT together.
 psql_q() {
-  psql "${PSQL_TARGET[@]}" "${PSQL_ARGS[@]}" "$@"
+  {
+    printf "SET lock_timeout TO '%s';\n" "${APPLY_SQL_LOCK_TIMEOUT}"
+    printf "SET statement_timeout TO '%s';\n" "${APPLY_SQL_STATEMENT_TIMEOUT}"
+    cat
+  } | psql "${PSQL_TARGET[@]}" "${PSQL_ARGS[@]}" "$@"
 }
 
 # W1-DATA-10: create migrator + runtime roles before ledger apply when asked.

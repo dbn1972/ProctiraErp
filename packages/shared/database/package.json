@@ -24,7 +24,7 @@
     "prisma:validate": "prisma validate",
     "prisma:format": "prisma format",
     "prisma:migrate:dev": "prisma migrate dev",
-    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:deploy": "bash ../../../tools/scripts/prisma-migrate-deploy.sh",
     "postinstall": "prisma generate"
   },
   "dependencies": {

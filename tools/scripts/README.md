@@ -18,11 +18,14 @@ script is a single `.mjs` file with no compile step so it runs without
 | (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                                           |
 | (CI / W1-OPS-24)           | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules; wired in `observability-config.yml`.                    |
 | (CI / W1-OPS-24)           | `assert-reusable-ci-assets.mjs`      | Fails if reusable-setup / setup-node-pnpm / validate-observability lose workflow callers.              |
-| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05: ledger-safe resume + checksum fail-closed. |
+| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05 ledger + W1-DATA-17 lock/statement timeouts. |
+| (CI / local)               | `prisma-migrate-deploy.sh`           | W1-DATA-17: Prisma migrate deploy with lock_timeout + statement_timeout (URL options + PGOPTIONS). |
+| (CI / local)               | `migration-timeouts.sh`              | W1-DATA-17: shared timeout defaults/helpers sourced by apply-sql + prisma wrapper. |
 | (CI / local)               | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                        |
 | `pnpm check:prisma-sql-drift` | `check-prisma-sql-drift.mjs`      | W1-DATA-04: fail when Prisma models and `db/sql` drift (auth session columns + missing CREATE TABLE).   |
 | `pnpm check:strict-tenant-fks` | `check-strict-tenant-fks.mjs`    | W1-DATA-06: fail when CI skips `APPLY_STRICT_FKS` without justification, or VALIDATE migration missing. |
 | `pnpm check:tenant-id-indexes` | `check-tenant-id-indexes.mjs`    | W1-DATA-16: fail when tenant-scoped tables lack a leading `tenant_id` index (allowlist documented). |
+| `pnpm check:migration-timeouts` | `check-migration-timeouts.mjs`  | W1-DATA-17: fail when apply/prisma wrappers omit lock_timeout / statement_timeout or policy docs. |
 | (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset.                  |
 | (CI / local)               | `helm-template-check.sh`             | P0-12 / G-501: lint + `helm template` for `proctira-service` + `proctira-platform` (deploy path parity). |
 

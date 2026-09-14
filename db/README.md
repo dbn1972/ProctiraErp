@@ -94,6 +94,39 @@ so runtime cannot mutate rows or disable guards even if connected with broad DML
 `checksum_sha256` + `signature_hmac` on ISSUED `transcript_issuances` inserts.
 See `docs/audits/DATA_W1_DATA_08_IMMUTABILITY.md`.
 
+## Migration session timeouts (W1-DATA-17)
+
+DDL apply must not wait forever for locks. Both tracks set session GUCs before
+running migrations:
+
+| Applier | Wrapper | Defaults |
+| --- | --- | --- |
+| Raw `db/sql/` | `tools/scripts/apply-sql.sh` → `SET lock_timeout` / `SET statement_timeout` | `5s` / `30min` |
+| Prisma | `tools/scripts/prisma-migrate-deploy.sh` (via `prisma:migrate:deploy`) | same (URL `options=` + `PGOPTIONS`) |
+
+Override with `MIGRATION_LOCK_TIMEOUT` / `MIGRATION_STATEMENT_TIMEOUT` (or the
+`APPLY_SQL_*` aliases). Raising `statement_timeout` is appropriate for large
+`CREATE INDEX CONCURRENTLY` / `VALIDATE CONSTRAINT` windows; do **not** disable
+`lock_timeout` in staging/production.
+
+### Online-safe DDL patterns
+
+Prefer these forms so production apply stays concurrent with app traffic:
+
+| Prefer | Avoid (needs maintenance window) |
+| --- | --- |
+| `CREATE INDEX CONCURRENTLY` (file cannot use `--single-transaction`) | `CREATE INDEX` on hot tables |
+| `ADD CONSTRAINT … NOT VALID` then later `VALIDATE CONSTRAINT` | Validating FK/CHECK in the same deploy as the add |
+| Nullable column add + backfill job + separate `SET NOT NULL` | Instant `SET NOT NULL` / type rewrites on large tables |
+| Forward revert migration | Editing applied files (checksum ledger fail-closed) |
+
+`021b_tenant_fk_constraints.sql` + `068_validate_tenant_fk_constraints.sql` are
+the reference NOT VALID → VALIDATE split. See
+`docs/audits/DATA_W1_DATA_17_TIMEOUTS.md` and
+`docs/runbooks/database-migration-rollback.md` §1 long-lock review.
+
+Executable gate: `pnpm check:migration-timeouts`.
+
 ## Domain SQL apply ledger (W1-DATA-05)
 
 Numbered `db/sql/` apply is **not** whole-set atomic (Postgres cannot wrap every
@@ -131,9 +164,11 @@ bash tools/scripts/apply-sql.sh
 - Applies every `db/sql/[0-9]*.sql` in **`LC_ALL=C` sort order** (so `006_…schema` runs before `006b_…seed`)
 - Uses `psql -v ON_ERROR_STOP=1` and exits non-zero on failure
 - **W1-DATA-05:** ledger-safe resume via `schema_migrations` (skip match / fail mismatch / per-file TX)
+- **W1-DATA-17:** sets `lock_timeout` + `statement_timeout` on every psql session
 - Supports `--dry-run` to list files without applying
 
-CI Integration Tests run step (2) immediately after `prisma:migrate:deploy`.
+CI Integration Tests run step (2) immediately after `prisma:migrate:deploy`
+(which itself goes through `prisma-migrate-deploy.sh` for the same timeouts).
 
 ## Seeds (`db/seeds/`) — separate, not auto-applied
 
