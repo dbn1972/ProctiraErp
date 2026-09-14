@@ -45,6 +45,7 @@ import {
   createAreaHierarchyResolver,
 } from '@proctira/backend-institution';
 import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
+import { InMemoryPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -678,6 +679,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     repository: createTenantRepository().repository,
     prefix: '/api/v1/tenant-lifecycle',
     branding: { disabled: false },
+    // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold.
+    destructiveDeleteGuard: new PrivacyService(new InMemoryPrivacyRepository()),
   });
 
   // Record mutating API calls (best-effort; never fail the request).

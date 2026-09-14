@@ -11,7 +11,8 @@
  */
 
 // Core service
-export { StudentService } from './student-service.js';
+export { StudentService, type AssertDestructiveDeleteAllowed } from './student-service.js';
+export type { ReassignEnrollments } from './student-service.js';
 
 // Core repository types (main student repository interface)
 export type {
