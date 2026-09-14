@@ -58,6 +58,23 @@ DML grants after schema exists remain in `db/sql/050_app_runtime_role.sql`.
 See `db/bootstrap/README.md`.
 
 ## Strict tenant foreign keys (W1-DATA-06 COMPLETE)
+**Deploy / CI gate (W1-DATA-01 COMPLETE):** every production (and can-deploy)
+release must prove the *actual* runtime secret is non-owner:
+
+```bash
+# Fail closed when RUNTIME_ROLE_GATE_REQUIRED=1 or ENVIRONMENT=production
+DATABASE_URL=postgresql://proctira_app:…@host/db \
+  bash tools/scripts/assert-runtime-database-role.sh
+
+# Static wiring (required CI job runtime-role-gate → ci-aggregate)
+pnpm check:runtime-role-gate
+```
+
+ExternalSecret / Helm `DATABASE_URL` remote keys must point at `proctira_app`
+(see `infrastructure/k8s/overlays/*/external-secret.yaml` and
+`docs/audits/DATA_W1_DATA_01_COMPLETE.md`).
+
+## Strict tenant foreign keys (W1-DATA-06)
 
 `021b_tenant_fk_constraints.sql` adds `tenant_id → tenants(id)` as **NOT VALID**
 (new rows checked; existing rows deferred). `068_validate_tenant_fk_constraints.sql`

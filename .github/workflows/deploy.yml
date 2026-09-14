@@ -392,3 +392,52 @@ jobs:
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ---------------------------------------------------------------------------
+  # W1-DATA-01 — Required runtime role gate against the *actual* DATABASE_URL
+  # secret (GitHub environment secret and/or cluster Secret pods mount).
+  # Fails closed when the login role is owner/superuser/BYPASSRLS or owns tables.
+  # ---------------------------------------------------------------------------
+  runtime-role-gate:
+    name: Runtime DB role gate (W1-DATA-01)
+    runs-on: ubuntu-latest
+    needs: [ci-gate, prepare, deploy]
+    # Run whenever deploy was attempted (can_deploy). Still evaluate if deploy
+    # itself failed so a bad runtime secret cannot hide behind an image error.
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.can-deploy == 'true'
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Set Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Assert runtime DATABASE_URL is non-owner (W1-DATA-01)
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          RUNTIME_ROLE_GATE_REQUIRED: '1'
+          # Prefer GH environment secret when it mirrors the ExternalSecret remote key.
+          # If unset, the script resolves the cluster Secret pods mount
+          # (proctira-secrets / proctira-prod-secrets).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RUNTIME_ROLE_NAMESPACE: proctira-${{ needs.prepare.outputs.environment }}
+          RUNTIME_ROLE_EXPECTED: proctira_app
+        run: |
+          if [ "${ENVIRONMENT}" = "production" ]; then
+            export RUNTIME_ROLE_SECRET_NAME="${RUNTIME_ROLE_SECRET_NAME:-proctira-prod-secrets}"
+          else
+            export RUNTIME_ROLE_SECRET_NAME="${RUNTIME_ROLE_SECRET_NAME:-proctira-secrets}"
+          fi
+          bash tools/scripts/assert-runtime-database-role.sh

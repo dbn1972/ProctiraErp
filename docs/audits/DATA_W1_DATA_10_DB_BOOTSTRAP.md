@@ -55,7 +55,7 @@ pnpm exec vitest run tools/scripts/__tests__/bootstrap-db-roles.test.ts
 | -------- | ------ |
 | Superuser (or CREATEROLE) connection is still required once per cluster | **Accepted** — Postgres cannot create LOGIN roles without privilege |
 | `proctira_backup` / other optional ops roles not created here | **Out of scope** (see `docs/BACKUP_RESTORE.md`) |
-| Staging/prod ExternalSecret must still map pods to `proctira_app` | **Accepted** (W1-DATA-01 residual) |
+| Staging/prod ExternalSecret must still map pods to `proctira_app` | **Closed** — see `docs/audits/DATA_W1_DATA_01_COMPLETE.md` (deploy + CI runtime-role gate) |
 | Existing volumes that never ran docker-init still need one bootstrap run | **By design** — script is idempotent for that repair |
 
 ## Rollback

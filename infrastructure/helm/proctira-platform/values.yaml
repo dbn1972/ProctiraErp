@@ -992,7 +992,9 @@ config:
 
 # -- Secrets (use external-secrets-operator in production)
 secrets:
-  # -- Database connection string (app role; RLS-bound)
+  # -- Database connection string (W1-DATA-01: MUST be proctira_app —
+  # NOSUPERUSER / NOBYPASSRLS / non-owner). Never the migrator or BYPASSRLS
+  # backup role. Deploy gate: tools/scripts/assert-runtime-database-role.sh.
   databaseUrl: ''
   # -- Connection string for the BYPASSRLS backup role (G-707). pg_dump as the
   # app role fails under FORCE RLS; see docs/BACKUP_RESTORE.md §3.5.

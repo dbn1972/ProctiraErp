@@ -47,6 +47,7 @@ function allSkipped() {
     migrationTimeouts: 'success',
     codeownersGate: 'success',
     runtimeTablePrivileges: 'success',
+    runtimeRoleGate: 'success',
     secondaryAppsE2e: 'skipped',
   };
 }
@@ -70,6 +71,7 @@ function allSucceeded() {
     migrationTimeouts: 'success',
     codeownersGate: 'success',
     runtimeTablePrivileges: 'success',
+    runtimeRoleGate: 'success',
     secondaryAppsE2e: 'success',
   };
 }
@@ -130,6 +132,9 @@ test('codeowners-gate skip fails closed even on docs-only PRs (W1-SEC-13)', () =
 test('runtime-table-privileges skip fails closed even on docs-only PRs (W1-DATA-11)', () => {
   results.runtimeTablePrivileges = 'skipped';
   assert.ok(report.unprovenSkips.some((item) => item.job === 'runtime-table-privileges'));
+test('runtime-role-gate skip fails closed even on docs-only PRs (W1-DATA-01)', () => {
+  results.runtimeRoleGate = 'skipped';
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'runtime-role-gate'));
 });
 
 test('failing proof: skip cascade with code changes is unproven and gate fails', () => {
@@ -234,6 +239,7 @@ test('secondary-apps change with skipped e2e is unproven (W1-OPS-12)', () => {
   results.tenantIdIndexes = 'success';
   results.migrationTimeouts = 'success';
   results.codeownersGate = 'success';
+  results.runtimeRoleGate = 'success';
   results.secondaryAppsE2e = 'skipped';
   const report = evaluate({ changes, results });
   assert.equal(report.ok, false);
