@@ -39,9 +39,10 @@ Expected: `tracing.test.ts` passes (noop mode, test exporter span creation, Fast
 ## Tip SHA
 
 ```
-df78be9fc5789c7c8143b485360ca7ef9f16967b
+1690786720da4ed3fb60f72ea0fbefbe8ad4067f
 ```
 
+Remediation commit (OTLP wiring): `df78be9fc5789c7c8143b485360ca7ef9f16967b`.
 
 ## Proven vs not proven (honest)
 
