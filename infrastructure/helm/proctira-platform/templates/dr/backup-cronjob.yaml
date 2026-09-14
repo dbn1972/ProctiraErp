@@ -1,8 +1,37 @@
 {{- if and .Values.dr.enabled .Values.dr.backup.enabled }}
-# G-707 — scheduled logical PostgreSQL backup (pg_dump custom format) with
-# on-volume retention pruning. Uses the dr-tools image
-# (infrastructure/docker/Dockerfile.dr-tools) so the exact scripts exercised by
-# the weekly restore drill are what run in production.
+{{/*
+  W1-OPS-04 — production backups must encrypt at rest, push a documented offsite
+  second copy, and declare Object Lock / independent retention. Sandbox may leave
+  encrypt/offsite off. Unset / disabled production controls fail closed here.
+*/}}
+{{- if eq .Values.global.environment "production" }}
+{{- if not .Values.dr.backup.encrypt.enabled }}
+{{- fail "W1-OPS-04: production backups require dr.backup.encrypt.enabled=true (age at rest). Sandbox may leave encrypt off." }}
+{{- end }}
+{{- if not .Values.dr.backup.offsite.enabled }}
+{{- fail "W1-OPS-04: production backups require dr.backup.offsite.enabled=true with a documented s3:// URI." }}
+{{- end }}
+{{- $offsiteUri := .Values.dr.backup.offsite.uri | default "" | trim }}
+{{- if or (eq $offsiteUri "") (not (hasPrefix "s3://" $offsiteUri)) }}
+{{- fail "W1-OPS-04: production dr.backup.offsite.uri must be a non-empty s3://bucket/prefix/ target." }}
+{{- end }}
+{{- $ol := .Values.dr.backup.offsite.objectLock | default dict }}
+{{- $lockMode := $ol.mode | default "" | upper }}
+{{- if and (ne $lockMode "GOVERNANCE") (ne $lockMode "COMPLIANCE") }}
+{{- fail "W1-OPS-04: production dr.backup.offsite.objectLock.mode must be GOVERNANCE or COMPLIANCE (immutable / WORM)." }}
+{{- end }}
+{{- $lockRetain := $ol.retainDays | default 0 | int }}
+{{- $pvcRetain := .Values.dr.backup.retentionDays | int }}
+{{- if lt $lockRetain $pvcRetain }}
+{{- fail "W1-OPS-04: production objectLock.retainDays must be >= dr.backup.retentionDays (independent offsite retention floor)." }}
+{{- end }}
+{{- if lt $pvcRetain 1 }}
+{{- fail "W1-OPS-04: production dr.backup.retentionDays must be >= 1." }}
+{{- end }}
+{{- end }}
+# G-707 / W1-OPS-04 — scheduled logical PostgreSQL backup (pg_dump custom format)
+# with on-volume retention pruning, optional/required age encrypt + offsite sync.
+# Uses the dr-tools image so restore-drill scripts match production CronJobs.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -64,6 +93,8 @@ spec:
                       key: {{ .Values.dr.backup.encrypt.secretKey }}
                 {{- end }}
                 {{- if .Values.dr.backup.offsite.enabled }}
+                - name: BACKUP_REQUIRE_OFFSITE
+                  value: "1"
                 - name: BACKUP_OFFSITE_URI
                   value: {{ .Values.dr.backup.offsite.uri | quote }}
                 - name: BACKUP_S3_SSE
@@ -71,6 +102,14 @@ spec:
                 {{- with .Values.dr.backup.offsite.sseKmsKeyId }}
                 - name: BACKUP_S3_SSE_KMS_KEY_ID
                   value: {{ . | quote }}
+                {{- end }}
+                {{- with .Values.dr.backup.offsite.objectLock }}
+                {{- if .mode }}
+                - name: BACKUP_S3_OBJECT_LOCK_MODE
+                  value: {{ .mode | upper | quote }}
+                - name: BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS
+                  value: {{ .retainDays | quote }}
+                {{- end }}
                 {{- end }}
                 {{- if .Values.secrets.s3AccessKey }}
                 - name: AWS_ACCESS_KEY_ID

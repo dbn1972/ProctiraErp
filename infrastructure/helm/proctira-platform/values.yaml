@@ -1066,15 +1066,24 @@ dr:
         cpu: '1'
         memory: 1Gi
     # -- W1-OPS-04: encrypt dumps at rest (age). Requires secrets.backupAgeRecipient.
+    # Base chart defaults OFF (sandbox). Production overlay MUST enable (fail-closed).
     encrypt:
       enabled: false
       secretKey: BACKUP_AGE_RECIPIENT
     # -- W1-OPS-04: push encrypted artifact to object storage (second copy).
+    # Offsite objects are retained independently of PVC prune (pg-backup.sh only
+    # deletes under BACKUP_DIR). Production overlay MUST enable + set uri.
     offsite:
       enabled: false
       uri: '' # s3://bucket/proctira/pg-backups/
       sse: AES256
       sseKmsKeyId: ''
+      # -- Object Lock / WORM controls (aws s3 cp --object-lock-*). Bucket must
+      # have Object Lock enabled at creation. Production requires GOVERNANCE or
+      # COMPLIANCE with retainDays >= retentionDays (fail-closed in template).
+      objectLock:
+        mode: '' # GOVERNANCE | COMPLIANCE | '' (disabled)
+        retainDays: 0
   phiRetention:
     enabled: true
     # -- Weekly, Sunday 03:30

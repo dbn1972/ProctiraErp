@@ -357,7 +357,22 @@ postgresql:
 secrets:
   existingSecret: proctira-prod-secrets
 
+# W1-OPS-04 — production backups: encrypt at rest + documented offsite + WORM.
+# Operator must provision the S3 bucket with Object Lock enabled and place the
+# age recipient + S3 credentials in secrets.existingSecret (proctira-prod-secrets).
+# Live vault upload is NOT proven by this overlay alone — see OPS_W1_OPS_04_COMPLETE.md.
 # W1-OPS-19 — production PHI retention enforces deletion (not dry-run).
 dr:
+  backup:
+    encrypt:
+      enabled: true
+    offsite:
+      enabled: true
+      # Documented production offsite target (operator-owned bucket/prefix).
+      uri: s3://proctira-prod-pg-backups/logical/
+      sse: AES256
+      objectLock:
+        mode: GOVERNANCE
+        retainDays: 30
   phiRetention:
     apply: true

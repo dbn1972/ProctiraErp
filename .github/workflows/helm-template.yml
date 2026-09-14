@@ -49,6 +49,12 @@ on:
       - 'tools/scripts/check-replica-policy.sh'
       - 'infrastructure/ops/production-replica-policy.yaml'
       - 'docs/audits/OPS_W1_OPS_17_REPLICAS.md'
+      # W1-OPS-04 — backup encrypt / offsite / object-lock prod gate
+      - 'tools/scripts/check-backup-prod-gate.sh'
+      - 'tools/scripts/backup-crypto.sh'
+      - 'tools/scripts/pg-backup.sh'
+      - 'docs/BACKUP_RESTORE.md'
+      - 'docs/audits/OPS_W1_OPS_04_COMPLETE.md'
   push:
     branches: [main]
     paths:
@@ -81,6 +87,11 @@ on:
       - 'tools/scripts/check-replica-policy.sh'
       - 'infrastructure/ops/production-replica-policy.yaml'
       - 'docs/audits/OPS_W1_OPS_17_REPLICAS.md'
+      - 'tools/scripts/check-backup-prod-gate.sh'
+      - 'tools/scripts/backup-crypto.sh'
+      - 'tools/scripts/pg-backup.sh'
+      - 'docs/BACKUP_RESTORE.md'
+      - 'docs/audits/OPS_W1_OPS_04_COMPLETE.md'
 
 concurrency:
   group: helm-template-${{ github.ref }}

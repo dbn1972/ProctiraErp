@@ -84,13 +84,33 @@ backup_decrypt_if_needed() {
   esac
 }
 
-# Push an encrypted artifact to offsite storage when BACKUP_OFFSITE_URI is set.
-# Supports s3:// URIs via aws-cli with optional SSE (BACKUP_S3_SSE, default AES256).
+# Push an encrypted artifact to offsite storage when BACKUP_OFFSITE_URI is set
+# (or refuse when BACKUP_REQUIRE_OFFSITE=1). Supports s3:// via aws-cli with
+# optional SSE + Object Lock (BACKUP_S3_OBJECT_LOCK_MODE / _RETAIN_DAYS).
+# Offsite objects are NOT pruned by pg-backup.sh PVC retention (independent).
 backup_offsite_sync() {
   local file="${1:?file to sync required}"
   local uri="${BACKUP_OFFSITE_URI:-}"
+  local require="${BACKUP_REQUIRE_OFFSITE:-}"
 
-  [[ -n "$uri" ]] || return 0
+  if [[ -z "$uri" ]]; then
+    if [[ "$require" == "1" || "$require" == "true" ]]; then
+      echo "ERROR: BACKUP_REQUIRE_OFFSITE is set but BACKUP_OFFSITE_URI is empty (W1-OPS-04 fail-closed)" >&2
+      exit 1
+    fi
+    return 0
+  fi
+
+  # Prefer uploading ciphertext; plaintext offsite is refuse when encrypt required.
+  if [[ "${BACKUP_ENCRYPT:-}" == "1" || "${BACKUP_ENCRYPT:-}" == "true" ]]; then
+    case "$file" in
+      *.age | *.gpg) ;;
+      *)
+        echo "ERROR: refusing offsite upload of unencrypted artifact while BACKUP_ENCRYPT=1: ${file}" >&2
+        exit 1
+        ;;
+    esac
+  fi
 
   local dest="${uri%/}/$(basename "$file")"
   echo "==> offsite sync → ${dest}" >&2
@@ -108,7 +128,32 @@ backup_offsite_sync() {
           sse_args+=(--sse-kms-key-id "$BACKUP_S3_SSE_KMS_KEY_ID")
         fi
       fi
-      aws s3 cp "$file" "$dest" "${sse_args[@]}"
+      local -a lock_args=()
+      local lock_mode="${BACKUP_S3_OBJECT_LOCK_MODE:-}"
+      local lock_days="${BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS:-0}"
+      if [[ -n "$lock_mode" ]]; then
+        lock_mode="$(printf '%s' "$lock_mode" | tr '[:lower:]' '[:upper:]')"
+        case "$lock_mode" in
+          GOVERNANCE | COMPLIANCE) ;;
+          *)
+            echo "ERROR: BACKUP_S3_OBJECT_LOCK_MODE must be GOVERNANCE or COMPLIANCE (got ${lock_mode})" >&2
+            exit 1
+            ;;
+        esac
+        if ! [[ "$lock_days" =~ ^[0-9]+$ ]] || (( lock_days < 1 )); then
+          echo "ERROR: BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS must be >= 1 when Object Lock is enabled" >&2
+          exit 1
+        fi
+        local until
+        until="$(date -u -d "+${lock_days} days" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+          || date -u -v+"${lock_days}"d +%Y-%m-%dT%H:%M:%SZ)"
+        lock_args=(
+          --object-lock-mode "$lock_mode"
+          --object-lock-retain-until-date "$until"
+        )
+        echo "==> object-lock ${lock_mode} until ${until}" >&2
+      fi
+      aws s3 cp "$file" "$dest" "${sse_args[@]}" "${lock_args[@]}"
       ;;
     *)
       echo "ERROR: unsupported BACKUP_OFFSITE_URI scheme (use s3://bucket/prefix/): ${uri}" >&2
