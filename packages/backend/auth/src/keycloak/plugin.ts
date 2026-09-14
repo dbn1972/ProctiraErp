@@ -29,6 +29,8 @@ export interface KeycloakAuthPluginOptions {
    * Access-token jti/sid denylist (W1-SEC-09).
    * Defaults via {@link createAccessTokenRevocationStore}: production requires
    * a shared store (fails closed without Redis / emergency allow).
+   * Decorated on the Fastify instance so Keycloak `/logout` can revoke before
+   * IdP end-session redirect (same store as authenticate checks).
    */
   revocationStore?: AccessTokenRevocationStore;
 }

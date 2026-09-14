@@ -47,7 +47,7 @@
 | --- | --- | ------- | ------------ |
 | residual | P2 | ~~Multi-replica denylist needs shared Redis~~ → **CLOSED** in `SEC_W1_SEC_09_COMPLETE.md` | Production fails closed without shared store; multi-replica logout proven |
 | residual | P2 | Access cookie remains SameSite=Lax for OAuth top-level returns | Mitigated by CSRF + Strict refresh; optional later Strict access if OAuth UX allows |
-| residual | P2 | Keycloak admin logout / remote session kill does not push sid into Proctira denylist unless logout hits our `/auth/logout` path | Wire IdP backchannel logout when Keycloak admin events are enabled |
+| residual | P2 | Keycloak admin logout / remote session kill does not push sid into Proctira denylist unless logout hits our `/auth/logout` path (app GET Keycloak logout now revokes before IdP redirect — see `SEC_W1_SEC_09_COMPLETE.md`) | Wire IdP backchannel logout when Keycloak admin events are enabled |
 | residual | P2 | `revokeAllUserTokens` does not enumerate sessions to denylist every sid | Callers that force global logout should invalidate sessions + revoke per sid |
 
 ---
