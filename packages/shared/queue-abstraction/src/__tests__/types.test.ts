@@ -23,6 +23,14 @@ describe('buildTenantName', () => {
     const { assertTenantScopedQueueName, TenantScopeError } = await import('../tenant-scope');
     expect(() => assertTenantScopedQueueName('events')).toThrow(TenantScopeError);
     expect(() => assertTenantScopedQueueName('tenant..events')).toThrow(TenantScopeError);
+    expect(() => assertTenantScopedQueueName('#')).toThrow(TenantScopeError);
+  });
+
+  it('should accept tenant.# and tenant.* patterns', async () => {
+    const { assertTenantScopedQueueName, isTenantScopedQueueName } = await import('../tenant-scope');
+    expect(isTenantScopedQueueName('tenant.#')).toBe(true);
+    expect(isTenantScopedQueueName('tenant.*.events')).toBe(true);
+    expect(() => assertTenantScopedQueueName('tenant.#')).not.toThrow();
   });
 
   it('should handle complex topic names', () => {

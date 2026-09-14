@@ -41,6 +41,8 @@ export {
   assertTenantId,
   assertTenantScopedEventName,
   isTenantScopedEventName,
+  isUnscopedTenantNamespaceAllowed,
+  shouldRequireTenantScopedEventNames,
   buildTenantPrefixedName,
 } from './tenant-scope';
 
