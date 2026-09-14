@@ -173,6 +173,7 @@ function mapTranscript(row: Record<string, unknown>): TranscriptIssuanceEntity {
     issuedBy: row.issued_by == null ? null : String(row.issued_by),
     artifactUri: row.artifact_uri == null ? null : String(row.artifact_uri),
     checksumSha256: row.checksum_sha256 == null ? null : String(row.checksum_sha256),
+    signatureHmac: row.signature_hmac == null ? null : String(row.signature_hmac),
     metadata: jsonObj(row.metadata),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
@@ -619,8 +620,8 @@ export class PgGradebookRepository implements GradebookRepository {
         row.tenantId,
         `INSERT INTO transcript_issuances (
            id, tenant_id, student_id, version, status, issued_at, issued_by,
-           artifact_uri, checksum_sha256, metadata, created_at, updated_at
-         ) VALUES ($1,$2,$3,$4,$5::transcript_status,$6,$7,$8,$9,$10::jsonb,$11,$12)
+           artifact_uri, checksum_sha256, signature_hmac, metadata, created_at, updated_at
+         ) VALUES ($1,$2,$3,$4,$5::transcript_status,$6,$7,$8,$9,$10,$11::jsonb,$12,$13)
          RETURNING *`,
         [
           row.id,
@@ -632,6 +633,8 @@ export class PgGradebookRepository implements GradebookRepository {
           row.issuedBy,
           row.artifactUri,
           row.checksumSha256,
+          row.signatureHmac
+            ?? (typeof row.metadata?.signature === 'string' ? row.metadata.signature : null),
           JSON.stringify(row.metadata ?? {}),
           row.createdAt,
           row.updatedAt,

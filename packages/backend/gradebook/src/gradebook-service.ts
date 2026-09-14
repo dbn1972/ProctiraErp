@@ -790,6 +790,7 @@ export class GradebookService {
       issuedBy: actorId(user),
       artifactUri,
       checksumSha256: checksum,
+      signatureHmac: signature,
       metadata: {
         ...payload,
         immutable: true,
