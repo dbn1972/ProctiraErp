@@ -288,5 +288,5 @@ CREATE TRIGGER trg_grade_entries_write_change_audit
   FOR EACH ROW EXECUTE FUNCTION grade_entries_write_change_audit();
 
 INSERT INTO schema_migrations (filename)
-VALUES ('076_enrollment_grade_audit_harden.sql')
+VALUES ('080_enrollment_grade_audit_harden.sql')
 ON CONFLICT (filename) DO NOTHING;

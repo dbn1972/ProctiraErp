@@ -2,7 +2,7 @@
 
 **Module / slice:** SIS enrollment lifecycle + gradebook change audit  
 **Branch / tip:** `cursor/w1-data-14-audit-complete-56c3`  
-**Tip SHA:** `37da5ce24d3f40c591605df98858a38a0c5228cd` (branch tip after evidence pack)  
+**Tip SHA:** `0235b86095f05274ce287a2ca0e66037171aac5d`  
 **Implementation SHA:** `011183e6dcdbd5747fd79f4084cd2665940274ad` (`076` + tests)  
 **Date (UTC):** 2026-09-14  
 **Environment:** static SQL contract + live Postgres as `proctira_app` (local apply through `076`)
@@ -29,7 +29,7 @@ finding **REGRESSED**:
 | Artifact | Path | Notes |
 | -------- | ---- | ----- |
 | Prior scaffolding (unchanged checksum) | `db/sql/071_enrollment_grade_audit_completeness.sql` | Keep; do not edit applied file |
-| Harden residual | `db/sql/076_enrollment_grade_audit_harden.sql` | RESTRICT FKs, SECURITY DEFINER writers, re-assert SELECT/INSERT-only |
+| Harden residual | `db/sql/080_enrollment_grade_audit_harden.sql` | RESTRICT FKs, SECURITY DEFINER writers, re-assert SELECT/INSERT-only |
 | Static tests | `tools/tenant-isolation-tests/src/unit/enrollment-grade-audit-completeness.test.ts` | 071 + 076 contract |
 | Live tests | `packages/shared/database/src/enrollment-grade-audit-completeness.live.test.ts` | Runtime role + insert-on-change + mutate deny |
 | Prior audit | `docs/audits/DATA_W1_DATA_14_AUDIT.md` | Historical #219 note |

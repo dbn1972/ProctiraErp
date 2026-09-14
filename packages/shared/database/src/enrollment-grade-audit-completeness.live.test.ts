@@ -21,7 +21,7 @@ const DATABASE_URL = requireLiveDatabaseUrl({
 
 const MIGRATIONS = [
   '071_enrollment_grade_audit_completeness.sql',
-  '076_enrollment_grade_audit_harden.sql',
+  '080_enrollment_grade_audit_harden.sql',
 ] as const;
 
 const AUDIT_TRIGGERS = [

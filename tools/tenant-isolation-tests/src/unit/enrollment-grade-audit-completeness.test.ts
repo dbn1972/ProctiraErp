@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const MIGRATION_071 = '071_enrollment_grade_audit_completeness.sql';
-const MIGRATION_076 = '076_enrollment_grade_audit_harden.sql';
+const MIGRATION_076 = '080_enrollment_grade_audit_harden.sql';
 
 function sqlDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -111,6 +111,6 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 076)', () => {
 
   it('records both migrations in schema_migrations', () => {
     expect(loadSql(MIGRATION_071)).toMatch(/071_enrollment_grade_audit_completeness\.sql/);
-    expect(loadSql(MIGRATION_076)).toMatch(/076_enrollment_grade_audit_harden\.sql/);
+    expect(loadSql(MIGRATION_076)).toMatch(/080_enrollment_grade_audit_harden\.sql/);
   });
 });

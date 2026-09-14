@@ -107,7 +107,7 @@ and `transcript_signing_keys` (rotated KMS/PKI refs). App signing uses
 
 `071_enrollment_grade_audit_completeness.sql` writes `enrollment_history` /
 `grade_change_audit` from DB triggers and blocks UPDATE/DELETE. Residual
-`076_enrollment_grade_audit_harden.sql` sets parent FKs to `ON DELETE RESTRICT`,
+`080_enrollment_grade_audit_harden.sql` sets parent FKs to `ON DELETE RESTRICT`,
 marks writers `SECURITY DEFINER` + fixed `search_path`, and re-asserts
 `proctira_app` as **SELECT + INSERT only** on those audit tables.
 
