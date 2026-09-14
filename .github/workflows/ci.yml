@@ -213,10 +213,18 @@ jobs:
       # suites. Exclude them here; integration-test runs them with DATABASE_URL
       # and assert-live-test-execution.mjs enforces a minimum executed count.
       - name: Run unit tests (affected packages, exclude live Postgres suites)
-        run: pnpm turbo run test --filter='...[HEAD~1]' -- --exclude '**/*.live.test.ts'
+        run: pnpm turbo run test --filter='...[HEAD~1]' -- --exclude '**/*.live.test.ts' --coverage
         env:
           CI: true
           ALLOW_LIVE_TEST_SKIP: '1'
+
+      # W3-TEST-04: fail closed when unit job did not emit coverage artifacts
+      # or aggregate percentages fall below baseline floors.
+      - name: Assert unit-test coverage gate (W3-TEST-04)
+        run: pnpm test:coverage:assert
+        env:
+          CI: true
+          REQUIRE_COVERAGE_GATE: '1'
 
       - name: Upload test coverage
         if: always()
@@ -553,6 +561,18 @@ jobs:
           NODE_ENV: test
           CI: true
           REQUIRE_LIVE_TESTS: '1'
+
+      # W3-TEST-04: dedicated pg-gate runner asserts pg-* suites did not skip
+      # when DATABASE_URL is present (complements W3-TEST-03 live gate).
+      - name: Assert backend pg repository suites executed (W3-TEST-04)
+        run: pnpm test:pg:gate
+        env:
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          CI: true
+          FORBID_TEST_SKIPS: '1'
+          PG_TEST_MIN_EXECUTED: '25'
+          PG_TEST_MAX_ALLOWED_SKIPS: '1'
+          NODE_ENV: test
 
       # W3-TEST-03: collect *.live.test.ts JSON and fail if any skipped or
       # executed count is below LIVE_TEST_MIN_EXECUTED.

@@ -37,11 +37,17 @@
     "test:live": "vitest run --config tools/vitest.live-gate.config.ts",
     "test:live:assert": "node tools/scripts/assert-live-test-execution.mjs",
     "test:live:gate": "node tools/scripts/run-live-test-gate.mjs",
-    "check:restore-drill": "bash tools/scripts/check-restore-drill-evidence.sh"
+    "check:restore-drill": "bash tools/scripts/check-restore-drill-evidence.sh",
+    "test:pg": "vitest run --config tools/vitest.pg-gate.config.ts",
+    "test:pg:assert": "node tools/scripts/assert-vitest-skips.mjs",
+    "test:pg:gate": "node tools/scripts/run-pg-test-gate.mjs",
+    "test:coverage:assert": "node tools/scripts/assert-coverage-gate.mjs",
+    "test:coverage:gate:test": "node --test tools/scripts/assert-coverage-gate.test.mjs"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-import-resolver-typescript": "^3.10.1",
