@@ -84,12 +84,16 @@ export class InMemoryReportRepository implements ReportRepository {
   async findActiveJobByDedupeKey(
     tenantId: string,
     dedupeKey: string,
+    now = new Date(),
   ): Promise<ReportJobEntity | null> {
     const found = this.jobs.find(
       (j) =>
         j.tenantId === tenantId &&
         j.dedupeKey === dedupeKey &&
-        (j.status === 'queued' || j.status === 'processing'),
+        (j.status === 'queued' ||
+          (j.status === 'processing' &&
+            j.leaseExpiresAt !== null &&
+            j.leaseExpiresAt.getTime() > now.getTime())),
     );
     return found ? { ...found } : null;
   }
@@ -103,7 +107,11 @@ export class InMemoryReportRepository implements ReportRepository {
     const index = this.jobs.findIndex((j) => j.id === jobId && j.tenantId === tenantId);
     if (index === -1) return null;
     const existing = this.jobs[index]!;
-    if (existing.status !== 'queued') return null;
+    const leaseExpired =
+      existing.status === 'processing' &&
+      existing.leaseExpiresAt !== null &&
+      existing.leaseExpiresAt.getTime() <= now.getTime();
+    if (existing.status !== 'queued' && !leaseExpired) return null;
     const leaseExpiresAt = new Date(now.getTime() + Math.max(1_000, leaseMs));
     const updated: ReportJobEntity = {
       ...existing,
