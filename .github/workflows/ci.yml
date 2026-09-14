@@ -904,6 +904,29 @@ jobs:
         run: node tools/scripts/check-strict-tenant-fks.mjs
 
   # ---------------------------------------------------------------------------
+  # Leading tenant_id indexes — data gate (W1-DATA-16)
+  # ---------------------------------------------------------------------------
+  # Fail closed when tenant-scoped tables lack a leading tenant_id index /
+  # UNIQUE / PK (unless documented in tenant-id-index-allowlist.json).
+  # No Postgres required — static SQL corpus scan.
+  # ---------------------------------------------------------------------------
+  tenant-id-indexes:
+    name: Tenant ID Indexes (W1-DATA-16)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test leading tenant_id index gate
+        run: node --test tools/scripts/check-tenant-id-indexes.test.mjs
+
+      - name: Fail when tenant-scoped tables lack leading tenant_id indexes
+        run: node tools/scripts/check-tenant-id-indexes.mjs
+
+  # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
   # ---------------------------------------------------------------------------
   # Runs ungated Chromium smokes for Next secondary apps that are not covered
@@ -1009,6 +1032,7 @@ jobs:
       - restore-drill-evidence
       - prisma-sql-drift
       - strict-tenant-fks
+      - tenant-id-indexes
       - secondary-apps-e2e
     if: always()
     steps:
@@ -1036,5 +1060,6 @@ jobs:
           RESTORE_DRILL_EVIDENCE_RESULT: ${{ needs.restore-drill-evidence.result }}
           PRISMA_SQL_DRIFT_RESULT: ${{ needs.prisma-sql-drift.result }}
           STRICT_TENANT_FKS_RESULT: ${{ needs.strict-tenant-fks.result }}
+          TENANT_ID_INDEXES_RESULT: ${{ needs.tenant-id-indexes.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

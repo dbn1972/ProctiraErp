@@ -1,0 +1,4 @@
+{
+  "$schema_comment": "W1-DATA-16 — tables with a tenant_id column that are intentionally exempt from a leading tenant_id index (btree UNIQUE/PK/INDEX). Each entry must include a reason. Keep this list empty unless a documented exception is required.",
+  "allowlist": []
+}

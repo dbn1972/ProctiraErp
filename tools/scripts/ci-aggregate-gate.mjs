@@ -111,6 +111,11 @@ export function evaluate({ changes, results }) {
       requiredWhen: () => true,
     },
     {
+      job: 'tenant-id-indexes',
+      result: results.tenantIdIndexes,
+      requiredWhen: () => true,
+    },
+    {
       job: 'secondary-apps-e2e',
       result: results.secondaryAppsE2e,
       requiredWhen: () => secondaryAppsGate(changes),
@@ -228,6 +233,7 @@ function readEnv() {
       restoreDrillEvidence: process.env.RESTORE_DRILL_EVIDENCE_RESULT,
       prismaSqlDrift: process.env.PRISMA_SQL_DRIFT_RESULT,
       strictTenantFks: process.env.STRICT_TENANT_FKS_RESULT,
+      tenantIdIndexes: process.env.TENANT_ID_INDEXES_RESULT,
       secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
     },
   };
