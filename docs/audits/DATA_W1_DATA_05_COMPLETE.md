@@ -1,7 +1,7 @@
 # DATA — W1-DATA-05 COMPLETE (atomic / resumable domain SQL apply)
 
 **Module / slice:** Domain SQL apply (`tools/scripts/apply-sql.sh`)  
-**Branch / tip:** `cursor/w1-data-05-atomic-complete-56c3`  
+**Branch / tip:** `cursor/w1-data-05-atomic-complete-56c3` @ `ba7224d646bfcd465d78d802dbdb1ceff7f51492`  
 **Date (UTC):** 2026-09-14  
 **Environment:** static contract + live Postgres failure-injection fixtures  
 **Prior status:** PARTIAL (file ledger + per-file TX; non-txn mid-fail residual)  
