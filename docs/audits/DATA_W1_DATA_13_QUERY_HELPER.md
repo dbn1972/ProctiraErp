@@ -3,6 +3,7 @@
 **Module / slice:** Raw-`pg` tenant GUC binding (`withPgTenant` / `withPlatformScope`)  
 **Branch / tip:** `cursor/aud-w1-data-13-query-helper-56c3`  
 **Date (UTC):** 2026-09-14  
+**Merged:** `#234` → `f01ad3b1` on `origin/main`  
 **Environment:** static contract + unit (deny-missing-tenant)
 
 ## Finding
@@ -11,9 +12,9 @@ Audit disposition was **refuted** for the claim that four cited sites establishe
 *tenant-owned query-helper bypasses* in the G-710 private `query(tenantId, …)`
 helpers (those helpers already wrap `withPgTenant`).
 
-Revalidation against `origin/main` still found **four residual unbound
-`pool.query` domains** that never set `app.tenant_id` / platform GUC before
-touching RLS tables:
+Revalidation against tip still found **four residual unbound `pool.query`
+domains** that never set `app.tenant_id` / platform GUC before touching RLS
+tables (closed in `#234`; tip re-verified):
 
 | # | Site | Path | Defect |
 | - | ---- | ---- | ------ |
@@ -65,6 +66,7 @@ pnpm --filter @proctira/backend-student exec vitest run \
 | Registration / ETL interfaces keep optional `tenantId?` for in-memory callers | **Accepted** — Postgres store denies empty; interface widen is a later cleanup |
 | `getHistoryByEnrollmentId` still discovers tenant via platform scope instead of requiring `tenantId` on the API | **Accepted** — callers lack tenant today; platform GUC is set |
 | Broader monorepo sweep of every `pool.query` outside these four sites | **Out of scope** — static gate covers the cited residuals |
+| Static method extractor previously treated object-type params as the body | **Fixed** — paren-balance before body `{` so `listModules(filter: {…})` is covered |
 
 ## Rollback
 
@@ -72,4 +74,5 @@ Revert the four repository patches + tests + this audit. No SQL migrations.
 
 ## Sign-off
 
-**Data claim:** Certified w/ waivers (DDL ensure + optional interface types retained).
+**Data claim:** Certified w/ waivers (DDL ensure + optional interface types retained).  
+**Remediation status:** `merged` (`#234`); tip re-verify confirms the four sites remain tenant-bound.
