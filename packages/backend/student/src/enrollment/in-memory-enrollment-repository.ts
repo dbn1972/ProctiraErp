@@ -5,6 +5,7 @@
  * Implements the EnrollmentRepository interface with Map-based stores.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { ConflictError } from '@proctira/common';
 
 import type {
   EnrollmentEntity,
@@ -24,6 +25,19 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
   async createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<EnrollmentEntity> {
+    if (data.status === 'ENROLLED') {
+      const active = await this.findActiveEnrollment(
+        data.tenantId,
+        data.studentId,
+        data.academicPeriodId,
+      );
+      if (active) {
+        throw new ConflictError(
+          `Student already has an active enrollment for academic period '${data.academicPeriodId}'`,
+        );
+      }
+    }
+
     const now = new Date();
     const entity: EnrollmentEntity = {
       ...data,
@@ -62,6 +76,24 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
       return null;
     }
     return entity;
+  }
+
+  async findActiveEnrollment(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<EnrollmentEntity | null> {
+    for (const entity of this.enrollments.values()) {
+      if (
+        entity.tenantId === tenantId &&
+        entity.studentId === studentId &&
+        entity.academicPeriodId === academicPeriodId &&
+        entity.status === 'ENROLLED'
+      ) {
+        return entity;
+      }
+    }
+    return null;
   }
 
   async listEnrollments(

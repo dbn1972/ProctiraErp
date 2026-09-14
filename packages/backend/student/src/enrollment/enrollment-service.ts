@@ -10,7 +10,13 @@
  *         with transfer date and reason; transition statuses accordingly
  * - 6.4: Reject transfer if destination institution does not exist or is inactive
  */
-import { AppError, NotFoundError, BusinessRuleError, EnrollmentStatus } from '@proctira/common';
+import {
+  AppError,
+  NotFoundError,
+  BusinessRuleError,
+  ConflictError,
+  EnrollmentStatus,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -58,6 +64,8 @@ export class EnrollmentService {
         'classId is required — students must be placed in a class/section on enrollment',
       );
     }
+
+    await this.assertNoActiveEnrollment(tenantId, input.studentId, input.academicPeriodId);
 
     const enrollmentId = uuidv4();
     const enrollment = await this.repository.createEnrollment({
@@ -276,6 +284,8 @@ export class EnrollmentService {
     });
 
     // Step 2: Create new enrollment at destination with status ENROLLED
+    await this.assertNoActiveEnrollment(tenantId, input.studentId, input.academicPeriodId);
+
     const destinationEnrollmentId = uuidv4();
     const destinationEnrollment = await this.repository.createEnrollment({
       id: destinationEnrollmentId,
@@ -366,5 +376,23 @@ export class EnrollmentService {
     studentId: string,
   ): Promise<TransferRecordEntity[]> {
     return this.repository.getTransferRecords(tenantId, studentId);
+  }
+
+  /** W3-RACE-02 — one ENROLLED row per student per academic period (service guard). */
+  private async assertNoActiveEnrollment(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<void> {
+    const existing = await this.repository.findActiveEnrollment(
+      tenantId,
+      studentId,
+      academicPeriodId,
+    );
+    if (existing) {
+      throw new ConflictError(
+        `Student already has an active enrollment for academic period '${academicPeriodId}'`,
+      );
+    }
   }
 }
