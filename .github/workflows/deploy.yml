@@ -106,18 +106,27 @@ jobs:
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "tag=${SHA_SHORT}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
 
+      # W1-OPS-15: never soft-succeed a production deploy when registry secrets
+      # are absent. Staging may set can_deploy=false so build/deploy skip, but
+      # deploy-secrets-gate fails the workflow aggregate (no greenwash).
       - name: Check registry credentials
         id: registry
         env:
           REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          ENVIRONMENT: ${{ steps.env.outputs.environment }}
         run: |
           if [ -n "$REGISTRY_USERNAME" ] && [ -n "$REGISTRY_PASSWORD" ]; then
             echo "can_deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::REGISTRY_USERNAME/REGISTRY_PASSWORD not configured — skipping image build/push and deploy."
+            exit 0
           fi
+
+          echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+          if [ "$ENVIRONMENT" = "production" ]; then
+            echo "::error::W1-OPS-15: Production deploy requires REGISTRY_USERNAME and REGISTRY_PASSWORD — refusing silent skip."
+            exit 1
+          fi
+          echo "::error::W1-OPS-15: REGISTRY_USERNAME/REGISTRY_PASSWORD not configured — build/deploy jobs will be skipped; deploy-secrets-gate will fail this workflow."
 
       - name: Detect affected services
         id: affected
@@ -166,6 +175,29 @@ jobs:
           done
 
           echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # W1-OPS-15 — Explicit secrets gate (aggregate fail when deploy was skipped
+  # because secrets were missing). Production already fails in prepare; this
+  # job catches staging soft-skips so the workflow cannot report success.
+  # ---------------------------------------------------------------------------
+  deploy-secrets-gate:
+    name: Deploy secrets gate (W1-OPS-15)
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: always() && needs.prepare.result == 'success'
+    steps:
+      - name: Fail closed when required deploy secrets are missing
+        env:
+          CAN_DEPLOY: ${{ needs.prepare.outputs.can-deploy }}
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          if [ "$CAN_DEPLOY" = "true" ]; then
+            echo "Deploy secrets present for ${ENVIRONMENT} — OK"
+            exit 0
+          fi
+          echo "::error::W1-OPS-15: Deploy secrets missing for ${ENVIRONMENT}. Image build/push and Helm deploy were skipped; failing aggregate (no greenwash)."
+          exit 1
 
   # ---------------------------------------------------------------------------
   # Convert services string to JSON array for matrix
