@@ -1,7 +1,7 @@
 # DATA — W1-DATA-07 COMPLETE (append-only effective versions + payroll reverse/replace)
 
 **Module / slice:** Academic periods, fee structures, staff payroll runs  
-**Branch / tip:** `cursor/w1-data-07-dating-complete-56c3`  
+**Branch / tip:** `cursor/w1-data-07-dating-complete-56c3` @ `5f211d00`  
 **Date (UTC):** 2026-09-14  
 **Environment:** SQL contract + focused unit tests (live Postgres optional)
 
@@ -34,9 +34,9 @@
 
 ```bash
 # apply numbered SQL through 076 (psql / apply-sql — not Prisma for cert path)
-pnpm --filter @proctira/fees exec vitest run src/fee-structure-append-only.test.ts src/fee-structure-effective-dating.test.ts
-pnpm --filter @proctira/institution exec vitest run src/academic-period/append-only-versions.test.ts src/academic-period/effective-dating.test.ts
-pnpm --filter @proctira/staff exec vitest run src/payroll-reverse-replace.test.ts src/payroll-export-store.test.ts
+pnpm --filter @proctira/backend-fees exec vitest run src/fee-structure-append-only.test.ts src/fee-structure-effective-dating.test.ts
+pnpm --filter @proctira/backend-institution exec vitest run src/academic-period/append-only-versions.test.ts src/academic-period/effective-dating.test.ts
+pnpm --filter @proctira/backend-staff exec vitest run src/payroll-reverse-replace.test.ts src/payroll-export-store.test.ts
 pnpm --filter @proctira/tenant-isolation-tests exec vitest run --config vitest.config.ts src/unit/w1-data-07-append-only.test.ts
 ```
 
