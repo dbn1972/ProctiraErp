@@ -166,18 +166,35 @@ export type ListBoardExportCandidatesFilter = {
   limit?: number;
 };
 
+/** Enrichment for `app.grade_change_*` GUCs read by `grade_entries_write_change_audit`. */
+export type GradeChangeAuditContext = {
+  action?: string;
+  actorId?: string | null;
+};
+
 export interface GradebookRepository {
+  /**
+   * When true, Postgres trigger `trg_grade_entries_write_change_audit` writes
+   * `grade_change_audit`. Pass {@link GradeChangeAuditContext} on mutate and
+   * skip app-side `appendAudit`.
+   */
+  readonly writesAuditViaDatabase?: boolean;
+
   listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter): Promise<GradeEntryEntity[]>;
   findGradeEntry(
     tenantId: string,
     keys: { studentId: string; sectionId?: string | null; assessmentCode?: string | null },
   ): Promise<GradeEntryEntity | null>;
   getGradeEntry(tenantId: string, id: string): Promise<GradeEntryEntity | null>;
-  createGradeEntry(row: GradeEntryEntity): Promise<GradeEntryEntity>;
+  createGradeEntry(
+    row: GradeEntryEntity,
+    audit?: GradeChangeAuditContext,
+  ): Promise<GradeEntryEntity>;
   updateGradeEntry(
     tenantId: string,
     id: string,
     patch: Partial<GradeEntryEntity>,
+    audit?: GradeChangeAuditContext,
   ): Promise<GradeEntryEntity | null>;
 
   listCreditRules(tenantId: string, boardId?: string): Promise<CreditRuleEntity[]>;

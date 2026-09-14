@@ -10,6 +10,7 @@ export { EnrollmentService } from './enrollment-service.js';
 // Repository
 export type {
   EnrollmentEntity,
+  EnrollmentHistoryContext,
   EnrollmentHistoryEntity,
   TransferRecordEntity,
   EnrollmentFilter,

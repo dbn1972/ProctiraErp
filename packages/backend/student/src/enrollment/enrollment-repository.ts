@@ -80,12 +80,32 @@ export interface InstitutionLookup {
 }
 
 /**
+ * Optional enrichment for DB trigger GUCs (`app.enrollment_history_*`).
+ * Used when {@link EnrollmentRepository.writesHistoryViaDatabase} is true —
+ * must be applied in the same transaction as the enrollment mutate.
+ */
+export type EnrollmentHistoryContext = {
+  reason?: string | null;
+  effectiveDate?: Date;
+};
+
+/**
  * Repository interface for enrollment data access.
  */
 export interface EnrollmentRepository {
+  /**
+   * When true, Postgres triggers (`trg_enrollments_write_history`) are the
+   * authoritative writer of `enrollment_history`. Callers must pass
+   * {@link EnrollmentHistoryContext} on create/update and must not call
+   * {@link createHistoryEntry} (that path is a no-op / defense-in-depth).
+   * In-memory stores leave this falsy and write history in-app.
+   */
+  readonly writesHistoryViaDatabase?: boolean;
+
   /** Create a new enrollment */
   createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
+    history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity>;
 
   /** Update an existing enrollment */
@@ -93,6 +113,7 @@ export interface EnrollmentRepository {
     id: string,
     tenantId: string,
     data: Partial<EnrollmentEntity>,
+    history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity | null>;
 
   /** Find an enrollment by ID within a tenant */
@@ -112,7 +133,10 @@ export interface EnrollmentRepository {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<EnrollmentEntity>>;
 
-  /** Create a history entry for an enrollment status change */
+  /**
+   * Create a history entry for an enrollment status change.
+   * In-memory only when {@link writesHistoryViaDatabase}; Pg no-ops.
+   */
   createHistoryEntry(
     data: Omit<EnrollmentHistoryEntity, 'createdAt'>,
   ): Promise<EnrollmentHistoryEntity>;

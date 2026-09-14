@@ -15,6 +15,7 @@ import type {
   CreditRuleEntity,
   ExportJobEntity,
   GpaSnapshotEntity,
+  GradeChangeAuditContext,
   GradeEntryEntity,
   GradebookRepository,
   GradingScaleEntity,
@@ -263,6 +264,12 @@ function splitActor(
 }
 
 export class PgGradebookRepository implements GradebookRepository {
+  /**
+   * W1-DATA-14 — `trg_grade_entries_write_change_audit` is the sole writer of
+   * `grade_change_audit` on Postgres.
+   */
+  readonly writesAuditViaDatabase = true as const;
+
   constructor(private readonly pool: PgPoolLike) {}
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
@@ -272,6 +279,21 @@ export class PgGradebookRepository implements GradebookRepository {
       tenantId,
       (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
     );
+  }
+
+  private async bindGradeChangeGucs(
+    client: { query: (text: string, values?: unknown[]) => Promise<unknown> },
+    audit?: GradeChangeAuditContext,
+  ): Promise<void> {
+    if (!audit) return;
+    if (audit.action != null && audit.action !== '') {
+      await client.query(`SELECT set_config('app.grade_change_action', $1, true)`, [audit.action]);
+    }
+    if (audit.actorId != null && audit.actorId !== '') {
+      await client.query(`SELECT set_config('app.grade_change_actor_id', $1, true)`, [
+        audit.actorId,
+      ]);
+    }
   }
 
   listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
@@ -327,76 +349,92 @@ export class PgGradebookRepository implements GradebookRepository {
     });
   }
 
-  createGradeEntry(row: GradeEntryEntity) {
+  createGradeEntry(row: GradeEntryEntity, audit?: GradeChangeAuditContext) {
     return withSchemaCheck(async () => {
       const actor = splitActor(row.enteredBy, row.metadata);
-      const res = await this.query(
-        row.tenantId,
-        `INSERT INTO grade_entries (
-           id, tenant_id, section_id, student_id, assessment_code,
-           numeric_score, letter_grade, entered_by, entered_at, locked_at, published_at,
-           metadata, created_at, updated_at
-         ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14
-         ) RETURNING *`,
-        [
-          row.id,
-          row.tenantId,
-          row.sectionId,
-          row.studentId,
-          row.assessmentCode,
-          row.numericScore,
-          row.letterGrade,
-          actor.enteredBy,
-          row.enteredAt,
-          row.lockedAt,
-          row.publishedAt,
-          JSON.stringify(actor.metadata),
-          row.createdAt,
-          row.updatedAt,
-        ],
-      );
-      return mapEntry(res.rows[0] as Record<string, unknown>);
+      return withPgTenant(this.pool, row.tenantId, async (client) => {
+        await this.bindGradeChangeGucs(client, {
+          action: audit?.action ?? 'grade.upsert',
+          actorId: audit?.actorId ?? actor.enteredBy,
+        });
+        const res = await client.query(
+          `INSERT INTO grade_entries (
+             id, tenant_id, section_id, student_id, assessment_code,
+             numeric_score, letter_grade, entered_by, entered_at, locked_at, published_at,
+             metadata, created_at, updated_at
+           ) VALUES (
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14
+           ) RETURNING *`,
+          [
+            row.id,
+            row.tenantId,
+            row.sectionId,
+            row.studentId,
+            row.assessmentCode,
+            row.numericScore,
+            row.letterGrade,
+            actor.enteredBy,
+            row.enteredAt,
+            row.lockedAt,
+            row.publishedAt,
+            JSON.stringify(actor.metadata),
+            row.createdAt,
+            row.updatedAt,
+          ],
+        );
+        return mapEntry((res as { rows: Record<string, unknown>[] }).rows[0]!);
+      });
     });
   }
 
-  updateGradeEntry(tenantId: string, id: string, patch: Partial<GradeEntryEntity>) {
+  updateGradeEntry(
+    tenantId: string,
+    id: string,
+    patch: Partial<GradeEntryEntity>,
+    audit?: GradeChangeAuditContext,
+  ) {
     return withSchemaCheck(async () => {
       const cur = await this.getGradeEntry(tenantId, id);
       if (!cur) return null;
       const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId };
       const actor = splitActor(next.enteredBy, next.metadata);
-      const res = await this.query(
-        tenantId,
-        `UPDATE grade_entries SET
-           section_id = $3,
-           assessment_code = $4,
-           numeric_score = $5,
-           letter_grade = $6,
-           entered_by = $7,
-           entered_at = $8,
-           locked_at = $9,
-           published_at = $10,
-           metadata = $11::jsonb,
-           updated_at = $12
-         WHERE tenant_id = $1 AND id = $2
-         RETURNING *`,
-        [
-          tenantId,
-          id,
-          next.sectionId,
-          next.assessmentCode,
-          next.numericScore,
-          next.letterGrade,
-          actor.enteredBy,
-          next.enteredAt,
-          next.lockedAt,
-          next.publishedAt,
-          JSON.stringify(actor.metadata),
-          next.updatedAt ?? new Date().toISOString(),
-        ],
-      );
-      return mapEntry(res.rows[0] as Record<string, unknown>);
+      return withPgTenant(this.pool, tenantId, async (client) => {
+        await this.bindGradeChangeGucs(client, {
+          action: audit?.action,
+          actorId: audit?.actorId ?? actor.enteredBy,
+        });
+        const res = await client.query(
+          `UPDATE grade_entries SET
+             section_id = $3,
+             assessment_code = $4,
+             numeric_score = $5,
+             letter_grade = $6,
+             entered_by = $7,
+             entered_at = $8,
+             locked_at = $9,
+             published_at = $10,
+             metadata = $11::jsonb,
+             updated_at = $12
+           WHERE tenant_id = $1 AND id = $2
+           RETURNING *`,
+          [
+            tenantId,
+            id,
+            next.sectionId,
+            next.assessmentCode,
+            next.numericScore,
+            next.letterGrade,
+            actor.enteredBy,
+            next.enteredAt,
+            next.lockedAt,
+            next.publishedAt,
+            JSON.stringify(actor.metadata),
+            next.updatedAt ?? new Date().toISOString(),
+          ],
+        );
+        const row = (res as { rows: Record<string, unknown>[] }).rows[0];
+        return row ? mapEntry(row) : null;
+      });
     });
   }
 

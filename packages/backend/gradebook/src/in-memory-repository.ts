@@ -5,6 +5,7 @@ import type {
   CreditRuleEntity,
   ExportJobEntity,
   GpaSnapshotEntity,
+  GradeChangeAuditContext,
   GradeEntryEntity,
   GradebookRepository,
   GradingScaleEntity,
@@ -18,6 +19,7 @@ import type {
 } from './gradebook-repository.js';
 
 export class InMemoryGradebookRepository implements GradebookRepository {
+  readonly writesAuditViaDatabase = false as const;
   private readonly entries = new Map<string, GradeEntryEntity>();
   private readonly creditRules = new Map<string, CreditRuleEntity>();
   private readonly scales = new Map<string, GradingScaleEntity>();
@@ -85,12 +87,17 @@ export class InMemoryGradebookRepository implements GradebookRepository {
     return row?.tenantId === tenantId ? row : null;
   }
 
-  async createGradeEntry(row: GradeEntryEntity) {
+  async createGradeEntry(row: GradeEntryEntity, _audit?: GradeChangeAuditContext) {
     this.entries.set(row.id, row);
     return row;
   }
 
-  async updateGradeEntry(tenantId: string, id: string, patch: Partial<GradeEntryEntity>) {
+  async updateGradeEntry(
+    tenantId: string,
+    id: string,
+    patch: Partial<GradeEntryEntity>,
+    _audit?: GradeChangeAuditContext,
+  ) {
     const cur = await this.getGradeEntry(tenantId, id);
     if (!cur) return null;
     const next = {
