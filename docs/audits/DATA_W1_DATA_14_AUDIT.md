@@ -1,5 +1,8 @@
 # DATA — W1-DATA-14 enrollment history + grade-change audit completeness
 
+> **Superseded for closure:** see `docs/audits/DATA_W1_DATA_14_COMPLETE.md`
+> (076 harden + `proctira_app` live proofs). This file remains the #219 / 071 note.
+
 **Module / slice:** SIS enrollment lifecycle + gradebook change audit  
 **Branch / tip:** `cursor/aud-w1-data-14-audit-completeness-56c3`  
 **Date (UTC):** 2026-09-14  

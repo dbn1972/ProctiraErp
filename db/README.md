@@ -103,6 +103,16 @@ and `transcript_signing_keys` (rotated KMS/PKI refs). App signing uses
 `TRANSCRIPT_SIGNING_SECRET` + `TRANSCRIPT_SIGNING_KMS_KEY_REF` only — never
 `JWT_SECRET` / board-export secrets. See `docs/audits/DATA_W1_DATA_08_COMPLETE.md`.
 
+## Enrollment / grade audit completeness (W1-DATA-14)
+
+`071_enrollment_grade_audit_completeness.sql` writes `enrollment_history` /
+`grade_change_audit` from DB triggers and blocks UPDATE/DELETE. Residual
+`076_enrollment_grade_audit_harden.sql` sets parent FKs to `ON DELETE RESTRICT`,
+marks writers `SECURITY DEFINER` + fixed `search_path`, and re-asserts
+`proctira_app` as **SELECT + INSERT only** on those audit tables.
+
+Evidence: `docs/audits/DATA_W1_DATA_14_COMPLETE.md`.
+
 ## Migration session timeouts (W1-DATA-17)
 
 DDL apply must not wait forever for locks. Both tracks set session GUCs before
