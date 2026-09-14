@@ -29,6 +29,7 @@ import type {
   AccommodationPlanEntity,
   CounsellingSessionEntity,
   ScreeningProgramEntity,
+  NurseIncidentEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
 import { recordPhiReadAudit } from './phi-read-audit.js';
@@ -1247,23 +1248,32 @@ export class HealthService {
       reportedBy: string;
     },
     access: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: NurseIncidentEntity,
+      ) => Promise<void>;
+    },
   ) {
     await this.assertHealthAccess(access, input.studentId, tenantId);
     const create = this.repository.createNurseIncident?.bind(this.repository);
     if (!create) {
       throw new BusinessRuleError('Nurse incidents are not available on this repository');
     }
-    return create({
-      id: uuidv4(),
-      tenantId,
-      studentId: input.studentId,
-      institutionId: input.institutionId ?? null,
-      incidentAt: new Date(input.incidentAt),
-      category: input.category,
-      severity: input.severity,
-      notes: input.notes ?? '',
-      reportedBy: input.reportedBy,
-    });
+    return create(
+      {
+        id: uuidv4(),
+        tenantId,
+        studentId: input.studentId,
+        institutionId: input.institutionId ?? null,
+        incidentAt: new Date(input.incidentAt),
+        category: input.category,
+        severity: input.severity,
+        notes: input.notes ?? '',
+        reportedBy: input.reportedBy,
+      },
+      options,
+    );
   }
 
   async listNurseIncidents(tenantId: string, access: HealthAccessContext) {

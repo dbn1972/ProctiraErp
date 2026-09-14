@@ -182,6 +182,14 @@ function buildScreeningProgramAuditBinder(request: FastifyRequest, tenantId: str
   });
 }
 
+function buildNurseIncidentAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/incidents',
+    regulated: 'health.nurse_incident',
+    idField: 'incidentId',
+  });
+}
+
 
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
@@ -1511,6 +1519,7 @@ export async function registerHealthRoutes(
           severity: result.data.severity as 'low' | 'medium' | 'high' | 'critical',
         },
         getAccessContext(request),
+        buildNurseIncidentAuditBinder(request, tenantId),
       );
       return reply.status(201).send({
         ...entity,
