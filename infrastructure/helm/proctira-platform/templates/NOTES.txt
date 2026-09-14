@@ -1,9 +1,16 @@
-
 ProctiraERP Unified Platform has been deployed!
 
 Release: {{ .Release.Name }}
 Namespace: {{ .Release.Namespace }}
 Environment: {{ .Values.global.environment }}
+Topology: {{ .Values.topology.mode | default "in-process" }} (W1-OPS-16)
+
+{{- if eq (.Values.topology.mode | default "in-process") "split" }}
+
+⚠️  WARNING: topology.mode=split is NON-PROD / LAB only.
+    Canonical production mounts domains in-process on api-gateway.
+    See docs/DEPLOYMENT_TOPOLOGY.md.
+{{- end }}
 
 {{- if .Values.ingress.enabled }}
 
@@ -23,7 +30,7 @@ Ingress is disabled. Use port-forwarding to access services:
 
 Services deployed:
 {{- if .Values.apiGateway.enabled }}
-  ✓ API Gateway (replicas: {{ .Values.apiGateway.replicaCount }}{{- if .Values.apiGateway.autoscaling.enabled }}, HPA: {{ .Values.apiGateway.autoscaling.minReplicas }}-{{ .Values.apiGateway.autoscaling.maxReplicas }}{{- end }})
+  ✓ API Gateway (replicas: {{ .Values.apiGateway.replicaCount }}{{- if .Values.apiGateway.autoscaling.enabled }}, HPA: {{ .Values.apiGateway.autoscaling.minReplicas }}-{{ .Values.apiGateway.autoscaling.maxReplicas }}{{- end }}) — in-process domains
 {{- end }}
 {{- if .Values.web.enabled }}
   ✓ Web Frontend (replicas: {{ .Values.web.replicaCount }}{{- if .Values.web.autoscaling.enabled }}, HPA: {{ .Values.web.autoscaling.minReplicas }}-{{ .Values.web.autoscaling.maxReplicas }}{{- end }})
@@ -42,6 +49,9 @@ Services deployed:
 {{- end }}
 {{- if .Values.developerPortal.enabled }}
   ✓ Developer Portal (replicas: {{ .Values.developerPortal.replicaCount }})
+{{- end }}
+{{- if or .Values.institutionService.enabled .Values.studentService.enabled .Values.staffService.enabled }}
+  ⚠️  Split-domain services enabled (lab only)
 {{- end }}
 
 Deployment strategy: Rolling Update (zero-downtime)

@@ -3,6 +3,9 @@
 # =============================================================================
 # Usage: helm install proctira ./proctira-platform -f values-staging.yaml
 
+topology:
+  mode: in-process
+
 global:
   environment: staging
   domain: staging.proctira.io
@@ -63,6 +66,7 @@ developerPortal:
 
 # -- Backend domain services (staging overrides)
 institutionService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -70,6 +74,7 @@ institutionService:
     maxReplicas: 6
 
 studentService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -77,6 +82,7 @@ studentService:
     maxReplicas: 6
 
 staffService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -84,6 +90,7 @@ staffService:
     maxReplicas: 6
 
 assessmentService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -91,6 +98,7 @@ assessmentService:
     maxReplicas: 4
 
 attendanceService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -98,6 +106,7 @@ attendanceService:
     maxReplicas: 6
 
 examinationService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -105,6 +114,7 @@ examinationService:
     maxReplicas: 4
 
 workflowService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -112,6 +122,7 @@ workflowService:
     maxReplicas: 4
 
 notificationService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -119,6 +130,7 @@ notificationService:
     maxReplicas: 4
 
 reportService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true

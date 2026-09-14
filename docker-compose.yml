@@ -1,12 +1,12 @@
 # =============================================================================
-# ProctiraERP — Local Development Stack
+# ProctiraERP — Canonical local stack (in-process gateway) — W1-OPS-16
 # =============================================================================
-# This compose file launches the full local stack used for development and
-# integration testing. Backend domain services (auth, institution, student,
-# staff, etc.) are still authored as Fastify plugins and consumed by the
-# api-gateway in this iteration; per-service launchers will be added as the
-# microservice split lands. Until then, all backend logic runs inside the
-# api-gateway container.
+# This compose file is the canonical topology for local and integration work
+# and mirrors production: backend domains run as Fastify plugins inside the
+# api-gateway container (see docs/DEPLOYMENT_TOPOLOGY.md).
+#
+# Split microservice compose is NON-PROD / lab only:
+#   infrastructure/docker/docker-compose.services.yml
 #
 # Configuration is driven entirely by the `.env` file at the repo root —
 # copy `.env.example` and override values as needed before running:

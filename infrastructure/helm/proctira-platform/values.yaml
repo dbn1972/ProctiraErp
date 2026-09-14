@@ -3,6 +3,12 @@
 # =============================================================================
 # Override these values per environment using -f values-<env>.yaml or --set flags.
 
+# -- Deployment topology (W1-OPS-16)
+# Canonical production = in-process: domains mount inside api-gateway.
+# split = non-prod / lab only (standalone domain Deployments).
+topology:
+  mode: in-process # in-process | split
+
 # -- Global settings applied to all services
 global:
   # -- Container image registry
@@ -418,12 +424,15 @@ developerPortal:
       maxSurge: 1
 
 # =============================================================================
-# Backend Domain Services
+# Backend Domain Services (NON-PROD / LAB — W1-OPS-16)
 # =============================================================================
+# Defaults: enabled=false. Canonical topology mounts these domains in-process
+# on api-gateway. Set topology.mode=split and enable individual services only
+# for lab experiments. See docs/DEPLOYMENT_TOPOLOGY.md.
 
 # -- Institution Service
 institutionService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/institution-service
@@ -481,7 +490,7 @@ institutionService:
 
 # -- Student Service
 studentService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/student-service
@@ -539,7 +548,7 @@ studentService:
 
 # -- Staff Service
 staffService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/staff-service
@@ -597,7 +606,7 @@ staffService:
 
 # -- Assessment Service
 assessmentService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/assessment-service
@@ -655,7 +664,7 @@ assessmentService:
 
 # -- Attendance Service
 attendanceService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/attendance-service
@@ -713,7 +722,7 @@ attendanceService:
 
 # -- Examination Service
 examinationService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/examination-service
@@ -771,7 +780,7 @@ examinationService:
 
 # -- Workflow Service
 workflowService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/workflow-service
@@ -829,7 +838,7 @@ workflowService:
 
 # -- Notification Service
 notificationService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/notification-service
@@ -887,7 +896,7 @@ notificationService:
 
 # -- Report Service
 reportService:
-  enabled: true
+  enabled: false
   replicaCount: 2
   image:
     repository: proctira/report-service

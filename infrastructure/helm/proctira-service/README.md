@@ -25,6 +25,13 @@ helm template proctira-api-gateway ./infrastructure/helm/proctira-service \
 
 Platform umbrella chart: `../proctira-platform` (formerly openemis-platform path).
 
+## Topology (W1-OPS-16)
+
+`deploy.yml` installs **canonical** services via this chart (`api-gateway`, edge
+apps, `etl-worker`). Domain packages mount **in-process** on the gateway —
+do not treat standalone `institution`/`student`/… Helm releases as the
+production path. Split-service lab artifacts: `docs/DEPLOYMENT_TOPOLOGY.md`.
+
 ## Atomic deploy + rollback (W1-OPS-09)
 
 `deploy.yml` runs `helm upgrade --install ... --atomic --wait` so a failed

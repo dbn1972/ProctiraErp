@@ -3,6 +3,9 @@
 # =============================================================================
 # Usage: helm install proctira ./proctira-platform -f values-development.yaml
 
+topology:
+  mode: in-process
+
 global:
   environment: development
   domain: proctira.localhost
@@ -94,6 +97,7 @@ developerPortal:
 
 # -- Backend domain services (development overrides — single replica, no autoscaling)
 institutionService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -106,6 +110,7 @@ institutionService:
       memory: 256Mi
 
 studentService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -118,6 +123,7 @@ studentService:
       memory: 256Mi
 
 staffService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -130,6 +136,7 @@ staffService:
       memory: 256Mi
 
 assessmentService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -142,6 +149,7 @@ assessmentService:
       memory: 256Mi
 
 attendanceService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -154,6 +162,7 @@ attendanceService:
       memory: 256Mi
 
 examinationService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -166,6 +175,7 @@ examinationService:
       memory: 256Mi
 
 workflowService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -178,6 +188,7 @@ workflowService:
       memory: 256Mi
 
 notificationService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -190,6 +201,7 @@ notificationService:
       memory: 256Mi
 
 reportService:
+  enabled: false
   replicaCount: 1
   autoscaling:
     enabled: false

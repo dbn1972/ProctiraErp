@@ -177,6 +177,26 @@ echo "OK api-gateway platform probe paths (W1-OPS-21)"
 echo "==> W1-OPS-08 k8s image tag guard"
 bash "$ROOT/tools/scripts/check-no-latest-image-tags.sh"
 
+# W1-OPS-16 — canonical in-process topology
+echo "==> W1-OPS-16 topology canonical gate"
+bash "$ROOT/tools/scripts/check-topology-canonical.sh"
+
+# Production umbrella must not render split-domain Deployments
+echo "==> W1-OPS-16 production platform render (no split domains)"
+prod_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-production \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  -f "${PLATFORM_CHART}/values-production.yaml" \
+  >"$prod_out"
+grep -q 'api-gateway' "$prod_out" || die "production platform missing api-gateway"
+if grep -E 'app.kubernetes.io/name: institution-service|name: .*institution-service$' "$prod_out" >/dev/null; then
+  die "production platform must not render institution-service (W1-OPS-16)"
+fi
+rm -f "$prod_out"
+echo "OK production platform without split-domain Deployments"
+
 lines="$(wc -l <"$platform_out" | tr -d ' ')"
 rm -f "$platform_out"
 echo "OK proctira-platform (${lines} lines, ${cron_count} CronJobs)"

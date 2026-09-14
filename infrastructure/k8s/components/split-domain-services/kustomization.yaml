@@ -1,0 +1,43 @@
+# =============================================================================
+# W1-OPS-16 — Opt-in split-domain services (NON-PROD / LAB)
+# =============================================================================
+# Canonical production topology mounts domains in-process on api-gateway.
+# Include this component only when deliberately running the split-service lab:
+#
+#   components:
+#     - ../../components/split-domain-services
+#
+# Do NOT add this component to overlays/production.
+# See docs/DEPLOYMENT_TOPOLOGY.md.
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - ../../base/institution/deployment.yaml
+  - ../../base/institution/service.yaml
+  - ../../base/institution/hpa.yaml
+  - ../../base/student/deployment.yaml
+  - ../../base/student/service.yaml
+  - ../../base/student/hpa.yaml
+  - ../../base/staff/deployment.yaml
+  - ../../base/staff/service.yaml
+  - ../../base/staff/hpa.yaml
+  - ../../base/assessment/deployment.yaml
+  - ../../base/assessment/service.yaml
+  - ../../base/assessment/hpa.yaml
+  - ../../base/attendance/deployment.yaml
+  - ../../base/attendance/service.yaml
+  - ../../base/attendance/hpa.yaml
+  - ../../base/examination/deployment.yaml
+  - ../../base/examination/service.yaml
+  - ../../base/examination/hpa.yaml
+  - ../../base/workflow/deployment.yaml
+  - ../../base/workflow/service.yaml
+  - ../../base/workflow/hpa.yaml
+  - ../../base/notification/deployment.yaml
+  - ../../base/notification/service.yaml
+  - ../../base/notification/hpa.yaml
+  - ../../base/report/deployment.yaml
+  - ../../base/report/service.yaml
+  - ../../base/report/hpa.yaml

@@ -2,37 +2,40 @@
 
 This directory contains Kubernetes manifests for deploying the ProctiraERP platform using Kustomize.
 
+## Topology (W1-OPS-16)
+
+**Canonical (production / staging / development overlays):** in-process API gateway —
+edge apps + `api-gateway` + `etl-worker`. Domain logic mounts inside the gateway.
+
+**Non-prod / lab:** standalone domain Deployments under
+`components/split-domain-services`, wired by `overlays/lab-split` only.
+See `docs/DEPLOYMENT_TOPOLOGY.md`.
+
 ## Structure
 
 ```
 k8s/
-├── base/                          # Base manifests (shared across environments)
-│   ├── namespace.yaml             # proctira namespace
-│   ├── configmap.yaml             # Shared configuration
-│   ├── ingress.yaml               # Ingress routing rules
-│   ├── kustomization.yaml         # Kustomize base configuration
-│   ├── api-gateway/               # API Gateway (port 3000)
+├── base/                          # Canonical manifests (no split-domain Deployments)
+│   ├── namespace.yaml
+│   ├── configmap.yaml
+│   ├── ingress.yaml
+│   ├── kustomization.yaml
+│   ├── api-gateway/               # API Gateway (port 3000) — in-process domains
 │   ├── web/                       # Web frontend (port 3001)
 │   ├── registration-portal/       # Registration portal (port 3002)
 │   ├── etl-worker/                # ETL worker (port 3010)
-│   ├── institution/               # Institution service (port 3020)
-│   ├── student/                   # Student service (port 3021)
-│   ├── staff/                     # Staff service (port 3022)
-│   ├── assessment/                # Assessment service (port 3023)
-│   ├── attendance/                # Attendance service (port 3024)
-│   ├── examination/               # Examination service (port 3025)
-│   ├── workflow/                   # Workflow service (port 3026)
-│   ├── notification/              # Notification service (port 3027)
-│   ├── report/                    # Report service (port 3028)
 │   ├── public-website/            # Public website (port 3003)
 │   ├── admin-console/             # Admin console (port 3004)
-│   └── developer-portal/          # Developer portal (port 3005)
+│   ├── developer-portal/          # Developer portal (port 3005)
+│   └── institution|student|…/     # YAML kept for lab component (not in base resources)
 ├── components/
-│   └── image-tag/                 # Shared kustomize images: pin (W1-OPS-08)
+│   ├── image-tag/                 # Shared kustomize images: pin (W1-OPS-08)
+│   └── split-domain-services/     # NON-PROD opt-in domain Deployments (W1-OPS-16)
 ├── overlays/
 │   ├── development/               # Dev overrides (single replicas, no HPA)
 │   ├── staging/                   # Staging overrides
-│   └── production/                # Production overrides (PDBs, network policies)
+│   ├── production/                # Production overrides (PDBs, network policies)
+│   └── lab-split/                 # Lab: base + split-domain-services
 ```
 
 ## Image tags (W1-OPS-08)
@@ -53,6 +56,7 @@ kustomize edit set image proctira/api-gateway=proctira/api-gateway:sha-<gitsha>
 ```
 
 Regression gate: `./tools/scripts/check-no-latest-image-tags.sh` (also invoked from `helm-template-check.sh`).
+Topology gate: `./tools/scripts/check-topology-canonical.sh` (W1-OPS-16).
 
 ## Deployment
 
@@ -66,14 +70,13 @@ Regression gate: `./tools/scripts/check-no-latest-image-tags.sh` (also invoked f
 ### Deploy to an environment
 
 ```bash
-# Development
+# Development / staging / production — canonical in-process topology
 kubectl apply -k overlays/development/
-
-# Staging
 kubectl apply -k overlays/staging/
-
-# Production
 kubectl apply -k overlays/production/
+
+# Lab only — split-domain services
+kubectl apply -k overlays/lab-split/
 ```
 
 ## Service Architecture
@@ -115,18 +118,13 @@ kubectl apply -k base/ -n proctira-tenant-abc
 
 ## Port Assignments
 
-| Service             | Container Port | Description            |
-| ------------------- | -------------- | ---------------------- |
-| api-gateway         | 3000           | API Gateway / Router   |
-| web                 | 3001           | Web frontend (Next.js) |
-| registration-portal | 3002           | Public registration    |
-| etl-worker          | 3010           | ETL pipeline worker    |
-| institution         | 3020           | Institution management |
-| student             | 3021           | Student lifecycle      |
-| staff               | 3022           | Staff management       |
-| assessment          | 3023           | Assessment & grading   |
-| attendance          | 3024           | Attendance tracking    |
-| examination         | 3025           | Examination management |
-| workflow            | 3026           | Workflow engine        |
-| notification        | 3027           | Notification service   |
-| report              | 3028           | Report engine          |
+| Service             | Container Port | Description                                      |
+| ------------------- | -------------- | ------------------------------------------------ |
+| api-gateway         | 3000           | API Gateway (canonical — in-process domains)     |
+| web                 | 3001           | Web frontend (Next.js)                           |
+| registration-portal | 3002           | Public registration                              |
+| public-website      | 3003           | Marketing site                                   |
+| admin-console       | 3004           | Platform admin                                   |
+| developer-portal    | 3005           | Developer portal                                 |
+| etl-worker          | 3010           | ETL pipeline worker                              |
+| institution…report  | 3020–3028      | **Lab only** split-domain services (W1-OPS-16)   |

@@ -40,128 +40,18 @@ spec:
     matchLabels:
       app.kubernetes.io/name: registration-portal
 ---
+# W1-OPS-16: PDBs for split-domain services removed from production overlay.
+# Reintroduce only with components/split-domain-services (lab).
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: institution-service-pdb
+  name: etl-worker-pdb
   namespace: proctira
   labels:
-    app.kubernetes.io/name: institution-service
+    app.kubernetes.io/name: etl-worker
     app.kubernetes.io/part-of: proctira-platform
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: institution-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: student-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: student-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: student-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: staff-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: staff-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: staff-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: assessment-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: assessment-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: assessment-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: attendance-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: attendance-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: attendance-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: examination-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: examination-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: examination-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: workflow-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: workflow-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: workflow-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: notification-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: notification-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: notification-service
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: report-service-pdb
-  namespace: proctira
-  labels:
-    app.kubernetes.io/name: report-service
-    app.kubernetes.io/part-of: proctira-platform
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: report-service
+      app.kubernetes.io/name: etl-worker

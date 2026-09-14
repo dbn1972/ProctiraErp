@@ -1,0 +1,17 @@
+# =============================================================================
+# W1-OPS-16 — Lab overlay: canonical base + opt-in split-domain services
+# =============================================================================
+# NOT for production. Use overlays/production for the supported topology.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: proctira-lab-split
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/image-tag
+  - ../../components/split-domain-services
+
+namePrefix: lab-
