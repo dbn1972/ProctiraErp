@@ -23,6 +23,7 @@
     "check:dod": "pnpm --filter @proctira/dod-checks check",
     "check:dod:strict": "pnpm --filter @proctira/dod-checks check -- --strict",
     "check:dod:test": "pnpm --filter @proctira/dod-checks test",
+    "check:dod:evidence": "node tools/scripts/assert-dod-evidence.mjs",
     "dod:check": "node tools/scripts/definition-of-done-checks.mjs",
     "dod:test": "node tools/scripts/definition-of-done-checks.test.mjs",
     "test:tenant-isolation": "pnpm --filter @proctira/tenant-isolation-tests run test:all",

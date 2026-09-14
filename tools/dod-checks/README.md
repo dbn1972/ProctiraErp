@@ -89,8 +89,13 @@ task 31.3. The job:
 3. Runs `pnpm check:dod`.
 4. Runs `pnpm --filter @proctira/dod-checks test`.
 5. Uploads the JSON report as a build artifact.
+6. Runs `pnpm check:dod:evidence` (W3-D6) to fail closed when the report or
+   committed baseline pack is missing or schema-incomplete.
 
 A non-zero exit fails the workflow and blocks the merge.
+
+Tip evidence: `docs/audits/evidence/dod-gate-*.json` plus
+`tools/scripts/check-dod-evidence.sh` (local / release verification).
 
 ## Baseline (Pre-existing Violations)
 

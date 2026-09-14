@@ -631,12 +631,19 @@ jobs:
       - name: Page-wise regression matrix is complete and current (G-804)
         run: node tools/scripts/page-regression-matrix.mjs --check
 
+      # W3-D6: fail closed when the aggregator did not emit a complete report
+      # or when the committed baseline pack is missing/incoherent.
+      - name: Assert DoD evidence artifacts (W3-D6)
+        if: always()
+        run: pnpm run check:dod:evidence
+
       - name: Upload DoD JSON report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dod-report
           path: tools/dod-checks/reports/dod-report.json
+          if-no-files-found: error
           retention-days: 30
 
   # ---------------------------------------------------------------------------
