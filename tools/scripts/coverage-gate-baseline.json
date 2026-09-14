@@ -1,0 +1,10 @@
+{
+  "description": "W3-TEST-04 coverage gate floors. CI must emit coverage-summary.json artifacts and meet these aggregate minimums. Raise floors as suites expand; do not regress below baselines.",
+  "globalMinimum": {
+    "lines": 5,
+    "statements": 5,
+    "functions": 5,
+    "branches": 3
+  },
+  "requireArtifacts": true
+}
