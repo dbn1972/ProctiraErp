@@ -68,11 +68,20 @@ Reference split already in-tree: `021b_tenant_fk_constraints.sql` →
 
 | Residual | Status |
 | -------- | ------ |
-| No automatic retry loop inside apply-sql on `lock_not_available` | **Accepted** — K8s Job / operator re-runs; retry-in-script is a later enhancement |
+| No automatic retry loop inside apply-sql on `lock_not_available` | **Accepted** — K8s Job / operator re-runs; resume proven by COMPLETE drill |
 | Historical Prisma / `db/sql` files are not rewritten to add CONCURRENTLY | **Accepted** — forward policy; long-lock review still required for new DDL |
-| Gate does not AST-scan every migration for unsafe DDL | **Accepted** — wrapper + policy docs; unsafe forms remain a human/review checklist |
+| Gate does not AST-scan every migration for unsafe DDL | **CLOSED** — see `DATA_W1_DATA_17_COMPLETE.md` (post-baseline DDL hazard scan + waiver) |
+| Retry/resume after lock failure unproven | **CLOSED** — `migration-lock-recovery-drill.mjs` |
 | Prisma engine must honor URL `options=` (not only PGOPTIONS) | **Mitigated** by `inject_migration_timeout_url` in the wrapper |
 | Global `postgresql.conf` timeouts | **Out of scope** — session-only; do not set cluster-wide |
+
+## Follow-up (COMPLETE)
+
+`docs/audits/DATA_W1_DATA_17_COMPLETE.md` closes the PARTIAL residual with:
+
+- DDL hazard scanner for post-baseline migrations
+- `tools/scripts/migration-ddl-hazard-waiver.json` maintenance-window waivers
+- Live lock-contention recovery drill
 
 ## Rollback
 

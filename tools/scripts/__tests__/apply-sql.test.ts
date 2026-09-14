@@ -153,6 +153,8 @@ describe('apply-sql.sh', () => {
     expect(scriptSource).toMatch(/SET statement_timeout TO/);
     expect(scriptSource).toMatch(/APPLY_SQL_LOCK_TIMEOUT/);
     expect(scriptSource).toMatch(/APPLY_SQL_STATEMENT_TIMEOUT/);
+    expect(scriptSource).toMatch(/lock_not_available|lock_timeout/);
+    expect(scriptSource).toMatch(/migration-lock-recovery-drill/);
     expect(dryRun().stdout).toMatch(/W1-DATA-17/);
     expect(dryRun().stdout).toMatch(/lock_timeout=/);
   });

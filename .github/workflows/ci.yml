@@ -987,15 +987,30 @@ jobs:
         run: node tools/scripts/check-tenant-id-indexes.mjs
 
   # ---------------------------------------------------------------------------
-  # Migration lock/statement timeouts — data gate (W1-DATA-17)
+  # Migration lock/statement timeouts + online DDL hazard gate (W1-DATA-17)
   # ---------------------------------------------------------------------------
   # Fail closed when apply-sql / prisma migrate wrappers omit session
-  # lock_timeout + statement_timeout, or when policy docs regress.
-  # No Postgres required — static contract scan.
+  # lock_timeout + statement_timeout, when post-baseline DDL has long-lock
+  # hazards without a maintenance-window waiver, or when the lock-contention
+  # recovery drill fails. Postgres service required for the live drill.
   # ---------------------------------------------------------------------------
   migration-timeouts:
     name: Migration Timeouts (W1-DATA-17)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -1003,11 +1018,23 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Unit-test migration timeout gate
-        run: node --test tools/scripts/check-migration-timeouts.test.mjs
+      - name: Install psql client
+        run: sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql-client
 
-      - name: Fail when migration apply paths omit lock/statement timeouts
+      - name: Unit-test migration timeout + DDL hazard + recovery contracts
+        run: node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          MIGRATOR_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
+      - name: Fail when migration apply paths omit timeouts or ship unwaived DDL hazards
         run: node tools/scripts/check-migration-timeouts.mjs
+
+      - name: Lock-contention recovery drill (fail → resume)
+        run: node tools/scripts/migration-lock-recovery-drill.mjs
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          MIGRATOR_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   # ---------------------------------------------------------------------------
   # CODEOWNERS fail-closed gate — security governance (W1-SEC-13)

@@ -141,10 +141,24 @@ Prefer these forms so production apply stays concurrent with app traffic:
 
 `021b_tenant_fk_constraints.sql` + `068_validate_tenant_fk_constraints.sql` are
 the reference NOT VALID → VALIDATE split. See
-`docs/audits/DATA_W1_DATA_17_TIMEOUTS.md` and
+`docs/audits/DATA_W1_DATA_17_TIMEOUTS.md`,
+`docs/audits/DATA_W1_DATA_17_COMPLETE.md`, and
 `docs/runbooks/database-migration-rollback.md` §1 long-lock review.
 
-Executable gate: `pnpm check:migration-timeouts`.
+### DDL hazard gate (W1-DATA-17 COMPLETE)
+
+Post-baseline migrations (`db/sql` after `075_…`, Prisma dirs after
+`20260914_w1_data_12_tenant_guc_canonical`) are scanned for long-lock DDL
+(blocking indexes, validating constraints, `SET NOT NULL`, type rewrites).
+Approved maintenance-window exceptions go in
+`tools/scripts/migration-ddl-hazard-waiver.json`.
+
+Executable gates:
+
+```bash
+pnpm check:migration-timeouts
+DATABASE_URL=… node tools/scripts/migration-lock-recovery-drill.mjs
+```
 ## Global control-ledger privileges (W1-DATA-11)
 
 `050_app_runtime_role.sql` grants broad DML on **all** `public` tables to

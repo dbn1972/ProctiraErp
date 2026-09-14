@@ -1,0 +1,9 @@
+{
+  "$schema_comment": "W1-DATA-17 COMPLETE — expand/contract DDL hazard gate. Files at or below baseline cutoffs are grandfathered (authored before the hazard scanner). Newer migrations must be online-safe or listed under waivers with an approved maintenance window.",
+  "baseline": {
+    "dbSqlMaxFilename": "075_runtime_global_table_privileges.sql",
+    "prismaMigrationMaxDir": "20260914_w1_data_12_tenant_guc_canonical",
+    "reason": "Cutover at W1-DATA-17 COMPLETE; historical corpus kept forward-policy only (see DATA_W1_DATA_17_TIMEOUTS.md)."
+  },
+  "waivers": []
+}
