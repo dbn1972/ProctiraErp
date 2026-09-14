@@ -1,10 +1,11 @@
-# G-508 / G-708 — Supply chain: advisory gate, CycloneDX SBOM, image signing.
+# G-508 / G-708 / W1-OPS-14 — Supply chain: advisory gate, CycloneDX SBOM,
+# image provenance + fail-closed keyless cosign.
 #
-# Runs on PRs and main (advisory gate + SBOM) and nightly. Image signing runs
-# only when an OCI registry is reachable (push to main / manual dispatch) and
-# uses keyless cosign (GitHub OIDC → Sigstore Fulcio/Rekor); it is skipped, with
-# an explicit summary line, on pull requests from forks and when
-# `SUPPLY_CHAIN_SIGN_IMAGES` is not enabled — never silently.
+# Runs on PRs and main (advisory gate + SBOM) and nightly. Image build/sign
+# runs on push to main / schedule / dispatch (registry + OIDC available) and
+# uses BuildKit provenance (mode=max), SBOM attestation, and keyless cosign
+# (GitHub OIDC → Sigstore Fulcio/Rekor). Pull requests only get advisory+SBOM
+# and an explicit "signing skipped (PR)" summary — never a silent soft skip.
 name: Supply Chain
 
 on:
@@ -46,6 +47,9 @@ jobs:
 
       - name: Allowlist self-test
         run: node --test tools/scripts/audit-gate.test.mjs
+
+      - name: W1-OPS-14 provenance / signing regression guard
+        run: bash tools/scripts/check-image-provenance-required.sh
 
       # Hard gate: exits 1 on any high/critical advisory that is not waived in
       # tools/supply-chain/audit-allowlist.json (waivers need reason, owner gap
@@ -111,16 +115,15 @@ jobs:
 
   sign-image:
     name: Build, push & cosign api-gateway image
-    # Signing needs registry push + OIDC. PRs (incl. forks) cannot get either.
-    if: >-
-      github.event_name != 'pull_request' &&
-      vars.SUPPLY_CHAIN_SIGN_IMAGES == 'true'
+    # W1-OPS-14 — fail-closed on non-PR events. PRs cannot push/OIDC-sign.
+    if: github.event_name != 'pull_request'
     needs: [advisory-gate, sbom]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     env:
       REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
       IMAGE: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/proctira-api-gateway
@@ -154,7 +157,9 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
           platforms: linux/amd64
-          provenance: false
+          # W1-OPS-14 — SLSA provenance + BuildKit SBOM (required; never disable).
+          provenance: mode=max
+          sbom: true
 
       - uses: sigstore/cosign-installer@v3
 
@@ -187,22 +192,17 @@ jobs:
           echo "signed ${IMAGE}@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
 
   signing-skipped:
-    name: Image signing status
-    if: >-
-      github.event_name == 'pull_request' ||
-      vars.SUPPLY_CHAIN_SIGN_IMAGES != 'true'
+    name: Image signing status (PR residual)
+    # Honest residual: PRs cannot push or mint OIDC for keyless cosign.
+    if: github.event_name == 'pull_request'
     needs: [advisory-gate, sbom]
     runs-on: ubuntu-latest
     steps:
       - name: Explain why signing did not run
         run: |
           {
-            echo "## Image signing: skipped"
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              echo "- pull_request events cannot push to the registry or mint OIDC tokens for keyless cosign."
-            fi
-            if [ "${{ vars.SUPPLY_CHAIN_SIGN_IMAGES }}" != "true" ]; then
-              echo "- repository variable \`SUPPLY_CHAIN_SIGN_IMAGES\` is not \`true\`; set it (and \`CONTAINER_REGISTRY\` / registry secrets if not GHCR) to enable."
-            fi
-            echo "- Advisory gate and SBOM still ran and passed for this ref."
+            echo "## Image signing: skipped (pull_request)"
+            echo "- pull_request events cannot push to the registry or mint OIDC tokens for keyless cosign."
+            echo "- Advisory gate and CycloneDX SBOM still ran for this ref."
+            echo "- Production path (\`push\`/\`schedule\`/\`workflow_dispatch\` + \`release.yml\`) requires provenance + cosign (W1-OPS-14)."
           } >> "$GITHUB_STEP_SUMMARY"
