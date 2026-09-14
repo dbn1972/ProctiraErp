@@ -1,0 +1,44 @@
+# =============================================================================
+# Composite action — Node.js + pnpm (+ optional install)
+# =============================================================================
+# Shared by reusable-setup.yml and caller workflows so setup stays DRY.
+# W1-OPS-24: composite is the in-job reusable unit; the workflow_call wrapper
+# exists so CI can still `uses: ./.github/workflows/reusable-setup.yml`.
+# =============================================================================
+
+name: Setup Node + pnpm
+description: Install pnpm, set up Node.js with pnpm store cache, optionally pnpm install
+
+inputs:
+  node-version:
+    description: Node.js version
+    required: false
+    default: '20'
+  pnpm-version:
+    description: pnpm version
+    required: false
+    default: '10.33.2'
+  install-dependencies:
+    description: Whether to run pnpm install --frozen-lockfile
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: ${{ inputs.pnpm-version }}
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+
+    - name: Install dependencies
+      if: inputs.install-dependencies == 'true'
+      shell: bash
+      run: pnpm install --frozen-lockfile
+      env:
+        TURBO_TOKEN: ${{ env.TURBO_TOKEN }}
+        TURBO_TEAM: ${{ env.TURBO_TEAM }}

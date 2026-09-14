@@ -5,6 +5,9 @@
 # touch workflow files and on push to main/develop. Catches issues like
 # undefined secrets/variables, invalid expressions, and shellcheck warnings
 # in run blocks before they hit the queue.
+#
+# W1-OPS-24: also calls the reusable-setup workflow and asserts reusable CI
+# assets remain wired so they cannot silently disconnect again.
 # =============================================================================
 
 name: Workflow Lint
@@ -13,12 +16,20 @@ on:
   pull_request:
     paths:
       - '.github/workflows/**'
+      - '.github/actions/**'
       - '.github/actionlint.yaml'
+      - 'tools/scripts/assert-reusable-ci-assets.mjs'
+      - 'tools/scripts/assert-reusable-ci-assets.test.mjs'
+      - 'tools/scripts/validate-observability.mjs'
   push:
     branches: [main, develop]
     paths:
       - '.github/workflows/**'
+      - '.github/actions/**'
       - '.github/actionlint.yaml'
+      - 'tools/scripts/assert-reusable-ci-assets.mjs'
+      - 'tools/scripts/assert-reusable-ci-assets.test.mjs'
+      - 'tools/scripts/validate-observability.mjs'
 
 permissions:
   contents: read
@@ -37,3 +48,18 @@ jobs:
           version: '1.7.7'
           # shellcheck is bundled and runs against `run:` blocks automatically.
           shellcheck: true
+
+      - name: Assert reusable CI assets stay wired (W1-OPS-24)
+        run: node tools/scripts/assert-reusable-ci-assets.mjs
+
+      - name: Unit-test reusable CI asset gate
+        run: node --test tools/scripts/assert-reusable-ci-assets.test.mjs
+
+  # Prefer actually calling the reusable workflow (W1-OPS-24).
+  reusable-setup:
+    name: Reusable Setup (workflow_call)
+    uses: ./.github/workflows/reusable-setup.yml
+    with:
+      install-dependencies: true
+    secrets:
+      TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}

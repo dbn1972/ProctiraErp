@@ -1,8 +1,10 @@
 # =============================================================================
 # Reusable Setup Workflow - ProctiraERP Unified Platform
 # =============================================================================
-# Shared setup steps for Node.js, pnpm, and Turborepo remote caching.
-# Called by other workflows to avoid duplication.
+# Shared setup for Node.js, pnpm, and optional dependency install.
+# Called by active workflows (W1-OPS-24) so this file cannot drift unused.
+# For in-job reuse, prefer .github/actions/setup-node-pnpm (this workflow wraps
+# that composite and smoke-checks the toolchain).
 # =============================================================================
 
 name: Reusable Setup
@@ -39,18 +41,21 @@ jobs:
         with:
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ inputs.pnpm-version }}
-
-      - uses: actions/setup-node@v4
+      - name: Setup Node + pnpm
+        uses: ./.github/actions/setup-node-pnpm
         with:
           node-version: ${{ inputs.node-version }}
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        if: inputs.install-dependencies
-        run: pnpm install --frozen-lockfile
+          pnpm-version: ${{ inputs.pnpm-version }}
+          install-dependencies: ${{ inputs.install-dependencies }}
         env:
           TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
           TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+      - name: Smoke-check toolchain
+        run: |
+          set -euo pipefail
+          node --version
+          pnpm --version
+          if [ "${{ inputs.install-dependencies }}" = "true" ]; then
+            test -d node_modules
+          fi

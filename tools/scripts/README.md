@@ -16,7 +16,8 @@ script is a single `.mjs` file with no compile step so it runs without
 | `pnpm dod:check`           | `definition-of-done-checks.mjs`      | Charter §32 release-gate checks.                                                                         |
 | `pnpm dod:test`            | `definition-of-done-checks.test.mjs` | Unit tests for the DoD checks.                                                                           |
 | (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                                           |
-| (internal)                 | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules.                                                         |
+| (CI / W1-OPS-24)           | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules; wired in `observability-config.yml`.                    |
+| (CI / W1-OPS-24)           | `assert-reusable-ci-assets.mjs`      | Fails if reusable-setup / setup-node-pnpm / validate-observability lose workflow callers.              |
 | (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05: ledger-safe resume + checksum fail-closed. |
 | (CI / local)               | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                        |
 | `pnpm check:prisma-sql-drift` | `check-prisma-sql-drift.mjs`      | W1-DATA-04: fail when Prisma models and `db/sql` drift (auth session columns + missing CREATE TABLE).   |
