@@ -98,6 +98,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'transport',
   'library',
   'registration',
+  'notification',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -204,10 +205,10 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: true,
   },
   {
-    id: 'notification.deferred',
+    id: 'notification.staff',
     pathPrefix: '/api/v1/notifications',
     resource: 'notification',
-    deferredDomainGuard: true,
+    deferredDomainGuard: false,
   },
 ];
 

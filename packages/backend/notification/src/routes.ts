@@ -48,6 +48,8 @@ import {
   type RuleIdParams,
 } from './schemas.js';
 
+import { enforceNotificationRouteAccess } from './notification-http-guard.js';
+
 /**
  * Options for registering notification routes.
  */
@@ -172,6 +174,14 @@ export async function registerNotificationRoutes(
   options: NotificationRoutesOptions,
 ): Promise<void> {
   const { notificationService, prefix = '/notifications' } = options;
+
+  // W1-SEC-02: package RBAC — self inbox/prefs for any auth user; send/rules/templates staff-only.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceNotificationRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
   const prefsStore = options.prefsStore ?? new InMemoryNotificationPrefsStore();
 
   function getTenantId(request: FastifyRequest): string | null {

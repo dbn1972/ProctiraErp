@@ -149,3 +149,18 @@ export {
   inAppCertificationExpiryTemplate,
 } from './templates/index.js';
 export type { DefaultTemplate } from './templates/index.js';
+
+export {
+  normalizeNotificationRoles,
+  hasNotificationAccess,
+  assertNotificationAccess,
+  isNotificationStaffPath,
+  notificationActionForPath,
+} from './notification-access.js';
+export type { NotificationAction } from './notification-access.js';
+export {
+  notificationRequestRoles,
+  notificationHasUser,
+  requireNotificationAction,
+  enforceNotificationRouteAccess,
+} from './notification-http-guard.js';
