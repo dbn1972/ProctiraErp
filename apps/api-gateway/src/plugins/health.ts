@@ -263,6 +263,10 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
 
   /**
    * GET /health - Combined health check endpoint
+   *
+   * W1-OPS-03: fail closed (503) when readiness is down so Dockerfile
+   * HEALTHCHECK (`curl --fail /health`) and soft-skip clients cannot treat
+   * an unready gateway as healthy.
    */
   fastify.get(
     '/health',
@@ -295,10 +299,34 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
               },
             },
           },
+          503: {
+            type: 'object',
+            properties: {
+              status: { type: 'string', enum: ['healthy', 'degraded', 'unhealthy'] },
+              timestamp: { type: 'string', format: 'date-time' },
+              uptime: { type: 'number' },
+              checks: {
+                type: 'object',
+                properties: {
+                  liveness: {
+                    type: 'object',
+                    properties: { status: { type: 'string' } },
+                  },
+                  readiness: {
+                    type: 'object',
+                    properties: {
+                      status: { type: 'string' },
+                      details: { type: 'object', additionalProperties: { type: 'string' } },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
     },
-    async (_request, _reply) => {
+    async (_request, reply) => {
       const uptime = Math.floor((Date.now() - startTime) / 1000);
       const readiness = await runReadinessProbe(probeOptions());
 
@@ -323,7 +351,11 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
         },
       };
 
-      return healthStatus;
+      if (!readiness.ready) {
+        return reply.status(503).send(healthStatus);
+      }
+
+      return reply.status(200).send(healthStatus);
     },
   );
 
