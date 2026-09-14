@@ -1,25 +1,28 @@
 # =============================================================================
-# W1-OPS-11 — SAST, secret scanning, IaC, and filesystem CVE gates
+# W1-OPS-11 COMPLETE — SAST, secret scanning, IaC, and filesystem CVE gates
 # =============================================================================
 # Fail-closed security scan pack that runs without paid third-party secrets.
 # Complements supply-chain.yml (advisory/SBOM/cosign); does not replace it.
 #
+# Invoked from:
+#   - ci.yml (workflow_call) → results feed CI Aggregate (Required)
+#   - schedule / workflow_dispatch for weekly catch-up outside PR pushes
+#
 # Gates:
+#   0) Contract — scanners present + fail-closed (static)
 #   1) Secret scanning — gitleaks (blocking; continue-on-error: false)
 #   2) SAST — Semgrep community TypeScript/JS rules (ERROR severity blocks)
 #   3) IaC — Trivy config on infrastructure/ (HIGH+ blocks)
-#   4) Container-adjacent — Trivy fs on Dockerfiles / lockfiles (CRITICAL blocks)
+#   4) Container-adjacent — Trivy fs CVE on Dockerfiles / lockfiles (CRITICAL)
 #
-# Remaining risk: full image CVE scanning of published OCI digests still needs
-# registry credentials / a built image (see supply-chain.yml sign-image job).
+# Remaining risk: full image CVE of published OCI digests still needs registry
+# credentials / a built image (see supply-chain.yml sign-image job).
 # =============================================================================
 
 name: Security Scans
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
   workflow_dispatch:
   schedule:
     # Weekly catch-up for rulepack drift (Mondays 06:15 UTC).
@@ -29,7 +32,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: security-scans-${{ github.ref }}
+  group: security-scans-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -37,8 +40,20 @@ env:
   SEMGREP_VERSION: '1.97.0'
 
 jobs:
+  security-scans-contract:
+    name: Scanner contract (fail-closed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify W1-OPS-11 scanner contract
+        # Missing / softened scanners must fail before soft-green.
+        continue-on-error: false
+        run: bash tools/scripts/check-security-scans-required.sh
+
   secret-scan:
     name: Secret scan (gitleaks)
+    needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history for commit-range scan)
@@ -78,6 +93,7 @@ jobs:
 
   sast-semgrep:
     name: SAST (Semgrep TypeScript/JS)
+    needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,6 +129,7 @@ jobs:
 
   iac-trivy:
     name: IaC scan (Trivy config)
+    needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,12 +147,14 @@ jobs:
 
   container-fs-trivy:
     name: Container FS CVE (Trivy)
+    needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       # Inexpensive FS scan of Docker build contexts + lockfiles — no registry
-      # login required. Does not replace image-digest CVE of published artifacts.
+      # login required. Documented equivalent for PR/main aggregate gate.
+      # Does not replace image-digest CVE of published artifacts.
       - name: Trivy filesystem scan (docker + lockfiles)
         uses: aquasecurity/trivy-action@0.28.0
         continue-on-error: false
@@ -153,7 +172,12 @@ jobs:
   security-scans-summary:
     name: Security scans gate
     runs-on: ubuntu-latest
-    needs: [secret-scan, sast-semgrep, iac-trivy, container-fs-trivy]
+    needs:
+      - security-scans-contract
+      - secret-scan
+      - sast-semgrep
+      - iac-trivy
+      - container-fs-trivy
     if: always()
     steps:
       - name: Require all scan jobs
@@ -162,6 +186,7 @@ jobs:
           echo "## W1-OPS-11 security scans" >> "$GITHUB_STEP_SUMMARY"
           echo "| Job | Result |" >> "$GITHUB_STEP_SUMMARY"
           echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| security-scans-contract | ${{ needs.security-scans-contract.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| secret-scan (gitleaks) | ${{ needs.secret-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| sast-semgrep | ${{ needs.sast-semgrep.result }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| iac-trivy | ${{ needs.iac-trivy.result }} |" >> "$GITHUB_STEP_SUMMARY"
@@ -170,6 +195,7 @@ jobs:
           echo "Full OCI image CVE of published digests still requires registry credentials (see supply-chain.yml)." >> "$GITHUB_STEP_SUMMARY"
 
           for r in \
+            "${{ needs.security-scans-contract.result }}" \
             "${{ needs.secret-scan.result }}" \
             "${{ needs.sast-semgrep.result }}" \
             "${{ needs.iac-trivy.result }}" \

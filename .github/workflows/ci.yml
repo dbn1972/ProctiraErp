@@ -1099,15 +1099,9 @@ jobs:
   # Fail closed when public tables are unclassified, 050 restores blanket
   # TABLE DEFAULT PRIVILEGES, or apply-sql omits privilege catalog sync.
   # No Postgres required — static catalog + SQL contract scan.
+  # ---------------------------------------------------------------------------
   runtime-table-privileges:
     name: Runtime Table Privileges (W1-DATA-11)
-  # Runtime DB role gate — data gate (W1-DATA-01)
-  # Static contract: deploy.yml must prove the *actual* runtime DATABASE_URL
-  # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
-  # ci-aggregate. Live probe runs in deploy.yml (and optionally with
-  # DATABASE_URL in integration / tenant-isolation).
-  runtime-role-gate:
-    name: Runtime Role Gate (W1-DATA-01)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1121,6 +1115,25 @@ jobs:
 
       - name: Fail when runtime privileges are unclassified or blanket-defaulted
         run: node tools/scripts/check-runtime-table-privileges.mjs
+
+  # ---------------------------------------------------------------------------
+  # Runtime DB role gate — data gate (W1-DATA-01)
+  # ---------------------------------------------------------------------------
+  # Static contract: deploy.yml must prove the *actual* runtime DATABASE_URL
+  # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
+  # ci-aggregate. Live probe runs in deploy.yml (and optionally with
+  # DATABASE_URL in integration / tenant-isolation).
+  # ---------------------------------------------------------------------------
+  runtime-role-gate:
+    name: Runtime Role Gate (W1-DATA-01)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
       - name: Unit-test runtime role gate
         run: |
           node --test tools/scripts/assert-runtime-database-role.test.mjs
@@ -1128,6 +1141,18 @@ jobs:
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
+
+  # ---------------------------------------------------------------------------
+  # Security scans — SAST / secrets / IaC / container FS CVE (W1-OPS-11)
+  # ---------------------------------------------------------------------------
+  # Reusable workflow: gitleaks + Semgrep + Trivy config + Trivy fs.
+  # Always required by ci-aggregate (fail closed on skip / soft-pass).
+  # ---------------------------------------------------------------------------
+  security-scans:
+    name: Security Scans (W1-OPS-11)
+    uses: ./.github/workflows/security-scans.yml
+    permissions:
+      contents: read
 
   # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
@@ -1240,6 +1265,7 @@ jobs:
       - codeowners-gate
       - runtime-table-privileges
       - runtime-role-gate
+      - security-scans
       - secondary-apps-e2e
     if: always()
     steps:
@@ -1272,5 +1298,6 @@ jobs:
           CODEOWNERS_GATE_RESULT: ${{ needs.codeowners-gate.result }}
           RUNTIME_TABLE_PRIVILEGES_RESULT: ${{ needs.runtime-table-privileges.result }}
           RUNTIME_ROLE_GATE_RESULT: ${{ needs.runtime-role-gate.result }}
+          SECURITY_SCANS_RESULT: ${{ needs.security-scans.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

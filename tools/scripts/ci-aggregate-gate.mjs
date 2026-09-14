@@ -123,10 +123,21 @@ export function evaluate({ changes, results }) {
     {
       job: 'codeowners-gate',
       result: results.codeownersGate,
+      requiredWhen: () => true,
+    },
+    {
       job: 'runtime-table-privileges',
       result: results.runtimeTablePrivileges,
+      requiredWhen: () => true,
+    },
+    {
       job: 'runtime-role-gate',
       result: results.runtimeRoleGate,
+      requiredWhen: () => true,
+    },
+    {
+      job: 'security-scans',
+      result: results.securityScans,
       requiredWhen: () => true,
     },
     {
@@ -252,6 +263,7 @@ function readEnv() {
       codeownersGate: process.env.CODEOWNERS_GATE_RESULT,
       runtimeTablePrivileges: process.env.RUNTIME_TABLE_PRIVILEGES_RESULT,
       runtimeRoleGate: process.env.RUNTIME_ROLE_GATE_RESULT,
+      securityScans: process.env.SECURITY_SCANS_RESULT,
       secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
     },
   };
