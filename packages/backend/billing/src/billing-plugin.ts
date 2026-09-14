@@ -43,10 +43,13 @@ export const billingPlugin = fp(
     // Decorate fastify with the billing service
     fastify.decorate('billingService', billingService);
 
-    // Register billing routes
-    await registerBillingRoutes(fastify, {
-      billingService,
-      prefix,
+    // Encapsulate routes + plugin-wide preHandler so `fp` does not leak
+    // billing RBAC onto every gateway route (W1-SEC-02).
+    await fastify.register(async (scope) => {
+      await registerBillingRoutes(scope, {
+        billingService,
+        prefix,
+      });
     });
   },
   {

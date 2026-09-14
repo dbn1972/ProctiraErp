@@ -79,6 +79,9 @@ export async function registerDocumentRoutes(
 ): Promise<void> {
   const { documentGenerationService, prefix = '/examinations' } = options;
 
+  // W1-SEC-02: plugin-wide domain action remains an accepted residual.
+  // Gateway exact resource/action is inventory-declared in
+  // `apps/api-gateway/src/mutating-route-authz.ts` (examination + document.generate).
   fastify.addHook('preHandler', async (request, reply) => {
     examinationWritePreHandler(request, reply, 'document.generate');
   });

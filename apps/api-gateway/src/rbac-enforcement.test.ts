@@ -294,14 +294,25 @@ describe('G-101 gateway RBAC enforcement', () => {
         roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
       }),
     );
-    const denied = await app.inject({
+    const deniedMutating = await app.inject({
       method: 'POST',
       url: '/api/v1/not-a-mapped-prefix/things',
       headers: { authorization: `Bearer ${admin}` },
       payload: {},
     });
-    expect(denied.statusCode).toBe(403);
-    expect(denied.json().message).toMatch(/default-deny/);
+    expect(deniedMutating.statusCode).toBe(403);
+    // W1-SEC-02: mutating unmapped paths fail closed on missing inventory guard.
+    expect(deniedMutating.json().message).toMatch(
+      /inventory-declared|default-deny/i,
+    );
+
+    const deniedRead = await app.inject({
+      method: 'GET',
+      url: '/api/v1/not-a-mapped-prefix/things',
+      headers: { authorization: `Bearer ${admin}` },
+    });
+    expect(deniedRead.statusCode).toBe(403);
+    expect(deniedRead.json().message).toMatch(/default-deny/);
 
     const platform = app.jwt.sign(
       createTestJwtPayload({

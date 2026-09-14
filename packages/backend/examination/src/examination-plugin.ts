@@ -99,9 +99,12 @@ export const examinationPlugin = fp(
       const resultPublicationService = new ResultPublicationService(repository, resultRepository);
       fastify.decorate('resultPublicationService', resultPublicationService);
 
-      await registerResultRoutes(fastify, {
-        resultPublicationService,
-        prefix,
+      // Encapsulate: result-routes installs a plugin-wide write preHandler.
+      await fastify.register(async (scope) => {
+        await registerResultRoutes(scope, {
+          resultPublicationService,
+          prefix,
+        });
       });
     }
 
@@ -117,9 +120,13 @@ export const examinationPlugin = fp(
       );
       fastify.decorate('documentGenerationService', documentGenerationService);
 
-      await registerDocumentRoutes(fastify, {
-        documentGenerationService,
-        prefix,
+      // Encapsulate: document-routes installs a plugin-wide `document.generate` preHandler
+      // (accepted residual) — must not leak via `fp` onto other domains (W1-SEC-02).
+      await fastify.register(async (scope) => {
+        await registerDocumentRoutes(scope, {
+          documentGenerationService,
+          prefix,
+        });
       });
     }
 
@@ -130,7 +137,9 @@ export const examinationPlugin = fp(
         documents: documentRepository,
       });
       fastify.decorate('examOpsService', examOpsService);
-      await registerExamOpsRoutes(fastify, { examOpsService, prefix });
+      await fastify.register(async (scope) => {
+        await registerExamOpsRoutes(scope, { examOpsService, prefix });
+      });
     }
   },
   {
