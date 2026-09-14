@@ -1,9 +1,9 @@
 # DATA — W1-DATA-09 money cents COMPLETE (scholarships + fee boundary leftovers)
 
 **Module / slice:** Scholarship integer minor units + fee UI/server `Math.round` leftovers  
-**Branch / tip:** `cursor/w1-data-09-money-complete-56c3`  
+**Branch / tip:** `cursor/w1-data-09-money-complete-56c3` @ `8a4ebe13622f5c72d00d5504f4f9703da0b06e20`  
 **Date (UTC):** 2026-09-14  
-**Environment:** static SQL + unit tests (`@proctira/common`, `@proctira/scholarship`)
+**Environment:** static SQL + unit tests (`@proctira/common`, `@proctira/backend-scholarship`)
 
 Copy of `docs/audits/templates/ENTERPRISE_DATA_SQL_CHECKLIST.md`.
 
