@@ -107,9 +107,11 @@ pg_dump \
   --file="tenant-${TENANT_ID}-$(date +%Y%m%d).dump"
 ```
 
-### 3.2 Physical Backup (pg_basebackup)
+### 3.2 Physical Backup (pg_basebackup) — aspirational
 
-Best for: large databases, faster restore times.
+**Not scheduled by `proctira-platform`.** Example for operators who run their
+own physical backup pipeline. The shipped CronJob uses logical `pg_dump` only
+(§3.4).
 
 ```bash
 pg_basebackup \
@@ -122,9 +124,11 @@ pg_basebackup \
   --wal-method=stream
 ```
 
-### 3.3 Continuous Archiving (WAL)
+### 3.3 Continuous Archiving (WAL) — aspirational
 
-Best for: minimal data loss (RPO < 5 minutes).
+**Not configured by this repo's Helm chart or scripts.** Example only. Claiming
+sub-hour RPO requires operator-owned WAL archive + base backups outside
+`proctira-platform` (see §2.2.1).
 
 ```ini
 # postgresql.conf
@@ -162,8 +166,10 @@ Values live under `dr:` in `values.yaml`; the CI job
 0 2 * * * proctira DATABASE_URL=postgresql://proctira_backup:...@localhost:5432/proctira BACKUP_DIR=/backups/proctira BACKUP_RETENTION_DAYS=30 /opt/proctira/tools/scripts/pg-backup.sh >> /var/log/proctira-backup.log 2>&1
 ```
 
-Offsite copy (S3 / MinIO sync or PVC snapshots) is configured per §4; the
-CronJob itself only writes to the volume.
+By default the CronJob writes only to the PVC. Optional encrypt + offsite
+upload are gated by `dr.backup.encrypt.enabled` / `dr.backup.offsite.enabled`
+(§3.6). Application object-storage mirroring (§4) is separate and not scheduled
+by this chart.
 
 ### 3.5 Backup role (FORCE RLS)
 
@@ -251,9 +257,13 @@ operator's gpg keyring.
 
 ---
 
-## 4. Object Storage Backup
+## 4. Object Storage Backup — operator guidance
 
-### 4.1 S3 Cross-Region Replication
+**Not scheduled by `proctira-platform`.** The optional `dr.backup.offsite`
+path only uploads **Postgres dump artifacts**. Bucket mirroring / CRR below
+are examples for operators who back up application object storage separately.
+
+### 4.1 S3 Cross-Region Replication (example)
 
 For AWS S3 deployments, enable cross-region replication:
 
@@ -341,7 +351,11 @@ psql \
   < backup.sql
 ```
 
-### 6.2 Point-in-Time Recovery (PITR)
+### 6.2 Point-in-Time Recovery (PITR) — aspirational
+
+**Requires operator-owned base backups + WAL archive (§3.2–3.3).** The shipped
+path is logical restore from a dated `pg_dump` artifact (§6.1 / `pg-restore.sh`),
+which recovers to the dump timestamp only — not arbitrary points in time.
 
 ```bash
 # Stop PostgreSQL
@@ -406,18 +420,19 @@ docker compose up -d
 npx proctira-install health
 ```
 
-### 6.5 Full Platform Restore (Kubernetes)
+### 6.5 Full Platform Restore (Kubernetes) — implemented path
+
+Velero is **not** part of `proctira-platform`. Use the logical dump on the
+backups PVC (or the offsite S3 copy if enabled):
 
 ```bash
 # 1. Scale down application pods
 kubectl scale deployment --all --replicas=0 -n proctira
 
-# 2. Restore database (using Velero or manual)
-velero restore create --from-backup daily-backup-20250115
-
-# 3. Or manual restore
-kubectl exec -it postgres-0 -n proctira -- \
-  pg_restore --clean --if-exists --dbname=proctira < /tmp/backup.dump
+# 2. Copy / mount a dump from the backups PVC (or download from BACKUP_OFFSITE_URI)
+# 3. Restore with the shipped script (decrypts .dump.age when needed)
+kubectl exec -it deploy/<dr-tools-or-postgres-access> -n proctira -- \
+  bash tools/scripts/pg-restore.sh /backups/proctira-YYYYMMDDTHHMMSSZ.dump.age
 
 # 4. Scale up application pods
 kubectl scale deployment --all --replicas=2 -n proctira
@@ -427,6 +442,8 @@ kubectl exec -it deploy/api-gateway -n proctira -- \
   wget -qO- http://localhost:3000/health
 ```
 
+Operators who separately install Velero may restore volumes that way; that is
+outside this chart and does not change the documented RPO in §2.2.
 ---
 
 ## 7. Backup Verification
@@ -448,7 +465,7 @@ change to the DR scripts, the dr-tools Dockerfile or the Helm DR templates):
 5. Encrypted round-trip: ephemeral age keypair → `BACKUP_ENCRYPT=1` backup →
    `pg-restore.sh` on `.dump.age` → row parity on restored DB.
 6. PHI-retention dry-run against the restored copy.
-6. The `proctira/dr-tools` image is built and smoke-run (backup + retention
+7. The `proctira/dr-tools` image is built and smoke-run (backup + retention
    plan) so the CronJob runtime is exercised, not just the runner.
 
 Evidence (`summary.json`, logs, counts) is uploaded as the `restore-drill`
@@ -489,6 +506,9 @@ Configure alerts for:
 
 ## 8. Disaster Recovery Scenarios
 
+Times below are planning estimates for the **implemented** daily-logical-backup
+path unless marked aspirational. They are not automated SLOs.
+
 ### Scenario A: Single Service Failure
 
 | Step | Action                                  | Expected RTO |
@@ -499,13 +519,16 @@ Configure alerts for:
 
 ### Scenario B: Database Corruption
 
-| Step | Action                                   | Expected RTO         |
-| ---- | ---------------------------------------- | -------------------- |
-| 1    | Detect via monitoring alert              | < 5 minutes          |
-| 2    | Failover to read replica (if configured) | < 2 minutes          |
-| 3    | Or: PITR to last known good state        | 15–30 minutes        |
-| 4    | Verify data integrity                    | 5–10 minutes         |
-| 5    | Resume normal operations                 | Total: 15–45 minutes |
+| Step | Action                                                        | Expected RTO         |
+| ---- | ------------------------------------------------------------- | -------------------- |
+| 1    | Detect via monitoring alert                                   | < 5 minutes          |
+| 2a   | **Implemented:** restore latest logical dump (`pg-restore.sh`)| 30–90 minutes        |
+| 2b   | *Aspirational:* failover to read replica / PITR (if operator-owned) | varies          |
+| 3    | Verify data integrity (counts / smoke)                        | 5–15 minutes         |
+| 4    | Resume normal operations                                      | Total often 1–2 hours|
+
+Data lost on the implemented path is bounded by the last successful daily dump
+(plus any newer offsite copy), i.e. up to ~24 h RPO — not WAL PITR.
 
 ### Scenario C: Complete Infrastructure Loss
 
@@ -513,10 +536,10 @@ Configure alerts for:
 | ---- | ---------------------------------------- | ------------------------ |
 | 1    | Provision new infrastructure (Terraform) | 10–20 minutes            |
 | 2    | Deploy platform (Helm/Docker Compose)    | 5–10 minutes             |
-| 3    | Restore database from backup             | 15–60 minutes            |
-| 4    | Restore object storage                   | 10–30 minutes            |
+| 3    | Restore database from logical backup     | 15–60 minutes            |
+| 4    | Restore object storage (operator-owned)  | 10–30 minutes            |
 | 5    | Verify and resume                        | 10 minutes               |
-|      | **Total**                                | **50 minutes – 2 hours** |
+|      | **Total**                                | **~1–2 hours typical**   |
 
 ### Scenario D: Ransomware/Security Breach
 
@@ -534,35 +557,48 @@ Configure alerts for:
 
 ## 9. Backup Retention Policy
 
-| Backup Type           | Retention                     | Storage Class        |
-| --------------------- | ----------------------------- | -------------------- |
-| Hourly WAL archives   | 7 days                        | Standard             |
-| Daily full backups    | 30 days                       | Standard-IA          |
-| Weekly full backups   | 90 days                       | Standard-IA          |
-| Monthly full backups  | 1 year                        | Glacier/Archive      |
-| Pre-upgrade snapshots | Until next successful upgrade | Standard             |
-| Compliance archives   | 7 years                       | Glacier Deep Archive |
+### 9.1 Implemented (shipped scripts / Helm defaults)
+
+| Backup Type                         | Retention                     | Where                                      |
+| ----------------------------------- | ----------------------------- | ------------------------------------------ |
+| Daily logical dumps (`pg-backup.sh`)| 30 days (`dr.backup.retentionDays` / `BACKUP_RETENTION_DAYS`) | Backups PVC (and optional S3 offsite copy) |
+| Pre-upgrade / ad-hoc dumps          | Operator-managed              | Same volume / offsite prefix               |
+| Restore-drill CI artifacts          | 90 days (GitHub Actions)      | Workflow artifact only — not production DR |
+
+Offsite S3 lifecycle rules are **operator-owned**; the chart does not create
+bucket retention policies. Increasing `dr.backup.retentionDays` only affects
+on-volume prune — ensure PVC size and any offsite lifecycle match.
+
+### 9.2 Aspirational (not shipped)
+
+| Backup Type           | Example retention             | Notes                                    |
+| --------------------- | ----------------------------- | ---------------------------------------- |
+| Hourly WAL archives   | 7 days                        | Needs §3.3 WAL pipeline                  |
+| Weekly / monthly tiers| 90 days / 1 year              | Needs separate schedules + lifecycle     |
+| Compliance archives   | multi-year / Glacier          | Legal hold — outside this chart          |
 
 ---
 
 ## 10. Environment Variables
 
-| Variable                   | Description                                      | Default     |
-| -------------------------- | ------------------------------------------------ | ----------- |
-| `DB_BACKUP_ENABLED`        | Enable automated backups                         | `false`     |
-| `DB_BACKUP_SCHEDULE`       | Cron expression for backup timing                | `0 2 * * *` |
-| `DB_BACKUP_RETENTION_DAYS` | Days to retain local backups                     | `30`        |
-| `BACKUP_AGE_RECIPIENT`     | age public key — encrypt dumps at rest           | —           |
-| `BACKUP_AGE_IDENTITY_FILE` | age private key file for restore                 | —           |
-| `BACKUP_AGE_IDENTITY`      | age private key inline (K8s secret)              | —           |
-| `BACKUP_GPG_RECIPIENT`     | GPG recipient for backup encryption              | —           |
-| `BACKUP_ENCRYPT`           | Require encryption keys (`1` / `true`)           | —           |
-| `BACKUP_OFFSITE_URI`       | Offsite destination (`s3://bucket/prefix/`)      | —           |
-| `BACKUP_S3_SSE`            | S3 server-side encryption (`AES256`, `aws:kms`)    | —           |
-| `BACKUP_S3_SSE_KMS_KEY_ID` | KMS key when `BACKUP_S3_SSE=aws:kms`             | —           |
-| `BACKUP_S3_BUCKET`         | Legacy object-storage bucket name                | —           |
-| `LAST_BACKUP_TIMESTAMP`    | Set by backup script after success               | —           |
-| `BACKUP_ALERT_WEBHOOK`     | Webhook URL for backup failure alerts            | —           |
+Variables actually read by `pg-backup.sh` / Helm CronJob (not legacy aliases):
+
+| Variable                   | Description                                      | Default / Helm                          |
+| -------------------------- | ------------------------------------------------ | --------------------------------------- |
+| `DATABASE_URL`             | BYPASSRLS backup role URL                        | Secret `BACKUP_DATABASE_URL`            |
+| `BACKUP_DIR`               | Dump directory                                   | `/backups` (CronJob)                    |
+| `BACKUP_RETENTION_DAYS`    | Prune artifacts older than N days                | `30` (`dr.backup.retentionDays`)        |
+| `BACKUP_AGE_RECIPIENT`     | age public key — encrypt dumps at rest           | Secret when `dr.backup.encrypt.enabled` |
+| `BACKUP_AGE_IDENTITY_FILE` | age private key file for restore                 | —                                       |
+| `BACKUP_AGE_IDENTITY`      | age private key inline (optional)                | —                                       |
+| `BACKUP_GPG_RECIPIENT`     | GPG recipient — encrypt dumps at rest            | —                                       |
+| `BACKUP_ENCRYPT`           | Require encryption keys (`1` / `true`)           | set by CronJob when encrypt enabled     |
+| `BACKUP_OFFSITE_URI`       | Offsite destination (`s3://bucket/prefix/`)      | `dr.backup.offsite.uri`                 |
+| `BACKUP_S3_SSE`            | S3 server-side encryption (`AES256`, `aws:kms`)  | `dr.backup.offsite.sse`                 |
+| `BACKUP_S3_SSE_KMS_KEY_ID` | KMS key when `BACKUP_S3_SSE=aws:kms`             | `dr.backup.offsite.sseKmsKeyId`         |
+
+Schedule is Helm `dr.backup.schedule` (default `0 2 * * *`), not an env var.
+Enable/disable is `dr.enabled` + `dr.backup.enabled` in values.
 
 ---
 
@@ -602,5 +638,5 @@ npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup"
 
 ---
 
-_Last updated: 2026-09-13 (W1-OPS-04 encrypt-at-rest + offsite copy)_
+_Last updated: 2026-09-14 (W1-OPS-10: align RPO/WAL/retention claims with Helm)_
 _Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness_

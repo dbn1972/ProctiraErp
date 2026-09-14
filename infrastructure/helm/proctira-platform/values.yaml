@@ -960,7 +960,7 @@ secrets:
   # -- Database connection string (app role; RLS-bound)
   databaseUrl: ''
   # -- Connection string for the BYPASSRLS backup role (G-707). pg_dump as the
-  # app role fails under FORCE RLS; see docs/BACKUP_RESTORE.md §3.3.
+  # app role fails under FORCE RLS; see docs/BACKUP_RESTORE.md §3.5.
   backupDatabaseUrl: ''
   # -- W1-OPS-04: age public key for encrypting logical backups at rest.
   backupAgeRecipient: ''
@@ -1007,9 +1007,10 @@ dr:
     pullPolicy: IfNotPresent
   backup:
     enabled: true
-    # -- Daily at 02:00 (matches the RPO table in docs/BACKUP_RESTORE.md)
+    # -- Daily at 02:00 UTC → implemented RPO ≤ 24h (docs/BACKUP_RESTORE.md §2.2).
+    # Not hourly / WAL; do not raise RPO claims without changing this schedule.
     schedule: '0 2 * * *'
-    # -- Prune dumps older than this many days from the volume
+    # -- Prune dumps older than this many days from the volume (default 30).
     retentionDays: 30
     activeDeadlineSeconds: 3600
     successfulJobsHistoryLimit: 7
