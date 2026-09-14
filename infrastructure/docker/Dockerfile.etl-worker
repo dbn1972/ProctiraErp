@@ -7,6 +7,8 @@
 #
 # Example:
 #   docker build -f infrastructure/docker/Dockerfile.etl-worker -t proctira/etl-worker .
+#
+# W1-ARCH-09: runner boots compiled `dist/server.js` via node (not tsx).
 # =============================================================================
 
 ARG NODE_VERSION=20-alpine
@@ -33,7 +35,7 @@ RUN pnpm install --frozen-lockfile
 # ---------- 3. builder ----------
 FROM deps AS builder
 ENV NODE_ENV=production
-RUN pnpm --filter "@proctira/etl-worker..." run build
+RUN pnpm --filter "@proctira/etl-worker" run build
 
 # ---------- 4. runner ----------
 FROM node:${NODE_VERSION} AS runner
@@ -57,4 +59,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 WORKDIR /app/apps/etl-worker
-CMD ["node", "--enable-source-maps", "./node_modules/tsx/dist/cli.mjs", "src/server.ts"]
+CMD ["node", "--import", "/app/tools/scripts/backend-runtime-resolve.mjs", "--enable-source-maps", "dist/server.js"]

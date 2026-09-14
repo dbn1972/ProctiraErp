@@ -22,8 +22,8 @@
 # Stages:
 #   1. base    - Minimal Node + pnpm
 #   2. deps    - Installs the workspace dependency graph
-#   3. builder - Runs type-checking build for the target service
-#   4. runner  - Lean production runtime
+#   3. builder - Bundles standalone-server to dist/ (W1-ARCH-09)
+#   4. runner  - Lean production runtime (`node dist/...`, not tsx)
 # =============================================================================
 
 ARG NODE_VERSION=20-alpine
@@ -51,8 +51,11 @@ RUN pnpm install --frozen-lockfile
 FROM deps AS builder
 ARG SERVICE_NAME=institution
 ENV NODE_ENV=production
-# Type-check the service and all its workspace dependencies.
-RUN pnpm --filter "@proctira/backend-${SERVICE_NAME}..." run build
+# Emit dist/standalone-server.js (W1-ARCH-09). Do not boot TypeScript via tsx.
+RUN node tools/scripts/bundle-backend-runtime.mjs \
+      --cwd "packages/backend/${SERVICE_NAME}" \
+      --entry src/standalone-server.ts \
+      --outfile dist/standalone-server.js
 
 # ---------- 4. runner ----------
 FROM node:${NODE_VERSION} AS runner
@@ -81,4 +84,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 WORKDIR /app/packages/backend/${SERVICE_NAME}
-CMD ["node", "--enable-source-maps", "../../node_modules/tsx/dist/cli.mjs", "src/standalone-server.ts"]
+# Production boot: compiled JS only (W1-ARCH-09). Do not invoke tsx here.
+CMD ["node", "--import", "/app/tools/scripts/backend-runtime-resolve.mjs", "--enable-source-maps", "dist/standalone-server.js"]

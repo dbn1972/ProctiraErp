@@ -144,13 +144,22 @@ All Dockerfiles use multi-stage builds:
 
 1. **base** — Minimal Node.js + pnpm setup
 2. **deps** — Workspace dependency installation (cached layer)
-3. **builder** — Type-checking and production build
-4. **runner** — Lean runtime with only production artifacts
+3. **builder** — Type-checking + **compiled runtime bundle** (`dist/`)
+4. **runner** — Lean runtime that boots with `node dist/...` (not `tsx`)
 
 This approach ensures:
 
 - Small final images (Alpine-based)
 - Efficient Docker layer caching
-- No dev dependencies in production
+- Production processes run compiled JavaScript (W1-ARCH-09)
 - No secrets baked into images
 - Non-root user execution
+
+### Production vs local runtime (W1-ARCH-09)
+
+| Mode | How it starts | Tooling |
+| --- | --- | --- |
+| Production images (`Dockerfile.*`, `docker compose up`) | `node --import …/backend-runtime-resolve.mjs --enable-source-maps dist/...` | `tools/scripts/bundle-backend-runtime.mjs` (esbuild) during image build |
+| Local HMR (`docker-compose.dev.yml` / `pnpm dev`) | TypeScript source | `tsx watch` only |
+
+Do not invoke `tsx` (or `tsx/dist/cli.mjs`) from production `CMD`/`ENTRYPOINT` lines. The `--import` resolve helper only fixes pnpm transitive module resolution; it does not execute TypeScript.

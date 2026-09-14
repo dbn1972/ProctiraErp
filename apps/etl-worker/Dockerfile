@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Dockerfile for the @proctira/etl-worker service.
 # Build context: monorepo root.
+# W1-ARCH-09: production CMD uses compiled dist/server.js (not tsx).
 ARG NODE_VERSION=20-alpine
 
 FROM node:${NODE_VERSION} AS base
@@ -22,7 +23,7 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
 ENV NODE_ENV=production
-RUN pnpm --filter "@proctira/etl-worker..." run build
+RUN pnpm --filter "@proctira/etl-worker" run build
 
 FROM node:${NODE_VERSION} AS runner
 RUN apk add --no-cache curl tini
@@ -45,4 +46,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 WORKDIR /app/apps/etl-worker
-CMD ["node", "--enable-source-maps", "./node_modules/tsx/dist/cli.mjs", "src/server.ts"]
+CMD ["node", "--import", "/app/tools/scripts/backend-runtime-resolve.mjs", "--enable-source-maps", "dist/server.js"]

@@ -11,9 +11,10 @@
 # Stages:
 #   1. base    - Minimal Node + pnpm
 #   2. deps    - Installs the workspace dependency graph
-#   3. builder - Runs `pnpm turbo run build` for the selected app
-#   4. runner  - Lean runtime that boots the service via tsx (TypeScript ESM)
+#   3. builder - Bundles the service to dist/ (W1-ARCH-09)
+#   4. runner  - Lean runtime that boots compiled JS via `node dist/...`
 #
+# Local/dev continues to use `tsx` (see docker-compose.dev.yml / `pnpm dev`).
 # All configuration is read from environment variables. No secrets baked in.
 
 ARG NODE_VERSION=20-alpine
@@ -40,12 +41,16 @@ RUN pnpm install --frozen-lockfile
 # ---------- 3. builder ----------
 FROM deps AS builder
 ARG APP_NAME=api-gateway
+ARG APP_DIR=apps
+ARG ENTRY=src/server.ts
+ARG OUTFILE=dist/server.js
 ENV NODE_ENV=production
-# Build the target service and its workspace deps. The Fastify services
-# in this repo use `tsc --noEmit` for type checking and run TypeScript
-# directly via `tsx`, so the build step exists primarily to surface
-# type errors at image-build time.
-RUN pnpm --filter "@proctira/${APP_NAME}..." run build
+# Emit a Node-runnable ESM bundle under dist/ (W1-ARCH-09). Typecheck remains
+# a separate CI/`pnpm typecheck` concern; do not boot via tsx.
+RUN node tools/scripts/bundle-backend-runtime.mjs \
+      --cwd "${APP_DIR}/${APP_NAME}" \
+      --entry "${ENTRY}" \
+      --outfile "${OUTFILE}"
 
 # ---------- 4. runner ----------
 FROM node:${NODE_VERSION} AS runner
@@ -53,6 +58,7 @@ ARG APP_NAME=api-gateway
 ARG APP_DIR=apps
 ARG APP_PORT=3000
 ARG HEALTH_PATH=/health
+ARG OUTFILE=dist/server.js
 RUN apk add --no-cache curl tini
 WORKDIR /app
 
@@ -65,7 +71,7 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 --ingroup nodejs fastify
 
 # Copy the entire built workspace. Symlinks under node_modules require the
-# workspace tree to remain intact for `tsx`/Node module resolution to work.
+# workspace tree to remain intact for Node module resolution of externals.
 COPY --from=builder --chown=fastify:nodejs /app ./
 
 USER fastify
@@ -76,8 +82,9 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 ENV APP_DIR=${APP_DIR}
 ENV APP_NAME=${APP_NAME}
+ENV OUTFILE=${OUTFILE}
 
 ENTRYPOINT ["/sbin/tini", "--"]
-# Boot the service. Apps install `tsx` and have a `start` script that runs
-# `tsx src/server.ts`; we invoke pnpm so workspace resolution is honored.
-CMD ["sh", "-c", "cd ${APP_DIR}/${APP_NAME} && exec node --enable-source-maps ./node_modules/tsx/dist/cli.mjs src/server.ts"]
+# Production boot: compiled JS only (W1-ARCH-09). Do not invoke tsx here.
+# --import registers a pnpm workspace resolve fallback for transitive deps.
+CMD ["sh", "-c", "cd ${APP_DIR}/${APP_NAME} && exec node --import /app/tools/scripts/backend-runtime-resolve.mjs --enable-source-maps ${OUTFILE}"]

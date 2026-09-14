@@ -5,9 +5,9 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "node ../../tools/scripts/bundle-backend-runtime.mjs --cwd . --entry src/server.ts --outfile dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "start": "tsx src/server.ts",
+    "start": "node --import ../../tools/scripts/backend-runtime-resolve.mjs --enable-source-maps dist/server.js",
     "test": "vitest run",
     "lint": "eslint src/",
     "clean": "rm -rf dist",

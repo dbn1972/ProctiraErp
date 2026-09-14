@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Dockerfile for the @proctira/api-gateway Fastify gateway.
 # Build context: monorepo root.
+# W1-ARCH-09: production CMD uses compiled dist/server.js (not tsx).
 ARG NODE_VERSION=20-alpine
 
 FROM node:${NODE_VERSION} AS base
@@ -22,8 +23,8 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS builder
 ENV NODE_ENV=production
-# `build` runs `tsc --noEmit` which surfaces type errors at image-build time.
-RUN pnpm --filter "@proctira/api-gateway..." run build
+# Emit apps/api-gateway/dist/server.js via bundle-backend-runtime.
+RUN pnpm --filter "@proctira/api-gateway" run build
 
 FROM node:${NODE_VERSION} AS runner
 RUN apk add --no-cache curl tini
@@ -37,7 +38,7 @@ RUN addgroup --system --gid 1001 nodejs \
  && adduser --system --uid 1001 --ingroup nodejs fastify
 
 # Copy the entire built workspace to preserve pnpm symlinks for module
-# resolution. The image is still small because Alpine is lean.
+# resolution of external packages. Alpine keeps the image lean.
 COPY --from=builder --chown=fastify:nodejs /app ./
 
 USER fastify
@@ -48,4 +49,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 
 ENTRYPOINT ["/sbin/tini", "--"]
 WORKDIR /app/apps/api-gateway
-CMD ["node", "--enable-source-maps", "./node_modules/tsx/dist/cli.mjs", "src/server.ts"]
+CMD ["node", "--import", "/app/tools/scripts/backend-runtime-resolve.mjs", "--enable-source-maps", "dist/server.js"]

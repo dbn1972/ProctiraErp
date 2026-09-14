@@ -12,13 +12,12 @@ import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
 import {
-const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'workflow-ui-pg-store.live.test' });
-
   createWorkflowUiStore,
   isPgWorkflowUiEnabled,
   PgWorkflowUiStore,
 } from './workflow-ui-pg-store.js';
 
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'workflow-ui-pg-store.live.test' });
 const enabled = isPgWorkflowUiEnabled();
 const pool = enabled ? new pg.Pool({ connectionString: DATABASE_URL }) : null;
 
