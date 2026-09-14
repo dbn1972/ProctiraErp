@@ -44,7 +44,12 @@ describe('W1-ARCH-05 gateway compose mounts', () => {
       tenantId,
       email: 'admin@example.com',
       displayName: 'Admin',
-      roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+      // privacy → platform resource; custom-fields → institution. Platform admin
+      // covers both for compose smoke (W1-ARCH-05 / W1-ARCH-06).
+      roles: [
+        { roleId: 'admin', roleName: 'Administrator', areaId: null },
+        { roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null },
+      ],
       areas: [],
       institutions: [],
       jti: `jti-${tenantId}`,
@@ -93,15 +98,18 @@ describe('W1-ARCH-05 gateway compose mounts', () => {
       url: '/api/v1/dashboards/me',
       headers: adminHeaders(),
     });
-    // Scope mismatch may 403 for admin without parent/student role; route must exist (not 404).
-    expect([200, 403]).toContain(me.statusCode);
+    // Scope mismatch may 403; missing role dashboard may 404 — route must be composed
+    // (not Fastify "Route … not found").
+    expect([200, 403, 404]).toContain(me.statusCode);
+    expect(me.json().message ?? '').not.toMatch(/^Route \w+:/);
 
     const country = await app.inject({
       method: 'GET',
       url: '/api/v1/dashboards/country',
       headers: adminHeaders(),
     });
-    expect([200, 403]).toContain(country.statusCode);
+    expect([200, 403, 404]).toContain(country.statusCode);
+    expect(country.json().message ?? '').not.toMatch(/^Route \w+:/);
   });
 
   it('serves privacy legal-hold + erasure under /api/v1/privacy', async () => {

@@ -1014,6 +1014,21 @@ export const DOMAIN_REGISTRAR_NAMES: readonly string[] = DOMAIN_REGISTRARS.map(
 );
 
 /**
+ * W1-ARCH-06 — live composition snapshot (name + proxy prefixes) from the
+ * executable registrar table. Prefer this over scraping `domain-plugins.ts`.
+ */
+export interface DomainRegistrarComposition {
+  readonly name: string;
+  readonly proxyPrefixes: readonly string[];
+}
+
+export const DOMAIN_REGISTRAR_COMPOSITION: readonly DomainRegistrarComposition[] =
+  DOMAIN_REGISTRARS.map((domain) => ({
+    name: domain.name,
+    proxyPrefixes: domain.proxyPrefixes,
+  }));
+
+/**
  * Registers all in-process domain plugins and returns the proxy prefixes
  * handled, so the caller can exclude them from the proxy router.
  */
