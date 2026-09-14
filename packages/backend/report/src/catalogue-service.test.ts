@@ -378,4 +378,37 @@ describe('W2-JOB-08 / W2-JOB-09 scheduler lease + delivery', () => {
     const updated = await store.getSchedule(TENANT_A, schedule.id);
     expect(updated!.nextRunAt.getTime()).toBe(now.getTime() + 5 * 60_000);
   });
+
+  it('W3-C3: reclaims a schedule lease after worker crash so a restarted replica can tick', async () => {
+    const store = new InMemoryReportStore();
+    const schedule = await store.insertSchedule({
+      id: 'sch-crash',
+      tenantId: TENANT_A,
+      reportKey: 'attendance_summary',
+      format: 'csv',
+      cadence: 'daily',
+      hour: 6,
+      nextRunAt: new Date('2026-03-01T06:00:00.000Z'),
+      recipients: ['office@school.test'],
+      enabled: true,
+      createdBy: 'sched',
+      lastRunAt: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const leaseMs = 15 * 60_000;
+    const tickTime = new Date('2026-03-01T06:00:01.000Z');
+    const claimed = await store.claimDueSchedules(tickTime, leaseMs);
+    expect(claimed.map((s) => s.id)).toEqual([schedule.id]);
+
+    // Mid-tick crash: lease still holds nextRunAt in the future.
+    const midCrash = new Date(tickTime.getTime() + 1000);
+    expect(await store.claimDueSchedules(midCrash, leaseMs)).toEqual([]);
+
+    // After lease expiry the schedule becomes due again for a restarted worker.
+    const afterLease = new Date(tickTime.getTime() + leaseMs + 1);
+    const reclaimed = await store.claimDueSchedules(afterLease, leaseMs);
+    expect(reclaimed.map((s) => s.id)).toEqual([schedule.id]);
+  });
 });

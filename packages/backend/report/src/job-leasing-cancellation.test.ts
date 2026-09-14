@@ -170,3 +170,134 @@ describe('W2-JOB-13 report job lease / dedupe / cancel', () => {
     expect(done.status).toBe('completed');
   });
 });
+
+describe('W3-C3 report job restart after worker crash (lease expiry reclaim)', () => {
+  let repository: InMemoryReportRepository;
+
+  beforeEach(() => {
+    repository = new InMemoryReportRepository();
+  });
+
+  it('CONFIRMED tip: crash mid-process leaves job stuck in processing until lease expires', async () => {
+    const holding = new HoldingDataSource();
+    const service = new ReportService(
+      repository,
+      holding,
+      undefined,
+      undefined,
+      undefined,
+      {
+        async queueReportJob() {
+          /* leave queued for explicit process */
+        },
+      },
+    );
+
+    const job = await service.generateReport(
+      TENANT_ID,
+      { reportType: 'students', format: 'csv', filters: {} },
+      createUserContext(),
+    );
+
+    const shortLeaseMs = 1_000;
+    const crashTime = new Date('2026-03-01T12:00:00.000Z');
+    const claimed = await repository.claimQueuedJob(TENANT_ID, job.id, shortLeaseMs, crashTime);
+    expect(claimed?.status).toBe('processing');
+
+    const afterCrash = new Date(crashTime.getTime() + 100);
+    await expect(
+      repository.claimQueuedJob(TENANT_ID, job.id, shortLeaseMs, afterCrash),
+    ).resolves.toBeNull();
+
+    const stuck = await repository.getJobById(TENANT_ID, job.id);
+    expect(stuck?.status).toBe('processing');
+    void holding;
+  });
+
+  it('reclaims an expired lease so a restarted worker completes the job', async () => {
+    const service = new ReportService(
+      repository,
+      new InstantDataSource(),
+      undefined,
+      undefined,
+      undefined,
+      {
+        async queueReportJob() {
+          /* leave queued for explicit process */
+        },
+      },
+    );
+
+    const job = await service.generateReport(
+      TENANT_ID,
+      { reportType: 'students', format: 'csv', filters: {} },
+      createUserContext(),
+    );
+
+    const crashTime = new Date('2026-03-01T12:00:00.000Z');
+    const leaseMs = 1_000;
+    const claimed = await repository.claimQueuedJob(TENANT_ID, job.id, leaseMs, crashTime);
+    expect(claimed?.status).toBe('processing');
+
+    const afterLeaseExpiry = new Date(crashTime.getTime() + leaseMs + 1);
+    const done = await service.processReportJob(job, createUserContext(), afterLeaseExpiry);
+    expect(done.status).toBe('completed');
+  });
+
+  it('allows a new dedupe submission once the prior lease has expired', async () => {
+    const service = new ReportService(
+      repository,
+      new InstantDataSource(),
+      undefined,
+      undefined,
+      undefined,
+      {
+        async queueReportJob() {
+          /* leave queued */
+        },
+      },
+    );
+
+    const first = await service.generateReport(
+      TENANT_ID,
+      {
+        reportType: 'students',
+        format: 'csv',
+        filters: {},
+        dedupeKey: 'weekly-roster',
+      },
+      createUserContext(),
+    );
+
+    const crashTime = new Date('2026-03-01T12:00:00.000Z');
+    const leaseMs = 1_000;
+    const claimed = await repository.claimQueuedJob(TENANT_ID, first.id, leaseMs, crashTime);
+    expect(claimed?.status).toBe('processing');
+
+    const midLease = new Date(crashTime.getTime() + 100);
+    const stillActive = await repository.findActiveJobByDedupeKey(
+      TENANT_ID,
+      'weekly-roster',
+      midLease,
+    );
+    expect(stillActive?.id).toBe(first.id);
+
+    const afterExpiry = new Date(crashTime.getTime() + leaseMs + 1);
+    expect(
+      await repository.findActiveJobByDedupeKey(TENANT_ID, 'weekly-roster', afterExpiry),
+    ).toBeNull();
+
+    const second = await service.generateReport(
+      TENANT_ID,
+      {
+        reportType: 'students',
+        format: 'csv',
+        filters: {},
+        dedupeKey: 'weekly-roster',
+      },
+      createUserContext(),
+    );
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe('queued');
+  });
+});
