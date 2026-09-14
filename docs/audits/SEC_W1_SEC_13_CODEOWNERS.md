@@ -79,3 +79,11 @@ PHI / money / scholarship packages sit under **security** (not a separate domain
 - Until org teams exist, GitHub still notifies a single account for required owner reviews — specialist routing is **documented** (process/IA) and ready for cutover, not yet enforced by GitHub team membership.
 - Branch protection “Require review from Code Owners” is out of scope for this file change; ops must enable it after teams exist (or accept interim single-owner reviews).
 - New packages under regulated domains must be added to the matching CODEOWNERS section when created.
+
+---
+
+## 6. Follow-up (as-complete-as-possible)
+
+See `docs/audits/SEC_W1_SEC_13_COMPLETE.md` for the fail-closed
+`PROCTIRA_CODEOWNERS_TEAMS_READY` CI gate and mandatory org / branch-protection
+ops residual. This pack alone does **not** claim Done criteria met.

@@ -1010,6 +1010,35 @@ jobs:
         run: node tools/scripts/check-migration-timeouts.mjs
 
   # ---------------------------------------------------------------------------
+  # CODEOWNERS fail-closed gate — security governance (W1-SEC-13)
+  # ---------------------------------------------------------------------------
+  # Blocks silent fake @org/team handles unless PROCTIRA_CODEOWNERS_TEAMS_READY=1.
+  # Organization-owned repos require READY=1. Personal-account interim ownership
+  # is allowed only with documented intended team slugs in comments.
+  # No GitHub App / org admin token required for the static contract.
+  # ---------------------------------------------------------------------------
+  codeowners-gate:
+    name: Codeowners Gate (W1-SEC-13)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test CODEOWNERS gate
+        run: node --test tools/scripts/check-codeowners.test.mjs
+
+      - name: Fail closed on CODEOWNERS team / readiness contract
+        env:
+          # Repo/org Actions variable; unset on personal-account interim.
+          PROCTIRA_CODEOWNERS_TEAMS_READY: ${{ vars.PROCTIRA_CODEOWNERS_TEAMS_READY }}
+          # User vs Organization — org without READY=1 fails closed.
+          GITHUB_OWNER_TYPE: ${{ github.event.repository.owner.type }}
+        run: node tools/scripts/check-codeowners.mjs
+
+  # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
   # ---------------------------------------------------------------------------
   # Runs ungated Chromium smokes for Next secondary apps that are not covered
@@ -1117,6 +1146,7 @@ jobs:
       - strict-tenant-fks
       - tenant-id-indexes
       - migration-timeouts
+      - codeowners-gate
       - secondary-apps-e2e
     if: always()
     steps:
@@ -1146,5 +1176,6 @@ jobs:
           STRICT_TENANT_FKS_RESULT: ${{ needs.strict-tenant-fks.result }}
           TENANT_ID_INDEXES_RESULT: ${{ needs.tenant-id-indexes.result }}
           MIGRATION_TIMEOUTS_RESULT: ${{ needs.migration-timeouts.result }}
+          CODEOWNERS_GATE_RESULT: ${{ needs.codeowners-gate.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

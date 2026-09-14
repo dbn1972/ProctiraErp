@@ -45,6 +45,7 @@ function allSkipped() {
     strictTenantFks: 'success',
     tenantIdIndexes: 'success',
     migrationTimeouts: 'success',
+    codeownersGate: 'success',
     secondaryAppsE2e: 'skipped',
   };
 }
@@ -66,6 +67,7 @@ function allSucceeded() {
     strictTenantFks: 'success',
     tenantIdIndexes: 'success',
     migrationTimeouts: 'success',
+    codeownersGate: 'success',
     secondaryAppsE2e: 'success',
   };
 }
@@ -115,6 +117,14 @@ test('migration-timeouts skip fails closed even on docs-only PRs (W1-DATA-17)', 
   const report = evaluate({ changes: noChanges, results });
   assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'migration-timeouts'));
+});
+
+test('codeowners-gate skip fails closed even on docs-only PRs (W1-SEC-13)', () => {
+  const results = allSkipped();
+  results.codeownersGate = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'codeowners-gate'));
 });
 
 test('failing proof: skip cascade with code changes is unproven and gate fails', () => {
@@ -218,6 +228,7 @@ test('secondary-apps change with skipped e2e is unproven (W1-OPS-12)', () => {
   results.strictTenantFks = 'success';
   results.tenantIdIndexes = 'success';
   results.migrationTimeouts = 'success';
+  results.codeownersGate = 'success';
   results.secondaryAppsE2e = 'skipped';
   const report = evaluate({ changes, results });
   assert.equal(report.ok, false);
