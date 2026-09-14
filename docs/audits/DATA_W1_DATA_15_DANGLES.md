@@ -46,9 +46,10 @@ ops. This residual closes that deferral.
 
 | Step | Command / evidence | Pass |
 | ---- | ------------------ | ---- |
-| Apply | `APPLY_STRICT_FKS=1 APPLY_SEEDS=1 bash tools/scripts/apply-sql.sh` (073/074 always-on; not gated on `APPLY_STRICT_FKS`) | ☑ contract |
-| Seed | Demo `…099` upserted in 071 + `009b` / `010b`; hostel/transport seeds have no orphan student rows | ☑ |
-| Spot query | Expect 0 unvalidated among 073 names (see below) | ☑ |
+| Apply | `prisma migrate deploy` then `APPLY_STRICT_FKS=1 APPLY_SEEDS=1 bash tools/scripts/apply-sql.sh` — applied=89 including 073/074 | ☑ live |
+| Seed | Demo `…099` upserted in 071 + `009b` / `010b`; hostel/transport seeds have no orphan student rows | ☑ live |
+| Spot query | 18/18 campus closed-set FKs `convalidated=t`; unvalidated count **0** | ☑ live |
+| Deny proof | `INSERT INTO hostel_assignments … student_id=aaaaaaaa-…` → FK violation `hostel_assignments_student_id_fkey` | ☑ live |
 | Multi-board | N/A — integrity is tenant-row FK, not board-rule | ☑ N/A |
 
 ```bash
