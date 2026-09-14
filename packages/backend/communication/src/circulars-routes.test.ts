@@ -21,6 +21,10 @@ describe('Circular routes (G-922)', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as FastifyRequest & { tenantId: string }).tenantId = TENANT_ID;
+      (request as FastifyRequest & { user?: { sub: string; roles: string[] } }).user = {
+        sub: 'comms-staff',
+        roles: ['communications_officer'],
+      };
     });
     await registerCircularRoutes(app, { circularsService });
     await app.ready();
@@ -65,6 +69,12 @@ describe('Circular routes (G-922)', () => {
 
   it('returns 400 without tenant', async () => {
     const noTenant = Fastify();
+    noTenant.addHook('onRequest', async (request) => {
+      (request as FastifyRequest & { user?: { sub: string; roles: string[] } }).user = {
+        sub: 'comms-staff',
+        roles: ['communications_officer'],
+      };
+    });
     await registerCircularRoutes(noTenant, {
       circularsService: new CircularsService(new InMemoryCircularStore()),
     });

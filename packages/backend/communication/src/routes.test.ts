@@ -20,6 +20,10 @@ describe('Communication Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as { tenantId: string }).tenantId = TENANT_ID;
+      (request as { user?: { sub: string; roles: string[] } }).user = {
+        sub: 'comms-staff',
+        roles: ['communications_officer'],
+      };
     });
 
     await app.register(communicationPlugin, {
@@ -49,6 +53,12 @@ describe('Communication Routes', () => {
 
     it('should return 400 without tenant', async () => {
       const noTenantApp = Fastify({ logger: false });
+      noTenantApp.addHook('onRequest', async (request) => {
+        (request as { user?: { sub: string; roles: string[] } }).user = {
+          sub: 'comms-staff',
+          roles: ['communications_officer'],
+        };
+      });
       await noTenantApp.register(communicationPlugin, {
         repository: new InMemoryCommunicationRepository(),
         circularStore: new InMemoryCircularStore(),
