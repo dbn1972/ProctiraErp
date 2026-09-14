@@ -112,3 +112,33 @@ replacement proof.
 recovery drill). **PARTIAL→COMPLETE.**
 
 **Waivers:** Empty at cutover (no post-baseline long-lock DDL).
+
+---
+
+## Re-audit regression fix (2026-09-14) — W1-DATA-17
+
+Pinned `origin/main` @ `29fcc1bea14f5e29282a906c794bd7b561ffff8c` showed the live gate **FAIL** with **36**
+post-baseline blocking-DDL hazards across checksum-locked Wave-1 remediations
+`076`, `077`, `079`, `080`, `081`, `083`, `090`. Rewriting those files would
+break `schema_migrations` digests on already-applied environments.
+
+Also: `package.json` declared `check:migration-timeouts:test` twice; JSON kept
+only the second value and silently dropped
+`migration-lock-recovery-drill.test.mjs` from the declared script.
+
+| Fix | Path |
+| --- | ---- |
+| Reviewed maintenance-window waivers for the seven checksum-locked remediations | `tools/scripts/migration-ddl-hazard-waiver.json` |
+| Remove duplicate `check:migration-timeouts:test` (retain both suites) | `package.json` |
+| Fail closed on duplicate script keys + require both test suites | `tools/scripts/check-migration-timeouts.mjs` |
+
+```bash
+node --test tools/scripts/check-migration-timeouts.test.mjs
+node tools/scripts/check-migration-timeouts.mjs
+# Pre-fix tip: empty waivers + duplicate script → gate FAIL / drill suite dropped
+```
+
+**Honesty:** Waivers document that those remediations used blocking DDL under a
+Wave-1 maintenance window. Future hot-path DDL must still use expand/contract
+(`CONCURRENTLY` / `NOT VALID`) or a new reviewed waiver — the gate remains
+fail-closed for unwaived post-baseline hazards.
