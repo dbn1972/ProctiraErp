@@ -25,6 +25,19 @@ services:
     volumes:
       - ./:/app
       - proctira-node-modules:/app/node_modules
+    # node:20-alpine has no curl; use Node fetch. Long start_period covers pnpm install.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
 
   etl-worker:
     image: node:20-alpine
@@ -36,6 +49,18 @@ services:
     volumes:
       - ./:/app
       - proctira-node-modules:/app/node_modules
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3010/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
 
   web:
     image: node:20-alpine
@@ -48,6 +73,18 @@ services:
     volumes:
       - ./:/app
       - proctira-node-modules:/app/node_modules
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/api/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
 
   registration-portal:
     image: node:20-alpine
