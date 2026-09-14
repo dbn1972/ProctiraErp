@@ -19,36 +19,64 @@ ProctiraERP stores data across multiple systems that must be backed up in coordi
 | Message Queue             | In-flight messages                                  | Low (transient) |
 | Configuration             | Environment variables, secrets                      | Critical        |
 
+### 1.1 Honesty gate (W1-OPS-10)
+
+Distinguish **implemented by default executable manifests** from **aspirational / operator-owned** targets:
+
+| Capability | Default Helm chart / scripts on tip | Notes |
+| ---------- | ----------------------------------- | ----- |
+| Logical `pg_dump` CronJob | **Implemented** (`dr.backup.schedule`, default daily `0 2 * * *`) | See `infrastructure/helm/proctira-platform` |
+| On-volume retention pruning | **Implemented** (`dr.backup.retentionDays`, default **30**) | PVC copy is not offsite by itself |
+| Age/GPG encryption at rest | **Optional implemented** (`dr.backup.encrypt.enabled` + recipient secret) | Off unless enabled |
+| Second-copy / offsite push | **Optional implemented** (`dr.backup.offsite.*`) | Requires operator URI/credentials |
+| Continuous WAL archiving | **Not in default chart** | Documented below as a target architecture |
+| PITR ≤ 5 minutes RPO | **Not in default chart** | Requires managed Postgres or operator WAL+basebackup stack |
+| Immutable/WORM object-lock | **Not in default chart** | Bucket policy / object-lock is environment-owned |
+| Automated HA failover | **Not in default chart** | Platform/provider concern |
+
+Treat §2.2–2.3 aspirational rows as planning targets unless the matching control plane is actually provisioned.
+
 ---
 
 ## 2. RPO/RTO Targets by Deployment Mode
 
-### 2.1 Single-Node (Docker Compose)
+### 2.1 Single-Node (Docker Compose) — default executable posture
 
 | Metric                             | Target             | Strategy                       |
 | ---------------------------------- | ------------------ | ------------------------------ |
-| **RPO** (Recovery Point Objective) | ≤ 24 hours         | Daily automated backups        |
+| **RPO** (Recovery Point Objective) | ≤ 24 hours         | Daily automated logical backups |
 | **RTO** (Recovery Time Objective)  | ≤ 4 hours          | Restore from backup + redeploy |
-| Backup Frequency                   | Daily at 02:00 UTC | Cron job                       |
-| Retention                          | 30 days            | Local + offsite                |
+| Backup Frequency                   | Daily at 02:00 UTC | Cron / compose job             |
+| Retention                          | 30 days            | Local volume; enable offsite for a second copy |
 
-### 2.2 Kubernetes (Helm)
+### 2.2 Kubernetes (Helm) — what the chart implements today
 
-| Metric           | Target                              | Strategy                                    |
-| ---------------- | ----------------------------------- | ------------------------------------------- |
-| **RPO**          | ≤ 1 hour                            | Continuous WAL archiving + hourly snapshots |
-| **RTO**          | ≤ 30 minutes                        | Automated failover + PVC restore            |
-| Backup Frequency | Continuous (WAL) + hourly snapshots | Velero + pg_basebackup                      |
-| Retention        | 90 days                             | Object storage lifecycle                    |
+| Metric           | Default chart reality | Strategy on tip |
+| ---------------- | --------------------- | --------------- |
+| **RPO**          | ≤ 24 hours (daily dump) | `dr.backup` CronJob logical dump |
+| **RTO**          | Operator-dependent (manual restore drill) | Restore runbook + PVC/object artifact |
+| Backup Frequency | Daily (`0 2 * * *` default) | Helm CronJob |
+| Retention        | 30 days default | `dr.backup.retentionDays`; optional offsite URI |
 
-### 2.3 Managed Cloud (RDS/Aurora + S3)
+#### 2.2.1 Kubernetes target architecture (not default chart)
 
-| Metric           | Target                                              | Strategy                                    |
-| ---------------- | --------------------------------------------------- | ------------------------------------------- |
-| **RPO**          | ≤ 5 minutes                                         | Point-in-time recovery (PITR)               |
-| **RTO**          | ≤ 15 minutes                                        | Automated failover + read replica promotion |
-| Backup Frequency | Continuous                                          | AWS/GCP managed                             |
-| Retention        | 35 days (automated) + indefinite (manual snapshots) | Cloud provider                              |
+| Metric           | Planning target                         | Requires outside default chart              |
+| ---------------- | --------------------------------------- | ------------------------------------------- |
+| **RPO**          | ≤ 1 hour                                | Continuous WAL archiving + base backups     |
+| **RTO**          | ≤ 30 minutes                            | Automated failover tooling (e.g. Velero + HA Postgres operator) |
+| Backup Frequency | Continuous WAL + hourly snapshots       | Operator-managed WAL archive + snapshot tool |
+| Retention        | 90 days                                 | Object-storage lifecycle policies            |
+
+### 2.3 Managed Cloud (RDS/Aurora + S3) — provider-owned target
+
+| Metric           | Target (when using managed PITR)                        | Strategy                                    |
+| ---------------- | ------------------------------------------------------- | ------------------------------------------- |
+| **RPO**          | ≤ 5 minutes (provider PITR window)                      | Cloud continuous backup                     |
+| **RTO**          | ≤ 15 minutes (typical provider failover)                | Automated failover + replica promotion      |
+| Backup Frequency | Continuous                                              | AWS/GCP managed                             |
+| Retention        | Provider default (often ~35 days) + manual snapshots    | Cloud provider                              |
+
+These managed-cloud numbers apply only when the deployment actually uses RDS/Aurora (or equivalent) PITR — they are **not** implied by the in-cluster Helm CronJob alone.
 
 ---
 
