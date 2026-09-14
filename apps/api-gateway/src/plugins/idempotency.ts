@@ -11,9 +11,14 @@
  * - Returns 409 Conflict if the key is currently in-flight (concurrent duplicate request)
  * - GET/DELETE/OPTIONS/HEAD requests are not subject to idempotency checks
  * - W1-ARCH-03: when Redis is required, store failures return 503 — never silent memory
+ * - W1-ARCH-03: if Redis fails while saving a completed 2xx response after mutation,
+ *   rewrite to 503 (IDEMPOTENCY_REPLAY_PENDING) and leave a durable
+ *   completed-without-body marker so retries do not re-execute. Never return bare 2xx
+ *   when the idempotency record was not durably saved.
  *
  * Redis key structure:
- *   idempotency:{tenantId}:{key} → JSON { status, statusCode, headers, body }
+ *   idempotency:{tenantId}:{key} → JSON { statusCode, headers, body }
+ *     or { status: "completed_without_body", originalStatusCode? }
  *   idempotency:{tenantId}:{key}:lock → "processing" (short TTL for in-flight detection)
  */
 
@@ -132,8 +137,31 @@ interface CachedResponse {
   body: string;
 }
 
+/**
+ * Durable marker when mutation completed but the full response body could not
+ * be persisted. Retries must not re-execute; they receive 503 replay-pending.
+ */
+interface CompletedWithoutBodyRecord {
+  status: 'completed_without_body';
+  originalStatusCode?: number;
+}
+
 /** HTTP methods that support idempotency */
 const IDEMPOTENT_METHODS = new Set(['POST', 'PUT', 'PATCH']);
+
+function isCompletedWithoutBody(value: unknown): value is CompletedWithoutBodyRecord {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as CompletedWithoutBodyRecord).status === 'completed_without_body'
+  );
+}
+
+function isCachedResponse(value: unknown): value is CachedResponse {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as CachedResponse;
+  return typeof record.statusCode === 'number' && typeof record.body === 'string';
+}
 
 function storeUnavailableReply(reply: FastifyReply) {
   return reply.status(503).send({
@@ -141,6 +169,20 @@ function storeUnavailableReply(reply: FastifyReply) {
     message: 'Idempotency store temporarily unavailable',
     statusCode: 503,
   });
+}
+
+function replayPendingBody() {
+  return {
+    code: 'IDEMPOTENCY_REPLAY_PENDING',
+    message:
+      'Idempotency-Key replay pending — prior mutation may have completed but the response was not durably recorded',
+    statusCode: 503,
+  };
+}
+
+function replayPendingReply(reply: FastifyReply) {
+  reply.header('retry-after', '5');
+  return reply.status(503).send(replayPendingBody());
 }
 
 const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
@@ -198,17 +240,28 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     const lockKey = `${cacheKey}:lock`;
 
     try {
-      // Check if there's already a cached response
+      // Check if there's already a cached response or durable completion marker
       const cached = await redis.get(cacheKey);
       if (cached) {
-        // Return the cached response without executing the handler
         const parsed: unknown = JSON.parse(cached);
-        const cachedResponse = parsed as CachedResponse;
+        if (isCompletedWithoutBody(parsed)) {
+          // Mutation already completed without a durable body — do not re-execute.
+          reply.header('x-idempotency-replay', 'pending');
+          return replayPendingReply(reply);
+        }
+        if (!isCachedResponse(parsed)) {
+          request.log.error(
+            { cacheKey },
+            'idempotency cache entry unreadable — treating as store unavailable',
+          );
+          return storeUnavailableReply(reply);
+        }
+        // Return the cached response without executing the handler
         reply.header('x-idempotency-replay', 'true');
-        for (const [key, value] of Object.entries(cachedResponse.headers)) {
+        for (const [key, value] of Object.entries(parsed.headers ?? {})) {
           reply.header(key, value);
         }
-        return reply.status(cachedResponse.statusCode).send(JSON.parse(cachedResponse.body));
+        return reply.status(parsed.statusCode).send(JSON.parse(parsed.body));
       }
 
       // Check if the request is currently in-flight (concurrent duplicate)
@@ -248,10 +301,11 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
         ._idempotencyCacheKey;
       const lockKey = (request as unknown as { _idempotencyLockKey: string })._idempotencyLockKey;
 
+      const statusCode = reply.statusCode;
+
       try {
         // Only cache successful responses (2xx) and client errors (4xx)
         // Don't cache 5xx errors as they may be transient
-        const statusCode = reply.statusCode;
         if (statusCode >= 500) {
           // Release the lock without caching
           await redis.del(lockKey);
@@ -278,20 +332,82 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
           body: responseBody,
         };
 
-        // Store in Redis with TTL
+        // Store in Redis with TTL — this is the durability gate for 2xx.
         await redis.set(cacheKey, JSON.stringify(cachedResponse), 'EX', ttlSeconds);
-
-        // Release the lock
-        await redis.del(lockKey);
       } catch (err) {
-        // Handler already ran — do not rewrite success to 503; never fall back to memory.
-        if (storeMode === 'redis') {
-          request.log.error(
-            { err },
-            'idempotency store write failed (fail-closed, no memory fallback)',
-          );
-        } else {
+        if (storeMode !== 'redis') {
           throw err;
+        }
+
+        request.log.error(
+          { err },
+          'idempotency store write failed after mutation (fail-closed, no memory fallback)',
+        );
+
+        // 5xx: never mark as completed — allow retry after lock TTL.
+        if (statusCode >= 500) {
+          return payload;
+        }
+
+        // 4xx: mutation typically did not apply — release lock best-effort and keep body.
+        if (statusCode >= 400 && statusCode < 500) {
+          try {
+            await redis.del(lockKey);
+          } catch (lockErr) {
+            request.log.error(
+              { err: lockErr },
+              'idempotency lock release failed after 4xx cache miss',
+            );
+          }
+          return payload;
+        }
+
+        // 2xx: must not return bare success without a durable replay record.
+        // Prefer a completed-without-body marker so retries do not re-execute.
+        let markerSaved = false;
+        try {
+          const marker: CompletedWithoutBodyRecord = {
+            status: 'completed_without_body',
+            originalStatusCode: statusCode,
+          };
+          await redis.set(cacheKey, JSON.stringify(marker), 'EX', ttlSeconds);
+          markerSaved = true;
+          try {
+            await redis.del(lockKey);
+          } catch (lockErr) {
+            request.log.error(
+              { err: lockErr },
+              'idempotency lock release failed after completed-without-body marker',
+            );
+          }
+        } catch (markerErr) {
+          request.log.error(
+            { err: markerErr },
+            'idempotency completed-without-body marker failed — retaining in-flight lock',
+          );
+          // Best-effort lock refresh so retries hit 409 while Redis recovers.
+          try {
+            await redis.set(lockKey, 'processing', 'EX', lockTtlSeconds);
+          } catch {
+            // ignore — Redis may still be down
+          }
+        }
+
+        reply.code(503);
+        reply.header('retry-after', '5');
+        reply.header('x-idempotency-replay', markerSaved ? 'pending' : 'unsaved');
+        reply.removeHeader('content-length');
+        return JSON.stringify(replayPendingBody());
+      }
+
+      // Durable response saved — release lock best-effort; do not rewrite 2xx if del fails.
+      try {
+        await redis.del(lockKey);
+      } catch (lockErr) {
+        if (storeMode === 'redis') {
+          request.log.error({ err: lockErr }, 'idempotency lock release failed after durable cache write');
+        } else {
+          throw lockErr;
         }
       }
 

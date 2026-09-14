@@ -501,6 +501,158 @@ describe('idempotencyPlugin', () => {
       expect(response.json().code).toBe('IDEMPOTENCY_STORE_UNAVAILABLE');
       expect(callCount).toBe(0);
     });
+
+    it('does not return bare 2xx when Redis save fails after mutation; leaves marker so retry does not re-execute', async () => {
+      let callCount = 0;
+      const store = new Map<string, string>();
+      let cacheWriteAttempts = 0;
+
+      const flakyRedis: RedisClient = {
+        async get(key: string) {
+          return store.get(key) ?? null;
+        },
+        async set(key: string, value: string) {
+          // Allow lock acquires; fail the first durable response/body write, then allow marker.
+          if (key.endsWith(':lock')) {
+            store.set(key, value);
+            return 'OK';
+          }
+          cacheWriteAttempts += 1;
+          if (cacheWriteAttempts === 1) {
+            throw new Error('REDIS_WRITE_FAILED');
+          }
+          store.set(key, value);
+          return 'OK';
+        },
+        async del(key: string | string[]) {
+          const keys = Array.isArray(key) ? key : [key];
+          let n = 0;
+          for (const k of keys) {
+            if (store.delete(k)) n += 1;
+          }
+          return n;
+        },
+      };
+
+      await app.register(idempotencyPlugin, { storeMode: 'redis', redis: flakyRedis });
+      app.post('/test', async (_req, reply) => {
+        callCount += 1;
+        return reply.status(201).send({ result: 'created', id: 'dup-risk' });
+      });
+
+      const first = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'post-mutation-save-fail' },
+        payload: { name: 'test' },
+      });
+
+      expect(first.statusCode).toBe(503);
+      expect(first.json().code).toBe('IDEMPOTENCY_REPLAY_PENDING');
+      expect(first.headers['x-idempotency-replay']).toBe('pending');
+      expect(callCount).toBe(1);
+
+      const cached = store.get('idempotency:global:post-mutation-save-fail');
+      expect(cached).toBeTruthy();
+      expect(JSON.parse(cached!).status).toBe('completed_without_body');
+
+      const retry = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'post-mutation-save-fail' },
+        payload: { name: 'test' },
+      });
+
+      expect(retry.statusCode).toBe(503);
+      expect(retry.json().code).toBe('IDEMPOTENCY_REPLAY_PENDING');
+      expect(retry.headers['x-idempotency-replay']).toBe('pending');
+      expect(callCount).toBe(1); // must not re-execute mutation
+    });
+
+    it('returns 503 without re-executing when both response and marker Redis writes fail after mutation', async () => {
+      let callCount = 0;
+      const store = new Map<string, string>();
+
+      const flakyRedis: RedisClient = {
+        async get(key: string) {
+          return store.get(key) ?? null;
+        },
+        async set(key: string, value: string) {
+          if (key.endsWith(':lock')) {
+            store.set(key, value);
+            return 'OK';
+          }
+          throw new Error('REDIS_DOWN');
+        },
+        async del(key: string | string[]) {
+          const keys = Array.isArray(key) ? key : [key];
+          let n = 0;
+          for (const k of keys) {
+            if (store.delete(k)) n += 1;
+          }
+          return n;
+        },
+      };
+
+      await app.register(idempotencyPlugin, { storeMode: 'redis', redis: flakyRedis });
+      app.post('/test', async () => {
+        callCount += 1;
+        return { result: 'created' };
+      });
+
+      const first = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'total-write-fail' },
+        payload: { name: 'test' },
+      });
+
+      expect(first.statusCode).toBe(503);
+      expect(first.json().code).toBe('IDEMPOTENCY_REPLAY_PENDING');
+      expect(first.headers['x-idempotency-replay']).toBe('unsaved');
+      expect(callCount).toBe(1);
+      // Lock retained so concurrent/retry hits conflict instead of re-mutating.
+      expect(store.get('idempotency:global:total-write-fail:lock')).toBe('processing');
+
+      const retry = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'total-write-fail' },
+        payload: { name: 'test' },
+      });
+
+      expect(retry.statusCode).toBe(409);
+      expect(retry.json().code).toBe('IDEMPOTENCY_CONFLICT');
+      expect(callCount).toBe(1);
+    });
+
+    it('still returns cached 2xx on happy-path replay when Redis save succeeds', async () => {
+      let callCount = 0;
+      await app.register(idempotencyPlugin, { storeMode: 'redis', redis });
+      app.post('/test', async (_req, reply) => {
+        callCount += 1;
+        return reply.status(201).send({ result: 'created', id: 'ok' });
+      });
+
+      const first = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'happy-replay' },
+        payload: { name: 'test' },
+      });
+      const second = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'happy-replay' },
+        payload: { name: 'test' },
+      });
+
+      expect(first.statusCode).toBe(201);
+      expect(second.statusCode).toBe(201);
+      expect(second.headers['x-idempotency-replay']).toBe('true');
+      expect(second.json()).toEqual({ result: 'created', id: 'ok' });
+      expect(callCount).toBe(1);
+    });
   });
 
   describe('custom header name', () => {
