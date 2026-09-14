@@ -67,6 +67,7 @@ import {
 } from './mutation-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
+import paginationCapPlugin from './plugins/pagination-cap.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
 import { providersPlugin } from './plugins/providers-plugin.js';
@@ -218,6 +219,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       'retry-after': true,
     },
   });
+
+  // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
+  await app.register(paginationCapPlugin);
 
   // 5. Register health check (before auth, so it's always accessible)
   await app.register(apiContractPlugin);
