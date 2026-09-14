@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "W1-DATA-04 — every Prisma-mapped table has exactly one declared DDL authority (prisma migrations or numbered db/sql). mirrorOk allows a second-layer IF NOT EXISTS bootstrap copy.",
+  "tables": {
+    "tenants": {
+      "authority": "prisma",
+      "mirrorOk": true,
+      "reason": "Prisma baseline owns CREATE; db/sql/001 mirrors IF NOT EXISTS for raw-SQL cert paths"
+    },
+    "tenant_theme_versions": { "authority": "prisma" },
+    "tenant_theme_drafts": { "authority": "prisma" },
+    "refresh_tokens": { "authority": "sql" },
+    "user_sessions": { "authority": "sql" },
+    "geographic_areas": { "authority": "sql" },
+    "boards": { "authority": "sql" },
+    "institutions": { "authority": "sql" },
+    "students": { "authority": "sql" },
+    "staff": { "authority": "sql" },
+    "enrollments": { "authority": "sql" },
+    "academic_periods": { "authority": "sql" },
+    "grades": { "authority": "sql" },
+    "classes": { "authority": "sql" },
+    "subjects": { "authority": "sql" },
+    "institution_subjects": { "authority": "sql" },
+    "student_attendance": { "authority": "prisma" },
+    "staff_attendance": { "authority": "prisma" },
+    "attendance_audit": { "authority": "prisma" },
+    "staff_assignments": { "authority": "prisma" },
+    "examinations": { "authority": "prisma" },
+    "examination_candidate_registrations": { "authority": "prisma" },
+    "examination_candidates": { "authority": "prisma" },
+    "examination_publications": { "authority": "prisma" },
+    "examination_result_analyses": { "authority": "prisma" },
+    "examination_academic_records": { "authority": "prisma" },
+    "examination_document_jobs": { "authority": "prisma" },
+    "grading_schemes": { "authority": "prisma" },
+    "assessment_items": { "authority": "prisma" },
+    "assessment_outcomes": { "authority": "prisma" },
+    "assessment_results": { "authority": "prisma" }
+  }
+}

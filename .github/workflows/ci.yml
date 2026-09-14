@@ -918,11 +918,13 @@ jobs:
         run: bash tools/scripts/check-restore-drill-evidence.sh
 
   # ---------------------------------------------------------------------------
-  # Prisma ↔ SQL schema drift — data gate (W1-DATA-04)
+  # Prisma ↔ SQL schema drift — data gate (W1-DATA-04 COMPLETE)
   # ---------------------------------------------------------------------------
-  # Static fail-closed check: Prisma @@map tables must have CREATE TABLE in
-  # prisma/migrations or db/sql; auth session models must keep columns in
-  # numbered SQL. No Postgres required.
+  # Always-on, fail-closed catalog parity: every Prisma model vs SQL corpus
+  # (columns/types/nullability/defaults/PK/unique/check/FK/index) plus one
+  # declared schema authority per table. Auth session models must stay
+  # SQL-backed. No Postgres required for the static gate; fresh-DB CI that
+  # runs prisma migrate + apply-sql inherits the same corpus.
   # ---------------------------------------------------------------------------
   prisma-sql-drift:
     name: Prisma SQL Drift (W1-DATA-04)
@@ -937,7 +939,7 @@ jobs:
       - name: Unit-test Prisma↔SQL drift gate
         run: node --test tools/scripts/check-prisma-sql-drift.test.mjs
 
-      - name: Fail on Prisma↔SQL schema drift
+      - name: Fail on Prisma↔SQL catalog drift
         run: node tools/scripts/check-prisma-sql-drift.mjs
 
   # ---------------------------------------------------------------------------
