@@ -138,6 +138,13 @@ describe('apply-sql.sh', () => {
       /Recording \$\{#SQL_FILES\[@\]\} files in schema_migrations[\s\S]*ON CONFLICT \(filename\) DO UPDATE SET checksum = EXCLUDED\.checksum/,
     );
   });
+
+  it('W1-DATA-10 static contract: optional role bootstrap before ledger apply', () => {
+    expect(scriptSource).toMatch(/W1-DATA-10/);
+    expect(scriptSource).toMatch(/bootstrap-db-roles\.sh/);
+    expect(scriptSource).toMatch(/BOOTSTRAP_DATABASE_URL/);
+    expect(scriptSource).toMatch(/maybe_bootstrap_roles/);
+  });
 });
 
 describe.skipIf(!LIVE_URL)('apply-sql.sh W1-DATA-05 ledger (live Postgres)', () => {

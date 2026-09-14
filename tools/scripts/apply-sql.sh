@@ -19,6 +19,11 @@
 #   If unset, uses libpq defaults (PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE)
 #   with PGDATABASE defaulting to "proctira".
 #
+# W1-DATA-10 role bootstrap:
+#   When BOOTSTRAP_DATABASE_URL is set, runs tools/scripts/bootstrap-db-roles.sh
+#   before the ledger apply so fresh installs do not need hand-written CREATE ROLE.
+#   The only manual prerequisite remains a superuser/CREATEROLE bootstrap URL.
+#
 # Seeds under db/seeds/ are NOT applied here — they are demo/cert data and may
 # be destructive. Apply them explicitly (see db/README.md).
 #
@@ -44,6 +49,7 @@ DRY_RUN=0
 APPLY_SEEDS="${APPLY_SEEDS:-0}"
 APPLY_STRICT_FKS="${APPLY_STRICT_FKS:-0}"
 APPLY_SQL_NO_TX="${APPLY_SQL_NO_TX:-0}"
+BOOTSTRAP_SCRIPT="$ROOT/tools/scripts/bootstrap-db-roles.sh"
 
 usage() {
   cat <<'EOF'
@@ -60,6 +66,7 @@ Environment:
   DATABASE_URL           Used when MIGRATOR_DATABASE_URL is unset
   PGDATABASE             Used when neither URL is set (default: proctira)
   PGHOST/PGPORT/PGUSER/PGPASSWORD  Standard libpq vars when URL unset
+  BOOTSTRAP_DATABASE_URL Superuser URL — when set, runs bootstrap-db-roles.sh first
   APPLY_SEEDS=1          Also apply db/sql/*b_*_seed.sql demo rows (never in prod)
   APPLY_STRICT_FKS=1     Also apply 021a/021b strict tenant FK files
   APPLY_SQL_DIR          Override SQL directory (tests / fixtures)
@@ -68,6 +75,9 @@ Environment:
 W1-DATA-05 ledger:
   Applied files are recorded in schema_migrations (filename + sha256).
   Re-runs skip unchanged checksums and fail closed on checksum mismatch.
+
+W1-DATA-10 bootstrap:
+  See db/bootstrap/README.md and tools/scripts/bootstrap-db-roles.sh.
 EOF
 }
 
@@ -153,6 +163,9 @@ if [[ ${#SKIPPED[@]} -gt 0 ]]; then
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
+  if [[ -n "${BOOTSTRAP_DATABASE_URL:-}" ]]; then
+    echo "==> Would run W1-DATA-10 bootstrap-db-roles.sh (BOOTSTRAP_DATABASE_URL set)"
+  fi
   echo "==> Dry run only (seeds under db/seeds/ are documented separately; not applied)"
   exit 0
 fi
@@ -179,6 +192,22 @@ fi
 psql_q() {
   psql "${PSQL_TARGET[@]}" "${PSQL_ARGS[@]}" "$@"
 }
+
+# W1-DATA-10: create migrator + runtime roles before ledger apply when asked.
+maybe_bootstrap_roles() {
+  if [[ -z "${BOOTSTRAP_DATABASE_URL:-}" ]]; then
+    return 0
+  fi
+  if [[ ! -x "$BOOTSTRAP_SCRIPT" && ! -f "$BOOTSTRAP_SCRIPT" ]]; then
+    echo "error: bootstrap script missing: $BOOTSTRAP_SCRIPT" >&2
+    exit 1
+  fi
+  echo "==> W1-DATA-10: BOOTSTRAP_DATABASE_URL set — running bootstrap-db-roles.sh"
+  # shellcheck disable=SC2086
+  bash "$BOOTSTRAP_SCRIPT"
+}
+
+maybe_bootstrap_roles
 
 echo "==> Ensuring schema_migrations ledger exists"
 psql_q -q <<'SQL'
