@@ -68,8 +68,10 @@ import {
 import {
   createDeveloperPortalRepository,
   createWebhookDeliveryPublisherFromEnv,
+  createWebhookReplayStoreFromEnv,
   developerPortalPlugin,
   ensureDeveloperPortalPersistence,
+  type RedisLikeForReplay,
 } from '@proctira/backend-developer-portal';
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import {
@@ -964,6 +966,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // accounts, webhooks, deliveries when DATABASE_URL is set (fail-closed otherwise
       // in production). Marketplace/docs/analytics remain in-memory residuals.
       // W2-JOB-07: durable webhook delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
+      // W1-SEC-08: inject webhook nonce replay store (Redis when REDIS_URL set) so
+      // POST /developer/webhooks/verify is fail-closed for skew + replay.
       await ensureDeveloperPortalPersistence();
       const webhookDelivery = await createWebhookDeliveryPublisherFromEnv();
       if (webhookDelivery) {
@@ -971,9 +975,29 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           await webhookDelivery.disconnect();
         });
       }
+
+      let webhookReplayRedis: RedisLikeForReplay | undefined;
+      const redisUrl = process.env['REDIS_URL']?.trim();
+      if (redisUrl) {
+        const { default: Redis } = await import('ioredis');
+        const redis = new Redis(redisUrl, {
+          maxRetriesPerRequest: 3,
+          lazyConnect: true,
+        });
+        webhookReplayRedis = redis;
+        scope.addHook('onClose', async () => {
+          await redis.quit();
+        });
+      }
+      const webhookReplayStore = createWebhookReplayStoreFromEnv({
+        NODE_ENV: process.env['NODE_ENV'],
+        redis: webhookReplayRedis,
+      });
+
       await scope.register(developerPortalPlugin, {
         repository: createDeveloperPortalRepository(),
         deliveryPublisher: webhookDelivery?.publisher,
+        replayStore: webhookReplayStore,
         prefix: '/developer',
       });
     },

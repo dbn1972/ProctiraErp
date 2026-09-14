@@ -18,12 +18,19 @@
  * GET    /developer/accounts/:accountId/sandboxes   - List sandboxes
  * DELETE /developer/accounts/:accountId/sandboxes/:sandboxId - Destroy sandbox
  * POST   /developer/validate-key                - Validate an API key
+ * POST   /developer/webhooks/verify             - Verify inbound webhook HMAC (W1-SEC-08)
+ * POST   /developer/webhooks/verify-self-test   - Sign+verify+replay self-check (W1-SEC-08)
  */
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DeveloperPortalService } from './developer-portal-service.js';
+import {
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_NONCE_HEADER,
+} from './webhook-signature.js';
 import {
   CreateDeveloperAccountSchema,
   UpdateDeveloperAccountSchema,
@@ -1588,4 +1595,130 @@ export async function registerDeveloperPortalRoutes(
       });
     },
   );
+
+  /**
+   * POST /developer/webhooks/verify
+   * W1-SEC-08 reference receiver: verify Proctira webhook HMAC (skew + nonce replay).
+   * Body: { payload: string|object, secret: string }
+   * Headers: x-proctira-signature, x-proctira-timestamp, x-proctira-nonce
+   *   (signature/timestamp/nonce may also be supplied in the body for tooling).
+   */
+  fastify.post(
+    `${prefix}/webhooks/verify`,
+    async function verifyInboundWebhookHandler(
+      request: FastifyRequest<{
+        Body: {
+          payload?: unknown;
+          secret?: unknown;
+          signature?: unknown;
+          timestamp?: unknown;
+          nonce?: unknown;
+        };
+      }>,
+      reply: FastifyReply,
+    ) {
+      const body = request.body ?? {};
+      const secret = typeof body.secret === 'string' ? body.secret : '';
+      if (!secret) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'secret is required',
+          statusCode: 400,
+        });
+      }
+
+      let payload: string;
+      if (typeof body.payload === 'string') {
+        payload = body.payload;
+      } else if (body.payload !== undefined) {
+        payload = JSON.stringify(body.payload);
+      } else {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'payload is required',
+          statusCode: 400,
+        });
+      }
+
+      const headerSig = request.headers[WEBHOOK_SIGNATURE_HEADER];
+      const headerTs = request.headers[WEBHOOK_TIMESTAMP_HEADER];
+      const headerNonce = request.headers[WEBHOOK_NONCE_HEADER];
+
+      const signature =
+        typeof body.signature === 'string'
+          ? body.signature
+          : typeof headerSig === 'string'
+            ? headerSig
+            : '';
+      const timestamp =
+        typeof body.timestamp === 'string' || typeof body.timestamp === 'number'
+          ? body.timestamp
+          : typeof headerTs === 'string'
+            ? headerTs
+            : '';
+      const nonce =
+        typeof body.nonce === 'string'
+          ? body.nonce
+          : typeof headerNonce === 'string'
+            ? headerNonce
+            : '';
+
+      if (!signature || timestamp === '' || !nonce) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'signature, timestamp, and nonce are required (headers or body)',
+          statusCode: 400,
+        });
+      }
+
+      const result = await service.verifyInboundWebhook({
+        payload,
+        secret,
+        signature,
+        timestamp,
+        nonce,
+      });
+
+      if (result.ok) {
+        return reply.status(200).send({ ok: true });
+      }
+
+                              const statusByReason: Record<string, number> = {
+        bad_signature: 401,
+        expired: 401,
+        malformed: 401,
+        replay: 409,
+        replay_store_unavailable: 503,
+      };
+      const statusCode = statusByReason[result.reason] ?? 401;
+      return reply.status(statusCode).send({
+        ok: false,
+        reason: result.reason,
+        code: 'WEBHOOK_SIGNATURE_INVALID',
+        statusCode,
+      });
+    },
+  );
+
+  /**
+   * POST /developer/webhooks/verify-self-test
+   * W1-SEC-08: sign a sample payload, verify once (expect ok), verify again (expect replay).
+   * Confirms the gateway-injected replay store is wired into an HTTP path.
+   */
+  fastify.post(
+    `${prefix}/webhooks/verify-self-test`,
+    async function webhookVerifySelfTestHandler(
+      _request: FastifyRequest,
+      reply: FastifyReply,
+    ) {
+      const result = await service.runWebhookVerifySelfTest();
+      const passed = result.first.ok === true && result.second.ok === false && result.second.reason === 'replay';
+      return reply.status(passed ? 200 : 503).send({
+        ok: passed,
+        first: result.first,
+        second: result.second,
+      });
+    },
+  );
+
 }
