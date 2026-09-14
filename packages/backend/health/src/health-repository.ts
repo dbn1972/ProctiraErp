@@ -373,6 +373,12 @@ export interface HealthRepository {
   // Counselling Sessions
   createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: CounsellingSessionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity>;
   updateCounsellingSession(
     id: string,
