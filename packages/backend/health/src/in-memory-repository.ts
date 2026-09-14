@@ -406,6 +406,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createAssessment(
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: SpecialNeedsAssessmentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<SpecialNeedsAssessmentEntity> {
     const now = new Date();
     const entity: SpecialNeedsAssessmentEntity = { ...data, createdAt: now, updatedAt: now };
@@ -437,6 +443,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createDiagnosis(
     data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: DiagnosisEntity,
+      ) => Promise<void>;
+    },
   ): Promise<DiagnosisEntity> {
     const now = new Date();
     const entity: DiagnosisEntity = { ...data, createdAt: now, updatedAt: now };
@@ -465,6 +477,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createReferral(
     data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ReferralEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ReferralEntity> {
     const now = new Date();
     const entity: ReferralEntity = { ...data, createdAt: now, updatedAt: now };
@@ -513,6 +531,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createAccommodationPlan(
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AccommodationPlanEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity> {
     const now = new Date();
     const entity: AccommodationPlanEntity = { ...data, createdAt: now, updatedAt: now };

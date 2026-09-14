@@ -276,6 +276,12 @@ export class PgSpecialNeedsStore {
 
   async createAssessment(
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: SpecialNeedsAssessmentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<SpecialNeedsAssessmentEntity> {
     await this.ensureSchema();
     const scope = await this.phiScope(data.tenantId, data.studentId);
@@ -298,7 +304,12 @@ export class PgSpecialNeedsStore {
           encryptPhi(data.recommendations, scope),
         ],
       );
-      return mapAssessment((result.rows as Record<string, unknown>[])[0]!);
+      const entity = mapAssessment((result.rows as Record<string, unknown>[])[0]!);
+      // W1-SEC-10: special-needs write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
@@ -336,6 +347,12 @@ export class PgSpecialNeedsStore {
 
   async createDiagnosis(
     data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: DiagnosisEntity,
+      ) => Promise<void>;
+    },
   ): Promise<DiagnosisEntity> {
     await this.ensureSchema();
     const scope = await this.phiScope(data.tenantId, data.studentId);
@@ -359,7 +376,12 @@ export class PgSpecialNeedsStore {
           encryptPhi(data.notes, scope),
         ],
       );
-      return mapDiagnosis((result.rows as Record<string, unknown>[])[0]!);
+      const entity = mapDiagnosis((result.rows as Record<string, unknown>[])[0]!);
+      // W1-SEC-10: special-needs write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
@@ -394,6 +416,12 @@ export class PgSpecialNeedsStore {
 
   async createReferral(
     data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ReferralEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ReferralEntity> {
     await this.ensureSchema();
     const scope = await this.phiScope(data.tenantId, data.studentId);
@@ -418,7 +446,12 @@ export class PgSpecialNeedsStore {
           encryptPhi(data.outcome, scope),
         ],
       );
-      return mapReferral((result.rows as Record<string, unknown>[])[0]!);
+      const entity = mapReferral((result.rows as Record<string, unknown>[])[0]!);
+      // W1-SEC-10: special-needs write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
@@ -500,6 +533,12 @@ export class PgSpecialNeedsStore {
 
   async createAccommodationPlan(
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AccommodationPlanEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity> {
     await this.ensureSchema();
     const scope = await this.phiScope(data.tenantId, data.studentId);
@@ -524,7 +563,12 @@ export class PgSpecialNeedsStore {
           encryptPhi(data.notes, scope),
         ],
       );
-      return mapPlan((result.rows as Record<string, unknown>[])[0]!);
+      const entity = mapPlan((result.rows as Record<string, unknown>[])[0]!);
+      // W1-SEC-10: special-needs write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 

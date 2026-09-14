@@ -323,6 +323,12 @@ export interface HealthRepository {
   // Special Needs Assessments
   createAssessment(
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: SpecialNeedsAssessmentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<SpecialNeedsAssessmentEntity>;
   findAssessmentById(id: string, tenantId: string): Promise<SpecialNeedsAssessmentEntity | null>;
   listAssessmentsByStudent(
@@ -332,7 +338,15 @@ export interface HealthRepository {
   ): Promise<PaginatedResult<SpecialNeedsAssessmentEntity>>;
 
   // Diagnoses
-  createDiagnosis(data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>): Promise<DiagnosisEntity>;
+  createDiagnosis(
+    data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: DiagnosisEntity,
+      ) => Promise<void>;
+    },
+  ): Promise<DiagnosisEntity>;
   findDiagnosisById(id: string, tenantId: string): Promise<DiagnosisEntity | null>;
   listDiagnosesByStudent(
     tenantId: string,
@@ -341,7 +355,15 @@ export interface HealthRepository {
   ): Promise<PaginatedResult<DiagnosisEntity>>;
 
   // Referrals
-  createReferral(data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>): Promise<ReferralEntity>;
+  createReferral(
+    data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ReferralEntity,
+      ) => Promise<void>;
+    },
+  ): Promise<ReferralEntity>;
   updateReferral(
     id: string,
     tenantId: string,
@@ -357,6 +379,12 @@ export interface HealthRepository {
   // Accommodation Plans
   createAccommodationPlan(
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AccommodationPlanEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity>;
   updateAccommodationPlan(
     id: string,

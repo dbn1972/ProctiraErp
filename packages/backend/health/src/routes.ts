@@ -199,6 +199,39 @@ function buildCounsellingSessionAuditBinder(request: FastifyRequest, tenantId: s
 }
 
 
+function buildAssessmentAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/special-needs/assessments',
+    regulated: 'health.special_needs_assessment',
+    idField: 'assessmentId',
+  });
+}
+
+function buildDiagnosisAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/special-needs/diagnoses',
+    regulated: 'health.diagnosis',
+    idField: 'diagnosisId',
+  });
+}
+
+function buildReferralAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/special-needs/referrals',
+    regulated: 'health.referral',
+    idField: 'referralId',
+  });
+}
+
+function buildAccommodationPlanAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/special-needs/accommodation-plans',
+    regulated: 'health.accommodation_plan',
+    idField: 'accommodationPlanId',
+  });
+}
+
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
@@ -777,6 +810,7 @@ export async function registerHealthRoutes(
           tenantId,
           result.data,
           getAccessContext(request),
+          buildAssessmentAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
       } catch (error) {
@@ -843,6 +877,7 @@ export async function registerHealthRoutes(
           tenantId,
           result.data,
           getAccessContext(request),
+          buildDiagnosisAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
       } catch (error) {
@@ -909,6 +944,7 @@ export async function registerHealthRoutes(
           tenantId,
           result.data,
           getAccessContext(request),
+          buildReferralAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
       } catch (error) {
@@ -1015,6 +1051,7 @@ export async function registerHealthRoutes(
           tenantId,
           result.data,
           getAccessContext(request),
+          buildAccommodationPlanAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
       } catch (error) {
