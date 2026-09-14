@@ -88,6 +88,8 @@ export interface CreateFeeStructureInput {
   academicPeriodId?: string;
   gradeId?: string;
   classId?: string;
+  validFrom?: string;
+  validTo?: string | null;
 }
 
 export interface GenerateInstalmentScheduleInput {
@@ -544,6 +546,11 @@ export class FeesService {
     if (input.amountCents < 0 || !Number.isInteger(input.amountCents)) {
       throw new BusinessRuleError('Structure amountCents must be a non-negative integer');
     }
+    const validFrom = input.validFrom ?? new Date().toISOString().slice(0, 10);
+    const validTo = input.validTo === undefined ? null : input.validTo;
+    if (validTo && validTo < validFrom) {
+      throw new BusinessRuleError('validTo must be on or after validFrom');
+    }
     return this.repository.createFeeStructure({
       id: uuidv4(),
       tenantId,
@@ -558,12 +565,14 @@ export class FeesService {
       amountCents: input.amountCents,
       currency: input.currency ?? 'INR',
       status: 'active',
+      validFrom,
+      validTo,
       createdBy: actorId,
     });
   }
 
-  async listFeeStructures(tenantId: string) {
-    return this.repository.listFeeStructures(tenantId);
+  async listFeeStructures(tenantId: string, options?: { asOf?: string }) {
+    return this.repository.listFeeStructures(tenantId, options);
   }
 
   async getFeeStructure(tenantId: string, structureId: string) {

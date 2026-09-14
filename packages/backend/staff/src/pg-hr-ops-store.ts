@@ -14,6 +14,7 @@ import type {
   StaffContractStatus,
   StaffContractType,
   StaffHrStore,
+  StaffPayrollExportRecord,
   StaffQualificationRecord,
 } from './hr-store.js';
 
@@ -61,11 +62,33 @@ function payrollSqlPath(): string {
   return join(roots[0]!, name);
 }
 
+function effectiveDatingSqlPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const name = '070_academic_fee_effective_dating.sql';
+  const roots = [
+    join(here, '../../../../db/sql'),
+    join(process.cwd(), 'db/sql'),
+    join(process.cwd(), '../../db/sql'),
+  ];
+  for (const root of roots) {
+    const path = join(root, name);
+    try {
+      readFileSync(path, 'utf8');
+      return path;
+    } catch {
+      // try next
+    }
+  }
+  return join(roots[0]!, name);
+}
+
+
 export async function ensureStaffHrSchema(pool: PgHrOpsPool): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
       await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
       await pool.query(readFileSync(payrollSqlPath(), 'utf8'));
+      await pool.query(readFileSync(effectiveDatingSqlPath(), 'utf8'));
     })().catch((err: unknown) => {
       schemaReady = null;
       throw err;
@@ -404,4 +427,69 @@ export class PgStaffHrStore implements StaffHrStore {
     const rows = await this.listAttendance(tenantId, { staffId, date });
     return rows[0] ?? null;
   }
+  async findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null> {
+    await ensureStaffHrSchema(this.pool);
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `SELECT id, tenant_id, month, gross_cents, deductions_cents, net_cents,
+                csv_artifact, trial_balance_json, lines_json, created_at
+         FROM staff_payroll_runs
+         WHERE tenant_id = $1 AND month = $2
+         LIMIT 1`,
+        [tenantId, month],
+      );
+      const row = rows[0] as Record<string, unknown> | undefined;
+      if (!row || row.csv_artifact == null) return null;
+      return {
+        tenantId: String(row.tenant_id),
+        month: String(row.month),
+        runId: String(row.id),
+        filename: `payroll-${month}.csv`,
+        csv: String(row.csv_artifact),
+        rowsJson: row.lines_json == null ? '[]' : JSON.stringify(row.lines_json),
+        trialBalanceJson:
+          row.trial_balance_json == null ? '{}' : JSON.stringify(row.trial_balance_json),
+        grossCents: Number(row.gross_cents),
+        deductionsCents: Number(row.deductions_cents),
+        netCents: Number(row.net_cents),
+        createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+      };
+    });
+  }
+
+  async savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord> {
+    await ensureStaffHrSchema(this.pool);
+    return this.run(record.tenantId, async (client) => {
+      await client.query(
+        `INSERT INTO staff_payroll_runs (
+           id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
+           csv_artifact, trial_balance_json, lines_json, posted_at, created_at
+         ) VALUES (
+           $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10
+         )
+         ON CONFLICT (tenant_id, month) DO UPDATE SET
+           csv_artifact = EXCLUDED.csv_artifact,
+           trial_balance_json = EXCLUDED.trial_balance_json,
+           lines_json = EXCLUDED.lines_json,
+           gross_cents = EXCLUDED.gross_cents,
+           deductions_cents = EXCLUDED.deductions_cents,
+           net_cents = EXCLUDED.net_cents
+         RETURNING id`,
+        [
+          record.runId,
+          record.tenantId,
+          record.month,
+          record.grossCents,
+          record.deductionsCents,
+          record.netCents,
+          record.csv,
+          record.trialBalanceJson,
+          record.rowsJson,
+          record.createdAt,
+        ],
+      );
+      return record;
+    });
+  }
+
 }

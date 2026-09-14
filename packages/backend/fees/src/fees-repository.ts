@@ -147,6 +147,10 @@ export interface FeeStructureEntity {
   amountCents: number;
   currency: string;
   status: FeeStructureStatus;
+  /** Inclusive validity start (W1-DATA-07). */
+  validFrom: string;
+  /** Inclusive validity end; null = open-ended (W1-DATA-07). */
+  validTo: string | null;
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -308,7 +312,7 @@ export interface FeesRepository {
   createFeeStructure(
     data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeeStructureEntity>;
-  listFeeStructures(tenantId: string): Promise<FeeStructureEntity[]>;
+  listFeeStructures(tenantId: string, options?: { asOf?: string }): Promise<FeeStructureEntity[]>;
   findFeeStructureById(id: string, tenantId: string): Promise<FeeStructureEntity | null>;
   replaceStructureInstalments(
     tenantId: string,

@@ -96,6 +96,8 @@ const CreateFeeStructureSchema = Type.Object({
   academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  validFrom: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
+  validTo: Type.Optional(Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()])),
 });
 
 const GenerateInstalmentsSchema = Type.Object({
@@ -671,7 +673,11 @@ export const feesPlugin = fp(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       if (!requireFeesRead(request, reply)) return;
-      const structures = await feesService.listFeeStructures(tenantId);
+      const asOf =
+        typeof (request.query as { asOf?: unknown })?.asOf === 'string'
+          ? (request.query as { asOf: string }).asOf
+          : undefined;
+      const structures = await feesService.listFeeStructures(tenantId, { asOf });
       return reply.status(200).send({
         data: structures.map((row) => ({
           ...row,

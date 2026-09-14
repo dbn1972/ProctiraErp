@@ -191,8 +191,15 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     tenantId: string,
     _institutionId: string,
   ): Promise<AcademicPeriodInfo | null> {
+    const asOf = new Date();
+    const asOfDay = Date.UTC(asOf.getUTCFullYear(), asOf.getUTCMonth(), asOf.getUTCDate());
     return (
-      this.academicPeriods.find((p) => p.tenantId === tenantId && p.status === 'active') ?? null
+      this.academicPeriods.find((p) => {
+        if (p.tenantId !== tenantId || p.status !== 'active') return false;
+        const start = Date.UTC(p.startDate.getUTCFullYear(), p.startDate.getUTCMonth(), p.startDate.getUTCDate());
+        const end = Date.UTC(p.endDate.getUTCFullYear(), p.endDate.getUTCMonth(), p.endDate.getUTCDate());
+        return start <= asOfDay && asOfDay <= end;
+      }) ?? null
     );
   }
 

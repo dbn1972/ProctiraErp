@@ -225,13 +225,28 @@ export class InMemoryFeesRepository implements FeesRepository {
     data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeeStructureEntity> {
     const now = new Date();
-    const entity: FeeStructureEntity = { ...data, createdAt: now, updatedAt: now };
+    const entity: FeeStructureEntity = {
+      ...data,
+      validFrom: data.validFrom ?? now.toISOString().slice(0, 10),
+      validTo: data.validTo ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.structures.push(entity);
     return entity;
   }
 
-  async listFeeStructures(tenantId: string): Promise<FeeStructureEntity[]> {
-    return this.structures.filter((row) => row.tenantId === tenantId);
+  async listFeeStructures(
+    tenantId: string,
+    options?: { asOf?: string },
+  ): Promise<FeeStructureEntity[]> {
+    return this.structures.filter((row) => {
+      if (row.tenantId !== tenantId) return false;
+      if (!options?.asOf) return true;
+      if (row.validFrom > options.asOf) return false;
+      if (row.validTo && row.validTo < options.asOf) return false;
+      return true;
+    });
   }
 
   async findFeeStructureById(id: string, tenantId: string): Promise<FeeStructureEntity | null> {

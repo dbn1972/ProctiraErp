@@ -376,8 +376,15 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     _institutionId: string,
   ): Promise<AcademicPeriodInfo | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const asOf = new Date();
       const period = await tx.academicPeriod.findFirst({
-        where: { tenantId, status: 'active', deletedAt: null },
+        where: {
+          tenantId,
+          status: 'active',
+          deletedAt: null,
+          startDate: { lte: asOf },
+          endDate: { gte: asOf },
+        },
         orderBy: { startDate: 'desc' },
       });
       return period
