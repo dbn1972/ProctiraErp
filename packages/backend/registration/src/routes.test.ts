@@ -251,15 +251,29 @@ describe('Registration Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.language).toBe('ar');
       expect(body.sessionId).toBeDefined();
-      // CSPRNG session suffix: session-<epochMs>-<12 hex chars>
-      expect(body.sessionId).toMatch(/^session-\d+-[0-9a-f]{12}$/);
+      // W1-SEC-05: 128-bit CSPRNG session id (32 hex)
+      expect(body.sessionId).toMatch(/^[0-9a-f]{32}$/);
+      expect(response.headers['x-session-id']).toBe(body.sessionId);
     });
 
-    it('resolveSessionId uses CSPRNG via node:crypto randomBytes (W1-SEC-05)', () => {
+    it('mints sessions with randomBytes(16) and refuses client-chosen ids (W1-SEC-05)', () => {
       const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'routes.ts'), 'utf8');
-      expect(src).toMatch(/import\s*\{\s*randomBytes\s*\}\s*from\s*['"]node:crypto['"]/);
-      expect(src).toMatch(/randomBytes\s*\(\s*6\s*\)/);
+      expect(src).toMatch(/randomBytes\s*\(\s*16\s*\)/);
+      expect(src).toMatch(/NODE_ENV === 'production'/);
       expect(src).not.toMatch(/Math\.random\s*\(/);
+    });
+
+    it('rejects forged x-session-id that is not server-issued', async () => {
+      const forged = 'a'.repeat(32);
+      const response = await app.inject({
+        method: 'GET',
+        url: '/registrations/language',
+        headers: { 'x-session-id': forged, 'user-agent': 'sec05-test' },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.sessionId).not.toBe(forged);
+      expect(body.sessionId).toMatch(/^[0-9a-f]{32}$/);
     });
 
     it('should return 400 for invalid language code', async () => {
@@ -273,25 +287,46 @@ describe('Registration Routes', () => {
     });
 
     it('should persist language across requests with session', async () => {
-      // Set language
+      const headers = { 'user-agent': 'sec05-persist' };
       const setResponse = await app.inject({
         method: 'POST',
         url: '/registrations/language',
+        headers,
         payload: { language: 'fr' },
       });
 
       const { sessionId } = JSON.parse(setResponse.body);
+      expect(sessionId).toMatch(/^[0-9a-f]{32}$/);
 
-      // Get language with same session
       const getResponse = await app.inject({
         method: 'GET',
         url: '/registrations/language',
-        headers: { 'x-session-id': sessionId },
+        headers: { ...headers, 'x-session-id': sessionId },
       });
 
       expect(getResponse.statusCode).toBe(200);
       const body = JSON.parse(getResponse.body);
       expect(body.language).toBe('fr');
+      expect(body.sessionId).toBe(sessionId);
+    });
+
+    it('does not reuse session when client binding mismatches', async () => {
+      const setResponse = await app.inject({
+        method: 'POST',
+        url: '/registrations/language',
+        headers: { 'user-agent': 'agent-a' },
+        payload: { language: 'fr' },
+      });
+      const { sessionId } = JSON.parse(setResponse.body);
+
+      const getResponse = await app.inject({
+        method: 'GET',
+        url: '/registrations/language',
+        headers: { 'user-agent': 'agent-b', 'x-session-id': sessionId },
+      });
+      const body = JSON.parse(getResponse.body);
+      expect(body.sessionId).not.toBe(sessionId);
+      expect(body.language).toBe('en');
     });
   });
 

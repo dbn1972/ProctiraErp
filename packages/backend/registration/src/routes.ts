@@ -10,7 +10,7 @@
  *
  * Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6
  */
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
@@ -45,30 +45,75 @@ export interface RegistrationRoutesOptions {
   prefix?: string;
   /** Default tenant ID for public routes (resolved from subdomain in production) */
   defaultTenantId?: string;
+  /**
+   * W1-SEC-05: shared session store (Redis/DB in multi-replica). Defaults to
+   * in-memory only when NODE_ENV !== 'production'.
+   */
+  sessionStore?: RegistrationSessionStore;
+  /** Session TTL ms (default 8h). */
+  sessionTtlMs?: number;
+}
+
+/** W1-SEC-05 session record with binding + expiry. */
+export interface RegistrationSessionRecord {
+  data: Record<string, string>;
+  /** SHA-256 of User-Agent (or explicit client binding). */
+  clientBinding: string;
+  expiresAtMs: number;
 }
 
 /**
  * Session store interface for language persistence.
- * Requirement 16.5: Session-persisted language selection.
+ * Requirement 16.5 / W1-SEC-05: TTL + binding + shared-store ready.
  */
-export interface SessionStore {
-  get(sessionId: string): Promise<Record<string, string> | null>;
-  set(sessionId: string, data: Record<string, string>): Promise<void>;
+export interface RegistrationSessionStore {
+  get(sessionId: string): Promise<RegistrationSessionRecord | null>;
+  set(sessionId: string, record: RegistrationSessionRecord): Promise<void>;
+  delete?(sessionId: string): Promise<void>;
 }
 
+/** @deprecated Use RegistrationSessionStore */
+export type SessionStore = RegistrationSessionStore;
+
 /**
- * Simple in-memory session store for language preferences.
+ * Process-local session store (dev/test). Production must inject a shared store.
  */
-export class InMemorySessionStore implements SessionStore {
-  private sessions = new Map<string, Record<string, string>>();
+export class InMemorySessionStore implements RegistrationSessionStore {
+  private sessions = new Map<string, RegistrationSessionRecord>();
 
-  async get(sessionId: string): Promise<Record<string, string> | null> {
-    return this.sessions.get(sessionId) ?? null;
+  async get(sessionId: string): Promise<RegistrationSessionRecord | null> {
+    const row = this.sessions.get(sessionId);
+    if (!row) return null;
+    if (row.expiresAtMs <= Date.now()) {
+      this.sessions.delete(sessionId);
+      return null;
+    }
+    return row;
   }
 
-  async set(sessionId: string, data: Record<string, string>): Promise<void> {
-    this.sessions.set(sessionId, data);
+  async set(sessionId: string, record: RegistrationSessionRecord): Promise<void> {
+    this.sessions.set(sessionId, record);
   }
+
+  async delete(sessionId: string): Promise<void> {
+    this.sessions.delete(sessionId);
+  }
+}
+
+/** 128-bit CSPRNG session id (32 hex chars). */
+export function mintRegistrationSessionId(): string {
+  return randomBytes(16).toString('hex');
+}
+
+export function hashClientBinding(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex');
+}
+
+function clientBindingFromRequest(request: FastifyRequest): string {
+  const ua = typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : '';
+  const explicit =
+    typeof request.headers['x-client-binding'] === 'string' ? request.headers['x-client-binding'] : '';
+  return hashClientBinding(`${explicit}|${ua}`);
 }
 
 /**
@@ -87,17 +132,25 @@ function resolveTenantId(request: FastifyRequest, defaultTenantId?: string): str
   return defaultTenantId ?? 'default';
 }
 
-/**
- * Resolves or creates a session ID from request cookies/headers.
- * New IDs use CSPRNG (node:crypto randomBytes) for public identifier entropy.
- */
-function resolveSessionId(request: FastifyRequest): string {
-  // Check for session cookie or header
-  const sessionHeader = request.headers['x-session-id'];
-  if (typeof sessionHeader === 'string' && sessionHeader.length > 0) return sessionHeader;
+const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
-  // CSPRNG suffix (12 hex chars / 48 bits); timestamp prefix aids ops correlation only
-  return `session-${Date.now()}-${randomBytes(6).toString('hex')}`;
+/**
+ * W1-SEC-05: never trust a client-minted x-session-id. Only reuse IDs that
+ * already exist in the store with matching client binding and unexpired TTL.
+ */
+async function resolveOrMintSessionId(
+  request: FastifyRequest,
+  store: RegistrationSessionStore,
+  binding: string,
+): Promise<{ sessionId: string; existing: RegistrationSessionRecord | null }> {
+  const sessionHeader = request.headers['x-session-id'];
+  if (typeof sessionHeader === 'string' && /^[a-f0-9]{32}$/i.test(sessionHeader)) {
+    const existing = await store.get(sessionHeader);
+    if (existing && existing.clientBinding === binding) {
+      return { sessionId: sessionHeader, existing };
+    }
+  }
+  return { sessionId: mintRegistrationSessionId(), existing: null };
 }
 
 /**
@@ -108,7 +161,13 @@ export async function registerRegistrationRoutes(
   options: RegistrationRoutesOptions,
 ): Promise<void> {
   const { registrationService, prefix = '/registrations', defaultTenantId } = options;
-  const sessionStore = new InMemorySessionStore();
+  const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+  if (process.env.NODE_ENV === 'production' && !options.sessionStore) {
+    throw new Error(
+      'W1-SEC-05: production registration routes require an injected shared sessionStore (Redis/DB); in-memory is refuse.',
+    );
+  }
+  const sessionStore = options.sessionStore ?? new InMemorySessionStore();
 
   /**
    * POST /registrations
@@ -341,9 +400,14 @@ export async function registerRegistrationRoutes(
         });
       }
 
-      const sessionId = resolveSessionId(request);
-      const existingSession = (await sessionStore.get(sessionId)) ?? {};
-      await sessionStore.set(sessionId, { ...existingSession, language: result.data.language });
+      const binding = clientBindingFromRequest(request);
+      const { sessionId, existing } = await resolveOrMintSessionId(request, sessionStore, binding);
+      const data = { ...(existing?.data ?? {}), language: result.data.language };
+      await sessionStore.set(sessionId, {
+        data,
+        clientBinding: binding,
+        expiresAtMs: Date.now() + sessionTtlMs,
+      });
 
       return reply
         .status(200)
@@ -364,11 +428,19 @@ export async function registerRegistrationRoutes(
   fastify.get(
     `${prefix}/language`,
     async function getLanguageHandler(request: FastifyRequest, reply: FastifyReply) {
-      const sessionId = resolveSessionId(request);
-      const session = await sessionStore.get(sessionId);
-      const language = session?.language ?? 'en';
+      const binding = clientBindingFromRequest(request);
+      const { sessionId, existing } = await resolveOrMintSessionId(request, sessionStore, binding);
+      const language = existing?.data.language ?? 'en';
+      if (!existing) {
+        // Mint empty session so client receives a server-issued id (not client-chosen).
+        await sessionStore.set(sessionId, {
+          data: {},
+          clientBinding: binding,
+          expiresAtMs: Date.now() + sessionTtlMs,
+        });
+      }
 
-      return reply.status(200).send({ language, sessionId });
+      return reply.status(200).header('x-session-id', sessionId).send({ language, sessionId });
     },
   );
 
