@@ -61,12 +61,28 @@ docker compose -f infra/observability/docker-compose.observability.yml up
 | Metrics | Live                | `@proctira/observability` → `/metrics` on api-gateway, etl-worker and the 9 standalone backend services; Prometheus scrapes only those targets                                                                       |
 | Logs    | Live                | Pino JSON to stdout (`@proctira/logging`), request-id correlated; ship with your platform's log agent                                                                                                                |
 | Alerts  | Live                | `alerts/*.yml` → Alertmanager; receivers rendered from env (below)                                                                                                                                                   |
-| Traces  | **Not implemented** | No OpenTelemetry SDK/exporter is wired. `x-request-id` is propagated gateway → domain plugins for log correlation only. Tracked as a follow-up in the gap audit; do not set expectations of span data in dashboards. |
+| Traces  | App-wired (W1-OPS-13) | `@proctira/observability` `initTracing` + Fastify `tracingPlugin` on api-gateway / etl-worker (and any service using `observabilityPlugin`). Exports OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `_TRACES_ENDPOINT`) is set; **fail-safe no-op** when unset. This repo does **not** ship a collector — configure yours in production. |
 
 Next.js apps (web, portals, admin console) expose `/api/health` but no
 `/metrics`; they are observed through the gateway's `http_*` series and
 availability probes. Any scrape job pointing at them would be permanently down,
 so none exists.
+
+## Distributed tracing (W1-OPS-13)
+
+Set on api-gateway / etl-worker (compose pass-through and Helm `config.tracing`):
+
+| Variable | Effect |
+| --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP/HTTP URL; traces go to `{base}/v1/traces` |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Full traces URL (overrides base) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Optional `k=v,k2=v2` exporter headers |
+| `OTEL_SERVICE_NAME` | Resource `service.name` (compose/Helm also set per service) |
+| `TRACING_ENABLED=false` | Force off even when an endpoint is set |
+
+Local/dev: leave endpoints unset — span APIs and Fastify hooks still run against the no-op provider (no network). Production: point at your collector; **no live collector proof is claimed by this repository**.
+
+Evidence pack: `docs/audits/OPS_W1_OPS_13_OTEL.md`.
 
 ## Alertmanager receivers from the environment
 

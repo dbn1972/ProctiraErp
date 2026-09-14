@@ -17,3 +17,17 @@ data:
   TENANT_HEADER_NAME: {{ .Values.config.tenantHeaderName | quote }}
   S3_REGION: {{ .Values.config.s3Region | quote }}
   S3_FORCE_PATH_STYLE: {{ .Values.config.s3ForcePathStyle | quote }}
+  {{- if .Values.config.tracing }}
+  {{- if .Values.config.tracing.otlpEndpoint }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.tracing.otlpEndpoint | quote }}
+  {{- end }}
+  {{- if .Values.config.tracing.otlpTracesEndpoint }}
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: {{ .Values.config.tracing.otlpTracesEndpoint | quote }}
+  {{- end }}
+  {{- if .Values.config.tracing.enabled }}
+  TRACING_ENABLED: {{ .Values.config.tracing.enabled | quote }}
+  {{- end }}
+  {{- if .Values.config.tracing.headers }}
+  OTEL_EXPORTER_OTLP_HEADERS: {{ .Values.config.tracing.headers | quote }}
+  {{- end }}
+  {{- end }}

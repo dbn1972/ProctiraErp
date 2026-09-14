@@ -202,6 +202,12 @@ services:
       KEYCLOAK_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3000/api/v1/auth/callback}
       KEYCLOAK_JWKS_URI: ${KEYCLOAK_JWKS_URI:-http://keycloak:8080/realms/proctira/protocol/openid-connect/certs}
       NEXT_PUBLIC_WEB_URL: ${NEXT_PUBLIC_WEB_URL:-http://localhost:3201}
+      # W1-OPS-13: pass-through OTLP env (unset → app-level no-op tracer)
+      TRACING_ENABLED: ${TRACING_ENABLED:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-api-gateway}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
       - '${GATEWAY_PORT:-3000}:3000'
     # W1-OPS-18: explicit readiness so dependants wait on service_healthy
@@ -234,6 +240,12 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
+      # W1-OPS-13: pass-through OTLP env (unset → app-level no-op tracer)
+      TRACING_ENABLED: ${TRACING_ENABLED:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-etl-worker}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
     ports:
       - '${ETL_WORKER_PORT:-3010}:3010'
     # W1-OPS-18: readiness probe (no compose dependants today; required for healthy status)
