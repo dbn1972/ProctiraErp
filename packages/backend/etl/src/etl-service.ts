@@ -57,6 +57,13 @@ export class ETLService {
   private readonly adminNotifier: AdminNotifier;
   /** Tenants whose durable pipeline schedules have been loaded into the in-process Map. */
   private readonly hydratedTenants = new Set<string>();
+  /**
+   * W1-ARCH-07: when false, HTTP `/execute` and new scheduled starts are refused.
+   * In-flight work already past the gate continues until drained.
+   */
+  private acceptingWork = true;
+  /** Promises for in-flight pipeline executions (API + scheduled). */
+  private readonly inFlight = new Set<Promise<unknown>>();
 
   constructor(
     private readonly repository: PipelineRepository,
@@ -81,6 +88,49 @@ export class ETLService {
    */
   getScheduler(): PipelineScheduler {
     return this.scheduler;
+  }
+
+  /** True until `stopAcceptingAndDrain()` refuses new executions. */
+  isAcceptingWork(): boolean {
+    return this.acceptingWork;
+  }
+
+  /** Count of tracked in-flight executions (tests / diagnostics). */
+  getInFlightExecutionCount(): number {
+    return this.inFlight.size;
+  }
+
+  /**
+   * W1-ARCH-07: refuse new pipeline executions, stop the scheduler interval,
+   * await in-flight API/scheduled runs, then drain any remaining tick.
+   * Invoked from Fastify `onClose` before process-level DB/pool close.
+   */
+  async stopAcceptingAndDrain(): Promise<void> {
+    this.acceptingWork = false;
+    this.scheduler.stop();
+    const pending = [...this.inFlight];
+    await Promise.allSettled(pending);
+    await this.scheduler.stopAndDrain();
+  }
+
+  /**
+   * Gate + track a pipeline execution so shutdown can refuse new work and drain.
+   */
+  private async withExecutionGate<T>(fn: () => Promise<T>): Promise<T> {
+    if (!this.acceptingWork) {
+      throw new AppError(
+        'ETL service is shutting down and is not accepting new pipeline executions',
+        'SERVICE_UNAVAILABLE',
+        503,
+      );
+    }
+    const work = fn();
+    this.inFlight.add(work);
+    try {
+      return await work;
+    } finally {
+      this.inFlight.delete(work);
+    }
   }
 
   /**
@@ -266,8 +316,16 @@ export class ETLService {
   /**
    * Execute a pipeline: extract → transform → load.
    * This is the basic execution without retry logic.
+   * W1-ARCH-07: gated — refused after `stopAcceptingAndDrain()`.
    */
   async executePipeline(tenantId: string, pipelineId: string): Promise<PipelineExecution> {
+    return this.withExecutionGate(() => this.executePipelineUngated(tenantId, pipelineId));
+  }
+
+  private async executePipelineUngated(
+    tenantId: string,
+    pipelineId: string,
+  ): Promise<PipelineExecution> {
     await this.ensureSchedulesHydrated(tenantId);
     const pipeline = await this.getPipeline(tenantId, pipelineId);
 
@@ -281,11 +339,22 @@ export class ETLService {
   /**
    * Execute a pipeline with retry logic based on its configured retry policy.
    * Publishes events and notifies administrators on final failure.
+   * W1-ARCH-07: gated — refused after `stopAcceptingAndDrain()`.
    */
   async executePipelineWithRetry(
     tenantId: string,
     pipelineId: string,
     scheduledExecution: boolean = false,
+  ): Promise<PipelineExecution> {
+    return this.withExecutionGate(() =>
+      this.executePipelineWithRetryUngated(tenantId, pipelineId, scheduledExecution),
+    );
+  }
+
+  private async executePipelineWithRetryUngated(
+    tenantId: string,
+    pipelineId: string,
+    scheduledExecution: boolean,
   ): Promise<PipelineExecution> {
     await this.ensureSchedulesHydrated(tenantId);
     const pipeline = await this.getPipeline(tenantId, pipelineId);
@@ -583,7 +652,7 @@ export class ETLService {
 
   /**
    * Stop the pipeline scheduler (clears interval; does not await in-flight tick).
-   * Process shutdown uses Fastify onClose → `stopAndDrain()`.
+   * Process shutdown uses Fastify onClose → `stopAcceptingAndDrain()`.
    */
   stopScheduler(): void {
     this.scheduler.stop();

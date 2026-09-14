@@ -76,10 +76,14 @@ pod termination traces.
 
 ## Residuals
 
-1. **In-flight HTTP requests** rely on Fastify’s default `close()` behavior; no
-   custom per-route drain budget beyond the process `SHUTDOWN_TIMEOUT_MS`.
-2. **ETL pipeline executions started outside the scheduler tick** (API
-   `execute`) are not cancelled on SIGTERM — only the scheduler tick is drained.
+**Superseded for disposition:** see `docs/audits/ARCH_W1_ARCH_07_COMPLETE.md`
+(PARTIAL → COMPLETE). Residual #2 (HTTP `/execute` drain) is **closed** there.
+
+1. **In-flight HTTP requests** (non-execute) still rely on Fastify’s default
+   `close()` behavior; process `SHUTDOWN_TIMEOUT_MS` bounds the HTTP step.
+2. ~~**ETL pipeline executions started outside the scheduler tick** (API
+   `execute`)~~ — **CLOSED**: `ETLService.stopAcceptingAndDrain()` refuses new
+   work (`503 SERVICE_UNAVAILABLE`) and awaits in-flight API/scheduled runs.
 3. **Kafka / other brokers** outside queue-abstraction handles already hooked in
    gateway `onClose` are unchanged; residual if a package opens connections
    without an `onClose` hook.
