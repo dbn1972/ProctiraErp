@@ -1,0 +1,183 @@
+# =============================================================================
+# W1-OPS-11 — SAST, secret scanning, IaC, and filesystem CVE gates
+# =============================================================================
+# Fail-closed security scan pack that runs without paid third-party secrets.
+# Complements supply-chain.yml (advisory/SBOM/cosign); does not replace it.
+#
+# Gates:
+#   1) Secret scanning — gitleaks (blocking; continue-on-error: false)
+#   2) SAST — Semgrep community TypeScript/JS rules (ERROR severity blocks)
+#   3) IaC — Trivy config on infrastructure/ (HIGH+ blocks)
+#   4) Container-adjacent — Trivy fs on Dockerfiles / lockfiles (CRITICAL blocks)
+#
+# Remaining risk: full image CVE scanning of published OCI digests still needs
+# registry credentials / a built image (see supply-chain.yml sign-image job).
+# =============================================================================
+
+name: Security Scans
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Weekly catch-up for rulepack drift (Mondays 06:15 UTC).
+    - cron: '15 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scans-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITLEAKS_VERSION: '8.21.2'
+  SEMGREP_VERSION: '1.97.0'
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for commit-range scan)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Binary install avoids gitleaks-action's private-repo license gate while
+      # still using upstream releases (no paid secret required).
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Run gitleaks
+        # Explicit fail-closed: secrets must never soft-pass.
+        continue-on-error: false
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            gitleaks detect \
+              --source . \
+              --log-opts "--no-merges --first-parent ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
+              --redact \
+              --verbose \
+              --exit-code 1
+          else
+            gitleaks detect \
+              --source . \
+              --redact \
+              --verbose \
+              --exit-code 1
+          fi
+
+  sast-semgrep:
+    name: SAST (Semgrep TypeScript/JS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep
+        run: pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+
+      # Community rulepacks only — no SEMGREP_APP_TOKEN / paid platform required.
+      # --severity ERROR + --error: findings at ERROR (≈ high) fail the job.
+      - name: Semgrep scan (blocking on ERROR)
+        continue-on-error: false
+        run: |
+          set -euo pipefail
+          semgrep scan \
+            --config p/typescript \
+            --config p/javascript \
+            --config p/security-audit \
+            --severity ERROR \
+            --error \
+            --metrics=off \
+            --timeout 120 \
+            --exclude='**/node_modules/**' \
+            --exclude='**/dist/**' \
+            --exclude='**/.next/**' \
+            --exclude='**/coverage/**' \
+            --exclude='**/vendor/**' \
+            .
+
+  iac-trivy:
+    name: IaC scan (Trivy config)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Trivy config scan (infrastructure/)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: false
+        with:
+          scan-type: config
+          scan-ref: infrastructure/
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+
+  container-fs-trivy:
+    name: Container FS CVE (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Inexpensive FS scan of Docker build contexts + lockfiles — no registry
+      # login required. Does not replace image-digest CVE of published artifacts.
+      - name: Trivy filesystem scan (docker + lockfiles)
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: false
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: 'CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+          format: table
+          # Limit noise: Dockerfiles, compose, and dependency manifests.
+          skip-dirs: 'node_modules,.git,.next,dist,coverage,apps/mobile,.dart_tool'
+          scanners: 'vuln,secret,misconfig'
+
+  security-scans-summary:
+    name: Security scans gate
+    runs-on: ubuntu-latest
+    needs: [secret-scan, sast-semgrep, iac-trivy, container-fs-trivy]
+    if: always()
+    steps:
+      - name: Require all scan jobs
+        run: |
+          set -euo pipefail
+          echo "## W1-OPS-11 security scans" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Job | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| secret-scan (gitleaks) | ${{ needs.secret-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| sast-semgrep | ${{ needs.sast-semgrep.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| iac-trivy | ${{ needs.iac-trivy.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| container-fs-trivy | ${{ needs.container-fs-trivy.result }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full OCI image CVE of published digests still requires registry credentials (see supply-chain.yml)." >> "$GITHUB_STEP_SUMMARY"
+
+          for r in \
+            "${{ needs.secret-scan.result }}" \
+            "${{ needs.sast-semgrep.result }}" \
+            "${{ needs.iac-trivy.result }}" \
+            "${{ needs.container-fs-trivy.result }}"
+          do
+            if [ "$r" != "success" ]; then
+              echo "Security scan gate failed (result=$r)"
+              exit 1
+            fi
+          done
+          echo "All W1-OPS-11 security scan gates passed."
