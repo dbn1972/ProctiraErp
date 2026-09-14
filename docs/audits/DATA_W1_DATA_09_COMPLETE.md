@@ -1,7 +1,7 @@
 # DATA — W1-DATA-09 money cents COMPLETE (scholarships + fee boundary leftovers)
 
 **Module / slice:** Scholarship integer minor units + fee UI/server `Math.round` leftovers  
-**Branch / tip:** `cursor/w1-data-09-money-complete-56c3` @ `c4f0dc7f87f862bd2e5bde13293014119f277622`  
+**Branch / tip:** `cursor/w1-data-09-money-complete-56c3` @ `1763387bd9fb8f26717e4951eaca8cf4f05d0a13`  
 **Date (UTC):** 2026-09-14  
 **Environment:** static SQL + unit tests (`@proctira/common`, `@proctira/backend-scholarship`)
 
