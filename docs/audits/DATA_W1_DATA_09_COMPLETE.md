@@ -24,7 +24,7 @@ Prior `DATA_W1_DATA_09_MONEY_CENTS.md` closed fees/billing PG mappers only and *
 | -------- | ---- | ----- |
 | Base | `db/sql/016_scholarships_schema.sql` | NUMERIC major retained for display compat; header documents cents migrations |
 | Disbursement cents | `db/sql/060_scholarship_amount_cents.sql` | Existing `amount_cents BIGINT NOT NULL` |
-| Program cents | `db/sql/076_scholarship_program_amount_cents.sql` | **New** `amount_per_recipient_cents BIGINT NOT NULL` + backfill |
+| Program cents | `db/sql/079_scholarship_program_amount_cents.sql` | **New** `amount_per_recipient_cents BIGINT NOT NULL` + backfill |
 | Invariants | Dual-write major + cents; service `assertMajorMatchesCents` on write/pay | ☑ |
 
 ## 2. Apply / verify (no Prisma for cert)

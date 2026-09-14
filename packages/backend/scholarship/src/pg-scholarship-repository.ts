@@ -90,9 +90,9 @@ function amountCentsSqlPath(): string {
 function programAmountCentsSqlPath(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, '../../../../db/sql/076_scholarship_program_amount_cents.sql'),
-    join(process.cwd(), 'db/sql/076_scholarship_program_amount_cents.sql'),
-    join(process.cwd(), '../../db/sql/076_scholarship_program_amount_cents.sql'),
+    join(here, '../../../../db/sql/079_scholarship_program_amount_cents.sql'),
+    join(process.cwd(), 'db/sql/079_scholarship_program_amount_cents.sql'),
+    join(process.cwd(), '../../db/sql/079_scholarship_program_amount_cents.sql'),
   ];
   for (const path of candidates) {
     try {

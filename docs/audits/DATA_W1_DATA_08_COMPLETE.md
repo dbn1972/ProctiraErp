@@ -18,7 +18,7 @@ Prior partial audit: `docs/audits/DATA_W1_DATA_08_IMMUTABILITY.md`.
 
 | Artifact | Path | Notes |
 | -------- | ---- | ----- |
-| Migration | `db/sql/076_transcript_authenticity_complete.sql` | `transcript_signing_keys`; backfill ISSUED; VALIDATE CHECK; `signing_key_id` FK |
+| Migration | `db/sql/079_transcript_authenticity_complete.sql` | `transcript_signing_keys`; backfill ISSUED; VALIDATE CHECK; `signing_key_id` FK |
 | App signing | `packages/backend/gradebook/src/signed-download.ts` | Dedicated `TRANSCRIPT_SIGNING_*` only; fail-closed; per tenant/institution derive |
 | Issue path | `packages/backend/gradebook/src/gradebook-service.ts` + schemas | Persist key provenance in metadata; optional `institutionId` |
 | Static tests | `tools/tenant-isolation-tests/src/unit/immutability-privileges.test.ts` | 076 contract |

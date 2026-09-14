@@ -97,7 +97,7 @@ so runtime cannot mutate rows or disable guards even if connected with broad DML
 `audit_log_archive` (permanent append-only + REVOKE) and requires
 `checksum_sha256` + `signature_hmac` on ISSUED `transcript_issuances` inserts.
 
-`076_transcript_authenticity_complete.sql` closes the residual: migrator
+`079_transcript_authenticity_complete.sql` closes the residual: migrator
 backfill of every ISSUED row, `VALIDATE CONSTRAINT` on the authenticity CHECK,
 and `transcript_signing_keys` (rotated KMS/PKI refs). App signing uses
 `TRANSCRIPT_SIGNING_SECRET` + `TRANSCRIPT_SIGNING_KMS_KEY_REF` only — never
