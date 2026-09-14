@@ -16,6 +16,7 @@
   "dependencies": {
     "@proctira/backend-etl": "workspace:*",
     "@proctira/common": "workspace:*",
+    "@proctira/database": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",
     "@proctira/tenant": "workspace:*",

@@ -9,7 +9,7 @@ Deploy manifests (`infrastructure/k8s/base/etl-worker`, Helm `etlWorker`) probe:
 | Path            | Purpose                           |
 | --------------- | --------------------------------- |
 | `/health/live`  | Liveness                          |
-| `/health/ready` | Readiness (+ `persistence` field) |
+| `/health/ready` | Readiness (+ `persistence`, probes Postgres when `DATABASE_URL` set; 503 fail-closed) |
 | `/health`       | Legacy combined check (compat)    |
 
 ## Persistence

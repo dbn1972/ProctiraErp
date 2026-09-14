@@ -61,7 +61,16 @@ export type { DocumentRow } from './pg-document-store';
 export {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
+  readPersistencePolicyEnv,
   resolvePersistenceMode,
   resetPersistenceWarnings,
 } from './persistence-policy';
 export type { PersistenceMode, PersistencePolicyEnv } from './persistence-policy';
+
+// W3-C2: shared readiness probe (Postgres when configured; fail-closed)
+export { runReadinessProbe } from './readiness-probe';
+export type {
+  DatabaseDependencyStatus,
+  ReadinessProbeOptions,
+  ReadinessProbeResult,
+} from './readiness-probe';
