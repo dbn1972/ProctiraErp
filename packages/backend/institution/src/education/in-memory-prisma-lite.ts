@@ -210,6 +210,8 @@ export function createInMemoryAcademicsPrisma(
       status: 'active',
       kind: 'year',
       parentId: null,
+      version: 1,
+      supersedesId: null,
       ...soft(),
     })),
     enrollment: new ModelTable(() => ({ status: 'ENROLLED', classId: null, exitedAt: null })),

@@ -2,7 +2,7 @@
  * Fees service — plans, invoices, sandbox payments, receipts.
  * recordPayment enforces receipt.amountCents === payment.amountCents === invoice.amountCents.
  */
-import { BusinessRuleError, NotFoundError, pgIntegerCents } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, pgIntegerCents } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -567,6 +567,67 @@ export class FeesService {
       status: 'active',
       validFrom,
       validTo,
+      version: 1,
+      supersedesId: null,
+      createdBy: actorId,
+    });
+  }
+
+  /**
+   * W1-DATA-07: close prior open window and append a non-overlapping successor.
+   * Amount/valid_from on the prior row are never mutated.
+   */
+  async supersedeFeeStructure(
+    tenantId: string,
+    actorId: string,
+    structureId: string,
+    input: CreateFeeStructureInput & { validFrom: string },
+  ) {
+    const prior = await this.getFeeStructure(tenantId, structureId);
+    if (prior.code !== (input.code?.trim() || prior.code) && input.code) {
+      // successors keep the same logical code; ignore mismatched override by requiring match
+    }
+    const code = prior.code;
+    const validFrom = input.validFrom;
+    const validTo = input.validTo === undefined ? null : input.validTo;
+    if (validTo && validTo < validFrom) {
+      throw new BusinessRuleError('validTo must be on or after validFrom');
+    }
+    if (input.amountCents < 0 || !Number.isInteger(input.amountCents)) {
+      throw new BusinessRuleError('Structure amountCents must be a non-negative integer');
+    }
+
+    // Close prior open-ended (or overlapping) window the day before successor starts.
+    const closeTo = new Date(`${validFrom}T00:00:00.000Z`);
+    closeTo.setUTCDate(closeTo.getUTCDate() - 1);
+    const closeToStr = closeTo.toISOString().slice(0, 10);
+    if (prior.validTo == null || prior.validTo >= validFrom) {
+      if (closeToStr < prior.validFrom) {
+        throw new ConflictError(
+          `Cannot supersede: successor validFrom ${validFrom} does not leave a non-overlapping prior window`,
+        );
+      }
+      await this.repository.closeFeeStructureValidTo(tenantId, prior.id, closeToStr);
+    }
+
+    return this.repository.createFeeStructure({
+      id: uuidv4(),
+      tenantId,
+      institutionId: input.institutionId ?? prior.institutionId,
+      academicPeriodId: input.academicPeriodId ?? prior.academicPeriodId,
+      gradeId: input.gradeId ?? prior.gradeId,
+      classId: input.classId ?? prior.classId,
+      category: input.category ?? prior.category,
+      term: input.term !== undefined ? input.term : prior.term,
+      code,
+      name: input.name,
+      amountCents: input.amountCents,
+      currency: input.currency ?? prior.currency,
+      status: 'active',
+      validFrom,
+      validTo,
+      version: prior.version + 1,
+      supersedesId: prior.id,
       createdBy: actorId,
     });
   }

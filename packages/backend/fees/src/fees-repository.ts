@@ -151,6 +151,10 @@ export interface FeeStructureEntity {
   validFrom: string;
   /** Inclusive validity end; null = open-ended (W1-DATA-07). */
   validTo: string | null;
+  /** W1-DATA-07 append-only version (non-overlapping per code). */
+  version: number;
+  /** Prior fee structure version this row supersedes. */
+  supersedesId: string | null;
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -312,6 +316,12 @@ export interface FeesRepository {
   createFeeStructure(
     data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeeStructureEntity>;
+  /** W1-DATA-07: narrow/close valid_to only (never reopen/extend via this path). */
+  closeFeeStructureValidTo(
+    tenantId: string,
+    id: string,
+    validTo: string,
+  ): Promise<FeeStructureEntity | null>;
   listFeeStructures(tenantId: string, options?: { asOf?: string }): Promise<FeeStructureEntity[]>;
   findFeeStructureById(id: string, tenantId: string): Promise<FeeStructureEntity | null>;
   replaceStructureInstalments(

@@ -1,10 +1,14 @@
--- W1-DATA-07: effective dating for academic periods and fee structures,
--- plus durable payroll export artifacts on staff_payroll_runs.
+-- W1-DATA-07 (foundation): effective dating for academic periods and fee
+-- structures, plus durable payroll export artifacts on staff_payroll_runs.
 -- Additive migration — applied after 069 via tools/scripts/apply-sql.sh.
 --
+-- COMPLETE mutability / reverse-replace hardening lives in
+-- 083_w1_data_07_append_only_versions.sql (append-only versions + payroll
+-- immutability). Do not assume 070 alone closes W1-DATA-07.
+--
 -- academic_periods already carry start_date/end_date (the academic window).
--- valid_from/valid_to mirror those dates for as-of reporting and stay synced
--- via trigger so Prisma writes to start/end keep effective columns current.
+-- valid_from/valid_to mirror those dates for as-of reporting (INSERT sync;
+-- 076 makes subsequent date mutation illegal).
 --
 -- fee_structures gain first-class valid_from/valid_to (open-ended when
 -- valid_to IS NULL). Tenant RLS unchanged; indexes support as-of filters.

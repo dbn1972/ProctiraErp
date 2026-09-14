@@ -59,6 +59,12 @@ export interface StaffPayrollExportRecord {
   deductionsCents: number;
   netCents: number;
   createdAt: Date;
+  /** W1-DATA-07: posted | reversal */
+  status?: 'posted' | 'reversal';
+  /** When status=reversal, the posted run this reverses. */
+  reversesRunId?: string | null;
+  /** When status=posted after a correction, the prior posted run this replaces. */
+  replacesRunId?: string | null;
 }
 
 export interface StaffHrStore {
@@ -96,8 +102,20 @@ export interface StaffHrStore {
     date: string,
   ): Promise<StaffAttendanceRecord | null>;
 
+  /** Current (unreversed) posted export for the month, if any. */
   findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null>;
+  /**
+   * Insert a posted payroll export. Fails if an unreversed posted run already
+   * exists for the month — use {@link reverseAndReplacePayrollExport}.
+   */
   savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord>;
+  /**
+   * W1-DATA-07: append a reversal of the current posted run, then insert the
+   * replacement posted run (never UPDATE posted money/artifact columns).
+   */
+  reverseAndReplacePayrollExport(
+    replacement: StaffPayrollExportRecord,
+  ): Promise<StaffPayrollExportRecord>;
 }
 
 function clone<T>(value: T): T {
@@ -108,10 +126,18 @@ export class InMemoryStaffHrStore implements StaffHrStore {
   private readonly contracts = new Map<string, StaffContractRecord>();
   private readonly qualifications = new Map<string, StaffQualificationRecord>();
   private readonly attendance = new Map<string, StaffAttendanceRecord>();
+  /** All payroll runs (posted + reversal), keyed by runId. */
   private readonly payrollExports = new Map<string, StaffPayrollExportRecord>();
 
   private attendanceKey(tenantId: string, staffId: string, date: string): string {
     return `${tenantId}:${staffId}:${date}`;
+  }
+
+  private isReversed(runId: string): boolean {
+    for (const row of this.payrollExports.values()) {
+      if (row.status === 'reversal' && row.reversesRunId === runId) return true;
+    }
+    return false;
   }
 
   async createContract(record: StaffContractRecord): Promise<StaffContractRecord> {
@@ -233,12 +259,68 @@ export class InMemoryStaffHrStore implements StaffHrStore {
   }
 
   async findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null> {
-    const row = this.payrollExports.get(`${tenantId}:${month}`);
+    const posted = [...this.payrollExports.values()]
+      .filter(
+        (row) =>
+          row.tenantId === tenantId &&
+          row.month === month &&
+          (row.status ?? 'posted') === 'posted' &&
+          !this.isReversed(row.runId),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const row = posted[0];
     return row ? clone(row) : null;
   }
 
   async savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord> {
-    this.payrollExports.set(`${record.tenantId}:${record.month}`, clone(record));
-    return clone(record);
+    const existing = await this.findPayrollExport(record.tenantId, record.month);
+    if (existing) {
+      throw new Error(
+        `staff_payroll_runs posted export already exists for ${record.month}; reverse and replace instead of overwrite`,
+      );
+    }
+    const stored: StaffPayrollExportRecord = {
+      ...clone(record),
+      status: 'posted',
+      reversesRunId: null,
+      replacesRunId: record.replacesRunId ?? null,
+    };
+    this.payrollExports.set(stored.runId, stored);
+    return clone(stored);
+  }
+
+  async reverseAndReplacePayrollExport(
+    replacement: StaffPayrollExportRecord,
+  ): Promise<StaffPayrollExportRecord> {
+    const current = await this.findPayrollExport(replacement.tenantId, replacement.month);
+    if (!current) {
+      return this.savePayrollExport(replacement);
+    }
+    const reversalId = `rev-${current.runId}`;
+    const reversal: StaffPayrollExportRecord = {
+      tenantId: current.tenantId,
+      month: current.month,
+      runId: reversalId,
+      filename: current.filename,
+      csv: current.csv,
+      rowsJson: current.rowsJson,
+      trialBalanceJson: current.trialBalanceJson,
+      grossCents: current.grossCents,
+      deductionsCents: current.deductionsCents,
+      netCents: current.netCents,
+      createdAt: new Date(),
+      status: 'reversal',
+      reversesRunId: current.runId,
+      replacesRunId: null,
+    };
+    this.payrollExports.set(reversal.runId, reversal);
+    const stored: StaffPayrollExportRecord = {
+      ...clone(replacement),
+      status: 'posted',
+      reversesRunId: null,
+      replacesRunId: current.runId,
+    };
+    this.payrollExports.set(stored.runId, stored);
+    return clone(stored);
   }
 }

@@ -229,11 +229,44 @@ export class InMemoryFeesRepository implements FeesRepository {
       ...data,
       validFrom: data.validFrom ?? now.toISOString().slice(0, 10),
       validTo: data.validTo ?? null,
+      version: data.version ?? 1,
+      supersedesId: data.supersedesId ?? null,
       createdAt: now,
       updatedAt: now,
     };
+    // Non-overlapping active windows for the same code.
+    for (const row of this.structures) {
+      if (row.tenantId !== entity.tenantId || row.code !== entity.code) continue;
+      if (row.status !== 'active' || entity.status !== 'active') continue;
+      const aTo = row.validTo ?? '9999-12-31';
+      const bTo = entity.validTo ?? '9999-12-31';
+      if (row.validFrom <= bTo && entity.validFrom <= aTo) {
+        throw new Error(
+          `fee_structures version overlap for code ${entity.code} (conflicts with ${row.id})`,
+        );
+      }
+    }
     this.structures.push(entity);
     return entity;
+  }
+
+  async closeFeeStructureValidTo(
+    tenantId: string,
+    id: string,
+    validTo: string,
+  ): Promise<FeeStructureEntity | null> {
+    const index = this.structures.findIndex((row) => row.id === id && row.tenantId === tenantId);
+    if (index === -1) return null;
+    const current = this.structures[index]!;
+    if (current.validTo != null && validTo > current.validTo) {
+      throw new Error('fee_structures valid_to can only narrow; insert a successor version to extend');
+    }
+    if (validTo < current.validFrom) {
+      throw new Error('fee_structures valid_to must be on or after valid_from');
+    }
+    const updated: FeeStructureEntity = { ...current, validTo, updatedAt: new Date() };
+    this.structures[index] = updated;
+    return { ...updated };
   }
 
   async listFeeStructures(
