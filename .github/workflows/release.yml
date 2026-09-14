@@ -8,7 +8,9 @@
 #
 # Triggers:
 #   - workflow_run: After CI completes successfully on main/develop/release/**
-#   - workflow_dispatch: Manual release for any ref (with optional service list)
+#   - workflow_dispatch: Manual release for any ref (with optional service list).
+#     W1-OPS-23: manual dispatch still requires a successful same-SHA CI proof
+#     (workflow_run or Checks API aggregate); fail closed if missing.
 #
 # Outputs:
 #   - Container images tagged by:
@@ -55,11 +57,17 @@ permissions:
   contents: read
   packages: write
   id-token: write
+  # W1-OPS-23: query workflow_runs / check-runs for manual same-SHA CI proof.
+  actions: read
+  checks: read
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Gate: Only proceed if the upstream CI run succeeded (workflow_run trigger).
-  # workflow_dispatch bypasses this gate.
+  # Gate: Only proceed if CI succeeded for the exact release SHA.
+  # - workflow_run: job runs only when the triggering CI conclusion is success.
+  # - workflow_dispatch: enters the job, then require-same-sha-ci.mjs proves a
+  #   successful CI workflow_run (or CI Aggregate check_run) for github.sha.
+  #   Missing / failed / cancelled / in-progress → fail closed.
   # ---------------------------------------------------------------------------
   ci-gate:
     name: Verify CI Passed
@@ -82,6 +90,24 @@ jobs:
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "Releasing commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+
+      # W1-OPS-23: manual release used to skip CI entirely. Require same-SHA proof.
+      - name: Checkout gate script
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.head-sha }}
+          sparse-checkout: |
+            tools/scripts/require-same-sha-ci.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Require successful CI on same SHA (manual release)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head-sha }}
+        run: node tools/scripts/require-same-sha-ci.mjs --sha "${HEAD_SHA}"
 
   # ---------------------------------------------------------------------------
   # Detect which services have changed and need new container images.

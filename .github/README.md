@@ -39,11 +39,15 @@ Gated on successful completion of the `CI` workflow. Builds and pushes container
 **Triggers:**
 
 - `workflow_run`: After CI completes successfully on `main`, `develop`, or `release/**`
-- `workflow_dispatch`: Manual release with optional service list and `force-all` flag
+- `workflow_dispatch`: Manual release with optional service list and `force-all` flag.
+  **W1-OPS-23:** manual dispatch does **not** bypass CI — `require-same-sha-ci.mjs`
+  queries GitHub for a successful `CI` workflow_run (or CI Aggregate check_run) on
+  the exact SHA and **fails closed** if proof is missing.
 
 **Stages:**
 
-1. **CI Gate** — Verifies the upstream CI run succeeded; resolves the released SHA/branch
+1. **CI Gate** — Verifies same-SHA CI succeeded (`workflow_run` conclusion or
+   manual `gh api` proof); resolves the released SHA/branch
 2. **Detect Services** — Path-based detection of affected services (full release on shared/infra changes)
 3. **Matrix Prep** — Converts the service list into a build matrix
 4. **Build & Push** — Parallel image build with `docker/metadata-action` for canonical tagging
