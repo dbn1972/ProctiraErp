@@ -61,6 +61,11 @@ jobs:
       - name: Run DoD check unit tests
         run: pnpm run check:dod:test
 
+      # W3-D6: fail closed when dod-report.json is missing or incomplete.
+      - name: Assert DoD evidence artifacts (W3-D6)
+        if: always()
+        run: pnpm run check:dod:evidence
+
       # Legacy script (tools/scripts/definition-of-done-checks.mjs) is superseded
       # by tools/dod-checks with baseline gating above. Keep the npm script for
       # local/compat use, but do not fail the Charter gate on pre-existing debt.
@@ -74,4 +79,5 @@ jobs:
         with:
           name: dod-report
           path: tools/dod-checks/reports/dod-report.json
+          if-no-files-found: error
           retention-days: 30
