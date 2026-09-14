@@ -2,7 +2,7 @@
 
 **Module / slice:** Mobile Flutter repository CI (`apps/mobile`)  
 **Branch:** `cursor/w1-ops-07-flutter-complete-56c3`
-**Tip SHA:** `4ab581312d02cb44a3238f57121ef0f222f289a5`
+**Tip SHA:** `948235e58604294be06599f3e9d203ba32b21a85`
 **Implementation SHA:** `0e178fe254bf4b18c4cc11390b482357c3c2bb84`
 **Date (UTC):** 2026-09-14  
 **Environment:** GitHub Actions (`ci.yml` + `mobile-flutter.yml`); Flutter **stable**
