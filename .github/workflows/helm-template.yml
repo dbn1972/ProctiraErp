@@ -19,6 +19,7 @@ on:
       - '.github/workflows/helm-template.yml'
       - 'tools/scripts/helm-template-check.sh'
       - 'tools/scripts/deploy-rollback-check.sh'
+      - 'tools/scripts/deploy-secrets-gate-check.sh'
       - 'tools/scripts/check-no-latest-image-tags.sh'
   push:
     branches: [main]
@@ -29,6 +30,7 @@ on:
       - '.github/workflows/rollback.yml'
       - 'tools/scripts/helm-template-check.sh'
       - 'tools/scripts/deploy-rollback-check.sh'
+      - 'tools/scripts/deploy-secrets-gate-check.sh'
       - 'tools/scripts/check-no-latest-image-tags.sh'
 
 concurrency:
@@ -54,3 +56,4 @@ jobs:
         run: |
           ./tools/scripts/helm-template-check.sh
           ./tools/scripts/deploy-rollback-check.sh
+          ./tools/scripts/deploy-secrets-gate-check.sh
