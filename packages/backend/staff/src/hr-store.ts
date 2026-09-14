@@ -47,6 +47,20 @@ export interface StaffAttendanceRecord {
   updatedAt: Date;
 }
 
+export interface StaffPayrollExportRecord {
+  tenantId: string;
+  month: string;
+  runId: string;
+  filename: string;
+  csv: string;
+  rowsJson: string;
+  trialBalanceJson: string;
+  grossCents: number;
+  deductionsCents: number;
+  netCents: number;
+  createdAt: Date;
+}
+
 export interface StaffHrStore {
   createContract(record: StaffContractRecord): Promise<StaffContractRecord>;
   listContracts(tenantId: string, staffId?: string): Promise<StaffContractRecord[]>;
@@ -81,6 +95,9 @@ export interface StaffHrStore {
     staffId: string,
     date: string,
   ): Promise<StaffAttendanceRecord | null>;
+
+  findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null>;
+  savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord>;
 }
 
 function clone<T>(value: T): T {
@@ -91,6 +108,7 @@ export class InMemoryStaffHrStore implements StaffHrStore {
   private readonly contracts = new Map<string, StaffContractRecord>();
   private readonly qualifications = new Map<string, StaffQualificationRecord>();
   private readonly attendance = new Map<string, StaffAttendanceRecord>();
+  private readonly payrollExports = new Map<string, StaffPayrollExportRecord>();
 
   private attendanceKey(tenantId: string, staffId: string, date: string): string {
     return `${tenantId}:${staffId}:${date}`;
@@ -212,5 +230,15 @@ export class InMemoryStaffHrStore implements StaffHrStore {
       (item) => item.tenantId === tenantId && item.staffId === staffId && item.date === date,
     );
     return row ? clone(row) : null;
+  }
+
+  async findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null> {
+    const row = this.payrollExports.get(`${tenantId}:${month}`);
+    return row ? clone(row) : null;
+  }
+
+  async savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord> {
+    this.payrollExports.set(`${record.tenantId}:${record.month}`, clone(record));
+    return clone(record);
   }
 }

@@ -463,6 +463,20 @@ export class StaffHrService {
     if (prior) {
       return { ...prior, idempotent: true };
     }
+    const stored = await this.store.findPayrollExport(tenantId, query.month);
+    if (stored) {
+      const result: PayrollExportResult = {
+        month: stored.month,
+        filename: stored.filename,
+        csv: stored.csv,
+        rows: JSON.parse(stored.rowsJson) as PayrollRow[],
+        runId: stored.runId,
+        idempotent: true,
+        trialBalance: JSON.parse(stored.trialBalanceJson) as PayrollLedgerTrial,
+      };
+      this.payrollRuns.set(cacheKey, result);
+      return result;
+    }
 
     const { from, to } = monthRange(query.month);
     const daysInMonth = calendarDaysInMonth(query.month);
@@ -576,6 +590,19 @@ export class StaffHrService {
       trialBalance,
     };
     this.payrollRuns.set(cacheKey, result);
+    await this.store.savePayrollExport({
+      tenantId,
+      month: result.month,
+      runId: result.runId,
+      filename: result.filename,
+      csv: result.csv,
+      rowsJson: JSON.stringify(result.rows),
+      trialBalanceJson: JSON.stringify(result.trialBalance),
+      grossCents: result.rows.reduce((s, r) => s + r.grossCents, 0),
+      deductionsCents: result.rows.reduce((s, r) => s + r.deductionsCents, 0),
+      netCents: result.rows.reduce((s, r) => s + r.netCents, 0),
+      createdAt: new Date(),
+    });
 
     // eslint-disable-next-line no-console
     console.info(

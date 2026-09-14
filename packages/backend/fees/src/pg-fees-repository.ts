@@ -106,6 +106,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql059);
       const sql061 = readFileSync(resolveSqlPath('061_fees_scholarship_netting_source.sql'), 'utf8');
       await pool.query(sql061);
+      const sql070 = readFileSync(resolveSqlPath('070_academic_fee_effective_dating.sql'), 'utf8');
+      await pool.query(sql070);
     })();
   }
   await schemaReady;
@@ -245,6 +247,8 @@ function mapStructure(row: Record<string, unknown>): FeeStructureEntity {
     amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     status: String(row.status) as FeeStructureStatus,
+    validFrom: String(row.valid_from).slice(0, 10),
+    validTo: row.valid_to == null ? null : String(row.valid_to).slice(0, 10),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
@@ -1012,8 +1016,9 @@ export class PgFeesRepository implements FeesRepository {
       const result = await client.query(
         `INSERT INTO fee_structures (
            id, tenant_id, institution_id, academic_period_id, grade_id, class_id,
-           category, term, code, name, amount_cents, currency, status, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+           category, term, code, name, amount_cents, currency, status,
+           valid_from, valid_to, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::date,$15::date,$16) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1028,6 +1033,8 @@ export class PgFeesRepository implements FeesRepository {
           data.amountCents,
           data.currency,
           data.status,
+          data.validFrom,
+          data.validTo,
           data.createdBy,
         ],
       );
@@ -1035,13 +1042,26 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
-  async listFeeStructures(tenantId: string): Promise<FeeStructureEntity[]> {
+  async listFeeStructures(
+    tenantId: string,
+    options?: { asOf?: string },
+  ): Promise<FeeStructureEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
-      const result = await client.query(
-        `SELECT * FROM fee_structures WHERE tenant_id = $1 ORDER BY created_at DESC`,
-        [tenantId],
-      );
+      const asOf = options?.asOf;
+      const result = asOf
+        ? await client.query(
+            `SELECT * FROM fee_structures
+             WHERE tenant_id = $1
+               AND valid_from <= $2::date
+               AND (valid_to IS NULL OR valid_to >= $2::date)
+             ORDER BY created_at DESC`,
+            [tenantId, asOf],
+          )
+        : await client.query(
+            `SELECT * FROM fee_structures WHERE tenant_id = $1 ORDER BY created_at DESC`,
+            [tenantId],
+          );
       return result.rows.map((row) => mapStructure(row as Record<string, unknown>));
     });
   }
