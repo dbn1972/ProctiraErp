@@ -13,11 +13,12 @@
 #     (workflow_run or Checks API aggregate); fail closed if missing.
 #
 # Outputs:
-#   - Container images tagged by:
-#       * Full commit SHA (immutable, for traceability)
-#       * Short commit SHA (human-readable)
-#       * Branch name (latest commit on that branch)
-#       * "latest" (only on main)
+#   - Container images under canonical name {registry}/{namespace}/proctira/<service>
+#     tagged by:
+#       * Full commit SHA (immutable, for traceability) — sha-<full>
+#       * Short commit SHA (human-readable) — sha-<short>
+#       * Branch name (moving tip for that branch; not used by prod Helm/kustomize)
+#     W1-OPS-08: never tags mutable :latest.
 # =============================================================================
 
 name: Release
@@ -347,19 +348,18 @@ jobs:
       #   - branch name (e.g. develop, main)
       #   - short SHA (e.g. sha-abc1234)
       #   - full SHA (immutable digest reference)
-      #   - latest (only on main)
+      # W1-OPS-08 — no mutable :latest; repository path is proctira/<service>.
       - name: Compute image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira-${{ matrix.service }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira/${{ matrix.service }}
           tags: |
             type=raw,value=${{ needs.ci-gate.outputs.head-branch }},enable=${{ needs.ci-gate.outputs.head-branch != '' }}
             type=raw,value=sha-${{ needs.ci-gate.outputs.head-sha }}
             type=sha,format=short,prefix=sha-,sha=${{ needs.ci-gate.outputs.head-sha }}
-            type=raw,value=latest,enable=${{ needs.ci-gate.outputs.head-branch == 'main' }}
           labels: |
-            org.opencontainers.image.title=proctira-${{ matrix.service }}
+            org.opencontainers.image.title=proctira/${{ matrix.service }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ needs.ci-gate.outputs.head-sha }}
             org.opencontainers.image.version=${{ needs.ci-gate.outputs.head-branch }}
@@ -387,13 +387,13 @@ jobs:
       - name: Sign image digest (keyless)
         env:
           COSIGN_YES: 'true'
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira-${{ matrix.service }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira/${{ matrix.service }}
         run: |
           cosign sign "${IMAGE}@${{ steps.build.outputs.digest }}"
 
       - name: Verify image signature
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira-${{ matrix.service }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira/${{ matrix.service }}
         run: |
           cosign verify \
             --certificate-identity-regexp "^https://github.com/${{ github.repository }}/" \

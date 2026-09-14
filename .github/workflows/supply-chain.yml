@@ -126,7 +126,8 @@ jobs:
       attestations: write
     env:
       REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
-      IMAGE: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/proctira-api-gateway
+      # W1-OPS-08 — canonical proctira/<service> (no hyphen form, no :latest).
+      IMAGE: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/proctira/api-gateway
     steps:
       - uses: actions/checkout@v4
 

@@ -53,12 +53,13 @@ Gated on successful completion of the `CI` workflow. Builds and pushes container
 4. **Build & Push** — Parallel image build with `docker/metadata-action` for canonical tagging
 5. **Release Summary** — Aggregates matrix results and surfaces them in the run summary
 
-**Image tagging strategy** (per service):
+**Image tagging strategy** (per service, W1-OPS-08):
 
-- Branch name: `ghcr.io/<owner>/proctira-<service>:<branch>`
-- Short SHA: `ghcr.io/<owner>/proctira-<service>:sha-<short-sha>`
-- Full SHA: `ghcr.io/<owner>/proctira-<service>:sha-<full-sha>`
-- `latest` (only for `main`)
+- Canonical repository: `ghcr.io/<owner>/proctira/<service>`
+- Branch name: `ghcr.io/<owner>/proctira/<service>:<branch>`
+- Short SHA: `ghcr.io/<owner>/proctira/<service>:sha-<short-sha>`
+- Full SHA: `ghcr.io/<owner>/proctira/<service>:sha-<full-sha>`
+- **Never** mutable `latest` (prod Helm/kustomize/deploy consume immutable tags only)
 
 ### `deploy.yml` — Deployment
 
@@ -138,26 +139,28 @@ Images are built using Docker Buildx with:
 - **GitHub Actions cache** (`type=gha`) for layer caching
 - **Multi-platform** support (linux/amd64 by default)
 - **Parallel matrix** builds for multiple services
-- **Dual tagging**: `{sha}-{timestamp}` + `latest`
+- **Immutable tagging** (W1-OPS-08): `{sha}-{timestamp}` / `sha-<gitsha>` — never mutable `latest`
 
 ### Image Naming Convention
 
 ```
-{registry}/{namespace}/proctira-{service-name}:{tag}
+{registry}/{namespace}/proctira/{service-name}:{tag}
 ```
 
 Where `{tag}` is one of:
 
-- A branch name (e.g. `main`, `develop`)
+- A branch name (e.g. `main`, `develop`) — registry convenience; **not** used by prod deploy manifests
 - `sha-{short-sha}` (e.g. `sha-abc1234`) — produced by both CI and the release workflow
 - `sha-{full-sha}` — immutable digest reference for traceability
-- `latest` — only for `main` branch builds
+
+**W1-OPS-08:** mutable `latest` is forbidden on app images in prod deploy paths
+(Helm / kustomize / deploy.yml / release.yml / compose app services).
 
 Examples:
 
-- `ghcr.io/proctira-foundation/proctira-api-gateway:main`
-- `ghcr.io/proctira-foundation/proctira-api-gateway:sha-abc1234`
-- `ghcr.io/proctira-foundation/proctira-institution:develop`
+- `ghcr.io/proctira-foundation/proctira/api-gateway:main`
+- `ghcr.io/proctira-foundation/proctira/api-gateway:sha-abc1234`
+- `ghcr.io/proctira-foundation/proctira/institution:develop`
 
 ## Required Secrets and Variables
 

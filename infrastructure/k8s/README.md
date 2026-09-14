@@ -40,13 +40,16 @@ k8s/
 
 ## Image tags (W1-OPS-08)
 
-Container images use the `proctira/<service>` naming prefix consistently.
+Container images use the `proctira/<service>` naming prefix consistently across
+kustomize, Helm, deploy, and release.
 
 | Layer | Tag policy |
 | ----- | ---------- |
 | `base/**/deployment.yaml` | `proctira/<svc>:sha-pending` — explicit non-runnable default (never the mutable `latest` tag) |
 | `components/image-tag` | Single kustomize `images:` list; CD rewrites every `newTag` |
 | `overlays/*` | Include the image-tag component so staging/production never fall back to an unpinned mutable tag |
+| Helm `proctira-service` | Default `tag: sha-pending`; deploy.yml `--set image.tag=` to an immutable tag |
+| `deploy.yml` / `release.yml` | Push `proctira/<service>:<immutable>` only — no `:latest` |
 
 Update the shared pin:
 

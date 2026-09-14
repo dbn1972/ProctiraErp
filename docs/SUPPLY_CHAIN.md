@@ -47,7 +47,7 @@ keyless cosign). For another registry set `CONTAINER_REGISTRY` and secrets
 cosign verify \
   --certificate-identity-regexp '^https://github.com/<owner>/<repo>/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/<owner>/proctira-api-gateway@sha256:<digest>
+  ghcr.io/<owner>/proctira/api-gateway@sha256:<digest>
 ```
 
 ## Honest residuals (local / dev / PR)
