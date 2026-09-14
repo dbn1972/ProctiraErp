@@ -13,7 +13,7 @@ import type {
   DeliveryLogFilter,
   DeliveryLogRecord,
 } from './circular-store.js';
-import { createSandboxWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
+import { createWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
 
 export interface CircularView extends CircularRecord {
   ackTotal: number;
@@ -34,7 +34,8 @@ export class CircularsService {
     private readonly store: CircularStore,
     options: { whatsappAdapter?: WhatsAppChannelAdapter } = {},
   ) {
-    this.whatsapp = options.whatsappAdapter ?? createSandboxWhatsAppAdapter();
+    // W1-ARCH-08: default via policy factory — never silent createSandboxWhatsAppAdapter().
+    this.whatsapp = options.whatsappAdapter ?? createWhatsAppAdapter();
   }
 
   async createCircular(tenantId: string, input: CreateCircularInput): Promise<CircularView> {
