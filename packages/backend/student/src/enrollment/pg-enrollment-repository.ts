@@ -6,7 +6,7 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { ConflictError } from '@proctira/common';
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 
 import type {
   EnrollmentEntity,
@@ -280,14 +280,21 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
     });
   }
 
+  /**
+   * W1-DATA-13: never issue an unbound pool.query against RLS tables.
+   * Discover tenant via withPlatformScope (sets app.platform_admin GUC), then
+   * read history inside withPgTenant so app.tenant_id is bound.
+   */
   async getHistoryByEnrollmentId(enrollmentId: string): Promise<EnrollmentHistoryEntity[]> {
-    const tenantRow = await this.pool.query(
-      `SELECT tenant_id FROM enrollments WHERE id = $1 LIMIT 1`,
-      [enrollmentId],
-    );
-    const tenantId = String(
-      (tenantRow.rows[0] as { tenant_id?: unknown } | undefined)?.tenant_id ?? '',
-    );
+    const tenantId = await withPlatformScope(this.pool, async (client) => {
+      const tenantRow = await client.query(
+        `SELECT tenant_id FROM enrollments WHERE id = $1 LIMIT 1`,
+        [enrollmentId],
+      );
+      return String(
+        (tenantRow.rows[0] as { tenant_id?: unknown } | undefined)?.tenant_id ?? '',
+      );
+    });
     if (!tenantId) return [];
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(

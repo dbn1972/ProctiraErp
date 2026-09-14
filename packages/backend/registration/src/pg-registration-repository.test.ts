@@ -99,3 +99,20 @@ describe('PgRegistrationRepository pipeline persist', () => {
     },
   );
 });
+
+describe('W1-DATA-13 PgRegistrationRepository denies missing tenant', () => {
+  const dummyPool = { query: async () => ({ rows: [] }) };
+
+  it('findByTrackingNumber rejects empty / missing tenantId before querying', async () => {
+    const repo = new PgRegistrationRepository(dummyPool as never);
+    await expect(repo.findByTrackingNumber('REG-1')).rejects.toThrow(/tenantId is required/);
+    await expect(repo.findByTrackingNumber('REG-1', '')).rejects.toThrow(/tenantId is required/);
+    await expect(repo.findByTrackingNumber('REG-1', '   ')).rejects.toThrow(/tenantId is required/);
+  });
+
+  it('findById rejects empty / missing tenantId before querying', async () => {
+    const repo = new PgRegistrationRepository(dummyPool as never);
+    await expect(repo.findById('id-1')).rejects.toThrow(/tenantId is required/);
+    await expect(repo.findById('id-1', '')).rejects.toThrow(/tenantId is required/);
+  });
+});

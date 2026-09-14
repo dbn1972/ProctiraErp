@@ -82,6 +82,9 @@ export class InMemoryPipelineRepository implements PipelineRepository {
     id: string,
     updates: Partial<PipelineExecution>,
   ): Promise<PipelineExecution> {
+    if (typeof updates.tenantId !== 'string' || updates.tenantId.trim().length === 0) {
+      throw new Error('updateExecution: tenantId is required');
+    }
     const existing = this.executions.get(id);
     if (!existing) {
       throw new Error(`Execution not found: ${id}`);

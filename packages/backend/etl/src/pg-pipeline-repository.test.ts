@@ -59,3 +59,23 @@ describe('createPipelineRepository (P0-10)', () => {
     );
   });
 });
+
+describe('W1-DATA-13 updateExecution denies missing tenant', () => {
+  it('InMemoryPipelineRepository rejects updates without tenantId', async () => {
+    const repo = new InMemoryPipelineRepository();
+    await expect(repo.updateExecution('missing', { status: 'failed' })).rejects.toThrow(
+      /tenantId is required/,
+    );
+  });
+
+  it('PgPipelineRepository rejects updates without tenantId before querying', async () => {
+    const dummyPool = { query: async () => ({ rows: [] }) };
+    const repo = new PgPipelineRepository(dummyPool as never);
+    await expect(repo.updateExecution('exec-1', { status: 'running' })).rejects.toThrow(
+      /tenantId is required/,
+    );
+    await expect(repo.updateExecution('exec-1', { tenantId: '' })).rejects.toThrow(
+      /tenantId is required/,
+    );
+  });
+});

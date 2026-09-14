@@ -105,21 +105,21 @@ export interface RegistrationRepository {
   ): Promise<RegistrationEntity>;
 
   /**
-   * Find a registration by tracking number. `tenantId` binds the RLS tenant
-   * context (required against Postgres since 021 FORCEs RLS for table owners).
+   * Find a registration by tracking number. `tenantId` is required for the
+   * Postgres store (W1-DATA-13 — binds RLS via withPgTenant).
    */
   findByTrackingNumber(
     trackingNumber: string,
     tenantId?: string,
   ): Promise<RegistrationEntity | null>;
 
-  /** Find a registration by ID (see `findByTrackingNumber` for `tenantId`). */
+  /** Find a registration by ID (`tenantId` required on Postgres — W1-DATA-13). */
   findById(id: string, tenantId?: string): Promise<RegistrationEntity | null>;
 
   /** List registrations for a tenant (staff CRM) */
   listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
 
-  /** Update registration status (`tenantId` binds RLS context on Postgres). */
+  /** Update registration status (`tenantId` required on Postgres — W1-DATA-13). */
   updateStatus(
     id: string,
     status: RegistrationStatus,
