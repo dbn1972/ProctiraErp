@@ -69,7 +69,8 @@ import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import paginationCapPlugin from './plugins/pagination-cap.js';
 import healthPlugin from './plugins/health.js';
-import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
+import idempotencyPlugin from './plugins/idempotency.js';
+import { resolveIdempotencyStore } from './plugins/idempotency-store.js';
 import { providersPlugin } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
@@ -591,22 +592,13 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
-  // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works)
-  // Connects to Redis via REDIS_URL env var; gracefully degrades if unavailable
-  const redisUrl = process.env['REDIS_URL'];
-  let redisClient: RedisClient | undefined;
-  if (redisUrl) {
-    // Dynamic import to avoid hard dependency when Redis is not configured
-    try {
-      const ioredisMod: unknown = await import('ioredis');
-      const RedisCtor = (ioredisMod as { default: new (url: string) => RedisClient }).default;
-      redisClient = new RedisCtor(redisUrl);
-    } catch {
-      // ioredis not available — idempotency will be disabled
-    }
-  }
+  // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works).
+  // W1-ARCH-03: Redis required when IDEMPOTENCY_STORE=redis / REDIS_URL / production —
+  // never silently fall back to process memory (refuse boot or request-time 503).
+  const idempotencyStore = await resolveIdempotencyStore();
   await app.register(idempotencyPlugin, {
-    redis: redisClient,
+    storeMode: idempotencyStore.mode,
+    redis: idempotencyStore.redis,
     ttlSeconds: parseInt(process.env['IDEMPOTENCY_TTL_SECONDS'] || '86400', 10),
     lockTtlSeconds: parseInt(process.env['IDEMPOTENCY_LOCK_TTL_SECONDS'] || '60', 10),
     excludePaths: [...authExcludePaths, '/api/v1/services'],

@@ -15,6 +15,17 @@ export type { ServiceRouterOptions } from './service-router.js';
 
 export { default as idempotencyPlugin } from './idempotency.js';
 export type { IdempotencyOptions, RedisClient } from './idempotency.js';
+export {
+  assertIdempotencyRedisClient,
+  readIdempotencyStoreEnv,
+  resolveIdempotencyStore,
+  resolveIdempotencyStoreMode,
+} from './idempotency-store.js';
+export type {
+  IdempotencyStoreMode,
+  IdempotencyStorePolicyEnv,
+  ResolvedIdempotencyStore,
+} from './idempotency-store.js';
 
 export { default as rateLimitPlugin } from './rate-limit.js';
 export type { RateLimitPluginOptions } from './rate-limit.js';

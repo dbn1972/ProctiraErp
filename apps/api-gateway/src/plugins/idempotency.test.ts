@@ -382,10 +382,10 @@ describe('idempotencyPlugin', () => {
     });
   });
 
-  describe('in-memory fallback (G-731)', () => {
-    it('still deduplicates within the process when no Redis client is provided', async () => {
+  describe('explicit in-memory store (dev/test)', () => {
+    it('still deduplicates within the process when storeMode=memory', async () => {
       let callCount = 0;
-      await app.register(idempotencyPlugin, { redis: undefined });
+      await app.register(idempotencyPlugin, { storeMode: 'memory' });
       app.post('/test', async () => {
         callCount++;
         return { result: 'created' };
@@ -428,6 +428,78 @@ describe('idempotencyPlugin', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('W1-ARCH-03 fail-closed (no silent memory degrade)', () => {
+    it('refuses to register redis mode without a Redis client', async () => {
+      await expect(
+        app.register(idempotencyPlugin, { storeMode: 'redis', redis: undefined }),
+      ).rejects.toThrow(/refusing silent in-memory fallback/i);
+    });
+
+    it('returns 503 when Redis get fails under redis storeMode', async () => {
+      let callCount = 0;
+      const failingRedis: RedisClient = {
+        async get() {
+          throw new Error('ECONNREFUSED');
+        },
+        async set() {
+          return 'OK';
+        },
+        async del() {
+          return 0;
+        },
+      };
+
+      await app.register(idempotencyPlugin, { storeMode: 'redis', redis: failingRedis });
+      app.post('/test', async () => {
+        callCount++;
+        return { result: 'created' };
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'redis-down-key' },
+        payload: { name: 'test' },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json().code).toBe('IDEMPOTENCY_STORE_UNAVAILABLE');
+      expect(callCount).toBe(0);
+    });
+
+    it('returns 503 when Redis set (lock acquire) fails under redis storeMode', async () => {
+      let callCount = 0;
+      const failingRedis: RedisClient = {
+        async get() {
+          return null;
+        },
+        async set() {
+          throw new Error('READONLY');
+        },
+        async del() {
+          return 0;
+        },
+      };
+
+      await app.register(idempotencyPlugin, { storeMode: 'redis', redis: failingRedis });
+      app.post('/test', async () => {
+        callCount++;
+        return { result: 'created' };
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'lock-fail-key' },
+        payload: { name: 'test' },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json().code).toBe('IDEMPOTENCY_STORE_UNAVAILABLE');
+      expect(callCount).toBe(0);
     });
   });
 

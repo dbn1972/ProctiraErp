@@ -10,6 +10,7 @@
  * - If the same key is seen again, returns the cached response without re-executing the handler
  * - Returns 409 Conflict if the key is currently in-flight (concurrent duplicate request)
  * - GET/DELETE/OPTIONS/HEAD requests are not subject to idempotency checks
+ * - W1-ARCH-03: when Redis is required, store failures return 503 — never silent memory
  *
  * Redis key structure:
  *   idempotency:{tenantId}:{key} → JSON { status, statusCode, headers, body }
@@ -18,6 +19,11 @@
 
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+
+import {
+  assertIdempotencyRedisClient,
+  type IdempotencyStoreMode,
+} from './idempotency-store.js';
 
 /**
  * Options for the idempotency plugin.
@@ -29,7 +35,12 @@ export interface IdempotencyOptions {
   lockTtlSeconds?: number;
   /** Header name for the idempotency key (default: 'idempotency-key') */
   headerName?: string;
-  /** Redis client instance — must support get, set, del commands */
+  /**
+   * Store mode (W1-ARCH-03). Defaults to `redis` when `redis` is provided,
+   * otherwise `memory`. Redis mode never falls back to memory.
+   */
+  storeMode?: IdempotencyStoreMode;
+  /** Redis client instance — required when storeMode is `redis` */
   redis?: RedisClient;
   /** Paths to exclude from idempotency checks */
   excludePaths?: string[];
@@ -46,12 +57,13 @@ export interface RedisClient {
 }
 
 /**
- * Process-local `RedisClient` used when `REDIS_URL` is not configured (G-731).
+ * Process-local `RedisClient` for explicit `IDEMPOTENCY_STORE=memory` (dev/test).
  *
  * Honours `EX <seconds>` so cached responses and in-flight locks expire the
  * same way they do in Redis. Entries are bounded by `maxEntries` (oldest
  * evicted first). Single-process only: replays across gateway replicas are
- * not deduplicated — the plugin logs this at startup.
+ * not deduplicated — the plugin logs this at startup. Never used as a silent
+ * fallback when Redis is required (W1-ARCH-03).
  */
 export class InMemoryIdempotencyStore implements RedisClient {
   private readonly entries = new Map<string, { value: string; expiresAt: number | null }>();
@@ -123,6 +135,14 @@ interface CachedResponse {
 /** HTTP methods that support idempotency */
 const IDEMPOTENT_METHODS = new Set(['POST', 'PUT', 'PATCH']);
 
+function storeUnavailableReply(reply: FastifyReply) {
+  return reply.status(503).send({
+    code: 'IDEMPOTENCY_STORE_UNAVAILABLE',
+    message: 'Idempotency store temporarily unavailable',
+    statusCode: 503,
+  });
+}
+
 const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
   fastify: FastifyInstance,
   options: IdempotencyOptions = {},
@@ -134,13 +154,22 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     excludePaths = [],
   } = options;
 
-  // Without Redis fall back to a process-local store so Idempotency-Key is
-  // still honoured on a single replica (G-731). Multi-replica deployments must
-  // configure REDIS_URL; the warning makes the degraded mode visible.
-  const redis: RedisClient = options.redis ?? new InMemoryIdempotencyStore();
-  if (!options.redis) {
+  const storeMode: IdempotencyStoreMode =
+    options.storeMode ?? (options.redis ? 'redis' : 'memory');
+
+  // W1-ARCH-03: redis mode must never silently construct an in-memory store.
+  if (storeMode === 'redis') {
+    assertIdempotencyRedisClient(storeMode, options.redis);
+  }
+
+  const redis: RedisClient =
+    storeMode === 'memory'
+      ? (options.redis ?? new InMemoryIdempotencyStore())
+      : options.redis!;
+
+  if (storeMode === 'memory' && !options.redis) {
     fastify.log.warn(
-      'Idempotency plugin registered without Redis client — using in-memory store (single-process only; set REDIS_URL for multi-replica deduplication)',
+      'Idempotency plugin using in-memory store (single-process only; set REDIS_URL and IDEMPOTENCY_STORE=redis for multi-replica deduplication)',
     );
   }
 
@@ -168,31 +197,39 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     const cacheKey = `idempotency:${tenantId}:${idempotencyKey}`;
     const lockKey = `${cacheKey}:lock`;
 
-    // Check if there's already a cached response
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      // Return the cached response without executing the handler
-      const parsed: unknown = JSON.parse(cached);
-      const cachedResponse = parsed as CachedResponse;
-      reply.header('x-idempotency-replay', 'true');
-      for (const [key, value] of Object.entries(cachedResponse.headers)) {
-        reply.header(key, value);
+    try {
+      // Check if there's already a cached response
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        // Return the cached response without executing the handler
+        const parsed: unknown = JSON.parse(cached);
+        const cachedResponse = parsed as CachedResponse;
+        reply.header('x-idempotency-replay', 'true');
+        for (const [key, value] of Object.entries(cachedResponse.headers)) {
+          reply.header(key, value);
+        }
+        return reply.status(cachedResponse.statusCode).send(JSON.parse(cachedResponse.body));
       }
-      return reply.status(cachedResponse.statusCode).send(JSON.parse(cachedResponse.body));
-    }
 
-    // Check if the request is currently in-flight (concurrent duplicate)
-    const lockExists = await redis.get(lockKey);
-    if (lockExists) {
-      return reply.status(409).send({
-        code: 'IDEMPOTENCY_CONFLICT',
-        message: 'A request with this Idempotency-Key is already being processed',
-        statusCode: 409,
-      });
-    }
+      // Check if the request is currently in-flight (concurrent duplicate)
+      const lockExists = await redis.get(lockKey);
+      if (lockExists) {
+        return reply.status(409).send({
+          code: 'IDEMPOTENCY_CONFLICT',
+          message: 'A request with this Idempotency-Key is already being processed',
+          statusCode: 409,
+        });
+      }
 
-    // Acquire the lock
-    await redis.set(lockKey, 'processing', 'EX', lockTtlSeconds);
+      // Acquire the lock
+      await redis.set(lockKey, 'processing', 'EX', lockTtlSeconds);
+    } catch (err) {
+      if (storeMode === 'redis') {
+        request.log.error({ err }, 'idempotency store unavailable (fail-closed)');
+        return storeUnavailableReply(reply);
+      }
+      throw err;
+    }
 
     // Store the key info on the request for the onSend hook
     (request as unknown as { _idempotencyKey: string })._idempotencyKey = idempotencyKey;
@@ -211,40 +248,52 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
         ._idempotencyCacheKey;
       const lockKey = (request as unknown as { _idempotencyLockKey: string })._idempotencyLockKey;
 
-      // Only cache successful responses (2xx) and client errors (4xx)
-      // Don't cache 5xx errors as they may be transient
-      const statusCode = reply.statusCode;
-      if (statusCode >= 500) {
-        // Release the lock without caching
-        await redis.del(lockKey);
-        return payload;
-      }
+      try {
+        // Only cache successful responses (2xx) and client errors (4xx)
+        // Don't cache 5xx errors as they may be transient
+        const statusCode = reply.statusCode;
+        if (statusCode >= 500) {
+          // Release the lock without caching
+          await redis.del(lockKey);
+          return payload;
+        }
 
-      // Serialize the response for caching
-      const responseBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
-      const headersToCache: Record<string, string> = {};
+        // Serialize the response for caching
+        const responseBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
+        const headersToCache: Record<string, string> = {};
 
-      // Cache select response headers
-      const rawHeaders = reply.getHeaders();
-      for (const [key, value] of Object.entries(rawHeaders)) {
-        if (key.startsWith('x-') || key === 'content-type' || key === 'location') {
-          if (value !== undefined) {
-            headersToCache[key] = String(value);
+        // Cache select response headers
+        const rawHeaders = reply.getHeaders();
+        for (const [key, value] of Object.entries(rawHeaders)) {
+          if (key.startsWith('x-') || key === 'content-type' || key === 'location') {
+            if (value !== undefined) {
+              headersToCache[key] = String(value);
+            }
           }
         }
+
+        const cachedResponse: CachedResponse = {
+          statusCode,
+          headers: headersToCache,
+          body: responseBody,
+        };
+
+        // Store in Redis with TTL
+        await redis.set(cacheKey, JSON.stringify(cachedResponse), 'EX', ttlSeconds);
+
+        // Release the lock
+        await redis.del(lockKey);
+      } catch (err) {
+        // Handler already ran — do not rewrite success to 503; never fall back to memory.
+        if (storeMode === 'redis') {
+          request.log.error(
+            { err },
+            'idempotency store write failed (fail-closed, no memory fallback)',
+          );
+        } else {
+          throw err;
+        }
       }
-
-      const cachedResponse: CachedResponse = {
-        statusCode,
-        headers: headersToCache,
-        body: responseBody,
-      };
-
-      // Store in Redis with TTL
-      await redis.set(cacheKey, JSON.stringify(cachedResponse), 'EX', ttlSeconds);
-
-      // Release the lock
-      await redis.del(lockKey);
 
       return payload;
     },
@@ -254,7 +303,15 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
   fastify.addHook('onError', async (request: FastifyRequest) => {
     const lockKey = (request as unknown as { _idempotencyLockKey?: string })._idempotencyLockKey;
     if (lockKey) {
-      await redis.del(lockKey);
+      try {
+        await redis.del(lockKey);
+      } catch (err) {
+        if (storeMode === 'redis') {
+          request.log.error({ err }, 'idempotency lock release failed');
+          return;
+        }
+        throw err;
+      }
     }
   });
 };
