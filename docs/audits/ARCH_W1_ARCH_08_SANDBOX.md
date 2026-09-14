@@ -4,6 +4,7 @@
 sandbox/non-live behavior in production configuration. Medium, partial.
 
 **Branch:** `cursor/aud-w1-arch-08-sandbox-defaults-56c3`  
+**Tip:** `fbe9796645a1ab1ddb18a99e65b82858cced97b8`  
 **Date (UTC):** 2026-09-14  
 **Paired tests:** `provider-mode-policy.test.ts`, notification/comms/fees honesty
 tests, providers `live-adapter-honesty.test.ts`
