@@ -16,13 +16,14 @@ import type { WorkflowEngineClient } from './scholarship-service.js';
 
 const TENANT_ID = 'tenant-001';
 
-function createApp(): FastifyInstance {
+function createApp(roles: string[] = ['bursar']): FastifyInstance {
   const app = Fastify({ logger: false });
 
   // Add tenant context decorator
   app.decorateRequest('tenantId', '');
   app.addHook('onRequest', async (request) => {
-    (request as any).tenantId = TENANT_ID;
+    (request as { tenantId?: string; user?: { roles: string[] } }).tenantId = TENANT_ID;
+    (request as { tenantId?: string; user?: { roles: string[] } }).user = { roles };
   });
 
   return app;

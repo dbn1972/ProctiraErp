@@ -34,6 +34,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { requireScholarshipAction } from './scholarship-http-guard.js';
 import type { ScholarshipService } from './scholarship-service.js';
 import {
   CreateScholarshipProgramSchema,
@@ -109,6 +110,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Body: CreateScholarshipProgramInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'program.write')) return;
+
       const result = validate(CreateScholarshipProgramSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -153,6 +156,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams; Body: UpdateScholarshipProgramInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'program.write')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -211,6 +216,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Querystring: ScholarshipListQuery }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({
@@ -252,6 +259,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -296,6 +305,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'program.write')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -338,6 +349,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Body: CreateApplicationInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'application.submit')) return;
+
       const result = validate(CreateApplicationSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -392,6 +405,8 @@ export async function registerScholarshipRoutes(
       }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({
@@ -442,6 +457,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -491,6 +508,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams; Body?: ApplicationDecisionInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'application.decide')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -554,6 +573,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams; Body?: ApplicationDecisionInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'application.decide')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -615,6 +636,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Body: CreateDisbursementInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'disbursement.manage')) return;
+
       const result = validate(CreateDisbursementSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -659,6 +682,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams; Body: UpdateDisbursementInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'disbursement.manage')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -719,6 +744,8 @@ export async function registerScholarshipRoutes(
       }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({
@@ -763,6 +790,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -808,6 +837,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Body: RecipientComplianceInput }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'compliance.record')) return;
+
       const result = validate(RecipientComplianceSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -852,6 +883,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Params: ScholarshipParams }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const paramsResult = validate(ScholarshipParamsSchema, request.params);
       if (!paramsResult.success) {
         return reply.status(400).send({
@@ -894,6 +927,8 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Querystring: UtilizationReportQuery }>,
       reply: FastifyReply,
     ) {
+      if (!requireScholarshipAction(request, reply, 'scholarship.read')) return;
+
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({
