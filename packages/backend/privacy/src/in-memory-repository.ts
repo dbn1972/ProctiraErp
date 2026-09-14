@@ -25,9 +25,10 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async updateLegalHold(
     id: string,
+    tenantId: string,
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
   ): Promise<LegalHoldEntity | null> {
-    const idx = this.holds.findIndex((h) => h.id === id);
+    const idx = this.holds.findIndex((h) => h.id === id && h.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.holds[idx]!;
     const updated: LegalHoldEntity = {
@@ -41,8 +42,8 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
-  async findLegalHoldById(id: string) {
-    return this.holds.find((h) => h.id === id) ?? null;
+  async findLegalHoldById(id: string, tenantId: string) {
+    return this.holds.find((h) => h.id === id && h.tenantId === tenantId) ?? null;
   }
 
   async listActiveLegalHolds(tenantId: string) {
@@ -60,11 +61,12 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async updateErasureRequest(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
   ): Promise<ErasureRequestEntity | null> {
-    const idx = this.erasures.findIndex((e) => e.id === id);
+    const idx = this.erasures.findIndex((e) => e.id === id && e.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.erasures[idx]!;
     const updated: ErasureRequestEntity = {
@@ -79,8 +81,8 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
-  async findErasureRequestById(id: string) {
-    return this.erasures.find((e) => e.id === id) ?? null;
+  async findErasureRequestById(id: string, tenantId: string) {
+    return this.erasures.find((e) => e.id === id && e.tenantId === tenantId) ?? null;
   }
 
   async listErasureRequests(tenantId: string) {
@@ -98,6 +100,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async updateCorrectionRequest(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<
         CorrectionRequestEntity,
@@ -105,7 +108,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
       >
     >,
   ): Promise<CorrectionRequestEntity | null> {
-    const idx = this.corrections.findIndex((c) => c.id === id);
+    const idx = this.corrections.findIndex((c) => c.id === id && c.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.corrections[idx]!;
     const updated: CorrectionRequestEntity = {
@@ -123,8 +126,8 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
-  async findCorrectionRequestById(id: string) {
-    return this.corrections.find((c) => c.id === id) ?? null;
+  async findCorrectionRequestById(id: string, tenantId: string) {
+    return this.corrections.find((c) => c.id === id && c.tenantId === tenantId) ?? null;
   }
 
   async listCorrectionRequests(tenantId: string) {
@@ -142,6 +145,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async updateAnonymizationJob(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<
         AnonymizationJobEntity,
@@ -154,7 +158,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
       >
     >,
   ): Promise<AnonymizationJobEntity | null> {
-    const idx = this.anonymizationJobs.findIndex((j) => j.id === id);
+    const idx = this.anonymizationJobs.findIndex((j) => j.id === id && j.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.anonymizationJobs[idx]!;
     const updated: AnonymizationJobEntity = {
@@ -171,8 +175,8 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
-  async findAnonymizationJobById(id: string) {
-    return this.anonymizationJobs.find((j) => j.id === id) ?? null;
+  async findAnonymizationJobById(id: string, tenantId: string) {
+    return this.anonymizationJobs.find((j) => j.id === id && j.tenantId === tenantId) ?? null;
   }
 
   async listAnonymizationJobs(tenantId: string) {
@@ -190,6 +194,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
 
   async updateTenantOffboardJob(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<
         TenantOffboardJobEntity,
@@ -202,7 +207,7 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
       >
     >,
   ): Promise<TenantOffboardJobEntity | null> {
-    const idx = this.offboardJobs.findIndex((j) => j.id === id);
+    const idx = this.offboardJobs.findIndex((j) => j.id === id && j.tenantId === tenantId);
     if (idx < 0) return null;
     const existing = this.offboardJobs[idx]!;
     const updated: TenantOffboardJobEntity = {
@@ -219,8 +224,8 @@ export class InMemoryPrivacyRepository implements PrivacyRepository {
     return updated;
   }
 
-  async findTenantOffboardJobById(id: string) {
-    return this.offboardJobs.find((j) => j.id === id) ?? null;
+  async findTenantOffboardJobById(id: string, tenantId: string) {
+    return this.offboardJobs.find((j) => j.id === id && j.tenantId === tenantId) ?? null;
   }
 
   async listTenantOffboardJobs(tenantId: string) {

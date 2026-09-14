@@ -77,6 +77,19 @@ function actorIdOf(request: FastifyRequest): string {
   return user?.sub ?? 'system';
 }
 
+function requireTenant(request: FastifyRequest, reply: FastifyReply): string | null {
+  const tenantId = tenantIdOf(request);
+  if (!tenantId) {
+    void reply.status(401).send({
+      code: 'UNAUTHORIZED',
+      message: 'Tenant context required',
+      statusCode: 401,
+    });
+    return null;
+  }
+  return tenantId;
+}
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send({
@@ -225,14 +238,8 @@ export async function registerPrivacyRoutes(
   const { privacyService, prefix = '/privacy' } = options;
 
   fastify.post(`${prefix}/legal-holds`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const parsed = validate(HttpPlaceLegalHoldSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -256,14 +263,8 @@ export async function registerPrivacyRoutes(
   });
 
   fastify.get(`${prefix}/legal-holds`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const holds = await privacyService.listActiveLegalHolds(tenantId);
     return reply.send({ data: holds.map(formatHold) });
   });
@@ -271,8 +272,14 @@ export async function registerPrivacyRoutes(
   fastify.post<{ Params: { id: string } }>(
     `${prefix}/legal-holds/:id/release`,
     async (request, reply) => {
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
       try {
-        const hold = await privacyService.releaseLegalHold(request.params.id, actorIdOf(request));
+        const hold = await privacyService.releaseLegalHold(
+          request.params.id,
+          tenantId,
+          actorIdOf(request),
+        );
         return reply.send(formatHold(hold));
       } catch (error) {
         return sendError(reply, error);
@@ -281,14 +288,8 @@ export async function registerPrivacyRoutes(
   );
 
   fastify.post(`${prefix}/erasure-requests`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const parsed = validate(HttpCreateErasureSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -312,14 +313,8 @@ export async function registerPrivacyRoutes(
   });
 
   fastify.get(`${prefix}/erasure-requests`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const rows = await privacyService.listErasureRequests(tenantId);
     return reply.send({ data: rows.map(formatErasure) });
   });
@@ -327,7 +322,9 @@ export async function registerPrivacyRoutes(
   fastify.get<{ Params: { id: string } }>(
     `${prefix}/erasure-requests/:id`,
     async (request, reply) => {
-      const row = await privacyService.getErasureRequest(request.params.id);
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+      const row = await privacyService.getErasureRequest(request.params.id, tenantId);
       if (!row) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -342,6 +339,8 @@ export async function registerPrivacyRoutes(
   fastify.post<{ Params: { id: string }; Body: TransitionBody }>(
     `${prefix}/erasure-requests/:id/transition`,
     async (request, reply) => {
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
       const parsed = validate(TransitionBodySchema, request.body);
       if (!parsed.success) {
         return reply.status(400).send({
@@ -355,6 +354,7 @@ export async function registerPrivacyRoutes(
       try {
         const row = await privacyService.transitionErasureRequest(
           request.params.id,
+          tenantId,
           body.status as ErasureStatus,
           actorIdOf(request),
           body.statusReason,
@@ -369,8 +369,14 @@ export async function registerPrivacyRoutes(
   fastify.post<{ Params: { id: string } }>(
     `${prefix}/erasure-requests/:id/execute`,
     async (request, reply) => {
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
       try {
-        const row = await privacyService.executeErasure(request.params.id, actorIdOf(request));
+        const row = await privacyService.executeErasure(
+          request.params.id,
+          tenantId,
+          actorIdOf(request),
+        );
         return reply.send(formatErasure(row));
       } catch (error) {
         return sendError(reply, error);
@@ -381,14 +387,8 @@ export async function registerPrivacyRoutes(
   // ─── Correction ──────────────────────────────────────────────────────────
 
   fastify.post(`${prefix}/correction-requests`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const parsed = validate(HttpCreateCorrectionSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -412,14 +412,8 @@ export async function registerPrivacyRoutes(
   });
 
   fastify.get(`${prefix}/correction-requests`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const rows = await privacyService.listCorrectionRequests(tenantId);
     return reply.send({ data: rows.map(formatCorrection) });
   });
@@ -427,7 +421,9 @@ export async function registerPrivacyRoutes(
   fastify.get<{ Params: { id: string } }>(
     `${prefix}/correction-requests/:id`,
     async (request, reply) => {
-      const row = await privacyService.getCorrectionRequest(request.params.id);
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+      const row = await privacyService.getCorrectionRequest(request.params.id, tenantId);
       if (!row) {
         return reply.status(404).send({
           code: 'NOT_FOUND',
@@ -442,6 +438,8 @@ export async function registerPrivacyRoutes(
   fastify.post<{ Params: { id: string }; Body: CorrectionTransitionBody }>(
     `${prefix}/correction-requests/:id/transition`,
     async (request, reply) => {
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
       const parsed = validate(CorrectionTransitionBodySchema, request.body);
       if (!parsed.success) {
         return reply.status(400).send({
@@ -455,6 +453,7 @@ export async function registerPrivacyRoutes(
       try {
         const row = await privacyService.transitionCorrectionRequest(
           request.params.id,
+          tenantId,
           body.status as CorrectionStatus,
           actorIdOf(request),
           body.statusReason,
@@ -469,9 +468,12 @@ export async function registerPrivacyRoutes(
   fastify.post<{ Params: { id: string } }>(
     `${prefix}/correction-requests/:id/apply`,
     async (request, reply) => {
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
       try {
         const row = await privacyService.applyCorrection(
           request.params.id,
+          tenantId,
           actorIdOf(request),
         );
         return reply.send(formatCorrection(row));
@@ -484,14 +486,8 @@ export async function registerPrivacyRoutes(
   // ─── Tenant offboard ─────────────────────────────────────────────────────
 
   fastify.post(`${prefix}/tenant-offboard`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const parsed = validate(HttpOffboardSchema, request.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -515,14 +511,8 @@ export async function registerPrivacyRoutes(
   });
 
   fastify.get(`${prefix}/tenant-offboard`, async (request, reply) => {
-    const tenantId = tenantIdOf(request);
-    if (!tenantId) {
-      return reply.status(401).send({
-        code: 'UNAUTHORIZED',
-        message: 'Tenant context required',
-        statusCode: 401,
-      });
-    }
+    const tenantId = requireTenant(request, reply);
+    if (!tenantId) return;
     const rows = await privacyService.listTenantOffboardJobs(tenantId);
     return reply.send({ data: rows.map(formatOffboard) });
   });
@@ -530,7 +520,9 @@ export async function registerPrivacyRoutes(
   fastify.get<{ Params: { id: string } }>(
     `${prefix}/tenant-offboard/:id`,
     async (request, reply) => {
-      const row = await privacyService.getTenantOffboardJob(request.params.id);
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+      const row = await privacyService.getTenantOffboardJob(request.params.id, tenantId);
       if (!row) {
         return reply.status(404).send({
           code: 'NOT_FOUND',

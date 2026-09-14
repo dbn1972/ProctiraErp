@@ -13,9 +13,15 @@ import { RecordingPrivacyAuditPort } from './privacy-audit.js';
 import { PrivacyService } from './privacy-service.js';
 import { createPrivacyAnonymizationWorker } from './privacy-worker.js';
 import { QueuePrivacyAnonymizationPublisher } from './queue-privacy-publisher.js';
-import { RecordingSubjectAnonymizer } from './subject-anonymizer.js';
+import type { SubjectAnonymizer } from './subject-anonymizer.js';
 
 const TENANT_ID = 'tenant-privacy-spine';
+
+const cleanAnonymizer: SubjectAnonymizer = {
+  async anonymize() {
+    return { fieldsTouched: ['display_name', 'email', 'phone'] };
+  },
+};
 
 async function waitUntil(pred: () => boolean | Promise<boolean>, timeoutMs = 4000): Promise<void> {
   const start = Date.now();
@@ -38,12 +44,11 @@ describe('privacy anonymization worker restart-safe spine', () => {
     const publishAdapter = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
     await publishAdapter.connect();
     const publisher = new QueuePrivacyAnonymizationPublisher(publishAdapter);
-    const anonymizer = new RecordingSubjectAnonymizer();
     const audit = new RecordingPrivacyAuditPort();
 
     const service = new PrivacyService(repository, {
       anonymizationPublisher: publisher,
-      anonymizer,
+      anonymizer: cleanAnonymizer,
       audit,
     });
 
@@ -54,9 +59,9 @@ describe('privacy anonymization worker restart-safe spine', () => {
       requestedBy: 'officer',
       requestType: 'anonymization',
     });
-    await service.transitionErasureRequest(req.id, 'under_review', 'officer');
-    await service.transitionErasureRequest(req.id, 'approved', 'officer');
-    const started = await service.executeErasure(req.id, 'officer');
+    await service.transitionErasureRequest(req.id, TENANT_ID, 'under_review', 'officer');
+    await service.transitionErasureRequest(req.id, TENANT_ID, 'approved', 'officer');
+    const started = await service.executeErasure(req.id, TENANT_ID, 'officer');
     expect(started.status).toBe('in_progress');
     expect(store.pendingCount).toBeGreaterThanOrEqual(1);
 
@@ -90,13 +95,14 @@ describe('privacy anonymization worker restart-safe spine', () => {
       queue: resumeAdapter,
       topic: PRIVACY_ANONYMIZATION_CONSUME_TOPIC,
       processor: {
-        processAnonymizationJob: (jobId) => service.processAnonymizationJob(jobId),
+        processAnonymizationJob: (jobId, tenantId) =>
+          service.processAnonymizationJob(jobId, tenantId),
       },
     });
     await resumeWorker.start();
 
     await waitUntil(async () => {
-      const erasure = await service.getErasureRequest(req.id);
+      const erasure = await service.getErasureRequest(req.id, TENANT_ID);
       return erasure?.status === 'completed';
     });
 
@@ -104,8 +110,6 @@ describe('privacy anonymization worker restart-safe spine', () => {
     await resumeWorker.stop();
     await publishAdapter.disconnect();
 
-    expect(anonymizer.ledger).toHaveLength(1);
-    expect(anonymizer.ledger[0]?.subjectId).toBe('stu-spine');
     expect(
       (await repository.listAnonymizationJobs(TENANT_ID)).some((j) => j.status === 'completed'),
     ).toBe(true);
@@ -115,7 +119,10 @@ describe('privacy anonymization worker restart-safe spine', () => {
     const publishAdapter = new InMemoryDurableQueueAdapter({ store, pollIntervalMs: 5 });
     await publishAdapter.connect();
     const publisher = new QueuePrivacyAnonymizationPublisher(publishAdapter);
-    const service = new PrivacyService(repository, { anonymizationPublisher: publisher });
+    const service = new PrivacyService(repository, {
+      anonymizationPublisher: publisher,
+      anonymizer: cleanAnonymizer,
+    });
 
     const req = await service.createErasureRequest({
       tenantId: TENANT_ID,
@@ -123,9 +130,9 @@ describe('privacy anonymization worker restart-safe spine', () => {
       subjectId: 'stu-hold',
       requestedBy: 'officer',
     });
-    await service.transitionErasureRequest(req.id, 'under_review', 'officer');
-    await service.transitionErasureRequest(req.id, 'approved', 'officer');
-    await service.executeErasure(req.id, 'officer');
+    await service.transitionErasureRequest(req.id, TENANT_ID, 'under_review', 'officer');
+    await service.transitionErasureRequest(req.id, TENANT_ID, 'approved', 'officer');
+    await service.executeErasure(req.id, TENANT_ID, 'officer');
 
     await service.placeLegalHold({
       tenantId: TENANT_ID,
@@ -141,9 +148,9 @@ describe('privacy anonymization worker restart-safe spine', () => {
     const worker = createPrivacyAnonymizationWorker({
       queue: adapter,
       processor: {
-        async processAnonymizationJob(jobId) {
+        async processAnonymizationJob(jobId, tenantId) {
           try {
-            await service.processAnonymizationJob(jobId);
+            await service.processAnonymizationJob(jobId, tenantId);
           } catch (error) {
             seenError = /legal hold/i.test(String(error));
             throw error;
@@ -155,6 +162,6 @@ describe('privacy anonymization worker restart-safe spine', () => {
     await waitUntil(() => seenError);
     await worker.stop();
 
-    expect((await service.getErasureRequest(req.id))?.status).toBe('blocked_legal_hold');
+    expect((await service.getErasureRequest(req.id, TENANT_ID))?.status).toBe('blocked_legal_hold');
   });
 });

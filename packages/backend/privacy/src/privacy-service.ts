@@ -4,6 +4,8 @@
  * - Legal hold fail-closed for erase/anonymize/offboard
  * - Correction path with audit
  * - Durable anonymization + tenant offboard job orchestration
+ * - Residuals → job status `failed` (never claim `completed` wipe)
+ * - Every id op is tenant-bound (IDOR fail-closed)
  */
 import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 import { createLogger } from '@proctira/logging';
@@ -133,11 +135,15 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return hold;
   }
 
-  async releaseLegalHold(holdId: string, releasedBy: string): Promise<LegalHoldEntity> {
-    const existing = await this.repository.findLegalHoldById(holdId);
+  async releaseLegalHold(
+    holdId: string,
+    tenantId: string,
+    releasedBy: string,
+  ): Promise<LegalHoldEntity> {
+    const existing = await this.repository.findLegalHoldById(holdId, tenantId);
     if (!existing) throw new NotFoundError(`Legal hold '${holdId}' not found`);
     if (!existing.active) throw new BusinessRuleError('Legal hold is already released');
-    const updated = await this.repository.updateLegalHold(holdId, {
+    const updated = await this.repository.updateLegalHold(holdId, tenantId, {
       active: false,
       releasedBy,
       releasedAt: new Date(),
@@ -213,11 +219,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
   async transitionErasureRequest(
     requestId: string,
+    tenantId: string,
     toStatus: ErasureStatus,
     actorId: string,
     statusReason?: string,
   ): Promise<ErasureRequestEntity> {
-    const existing = await this.repository.findErasureRequestById(requestId);
+    const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
     if (!ERASURE_TRANSITIONS[existing.status].includes(toStatus)) {
       throw new BusinessRuleError(`Invalid erasure transition: ${existing.status} → ${toStatus}`);
@@ -226,7 +233,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       if (
         await this.isOnLegalHold(existing.tenantId, existing.subjectType, existing.subjectId)
       ) {
-        await this.repository.updateErasureRequest(requestId, {
+        await this.repository.updateErasureRequest(requestId, tenantId, {
           status: 'blocked_legal_hold',
           reviewedBy: actorId,
           statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
@@ -236,7 +243,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
         );
       }
     }
-    return (await this.repository.updateErasureRequest(requestId, {
+    return (await this.repository.updateErasureRequest(requestId, tenantId, {
       status: toStatus,
       reviewedBy: actorId,
       statusReason: statusReason ?? null,
@@ -249,8 +256,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
    * When a durable publisher is wired, enqueues a job and leaves erasure
    * `in_progress` until the worker completes. Otherwise processes inline.
    */
-  async executeErasure(requestId: string, actorId: string): Promise<ErasureRequestEntity> {
-    const existing = await this.repository.findErasureRequestById(requestId);
+  async executeErasure(
+    requestId: string,
+    tenantId: string,
+    actorId: string,
+  ): Promise<ErasureRequestEntity> {
+    const existing = await this.repository.findErasureRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Erasure request '${requestId}' not found`);
     if (existing.status !== 'approved') {
       throw new BusinessRuleError(
@@ -258,7 +269,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
     if (await this.isOnLegalHold(existing.tenantId, existing.subjectType, existing.subjectId)) {
-      await this.repository.updateErasureRequest(requestId, {
+      await this.repository.updateErasureRequest(requestId, tenantId, {
         status: 'blocked_legal_hold',
         reviewedBy: actorId,
         statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
@@ -266,7 +277,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       throw new BusinessRuleError(`Erasure blocked: subject under legal hold (request ${requestId})`);
     }
 
-    await this.repository.updateErasureRequest(requestId, {
+    await this.repository.updateErasureRequest(requestId, tenantId, {
       status: 'in_progress',
       reviewedBy: actorId,
       statusReason: 'Erasure execution started',
@@ -298,26 +309,29 @@ export class PrivacyService implements DestructiveDeleteGuard {
         { requestId, jobId: job.id, tenantId: existing.tenantId },
         'Erasure anonymization job enqueued',
       );
-      return (await this.repository.findErasureRequestById(requestId))!;
+      return (await this.repository.findErasureRequestById(requestId, tenantId))!;
     }
 
     // No durable publisher — process inline (same worker code path).
-    await this.processAnonymizationJob(job.id);
-    return (await this.repository.findErasureRequestById(requestId))!;
+    await this.processAnonymizationJob(job.id, existing.tenantId);
+    return (await this.repository.findErasureRequestById(requestId, tenantId))!;
   }
 
-  async processAnonymizationJob(jobId: string): Promise<AnonymizationJobEntity> {
-    const job = await this.repository.findAnonymizationJobById(jobId);
+  async processAnonymizationJob(
+    jobId: string,
+    tenantId: string,
+  ): Promise<AnonymizationJobEntity> {
+    const job = await this.repository.findAnonymizationJobById(jobId, tenantId);
     if (!job) throw new NotFoundError(`Anonymization job '${jobId}' not found`);
-    if (job.status === 'completed') return job;
+    if (job.status === 'completed' || job.status === 'failed') return job;
 
     if (await this.isOnLegalHold(job.tenantId, job.subjectType, job.subjectId)) {
-      await this.repository.updateAnonymizationJob(jobId, {
+      await this.repository.updateAnonymizationJob(jobId, tenantId, {
         status: 'blocked_legal_hold',
         statusReason: 'Active legal hold blocks anonymization (fail-closed)',
         completedAt: new Date(),
       });
-      await this.repository.updateErasureRequest(job.erasureRequestId, {
+      await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
         status: 'blocked_legal_hold',
         statusReason: 'Active legal hold blocks erasure/anonymization (fail-closed)',
       });
@@ -326,7 +340,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
 
-    await this.repository.updateAnonymizationJob(jobId, {
+    await this.repository.updateAnonymizationJob(jobId, tenantId, {
       status: 'in_progress',
       startedAt: new Date(),
       statusReason: 'Anonymization worker started',
@@ -341,20 +355,33 @@ export class PrivacyService implements DestructiveDeleteGuard {
         jobId: job.id,
       });
 
-      const completed = await this.repository.updateAnonymizationJob(jobId, {
-        status: 'completed',
+      const residualNote = result.residualNote?.trim() ? result.residualNote : null;
+      const hasResidual = residualNote != null;
+      // Fail closed: residuals must never be marked completed.
+      const jobStatus = hasResidual ? 'failed' : 'completed';
+
+      const updated = await this.repository.updateAnonymizationJob(jobId, tenantId, {
+        status: jobStatus,
         fieldsTouched: result.fieldsTouched,
-        residualNote: result.residualNote ?? null,
-        statusReason: 'Anonymization worker completed',
+        residualNote,
+        statusReason: hasResidual
+          ? 'Anonymization left residuals (fail-closed; not marked completed)'
+          : 'Anonymization worker completed',
         completedAt: new Date(),
       });
 
-      await this.repository.updateErasureRequest(job.erasureRequestId, {
-        status: 'completed',
-        statusReason: result.residualNote
-          ?? 'Anonymization completed via durable worker',
-        completedAt: new Date(),
-      });
+      if (hasResidual) {
+        await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
+          statusReason: residualNote,
+          // Keep erasure in_progress — do not claim completed wipe.
+        });
+      } else {
+        await this.repository.updateErasureRequest(job.erasureRequestId, tenantId, {
+          status: 'completed',
+          statusReason: 'Anonymization completed via durable worker',
+          completedAt: new Date(),
+        });
+      }
 
       await this.audit.record({
         tenantId: job.tenantId,
@@ -366,22 +393,22 @@ export class PrivacyService implements DestructiveDeleteGuard {
         ipAddress: '0.0.0.0',
         beforeValues: { status: 'in_progress' },
         afterValues: {
-          status: 'completed',
+          status: jobStatus,
           jobId,
           fieldsTouched: result.fieldsTouched,
-          residualNote: result.residualNote ?? null,
+          residualNote,
         },
         metadata: { requestType: job.requestType, subjectType: job.subjectType },
       });
 
       logger.info(
-        { jobId, requestId: job.erasureRequestId, tenantId: job.tenantId },
-        'Anonymization job completed',
+        { jobId, requestId: job.erasureRequestId, tenantId: job.tenantId, jobStatus },
+        hasResidual ? 'Anonymization job failed closed on residual' : 'Anonymization job completed',
       );
-      return completed!;
+      return updated!;
     } catch (error) {
       if (error instanceof BusinessRuleError) throw error;
-      await this.repository.updateAnonymizationJob(jobId, {
+      await this.repository.updateAnonymizationJob(jobId, tenantId, {
         status: 'failed',
         statusReason: error instanceof Error ? error.message : 'Anonymization failed',
         completedAt: new Date(),
@@ -432,11 +459,12 @@ export class PrivacyService implements DestructiveDeleteGuard {
 
   async transitionCorrectionRequest(
     requestId: string,
+    tenantId: string,
     toStatus: CorrectionStatus,
     actorId: string,
     statusReason?: string,
   ): Promise<CorrectionRequestEntity> {
-    const existing = await this.repository.findCorrectionRequestById(requestId);
+    const existing = await this.repository.findCorrectionRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Correction request '${requestId}' not found`);
     if (!CORRECTION_TRANSITIONS[existing.status].includes(toStatus)) {
       throw new BusinessRuleError(
@@ -444,9 +472,9 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
     if (toStatus === 'applied') {
-      return this.applyCorrection(requestId, actorId, statusReason);
+      return this.applyCorrection(requestId, tenantId, actorId, statusReason);
     }
-    return (await this.repository.updateCorrectionRequest(requestId, {
+    return (await this.repository.updateCorrectionRequest(requestId, tenantId, {
       status: toStatus,
       reviewedBy: actorId,
       statusReason: statusReason ?? null,
@@ -459,10 +487,11 @@ export class PrivacyService implements DestructiveDeleteGuard {
    */
   async applyCorrection(
     requestId: string,
+    tenantId: string,
     actorId: string,
     statusReason?: string,
   ): Promise<CorrectionRequestEntity> {
-    const existing = await this.repository.findCorrectionRequestById(requestId);
+    const existing = await this.repository.findCorrectionRequestById(requestId, tenantId);
     if (!existing) throw new NotFoundError(`Correction request '${requestId}' not found`);
     if (existing.status !== 'approved') {
       throw new BusinessRuleError(
@@ -470,7 +499,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
 
-    const applied = await this.repository.updateCorrectionRequest(requestId, {
+    const applied = await this.repository.updateCorrectionRequest(requestId, tenantId, {
       status: 'applied',
       reviewedBy: actorId,
       statusReason: statusReason ?? 'Correction applied',
@@ -509,8 +538,8 @@ export class PrivacyService implements DestructiveDeleteGuard {
     return applied!;
   }
 
-  getCorrectionRequest(requestId: string) {
-    return this.repository.findCorrectionRequestById(requestId);
+  getCorrectionRequest(requestId: string, tenantId: string) {
+    return this.repository.findCorrectionRequestById(requestId, tenantId);
   }
 
   listCorrectionRequests(tenantId: string) {
@@ -561,16 +590,19 @@ export class PrivacyService implements DestructiveDeleteGuard {
       return job;
     }
 
-    return this.processTenantOffboardJob(job.id);
+    return this.processTenantOffboardJob(job.id, input.tenantId);
   }
 
-  async processTenantOffboardJob(jobId: string): Promise<TenantOffboardJobEntity> {
-    const job = await this.repository.findTenantOffboardJobById(jobId);
+  async processTenantOffboardJob(
+    jobId: string,
+    tenantId: string,
+  ): Promise<TenantOffboardJobEntity> {
+    const job = await this.repository.findTenantOffboardJobById(jobId, tenantId);
     if (!job) throw new NotFoundError(`Tenant offboard job '${jobId}' not found`);
-    if (job.status === 'completed') return job;
+    if (job.status === 'completed' || job.status === 'failed') return job;
 
     if (await this.isOnLegalHold(job.tenantId)) {
-      await this.repository.updateTenantOffboardJob(jobId, {
+      await this.repository.updateTenantOffboardJob(jobId, tenantId, {
         status: 'blocked_legal_hold',
         statusReason: 'Active legal hold blocks tenant offboard wipe (fail-closed)',
         completedAt: new Date(),
@@ -580,7 +612,7 @@ export class PrivacyService implements DestructiveDeleteGuard {
       );
     }
 
-    await this.repository.updateTenantOffboardJob(jobId, {
+    await this.repository.updateTenantOffboardJob(jobId, tenantId, {
       status: 'in_progress',
       startedAt: new Date(),
       statusReason: 'Offboard wipe worker started',
@@ -598,16 +630,24 @@ export class PrivacyService implements DestructiveDeleteGuard {
       note: d.note,
     }));
 
-    const residualNote =
-      checklist.some((c) => c.status === 'residual')
-        ? 'Scoped residual: full cascade tenant data destruction not claimed; checklist recorded after hold checks.'
-        : null;
+    const hasResidual =
+      checklist.some((c) => c.status === 'residual') ||
+      domainResults.some((d) => Boolean(d.note && d.status === 'residual'));
 
-    const completed = await this.repository.updateTenantOffboardJob(jobId, {
-      status: 'completed',
+    const residualNote = hasResidual
+      ? 'Scoped residual: full cascade tenant data destruction not claimed; checklist recorded after hold checks.'
+      : null;
+
+    // Fail closed: residual checklist items → failed, never completed.
+    const jobStatus = hasResidual ? 'failed' : 'completed';
+
+    const updated = await this.repository.updateTenantOffboardJob(jobId, tenantId, {
+      status: jobStatus,
       checklist,
       residualNote,
-      statusReason: 'Offboard wipe checklist completed',
+      statusReason: hasResidual
+        ? 'Offboard wipe left residuals (fail-closed; not marked completed)'
+        : 'Offboard wipe checklist completed',
       completedAt: new Date(),
     });
 
@@ -620,30 +660,37 @@ export class PrivacyService implements DestructiveDeleteGuard {
       userName: job.requestedBy,
       ipAddress: '0.0.0.0',
       beforeValues: { status: 'in_progress' },
-      afterValues: { status: 'completed', checklist, residualNote },
+      afterValues: { status: jobStatus, checklist, residualNote },
     });
 
-    logger.info({ jobId, tenantId: job.tenantId }, 'Tenant offboard job completed');
-    return completed!;
+    logger.info(
+      { jobId, tenantId: job.tenantId, jobStatus },
+      hasResidual ? 'Tenant offboard job failed closed on residual' : 'Tenant offboard job completed',
+    );
+    return updated!;
   }
 
-  getTenantOffboardJob(jobId: string) {
-    return this.repository.findTenantOffboardJobById(jobId);
+  getTenantOffboardJob(jobId: string, tenantId: string) {
+    return this.repository.findTenantOffboardJobById(jobId, tenantId);
   }
 
   listTenantOffboardJobs(tenantId: string) {
     return this.repository.listTenantOffboardJobs(tenantId);
   }
 
-  getErasureRequest(requestId: string) {
-    return this.repository.findErasureRequestById(requestId);
+  getErasureRequest(requestId: string, tenantId: string) {
+    return this.repository.findErasureRequestById(requestId, tenantId);
   }
 
   listErasureRequests(tenantId: string) {
     return this.repository.listErasureRequests(tenantId);
   }
 
-  getAnonymizationJob(jobId: string) {
-    return this.repository.findAnonymizationJobById(jobId);
+  getAnonymizationJob(jobId: string, tenantId: string) {
+    return this.repository.findAnonymizationJobById(jobId, tenantId);
+  }
+
+  listAnonymizationJobs(tenantId: string) {
+    return this.repository.listAnonymizationJobs(tenantId);
   }
 }
