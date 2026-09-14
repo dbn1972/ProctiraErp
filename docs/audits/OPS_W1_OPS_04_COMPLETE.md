@@ -3,7 +3,7 @@
 **Module / slice:** DR logical backups — encryption at rest, offsite second copy,
 Object Lock / independent retention (PARTIAL → COMPLETE)  
 **Branch:** `cursor/w1-ops-04-backup-complete-56c3`  
-**Tip SHA:** `d3466e1049494aead1f34b66faf5a6e8925da67f`
+**Tip SHA:** `a01582970819f322be2878763130c7b2fc86778f`
 **Date (UTC):** 2026-09-14  
 **Paired gates:** `tools/scripts/check-backup-prod-gate.sh`,
 `tools/scripts/helm-template-check.sh`  
