@@ -24,6 +24,8 @@ import {
   type UpsertSeatMatrixDto,
 } from './schemas.js';
 
+import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
+
 export interface AdmissionsPipelineRoutesOptions {
   service: AdmissionsPipelineService;
   prefix?: string;
@@ -68,6 +70,14 @@ export async function registerAdmissionsPipelineRoutes(
   options: AdmissionsPipelineRoutesOptions,
 ): Promise<void> {
   const { service, prefix = '/admissions' } = options;
+
+  // W1-SEC-02: admissions CRM requires registrar/admissions/admin (fail closed).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAdmissionsRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
 
   const requireTenant = (request: FastifyRequest, reply: FastifyReply): string | null => {
     const tenantId = tenantOf(request);

@@ -186,8 +186,13 @@ describe('admissions pipeline service', () => {
     const service = new AdmissionsPipelineService(store, apps);
     const app = Fastify();
     app.decorateRequest('tenantId', '');
+    app.decorateRequest('user', null);
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = TENANT;
+      // W1-SEC-02 package guards — admissions CRM requires staff principal.
+      (request as unknown as { user: { roles: string[] } }).user = {
+        roles: ['admissions_officer'],
+      };
     });
     await registerAdmissionsPipelineRoutes(app, { service });
     await app.ready();

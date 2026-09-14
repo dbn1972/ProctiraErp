@@ -128,3 +128,20 @@ export type {
   RegistrationSessionRecord,
   SessionStore,
 } from './routes.js';
+
+export {
+  normalizeRegistrationRoles,
+  hasRegistrationAccess,
+  assertRegistrationAccess,
+  isPublicRegistrationPath,
+  registrationStaffActionForMethod,
+  admissionsStaffActionForMethod,
+} from './registration-access.js';
+export type { RegistrationAction } from './registration-access.js';
+export {
+  registrationRequestRoles,
+  requireRegistrationAction,
+  enforceRegistrationRouteAccess,
+  enforceAdmissionsRouteAccess,
+} from './registration-http-guard.js';
+
