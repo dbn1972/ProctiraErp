@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@proctira/events": "workspace:*",
+    "@proctira/search-index": "workspace:*",
     "@proctira/tenant": "workspace:*",
     "@proctira/testing": "workspace:*",
     "fastify": "^5.7.2",
