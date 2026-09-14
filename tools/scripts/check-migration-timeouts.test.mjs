@@ -21,6 +21,7 @@ import {
   isAtOrBeforeBaseline,
   loadDdlHazardWaiver,
   lockRecoveryDrillContract,
+  packageJsonDuplicateScriptKeys,
   policyDocContract,
   prismaWrapperContract,
   stripSqlComments,
@@ -120,6 +121,20 @@ function writeFixture({
   writeFileSync(
     join(root, 'packages/shared/database/package.json'),
     JSON.stringify({ scripts: { 'prisma:migrate:deploy': pkgScript } }, null, 2),
+  );
+  writeFileSync(
+    join(root, 'package.json'),
+    JSON.stringify(
+      {
+        scripts: {
+          'check:migration-timeouts': 'node tools/scripts/check-migration-timeouts.mjs',
+          'check:migration-timeouts:test':
+            'node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs',
+        },
+      },
+      null,
+      2,
+    ),
   );
   writeFileSync(join(root, 'docs/audits/DATA_W1_DATA_17_TIMEOUTS.md'), audit);
   writeFileSync(join(root, 'docs/audits/DATA_W1_DATA_17_COMPLETE.md'), complete);
@@ -318,6 +333,32 @@ test('loadDdlHazardWaiver requires maintenanceWindow', () => {
     },
   });
   assert.throws(() => loadDdlHazardWaiver(join(root, 'tools/scripts/migration-ddl-hazard-waiver.json')));
+});
+
+test('packageJsonDuplicateScriptKeys rejects duplicate scripts keys', () => {
+  const dup = `{
+  "scripts": {
+    "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs",
+    "check:codeowners": "node tools/scripts/check-codeowners.mjs",
+    "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs"
+  }
+}`;
+  const issues = packageJsonDuplicateScriptKeys(dup);
+  assert.ok(issues.some((i) => /declared 2 times/.test(i)), issues.join('; '));
+  assert.ok(
+    issues.some((i) => /migration-lock-recovery-drill\.test\.mjs/.test(i)),
+    issues.join('; '),
+  );
+});
+
+test('packageJsonDuplicateScriptKeys accepts unique scripts with both suites', () => {
+  const good = `{
+  "scripts": {
+    "check:migration-timeouts": "node tools/scripts/check-migration-timeouts.mjs",
+    "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs"
+  }
+}`;
+  assert.deepEqual(packageJsonDuplicateScriptKeys(good), []);
 });
 
 test('evaluateMigrationTimeouts passes a complete fixture', () => {

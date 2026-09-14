@@ -584,6 +584,51 @@ export function evaluateDdlHazards(root, paths = defaultPaths(root), waiver, now
 }
 
 /**
+ * Fail closed when package.json declares the same scripts key twice.
+ * JSON.parse silently keeps the last value, which dropped the lock-recovery
+ * drill from check:migration-timeouts:test on main @ 29fcc1be (W1-DATA-17).
+ *
+ * @param {string} packageJsonText
+ * @returns {string[]}
+ */
+export function packageJsonDuplicateScriptKeys(packageJsonText) {
+  if (!packageJsonText) return ['package.json missing'];
+  const scriptsMatch = packageJsonText.match(/"scripts"\s*:\s*\{([\s\S]*?)\n  \}/);
+  if (!scriptsMatch) return ['package.json scripts block missing'];
+  const keys = [...scriptsMatch[1].matchAll(/^\s*"([^"]+)":/gm)].map((m) => m[1]);
+  /** @type {Map<string, number>} */
+  const counts = new Map();
+  for (const key of keys) {
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  /** @type {string[]} */
+  const issues = [];
+  for (const [key, count] of counts) {
+    if (count > 1) {
+      issues.push(
+        `package.json scripts key "${key}" declared ${count} times — JSON keeps only the last value`,
+      );
+    }
+  }
+  // W1-DATA-17: the retained test script must include both suites.
+  const testLine = [...scriptsMatch[1].matchAll(/"check:migration-timeouts:test"\s*:\s*"([^"]*)"/g)].pop();
+  if (!testLine) {
+    issues.push('package.json missing check:migration-timeouts:test');
+  } else {
+    const value = testLine[1];
+    if (!/check-migration-timeouts\.test\.mjs/.test(value)) {
+      issues.push('check:migration-timeouts:test must run check-migration-timeouts.test.mjs');
+    }
+    if (!/migration-lock-recovery-drill\.test\.mjs/.test(value)) {
+      issues.push(
+        'check:migration-timeouts:test must run migration-lock-recovery-drill.test.mjs (duplicate key previously dropped it)',
+      );
+    }
+  }
+  return issues;
+}
+
+/**
  * @param {string} root
  * @param {ReturnType<typeof defaultPaths>} [paths]
  */
@@ -603,6 +648,7 @@ export function evaluateMigrationTimeouts(root, paths = defaultPaths(root)) {
     ),
   );
   issues.push(...lockRecoveryDrillContract(readText(paths.lockDrill)));
+  issues.push(...packageJsonDuplicateScriptKeys(readText(join(root, 'package.json'))));
 
   const ddl = evaluateDdlHazards(root, paths);
   issues.push(...ddl.issues);
@@ -649,6 +695,7 @@ function main() {
   if (!report.ok) process.exitCode = 1;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+const entryArg = process.argv[1];
+if (entryArg && import.meta.url === pathToFileURL(entryArg).href) {
   main();
 }

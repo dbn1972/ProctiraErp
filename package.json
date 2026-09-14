@@ -50,7 +50,6 @@
     "check:migration-lock-recovery": "node tools/scripts/migration-lock-recovery-drill.mjs",
     "check:codeowners": "node tools/scripts/check-codeowners.mjs",
     "check:codeowners:test": "node --test tools/scripts/check-codeowners.test.mjs",
-    "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs",
     "check:runtime-table-privileges": "node tools/scripts/check-runtime-table-privileges.mjs",
     "check:runtime-table-privileges:test": "node --test tools/scripts/check-runtime-table-privileges.test.mjs",
     "check:runtime-role-gate": "node tools/scripts/check-runtime-role-gate.mjs",
