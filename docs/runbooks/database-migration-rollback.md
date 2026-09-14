@@ -55,7 +55,10 @@ reset` and never hand-editing `_prisma_migrations`.**
    without `NOT VALID`, adds an index without `CONCURRENTLY`, or rewrites a
    table (type change, `SET NOT NULL` on a large table) needs a maintenance
    window. `021b_tenant_fk_constraints.sql` uses `NOT VALID` for this reason;
-   validate later with `ALTER TABLE <t> VALIDATE CONSTRAINT <t>_tenant_fk;`.
+   validate later with `068_validate_tenant_fk_constraints.sql` (or
+   `ALTER TABLE <t> VALIDATE CONSTRAINT <t>_tenant_fk`). Primary CI sets
+   `APPLY_STRICT_FKS=1` and the `check-strict-tenant-fks` gate fails closed when
+   that posture is skipped without `# STRICT_FK_SKIP_JUSTIFIED`.
 
 ---
 

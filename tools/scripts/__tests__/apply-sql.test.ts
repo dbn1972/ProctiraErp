@@ -112,8 +112,14 @@ describe('apply-sql.sh', () => {
     const listed = [...applySection.matchAll(/^\s*-\s*(db\/sql\/[^\s]+)/gm)].map((m) => m[1]);
     const expectedApplied = expected.filter((n) => {
       if (/^[0-9]+b_.*_seed\.sql$/.test(n) && process.env.APPLY_SEEDS !== '1') return false;
-      if (n === '021b_tenant_fk_constraints.sql' && process.env.APPLY_STRICT_FKS !== '1')
+      // W1-DATA-06: 021a prerequisite tenants + 021b NOT VALID FKs are opt-in.
+      if (
+        (n === '021a_strict_fk_prerequisite_tenants.sql' ||
+          n === '021b_tenant_fk_constraints.sql') &&
+        process.env.APPLY_STRICT_FKS !== '1'
+      ) {
         return false;
+      }
       return true;
     });
     expect(listed).toEqual(expectedApplied.map((n) => `db/sql/${n}`));
