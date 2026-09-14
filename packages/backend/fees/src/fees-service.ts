@@ -982,13 +982,12 @@ export class FeesService {
   }
 
 
-  private async isReminderSuppressed(
-    tenantId: string,
+  private isReminderSuppressedInRows(
+    suppressions: ReminderSuppressionEntity[],
     studentId: string,
     invoiceId: string,
-  ): Promise<boolean> {
-    const rows = await this.repository.listReminderSuppressions(tenantId);
-    return rows.some(
+  ): boolean {
+    return suppressions.some(
       (row) =>
         (row.invoiceId != null && row.invoiceId === invoiceId) ||
         (row.studentId != null && row.studentId === studentId),
@@ -996,28 +995,27 @@ export class FeesService {
   }
 
   async listOverdueForReminder(tenantId: string, asOf: Date) {
-    const invoices = await this.repository.listInvoicesForTenant(tenantId);
+    const [invoices, suppressions] = await Promise.all([
+      this.repository.listInvoicesForTenant(tenantId),
+      this.repository.listReminderSuppressions(tenantId),
+    ]);
     const openOverdue = invoices.filter(
       (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
     );
-    const rows = [];
-    for (const invoice of openOverdue) {
-      rows.push({
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        studentId: invoice.studentId,
-        classId: invoice.classId,
-        amountCents: invoice.amountCents,
-        currency: invoice.currency,
-        dueAt: invoice.dueAt!.toISOString(),
-        overdueDays: Math.max(
-          1,
-          Math.floor((asOf.getTime() - invoice.dueAt!.getTime()) / 86_400_000),
-        ),
-        suppressed: await this.isReminderSuppressed(tenantId, invoice.studentId, invoice.id),
-      });
-    }
-    return rows;
+    return openOverdue.map((invoice) => ({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      studentId: invoice.studentId,
+      classId: invoice.classId,
+      amountCents: invoice.amountCents,
+      currency: invoice.currency,
+      dueAt: invoice.dueAt!.toISOString(),
+      overdueDays: Math.max(
+        1,
+        Math.floor((asOf.getTime() - invoice.dueAt!.getTime()) / 86_400_000),
+      ),
+      suppressed: this.isReminderSuppressedInRows(suppressions, invoice.studentId, invoice.id),
+    }));
   }
 
   async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
