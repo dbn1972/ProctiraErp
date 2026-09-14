@@ -1,7 +1,7 @@
 # Security — Tenant identity on authenticated routes (W1-SEC-01 COMPLETE)
 
 **Module / slice:** `@proctira/tenant` + `apps/api-gateway` tenant binding  
-**Branch / tip:** `cursor/w1-sec-01-tenant-id-complete-56c3` (see tip SHA in commit)  
+**Branch / tip:** `cursor/w1-sec-01-tenant-id-complete-56c3` @ `c9038d10264e7fff369143eedf143c865b3a1bcb`  
 **Date (UTC):** 2026-09-14  
 **Data classes:** tenancy / authorization scope (all tenant-scoped APIs)  
 **Paired test audit:** unit — `tenant-resolution.test.ts`, `fastify-plugin.test.ts`, `tenant-context-trust.test.ts`
