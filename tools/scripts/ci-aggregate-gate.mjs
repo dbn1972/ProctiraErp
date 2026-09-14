@@ -21,7 +21,10 @@ function codeChanged(changes) {
   return (
     truthy(changes.packagesChanged) ||
     truthy(changes.appsChanged) ||
-    truthy(changes.sharedChanged)
+    truthy(changes.sharedChanged) ||
+    // Infra-only PRs still need the lint→unit→tenant-isolation chain
+    // (W1-OPS-05 residual — infra was filtered but never gated).
+    truthy(changes.infraChanged)
   );
 }
 
@@ -30,7 +33,12 @@ function frontendGate(changes) {
 }
 
 function backendGate(changes) {
-  return truthy(changes.backendChanged) || truthy(changes.sharedChanged);
+  return (
+    truthy(changes.backendChanged) ||
+    truthy(changes.sharedChanged) ||
+    // Helm/compose/Dockerfile changes must not proven-skip integration.
+    truthy(changes.infraChanged)
+  );
 }
 
 /**
@@ -187,6 +195,7 @@ function readEnv() {
       sharedChanged: process.env.SHARED_CHANGED,
       frontendChanged: process.env.FRONTEND_CHANGED,
       backendChanged: process.env.BACKEND_CHANGED,
+      infraChanged: process.env.INFRA_CHANGED,
     },
     results: {
       detectChanges: process.env.DETECT_CHANGES_RESULT,

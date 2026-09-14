@@ -14,6 +14,7 @@ const noChanges = {
   sharedChanged: 'false',
   frontendChanged: 'false',
   backendChanged: 'false',
+  infraChanged: 'false',
 };
 
 const codeChanges = {
@@ -22,6 +23,7 @@ const codeChanges = {
   sharedChanged: 'false',
   frontendChanged: 'false',
   backendChanged: 'true',
+  infraChanged: 'false',
 };
 
 function allSkipped() {
@@ -123,4 +125,48 @@ test('frontend-only changes require bundle and lighthouse jobs', () => {
   assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'bundle-budget'));
   assert.ok(report.provenSkips.some((item) => item.job === 'integration-test'));
+});
+
+test('db/tools via shared filter: skipped tenant-isolation is unproven', () => {
+  // Path filters map db/** and tools/** onto shared (+ backend). Aggregate
+  // must not treat those as proven skips (W1-OPS-05 / #181).
+  const changes = {
+    ...noChanges,
+    sharedChanged: 'true',
+    backendChanged: 'true',
+  };
+  const results = allSkipped();
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'tenant-isolation'));
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'integration-test'));
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'unit-test'));
+});
+
+test('infra-only changes require integration and tenant-isolation', () => {
+  const changes = {
+    ...noChanges,
+    infraChanged: 'true',
+  };
+  const results = allSkipped();
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'integration-test'));
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'tenant-isolation'));
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'lint'));
+});
+
+test('infra-only PR with required jobs succeeding passes', () => {
+  const changes = {
+    ...noChanges,
+    infraChanged: 'true',
+  };
+  const results = allSucceeded();
+  results.bundleBudget = 'skipped';
+  results.lighthouse = 'skipped';
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, true);
+  assert.equal(report.failures.length, 0);
+  assert.ok(report.provenSkips.some((item) => item.job === 'bundle-budget'));
+  assert.ok(report.provenSkips.some((item) => item.job === 'lighthouse'));
 });
