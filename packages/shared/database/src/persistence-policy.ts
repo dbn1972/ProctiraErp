@@ -1,5 +1,6 @@
 /**
- * G-714 + P0-05 — persistence fallback policy shared by every repository factory.
+ * G-714 + P0-05 + W1-SEC-12 — persistence fallback policy shared by every
+ * repository factory.
  *
  * Domain packages may use in-memory stores when `DATABASE_URL` is **unset**
  * (unit tests / local exploration). That is never OK when a connection string
@@ -9,17 +10,25 @@
  *
  *   - `DATABASE_URL` set     → throw (fail-closed; P0-05)
  *   - `REQUIRE_DATABASE=1`   → throw (any environment)
- *   - `NODE_ENV=production`  → throw unless `ALLOW_IN_MEMORY_IN_PRODUCTION=1`
+ *   - `NODE_ENV=production`  → throw always (W1-SEC-12; no escape hatch)
  *   - otherwise              → log one warning per domain and continue
+ *
+ * `ALLOW_IN_MEMORY_IN_PRODUCTION` is obsolete: if set in production it is
+ * logged loudly and still refused (refuse boot / factory throw).
  */
 export interface PersistencePolicyEnv {
   NODE_ENV?: string;
   DATABASE_URL?: string;
   REQUIRE_DATABASE?: string;
+  /**
+   * @deprecated W1-SEC-12 — ignored. Production always refuses in-memory stores.
+   * Kept only so misconfigured deploys can be detected and logged loudly.
+   */
   ALLOW_IN_MEMORY_IN_PRODUCTION?: string;
 }
 
 const warned = new Set<string>();
+const obsoleteEscapeLogged = new Set<string>();
 
 function truthy(value: string | undefined): boolean {
   const v = value?.trim().toLowerCase();
@@ -59,15 +68,40 @@ export function resolvePersistenceMode(
   return 'memory';
 }
 
-type WarnLogger = { warn: (message: string) => void };
+type PolicyLogger = {
+  warn: (message: string) => void;
+  error?: (message: string) => void;
+};
 
-function defaultWarnLogger(): WarnLogger {
+function defaultWarnLogger(): PolicyLogger {
   return {
     warn(message: string): void {
       // eslint-disable-next-line no-console -- intentional operator-facing fallback signal
       console.warn(message);
     },
+    error(message: string): void {
+      // eslint-disable-next-line no-console -- intentional loud operator signal (W1-SEC-12)
+      console.error(message);
+    },
   };
+}
+
+function logObsoleteProductionEscape(
+  domain: string,
+  env: PersistencePolicyEnv,
+  log: PolicyLogger,
+): void {
+  if (!truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)) return;
+  if (obsoleteEscapeLogged.has(domain)) return;
+  obsoleteEscapeLogged.add(domain);
+  const message =
+    `[persistence] ${domain}: ALLOW_IN_MEMORY_IN_PRODUCTION is set but ignored ` +
+    `(W1-SEC-12) — production refuses in-memory stores; set DATABASE_URL and refuse boot`;
+  if (log.error) {
+    log.error(message);
+  } else {
+    log.warn(message);
+  }
 }
 
 /**
@@ -77,11 +111,15 @@ function defaultWarnLogger(): WarnLogger {
  * Call this only on the memory path. When `DATABASE_URL` is set, factories must
  * construct a Postgres repository instead — falling through here is a bug and
  * fails closed.
+ *
+ * W1-SEC-12: `NODE_ENV=production` always refuses memory. The former
+ * `ALLOW_IN_MEMORY_IN_PRODUCTION` escape is disabled; if present it is logged
+ * loudly and still rejected.
  */
 export function assertInMemoryFallbackAllowed(
   domain: string,
   env: PersistencePolicyEnv = readPersistencePolicyEnv(),
-  log: WarnLogger = defaultWarnLogger(),
+  log: PolicyLogger = defaultWarnLogger(),
 ): void {
   if (env.DATABASE_URL?.trim()) {
     throw new Error(
@@ -93,9 +131,11 @@ export function assertInMemoryFallbackAllowed(
       `[persistence] ${domain}: DATABASE_URL is required (REQUIRE_DATABASE=1) — refusing in-memory fallback`,
     );
   }
-  if (env.NODE_ENV === 'production' && !truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)) {
+  if (env.NODE_ENV === 'production') {
+    logObsoleteProductionEscape(domain, env, log);
     throw new Error(
-      `[persistence] ${domain}: in-memory store is not allowed when NODE_ENV=production (set DATABASE_URL)`,
+      `[persistence] ${domain}: in-memory store is not allowed when NODE_ENV=production ` +
+        `(set DATABASE_URL; ALLOW_IN_MEMORY_IN_PRODUCTION is disabled — W1-SEC-12)`,
     );
   }
   if (!warned.has(domain)) {
@@ -122,7 +162,8 @@ export function assertPostgresRepositoryAvailable(
   }
 }
 
-/** Test helper: reset the once-per-domain warning cache. */
+/** Test helper: reset the once-per-domain warning / obsolete-escape log caches. */
 export function resetPersistenceWarnings(): void {
   warned.clear();
+  obsoleteEscapeLogged.clear();
 }

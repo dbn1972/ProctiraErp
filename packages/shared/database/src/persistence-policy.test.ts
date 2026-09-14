@@ -7,7 +7,7 @@ import {
   resolvePersistenceMode,
 } from './persistence-policy';
 
-describe('persistence policy (G-714 / P0-05)', () => {
+describe('persistence policy (G-714 / P0-05 / W1-SEC-12)', () => {
   beforeEach(() => resetPersistenceWarnings());
 
   it('returns postgres when a database url is set', () => {
@@ -46,13 +46,29 @@ describe('persistence policy (G-714 / P0-05)', () => {
     ).toThrow(/DATABASE_URL is set/);
   });
 
-  it('allows production fallback only with the explicit escape hatch', () => {
+  it('W1-SEC-12: refuses production in-memory even when ALLOW_IN_MEMORY_IN_PRODUCTION=1', () => {
+    const log = { warn: vi.fn(), error: vi.fn() };
     expect(() =>
-      assertInMemoryFallbackAllowed('fees', {
-        NODE_ENV: 'production',
-        ALLOW_IN_MEMORY_IN_PRODUCTION: '1',
-      }),
-    ).not.toThrow();
+      assertInMemoryFallbackAllowed(
+        'fees',
+        {
+          NODE_ENV: 'production',
+          ALLOW_IN_MEMORY_IN_PRODUCTION: '1',
+        },
+        log,
+      ),
+    ).toThrow(/ALLOW_IN_MEMORY_IN_PRODUCTION is disabled/);
+    expect(log.error).toHaveBeenCalledTimes(1);
+    expect(log.error.mock.calls[0]?.[0]).toMatch(/ALLOW_IN_MEMORY_IN_PRODUCTION is set but ignored/);
+    expect(log.error.mock.calls[0]?.[0]).toMatch(/W1-SEC-12/);
+  });
+
+  it('W1-SEC-12: logs obsolete escape once per domain then still throws', () => {
+    const log = { warn: vi.fn(), error: vi.fn() };
+    const env = { NODE_ENV: 'production', ALLOW_IN_MEMORY_IN_PRODUCTION: 'true' };
+    expect(() => assertInMemoryFallbackAllowed('fees', env, log)).toThrow(/W1-SEC-12/);
+    expect(() => assertInMemoryFallbackAllowed('fees', env, log)).toThrow(/W1-SEC-12/);
+    expect(log.error).toHaveBeenCalledTimes(1);
   });
 
   it('warns exactly once per domain in dev', () => {
