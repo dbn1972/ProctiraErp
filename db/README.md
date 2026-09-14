@@ -129,15 +129,16 @@ Executable gate: `pnpm check:migration-timeouts`.
 ## Global control-ledger privileges (W1-DATA-11)
 
 `050_app_runtime_role.sql` grants broad DML on **all** `public` tables to
-`proctira_app`. That included migrator-owned global control ledgers:
+`proctira_app`. Additive narrowing:
 
-| Table | Owner path | Runtime after `072_control_ledger_privileges.sql` |
-| --- | --- | --- |
-| `schema_migrations` | `apply-sql.sh` / `MIGRATOR_DATABASE_URL` | **No** `SELECT` / DML (`REVOKE ALL`) |
-| `_prisma_migrations` | `prisma migrate deploy` | **No** `SELECT` / DML (`REVOKE ALL`) |
+| Object | Runtime after fix |
+| --- | --- |
+| `schema_migrations`, `_prisma_migrations` | **No** `SELECT` / DML (`072_control_ledger_privileges.sql` — also `REVOKE` from `PUBLIC`) |
+| `insights_ui_templates`, `insights_ui_indicators`, `insights_ui_geo_features` | **SELECT, INSERT** only (`073_runtime_global_table_privileges.sql`) |
 
-Bootstrap role docs: `db/bootstrap/README.md`. Audit:
-`docs/audits/DATA_W1_DATA_11_PRIVILEGES.md`.
+Bootstrap role docs: `db/bootstrap/README.md`. Audits:
+`docs/audits/DATA_W1_DATA_11_PRIVILEGES.md` (ledgers) and
+`docs/audits/DATA_W1_DATA_11_PRIVS.md` (platform catalogs residual).
 
 ## Domain SQL apply ledger (W1-DATA-05)
 
