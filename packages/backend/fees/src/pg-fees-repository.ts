@@ -247,7 +247,9 @@ function mapStructure(row: Record<string, unknown>): FeeStructureEntity {
     amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     status: String(row.status) as FeeStructureStatus,
-    validFrom: String(row.valid_from).slice(0, 10),
+    validFrom: (row.valid_from == null
+      ? toDate(row.created_at).toISOString().slice(0, 10)
+      : String(row.valid_from).slice(0, 10)),
     validTo: row.valid_to == null ? null : String(row.valid_to).slice(0, 10),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),

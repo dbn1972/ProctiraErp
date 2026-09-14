@@ -85,7 +85,7 @@ export async function registerAcademicPeriodRoutes(
     prefix,
     async function listHandler(
       request: FastifyRequest<{
-        Querystring: { status?: string; parentId?: string; kind?: string };
+        Querystring: { status?: string; parentId?: string; kind?: string; asOf?: string };
       }>,
       reply: FastifyReply,
     ) {
@@ -102,6 +102,7 @@ export async function registerAcademicPeriodRoutes(
         status: request.query.status,
         parentId: request.query.parentId,
         kind: request.query.kind,
+        asOf: request.query.asOf,
       });
       return reply.status(200).send(periods.map(formatPeriodResponse));
     },
@@ -183,7 +184,11 @@ export async function registerAcademicPeriodRoutes(
   fastify.post(
     `${prefix}/:id/validate-active`,
     async function validateActiveHandler(
-      request: FastifyRequest<{ Params: { id: string } }>,
+      request: FastifyRequest<{
+        Params: { id: string };
+        Querystring: { asOf?: string };
+        Body?: { asOf?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -195,7 +200,12 @@ export async function registerAcademicPeriodRoutes(
         });
       }
 
-      const period = await service.validateActivePeriod(tenantId, request.params.id);
+      const asOf =
+        request.query?.asOf ??
+        (typeof request.body === 'object' && request.body && 'asOf' in request.body
+          ? (request.body as { asOf?: string }).asOf
+          : undefined);
+      const period = await service.validateActivePeriod(tenantId, request.params.id, asOf);
       return reply.status(200).send({ valid: true, period: formatPeriodResponse(period) });
     },
   );
