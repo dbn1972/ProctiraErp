@@ -120,6 +120,10 @@ echo "$etl_deploy" | grep -q 'path: /health/ready' \
   || die "etl-worker readiness probe must be /health/ready (W1-OPS-02 B4)"
 echo "OK etl-worker probe paths (W1-OPS-02 B4)"
 
+# W1-OPS-08 — no mutable :latest under infrastructure/k8s/
+echo "==> W1-OPS-08 k8s image tag guard"
+bash "$ROOT/tools/scripts/check-no-latest-image-tags.sh"
+
 lines="$(wc -l <"$platform_out" | tr -d ' ')"
 rm -f "$platform_out"
 echo "OK proctira-platform (${lines} lines, ${cron_count} CronJobs)"

@@ -7,6 +7,10 @@ resources:
   - ../../base
   - secrets.yaml
 
+# W1-OPS-08 — development uses the same shared pin; override newTag locally as needed
+components:
+  - ../../components/image-tag
+
 namePrefix: dev-
 
 patches:
