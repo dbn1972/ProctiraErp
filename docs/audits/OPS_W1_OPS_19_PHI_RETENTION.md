@@ -19,7 +19,7 @@ expired PHI unless an operator remembered to flip `apply`.
 | Artifact | Path | Notes |
 | -------- | ---- | ----- |
 | CronJob template | `infrastructure/helm/proctira-platform/templates/dr/phi-retention-cronjob.yaml` | Fail closed if `apply` not a bool; production requires `apply=true` |
-| Base values | `…/values.yaml` | `apply: null` (refuse until overlay sets bool) |
+| Base values | `…/values.yaml` | `apply` omitted (refuse until overlay sets bool) |
 | Production | `…/values-production.yaml` | `apply: true` → `RETENTION_DRY_RUN=0` |
 | Staging / development | `…/values-staging.yaml`, `…/values-development.yaml` | `apply: false` → explicit `RETENTION_DRY_RUN=1` |
 | Job script | `tools/scripts/phi-retention-job.mjs` | `resolveRetentionDryRun` — unset/invalid refuse; legal-hold + retention-window SQL |
