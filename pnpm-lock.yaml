@@ -1526,6 +1526,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/cache':
         specifier: workspace:*
         version: link:../../shared/cache
@@ -1636,6 +1639,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../audit
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common

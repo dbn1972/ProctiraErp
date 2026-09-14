@@ -86,6 +86,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthMeasurementEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity> {
     const now = new Date();
     const entity: HealthMeasurementEntity = { ...data, createdAt: now, updatedAt: now };

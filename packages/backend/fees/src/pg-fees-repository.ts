@@ -696,6 +696,16 @@ export class PgFeesRepository implements FeesRepository {
     tenantId: string,
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+    options?: {
+      appendAuditInTxn?: (
+        client: PgQueryable,
+        settled: {
+          invoice: FeeInvoiceEntity;
+          payment: FeePaymentEntity;
+          receipt: FeeReceiptEntity;
+        },
+      ) => Promise<void>;
+    },
   ): Promise<{
     invoice: FeeInvoiceEntity;
     payment: FeePaymentEntity;
@@ -818,6 +828,15 @@ export class PgFeesRepository implements FeesRepository {
         [settlement.invoiceStatus, invoiceId, tenantId],
       );
       const updatedInvoice = mapInvoice(updatedInvoiceResult.rows[0] as Record<string, unknown>);
+
+      // W1-SEC-10: regulated audit/outbox shares this COMMIT boundary.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, {
+          invoice: updatedInvoice,
+          payment,
+          receipt,
+        });
+      }
 
       return { invoice: updatedInvoice, payment, receipt };
     });

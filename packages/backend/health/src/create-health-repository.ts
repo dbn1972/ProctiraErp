@@ -235,9 +235,15 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthMeasurementEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity> {
-    if (this.phi) return this.phi.createMeasurement(data);
-    return this.memory.createMeasurement(data);
+    if (this.phi) return this.phi.createMeasurement(data, options);
+    return this.memory.createMeasurement(data, options);
   }
 
   async updateMeasurement(

@@ -404,6 +404,16 @@ export class FeesService {
     tenantId: string,
     actorId: string,
     input: RecordPaymentInput,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        settlement: {
+          invoice: FeeInvoiceEntity;
+          payment: FeePaymentEntity;
+          receipt: FeeReceiptEntity;
+        },
+      ) => Promise<void>;
+    },
   ): Promise<{
     invoice: FeeInvoiceEntity;
     payment: FeePaymentEntity;
@@ -528,6 +538,13 @@ export class FeesService {
             : 'open') as FeeInvoiceEntity['status'],
         };
       },
+      options?.appendAuditInTxn
+        ? {
+            appendAuditInTxn: async (client, settled) => {
+              await options.appendAuditInTxn!(client, settled);
+            },
+          }
+        : undefined,
     );
 
     return { invoice, payment, receipt, idempotent: false };

@@ -2,11 +2,16 @@
  * Fastify Fees Plugin — staff fees routes under `/fees`.
  */
 import { AppError } from '@proctira/common';
+import {
+  appendAuditEntryOnClient,
+  toCreateAuditLogInput,
+} from '@proctira/backend-audit';
 import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { isPgFeesEnabled } from './create-fees-repository.js';
 import { requireFeesAction, requireFeesRead } from './fees-http-guard.js';
 import type { FeesRepository } from './fees-repository.js';
 import {
@@ -217,6 +222,59 @@ function getTenantId(request: FastifyRequest): string | null {
 function getActorId(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
   return user?.sub ?? 'anonymous';
+}
+
+function getActorDisplayName(request: FastifyRequest): string {
+  const user = (
+    request as FastifyRequest & { user?: { sub?: string; displayName?: string; email?: string } }
+  ).user;
+  return user?.displayName ?? user?.email ?? user?.sub ?? 'anonymous';
+}
+
+/** Same Symbol.for key as api-gateway mutation-audit (W1-SEC-10 COMPLETE). */
+const MUTATION_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
+
+function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
+  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[
+    MUTATION_AUDIT_COMMITTED
+  ] = true;
+}
+
+function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
+  if (!isPgFeesEnabled()) return undefined;
+  return {
+    appendAuditInTxn: async (
+      client: import('@proctira/database').PgQueryable,
+      settled: {
+        payment: { id: string };
+      },
+    ) => {
+      await appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          tenantId,
+          entityType: 'fees',
+          entityId: settled.payment.id,
+          operation: 'CREATE',
+          userId: getActorId(request),
+          userName: getActorDisplayName(request),
+          ipAddress: request.ip,
+          beforeValues: null,
+          afterValues: {
+            path: '/api/v1/fees/payments',
+            paymentId: settled.payment.id,
+          },
+          metadata: {
+            method: request.method,
+            path: (request.url.split('?')[0] ?? request.url),
+            regulated: 'fees.payment',
+            atomic: true,
+          },
+        }),
+      );
+      markRegulatedMutationAuditCommitted(request);
+    },
+  };
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -511,10 +569,15 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'payment.record')) return;
         try {
-          const result = await feesService.recordPayment(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            ...bodyResult.data,
-          });
+          const result = await feesService.recordPayment(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              ...bodyResult.data,
+            },
+            buildPaymentAuditBinder(request, tenantId),
+          );
           return reply.status(result.idempotent ? 200 : 201).send({
             invoice: formatInvoice(result.invoice),
             payment: formatPayment(result.payment),
@@ -557,7 +620,12 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'payment.record')) return;
         try {
-          const paid = await feesService.recordPayment(tenantId, getActorId(request), result.data);
+          const paid = await feesService.recordPayment(
+            tenantId,
+            getActorId(request),
+            result.data,
+            buildPaymentAuditBinder(request, tenantId),
+          );
           return reply.status(paid.idempotent ? 200 : 201).send({
             invoice: formatInvoice(paid.invoice),
             payment: formatPayment(paid.payment),

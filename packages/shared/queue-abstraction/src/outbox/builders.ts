@@ -3,7 +3,11 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { EXAM_DOCUMENT_JOB_TYPE, WORKFLOW_ESCALATION_JOB_TYPE } from '../job-types.js';
+import {
+  EXAM_DOCUMENT_JOB_TYPE,
+  MUTATION_AUDIT_JOB_TYPE,
+  WORKFLOW_ESCALATION_JOB_TYPE,
+} from '../job-types.js';
 
 import type { NewOutboxEntry } from './types.js';
 
@@ -54,6 +58,34 @@ export function buildWorkflowEscalationOutboxEntry(
     metadata: {
       correlationId: input.taskId,
       delay: input.delayMs,
+    },
+    dispatchMode: 'dispatch',
+  };
+}
+
+export interface MutationAuditOutboxInput {
+  tenantId: string;
+  /** Domain aggregate id (invoice, measurement, hold, …). */
+  aggregateId: string;
+  aggregateType: string;
+  /** Audit payload the relay persists into audit_log_entries. */
+  payload: unknown;
+  correlationId?: string;
+}
+
+/** Same-txn audit *intent* when writers dual-write outbox instead of audit_log. */
+export function buildMutationAuditOutboxEntry(input: MutationAuditOutboxInput): NewOutboxEntry {
+  const correlationId = input.correlationId ?? input.aggregateId;
+  return {
+    id: randomUUID(),
+    tenantId: input.tenantId,
+    aggregateType: input.aggregateType,
+    aggregateId: input.aggregateId,
+    eventType: MUTATION_AUDIT_JOB_TYPE,
+    payload: input.payload,
+    metadata: {
+      correlationId,
+      maxRetries: 5,
     },
     dispatchMode: 'dispatch',
   };
