@@ -1,0 +1,169 @@
+# =============================================================================
+# Rollback Pipeline - ProctiraERP (W1-OPS-09)
+# =============================================================================
+# Atomic sibling to deploy.yml. Uses the same Helm release naming
+# (proctira-${SERVICE} in namespace proctira-${environment}) and either:
+#   1) helm rollback to a prior revision (default: previous = 0), or
+#   2) helm upgrade --atomic --wait to a known-good image tag.
+#
+# Manual only (workflow_dispatch). dry_run=true prints planned commands and
+# exits 0 without touching the cluster — also exercised by
+# tools/scripts/deploy-rollback-check.sh.
+# =============================================================================
+
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      services:
+        description: 'Comma-separated services (e.g. api-gateway,web)'
+        required: true
+        type: string
+      revision:
+        description: 'Helm revision to roll back to (0 = previous successful)'
+        required: false
+        type: string
+        default: '0'
+      image_tag:
+        description: 'Optional: redeploy this image tag instead of helm rollback'
+        required: false
+        type: string
+        default: ''
+      dry_run:
+        description: 'Print planned helm commands without applying'
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: rollback-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+
+jobs:
+  rollback:
+    name: Rollback ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        uses: azure/setup-kubectl@v4
+
+      - name: Set Kubernetes context
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Install Helm
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Plan / execute rollback
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          SERVICES: ${{ inputs.services }}
+          REVISION: ${{ inputs.revision }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          REGISTRY: ${{ env.REGISTRY }}
+        run: |
+          set -euo pipefail
+          NAMESPACE="proctira-${ENVIRONMENT}"
+          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICES"
+
+          if [ -z "${SERVICES// /}" ]; then
+            echo "::error::services input is required"
+            exit 1
+          fi
+
+          {
+            echo "## Rollback plan (W1-OPS-09)"
+            echo ""
+            echo "- Environment: \`${ENVIRONMENT}\`"
+            echo "- Namespace: \`${NAMESPACE}\`"
+            echo "- Services: \`${SERVICES}\`"
+            echo "- Mode: $([ "${DRY_RUN}" = "true" ] && echo "dry-run" || echo "apply")"
+            if [ -n "${IMAGE_TAG}" ]; then
+              echo "- Strategy: helm upgrade --atomic --wait to tag \`${IMAGE_TAG}\`"
+            else
+              echo "- Strategy: helm rollback (revision=\`${REVISION:-0}\`)"
+            fi
+            echo ""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for SERVICE in "${SERVICE_ARRAY[@]}"; do
+            SERVICE="$(echo "$SERVICE" | xargs)"
+            [ -n "$SERVICE" ] || continue
+            RELEASE="proctira-${SERVICE}"
+
+            if [ -n "${IMAGE_TAG}" ]; then
+              CMD=(helm upgrade --install "${RELEASE}"
+                ./infrastructure/helm/proctira-service
+                --namespace "${NAMESPACE}"
+                --set "image.repository=${REGISTRY}/proctira/${SERVICE}"
+                --set "image.tag=${IMAGE_TAG}"
+                --set "environment=${ENVIRONMENT}"
+                --set "service.name=${SERVICE}"
+                --values "./infrastructure/helm/proctira-service/values-${ENVIRONMENT}.yaml"
+                --atomic
+                --wait
+                --timeout 300s)
+            else
+              CMD=(helm rollback "${RELEASE}" "${REVISION:-0}"
+                --namespace "${NAMESPACE}"
+                --wait
+                --timeout 300s)
+            fi
+
+            echo "${CMD[*]}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+            if [ "${DRY_RUN}" = "true" ]; then
+              echo "[dry-run] skipped apply for ${RELEASE}"
+              continue
+            fi
+
+            "${CMD[@]}"
+
+            kubectl rollout status "deployment/${RELEASE}" \
+              --namespace "${NAMESPACE}" \
+              --timeout=120s
+          done
+
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Post rollback notification
+        if: always() && inputs.dry_run != true && inputs.dry_run != 'true'
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Rollback on ${{ inputs.environment }}: ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*ProctiraERP Rollback (W1-OPS-09)*\n• Environment: `${{ inputs.environment }}`\n• Services: `${{ inputs.services }}`\n• Revision: `${{ inputs.revision }}`\n• Image tag: `${{ inputs.image_tag }}`\n• Status: ${{ job.status }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

@@ -22,7 +22,20 @@ strategy:
   type: RollingUpdate
   rollingUpdate:
     maxSurge: 1
+    # W1-OPS-09 progressive baseline: never drop ready pods before replacements.
     maxUnavailable: 0
+
+# ---------------------------------------------------------------------------
+# Progressive delivery hook (W1-OPS-09). Off by default — RollingUpdate above
+# is the ship path. When a canary controller (Flagger / Argo Rollouts / mesh)
+# is installed, enable canary to stamp annotations controllers can select.
+# ---------------------------------------------------------------------------
+progressiveDelivery:
+  canary:
+    enabled: false
+    weight: 10
+    # Extra annotations merged onto the Deployment metadata (not pod template).
+    annotations: {}
 
 resources:
   requests:

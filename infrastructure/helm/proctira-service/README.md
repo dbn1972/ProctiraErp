@@ -25,6 +25,24 @@ helm template proctira-api-gateway ./infrastructure/helm/proctira-service \
 
 Platform umbrella chart: `../proctira-platform` (formerly openemis-platform path).
 
+## Atomic deploy + rollback (W1-OPS-09)
+
+`deploy.yml` runs `helm upgrade --install ... --atomic --wait` so a failed
+release auto-rolls back. Manual rollback is `.github/workflows/rollback.yml`
+(`workflow_dispatch`: revision **or** known-good `image_tag`, `dry_run` default).
+
+Progressive delivery baseline remains `RollingUpdate` / `maxUnavailable: 0`.
+Optional canary annotations for Flagger/Argo:
+
+```bash
+helm template proctira-api-gateway ./infrastructure/helm/proctira-service \
+  --set progressiveDelivery.canary.enabled=true \
+  --set progressiveDelivery.canary.weight=10 \
+  --set service.name=api-gateway
+```
+
+Dry-run check (no cluster): `./tools/scripts/deploy-rollback-check.sh`
+
 ## Hardening + availability (G-724)
 
 Every release renders a non-root, read-only-rootfs pod (`runAsUser: 1001`,
