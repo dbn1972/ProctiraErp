@@ -82,10 +82,13 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
+import {
+  createRateLimitRedisClient,
+  decideRateLimitStore,
+} from './rate-limit-store.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
-
 export interface BuildAppOptions {
   config: GatewayConfig;
 }
@@ -191,7 +194,26 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 4. Register rate limiting (per tenant/client/IP).
   // G-505: max is plan-tier aware when tenant context is present; otherwise
   // falls back to gateway config.rateLimiting.maxRequests.
+  // W1-ARCH-02: Redis store when REDIS_URL is set (cluster-wide); production
+  // refuses silent multi-replica in-memory limiting. Redis connect failures
+  // fail closed — no silent memory fallback.
   // Use preHandler so JWT + tenant resolution (onRequest) have already run.
+  const rateLimitStore = decideRateLimitStore({
+    NODE_ENV: process.env['NODE_ENV'] ?? config.env,
+    REDIS_URL: process.env['REDIS_URL'],
+    ALLOW_IN_MEMORY_RATE_LIMIT: process.env['ALLOW_IN_MEMORY_RATE_LIMIT'],
+  });
+  let rateLimitRedis: Awaited<ReturnType<typeof createRateLimitRedisClient>> | undefined;
+  if (rateLimitStore.mode === 'redis') {
+    rateLimitRedis = await createRateLimitRedisClient(rateLimitStore.redisUrl);
+    app.log.info('Rate limiter using Redis store for distributed limiting (W1-ARCH-02)');
+  } else {
+    app.log.warn(
+      { reason: rateLimitStore.reason },
+      'Rate limiter using in-memory store (single-process only; set REDIS_URL for multi-replica)',
+    );
+  }
+
   await app.register(rateLimit, {
     hook: 'preHandler',
     max: (request) => {
@@ -207,6 +229,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     },
     timeWindow: config.rateLimiting.windowMs,
     keyGenerator: (request) => rateLimitKeyFor(request),
+    redis: rateLimitRedis,
+    // Do not skip rate limiting when the store errors — fail closed.
+    skipOnError: false,
     allowList: [],
     addHeadersOnExceeding: {
       'x-ratelimit-limit': true,
@@ -220,6 +245,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       'retry-after': true,
     },
   });
+
+  if (rateLimitRedis) {
+    app.addHook('onClose', async () => {
+      await rateLimitRedis?.quit();
+    });
+  }
 
   // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
   await app.register(paginationCapPlugin);

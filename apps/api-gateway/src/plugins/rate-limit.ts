@@ -1,61 +1,63 @@
 /**
- * Rate Limit Plugin — Redis-backed distributed rate limiting
+ * Rate Limit Plugin — Redis-backed distributed rate limiting (W1-ARCH-02)
  *
- * Enhances @fastify/rate-limit with a Redis store for distributed
- * deployments. When REDIS_URL is set, rate limit counters are shared
- * across all gateway instances. Falls back to in-memory store when
- * Redis is unavailable.
+ * Enhances @fastify/rate-limit with a Redis store for distributed deployments.
+ * When REDIS_URL is set, rate limit counters are shared across gateway replicas.
+ * Production refuses silent in-memory multi-replica limiting; Redis connect
+ * failures fail closed (no silent memory fallback).
  */
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import Redis from 'ioredis';
+import type Redis from 'ioredis';
+
+import {
+  createRateLimitRedisClient,
+  decideRateLimitStore,
+} from '../rate-limit-store.js';
 
 export interface RateLimitPluginOptions {
   /** Maximum requests per window (default: 100) */
   max?: number;
   /** Time window in milliseconds (default: 60000 = 1 minute) */
   timeWindow?: number;
-  /** Redis URL for distributed rate limiting */
+  /** Redis URL for distributed rate limiting (overrides env) */
   redisUrl?: string;
+  /** Env bag for tests; defaults to process.env */
+  env?: NodeJS.ProcessEnv;
 }
 
 async function rateLimitPlugin(
   app: FastifyInstance,
   options: RateLimitPluginOptions,
 ): Promise<void> {
-  const { max = 100, timeWindow = 60_000, redisUrl } = options;
+  const { max = 100, timeWindow = 60_000, redisUrl, env = process.env } = options;
 
-  // Use Redis store for distributed rate limiting when REDIS_URL is available
-  const resolvedRedisUrl = redisUrl ?? process.env['REDIS_URL'];
+  const decision = decideRateLimitStore({
+    NODE_ENV: env['NODE_ENV'],
+    REDIS_URL: redisUrl ?? env['REDIS_URL'],
+    ALLOW_IN_MEMORY_RATE_LIMIT: env['ALLOW_IN_MEMORY_RATE_LIMIT'],
+  });
+
   let redis: Redis | undefined;
-
-  if (resolvedRedisUrl) {
-    try {
-      redis = new Redis(resolvedRedisUrl, {
-        maxRetriesPerRequest: 2,
-        retryStrategy: (times: number) => Math.min(times * 200, 2000),
-        lazyConnect: true,
-        enableOfflineQueue: false,
-      });
-
-      // Attempt connection — if it fails, fall back to in-memory
-      await redis.connect();
-      app.log.info('Rate limiter using Redis store for distributed limiting');
-    } catch {
-      app.log.warn('Redis unavailable for rate limiter — using in-memory store');
-      redis = undefined;
-    }
+  if (decision.mode === 'redis') {
+    redis = await createRateLimitRedisClient(decision.redisUrl);
+    app.log.info('Rate limiter using Redis store for distributed limiting (W1-ARCH-02)');
+  } else {
+    app.log.warn(
+      { reason: decision.reason },
+      'Rate limiter using in-memory store (single-process only; set REDIS_URL for multi-replica)',
+    );
   }
 
-  // Register @fastify/rate-limit with Redis store if available
   const { default: rateLimit } = await import('@fastify/rate-limit');
 
   await app.register(rateLimit, {
     max,
     timeWindow,
     redis,
+    // Do not skip rate limiting when the store errors — fail closed.
+    skipOnError: false,
     keyGenerator: (request) => {
-      // Rate limit key priority: tenant + user > tenant > IP
       const tenantId = (request as unknown as { tenantId?: string }).tenantId;
       const userId = (request as unknown as { user?: { sub?: string } }).user?.sub;
 
@@ -81,7 +83,6 @@ async function rateLimitPlugin(
     },
   });
 
-  // Graceful shutdown: disconnect Redis on close
   if (redis) {
     app.addHook('onClose', async () => {
       await redis?.quit();
