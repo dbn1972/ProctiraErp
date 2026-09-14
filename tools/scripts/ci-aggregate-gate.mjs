@@ -41,6 +41,12 @@ function backendGate(changes) {
   );
 }
 
+function secondaryAppsGate(changes) {
+  // W1-OPS-12: only when secondary Next apps (or the e2e harness) change.
+  // Do not key on broad shared/docs — keeps CI cost bounded.
+  return truthy(changes.secondaryAppsChanged);
+}
+
 /**
  * @param {{
  *   changes: Record<string, string | undefined>,
@@ -103,6 +109,11 @@ export function evaluate({ changes, results }) {
       job: 'strict-tenant-fks',
       result: results.strictTenantFks,
       requiredWhen: () => true,
+    },
+    {
+      job: 'secondary-apps-e2e',
+      result: results.secondaryAppsE2e,
+      requiredWhen: () => secondaryAppsGate(changes),
     },
   ];
 
@@ -201,6 +212,7 @@ function readEnv() {
       frontendChanged: process.env.FRONTEND_CHANGED,
       backendChanged: process.env.BACKEND_CHANGED,
       infraChanged: process.env.INFRA_CHANGED,
+      secondaryAppsChanged: process.env.SECONDARY_APPS_CHANGED,
     },
     results: {
       detectChanges: process.env.DETECT_CHANGES_RESULT,
@@ -216,6 +228,7 @@ function readEnv() {
       restoreDrillEvidence: process.env.RESTORE_DRILL_EVIDENCE_RESULT,
       prismaSqlDrift: process.env.PRISMA_SQL_DRIFT_RESULT,
       strictTenantFks: process.env.STRICT_TENANT_FKS_RESULT,
+      secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
     },
   };
 }
