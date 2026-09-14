@@ -76,6 +76,38 @@ describe('BillingService', () => {
 
   const tenantId = '11111111-1111-4111-8111-111111111111';
 
+
+  describe('W1-DATA-09 integer cents prices', () => {
+    it('rejects float monthly/yearly prices at the service boundary', async () => {
+      await expect(
+        service.createPlan({
+          ...createProPlan(),
+          name: 'Float monthly',
+          priceMonthly: 99.5 as unknown as number,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+
+      await expect(
+        service.createPlan({
+          ...createProPlan(),
+          name: 'Float yearly',
+          priceYearly: 1199.99 as unknown as number,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('accepts integer cent prices', async () => {
+      const plan = await service.createPlan({
+        ...createProPlan(),
+        name: 'Cents plan',
+        priceMonthly: 9900,
+        priceYearly: 99_000,
+      });
+      expect(plan.priceMonthly).toBe(9900);
+      expect(plan.priceYearly).toBe(99_000);
+    });
+  });
+
   // ─── Plan Management ───────────────────────────────────────────────────
 
   describe('Plan Management', () => {

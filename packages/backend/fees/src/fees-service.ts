@@ -2,7 +2,7 @@
  * Fees service — plans, invoices, sandbox payments, receipts.
  * recordPayment enforces receipt.amountCents === payment.amountCents === invoice.amountCents.
  */
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, NotFoundError, pgIntegerCents } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -168,12 +168,12 @@ export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
   for (const line of lines.slice(start)) {
     const [invoiceNumber, amountRaw] = line.split(',').map((part) => part.trim());
     if (!invoiceNumber) continue;
-    const amountCents = Number(amountRaw);
-    if (!Number.isFinite(amountCents)) {
+    // W1-DATA-09: bank CSV amounts must already be integer cents — never Math.round(Number()).
+    try {
+      rows.push({ invoiceNumber, amountCents: pgIntegerCents(amountRaw) });
+    } catch {
       rows.push({ invoiceNumber, amountCents: Number.NaN });
-      continue;
     }
-    rows.push({ invoiceNumber, amountCents: Math.round(amountCents) });
   }
   return rows;
 }
