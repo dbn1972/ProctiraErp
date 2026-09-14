@@ -5,11 +5,16 @@
   - production requires apply=true (enforcing deletion).
   - sandbox/staging/dev set apply=false → RETENTION_DRY_RUN=1 (explicit dry-run).
 */}}
-{{- if not (kindIs "bool" .Values.dr.phiRetention.apply) }}
+{{- $apply := .Values.dr.phiRetention.apply }}
+{{- if not (kindIs "bool" $apply) }}
 {{- fail "W1-OPS-19: dr.phiRetention.apply must be an explicit boolean (true=enforce deletion / RETENTION_DRY_RUN=0, false=sandbox dry-run / RETENTION_DRY_RUN=1). Unset mode is refuse." }}
 {{- end }}
-{{- if and (eq .Values.global.environment "production") (not .Values.dr.phiRetention.apply) }}
+{{- if and (eq .Values.global.environment "production") (not $apply) }}
 {{- fail "W1-OPS-19: production PHI retention must set dr.phiRetention.apply=true (enforcing deletion). For dry-run use staging/development with apply=false." }}
+{{- end }}
+{{- $dryRun := "1" }}
+{{- if $apply }}
+{{- $dryRun = "0" }}
 {{- end }}
 # G-707 / W1-OPS-19 — scheduled PHI / minor-data retention job.
 # Production: apply=true → RETENTION_DRY_RUN=0 (enforces deletion).
@@ -66,7 +71,7 @@ spec:
                 - name: ARTIFACT_DIR
                   value: /backups/evidence/phi-retention
                 - name: RETENTION_DRY_RUN
-                  value: {{ ternary "0" "1" .Values.dr.phiRetention.apply | quote }}
+                  value: {{ $dryRun | quote }}
                 - name: PHI_RETENTION_DAYS
                   value: {{ .Values.dr.phiRetention.phiRetentionDays | quote }}
                 - name: MINOR_PHI_RETENTION_DAYS

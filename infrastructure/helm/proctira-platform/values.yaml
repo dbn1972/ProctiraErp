@@ -1051,10 +1051,10 @@ dr:
     enabled: true
     # -- Weekly, Sunday 03:30
     schedule: '30 3 * * 0'
-    # -- W1-OPS-19: must be an explicit bool in env overlays (null here is refuse).
+    # -- W1-OPS-19: do NOT default apply here. Env overlays must set an explicit bool:
     # production → true (enforce deletion / RETENTION_DRY_RUN=0)
     # staging/development → false (explicit sandbox dry-run / RETENTION_DRY_RUN=1)
-    apply: null
+    # Unset / omitted → helm template fails closed.
     phiRetentionDays: 2555
     minorPhiRetentionDays: 3650
     resources:
