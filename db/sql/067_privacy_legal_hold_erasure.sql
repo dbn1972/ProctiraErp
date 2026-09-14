@@ -81,7 +81,52 @@ CREATE INDEX IF NOT EXISTS idx_privacy_erasure_subject
 COMMENT ON TABLE privacy_erasure_requests IS
   'W1-SEC-06 erasure/anonymization requests with status machine. Execution blocked under legal hold.';
 
+-- Fail-closed DB guard: hard DELETE and soft-delete (deleted_at) on students
+-- are rejected while an active subject or tenant-scope legal hold exists.
+CREATE OR REPLACE FUNCTION privacy_block_student_delete_on_legal_hold()
+RETURNS TRIGGER AS $$
+DECLARE
+  sid TEXT;
+  tid UUID;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    sid := OLD.id::text;
+    tid := OLD.tenant_id;
+  ELSIF TG_OP = 'UPDATE' AND NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL THEN
+    sid := NEW.id::text;
+    tid := NEW.tenant_id;
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM privacy_legal_holds h
+    WHERE h.tenant_id = tid
+      AND h.active = true
+      AND (
+        (h.scope = 'subject' AND h.subject_type = 'student' AND h.subject_id = sid)
+        OR h.scope = 'tenant'
+      )
+  ) THEN
+    RAISE EXCEPTION 'destructive delete blocked: active privacy legal hold (W1-SEC-06)'
+      USING ERRCODE = 'integrity_constraint_violation';
+  END IF;
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_privacy_block_student_delete_on_legal_hold ON students;
+CREATE TRIGGER trg_privacy_block_student_delete_on_legal_hold
+  BEFORE UPDATE OR DELETE ON students
+  FOR EACH ROW EXECUTE FUNCTION privacy_block_student_delete_on_legal_hold();
+
 ALTER TABLE privacy_legal_holds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE privacy_legal_holds FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON privacy_legal_holds;
 CREATE POLICY tenant_isolation ON privacy_legal_holds
   FOR ALL
@@ -89,6 +134,7 @@ CREATE POLICY tenant_isolation ON privacy_legal_holds
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
 
 ALTER TABLE privacy_erasure_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE privacy_erasure_requests FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON privacy_erasure_requests;
 CREATE POLICY tenant_isolation ON privacy_erasure_requests
   FOR ALL

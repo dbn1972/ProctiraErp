@@ -19,7 +19,10 @@ import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
 import type { ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentRepository } from './student-repository.js';
-import { StudentService } from './student-service.js';
+import {
+  StudentService,
+  type AssertDestructiveDeleteAllowed,
+} from './student-service.js';
 import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridge.js';
 import { createStudentBlobStore, type StudentBlobStore } from './students-360/blob-store.js';
 import { createStudents360Store } from './students-360/create-store.js';
@@ -57,6 +60,11 @@ export interface StudentPluginOptions {
   attendanceHeatmap?: AttendanceHeatmapSource;
   /** W2-REC-01 lifecycle certificates store */
   lifecycleCertificateRepository?: LifecycleCertificateRepository;
+  /**
+   * W1-SEC-06 — privacy legal-hold gate for soft-delete / merge.
+   * Production gateway should always wire PrivacyService.
+   */
+  assertDestructiveDeleteAllowed?: AssertDestructiveDeleteAllowed;
 }
 
 // Extend Fastify types
@@ -81,21 +89,25 @@ export const studentPlugin = fp(
 
     const enrollmentRepository = options.enrollmentRepository ?? createEnrollmentRepository();
 
-    const studentService = new StudentService(repository, async ({ tenantId, fromStudentId, toStudentId }) => {
-      const listed = await enrollmentRepository.listEnrollments(
-        tenantId,
-        { studentId: fromStudentId },
-        { page: 1, pageSize: 500 },
-      );
-      let moved = 0;
-      for (const row of listed.data) {
-        const updated = await enrollmentRepository.updateEnrollment(row.id, tenantId, {
-          studentId: toStudentId,
-        });
-        if (updated) moved += 1;
-      }
-      return moved;
-    });
+    const studentService = new StudentService(
+      repository,
+      async ({ tenantId, fromStudentId, toStudentId }) => {
+        const listed = await enrollmentRepository.listEnrollments(
+          tenantId,
+          { studentId: fromStudentId },
+          { page: 1, pageSize: 500 },
+        );
+        let moved = 0;
+        for (const row of listed.data) {
+          const updated = await enrollmentRepository.updateEnrollment(row.id, tenantId, {
+            studentId: toStudentId,
+          });
+          if (updated) moved += 1;
+        }
+        return moved;
+      },
+      options.assertDestructiveDeleteAllowed,
+    );
     fastify.decorate('studentService', studentService);
 
     await registerStudentRoutes(fastify, {

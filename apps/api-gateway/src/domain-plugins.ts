@@ -118,6 +118,7 @@ import {
   StudentService,
   studentPlugin,
 } from '@proctira/backend-student';
+import { InMemoryPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import {
@@ -269,10 +270,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
           await importHandle.disconnect();
         });
       }
+      // W1-SEC-06: legal-hold gate on student soft-delete / merge (in-memory this slice).
+      const privacyService = new PrivacyService(new InMemoryPrivacyRepository());
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
         prefix: '/students',
+        assertDestructiveDeleteAllowed: ({ tenantId, subjectId }) =>
+          privacyService.assertDestructiveDeleteAllowed(tenantId, subjectId),
       });
     },
   },
