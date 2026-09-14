@@ -83,7 +83,7 @@ function effectiveDatingSqlPath(): string {
 
 function completeDatingSqlPath(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  const name = '076_w1_data_07_append_only_versions.sql';
+  const name = '083_w1_data_07_append_only_versions.sql';
   const roots = [
     join(here, '../../../../db/sql'),
     join(process.cwd(), 'db/sql'),

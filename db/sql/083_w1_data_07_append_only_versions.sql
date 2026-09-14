@@ -335,5 +335,5 @@ BEGIN
 END $$;
 
 INSERT INTO schema_migrations (filename)
-VALUES ('076_w1_data_07_append_only_versions.sql')
+VALUES ('083_w1_data_07_append_only_versions.sql')
 ON CONFLICT (filename) DO NOTHING;

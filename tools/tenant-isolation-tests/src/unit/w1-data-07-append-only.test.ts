@@ -1,6 +1,6 @@
 /**
  * W1-DATA-07 COMPLETE — static SQL contract for append-only versions + payroll
- * reverse/replace (076_w1_data_07_append_only_versions.sql).
+ * reverse/replace (083_w1_data_07_append_only_versions.sql).
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const MIGRATION = '076_w1_data_07_append_only_versions.sql';
+const MIGRATION = '083_w1_data_07_append_only_versions.sql';
 
 function sqlDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));

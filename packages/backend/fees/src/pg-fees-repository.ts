@@ -108,7 +108,7 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql061);
       const sql070 = readFileSync(resolveSqlPath('070_academic_fee_effective_dating.sql'), 'utf8');
       await pool.query(sql070);
-      const sql076 = readFileSync(resolveSqlPath('076_w1_data_07_append_only_versions.sql'), 'utf8');
+      const sql076 = readFileSync(resolveSqlPath('083_w1_data_07_append_only_versions.sql'), 'utf8');
       await pool.query(sql076);
     })();
   }

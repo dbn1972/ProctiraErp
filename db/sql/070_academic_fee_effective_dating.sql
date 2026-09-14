@@ -3,7 +3,7 @@
 -- Additive migration — applied after 069 via tools/scripts/apply-sql.sh.
 --
 -- COMPLETE mutability / reverse-replace hardening lives in
--- 076_w1_data_07_append_only_versions.sql (append-only versions + payroll
+-- 083_w1_data_07_append_only_versions.sql (append-only versions + payroll
 -- immutability). Do not assume 070 alone closes W1-DATA-07.
 --
 -- academic_periods already carry start_date/end_date (the academic window).

@@ -20,7 +20,7 @@ Academic periods and fee structures lacked effective dating; payroll export idem
 ## Residual
 
 - **CLOSED by W1-DATA-07 COMPLETE** — see `docs/audits/DATA_W1_DATA_07_COMPLETE.md`
-  (`076_w1_data_07_append_only_versions.sql`: append-only versions + payroll reverse/replace).
+  (`083_w1_data_07_append_only_versions.sql`: append-only versions + payroll reverse/replace).
 - Fee historical rows backfilled `valid_from = created_at::date`; product owners may refine windows later.
 - Live Postgres proof of payroll artifact columns is not claimed here (unit/store tests only).
 
