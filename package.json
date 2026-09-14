@@ -46,6 +46,8 @@
     "check:tenant-id-indexes:test": "node --test tools/scripts/check-tenant-id-indexes.test.mjs",
     "check:migration-timeouts": "node tools/scripts/check-migration-timeouts.mjs",
     "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs",
+    "check:codeowners": "node tools/scripts/check-codeowners.mjs",
+    "check:codeowners:test": "node --test tools/scripts/check-codeowners.test.mjs",
     "check:reusable-ci-assets": "node tools/scripts/assert-reusable-ci-assets.mjs",
     "check:reusable-ci-assets:test": "node --test tools/scripts/assert-reusable-ci-assets.test.mjs",
     "check:observability": "node tools/scripts/validate-observability.mjs",
