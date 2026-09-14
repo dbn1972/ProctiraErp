@@ -15,6 +15,8 @@ import type {
   ConsentEntity,
   ConsentStatus,
   ConsentType,
+  CustodyRestrictionKind,
+  CustodyRestrictionStatus,
   CustodyStatus,
   CustodyType,
   FeeInvoiceEntity,
@@ -23,6 +25,7 @@ import type {
   FeePlanFrequency,
   FeePlanStatus,
   FeeReceiptEntity,
+  GuardianCustodyRestrictionEntity,
   GuardianHouseholdEntity,
   GuardianHouseholdMemberEntity,
   GuardianStudentCustodyEntity,
@@ -85,6 +88,8 @@ export async function ensureParentPortalSchema(
       await pool.query(sql051);
       const sql054 = readFileSync(resolveSqlPath('054_guardian_household_custody.sql'), 'utf8');
       await pool.query(sql054);
+      const sql076 = readFileSync(resolveSqlPath('077_guardian_custody_restrictions.sql'), 'utf8');
+      await pool.query(sql076);
     })();
   }
   await schemaReady;
@@ -105,6 +110,11 @@ export async function ensureParentPortalSeed(
     seedReady = (async () => {
       const sql = readFileSync(resolveSqlPath('010b_parent_portal_seed.sql'), 'utf8');
       await pool.query(sql);
+      const custodySeed = readFileSync(
+        resolveSqlPath('077b_guardian_custody_demo_seed.sql'),
+        'utf8',
+      );
+      await pool.query(custodySeed);
     })();
   }
   await seedReady;
@@ -165,6 +175,27 @@ function mapStudentCustody(row: Record<string, unknown>): GuardianStudentCustody
     status: String(row.status) as CustodyStatus,
     effectiveFrom: toDate(row.effective_from),
     effectiveTo: row.effective_to == null ? null : toDate(row.effective_to),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapCustodyRestriction(row: Record<string, unknown>): GuardianCustodyRestrictionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    studentId: String(row.student_id),
+    parentUserId: String(row.parent_user_id),
+    householdId: row.household_id == null ? null : String(row.household_id),
+    restrictionKind: String(row.restriction_kind) as CustodyRestrictionKind,
+    blocksMedical: Boolean(row.blocks_medical),
+    blocksFees: Boolean(row.blocks_fees),
+    blocksAllAccess: Boolean(row.blocks_all_access),
+    status: String(row.status) as CustodyRestrictionStatus,
+    effectiveFrom: toDate(row.effective_from),
+    effectiveTo: row.effective_to == null ? null : toDate(row.effective_to),
+    courtOrderRef: String(row.court_order_ref ?? ''),
+    notes: String(row.notes ?? ''),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -430,17 +461,51 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapStudentCustody(result.rows[0] as Record<string, unknown>);
   }
 
+  async createCustodyRestriction(
+    data: Omit<GuardianCustodyRestrictionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianCustodyRestrictionEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO guardian_custody_restrictions (
+         id, tenant_id, student_id, parent_user_id, household_id, restriction_kind,
+         blocks_medical, blocks_fees, blocks_all_access, status,
+         effective_from, effective_to, court_order_ref, notes
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.studentId,
+        data.parentUserId,
+        data.householdId,
+        data.restrictionKind,
+        data.blocksMedical,
+        data.blocksFees,
+        data.blocksAllAccess,
+        data.status,
+        data.effectiveFrom,
+        data.effectiveTo,
+        data.courtOrderRef,
+        data.notes,
+      ],
+    );
+    return mapCustodyRestriction(result.rows[0] as Record<string, unknown>);
+  }
+
   async listActiveCustodyHouseholdIdsForStudent(
     tenantId: string,
     studentId: string,
+    at: Date = new Date(),
   ): Promise<string[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
       `SELECT household_id FROM guardian_student_custody
        WHERE tenant_id = $1 AND student_id = $2 AND status = 'active'
-         AND custody_type <> 'none'`,
-      [tenantId, studentId],
+         AND custody_type <> 'none'
+         AND effective_from <= $3
+         AND (effective_to IS NULL OR effective_to > $3)`,
+      [tenantId, studentId, at],
     );
     return result.rows.map((row) => String((row as Record<string, unknown>).household_id));
   }
@@ -457,6 +522,25 @@ export class PgParentPortalRepository implements ParentPortalRepository {
       [tenantId, parentUserId],
     );
     return result.rows.map((row) => String((row as Record<string, unknown>).household_id));
+  }
+
+  async listActiveCustodyRestrictions(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+    at: Date = new Date(),
+  ): Promise<GuardianCustodyRestrictionEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM guardian_custody_restrictions
+       WHERE tenant_id = $1 AND parent_user_id = $2 AND student_id = $3
+         AND status = 'active'
+         AND effective_from <= $4
+         AND (effective_to IS NULL OR effective_to > $4)`,
+      [tenantId, parentUserId, studentId, at],
+    );
+    return result.rows.map((row) => mapCustodyRestriction(row as Record<string, unknown>));
   }
 
   async createThread(

@@ -21,6 +21,12 @@ export type HouseholdMemberRole = 'primary' | 'guardian' | 'other';
 export type HouseholdMemberStatus = 'active' | 'revoked';
 export type CustodyType = 'sole' | 'joint' | 'visitation' | 'none';
 export type CustodyStatus = 'active' | 'ended';
+export type CustodyRestrictionKind =
+  | 'court_order'
+  | 'protective_order'
+  | 'school_admin'
+  | 'other';
+export type CustodyRestrictionStatus = 'active' | 'lifted';
 
 export interface GuardianHouseholdEntity {
   id: string;
@@ -51,6 +57,26 @@ export interface GuardianStudentCustodyEntity {
   status: CustodyStatus;
   effectiveFrom: Date;
   effectiveTo: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Effective-dated court / protective restriction against a guardian (W1-SEC-03). */
+export interface GuardianCustodyRestrictionEntity {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  parentUserId: string;
+  householdId: string | null;
+  restrictionKind: CustodyRestrictionKind;
+  blocksMedical: boolean;
+  blocksFees: boolean;
+  blocksAllAccess: boolean;
+  status: CustodyRestrictionStatus;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  courtOrderRef: string;
+  notes: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -198,11 +224,25 @@ export interface ParentPortalRepository {
       'createdAt' | 'updatedAt' | 'effectiveTo'
     >,
   ): Promise<GuardianStudentCustodyEntity>;
+  createCustodyRestriction(
+    data: Omit<GuardianCustodyRestrictionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianCustodyRestrictionEntity>;
   listActiveCustodyHouseholdIdsForStudent(
     tenantId: string,
     studentId: string,
+    at?: Date,
   ): Promise<string[]>;
   listActiveHouseholdIdsForParent(tenantId: string, parentUserId: string): Promise<string[]>;
+  /**
+   * Active effective-dated restrictions for a guardian↔student pair.
+   * Used to fail closed governed ops and all-access blocks.
+   */
+  listActiveCustodyRestrictions(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+    at?: Date,
+  ): Promise<GuardianCustodyRestrictionEntity[]>;
 
   createThread(
     data: Omit<MessageThreadEntity, 'createdAt' | 'updatedAt'>,

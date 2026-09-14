@@ -60,6 +60,52 @@ const otherStudent: Principal = {
 
 const VIEWS = ['attendance', 'grades', 'timetable', 'homework', 'calendar', 'notices'] as const;
 
+const HOUSEHOLD_H1 = '00000000-0000-4000-8000-000000000101';
+
+async function provisionLinkedParent(
+  repository: InMemoryParentPortalRepository,
+  parentUserId: string,
+  studentId: string,
+  linkId: string,
+): Promise<void> {
+  const now = new Date();
+  await repository.createHousehold({
+    id: HOUSEHOLD_H1,
+    tenantId: TENANT_A,
+    label: 'Demo household',
+    status: 'active',
+  });
+  await repository.addHouseholdMember({
+    id: '00000000-0000-4000-8000-000000000111',
+    tenantId: TENANT_A,
+    householdId: HOUSEHOLD_H1,
+    parentUserId,
+    role: 'primary',
+    status: 'active',
+  });
+  await repository.assignStudentCustody({
+    id: '00000000-0000-4000-8000-000000000121',
+    tenantId: TENANT_A,
+    studentId,
+    householdId: HOUSEHOLD_H1,
+    custodyType: 'sole',
+    status: 'active',
+    effectiveFrom: now,
+  });
+  await repository.createChildLink({
+    id: linkId,
+    tenantId: TENANT_A,
+    parentUserId,
+    studentId,
+    relationship: 'guardian',
+    status: 'active',
+    isPrimary: true,
+    canConsentMedical: true,
+    canViewFees: true,
+    householdId: HOUSEHOLD_H1,
+  });
+}
+
 describe('parent/student academic visibility routes', () => {
   let app: FastifyInstance;
   let repository: InMemoryParentPortalRepository;
@@ -76,18 +122,12 @@ describe('parent/student academic visibility routes', () => {
   });
 
   it('returns 404 when a parent requests an unlinked child on every academic view', async () => {
-    await repository.createChildLink({
-      id: '00000000-0000-4000-8000-000000000031',
-      tenantId: TENANT_A,
-      parentUserId: PARENT_USER,
-      studentId: STUDENT_ID,
-      relationship: 'guardian',
-      status: 'active',
-      isPrimary: true,
-      canConsentMedical: true,
-      canViewFees: true,
-      householdId: null,
-    });
+    await provisionLinkedParent(
+      repository,
+      PARENT_USER,
+      STUDENT_ID,
+      '00000000-0000-4000-8000-000000000031',
+    );
 
     for (const view of VIEWS) {
       const linked = await app.inject({
@@ -110,18 +150,12 @@ describe('parent/student academic visibility routes', () => {
   });
 
   it('returns 404 when tenant B asks for a child linked only in tenant A', async () => {
-    await repository.createChildLink({
-      id: '00000000-0000-4000-8000-000000000032',
-      tenantId: TENANT_A,
-      parentUserId: PARENT_USER,
-      studentId: STUDENT_ID,
-      relationship: 'guardian',
-      status: 'active',
-      isPrimary: true,
-      canConsentMedical: true,
-      canViewFees: true,
-      householdId: null,
-    });
+    await provisionLinkedParent(
+      repository,
+      PARENT_USER,
+      STUDENT_ID,
+      '00000000-0000-4000-8000-000000000032',
+    );
 
     const cross = await app.inject({
       method: 'GET',
