@@ -61,6 +61,9 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
     delete process.env['DATABASE_URL'];
     process.env['REQUIRE_DATABASE'] = '0';
     process.env['ALLOW_IN_MEMORY_FALLBACK'] = '1';
+    // W1-ARCH-02: production refuses in-memory rate limits without explicit opt-in.
+    process.env['ALLOW_IN_MEMORY_RATE_LIMIT'] = '1';
+    delete process.env['REDIS_URL'];
 
     const config: GatewayConfig = {
       port: 0,
