@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # =============================================================================
-# P0-12 / G-501 — Local + CI helm template dry-run
+# P0-12 / G-501 / W1-OPS-21 — Local + CI helm template dry-run
 # =============================================================================
 # Proves deploy.yml chart paths exist and render without a live cluster.
+# Also asserts application probe handlers still expose the paths Helm / Docker
+# HEALTHCHECK expect (W1-OPS-21), so app-only probe edits fail closed in CI.
 # No secrets: only ci-placeholder values for umbrella template stubs.
 #
 # Usage (repo root):
@@ -23,6 +25,16 @@ die() {
   exit 1
 }
 
+# Require a string literal route in an app source file (W1-OPS-21).
+assert_app_route() {
+  local file="$1"
+  local route="$2"
+  local label="$3"
+  [[ -f "$file" ]] || die "missing ${file} (${label})"
+  grep -qE "['\"]${route}['\"]" "$file" \
+    || die "${label}: ${file} must still register '${route}' (W1-OPS-21)"
+}
+
 command -v helm >/dev/null 2>&1 || die "helm not found on PATH (install Helm v3.14+)"
 
 # --- Path alignment with .github/workflows/deploy.yml -------------------------
@@ -39,6 +51,38 @@ fi
 if [[ -d ./infrastructure/helm/proctira && ! -f ./infrastructure/helm/proctira/Chart.yaml ]]; then
   die "ambiguous infrastructure/helm/proctira without Chart.yaml"
 fi
+
+# --- W1-OPS-21: app handlers must still expose chart / HEALTHCHECK probe paths -
+echo "==> W1-OPS-21 app probe contract sources"
+assert_app_route apps/api-gateway/src/plugins/health.ts '/health' 'api-gateway legacy/thin-chart'
+assert_app_route apps/api-gateway/src/plugins/health.ts '/health/live' 'api-gateway liveness'
+assert_app_route apps/api-gateway/src/plugins/health.ts '/health/ready' 'api-gateway readiness'
+assert_app_route apps/etl-worker/src/server.ts '/health' 'etl-worker legacy'
+assert_app_route apps/etl-worker/src/server.ts '/health/live' 'etl-worker liveness'
+assert_app_route apps/etl-worker/src/server.ts '/health/ready' 'etl-worker readiness'
+[[ -f apps/web/src/app/api/health/route.ts ]] \
+  || die "missing apps/web/src/app/api/health/route.ts (web probe)"
+grep -q 'export async function GET' apps/web/src/app/api/health/route.ts \
+  || die "web /api/health route must export GET (W1-OPS-21)"
+# Deploy Dockerfiles HEALTHCHECK paths (thin chart + compose parity)
+for df in \
+  apps/api-gateway/Dockerfile \
+  infrastructure/docker/Dockerfile.api-gateway \
+  Dockerfile.fastify-base \
+  apps/etl-worker/Dockerfile \
+  infrastructure/docker/Dockerfile.etl-worker; do
+  [[ -f "$df" ]] || die "missing ${df}"
+  grep -q '/health' "$df" || die "${df} HEALTHCHECK must probe /health (W1-OPS-21)"
+done
+for df in \
+  apps/web/Dockerfile \
+  infrastructure/docker/Dockerfile.web \
+  infrastructure/docker/Dockerfile.nextjs-app \
+  Dockerfile.web-base; do
+  [[ -f "$df" ]] || die "missing ${df}"
+  grep -q '/api/health' "$df" || die "${df} HEALTHCHECK must probe /api/health (W1-OPS-21)"
+done
+echo "OK app + Dockerfile probe contracts (W1-OPS-21)"
 
 echo "==> lint ${SERVICE_CHART}"
 helm lint "${SERVICE_CHART}"
@@ -119,6 +163,15 @@ echo "$etl_deploy" | grep -q 'path: /health/live' \
 echo "$etl_deploy" | grep -q 'path: /health/ready' \
   || die "etl-worker readiness probe must be /health/ready (W1-OPS-02 B4)"
 echo "OK etl-worker probe paths (W1-OPS-02 B4)"
+
+# W1-OPS-21 — platform api-gateway probes match gateway Fastify handlers.
+gw_deploy="$(awk '/Source: proctira-platform\/templates\/api-gateway\/deployment.yaml/,/^---$/' "$platform_out")"
+[[ -n "$gw_deploy" ]] || die "missing api-gateway Deployment in platform render"
+echo "$gw_deploy" | grep -q 'path: /health/live' \
+  || die "api-gateway liveness probe must be /health/live (W1-OPS-21)"
+echo "$gw_deploy" | grep -q 'path: /health/ready' \
+  || die "api-gateway readiness probe must be /health/ready (W1-OPS-21)"
+echo "OK api-gateway platform probe paths (W1-OPS-21)"
 
 # W1-OPS-08 — no mutable :latest under infrastructure/k8s/
 echo "==> W1-OPS-08 k8s image tag guard"

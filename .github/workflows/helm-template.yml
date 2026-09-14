@@ -1,9 +1,13 @@
 # =============================================================================
-# G-501 / P0-12 — Helm template dry-run (proctira-service + proctira-platform)
+# G-501 / P0-12 / W1-OPS-21 — Helm template dry-run
 # =============================================================================
 # Aligns with deploy.yml which installs `./infrastructure/helm/proctira-service`
 # as release `proctira-${SERVICE}` with deployment name `proctira-${SERVICE}`.
 # Logic lives in tools/scripts/helm-template-check.sh (local + CI parity).
+#
+# W1-OPS-21: also run when gateway / ETL / web probe handlers or HEALTHCHECK
+# Dockerfiles change — those edits can break chart probe contracts without
+# touching infrastructure/helm/**.
 # =============================================================================
 
 name: Helm Template
@@ -21,6 +25,22 @@ on:
       - 'tools/scripts/deploy-rollback-check.sh'
       - 'tools/scripts/deploy-secrets-gate-check.sh'
       - 'tools/scripts/check-no-latest-image-tags.sh'
+      # W1-OPS-21 — probe-contract app + image HEALTHCHECK surfaces
+      - 'apps/api-gateway/src/plugins/health.ts'
+      - 'apps/api-gateway/src/plugins/health.test.ts'
+      - 'apps/api-gateway/Dockerfile'
+      - 'apps/etl-worker/src/server.ts'
+      - 'apps/etl-worker/src/server.test.ts'
+      - 'apps/etl-worker/Dockerfile'
+      - 'apps/web/src/app/api/health/**'
+      - 'apps/web/Dockerfile'
+      - 'infrastructure/docker/Dockerfile.api-gateway'
+      - 'infrastructure/docker/Dockerfile.etl-worker'
+      - 'infrastructure/docker/Dockerfile.web'
+      - 'infrastructure/docker/Dockerfile.backend-service'
+      - 'infrastructure/docker/Dockerfile.nextjs-app'
+      - 'Dockerfile.fastify-base'
+      - 'Dockerfile.web-base'
   push:
     branches: [main]
     paths:
@@ -32,6 +52,21 @@ on:
       - 'tools/scripts/deploy-rollback-check.sh'
       - 'tools/scripts/deploy-secrets-gate-check.sh'
       - 'tools/scripts/check-no-latest-image-tags.sh'
+      - 'apps/api-gateway/src/plugins/health.ts'
+      - 'apps/api-gateway/src/plugins/health.test.ts'
+      - 'apps/api-gateway/Dockerfile'
+      - 'apps/etl-worker/src/server.ts'
+      - 'apps/etl-worker/src/server.test.ts'
+      - 'apps/etl-worker/Dockerfile'
+      - 'apps/web/src/app/api/health/**'
+      - 'apps/web/Dockerfile'
+      - 'infrastructure/docker/Dockerfile.api-gateway'
+      - 'infrastructure/docker/Dockerfile.etl-worker'
+      - 'infrastructure/docker/Dockerfile.web'
+      - 'infrastructure/docker/Dockerfile.backend-service'
+      - 'infrastructure/docker/Dockerfile.nextjs-app'
+      - 'Dockerfile.fastify-base'
+      - 'Dockerfile.web-base'
 
 concurrency:
   group: helm-template-${{ github.ref }}
