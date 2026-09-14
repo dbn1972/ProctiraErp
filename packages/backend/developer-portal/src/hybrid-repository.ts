@@ -1,5 +1,7 @@
 /**
- * Hybrid developer-portal repository: Postgres API keys + in-memory everything else.
+ * Hybrid developer-portal repository:
+ * - Postgres: API keys (055) + accounts/webhooks/deliveries (089) when configured
+ * - In-memory: marketplace/docs/analytics/sandboxes/submissions/ratings (residual)
  */
 import type {
   DeveloperPortalExtendedRepository,
@@ -25,11 +27,15 @@ import type {
 } from './developer-portal-repository.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import { PgApiKeyStore } from './pg-api-key-store.js';
+import { PgDeveloperPortalDurableStore } from './pg-durable-store.js';
 
 export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedRepository {
   private readonly memory = new InMemoryDeveloperPortalRepository();
 
-  constructor(private readonly apiKeys: PgApiKeyStore | null) {}
+  constructor(
+    private readonly apiKeys: PgApiKeyStore | null,
+    private readonly durable: PgDeveloperPortalDurableStore | null = null,
+  ) {}
 
   // ─── API Keys (Postgres when configured) ──────────────────────────────────
 
@@ -82,17 +88,20 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     await this.memory.updateApiKeyLastUsed(id, lastUsedAt);
   }
 
-  // ─── Developer Accounts (in-memory) ───────────────────────────────────────
+  // ─── Developer Accounts (Postgres when durable store configured) ──────────
 
   createAccount(account: DeveloperAccountEntity): Promise<DeveloperAccountEntity> {
+    if (this.durable) return this.durable.createAccount(account);
     return this.memory.createAccount(account);
   }
 
   getAccountById(id: string): Promise<DeveloperAccountEntity | null> {
+    if (this.durable) return this.durable.getAccountById(id);
     return this.memory.getAccountById(id);
   }
 
   getAccountByEmail(email: string): Promise<DeveloperAccountEntity | null> {
+    if (this.durable) return this.durable.getAccountByEmail(email);
     return this.memory.getAccountByEmail(email);
   }
 
@@ -100,16 +109,19 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     id: string,
     updates: Partial<Pick<DeveloperAccountEntity, 'name' | 'organization' | 'website' | 'status'>>,
   ): Promise<DeveloperAccountEntity | null> {
+    if (this.durable) return this.durable.updateAccount(id, updates);
     return this.memory.updateAccount(id, updates);
   }
 
-  // ─── Webhooks (in-memory) ─────────────────────────────────────────────────
+  // ─── Webhooks (Postgres when durable store configured) ────────────────────
 
   createWebhook(webhook: WebhookEntity): Promise<WebhookEntity> {
+    if (this.durable) return this.durable.createWebhook(webhook);
     return this.memory.createWebhook(webhook);
   }
 
   getWebhookById(id: string): Promise<WebhookEntity | null> {
+    if (this.durable) return this.durable.getWebhookById(id);
     return this.memory.getWebhookById(id);
   }
 
@@ -118,6 +130,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     page: number,
     pageSize: number,
   ): Promise<{ data: WebhookEntity[]; total: number }> {
+    if (this.durable) return this.durable.listWebhooks(filter, page, pageSize);
     return this.memory.listWebhooks(filter, page, pageSize);
   }
 
@@ -127,20 +140,24 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
       Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
     >,
   ): Promise<WebhookEntity | null> {
+    if (this.durable) return this.durable.updateWebhook(id, updates);
     return this.memory.updateWebhook(id, updates);
   }
 
   deleteWebhook(id: string): Promise<boolean> {
+    if (this.durable) return this.durable.deleteWebhook(id);
     return this.memory.deleteWebhook(id);
   }
 
-  // ─── Webhook Deliveries (in-memory) ───────────────────────────────────────
+  // ─── Webhook Deliveries (Postgres when durable store configured) ──────────
 
   createDelivery(delivery: WebhookDeliveryEntity): Promise<WebhookDeliveryEntity> {
+    if (this.durable) return this.durable.createDelivery(delivery);
     return this.memory.createDelivery(delivery);
   }
 
   getDeliveryById(id: string): Promise<WebhookDeliveryEntity | null> {
+    if (this.durable) return this.durable.getDeliveryById(id);
     return this.memory.getDeliveryById(id);
   }
 
@@ -149,6 +166,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     page: number,
     pageSize: number,
   ): Promise<{ data: WebhookDeliveryEntity[]; total: number }> {
+    if (this.durable) return this.durable.listDeliveries(filter, page, pageSize);
     return this.memory.listDeliveries(filter, page, pageSize);
   }
 
@@ -161,10 +179,11 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
       >
     >,
   ): Promise<WebhookDeliveryEntity | null> {
+    if (this.durable) return this.durable.updateDelivery(id, updates);
     return this.memory.updateDelivery(id, updates);
   }
 
-  // ─── Sandboxes (in-memory) ────────────────────────────────────────────────
+  // ─── Sandboxes (in-memory residual) ───────────────────────────────────────
 
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity> {
     return this.memory.createSandbox(sandbox);
@@ -182,7 +201,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.updateSandboxStatus(id, status);
   }
 
-  // ─── Plugin Submissions (in-memory) ───────────────────────────────────────
+  // ─── Plugin Submissions (in-memory residual) ──────────────────────────────
 
   createSubmission(submission: PluginSubmissionEntity): Promise<PluginSubmissionEntity> {
     return this.memory.createSubmission(submission);
@@ -209,7 +228,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.updateSubmissionStatus(id, status, reviewNotes, reviewedBy);
   }
 
-  // ─── Marketplace (in-memory) ──────────────────────────────────────────────
+  // ─── Marketplace (in-memory residual) ─────────────────────────────────────
 
   createListing(listing: MarketplaceListingEntity): Promise<MarketplaceListingEntity> {
     return this.memory.createListing(listing);
@@ -238,7 +257,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.deleteListing(name);
   }
 
-  // ─── Plugin Ratings (in-memory) ───────────────────────────────────────────
+  // ─── Plugin Ratings (in-memory residual) ──────────────────────────────────
 
   createRating(rating: PluginRatingEntity): Promise<PluginRatingEntity> {
     return this.memory.createRating(rating);
@@ -263,7 +282,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.getAverageRating(pluginName);
   }
 
-  // ─── Documentation (in-memory) ────────────────────────────────────────────
+  // ─── Documentation (in-memory residual) ───────────────────────────────────
 
   createDocPage(page: DocPageEntity): Promise<DocPageEntity> {
     return this.memory.createDocPage(page);
@@ -288,7 +307,7 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.deleteDocPage(id);
   }
 
-  // ─── Analytics (in-memory) ────────────────────────────────────────────────
+  // ─── Analytics (in-memory residual) ───────────────────────────────────────
 
   recordAnalyticsEvent(event: AnalyticsEventEntity): Promise<AnalyticsEventEntity> {
     return this.memory.recordAnalyticsEvent(event);

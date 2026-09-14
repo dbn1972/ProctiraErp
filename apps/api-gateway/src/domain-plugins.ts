@@ -952,8 +952,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'developer',
     proxyPrefixes: ['/developer'],
     register: async (scope) => {
-      // G-607 / W1-ARCH-01: AuthZ via gateway RBAC; Postgres API keys when DATABASE_URL
-      // is set (hashed at rest, tenant-scoped); docs remain in-memory. Live IdP mint residual.
+      // G-607 / W1-ARCH-01 COMPLETE: AuthZ via gateway RBAC; Postgres for API keys,
+      // accounts, webhooks, deliveries when DATABASE_URL is set (fail-closed otherwise
+      // in production). Marketplace/docs/analytics remain in-memory residuals.
       // W2-JOB-07: durable webhook delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       await ensureDeveloperPortalPersistence();
       const webhookDelivery = await createWebhookDeliveryPublisherFromEnv();

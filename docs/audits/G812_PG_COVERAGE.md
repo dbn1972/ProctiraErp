@@ -20,7 +20,7 @@ Both use `it.skipIf(!isPg*Enabled())` so unit CI without `DATABASE_URL` skips cl
 | `backend/custom-field`     | **parked/unmounted** (G-605)          | In-memory only; park until product UI funds a mount       |
 | `backend/dashboards`       | **parked/unmounted** (G-605 / G-809)  | Board rollups residual; mount or relocate before pg suite |
 | `backend/data-warehouse`   | **unmounted** (insights-ui owns path) | Real package still unmounted (G-209)                      |
-| `backend/developer-portal` | mounted (in-memory)                   | Optional: durable store + pg smoke when persistence ships |
+| `backend/developer-portal` | mounted (PG keys/accounts/webhooks)   | W1-ARCH-01 COMPLETE — 055+089; marketplace/docs residual memory |
 | `backend/etl`              | **unmounted**                         | Parked behind insights-ui aggregates (G-209)              |
 | `backend/install`          | **unmounted**                         | Portal/demo scoped                                        |
 | `backend/plugin`           | **unmounted**                         | `/plugins` owned by platform-admin UI stub                |

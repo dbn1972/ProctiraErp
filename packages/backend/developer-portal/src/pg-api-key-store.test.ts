@@ -125,13 +125,17 @@ function createMockPgPool(): { pool: PgPoolLike; rows: Map<string, Record<string
 describe('createDeveloperPortalRepository pg gate', () => {
   it('falls back to in-memory when DATABASE_URL is unset', () => {
     const prev = process.env.DATABASE_URL;
+    const prevNode = process.env.NODE_ENV;
     delete process.env.DATABASE_URL;
+    process.env.NODE_ENV = 'test';
     try {
       expect(isPgDeveloperPortalApiKeysEnabled()).toBe(false);
       expect(createDeveloperPortalRepository()).toBeInstanceOf(InMemoryDeveloperPortalRepository);
     } finally {
       if (prev !== undefined) process.env.DATABASE_URL = prev;
       else delete process.env.DATABASE_URL;
+      if (prevNode !== undefined) process.env.NODE_ENV = prevNode;
+      else delete process.env.NODE_ENV;
     }
   });
 });
