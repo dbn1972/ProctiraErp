@@ -775,6 +775,26 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------------
+  # Restore Drill Evidence — ops gate (W3-OPS-C6)
+  # ---------------------------------------------------------------------------
+  # Tip-committed backup/restore drill evidence must be present and coherent
+  # on every PR. Does not re-run Postgres (see restore-drill.yml); fails closed
+  # when the pack is missing, stale, or lacks a successful CI cross-ref.
+  # ---------------------------------------------------------------------------
+  restore-drill-evidence:
+    name: Restore Drill Evidence (W3-OPS-C6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify restore-drill evidence pack (fail closed)
+        run: bash tools/scripts/check-restore-drill-evidence.sh
+
+  # ---------------------------------------------------------------------------
   # CI Aggregate — required merge gate (W1-OPS-05 B2)
   # ---------------------------------------------------------------------------
   # Always runs (even when upstream jobs skip) and fails closed when any
@@ -796,6 +816,7 @@ jobs:
       - integration-test
       - dod-checks
       - tenant-isolation
+      - restore-drill-evidence
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -817,4 +838,5 @@ jobs:
           INTEGRATION_TEST_RESULT: ${{ needs.integration-test.result }}
           DOD_CHECKS_RESULT: ${{ needs.dod-checks.result }}
           TENANT_ISOLATION_RESULT: ${{ needs.tenant-isolation.result }}
+          RESTORE_DRILL_EVIDENCE_RESULT: ${{ needs.restore-drill-evidence.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs
