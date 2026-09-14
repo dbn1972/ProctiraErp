@@ -27,6 +27,8 @@
     "@proctira/backend-billing": "workspace:*",
     "@proctira/backend-communication": "workspace:*",
     "@proctira/backend-curriculum": "workspace:*",
+    "@proctira/backend-custom-field": "workspace:*",
+    "@proctira/backend-dashboards": "workspace:*",
     "@proctira/backend-developer-portal": "workspace:*",
     "@proctira/backend-etl": "workspace:*",
     "@proctira/backend-examination": "workspace:*",
@@ -36,12 +38,13 @@
     "@proctira/backend-hostel": "workspace:*",
     "@proctira/backend-institution": "workspace:*",
     "@proctira/backend-library": "workspace:*",
+    "@proctira/backend-lms": "workspace:*",
     "@proctira/backend-notification": "workspace:*",
     "@proctira/backend-parent-portal": "workspace:*",
     "@proctira/backend-privacy": "workspace:*",
+    "@proctira/backend-providers": "workspace:*",
     "@proctira/backend-registration": "workspace:*",
     "@proctira/backend-report": "workspace:*",
-    "@proctira/backend-lms": "workspace:*",
     "@proctira/backend-scholarship": "workspace:*",
     "@proctira/backend-staff": "workspace:*",
     "@proctira/backend-student": "workspace:*",
@@ -60,8 +63,7 @@
     "fastify": "^5.7.2",
     "fastify-plugin": "^4.5.0",
     "ioredis": "^5.4.0",
-    "pg": "^8.21.0",
-    "@proctira/backend-providers": "workspace:*"
+    "pg": "^8.21.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

@@ -49,6 +49,8 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'billing',
   'communication',
   'curriculum',
+  'custom-field',
+  'dashboards',
   'developer-portal',
   'etl',
   'examination',
@@ -61,6 +63,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'lms',
   'notification',
   'parent-portal',
+  'privacy',
   'providers',
   'registration',
   'report',
@@ -79,8 +82,20 @@ export const EXPECTED_MOUNTED: readonly string[] = [
  */
 export const EXPECTED_UNMOUNTED: readonly string[] = [
   'admin-dashboard',
-  'custom-field',
-  'dashboards',
+  'data-warehouse',
+  'install',
+  'plugin',
+  'policy',
+  'survey',
+  'theme',
+] as const;
+
+/**
+ * W1-ARCH-05 — packages that export a Fastify plugin (`fp` / `fastify-plugin`)
+ * but are intentionally NOT registered on the gateway.
+ */
+export const PLUGIN_EXPORT_ALLOWLIST: readonly string[] = [
+  'admin-dashboard',
   'data-warehouse',
   'install',
   'plugin',
@@ -98,8 +113,6 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
  */
 export const EXPECTED_PARKED: readonly string[] = [
   'admin-dashboard',
-  'custom-field',
-  'dashboards',
   'data-warehouse',
   'install',
   'plugin',
@@ -434,25 +447,23 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   },
   {
     package: 'custom-field',
-    mounted: false,
+    mounted: true,
     prefixes: ['/custom-fields'],
-    persistence: 'n/a',
-    rbacWired: false,
-    parked: true,
-    parkedReason:
-      'G-605 PARKED — package exists (in-memory only); no redesign UI/E2E or durable schema. Mount when product path is funded.',
-    notes: 'Formally PARKED (G-605).',
+    persistence: 'in-memory',
+    rbacWired: true,
+    registrarName: 'custom-field',
+    notes:
+      'W1-ARCH-05: unparked. customFieldPlugin for student/staff/institution field definitions + values. In-memory only; durable schema + redesign UI residual.',
   },
   {
     package: 'dashboards',
-    mounted: false,
+    mounted: true,
     prefixes: ['/dashboards'],
-    persistence: 'n/a',
-    rbacWired: false,
-    parked: true,
-    parkedReason:
-      'G-605 PARKED — needs AreaHierarchyResolver product wiring. G-909 role dashboards ship in backend-report GET /reports/dashboard; this package stays unmounted.',
-    notes: 'Formally PARKED (G-605).',
+    persistence: 'in-memory',
+    rbacWired: true,
+    registrarName: 'dashboards',
+    notes:
+      'W1-ARCH-05: unparked with AreaHierarchyResolver (W1-ARCH-04). Role-scoped country/state/board/school/teacher/me dashboards. In-memory aggregates; G-909 report dashboards remain separate.',
   },
   {
     package: 'data-warehouse',
@@ -507,6 +518,16 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     parkedReason:
       "G-924 PARKED (superseded) — retention is enforced at runtime by the audit RetentionScheduler (G-913); policy package's generic engine has no other consumer.",
     notes: 'Unmounted (G-106).',
+  },
+  {
+    package: 'privacy',
+    mounted: true,
+    prefixes: ['/privacy'],
+    persistence: 'in-memory',
+    rbacWired: true,
+    registrarName: 'privacy',
+    notes:
+      'W1-ARCH-05: composed. Legal hold + erasure HTTP routes (W1-SEC-06). In-memory repository; schema 067 Pg residual.',
   },
   {
     package: 'report',

@@ -101,7 +101,12 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   audit: 'platform',
   plugins: 'platform',
   themes: 'platform',
+  // W1-ARCH-05: newly composed domain plugins
+  'custom-fields': 'institution',
+  dashboards: 'report',
+  privacy: 'platform',
 };
+
 
 /**
  * G-702: `/api/v1/<segment>` paths outside `/auth` that are NOT in
