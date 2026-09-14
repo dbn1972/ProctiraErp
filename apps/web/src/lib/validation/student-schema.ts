@@ -62,7 +62,7 @@ export const transferFormSchema = z.object({
   sourceEnrollmentId: z.string().min(1, 'Source enrollment is required'),
   destinationInstitutionId: z.string().min(1, 'Destination institution is required'),
   destinationGradeId: z.string().min(1, 'Grade is required'),
-  destinationClassId: z.string().or(z.literal('')),
+  destinationClassId: z.string().min(1, 'Class / section is required'),
   academicPeriodId: z.string().min(1, 'Academic period is required'),
   transferDate: isoDate,
   reason: z.string().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
@@ -74,7 +74,7 @@ export type TransferFormValues = z.infer<typeof transferFormSchema>;
 export const enrollmentFormSchema = z.object({
   institutionId: z.string().min(1, 'Institution is required'),
   gradeId: z.string().min(1, 'Grade is required'),
-  classId: z.string().or(z.literal('')),
+  classId: z.string().min(1, 'Class / section is required'),
   academicPeriodId: z.string().min(1, 'Academic period is required'),
   enrolledAt: isoDate,
 });

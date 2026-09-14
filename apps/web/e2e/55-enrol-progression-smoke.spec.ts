@@ -120,6 +120,13 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
       code: `PG${tag.slice(-4)}`,
       order: 5,
     });
+    const section = await postOk(request, '/classes', {
+      institutionId: INSTITUTION_A,
+      gradeId: grade.id,
+      academicPeriodId: period.id,
+      name: `P004 Section ${tag}`,
+      capacity: 30,
+    });
     const student = await postOk(request, '/students', {
       firstName: 'Enroll',
       lastName: `P004${tag}`,
@@ -143,6 +150,7 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
         studentId: student.id,
         institutionId: INSTITUTION_A,
         gradeId: grade.id,
+        classId: section.id,
         academicPeriodId: period.id,
         enrolledAt: isoDate(0),
       });
@@ -153,6 +161,7 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
     }
 
     await expect(form).toHaveAttribute('data-hydrated', 'true');
+    await expect(page.getByTestId('enroll-class-select')).toBeVisible();
 
     // Prefer UI submit when institution lookups populate; otherwise API enroll + already-active UX.
     await page.locator('#institutionId').click();
@@ -171,6 +180,7 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
         studentId: student.id,
         institutionId: INSTITUTION_A,
         gradeId: grade.id,
+        classId: section.id,
         academicPeriodId: period.id,
         enrolledAt: isoDate(0),
       });
@@ -187,6 +197,7 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
         studentId: student.id,
         institutionId: INSTITUTION_A,
         gradeId: grade.id,
+        classId: section.id,
         academicPeriodId: period.id,
         enrolledAt: isoDate(0),
       });
@@ -195,6 +206,23 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
       return;
     }
     await periodOptions.first().click();
+
+    await page.getByTestId('enroll-class-select').click();
+    const classOptions = page.getByRole('option');
+    if ((await classOptions.count()) === 0) {
+      await postOk(request, '/enrollments', {
+        studentId: student.id,
+        institutionId: INSTITUTION_A,
+        gradeId: grade.id,
+        classId: section.id,
+        academicPeriodId: period.id,
+        enrolledAt: isoDate(0),
+      });
+      await page.goto(`/students/${student.id}/enroll`, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByTestId('enroll-already-active')).toBeVisible();
+      return;
+    }
+    await classOptions.first().click();
 
     await page.getByTestId('enroll-submit').click();
     await expect(page).toHaveURL(new RegExp(`/students/${student.id}`), { timeout: 20_000 });
