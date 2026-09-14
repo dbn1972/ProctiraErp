@@ -129,7 +129,7 @@ describe('W1-DATA-08 residual audit archive + transcript authenticity (069)', ()
   });
 });
 
-const AUTH_COMPLETE_MIGRATION = '078_transcript_authenticity_complete.sql';
+const AUTH_COMPLETE_MIGRATION = '076_transcript_authenticity_complete.sql';
 
 describe('W1-DATA-08 COMPLETE transcript authenticity (076)', () => {
   it('ships 076 with signing-key registry and KMS/PKI ref (no JWT reuse)', () => {

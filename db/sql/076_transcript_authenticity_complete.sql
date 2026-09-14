@@ -205,5 +205,5 @@ BEGIN
 END $$;
 
 INSERT INTO schema_migrations (filename)
-VALUES ('078_transcript_authenticity_complete.sql')
+VALUES ('076_transcript_authenticity_complete.sql')
 ON CONFLICT (filename) DO NOTHING;
