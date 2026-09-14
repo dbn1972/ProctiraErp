@@ -26,7 +26,7 @@ import type {
   AdapterHealth,
   EncryptionType,
 } from '../types.js';
-import { buildTenantKey } from '../tenant-namespace.js';
+import { assertTenantScopedObjectKeyIfRequired, buildTenantKey } from '../tenant-namespace.js';
 
 /**
  * Lifecycle metadata tag key used to classify objects.
@@ -131,6 +131,7 @@ export class S3Adapter implements StorageAdapter {
   }
 
   async download(key: string): Promise<Readable> {
+    assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.download' });
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -147,6 +148,7 @@ export class S3Adapter implements StorageAdapter {
   }
 
   async delete(key: string): Promise<void> {
+    assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.delete' });
     const command = new DeleteObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -156,6 +158,7 @@ export class S3Adapter implements StorageAdapter {
   }
 
   async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
+    assertTenantScopedObjectKeyIfRequired(key, { surface: 'storage.getSignedUrl' });
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
@@ -167,6 +170,7 @@ export class S3Adapter implements StorageAdapter {
   }
 
   async listObjects(prefix: string, options?: ListOptions): Promise<ListResult> {
+    assertTenantScopedObjectKeyIfRequired(prefix, { surface: 'storage.listObjects' });
     const command = new ListObjectsV2Command({
       Bucket: this.bucket,
       Prefix: prefix,

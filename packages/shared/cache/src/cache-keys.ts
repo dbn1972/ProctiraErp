@@ -3,7 +3,11 @@
  *
  * Provides consistent, tenant-scoped cache key generation
  * to avoid key collisions across tenants and entities.
+ *
+ * W1-SEC-11: builders fail closed when tenantId is missing/blank.
  */
+
+import { assertTenantId } from './tenant-scope.js';
 
 /**
  * Build a tenant-scoped entity key.
@@ -12,7 +16,11 @@
  * @example tenantKey('acme', 'student', '123') → 't:acme:student:123'
  */
 export function tenantKey(tenantId: string, entity: string, id: string): string {
-  return `t:${tenantId}:${entity}:${id}`;
+  assertTenantId(tenantId, 'cache.tenantKey');
+  if (!entity?.trim() || !id?.trim()) {
+    throw new Error('cache.tenantKey: entity and id must not be empty');
+  }
+  return `t:${tenantId.trim()}:${entity.trim()}:${id.trim()}`;
 }
 
 /**
@@ -22,7 +30,11 @@ export function tenantKey(tenantId: string, entity: string, id: string): string 
  * @example configKey('acme', 'grading-scale') → 'cfg:acme:grading-scale'
  */
 export function configKey(tenantId: string, configType: string): string {
-  return `cfg:${tenantId}:${configType}`;
+  assertTenantId(tenantId, 'cache.configKey');
+  if (!configType?.trim()) {
+    throw new Error('cache.configKey: configType must not be empty');
+  }
+  return `cfg:${tenantId.trim()}:${configType.trim()}`;
 }
 
 /**
@@ -35,5 +47,9 @@ export function configKey(tenantId: string, configType: string): string {
  * @example listKey('acme', 'students', 'abc123') → 'lst:acme:students:abc123'
  */
 export function listKey(tenantId: string, entity: string, hash: string): string {
-  return `lst:${tenantId}:${entity}:${hash}`;
+  assertTenantId(tenantId, 'cache.listKey');
+  if (!entity?.trim() || !hash?.trim()) {
+    throw new Error('cache.listKey: entity and hash must not be empty');
+  }
+  return `lst:${tenantId.trim()}:${entity.trim()}:${hash.trim()}`;
 }

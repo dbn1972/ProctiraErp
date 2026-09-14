@@ -85,3 +85,11 @@ export type {
   WorkflowEscalationOutboxInput,
 } from './outbox';
 
+// W1-SEC-11 tenant namespace enforcement
+export {
+  TenantScopeError,
+  assertTenantId,
+  assertTenantScopedQueueName,
+  isTenantScopedQueueName,
+} from './tenant-scope';
+

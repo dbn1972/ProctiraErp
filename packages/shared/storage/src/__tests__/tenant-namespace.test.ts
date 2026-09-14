@@ -29,19 +29,19 @@ describe('tenant-namespace', () => {
     });
 
     it('should throw if tenantId is empty', () => {
-      expect(() => buildTenantKey('', 'file.txt')).toThrow('tenantId must not be empty');
+      expect(() => buildTenantKey('', 'file.txt')).toThrow(/tenantId is required/);
     });
 
     it('should throw if tenantId is whitespace only', () => {
-      expect(() => buildTenantKey('   ', 'file.txt')).toThrow('tenantId must not be empty');
+      expect(() => buildTenantKey('   ', 'file.txt')).toThrow(/tenantId is required/);
     });
 
     it('should throw if key is empty', () => {
-      expect(() => buildTenantKey('tenant-1', '')).toThrow('key must not be empty');
+      expect(() => buildTenantKey('tenant-1', '')).toThrow(/key must not be empty/);
     });
 
     it('should throw if key is whitespace only', () => {
-      expect(() => buildTenantKey('tenant-1', '   ')).toThrow('key must not be empty');
+      expect(() => buildTenantKey('tenant-1', '   ')).toThrow(/key must not be empty/);
     });
 
     it('should trim trailing slashes from tenantId', () => {
@@ -67,7 +67,7 @@ describe('tenant-namespace', () => {
     });
 
     it('should throw if tenantId is empty', () => {
-      expect(() => buildTenantPrefix('')).toThrow('tenantId must not be empty');
+      expect(() => buildTenantPrefix('')).toThrow(/tenantId is required/);
     });
 
     it('should handle empty string sub-prefix as no prefix', () => {
@@ -118,5 +118,42 @@ describe('tenant-namespace', () => {
       const result = validateTenantOwnership('random/file.txt', 'tenant-123');
       expect(result).toBe(false);
     });
+  });
+});
+
+describe('W1-SEC-11 unscoped object key rejection', () => {
+  it('assertTenantScopedObjectKey rejects unscoped paths', async () => {
+    const {
+      assertTenantScopedObjectKey,
+      isTenantScopedObjectKey,
+      TenantScopeError,
+      assertTenantScopedObjectKeyIfRequired,
+    } = await import('../tenant-namespace.js');
+
+    for (const key of ['documents/file.pdf', 'tenants/', 'tenants//file.pdf', 'other/t1/file', '']) {
+      expect(isTenantScopedObjectKey(key)).toBe(false);
+      expect(() => assertTenantScopedObjectKey(key)).toThrow(TenantScopeError);
+    }
+
+    expect(isTenantScopedObjectKey('tenants/t1/documents/file.pdf')).toBe(true);
+
+    expect(() =>
+      assertTenantScopedObjectKeyIfRequired('documents/file.pdf', {
+        env: { NODE_ENV: 'production' },
+        surface: 'storage.download',
+      }),
+    ).toThrow(TenantScopeError);
+
+    expect(() =>
+      assertTenantScopedObjectKeyIfRequired('documents/file.pdf', {
+        env: { NODE_ENV: 'test' },
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      assertTenantScopedObjectKeyIfRequired('tenants/t1/documents/file.pdf', {
+        env: { NODE_ENV: 'production' },
+      }),
+    ).not.toThrow();
   });
 });

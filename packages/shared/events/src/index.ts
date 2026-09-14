@@ -34,3 +34,13 @@ export {
   DEFAULT_RABBITMQ_CONFIG,
 } from './rabbitmq/config';
 export type { RabbitMQConfig } from './rabbitmq/config';
+
+// W1-SEC-11 tenant namespace enforcement
+export {
+  TenantScopeError,
+  assertTenantId,
+  assertTenantScopedEventName,
+  isTenantScopedEventName,
+  buildTenantPrefixedName,
+} from './tenant-scope';
+

@@ -39,4 +39,12 @@ export {
   buildTenantPrefix,
   extractTenantId,
   validateTenantOwnership,
+  TenantScopeError,
+  assertTenantId,
+  assertTenantScopedObjectKey,
+  assertTenantScopedObjectKeyIfRequired,
+  isTenantScopedObjectKey,
+  isProductionEnv,
+  isUnscopedTenantNamespaceAllowed,
+  shouldRequireTenantScopedObjectKeys,
 } from './tenant-namespace.js';

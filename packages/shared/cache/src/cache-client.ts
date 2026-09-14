@@ -4,8 +4,15 @@
  * Provides a read-through caching layer backed by Redis.
  * If Redis is unavailable, operations fall through to the fetcher
  * without throwing — ensuring the application remains functional.
+ *
+ * W1-SEC-11: in production, keys must be tenant-scoped (fail closed).
  */
 import Redis from 'ioredis';
+
+import {
+  assertTenantScopedCacheKey,
+  shouldRequireTenantScopedCacheKeys,
+} from './tenant-scope.js';
 
 export interface CacheMetrics {
   hits: number;
@@ -22,17 +29,30 @@ export interface CacheClientOptions {
   keyPrefix?: string;
   /** Default TTL in seconds when not specified per-call */
   defaultTtlSeconds?: number;
+  /**
+   * Require tenant-scoped keys (`t:|cfg:|lst:|tenant:`).
+   * Defaults to true when `NODE_ENV=production` unless
+   * `ALLOW_UNSCOPED_TENANT_NAMESPACES=1` (emergency only).
+   */
+  requireTenantScope?: boolean;
+  /** Env override for production / escape-hatch detection (tests). */
+  env?: NodeJS.ProcessEnv;
 }
 
 export class CacheClient {
   private redis: Redis | null = null;
   private readonly keyPrefix: string;
   private readonly defaultTtlSeconds: number;
+  private readonly requireTenantScope: boolean;
   private readonly metrics: CacheMetrics = { hits: 0, misses: 0, errors: 0 };
 
   constructor(options: CacheClientOptions = {}) {
     this.keyPrefix = options.keyPrefix ?? '';
     this.defaultTtlSeconds = options.defaultTtlSeconds ?? 300;
+    this.requireTenantScope = shouldRequireTenantScopedCacheKeys(
+      options.env ?? process.env,
+      options.requireTenantScope,
+    );
 
     if (options.redis) {
       this.redis = options.redis;
@@ -50,6 +70,7 @@ export class CacheClient {
    * Returns null on miss or if Redis is unavailable.
    */
   async get<T>(key: string): Promise<T | null> {
+    this.assertKey(key);
     if (!this.redis) return null;
 
     try {
@@ -60,7 +81,8 @@ export class CacheClient {
       }
       this.metrics.hits++;
       return JSON.parse(raw) as T;
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TenantScopeError') throw error;
       this.metrics.errors++;
       return null;
     }
@@ -70,6 +92,7 @@ export class CacheClient {
    * Set a value in cache as JSON with optional TTL.
    */
   async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+    this.assertKey(key);
     if (!this.redis) return;
 
     const ttl = ttlSeconds ?? this.defaultTtlSeconds;
@@ -80,7 +103,8 @@ export class CacheClient {
       } else {
         await this.redis.set(this.prefixKey(key), serialized);
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TenantScopeError') throw error;
       this.metrics.errors++;
     }
   }
@@ -89,11 +113,13 @@ export class CacheClient {
    * Delete a key from cache.
    */
   async del(key: string): Promise<void> {
+    this.assertKey(key);
     if (!this.redis) return;
 
     try {
       await this.redis.del(this.prefixKey(key));
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TenantScopeError') throw error;
       this.metrics.errors++;
     }
   }
@@ -104,6 +130,7 @@ export class CacheClient {
    * On Redis failure, falls through to fetcher (never throws).
    */
   async getOrSet<T>(key: string, fetcher: () => Promise<T>, ttlSeconds: number): Promise<T> {
+    this.assertKey(key);
     // Try cache first
     const cached = await this.get<T>(key);
     if (cached !== null) {
@@ -122,8 +149,11 @@ export class CacheClient {
   /**
    * Invalidate all keys matching a glob pattern using SCAN + DEL.
    * Returns the number of keys deleted.
+   * Pattern must itself be tenant-scoped when enforcement is on
+   * (e.g. `t:acme:student:*`).
    */
   async invalidatePattern(pattern: string): Promise<number> {
+    this.assertKey(pattern.replace(/\*/g, 'x'));
     if (!this.redis) return 0;
 
     try {
@@ -148,7 +178,8 @@ export class CacheClient {
       } while (cursor !== '0');
 
       return deletedCount;
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'TenantScopeError') throw error;
       this.metrics.errors++;
       return 0;
     }
@@ -191,6 +222,12 @@ export class CacheClient {
     if (this.redis) {
       await this.redis.quit();
       this.redis = null;
+    }
+  }
+
+  private assertKey(key: string): void {
+    if (this.requireTenantScope) {
+      assertTenantScopedCacheKey(key, 'CacheClient');
     }
   }
 
