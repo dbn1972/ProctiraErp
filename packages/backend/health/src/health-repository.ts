@@ -298,7 +298,15 @@ export interface HealthRepository {
   deleteVaccination(id: string, tenantId: string): Promise<boolean>;
 
   // Insurance
-  createInsurance(data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>): Promise<InsuranceEntity>;
+  createInsurance(
+    data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: InsuranceEntity,
+      ) => Promise<void>;
+    },
+  ): Promise<InsuranceEntity>;
   updateInsurance(
     id: string,
     tenantId: string,
@@ -402,6 +410,12 @@ export interface HealthRepository {
   // Screening Programs
   createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ScreeningProgramEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity>;
   updateScreeningProgram(
     id: string,

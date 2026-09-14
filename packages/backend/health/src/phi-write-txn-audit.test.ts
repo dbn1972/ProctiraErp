@@ -1,5 +1,5 @@
 /**
- * W1-SEC-10 — allergy/condition/vaccination writes share COMMIT with audit.
+ * W1-SEC-10 — allergy/condition/vaccination/insurance/screening writes share COMMIT with audit.
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -69,6 +69,44 @@ vi.mock('@proctira/database', async (importOriginal) => {
                   batch_number: null,
                   next_due_date: null,
                   notes: null,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                },
+              ],
+            };
+          }
+          if (typeof sql === 'string' && sql.includes('INSERT INTO health_insurance')) {
+            return {
+              rows: [
+                {
+                  id: 'ins-1',
+                  tenant_id: 't1',
+                  student_id: 's1',
+                  provider: 'Acme',
+                  policy_number: 'P-1',
+                  coverage_type: 'primary',
+                  start_date: '2024-01-01',
+                  end_date: null,
+                  notes: null,
+                  created_at: new Date(),
+                  updated_at: new Date(),
+                },
+              ],
+            };
+          }
+          if (typeof sql === 'string' && sql.includes('INSERT INTO health_screening_programs')) {
+            return {
+              rows: [
+                {
+                  id: 'scr-1',
+                  tenant_id: 't1',
+                  name: 'Vision',
+                  description: null,
+                  grade_level: '3',
+                  academic_period_id: 'ap-1',
+                  assessment_types: ['vision'],
+                  scheduled_date: null,
+                  status: 'planned',
                   created_at: new Date(),
                   updated_at: new Date(),
                 },
@@ -160,6 +198,48 @@ describe('W1-SEC-10 PHI write + audit same txn', () => {
         batchNumber: null,
         nextDueDate: null,
         notes: null,
+      },
+      { appendAuditInTxn },
+    );
+    expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
+  });
+
+  it('createInsurance invokes appendAuditInTxn with the same client', async () => {
+    const store = stubStore();
+    const appendAuditInTxn = vi.fn(async () => undefined);
+    const entity = await store.createInsurance(
+      {
+        id: 'ins-1',
+        tenantId: 't1',
+        studentId: 's1',
+        provider: 'Acme',
+        policyNumber: 'P-1',
+        coverageType: 'primary',
+        startDate: '2024-01-01',
+        endDate: null,
+        notes: null,
+      },
+      { appendAuditInTxn },
+    );
+    expect(entity.id).toBe('ins-1');
+    expect(appendAuditInTxn).toHaveBeenCalledTimes(1);
+    expect(appendAuditInTxn.mock.calls[0]?.[1]).toMatchObject({ id: 'ins-1' });
+  });
+
+  it('createScreeningProgram invokes appendAuditInTxn', async () => {
+    const store = stubStore();
+    const appendAuditInTxn = vi.fn(async () => undefined);
+    await store.createScreeningProgram(
+      {
+        id: 'scr-1',
+        tenantId: 't1',
+        name: 'Vision',
+        description: null,
+        gradeLevel: '3',
+        academicPeriodId: 'ap-1',
+        assessmentTypes: ['vision'],
+        scheduledDate: null,
+        status: 'planned',
       },
       { appendAuditInTxn },
     );

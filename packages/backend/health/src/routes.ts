@@ -166,6 +166,23 @@ function buildVaccinationAuditBinder(request: FastifyRequest, tenantId: string) 
   });
 }
 
+function buildInsuranceAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/insurance',
+    regulated: 'health.insurance',
+    idField: 'insuranceId',
+  });
+}
+
+function buildScreeningProgramAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/screening-programs',
+    regulated: 'health.screening_program',
+    idField: 'screeningProgramId',
+  });
+}
+
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
@@ -643,6 +660,7 @@ export async function registerHealthRoutes(
         tenantId,
         result.data,
         getAccessContext(request),
+        buildInsuranceAuditBinder(request, tenantId),
       );
       return reply.status(201).send(entity);
     } catch (error) {
@@ -1189,7 +1207,11 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       try {
-        const entity = await healthService.createScreeningProgram(tenantId, result.data);
+        const entity = await healthService.createScreeningProgram(
+          tenantId,
+          result.data,
+          buildScreeningProgramAuditBinder(request, tenantId),
+        );
         return reply.status(201).send(entity);
       } catch (error) {
         return sendError(reply, error);

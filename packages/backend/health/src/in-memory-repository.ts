@@ -345,6 +345,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: InsuranceEntity,
+      ) => Promise<void>;
+    },
   ): Promise<InsuranceEntity> {
     const now = new Date();
     const entity: InsuranceEntity = { ...data, createdAt: now, updatedAt: now };
@@ -647,6 +653,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ScreeningProgramEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity> {
     const now = new Date();
     const entity: ScreeningProgramEntity = { ...data, createdAt: now, updatedAt: now };
