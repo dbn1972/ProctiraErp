@@ -2,15 +2,23 @@
  * Fastify observability plugin.
  *
  * - Registers default Node.js / process metrics on a MetricsRegistry.
- * - Exposes GET /metrics in Prometheus text format.
+ * - Exposes GET /metrics in Prometheus text format (W1-SEC-07: application guard).
  * - Instruments every request with:
- *     http_requests_total{service,method,route,status_code,tenant_id}      (Counter)
- *     http_request_duration_seconds{service,method,route,status_code}      (Histogram)
- *     http_requests_in_flight{service}                                     (Gauge)
+ *     http_requests_total{service,method,route,status_code}      (Counter)
+ *     http_request_duration_seconds{service,method,route,status_code}  (Histogram)
+ *     http_requests_in_flight{service}                             (Gauge)
+ *
+ * Cardinality (W1-SEC-07): default HTTP series do NOT emit raw tenant_id —
+ * unbounded tenant labels would explode Prometheus series cardinality.
  */
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  authorizeMetricsAccess,
+  metricsAccessEnvFromProcess,
+  type MetricsAccessEnv,
+} from './metrics-access.js';
 import { DEFAULT_HTTP_DURATION_BUCKETS, MetricsRegistry } from './metrics-registry.js';
 
 export interface ObservabilityPluginOptions {
@@ -48,6 +56,12 @@ export interface ObservabilityPluginOptions {
    * record custom series) but registers no route or hooks.
    */
   enabled?: boolean;
+
+  /**
+   * Override env used by the /metrics access guard (W1-SEC-07). Defaults to
+   * a snapshot of `process.env`. Tests inject production/token scenarios here.
+   */
+  metricsAccessEnv?: MetricsAccessEnv;
 }
 
 declare module 'fastify' {
@@ -60,7 +74,8 @@ declare module 'fastify' {
   }
 }
 
-const HTTP_LABELS = ['service', 'method', 'route', 'status_code', 'tenant_id'] as const;
+/** Low-cardinality labels only — never raw tenant_id (W1-SEC-07). */
+const HTTP_LABELS = ['service', 'method', 'route', 'status_code'] as const;
 const HTTP_DURATION_LABELS = ['service', 'method', 'route', 'status_code'] as const;
 const IN_FLIGHT_LABELS = ['service'] as const;
 
@@ -96,6 +111,7 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
     ignorePaths = [],
     collectDefaultMetrics: collectDefault = true,
     enabled = process.env['METRICS_ENABLED'] !== 'false',
+    metricsAccessEnv = metricsAccessEnvFromProcess(),
   } = options;
 
   if (!enabled) {
@@ -113,7 +129,7 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
 
   const requestsTotal = registry.counter({
     name: 'http_requests_total',
-    help: 'Total number of HTTP requests received, labelled by service/method/route/status/tenant.',
+    help: 'Total number of HTTP requests received, labelled by service/method/route/status.',
     labelNames: HTTP_LABELS,
   });
 
@@ -158,7 +174,6 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
     const route = getRoute(request);
     const statusCode = String(reply.statusCode);
     const method = request.method;
-    const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId ?? 'unknown';
 
     requestDuration.observe(
       { service: serviceName, method, route, status_code: statusCode },
@@ -169,7 +184,6 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
       method,
       route,
       status_code: statusCode,
-      tenant_id: tenantId,
     });
     requestsInFlight.dec({ service: serviceName });
   });
@@ -184,7 +198,7 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
     }
   });
 
-  // Expose Prometheus metrics endpoint.
+  // Expose Prometheus metrics endpoint (W1-SEC-07 guarded).
   fastify.route({
     method: 'GET',
     url: metricsPath,
@@ -197,7 +211,22 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
         },
       },
     },
-    handler: async (_request, reply) => {
+    handler: async (request, reply) => {
+      const decision = authorizeMetricsAccess({
+        env: metricsAccessEnv,
+        clientIp: request.ip,
+        authorizationHeader:
+          typeof request.headers.authorization === 'string'
+            ? request.headers.authorization
+            : undefined,
+      });
+      if (!decision.allow) {
+        reply.header('www-authenticate', 'Bearer realm="metrics"');
+        return reply.code(decision.statusCode).send({
+          error: decision.statusCode === 401 ? 'Unauthorized' : 'Forbidden',
+          message: 'Metrics endpoint requires authentication',
+        });
+      }
       reply.header('content-type', registry.contentType());
       const body = await registry.metrics();
       return reply.send(body);

@@ -1,7 +1,7 @@
 /**
  * Integration tests for the Fastify observability plugin. These confirm
  * that the /metrics endpoint is exposed, requests are counted, and
- * histograms record latency.
+ * histograms record latency. W1-SEC-07 covers access guard + cardinality.
  */
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -19,6 +19,8 @@ describe('observabilityPlugin', () => {
       serviceName: 'test-svc',
       registry,
       collectDefaultMetrics: false,
+      // Tests run under vitest (non-production); keep open for legacy cases.
+      metricsAccessEnv: { NODE_ENV: 'test' },
     });
     app.get('/hello', async () => ({ ok: true }));
     app.get('/boom', async () => {
@@ -61,15 +63,120 @@ describe('observabilityPlugin', () => {
     expect(res.body).toMatch(/http_requests_total\{[^}]*status_code="500"/);
   });
 
-  it('uses unknown for tenant_id when no tenant is attached', async () => {
+  it('does not emit raw tenant_id on default HTTP metrics (W1-SEC-07 cardinality)', async () => {
     await app.inject({ method: 'GET', url: '/hello' });
     const res = await app.inject({ method: 'GET', url: '/metrics' });
-    expect(res.body).toMatch(/http_requests_total\{[^}]*tenant_id="unknown"/);
+    expect(res.body).toContain('http_requests_total{');
+    expect(res.body).not.toMatch(/http_requests_total\{[^}]*tenant_id=/);
+    expect(res.body).not.toMatch(/tenant_id=/);
   });
 
   it('decorates the fastify instance with a metrics registry', () => {
     expect(app.metrics).toBeInstanceOf(MetricsRegistry);
     expect(app.metrics.serviceName).toBe('test-svc');
+  });
+});
+
+describe('observabilityPlugin /metrics guard (W1-SEC-07)', () => {
+  it('rejects unauthenticated remote scrapes in production when unset', async () => {
+    const app = Fastify();
+    await app.register(observabilityPlugin, {
+      serviceName: 'prod-svc',
+      collectDefaultMetrics: false,
+      metricsAccessEnv: { NODE_ENV: 'production' },
+    });
+    await app.ready();
+
+    // Fastify inject defaults to 127.0.0.1 (loopback) — still allowed.
+    const loopback = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(loopback.statusCode).toBe(200);
+
+    // Simulate a remote peer via remoteAddress on the inject options.
+    const remote = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '203.0.113.10',
+    });
+    expect(remote.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('accepts Bearer token when METRICS_BEARER_TOKEN is configured', async () => {
+    const app = Fastify();
+    await app.register(observabilityPlugin, {
+      serviceName: 'token-svc',
+      collectDefaultMetrics: false,
+      metricsAccessEnv: {
+        NODE_ENV: 'production',
+        METRICS_BEARER_TOKEN: 'prometheus-scrape',
+      },
+    });
+    await app.ready();
+
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '10.0.0.8',
+    });
+    expect(denied.statusCode).toBe(401);
+
+    const ok = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '10.0.0.8',
+      headers: { authorization: 'Bearer prometheus-scrape' },
+    });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.body).toContain('http_requests_in_flight');
+    await app.close();
+  });
+
+  it('honours METRICS_ALLOWLIST for production scrapes', async () => {
+    const app = Fastify();
+    await app.register(observabilityPlugin, {
+      serviceName: 'allow-svc',
+      collectDefaultMetrics: false,
+      metricsAccessEnv: {
+        NODE_ENV: 'production',
+        METRICS_ALLOWLIST: '10.0.0.50',
+      },
+    });
+    await app.ready();
+
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '10.0.0.99',
+    });
+    expect(denied.statusCode).toBe(403);
+
+    const ok = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '10.0.0.50',
+    });
+    expect(ok.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('allows METRICS_PUBLIC=1 escape hatch', async () => {
+    const app = Fastify();
+    await app.register(observabilityPlugin, {
+      serviceName: 'public-svc',
+      collectDefaultMetrics: false,
+      metricsAccessEnv: {
+        NODE_ENV: 'production',
+        METRICS_PUBLIC: '1',
+      },
+    });
+    await app.ready();
+    const res = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '203.0.113.1',
+    });
+    expect(res.statusCode).toBe(200);
+    await app.close();
   });
 });
 
