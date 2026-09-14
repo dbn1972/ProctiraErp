@@ -289,7 +289,8 @@ for f in "${SQL_FILES[@]}"; do
   fi
 
   # status: missing | null | <hex>
-  # -q suppresses SET tags from the W1-DATA-17 timeout preamble on stdout.
+  # -q suppresses "SET" lines from the W1-DATA-17 timeout preamble so the
+  # captured status is a single token (not SET\nSET\nmissing).
   status="$(
     psql_q -Atq -v name="$name" <<'SQL'
 SELECT CASE
