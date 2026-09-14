@@ -29,8 +29,10 @@
 #
 # G-705: demo seed files inside db/sql (NNNb_*_seed.sql) are applied only when
 #        APPLY_SEEDS=1 (CI / local dev). Production must not set it.
-# G-718 / W1-DATA-06: 021a + 021b (strict tenant FKs) apply only when
-#        APPLY_STRICT_FKS=1. Primary CI must set this (see check-strict-tenant-fks.mjs).
+# G-718 / W1-DATA-06 COMPLETE: 021a + 021b (create), 068 (VALIDATE), and 076
+#        (repair create+validate+assert) apply when APPLY_STRICT_FKS=1.
+#        Default ON when CI=true or NODE_ENV=production; local fixtures may set
+#        APPLY_STRICT_FKS=0. Gate: tools/scripts/check-strict-tenant-fks.mjs.
 #
 # Multi-statement limits (per-file transaction):
 #   psql --single-transaction wraps each file + its ledger INSERT. Statements
@@ -56,7 +58,14 @@ source "$ROOT/tools/scripts/migration-timeouts.sh"
 SQL_DIR="${APPLY_SQL_DIR:-$ROOT/db/sql}"
 DRY_RUN=0
 APPLY_SEEDS="${APPLY_SEEDS:-0}"
-APPLY_STRICT_FKS="${APPLY_STRICT_FKS:-0}"
+# W1-DATA-06 COMPLETE: production/CI default ON; explicit 0/1 always wins.
+if [[ -z "${APPLY_STRICT_FKS+x}" ]]; then
+  if [[ "${CI:-}" == "true" || "${NODE_ENV:-}" == "production" ]]; then
+    APPLY_STRICT_FKS=1
+  else
+    APPLY_STRICT_FKS=0
+  fi
+fi
 APPLY_SQL_NO_TX="${APPLY_SQL_NO_TX:-0}"
 BOOTSTRAP_SCRIPT="$ROOT/tools/scripts/bootstrap-db-roles.sh"
 
@@ -77,7 +86,8 @@ Environment:
   PGHOST/PGPORT/PGUSER/PGPASSWORD  Standard libpq vars when URL unset
   BOOTSTRAP_DATABASE_URL Superuser URL — when set, runs bootstrap-db-roles.sh first
   APPLY_SEEDS=1          Also apply db/sql/*b_*_seed.sql demo rows (never in prod)
-  APPLY_STRICT_FKS=1     Also apply 021a/021b strict tenant FK files
+  APPLY_STRICT_FKS=1     Apply 021a/021b create, 068 VALIDATE, 076 repair (prod/CI default)
+  APPLY_STRICT_FKS=0     Skip strict tenant FK files (local unit fixtures only)
   APPLY_SQL_DIR          Override SQL directory (tests / fixtures)
   APPLY_SQL_NO_TX=1      Disable per-file --single-transaction for all files
   APPLY_SQL_LOCK_TIMEOUT     Session lock_timeout (default: 5s / MIGRATION_LOCK_TIMEOUT)
@@ -104,7 +114,19 @@ is_seed_file() {
 is_strict_fk_file() {
   local base
   base="$(basename "$1")"
-  [[ "$base" == "021a_strict_fk_prerequisite_tenants.sql" || "$base" == "021b_tenant_fk_constraints.sql" ]]
+  # Create (021a/021b), VALIDATE (068), and repair (076) share the same gate so
+  # 068 cannot be ledger-recorded as a no-op when create was skipped.
+  case "$base" in
+    021a_strict_fk_prerequisite_tenants.sql|\
+    021b_tenant_fk_constraints.sql|\
+    068_validate_tenant_fk_constraints.sql|\
+    082_repair_strict_tenant_fk_validate.sql)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 
 file_checksum() {

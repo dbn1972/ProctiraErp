@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit tests for W1-DATA-06 strict tenant FK gate.
+ * Unit tests for W1-DATA-06 COMPLETE strict tenant FK gate.
  * Run with: node --test tools/scripts/check-strict-tenant-fks.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -10,19 +10,41 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
+  REPAIR_MIGRATION_HINT,
   SKIP_JUSTIFICATION_MARKER,
+  VALIDATE_MIGRATION_HINT,
+  applySqlDefaultsStrictFksOnInProd,
   applySqlGatesStrictFks,
   evaluateStrictTenantFks,
   findApplySqlSteps,
   hasTenantFkValidateMigration,
+  parseLiveCatalogRows,
+  repairMigrationFailClosed,
 } from './check-strict-tenant-fks.mjs';
 
 const APPLY_OK = `#!/usr/bin/env bash
-APPLY_STRICT_FKS="\${APPLY_STRICT_FKS:-0}"
+# W1-DATA-06 COMPLETE defaults
+if [[ -z "\${APPLY_STRICT_FKS+x}" ]]; then
+  if [[ "\${CI:-}" == "true" || "\${NODE_ENV:-}" == "production" ]]; then
+    APPLY_STRICT_FKS=1
+  else
+    APPLY_STRICT_FKS=0
+  fi
+fi
 is_strict_fk_file() {
   local base
   base="$(basename "$1")"
-  [[ "$base" == "021a_strict_fk_prerequisite_tenants.sql" || "$base" == "021b_tenant_fk_constraints.sql" ]]
+  case "$base" in
+    021a_strict_fk_prerequisite_tenants.sql|\\
+    021b_tenant_fk_constraints.sql|\\
+    068_validate_tenant_fk_constraints.sql|\\
+    082_repair_strict_tenant_fk_validate.sql)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
 }
 `;
 
@@ -40,24 +62,38 @@ DO $$ BEGIN
 END $$;
 `;
 
+const REPAIR_OK = `-- repair
+DO $$ BEGIN
+  ALTER TABLE foo VALIDATE CONSTRAINT foo_tenant_fk;
+  IF EXISTS (SELECT 1 FROM pg_constraint c WHERE NOT c.convalidated) THEN
+    RAISE EXCEPTION 'W1-DATA-06: unvalidated tenant_id FKs remain';
+  END IF;
+END $$;
+`;
+
 function writeFixture({
   withValidate = true,
   withPrereq = true,
+  withRepair = true,
   workflowStrict = true,
   justifiedSkip = false,
+  applyText = APPLY_OK,
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'strict-fk-gate-'));
   mkdirSync(join(root, 'db/sql'), { recursive: true });
   mkdirSync(join(root, 'tools/scripts'), { recursive: true });
   mkdirSync(join(root, '.github/workflows'), { recursive: true });
 
-  writeFileSync(join(root, 'tools/scripts/apply-sql.sh'), APPLY_OK);
+  writeFileSync(join(root, 'tools/scripts/apply-sql.sh'), applyText);
   writeFileSync(join(root, 'db/sql/021b_tenant_fk_constraints.sql'), ADD_OK);
   if (withPrereq) {
     writeFileSync(join(root, 'db/sql/021a_strict_fk_prerequisite_tenants.sql'), PREREQ_OK);
   }
   if (withValidate) {
     writeFileSync(join(root, 'db/sql/068_validate_tenant_fk_constraints.sql'), VALIDATE_OK);
+  }
+  if (withRepair) {
+    writeFileSync(join(root, 'db/sql/082_repair_strict_tenant_fk_validate.sql'), REPAIR_OK);
   }
 
   const envBlock = justifiedSkip
@@ -87,9 +123,26 @@ test('hasTenantFkValidateMigration requires VALIDATE + tenant signal', () => {
   assert.equal(hasTenantFkValidateMigration(['-- no validate']), false);
 });
 
-test('applySqlGatesStrictFks detects APPLY_STRICT_FKS + 021b gate', () => {
+test('applySqlGatesStrictFks requires 021b + 068 + 076 gate', () => {
   assert.equal(applySqlGatesStrictFks(APPLY_OK), true);
+  assert.equal(applySqlGatesStrictFks('APPLY_STRICT_FKS=1\nis_strict_fk_file\n021b_tenant_fk_constraints.sql'), false);
   assert.equal(applySqlGatesStrictFks('echo hi'), false);
+});
+
+test('applySqlDefaultsStrictFksOnInProd detects CI/production default', () => {
+  assert.equal(applySqlDefaultsStrictFksOnInProd(APPLY_OK), true);
+  assert.equal(applySqlDefaultsStrictFksOnInProd('APPLY_STRICT_FKS="${APPLY_STRICT_FKS:-0}"'), false);
+});
+
+test('repairMigrationFailClosed requires VALIDATE + RAISE EXCEPTION', () => {
+  assert.equal(repairMigrationFailClosed(REPAIR_OK), true);
+  assert.equal(repairMigrationFailClosed(VALIDATE_OK), false);
+});
+
+test('parseLiveCatalogRows splits unvalidated vs missing', () => {
+  const parsed = parseLiveCatalogRows('unvalidated|fees.fees_tenant_fk\nmissing|orphan_table\n');
+  assert.deepEqual(parsed.unvalidated, ['fees.fees_tenant_fk']);
+  assert.deepEqual(parsed.missing, ['orphan_table']);
 });
 
 test('findApplySqlSteps detects missing APPLY_STRICT_FKS', () => {
@@ -164,9 +217,78 @@ test('evaluateStrictTenantFks fails without VALIDATE migration', () => {
   assert.ok(report.failures.some((f) => /VALIDATE migration/.test(f)));
 });
 
+test('evaluateStrictTenantFks fails without repair migration', () => {
+  const root = writeFixture({ withRepair: false });
+  const report = evaluateStrictTenantFks({ root });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((f) => new RegExp(REPAIR_MIGRATION_HINT).test(f)));
+});
+
 test('evaluateStrictTenantFks fails without prerequisite tenant file', () => {
   const root = writeFixture({ withPrereq: false });
   const report = evaluateStrictTenantFks({ root });
   assert.equal(report.ok, false);
   assert.ok(report.failures.some((f) => /021a_strict_fk_prerequisite_tenants/.test(f)));
+});
+
+test('evaluateStrictTenantFks fails when apply-sql still defaults APPLY_STRICT_FKS off', () => {
+  const root = writeFixture({
+    applyText: `#!/usr/bin/env bash
+APPLY_STRICT_FKS="\${APPLY_STRICT_FKS:-0}"
+is_strict_fk_file() {
+  [[ "$(basename "$1")" == "021b_tenant_fk_constraints.sql" ]]
+}
+`,
+  });
+  const report = evaluateStrictTenantFks({ root });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((f) => /default APPLY_STRICT_FKS=1/.test(f)));
+});
+
+test('evaluateStrictTenantFks live catalog fails on NOT VALID leftover', () => {
+  const root = writeFixture();
+  const report = evaluateStrictTenantFks({
+    root,
+    live: true,
+    requireLive: true,
+    databaseUrl: 'postgresql://example',
+    queryLive: () => ({
+      status: 0,
+      stdout: 'unvalidated|fees.fees_tenant_fk',
+      stderr: '',
+      error: '',
+    }),
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((f) => /unvalidated tenant_id/.test(f)));
+});
+
+test('evaluateStrictTenantFks live catalog passes when clean', () => {
+  const root = writeFixture();
+  const report = evaluateStrictTenantFks({
+    root,
+    live: true,
+    requireLive: true,
+    databaseUrl: 'postgresql://example',
+    queryLive: () => ({ status: 0, stdout: '', stderr: '', error: '' }),
+  });
+  assert.equal(report.ok, true, report.failures.join('; '));
+  assert.ok(report.notes.some((n) => /live catalog: zero unvalidated/.test(n)));
+});
+
+test('evaluateStrictTenantFks requireLive without URL fails closed', () => {
+  const root = writeFixture();
+  const report = evaluateStrictTenantFks({
+    root,
+    live: true,
+    requireLive: true,
+    databaseUrl: '',
+    queryLive: () => ({ status: 0, stdout: '', stderr: '', error: '' }),
+  });
+  assert.equal(report.ok, false);
+  assert.ok(report.failures.some((f) => /DATABASE_URL/.test(f)));
+});
+
+test('VALIDATE_MIGRATION_HINT constant matches expected file', () => {
+  assert.equal(VALIDATE_MIGRATION_HINT, '068_validate_tenant_fk_constraints.sql');
 });

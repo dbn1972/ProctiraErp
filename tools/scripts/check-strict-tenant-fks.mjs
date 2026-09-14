@@ -1,25 +1,34 @@
 #!/usr/bin/env node
 /**
- * W1-DATA-06 — Strict tenant FK posture gate (fail closed).
+ * W1-DATA-06 COMPLETE — Strict tenant FK posture + live catalog gate.
  *
- * Finding: tenant FKs were opt-in (APPLY_STRICT_FKS) and NOT VALID; primary CI
- * could skip them silently, leaving orphan tenant_id rows unchecked forever.
+ * Finding (PARTIAL residual):
+ *   - APPLY_STRICT_FKS defaulted OFF, so prod/CI could forget create+validate.
+ *   - 068 VALIDATE could be ledger-recorded while 021b was skipped (no-op).
+ *   - Later enabling strict FKs left NOT VALID / missing FKs forever.
  *
  * This gate requires:
  *   1. 021b exists and adds tenant_id → tenants(id) FKs.
- *   2. A numbered SQL migration VALIDATEs those NOT VALID tenant FKs.
- *   3. apply-sql.sh still gates 021a/021b behind APPLY_STRICT_FKS.
- *   4. Every GitHub Actions step that runs apply-sql.sh sets APPLY_STRICT_FKS=1
- *      unless the step includes an explicit `# STRICT_FK_SKIP_JUSTIFIED: …`
- *      comment (documented exception only).
+ *   2. 068 VALIDATE migration exists (tenant FK VALIDATE signal).
+ *   3. 076 repair migration exists (create+validate+assert for prior no-ops).
+ *   4. apply-sql.sh gates 021a/021b/068/076 behind APPLY_STRICT_FKS and defaults
+ *      that flag ON when CI=true or NODE_ENV=production.
+ *   5. Every GitHub Actions step that runs apply-sql.sh sets APPLY_STRICT_FKS=1
+ *      unless the step includes `# STRICT_FK_SKIP_JUSTIFIED: …`.
+ *   6. With --live (or DATABASE_URL / MIGRATOR_DATABASE_URL set under --require-live),
+ *      query pg_catalog and fail if any tenant_id → tenants FK is NOT VALID, or if
+ *      any uuid tenant_id base table lacks such an FK.
  *
  * Usage:
  *   node tools/scripts/check-strict-tenant-fks.mjs
  *   node tools/scripts/check-strict-tenant-fks.mjs --root=/path/to/repo
  *   node tools/scripts/check-strict-tenant-fks.mjs --json
+ *   node tools/scripts/check-strict-tenant-fks.mjs --live
+ *   node tools/scripts/check-strict-tenant-fks.mjs --live --require-live
  *
  * Exit 0 on pass; exit 1 on residual.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -27,7 +36,60 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const STRICT_FK_ADD_FILE = '021b_tenant_fk_constraints.sql';
 export const STRICT_FK_PREREQ_FILE = '021a_strict_fk_prerequisite_tenants.sql';
 export const VALIDATE_MIGRATION_HINT = '068_validate_tenant_fk_constraints.sql';
+export const REPAIR_MIGRATION_HINT = '082_repair_strict_tenant_fk_validate.sql';
 export const SKIP_JUSTIFICATION_MARKER = 'STRICT_FK_SKIP_JUSTIFIED:';
+
+/** SQL used by --live catalog proof (zero unvalidated / missing tenant FKs). */
+export const LIVE_CATALOG_QUERY = `
+WITH tenant_fks AS (
+  SELECT
+    rel.relname AS table_name,
+    c.conname AS constraint_name,
+    c.convalidated
+  FROM pg_constraint c
+  JOIN pg_class rel ON rel.oid = c.conrelid
+  JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+  JOIN pg_class ref ON ref.oid = c.confrelid
+  JOIN pg_namespace refnsp ON refnsp.oid = ref.relnamespace
+  WHERE c.contype = 'f'
+    AND nsp.nspname = 'public'
+    AND refnsp.nspname = 'public'
+    AND ref.relname = 'tenants'
+    AND (
+      SELECT array_agg(a.attname::text ORDER BY u.ord)
+      FROM unnest(c.conkey) WITH ORDINALITY AS u(attnum, ord)
+      JOIN pg_attribute a
+        ON a.attrelid = c.conrelid AND a.attnum = u.attnum
+    ) = ARRAY['tenant_id']::text[]
+),
+unvalidated AS (
+  SELECT table_name || '.' || constraint_name AS id
+  FROM tenant_fks
+  WHERE NOT convalidated
+),
+uuid_tenant_tables AS (
+  SELECT col.table_name
+  FROM information_schema.columns col
+  JOIN information_schema.tables tb
+    ON tb.table_schema = col.table_schema AND tb.table_name = col.table_name
+  WHERE col.table_schema = 'public'
+    AND col.column_name = 'tenant_id'
+    AND col.data_type = 'uuid'
+    AND tb.table_type = 'BASE TABLE'
+    AND col.table_name <> 'tenants'
+),
+missing AS (
+  SELECT t.table_name AS id
+  FROM uuid_tenant_tables t
+  WHERE NOT EXISTS (
+    SELECT 1 FROM tenant_fks f WHERE f.table_name = t.table_name
+  )
+)
+SELECT 'unvalidated' AS kind, id FROM unvalidated
+UNION ALL
+SELECT 'missing' AS kind, id FROM missing
+ORDER BY 1, 2;
+`.trim();
 
 /**
  * @param {string} root
@@ -77,14 +139,41 @@ export function hasTenantFkValidateMigration(sqlTexts) {
 }
 
 /**
- * True when apply-sql.sh still opt-gates strict FK files.
+ * True when repair migration asserts fail-closed on leftover NOT VALID FKs.
+ * @param {string} repairText
+ */
+export function repairMigrationFailClosed(repairText) {
+  return (
+    /VALIDATE\s+CONSTRAINT/i.test(repairText) &&
+    /RAISE\s+EXCEPTION/i.test(repairText) &&
+    (/unvalidated/i.test(repairText) || /NOT\s+c\.convalidated/i.test(repairText))
+  );
+}
+
+/**
+ * True when apply-sql.sh gates strict FK files (create + validate + repair).
  * @param {string} applySqlText
  */
 export function applySqlGatesStrictFks(applySqlText) {
   return (
     /APPLY_STRICT_FKS/.test(applySqlText) &&
     /021b_tenant_fk_constraints\.sql/.test(applySqlText) &&
+    /068_validate_tenant_fk_constraints\.sql/.test(applySqlText) &&
+    /082_repair_strict_tenant_fk_validate\.sql/.test(applySqlText) &&
     /is_strict_fk_file/.test(applySqlText)
+  );
+}
+
+/**
+ * True when apply-sql.sh defaults APPLY_STRICT_FKS on for CI / production.
+ * @param {string} applySqlText
+ */
+export function applySqlDefaultsStrictFksOnInProd(applySqlText) {
+  return (
+    /CI/.test(applySqlText) &&
+    /NODE_ENV/.test(applySqlText) &&
+    /production/.test(applySqlText) &&
+    /APPLY_STRICT_FKS\s*=\s*1/.test(applySqlText)
   );
 }
 
@@ -179,12 +268,63 @@ export function findApplySqlSteps(yamlText, relPath) {
 }
 
 /**
+ * Parse `psql -At` rows of `kind|id` from LIVE_CATALOG_QUERY.
+ * @param {string} stdout
+ * @returns {{ unvalidated: string[], missing: string[] }}
+ */
+export function parseLiveCatalogRows(stdout) {
+  /** @type {string[]} */
+  const unvalidated = [];
+  /** @type {string[]} */
+  const missing = [];
+  for (const line of stdout.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const pipe = trimmed.indexOf('|');
+    const kind = pipe >= 0 ? trimmed.slice(0, pipe) : trimmed;
+    const id = pipe >= 0 ? trimmed.slice(pipe + 1) : '';
+    if (kind === 'unvalidated' && id) unvalidated.push(id);
+    else if (kind === 'missing' && id) missing.push(id);
+  }
+  return { unvalidated, missing };
+}
+
+/**
+ * Run the live catalog query via psql.
+ * @param {{ databaseUrl: string, query?: string }} input
+ */
+export function queryLiveTenantFkCatalog({ databaseUrl, query = LIVE_CATALOG_QUERY }) {
+  const result = spawnSync(
+    'psql',
+    [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-At', '-F', '|', '-c', query],
+    { encoding: 'utf8' },
+  );
+  return {
+    status: result.status ?? -1,
+    stdout: (result.stdout ?? '').trim(),
+    stderr: (result.stderr ?? '').trim(),
+    error: result.error ? String(result.error.message ?? result.error) : '',
+  };
+}
+
+/**
  * @param {{
  *   root: string,
  *   paths?: ReturnType<typeof defaultPaths>,
+ *   live?: boolean,
+ *   requireLive?: boolean,
+ *   databaseUrl?: string,
+ *   queryLive?: typeof queryLiveTenantFkCatalog,
  * }} input
  */
-export function evaluateStrictTenantFks({ root, paths = defaultPaths(root) }) {
+export function evaluateStrictTenantFks({
+  root,
+  paths = defaultPaths(root),
+  live = false,
+  requireLive = false,
+  databaseUrl = process.env.MIGRATOR_DATABASE_URL || process.env.DATABASE_URL || '',
+  queryLive = queryLiveTenantFkCatalog,
+}) {
   /** @type {string[]} */
   const failures = [];
   /** @type {string[]} */
@@ -211,13 +351,27 @@ export function evaluateStrictTenantFks({ root, paths = defaultPaths(root) }) {
     );
   }
 
-  const sqlTexts = sqlNames.map((name) => readFileSync(join(paths.sqlDir, name), 'utf8'));
-  if (!hasTenantFkValidateMigration(sqlTexts)) {
+  if (!sqlNames.includes(VALIDATE_MIGRATION_HINT)) {
     failures.push(
-      `missing tenant FK VALIDATE migration (expected something like ${VALIDATE_MIGRATION_HINT})`,
+      `missing tenant FK VALIDATE migration ${VALIDATE_MIGRATION_HINT}`,
     );
-  } else if (!sqlNames.includes(VALIDATE_MIGRATION_HINT)) {
-    notes.push(`VALIDATE migration present but not named ${VALIDATE_MIGRATION_HINT}`);
+  } else if (!hasTenantFkValidateMigration([readFileSync(join(paths.sqlDir, VALIDATE_MIGRATION_HINT), 'utf8')])) {
+    failures.push(
+      `${VALIDATE_MIGRATION_HINT} must VALIDATE tenant_id / tenant_fk constraints`,
+    );
+  }
+
+  if (!sqlNames.includes(REPAIR_MIGRATION_HINT)) {
+    failures.push(
+      `missing repair migration ${REPAIR_MIGRATION_HINT} (prior no-op 068 installs must be repaired)`,
+    );
+  } else {
+    const repairText = readFileSync(join(paths.sqlDir, REPAIR_MIGRATION_HINT), 'utf8');
+    if (!repairMigrationFailClosed(repairText)) {
+      failures.push(
+        `${REPAIR_MIGRATION_HINT} must VALIDATE tenant FKs and RAISE EXCEPTION on leftovers`,
+      );
+    }
   }
 
   if (!existsSync(paths.applySqlScript)) {
@@ -225,10 +379,23 @@ export function evaluateStrictTenantFks({ root, paths = defaultPaths(root) }) {
   } else {
     const applyText = readFileSync(paths.applySqlScript, 'utf8');
     if (!applySqlGatesStrictFks(applyText)) {
-      failures.push('apply-sql.sh must gate 021b behind APPLY_STRICT_FKS via is_strict_fk_file');
+      failures.push(
+        'apply-sql.sh must gate 021a/021b/068/076 behind APPLY_STRICT_FKS via is_strict_fk_file',
+      );
+    }
+    if (!applySqlDefaultsStrictFksOnInProd(applyText)) {
+      failures.push(
+        'apply-sql.sh must default APPLY_STRICT_FKS=1 when CI=true or NODE_ENV=production',
+      );
     }
     if (!applyText.includes(STRICT_FK_PREREQ_FILE)) {
       failures.push(`apply-sql.sh must treat ${STRICT_FK_PREREQ_FILE} as a strict-FK file`);
+    }
+    if (!applyText.includes(VALIDATE_MIGRATION_HINT)) {
+      failures.push(`apply-sql.sh must treat ${VALIDATE_MIGRATION_HINT} as a strict-FK file`);
+    }
+    if (!applyText.includes(REPAIR_MIGRATION_HINT)) {
+      failures.push(`apply-sql.sh must treat ${REPAIR_MIGRATION_HINT} as a strict-FK file`);
     }
   }
 
@@ -266,18 +433,59 @@ export function evaluateStrictTenantFks({ root, paths = defaultPaths(root) }) {
     );
   }
 
+  /** @type {{ unvalidated: string[], missing: string[] } | null} */
+  let liveCatalog = null;
+  if (live) {
+    const url = (databaseUrl || '').trim();
+    if (!url) {
+      const msg =
+        'live catalog gate requires MIGRATOR_DATABASE_URL or DATABASE_URL (or --database-url=)';
+      if (requireLive) failures.push(msg);
+      else notes.push(`skipped live catalog: ${msg}`);
+    } else {
+      const result = queryLive({ databaseUrl: url });
+      if (result.status !== 0) {
+        failures.push(
+          `live catalog psql failed (exit ${result.status}): ${result.stderr || result.error || result.stdout}`,
+        );
+      } else {
+        liveCatalog = parseLiveCatalogRows(result.stdout);
+        if (liveCatalog.unvalidated.length) {
+          failures.push(
+            `live catalog: unvalidated tenant_id → tenants FKs: ${liveCatalog.unvalidated.join(', ')}`,
+          );
+        }
+        if (liveCatalog.missing.length) {
+          failures.push(
+            `live catalog: uuid tenant_id tables missing tenants(id) FK: ${liveCatalog.missing.join(', ')}`,
+          );
+        }
+        if (!liveCatalog.unvalidated.length && !liveCatalog.missing.length) {
+          notes.push('live catalog: zero unvalidated / missing tenant_id → tenants FKs');
+        }
+      }
+    }
+  } else if (requireLive) {
+    failures.push('--require-live was set without --live');
+  }
+
   return {
     ok: failures.length === 0,
     failures,
     notes,
     applySqlStepCount: applySteps.length,
+    liveCatalog,
   };
 }
 
 function formatReport(report) {
-  const lines = ['## Strict tenant FK gate (W1-DATA-06)', ''];
+  const lines = ['## Strict tenant FK gate (W1-DATA-06 COMPLETE)', ''];
   if (report.ok) {
-    lines.push('**Status:** pass — APPLY_STRICT_FKS posture and VALIDATE migration present.');
+    lines.push(
+      '**Status:** pass — prod/CI default ON, VALIDATE+repair present, workflow posture OK' +
+        (report.liveCatalog ? ', live catalog clean' : '') +
+        '.',
+    );
   } else {
     lines.push('**Status:** fail — tenant FK validation residual remains.');
   }
@@ -299,16 +507,28 @@ function formatReport(report) {
 function parseArgs(argv) {
   let root = join(dirname(fileURLToPath(import.meta.url)), '../..');
   let json = false;
+  let live = false;
+  let requireLive = false;
+  /** @type {string | undefined} */
+  let databaseUrl;
   for (const arg of argv) {
     if (arg === '--json') json = true;
+    else if (arg === '--live') live = true;
+    else if (arg === '--require-live') requireLive = true;
     else if (arg.startsWith('--root=')) root = arg.slice('--root='.length);
+    else if (arg.startsWith('--database-url=')) databaseUrl = arg.slice('--database-url='.length);
   }
-  return { root, json };
+  return { root, json, live, requireLive, databaseUrl };
 }
 
 function main() {
-  const { root, json } = parseArgs(process.argv.slice(2));
-  const report = evaluateStrictTenantFks({ root });
+  const { root, json, live, requireLive, databaseUrl } = parseArgs(process.argv.slice(2));
+  const report = evaluateStrictTenantFks({
+    root,
+    live,
+    requireLive,
+    databaseUrl: databaseUrl || process.env.MIGRATOR_DATABASE_URL || process.env.DATABASE_URL || '',
+  });
   if (json) {
     console.log(JSON.stringify(report, null, 2));
   } else {

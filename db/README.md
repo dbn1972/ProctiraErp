@@ -57,17 +57,25 @@ bash tools/scripts/bootstrap-db-roles.sh
 DML grants after schema exists remain in `db/sql/050_app_runtime_role.sql`.
 See `db/bootstrap/README.md`.
 
-## Strict tenant foreign keys (W1-DATA-06)
+## Strict tenant foreign keys (W1-DATA-06 COMPLETE)
 
 `021b_tenant_fk_constraints.sql` adds `tenant_id → tenants(id)` as **NOT VALID**
 (new rows checked; existing rows deferred). `068_validate_tenant_fk_constraints.sql`
-then **VALIDATE**s those constraints.
+then **VALIDATE**s those constraints. `082_repair_strict_tenant_fk_validate.sql`
+re-runs create+validate and **fail-closes** if any unvalidated or missing FKs
+remain — repairing installs that previously recorded a no-op `068` while
+`021b` was skipped.
 
-Opt-in locally via `APPLY_STRICT_FKS=1` (also applies `021a` demo-tenant
-prerequisite so `*b_*_seed.sql` rows validate). Primary CI, restore-drill, and
-live onboard set `APPLY_STRICT_FKS=1`. Executable gate:
-`pnpm check:strict-tenant-fks` fails when a workflow runs `apply-sql.sh` without
-that flag unless the step documents `# STRICT_FK_SKIP_JUSTIFIED: …`.
+`APPLY_STRICT_FKS` defaults **ON** when `CI=true` or `NODE_ENV=production`
+(explicit `0` still opts out for local unit fixtures). The same flag gates
+`021a` / `021b` / `068` / `076` so VALIDATE cannot be ledger-recorded without
+create. Primary CI, restore-drill, and live onboard also set
+`APPLY_STRICT_FKS=1` explicitly. Executable gates:
+
+- `pnpm check:strict-tenant-fks` — static posture (default ON, workflows,
+  VALIDATE + repair present)
+- `pnpm check:strict-tenant-fks -- --live --require-live` — live `pg_catalog`
+  proof of **zero** unvalidated `tenant_id → tenants` FKs (CI after apply)
 
 ## Leading tenant_id indexes (W1-DATA-16)
 

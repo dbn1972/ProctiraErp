@@ -22,10 +22,14 @@ else
 fi
 
 echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh, APPLY_STRICT_FKS=1)"
-# W1-DATA-06: certification onboard uses production tenant FK + VALIDATE posture.
-# Pass through BOOTSTRAP_DATABASE_URL so apply-sql.sh can re-run bootstrap safely.
+# W1-DATA-06 COMPLETE: certification onboard uses production tenant FK create +
+# VALIDATE + repair posture (also the apply-sql.sh CI/production default).
 DATABASE_URL="$DB_URL" APPLY_STRICT_FKS=1 bash "$ROOT/tools/scripts/apply-sql.sh" \
   | tee "$ARTIFACT_DIR/schema-apply.log"
+
+echo "==> W1-DATA-06: live catalog proof (zero unvalidated tenant_id FKs)"
+MIGRATOR_DATABASE_URL="$DB_URL" node "$ROOT/tools/scripts/check-strict-tenant-fks.mjs" \
+  --live --require-live | tee "$ARTIFACT_DIR/strict-tenant-fk-catalog.txt"
 
 echo "==> Seeding boards/schools/students: db/seeds/002_multi_board_schools_500.sql"
 psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$ROOT/db/seeds/002_multi_board_schools_500.sql" \
