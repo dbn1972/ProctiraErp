@@ -4,6 +4,12 @@
 # Path-filtered coverage for apps/mobile. Fail-closed on analyze/test failures.
 # No device farm / integration_test device runs — flutter test only (test/).
 # Check name suitable for branch protection: "Mobile Flutter CI (Required)".
+#
+# COMPLETE residual (this workflow alone): path-filter skips are not aggregated
+# into CI Aggregate. Prefer the in-tree job `mobile-flutter` in ci.yml, which
+# fails closed via ci-aggregate when mobile-flutter-changed=true but the job
+# skips. This standalone workflow remains for push/PR visibility on mobile
+# paths and workflow_dispatch.
 # =============================================================================
 
 name: Mobile Flutter
@@ -13,11 +19,13 @@ on:
   pull_request:
     paths:
       - 'apps/mobile/**'
+      - 'packages/flutter-core/**'
       - '.github/workflows/mobile-flutter.yml'
   push:
     branches: [main, develop]
     paths:
       - 'apps/mobile/**'
+      - 'packages/flutter-core/**'
       - '.github/workflows/mobile-flutter.yml'
 
 concurrency:
@@ -68,6 +76,7 @@ jobs:
             echo "## Mobile Flutter CI (W1-OPS-07)"
             echo ""
             echo "- Working directory: \`apps/mobile\`"
+            echo "- Also covered by \`ci.yml\` job \`mobile-flutter\` → CI Aggregate"
             echo "- Channel: Flutter **stable** (Dart SDK must satisfy \`^3.11.5\`)"
             echo "- Commands: \`flutter pub get\` → \`flutter analyze\` → \`flutter test\`"
             echo "- Fail closed: analyze or test non-zero exits fail this check"

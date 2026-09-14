@@ -43,6 +43,7 @@ jobs:
       has-frontend-changes: ${{ steps.filter.outputs.frontend }}
       has-shared-changes: ${{ steps.filter.outputs.shared }}
       secondary-apps-changed: ${{ steps.filter.outputs.secondary_apps }}
+      mobile-flutter-changed: ${{ steps.filter.outputs.mobile_flutter }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,6 +58,7 @@ jobs:
           # Matrix proof: tools/scripts/check-ci-path-filters.mjs
           # W1-OPS-12: secondary Next apps have dedicated Playwright smokes
           # (not covered by apps/web e2e-backend-ready / lighthouse).
+          # W1-OPS-07: Flutter mobile analyze+test (apps/mobile + path dep).
           filters: |
             packages:
               - 'packages/**'
@@ -87,6 +89,13 @@ jobs:
               - 'apps/registration-portal/**'
               - '.github/workflows/ci.yml'
               - 'tools/scripts/run-secondary-apps-e2e.sh'
+              - 'tools/scripts/ci-aggregate-gate.mjs'
+              - 'tools/scripts/ci-aggregate-gate.test.mjs'
+            mobile_flutter:
+              - 'apps/mobile/**'
+              - 'packages/flutter-core/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/mobile-flutter.yml'
               - 'tools/scripts/ci-aggregate-gate.mjs'
               - 'tools/scripts/ci-aggregate-gate.test.mjs'
             shared:
@@ -1119,12 +1128,32 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Runtime DB role gate — data gate (W1-DATA-01)
-  # ---------------------------------------------------------------------------
   # Static contract: deploy.yml must prove the *actual* runtime DATABASE_URL
   # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
   # ci-aggregate. Live probe runs in deploy.yml (and optionally with
   # DATABASE_URL in integration / tenant-isolation).
+  runtime-role-gate:
+    name: Runtime Role Gate (W1-DATA-01)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test runtime privilege catalog gate
+        run: node --test tools/scripts/check-runtime-table-privileges.test.mjs
+
+      - name: Fail when runtime privileges are unclassified or blanket-defaulted
+        run: node tools/scripts/check-runtime-table-privileges.mjs
+
   # ---------------------------------------------------------------------------
+  # Runtime DB role gate — data gate (W1-DATA-01)
+  # Static contract: deploy.yml must prove the *actual* runtime DATABASE_URL
+  # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
+  # ci-aggregate. Live probe runs in deploy.yml (and optionally with
+  # DATABASE_URL in integration / tenant-isolation).
   runtime-role-gate:
     name: Runtime Role Gate (W1-DATA-01)
     runs-on: ubuntu-latest
@@ -1237,6 +1266,61 @@ jobs:
           retention-days: 14
 
   # ---------------------------------------------------------------------------
+  # Mobile Flutter — path-filtered (W1-OPS-07 COMPLETE)
+  # ---------------------------------------------------------------------------
+  # Fail-closed flutter analyze + flutter test for apps/mobile. Mirrors
+  # .github/workflows/mobile-flutter.yml but participates in CI Aggregate so
+  # an incorrect path-filter skip cannot greenwash a mobile change.
+  # No device farm / integration_test device runs — flutter test only (test/).
+  # ---------------------------------------------------------------------------
+  mobile-flutter:
+    name: Mobile Flutter (W1-OPS-07)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mobile-flutter-changed == 'true'
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      # pubspec environment.sdk: ^3.11.5 — Flutter stable ships a compatible Dart SDK.
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze (fail closed)
+        run: flutter analyze
+
+      - name: Test (fail closed)
+        # Matches apps/mobile/README.md. Goldens use matchesGoldenFile without
+        # --update-goldens; integration_test/ is not invoked (no device farm).
+        run: flutter test
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "## Mobile Flutter CI (W1-OPS-07)"
+            echo ""
+            echo "- Working directory: \`apps/mobile\`"
+            echo "- Path dep: \`packages/flutter-core/**\` also triggers this job"
+            echo "- Channel: Flutter **stable** (Dart SDK must satisfy \`^3.11.5\`)"
+            echo "- Commands: \`flutter pub get\` → \`flutter analyze\` → \`flutter test\`"
+            echo "- Fail closed: analyze or test non-zero exits fail this check"
+            echo "- Aggregate: skip while \`mobile-flutter-changed=true\` fails CI Aggregate"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
   # CI Aggregate — required merge gate (W1-OPS-05 B2)
   # ---------------------------------------------------------------------------
   # Always runs (even when upstream jobs skip) and fails closed when any
@@ -1268,6 +1352,7 @@ jobs:
       - runtime-role-gate
       - security-scans
       - secondary-apps-e2e
+      - mobile-flutter
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -1287,6 +1372,7 @@ jobs:
           BACKEND_CHANGED: ${{ needs.detect-changes.outputs.has-backend-changes }}
           INFRA_CHANGED: ${{ needs.detect-changes.outputs.infra-changed }}
           SECONDARY_APPS_CHANGED: ${{ needs.detect-changes.outputs.secondary-apps-changed }}
+          MOBILE_FLUTTER_CHANGED: ${{ needs.detect-changes.outputs.mobile-flutter-changed }}
           DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
           LINT_RESULT: ${{ needs.lint.result }}
           TYPECHECK_RESULT: ${{ needs.typecheck.result }}
@@ -1307,4 +1393,5 @@ jobs:
           RUNTIME_ROLE_GATE_RESULT: ${{ needs.runtime-role-gate.result }}
           SECURITY_SCANS_RESULT: ${{ needs.security-scans.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
+          MOBILE_FLUTTER_RESULT: ${{ needs.mobile-flutter.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

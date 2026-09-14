@@ -16,6 +16,7 @@ const noChanges = {
   backendChanged: 'false',
   infraChanged: 'false',
   secondaryAppsChanged: 'false',
+  mobileFlutterChanged: 'false',
 };
 
 const codeChanges = {
@@ -26,6 +27,7 @@ const codeChanges = {
   backendChanged: 'true',
   infraChanged: 'false',
   secondaryAppsChanged: 'false',
+  mobileFlutterChanged: 'false',
 };
 
 function allSkipped() {
@@ -50,6 +52,7 @@ function allSkipped() {
     runtimeRoleGate: 'success',
     securityScans: 'success',
     secondaryAppsE2e: 'skipped',
+    mobileFlutter: 'skipped',
   };
 }
 
@@ -75,6 +78,7 @@ function allSucceeded() {
     runtimeRoleGate: 'success',
     securityScans: 'success',
     secondaryAppsE2e: 'success',
+    mobileFlutter: 'success',
   };
 }
 
@@ -82,7 +86,9 @@ test('no path-filter match: optional jobs may skip; always-on gates still requir
   const report = evaluate({ changes: noChanges, results: allSkipped() });
   assert.equal(report.ok, true);
   assert.equal(report.unprovenSkips.length, 0);
-  assert.equal(report.provenSkips.length, 10);
+  // lint, typecheck, unit, build, bundle, lighthouse, integration, dod,
+  // tenant-isolation, secondary-apps-e2e, mobile-flutter
+  assert.equal(report.provenSkips.length, 11);
 });
 
 test('docs via shared filter: skipped unit/tenant-isolation is unproven (W1-OPS-05)', () => {
@@ -308,3 +314,48 @@ test('secondary-apps skip is proven when path filter is false', () => {
   assert.ok(report.provenSkips.some((item) => item.job === 'secondary-apps-e2e'));
 });
 
+test('mobile-flutter change with skipped job is unproven (W1-OPS-07)', () => {
+  const changes = {
+    ...noChanges,
+    appsChanged: 'true',
+    mobileFlutterChanged: 'true',
+  };
+  const results = allSkipped();
+  results.restoreDrillEvidence = 'success';
+  results.prismaSqlDrift = 'success';
+  results.strictTenantFks = 'success';
+  results.tenantIdIndexes = 'success';
+  results.migrationTimeouts = 'success';
+  results.codeownersGate = 'success';
+  results.runtimeTablePrivileges = 'success';
+  results.runtimeRoleGate = 'success';
+  results.mobileFlutter = 'skipped';
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'mobile-flutter'));
+});
+
+test('mobile-flutter change with success passes when other required jobs succeed', () => {
+  const changes = {
+    ...noChanges,
+    appsChanged: 'true',
+    mobileFlutterChanged: 'true',
+  };
+  const results = allSucceeded();
+  results.bundleBudget = 'skipped';
+  results.lighthouse = 'skipped';
+  results.integrationTest = 'skipped';
+  results.secondaryAppsE2e = 'skipped';
+  const report = evaluate({ changes, results });
+  assert.equal(report.ok, true);
+  assert.equal(report.failures.length, 0);
+  assert.ok(report.provenSkips.some((item) => item.job === 'secondary-apps-e2e'));
+});
+
+test('mobile-flutter skip is proven when path filter is false', () => {
+  const results = allSucceeded();
+  results.mobileFlutter = 'skipped';
+  const report = evaluate({ changes: codeChanges, results });
+  assert.equal(report.ok, true);
+  assert.ok(report.provenSkips.some((item) => item.job === 'mobile-flutter'));
+});
