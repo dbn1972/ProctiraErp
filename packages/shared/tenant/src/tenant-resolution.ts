@@ -3,8 +3,13 @@
  *
  * Resolves the tenant ID from incoming requests using a priority chain:
  * 1. JWT claim (highest priority — authenticated requests)
- * 2. X-Tenant-ID header (API clients, mobile apps)
- * 3. Subdomain extraction (web clients)
+ * 2. X-Tenant-ID header (API clients, mobile apps) — unauthenticated only
+ * 3. Subdomain extraction (web clients) — anonymous or for trusted slug→UUID lookup
+ *
+ * W1-SEC-01: Authenticated requests require a verified UUID `tenantId` claim
+ * (or a subdomain slug that the plugin can map via trusted DB lookup). They must
+ * not fall through to a forgeable header, and must not use a raw hostname slug
+ * as the tenant identity without lookup.
  *
  * If no tenant can be resolved, throws an error.
  */
@@ -48,6 +53,12 @@ export interface TenantResolutionOptions {
   jwtClaimField?: string;
   /** Whether to require a valid UUID format (default: true) */
   requireUuid?: boolean;
+  /**
+   * When `request.user` is set, require a verified JWT tenant UUID (or allow
+   * subdomain only as a slug for trusted lookup). Never trust client headers
+   * for authenticated principals. Default: true (W1-SEC-01).
+   */
+  requireJwtTenantWhenAuthenticated?: boolean;
 }
 
 const DEFAULT_OPTIONS: Required<TenantResolutionOptions> = {
@@ -55,6 +66,7 @@ const DEFAULT_OPTIONS: Required<TenantResolutionOptions> = {
   headerName: 'x-tenant-id',
   jwtClaimField: 'tenantId',
   requireUuid: true,
+  requireJwtTenantWhenAuthenticated: true,
 };
 
 /**
@@ -70,6 +82,14 @@ function resolveFromJwt(request: FastifyRequest, jwtClaimField: string): string 
     return tenantId;
   }
   return undefined;
+}
+
+/**
+ * True when auth has bound a principal on the request.
+ */
+export function isAuthenticatedRequest(request: FastifyRequest): boolean {
+  const user = (request as unknown as { user?: unknown }).user;
+  return user !== undefined && user !== null;
 }
 
 /**
@@ -134,8 +154,14 @@ export function isValidUuid(value: string): boolean {
  *
  * Resolution priority:
  * 1. JWT claim `tenantId` (highest — for authenticated requests)
- * 2. `X-Tenant-ID` header (for API clients and mobile apps)
- * 3. Subdomain extraction (for web clients)
+ * 2. `X-Tenant-ID` header (unauthenticated API clients / mobile apps only)
+ * 3. Subdomain extraction (anonymous web, or authenticated slug pending trusted lookup)
+ *
+ * Authenticated principals (W1-SEC-01):
+ * - Require a verified UUID JWT claim when present; reject invalid format.
+ * - Reject conflicting header identities (JWT UUID ≠ header UUID).
+ * - Do not fall through to forgeable headers when JWT tenant is missing.
+ * - May return a subdomain slug only so a trusted slug→UUID lookup can complete.
  *
  * @throws TenantResolutionError if no tenant can be resolved
  */
@@ -144,9 +170,47 @@ export function resolveTenantId(
   options?: TenantResolutionOptions,
 ): TenantResolutionResult {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+  const authenticated = isAuthenticatedRequest(request);
 
-  // Priority 1: JWT claim
   const jwtTenantId = resolveFromJwt(request, opts.jwtClaimField);
+  const headerTenantId = resolveFromHeader(request, opts.headerName);
+  const subdomain = resolveFromSubdomain(request, opts.baseDomain);
+
+  if (authenticated && opts.requireJwtTenantWhenAuthenticated) {
+    if (jwtTenantId) {
+      if (opts.requireUuid && !isValidUuid(jwtTenantId)) {
+        throw new TenantResolutionError(`Invalid tenant ID format in JWT claim: ${jwtTenantId}`);
+      }
+      if (headerTenantId && headerTenantId !== jwtTenantId) {
+        throw new TenantResolutionError(
+          `Conflicting tenant identities: JWT claim (${jwtTenantId}) does not match ${opts.headerName} (${headerTenantId})`,
+        );
+      }
+      // Subdomain slug ≠ UUID string is expected; identity is the verified claim.
+      // Plugin may still reject if a trusted slug lookup yields a different UUID.
+      return { tenantId: jwtTenantId, source: 'jwt' };
+    }
+
+    // Authenticated but missing JWT tenant — never trust client headers.
+    if (headerTenantId) {
+      throw new TenantResolutionError(
+        'Authenticated request missing verified JWT tenantId; client X-Tenant-ID is not trusted',
+      );
+    }
+
+    // Subdomain slug may proceed only for trusted slug→UUID lookup in the plugin.
+    if (subdomain) {
+      return { tenantId: subdomain, source: 'subdomain' };
+    }
+
+    throw new TenantResolutionError(
+      'Authenticated request missing verified JWT tenantId claim (UUID required)',
+    );
+  }
+
+  // --- Unauthenticated (or requireJwtTenantWhenAuthenticated disabled) ---
+
+  // Priority 1: JWT claim (e.g. optional auth on public paths)
   if (jwtTenantId) {
     if (opts.requireUuid && !isValidUuid(jwtTenantId)) {
       throw new TenantResolutionError(`Invalid tenant ID format in JWT claim: ${jwtTenantId}`);
@@ -155,7 +219,6 @@ export function resolveTenantId(
   }
 
   // Priority 2: X-Tenant-ID header
-  const headerTenantId = resolveFromHeader(request, opts.headerName);
   if (headerTenantId) {
     if (opts.requireUuid && !isValidUuid(headerTenantId)) {
       throw new TenantResolutionError(
@@ -166,7 +229,6 @@ export function resolveTenantId(
   }
 
   // Priority 3: Subdomain
-  const subdomain = resolveFromSubdomain(request, opts.baseDomain);
   if (subdomain) {
     // Subdomain is a slug, not a UUID — skip UUID validation for subdomain source
     return { tenantId: subdomain, source: 'subdomain' };

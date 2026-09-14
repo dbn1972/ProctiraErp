@@ -1,13 +1,14 @@
 /**
- * W1-SEC-01 (A4) — tenant authorization scope must come from verified
- * JWT/session only; client X-Tenant-ID must never grant cross-tenant access.
+ * W1-SEC-01 (COMPLETE) — tenant authorization scope must come from verified
+ * JWT UUID claim or trusted slug→UUID lookup; client X-Tenant-ID and raw
+ * hostname fallthrough must never grant tenant scope on authenticated routes.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { buildApp } from './app.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
-import { HEALTH_DEMO_TENANT_ID, HEALTH_STUDENT_A_ID } from './health-ui-seed.js';
+import { HEALTH_DEMO_TENANT_ID } from './health-ui-seed.js';
 import type { GatewayConfig } from './config.js';
 
 delete process.env['DATABASE_URL'];
@@ -59,7 +60,7 @@ function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
   };
 }
 
-describe('W1-SEC-01 (A4) tenant context trust', () => {
+describe('W1-SEC-01 (COMPLETE) tenant context trust', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -86,6 +87,43 @@ describe('W1-SEC-01 (A4) tenant context trust', () => {
 
     expect(response.statusCode).toBe(401);
     expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
+  });
+
+  it('rejects authenticated requests when JWT lacks tenantId even if Host has a tenant subdomain', async () => {
+    const { tenantId: _omit, ...payloadWithoutTenant } = createTestJwtPayload();
+    const token = app.jwt.sign(payloadWithoutTenant);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/institutions',
+      headers: {
+        authorization: `Bearer ${token}`,
+        host: 'ministry-edu.proctira.org',
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
+    expect(String(response.json().message)).toMatch(
+      /verified UUID claim|trusted slug|missing verified JWT tenantId/i,
+    );
+  });
+
+  it('rejects authenticated requests with invalid (non-UUID) JWT tenantId', async () => {
+    const token = app.jwt.sign(createTestJwtPayload({ tenantId: 'not-a-uuid' }));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/institutions',
+      headers: {
+        authorization: `Bearer ${token}`,
+        host: 'ministry-edu.proctira.org',
+      },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
+    expect(String(response.json().message)).toMatch(/Invalid tenant ID format/);
   });
 
   it('JWT-bound tenant wins over mismatched X-Tenant-ID on protected routes', async () => {

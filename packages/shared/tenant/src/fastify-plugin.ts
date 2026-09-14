@@ -8,6 +8,10 @@
  *
  * This plugin must be registered AFTER the auth plugin (so JWT claims are available)
  * but BEFORE any route handlers that access tenant-scoped data.
+ *
+ * W1-SEC-01: Authenticated tenant routes require a verified UUID JWT claim or a
+ * trusted slug→UUID database lookup. Raw hostname slugs are never accepted as
+ * tenant identity for authenticated principals when lookup is disabled/unavailable.
  */
 
 import { createLogger } from '@proctira/logging';
@@ -17,6 +21,8 @@ import fp from 'fastify-plugin';
 import { bindTenantGucPrisma } from '@proctira/database';
 
 import {
+  isAuthenticatedRequest,
+  isValidUuid,
   resolveTenantId,
   TenantResolutionError,
   type TenantResolutionOptions,
@@ -48,6 +54,7 @@ export interface TenantPluginOptions extends TenantResolutionOptions {
   /**
    * Whether to look up the tenant slug in the database to resolve to a UUID.
    * When true, subdomain-resolved slugs will be looked up in the tenants table.
+   * Required for authenticated subdomain resolution (W1-SEC-01).
    * Default: true
    */
   resolveSlugToId?: boolean;
@@ -66,6 +73,53 @@ function isExcludedPath(path: string, excludePaths: string[]): boolean {
     }
   }
   return false;
+}
+
+type TenantFindUnique = {
+  findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
+};
+
+function getTenantFinder(
+  db: unknown,
+): TenantFindUnique | undefined {
+  if (db && typeof db === 'object' && 'tenant' in db) {
+    const tenant = (db as { tenant?: TenantFindUnique }).tenant;
+    if (tenant && typeof tenant.findUnique === 'function') {
+      return tenant;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Resolve a hostname slug to a canonical tenant UUID via DB.
+ * @throws TenantResolutionError when lookup is required but unavailable/fails
+ */
+async function resolveSlugViaTrustedLookup(
+  slug: string,
+  db: unknown,
+  options: { required: boolean },
+): Promise<string | undefined> {
+  const finder = getTenantFinder(db);
+  if (!finder) {
+    if (options.required) {
+      throw new TenantResolutionError(
+        'Authenticated tenant routes require verified UUID claim or trusted slug→UUID lookup (lookup unavailable)',
+      );
+    }
+    return undefined;
+  }
+
+  const tenant = await finder.findUnique({ where: { slug } });
+  if (!tenant) {
+    throw new TenantResolutionError(`Tenant not found for subdomain: ${slug}`);
+  }
+  if (!isValidUuid(tenant.id)) {
+    throw new TenantResolutionError(
+      `Trusted slug lookup returned non-UUID tenant id for subdomain: ${slug}`,
+    );
+  }
+  return tenant.id;
 }
 
 // Extend Fastify types
@@ -117,31 +171,66 @@ export const tenantPlugin = fp(
         try {
           const resolution = resolveTenantId(request, resolutionOptions);
           let tenantId = resolution.tenantId;
+          const authenticated = isAuthenticatedRequest(request);
+          const db = getDbClient?.(request) ?? fastify.prisma;
 
-          // If resolved from subdomain (slug), look up the actual UUID
-          if (resolution.source === 'subdomain' && resolveSlugToId) {
-            const db = getDbClient?.(request) ?? fastify.prisma;
-            if (db && 'tenant' in db && db.tenant) {
-              const tenant = await (
-                db.tenant as {
-                  findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
-                }
-              ).findUnique({
-                where: { slug: tenantId },
-              });
-              if (!tenant) {
-                throw new TenantResolutionError(`Tenant not found for subdomain: ${tenantId}`);
+          // Subdomain yields a slug — authenticated principals must map via trusted lookup.
+          if (resolution.source === 'subdomain') {
+            if (authenticated) {
+              if (!resolveSlugToId) {
+                throw new TenantResolutionError(
+                  'Authenticated tenant routes require verified UUID claim or trusted slug→UUID lookup',
+                );
               }
-              tenantId = tenant.id;
+              const lookedUp = await resolveSlugViaTrustedLookup(tenantId, db, {
+                required: true,
+              });
+              tenantId = lookedUp!;
+            } else if (resolveSlugToId) {
+              const lookedUp = await resolveSlugViaTrustedLookup(tenantId, db, {
+                required: false,
+              });
+              if (lookedUp) {
+                tenantId = lookedUp;
+              }
+              // If no DB client available, use slug as-is (useful in testing / anonymous)
             }
-            // If no DB client available, use slug as-is (useful in testing)
+          } else if (
+            resolution.source === 'jwt' &&
+            authenticated &&
+            resolveSlugToId &&
+            typeof request.hostname === 'string'
+          ) {
+            // When JWT UUID and host slug both present, reject if trusted lookup
+            // yields a different tenant UUID (conflicting identities).
+            const host = request.hostname || request.headers['host'];
+            if (host && typeof host === 'string') {
+              const baseDomain =
+                resolutionOptions.baseDomain ??
+                process.env['TENANT_BASE_DOMAIN'] ??
+                'proctira.org';
+              const hostname = host.split(':')[0]!;
+              if (hostname.endsWith(`.${baseDomain}`)) {
+                const slug = hostname.slice(0, -(baseDomain.length + 1));
+                if (slug.length > 0 && !slug.includes('.')) {
+                  const finder = getTenantFinder(db);
+                  if (finder) {
+                    const tenant = await finder.findUnique({ where: { slug } });
+                    if (tenant && isValidUuid(tenant.id) && tenant.id !== tenantId) {
+                      throw new TenantResolutionError(
+                        `Conflicting tenant identities: JWT claim (${tenantId}) does not match host slug (${slug} → ${tenant.id})`,
+                      );
+                    }
+                  }
+                }
+              }
+            }
           }
 
           request.tenantId = tenantId;
           request.tenantSource = resolution.source;
 
           // W1-DATA-12 / G-720: bind canonical app.tenant_id (+ legacy alias) as a parameter.
-          const db = getDbClient?.(request) ?? fastify.prisma;
           if (db) {
             await bindTenantGucPrisma(db, tenantId);
           }

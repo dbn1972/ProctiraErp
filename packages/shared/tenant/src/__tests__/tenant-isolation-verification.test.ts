@@ -591,17 +591,10 @@ describe('3. E2E Tests: Cross-Tenant Access Prevention', () => {
     await app.close();
   });
 
-  it('JWT tenant claim takes precedence over header, preventing header spoofing', async () => {
+  it('JWT tenant claim rejects conflicting header rather than allowing spoof (W1-SEC-01)', async () => {
     await fc.assert(
       fc.asyncProperty(distinctTenantPairArb, async ({ tenantA, tenantB }) => {
-        const setConfigCalls: string[] = [];
-        const mockExecuteRawUnsafe = vi
-          .fn()
-          .mockImplementation((_query: string, tenant: string) => {
-            // G-720: the tenant id is a bound parameter
-            setConfigCalls.push(tenant);
-            return Promise.resolve(undefined);
-          });
+        const mockExecuteRawUnsafe = vi.fn().mockResolvedValue(undefined);
 
         const app: FastifyInstance = Fastify();
 
@@ -628,11 +621,10 @@ describe('3. E2E Tests: Cross-Tenant Access Prevention', () => {
           headers: { 'x-tenant-id': tenantB },
         });
 
+        expect(response.statusCode).toBe(401);
         const body = JSON.parse(response.body);
-
-        // JWT claim (tenant A) must take precedence — header spoofing prevented
-        expect(body.tenantId).toBe(tenantA);
-        expect(body.tenantId).not.toBe(tenantB);
+        expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
+        expect(String(body.message)).toMatch(/Conflicting tenant identities/);
 
         await app.close();
       }),

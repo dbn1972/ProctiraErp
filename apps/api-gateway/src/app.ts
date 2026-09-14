@@ -584,8 +584,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 7c. Strip forgeable client identity headers AFTER auth (G-102, W1-SEC-01).
   // Actor identity comes only from the verified JWT (request.user / getActor).
-  // Tenant scope comes only from JWT claims or host subdomain — never from
-  // client-supplied X-Tenant-ID (see tenantPlugin registration below).
+  // Tenant scope for authenticated routes requires a verified UUID JWT claim
+  // (or trusted slug→UUID lookup). Client X-Tenant-ID is never trusted; raw
+  // hostname slugs are rejected when slug lookup is disabled (below).
   const FORGEABLE_CLIENT_HEADERS = new Set([
     'x-user-id',
     'x-actor',
@@ -601,12 +602,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
-  // 8. Register tenant resolution (after auth, so JWT claims are available)
+  // 8. Register tenant resolution (after auth, so JWT claims are available).
+  // W1-SEC-01 COMPLETE: resolveSlugToId stays false here (no Prisma tenant
+  // finder on the gateway), so authenticated requests cannot fall through to
+  // a raw hostname slug — they need a verified UUID tenantId claim.
   await app.register(tenantPlugin, {
     baseDomain: config.tenant.baseDomain,
     headerName: config.tenant.headerName,
     excludePaths: [...authExcludePaths, '/api/v1/services'],
-    resolveSlugToId: false, // Gateway doesn't have direct DB access
+    resolveSlugToId: false,
+    requireJwtTenantWhenAuthenticated: true,
   });
 
   // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth).
