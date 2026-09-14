@@ -27,7 +27,9 @@ export interface AuthPluginOptions {
   excludePaths?: string[];
   /**
    * Access-token jti/sid denylist (W1-SEC-09).
-   * Defaults to an in-process memory store when omitted.
+   * Defaults via {@link createAccessTokenRevocationStore}: shared Redis when
+   * injected by the gateway; process-local memory only in non-prod (production
+   * fails closed without a shared store).
    */
   revocationStore?: AccessTokenRevocationStore;
 }
