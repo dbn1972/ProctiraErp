@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Fail closed: apply path must not soft-succeed without cluster credentials.
       - name: Require KUBECONFIG for apply
@@ -76,17 +76,17 @@ jobs:
 
       - name: Configure kubectl
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
 
       - name: Set Kubernetes context
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
-        uses: azure/k8s-set-context@v4
+        uses: azure/k8s-set-context@v5
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
 
       - name: Install Helm
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: 'v3.14.0'
 
@@ -166,7 +166,7 @@ jobs:
 
       - name: Post rollback notification
         if: always() && inputs.dry_run != true && inputs.dry_run != 'true'
-        uses: slackapi/slack-github-action@v1.26.0
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           payload: |
             {

@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # pubspec environment.sdk: ^3.11.5 — Flutter stable ships a compatible Dart SDK.
       - name: Set up Flutter (stable)
