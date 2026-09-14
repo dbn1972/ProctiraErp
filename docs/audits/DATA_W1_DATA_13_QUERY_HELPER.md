@@ -65,7 +65,7 @@ pnpm --filter @proctira/backend-student exec vitest run \
 | `ensureSchema` / DDL still uses unbound `pool.query` | **Accepted** — schema apply is not tenant data |
 | Registration / ETL interfaces keep optional `tenantId?` for in-memory callers | **Accepted** — Postgres store denies empty; interface widen is a later cleanup |
 | `getHistoryByEnrollmentId` still discovers tenant via platform scope instead of requiring `tenantId` on the API | **Accepted** — callers lack tenant today; platform GUC is set |
-| Broader monorepo sweep of every `pool.query` outside these four sites | **Out of scope** — static gate covers the cited residuals |
+| Broader monorepo sweep of every `pool.query` outside these four sites | **Closed** — see `DATA_W1_DATA_13_COMPLETE.md` (monorepo AST fail-closed gate) |
 | Static method extractor previously treated object-type params as the body | **Fixed** — paren-balance before body `{` so `listModules(filter: {…})` is covered |
 
 ## Rollback
