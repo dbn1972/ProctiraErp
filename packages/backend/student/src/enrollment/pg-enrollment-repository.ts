@@ -11,6 +11,7 @@ import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/dat
 import type {
   EnrollmentEntity,
   EnrollmentFilter,
+  EnrollmentHistoryContext,
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
@@ -20,6 +21,28 @@ import type {
 export type EnrollmentPgPool = PgQueryable & { connect?: () => Promise<unknown> };
 
 const ACTIVE_ENROLLMENT_UNIQUE = 'uq_enrollments_active_student_period';
+
+/** Transaction-local GUCs read by `enrollments_write_history` (db/sql/080). */
+async function bindEnrollmentHistoryGucs(
+  client: PgQueryable,
+  history?: EnrollmentHistoryContext,
+): Promise<void> {
+  if (!history) return;
+  if (history.reason != null && history.reason !== '') {
+    await client.query(`SELECT set_config('app.enrollment_history_reason', $1, true)`, [
+      history.reason,
+    ]);
+  }
+  if (history.effectiveDate != null) {
+    const isoDate =
+      history.effectiveDate instanceof Date
+        ? history.effectiveDate.toISOString().slice(0, 10)
+        : String(history.effectiveDate).slice(0, 10);
+    await client.query(`SELECT set_config('app.enrollment_history_effective_date', $1, true)`, [
+      isoDate,
+    ]);
+  }
+}
 
 function mapActiveEnrollmentConflict(err: unknown): never | void {
   const pgErr = err as { code?: string; constraint?: string };
@@ -82,6 +105,12 @@ function mapTransfer(row: Record<string, unknown>): TransferRecordEntity {
 }
 
 export class PgEnrollmentRepository implements EnrollmentRepository {
+  /**
+   * W1-DATA-14 — DB trigger `trg_enrollments_write_history` is the sole writer
+   * of `enrollment_history` on Postgres. App must not INSERT duplicates.
+   */
+  readonly writesHistoryViaDatabase = true as const;
+
   constructor(private readonly pool: EnrollmentPgPool) {}
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
@@ -90,9 +119,11 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
 
   async createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
+    history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity> {
     try {
       return await this.withTenant(data.tenantId, async (client) => {
+        await bindEnrollmentHistoryGucs(client, history);
         const result = await client.query(
           `INSERT INTO enrollments (
              id, tenant_id, student_id, institution_id, grade_id, class_id,
@@ -124,6 +155,7 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
     id: string,
     tenantId: string,
     data: Partial<EnrollmentEntity>,
+    history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity | null> {
     return this.withTenant(tenantId, async (client) => {
       const existing = await client.query(
@@ -134,6 +166,7 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
       if (!row) return null;
       const current = mapEnrollment(row);
       const next = { ...current, ...data, id: current.id, tenantId: current.tenantId };
+      await bindEnrollmentHistoryGucs(client, history);
       const result = await client.query(
         `UPDATE enrollments
            SET student_id = $3, institution_id = $4, grade_id = $5, class_id = $6,
@@ -232,36 +265,12 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
   async createHistoryEntry(
     data: Omit<EnrollmentHistoryEntity, 'createdAt'>,
   ): Promise<EnrollmentHistoryEntity> {
-    // The caller supplies the tenant so RLS is bound for both the parent
-    // lookup and the insert. (Previously this looked the tenant up with an
-    // unbound query, which FORCE RLS turns into "enrollment not found".)
-    return this.withTenant(data.tenantId, async (client) => {
-      const parent = await client.query(
-        `SELECT 1 FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
-        [data.enrollmentId, data.tenantId],
-      );
-      if (parent.rows.length === 0) {
-        throw new Error(`Enrollment ${data.enrollmentId} not found for history entry`);
-      }
-      const result = await client.query(
-        `INSERT INTO enrollment_history (
-           id, tenant_id, enrollment_id, previous_status, new_status, effective_date,
-           institution_id, academic_period_id, reason
-         ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9) RETURNING *`,
-        [
-          data.id,
-          data.tenantId,
-          data.enrollmentId,
-          data.previousStatus,
-          data.newStatus,
-          data.effectiveDate,
-          data.institutionId,
-          data.academicPeriodId,
-          data.reason,
-        ],
-      );
-      return mapHistory(result.rows[0] as Record<string, unknown>);
-    });
+    // W1-DATA-14: triggers already insert enrollment_history. Returning a
+    // synthetic row avoids a duplicate INSERT if a caller still invokes this.
+    return {
+      ...data,
+      createdAt: new Date(),
+    };
   }
 
   async getEnrollmentHistory(

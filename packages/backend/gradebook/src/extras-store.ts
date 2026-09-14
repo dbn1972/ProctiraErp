@@ -50,6 +50,11 @@ export type ClassRankSnapshotRecord = {
 };
 
 export interface GradebookExtrasStore {
+  /**
+   * When true, DB triggers write `grade_change_audit`; {@link appendAudit} is a no-op.
+   */
+  readonly writesAuditViaDatabase?: boolean;
+
   appendAudit(row: GradeChangeAuditRecord): Promise<GradeChangeAuditRecord>;
   listAudits(tenantId: string, gradeEntryId?: string): Promise<GradeChangeAuditRecord[]>;
 
@@ -76,6 +81,8 @@ export interface GradebookExtrasStore {
 }
 
 export class InMemoryGradebookExtrasStore implements GradebookExtrasStore {
+  readonly writesAuditViaDatabase = false as const;
+
   private readonly audits = new Map<string, GradeChangeAuditRecord>();
   private readonly comments = new Map<string, CommentsBankRecord>();
   private readonly ranks = new Map<string, ClassRankSnapshotRecord>();
@@ -239,6 +246,11 @@ function mapRank(row: Record<string, unknown>): ClassRankSnapshotRecord {
 }
 
 export class PgGradebookExtrasStore implements GradebookExtrasStore {
+  /**
+   * W1-DATA-14 — trigger writes audit rows; app INSERT would duplicate.
+   */
+  readonly writesAuditViaDatabase = true as const;
+
   constructor(private readonly pool: GradebookExtrasPool) {}
 
   private run<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
@@ -246,32 +258,8 @@ export class PgGradebookExtrasStore implements GradebookExtrasStore {
   }
 
   async appendAudit(row: GradeChangeAuditRecord): Promise<GradeChangeAuditRecord> {
-    return this.run(row.tenantId, async (client) => {
-      const { rows } = await client.query(
-        `INSERT INTO grade_change_audit (
-           id, tenant_id, grade_entry_id, action, from_status, to_status,
-           from_numeric_score, to_numeric_score, from_letter_grade, to_letter_grade,
-           actor_id, details, created_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13)
-         RETURNING *`,
-        [
-          row.id,
-          row.tenantId,
-          row.gradeEntryId,
-          row.action,
-          row.fromStatus,
-          row.toStatus,
-          row.fromNumericScore,
-          row.toNumericScore,
-          row.fromLetterGrade,
-          row.toLetterGrade,
-          row.actorId,
-          JSON.stringify(row.details ?? {}),
-          row.createdAt,
-        ],
-      );
-      return mapAudit(rows[0] as Record<string, unknown>);
-    });
+    // No-op: `trg_grade_entries_write_change_audit` already inserted the row.
+    return { ...row };
   }
 
   async listAudits(tenantId: string, gradeEntryId?: string): Promise<GradeChangeAuditRecord[]> {

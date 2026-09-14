@@ -117,6 +117,10 @@ export class GradebookService {
     actorId: string | null;
     details?: Record<string, unknown>;
   }): void {
+    // W1-DATA-14: Postgres trigger writes grade_change_audit; skip app INSERT.
+    if (this.repo.writesAuditViaDatabase || this.extras.writesAuditViaDatabase) {
+      return;
+    }
     const row = {
       id: randomUUID(),
       tenantId: entry.tenantId,
@@ -317,16 +321,21 @@ export class GradebookService {
     };
 
     if (existing) {
-      const updated = await this.repo.updateGradeEntry(tenantId, existing.id, {
-        numericScore: input.numericScore ?? null,
-        letterGrade: input.letterGrade ?? null,
-        sectionId: input.sectionId ?? existing.sectionId,
-        assessmentCode: input.assessmentCode ?? existing.assessmentCode,
-        enteredBy: actorId(user),
-        enteredAt: now,
-        metadata,
-        updatedAt: now,
-      });
+      const updated = await this.repo.updateGradeEntry(
+        tenantId,
+        existing.id,
+        {
+          numericScore: input.numericScore ?? null,
+          letterGrade: input.letterGrade ?? null,
+          sectionId: input.sectionId ?? existing.sectionId,
+          assessmentCode: input.assessmentCode ?? existing.assessmentCode,
+          enteredBy: actorId(user),
+          enteredAt: now,
+          metadata,
+          updatedAt: now,
+        },
+        { action: 'grade.upsert', actorId: actorId(user) },
+      );
       if (!updated) throw new NotFoundError(`Grade entry ${existing.id} not found`);
       this.recordAudit({
         tenantId,
@@ -352,22 +361,25 @@ export class GradebookService {
       return updated;
     }
 
-    const created = await this.repo.createGradeEntry({
-      id: randomUUID(),
-      tenantId,
-      sectionId: input.sectionId ?? null,
-      studentId: input.studentId,
-      assessmentCode: input.assessmentCode ?? null,
-      numericScore: input.numericScore ?? null,
-      letterGrade: input.letterGrade ?? null,
-      enteredBy: actorId(user),
-      enteredAt: now,
-      lockedAt: null,
-      publishedAt: null,
-      metadata,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const created = await this.repo.createGradeEntry(
+      {
+        id: randomUUID(),
+        tenantId,
+        sectionId: input.sectionId ?? null,
+        studentId: input.studentId,
+        assessmentCode: input.assessmentCode ?? null,
+        numericScore: input.numericScore ?? null,
+        letterGrade: input.letterGrade ?? null,
+        enteredBy: actorId(user),
+        enteredAt: now,
+        lockedAt: null,
+        publishedAt: null,
+        metadata,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { action: 'grade.upsert', actorId: actorId(user) },
+    );
     this.recordAudit({
       tenantId,
       action: 'grade.upsert',
@@ -426,12 +438,17 @@ export class GradebookService {
       : action === 'reopen'
         ? null
         : entry.publishedAt;
-    const updated = await this.repo.updateGradeEntry(tenantId, entryId, {
-      metadata,
-      lockedAt,
-      publishedAt,
-      updatedAt: now,
-    });
+    const updated = await this.repo.updateGradeEntry(
+      tenantId,
+      entryId,
+      {
+        metadata,
+        lockedAt,
+        publishedAt,
+        updatedAt: now,
+      },
+      { action: `grade.${action}`, actorId: actorId(user) },
+    );
     if (!updated) throw new NotFoundError(`Grade entry ${entryId} not found`);
     this.recordAudit({
       tenantId,

@@ -68,31 +68,40 @@ export class EnrollmentService {
     await this.assertNoActiveEnrollment(tenantId, input.studentId, input.academicPeriodId);
 
     const enrollmentId = uuidv4();
-    const enrollment = await this.repository.createEnrollment({
-      id: enrollmentId,
-      tenantId,
-      studentId: input.studentId,
-      institutionId: input.institutionId,
-      gradeId: input.gradeId,
-      classId: input.classId,
-      academicPeriodId: input.academicPeriodId,
-      status: EnrollmentStatus.ENROLLED,
-      enrolledAt: new Date(input.enrolledAt),
-      exitedAt: null,
-    });
-
-    // Record initial history entry
-    await this.repository.createHistoryEntry({
-      id: uuidv4(),
-      tenantId,
-      enrollmentId: enrollment.id,
-      previousStatus: null,
-      newStatus: EnrollmentStatus.ENROLLED,
-      effectiveDate: new Date(input.enrolledAt),
-      institutionId: input.institutionId,
-      academicPeriodId: input.academicPeriodId,
+    const history = {
       reason: 'Initial enrollment',
-    });
+      effectiveDate: new Date(input.enrolledAt),
+    };
+    const enrollment = await this.repository.createEnrollment(
+      {
+        id: enrollmentId,
+        tenantId,
+        studentId: input.studentId,
+        institutionId: input.institutionId,
+        gradeId: input.gradeId,
+        classId: input.classId,
+        academicPeriodId: input.academicPeriodId,
+        status: EnrollmentStatus.ENROLLED,
+        enrolledAt: new Date(input.enrolledAt),
+        exitedAt: null,
+      },
+      history,
+    );
+
+    // In-memory: write history in-app. Postgres: trigger already wrote via GUCs.
+    if (!this.repository.writesHistoryViaDatabase) {
+      await this.repository.createHistoryEntry({
+        id: uuidv4(),
+        tenantId,
+        enrollmentId: enrollment.id,
+        previousStatus: null,
+        newStatus: EnrollmentStatus.ENROLLED,
+        effectiveDate: history.effectiveDate,
+        institutionId: input.institutionId,
+        academicPeriodId: input.academicPeriodId,
+        reason: history.reason,
+      });
+    }
 
     return enrollment;
   }
@@ -126,28 +135,38 @@ export class EnrollmentService {
 
     const previousStatus = enrollment.status;
     const newStatus = input.status;
+    const history = {
+      reason: input.reason,
+      effectiveDate: new Date(input.effectiveDate),
+    };
 
-    const updated = await this.repository.updateEnrollment(enrollmentId, tenantId, {
-      status: newStatus,
-      exitedAt: new Date(input.effectiveDate),
-    });
+    const updated = await this.repository.updateEnrollment(
+      enrollmentId,
+      tenantId,
+      {
+        status: newStatus,
+        exitedAt: new Date(input.effectiveDate),
+      },
+      history,
+    );
 
     if (!updated) {
       throw new NotFoundError(`Enrollment with id '${enrollmentId}' not found`);
     }
 
-    // Record history entry
-    await this.repository.createHistoryEntry({
-      id: uuidv4(),
-      tenantId,
-      enrollmentId,
-      previousStatus,
-      newStatus,
-      effectiveDate: new Date(input.effectiveDate),
-      institutionId: enrollment.institutionId,
-      academicPeriodId: enrollment.academicPeriodId,
-      reason: input.reason,
-    });
+    if (!this.repository.writesHistoryViaDatabase) {
+      await this.repository.createHistoryEntry({
+        id: uuidv4(),
+        tenantId,
+        enrollmentId,
+        previousStatus,
+        newStatus,
+        effectiveDate: history.effectiveDate,
+        institutionId: enrollment.institutionId,
+        academicPeriodId: enrollment.academicPeriodId,
+        reason: history.reason,
+      });
+    }
 
     return updated;
   }
@@ -258,6 +277,10 @@ export class EnrollmentService {
     }
 
     // Step 1: Set source enrollment to TRANSFERRED
+    const transferOutHistory = {
+      reason: input.reason,
+      effectiveDate: new Date(input.transferDate),
+    };
     const updatedSource = await this.repository.updateEnrollment(
       input.sourceEnrollmentId,
       tenantId,
@@ -265,53 +288,63 @@ export class EnrollmentService {
         status: EnrollmentStatus.TRANSFERRED,
         exitedAt: new Date(input.transferDate),
       },
+      transferOutHistory,
     );
     if (!updatedSource) {
       throw new NotFoundError(`Source enrollment with id '${input.sourceEnrollmentId}' not found`);
     }
 
-    // Record history entry for source (transferred out)
-    await this.repository.createHistoryEntry({
-      id: uuidv4(),
-      tenantId,
-      enrollmentId: input.sourceEnrollmentId,
-      previousStatus: EnrollmentStatus.ENROLLED,
-      newStatus: EnrollmentStatus.TRANSFERRED,
-      effectiveDate: new Date(input.transferDate),
-      institutionId: sourceEnrollment.institutionId,
-      academicPeriodId: sourceEnrollment.academicPeriodId,
-      reason: input.reason,
-    });
+    if (!this.repository.writesHistoryViaDatabase) {
+      await this.repository.createHistoryEntry({
+        id: uuidv4(),
+        tenantId,
+        enrollmentId: input.sourceEnrollmentId,
+        previousStatus: EnrollmentStatus.ENROLLED,
+        newStatus: EnrollmentStatus.TRANSFERRED,
+        effectiveDate: transferOutHistory.effectiveDate,
+        institutionId: sourceEnrollment.institutionId,
+        academicPeriodId: sourceEnrollment.academicPeriodId,
+        reason: transferOutHistory.reason,
+      });
+    }
 
     // Step 2: Create new enrollment at destination with status ENROLLED
     await this.assertNoActiveEnrollment(tenantId, input.studentId, input.academicPeriodId);
 
     const destinationEnrollmentId = uuidv4();
-    const destinationEnrollment = await this.repository.createEnrollment({
-      id: destinationEnrollmentId,
-      tenantId,
-      studentId: input.studentId,
-      institutionId: input.destinationInstitutionId,
-      gradeId: input.destinationGradeId,
-      classId: input.destinationClassId,
-      academicPeriodId: input.academicPeriodId,
-      status: EnrollmentStatus.ENROLLED,
-      enrolledAt: new Date(input.transferDate),
-      exitedAt: null,
-    });
-
-    // Record history entry for destination (enrolled via transfer)
-    await this.repository.createHistoryEntry({
-      id: uuidv4(),
-      tenantId,
-      enrollmentId: destinationEnrollmentId,
-      previousStatus: null,
-      newStatus: EnrollmentStatus.ENROLLED,
-      effectiveDate: new Date(input.transferDate),
-      institutionId: input.destinationInstitutionId,
-      academicPeriodId: input.academicPeriodId,
+    const transferInHistory = {
       reason: `Transfer from institution ${sourceEnrollment.institutionId}: ${input.reason}`,
-    });
+      effectiveDate: new Date(input.transferDate),
+    };
+    const destinationEnrollment = await this.repository.createEnrollment(
+      {
+        id: destinationEnrollmentId,
+        tenantId,
+        studentId: input.studentId,
+        institutionId: input.destinationInstitutionId,
+        gradeId: input.destinationGradeId,
+        classId: input.destinationClassId,
+        academicPeriodId: input.academicPeriodId,
+        status: EnrollmentStatus.ENROLLED,
+        enrolledAt: new Date(input.transferDate),
+        exitedAt: null,
+      },
+      transferInHistory,
+    );
+
+    if (!this.repository.writesHistoryViaDatabase) {
+      await this.repository.createHistoryEntry({
+        id: uuidv4(),
+        tenantId,
+        enrollmentId: destinationEnrollmentId,
+        previousStatus: null,
+        newStatus: EnrollmentStatus.ENROLLED,
+        effectiveDate: transferInHistory.effectiveDate,
+        institutionId: input.destinationInstitutionId,
+        academicPeriodId: input.academicPeriodId,
+        reason: transferInHistory.reason,
+      });
+    }
 
     // Step 3: Create transfer record
     const transferRecord = await this.repository.createTransferRecord({

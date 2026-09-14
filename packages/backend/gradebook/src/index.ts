@@ -117,6 +117,7 @@ export {
 
 export type {
   GradebookRepository,
+  GradeChangeAuditContext,
   GradeEntryEntity,
   CreditRuleEntity,
   GradingScaleEntity,

@@ -46,6 +46,7 @@ export {
 } from './enrollment/index.js';
 export type {
   EnrollmentEntity,
+  EnrollmentHistoryContext,
   EnrollmentHistoryEntity,
   TransferRecordEntity,
   EnrollmentFilter,

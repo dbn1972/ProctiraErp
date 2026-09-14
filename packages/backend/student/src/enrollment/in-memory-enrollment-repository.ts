@@ -10,6 +10,7 @@ import { ConflictError } from '@proctira/common';
 import type {
   EnrollmentEntity,
   EnrollmentFilter,
+  EnrollmentHistoryContext,
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
@@ -17,6 +18,9 @@ import type {
 } from './enrollment-repository.js';
 
 export class InMemoryEnrollmentRepository implements EnrollmentRepository {
+  /** In-memory has no DB triggers — service writes history via createHistoryEntry. */
+  readonly writesHistoryViaDatabase = false as const;
+
   private enrollments: Map<string, EnrollmentEntity> = new Map();
   private historyEntries: EnrollmentHistoryEntity[] = [];
   private transferRecords: TransferRecordEntity[] = [];
@@ -24,6 +28,7 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
 
   async createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
+    _history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity> {
     if (data.status === 'ENROLLED') {
       const active = await this.findActiveEnrollment(
@@ -52,6 +57,7 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     id: string,
     tenantId: string,
     data: Partial<EnrollmentEntity>,
+    _history?: EnrollmentHistoryContext,
   ): Promise<EnrollmentEntity | null> {
     const existing = this.enrollments.get(id);
     if (!existing || existing.tenantId !== tenantId) {
