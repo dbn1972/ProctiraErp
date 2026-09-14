@@ -1108,6 +1108,29 @@ jobs:
         run: node tools/scripts/check-codeowners.mjs
 
   # ---------------------------------------------------------------------------
+  # Reusable CI assets — ops gate (W1-OPS-24)
+  # ---------------------------------------------------------------------------
+  # Fail closed when reusable-setup.yml, setup-node-pnpm, or
+  # validate-observability.mjs lose their active workflow callers.
+  # Always required by ci-aggregate (independent of actionlint path filters).
+  # ---------------------------------------------------------------------------
+  reusable-ci-assets:
+    name: Reusable CI Assets (W1-OPS-24)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test reusable CI asset gate
+        run: node --test tools/scripts/assert-reusable-ci-assets.test.mjs
+
+      - name: Fail when reusable CI assets lose callers
+        run: node tools/scripts/assert-reusable-ci-assets.mjs
+
+  # ---------------------------------------------------------------------------
   # Runtime table privilege catalog — data gate (W1-DATA-11 COMPLETE)
   # ---------------------------------------------------------------------------
   # Fail closed when public tables are unclassified, 050 restores blanket
@@ -1335,6 +1358,7 @@ jobs:
       - tenant-id-indexes
       - migration-timeouts
       - codeowners-gate
+      - reusable-ci-assets
       - runtime-table-privileges
       - runtime-role-gate
       - security-scans
@@ -1376,6 +1400,7 @@ jobs:
           TENANT_ID_INDEXES_RESULT: ${{ needs.tenant-id-indexes.result }}
           MIGRATION_TIMEOUTS_RESULT: ${{ needs.migration-timeouts.result }}
           CODEOWNERS_GATE_RESULT: ${{ needs.codeowners-gate.result }}
+          REUSABLE_CI_ASSETS_RESULT: ${{ needs.reusable-ci-assets.result }}
           RUNTIME_TABLE_PRIVILEGES_RESULT: ${{ needs.runtime-table-privileges.result }}
           RUNTIME_ROLE_GATE_RESULT: ${{ needs.runtime-role-gate.result }}
           SECURITY_SCANS_RESULT: ${{ needs.security-scans.result }}

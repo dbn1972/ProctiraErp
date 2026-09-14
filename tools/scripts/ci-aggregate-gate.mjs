@@ -131,6 +131,11 @@ export function evaluate({ changes, results }) {
       requiredWhen: () => true,
     },
     {
+      job: 'reusable-ci-assets',
+      result: results.reusableCiAssets,
+      requiredWhen: () => true,
+    },
+    {
       job: 'runtime-table-privileges',
       result: results.runtimeTablePrivileges,
       requiredWhen: () => true,
@@ -272,6 +277,7 @@ function readEnv() {
       tenantIdIndexes: process.env.TENANT_ID_INDEXES_RESULT,
       migrationTimeouts: process.env.MIGRATION_TIMEOUTS_RESULT,
       codeownersGate: process.env.CODEOWNERS_GATE_RESULT,
+      reusableCiAssets: process.env.REUSABLE_CI_ASSETS_RESULT,
       runtimeTablePrivileges: process.env.RUNTIME_TABLE_PRIVILEGES_RESULT,
       runtimeRoleGate: process.env.RUNTIME_ROLE_GATE_RESULT,
       securityScans: process.env.SECURITY_SCANS_RESULT,
