@@ -1,7 +1,7 @@
 # DATA — W1-DATA-12 tenant GUC canonicalization
 
 **Module / slice:** Postgres RLS session GUC (`app.tenant_id`)  
-**Branch / tip:** `cursor/aud-w1-data-12-guc-56c3`  
+**Branch / tip:** `cursor/aud-w1-data-12-guc-56c3` (`364763cd1c8eb38f88ddb0736cd2d1ab15fc895a`)  
 **Date (UTC):** 2026-09-14  
 **Environment:** static contract (+ optional live Postgres via apply-sql)
 
