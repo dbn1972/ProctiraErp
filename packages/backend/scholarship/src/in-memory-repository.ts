@@ -5,6 +5,7 @@
  * Implements the ScholarshipRepository interface with Map-based stores.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { majorUnitsNumberFromCents } from '@proctira/common';
 
 import type {
   ScholarshipProgramEntity,
@@ -388,14 +389,15 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       (d) => approvedAppIds.has(d.applicationId) && d.paymentStatus === 'paid',
     );
 
-    const totalAmount = paidDisbursements.reduce((sum, d) => sum + d.amount, 0);
+    const totalAmountCents = paidDisbursements.reduce((sum, d) => sum + d.amountCents, 0);
+    const totalAmount = majorUnitsNumberFromCents(totalAmountCents);
     const currency = programs.length > 0 && programs[0] ? programs[0].currency : 'USD';
 
     // Build breakdown
     const groupBy = filter.groupBy ?? 'program';
     const groupMap = new Map<
       string,
-      { applicationCount: number; approvedCount: number; disbursedAmount: number }
+      { applicationCount: number; approvedCount: number; disbursedAmountCents: number }
     >();
 
     for (const app of apps) {
@@ -418,7 +420,7 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       }
 
       if (!groupMap.has(key)) {
-        groupMap.set(key, { applicationCount: 0, approvedCount: 0, disbursedAmount: 0 });
+        groupMap.set(key, { applicationCount: 0, approvedCount: 0, disbursedAmountCents: 0 });
       }
       const group = groupMap.get(key)!;
       group.applicationCount++;
@@ -450,7 +452,7 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       }
       const group = groupMap.get(key);
       if (group) {
-        group.disbursedAmount += d.amount;
+        group.disbursedAmountCents += d.amountCents;
       }
     }
 
@@ -459,7 +461,8 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       groupValue: key,
       applicationCount: data.applicationCount,
       approvedCount: data.approvedCount,
-      disbursedAmount: data.disbursedAmount,
+      disbursedAmountCents: data.disbursedAmountCents,
+      disbursedAmount: majorUnitsNumberFromCents(data.disbursedAmountCents),
       utilizationRate:
         data.applicationCount > 0
           ? Math.round((data.approvedCount / data.applicationCount) * 10000) / 100
@@ -472,6 +475,7 @@ export class InMemoryScholarshipRepository implements ScholarshipRepository {
       totalApproved: approvedApps.length,
       totalDisbursed: paidDisbursements.length,
       totalAmount,
+      totalAmountCents,
       currency,
       breakdown,
     };

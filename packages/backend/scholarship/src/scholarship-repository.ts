@@ -28,7 +28,10 @@ export interface ScholarshipProgramEntity {
   applicationEndDate: string;
   totalSlots: number;
   usedSlots: number;
+  /** Major currency units (display / API compat). Always reconciles with amountPerRecipientCents. */
   amountPerRecipient: number;
+  /** W1-DATA-09: integer cents — ledger / netting source of truth. */
+  amountPerRecipientCents: number;
   currency: string;
   disbursementFrequency: DisbursementFrequency;
   eligibility: EligibilityCriteria;
@@ -146,7 +149,10 @@ export interface UtilizationReportData {
   totalApplications: number;
   totalApproved: number;
   totalDisbursed: number;
+  /** Major units derived from totalAmountCents (API/UI compat). */
   totalAmount: number;
+  /** W1-DATA-09: paid disbursements summed in integer cents. */
+  totalAmountCents: number;
   currency: string;
   breakdown: UtilizationBreakdownItem[];
 }
@@ -156,7 +162,10 @@ export interface UtilizationBreakdownItem {
   groupValue: string;
   applicationCount: number;
   approvedCount: number;
+  /** Major units derived from disbursedAmountCents. */
   disbursedAmount: number;
+  /** W1-DATA-09: group paid total in integer cents. */
+  disbursedAmountCents: number;
   utilizationRate: number;
 }
 

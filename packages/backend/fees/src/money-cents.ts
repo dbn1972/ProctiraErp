@@ -5,4 +5,6 @@ export {
   assertMajorMatchesCents,
   pgIntegerCents,
   pgOptionalIntegerCents,
+  pgNumericMajorToCents,
+  majorUnitsNumberFromCents,
 } from '@proctira/common';

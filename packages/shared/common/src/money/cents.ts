@@ -1,9 +1,9 @@
 /**
  * W2-FIN-08 / W1-DATA-09: major-currency ↔ integer-cents conversion without silent float drift.
  *
- * Scholarship / admissions store NUMERIC major units; the fee ledger is integer cents.
- * Never use bare `Math.round(Number(x) * 100)` or bare `Number(bigint)` at call sites —
- * centralize the guard here.
+ * Scholarships dual-write NUMERIC major + BIGINT cents (`amount_per_recipient_cents`,
+ * `amount_cents`); the fee ledger is integer cents only. Never use bare
+ * `Math.round(Number(x) * 100)` or bare `Number(bigint)` at call sites — centralize here.
  */
 
 import { BusinessRuleError } from '../exceptions/index.js';
@@ -124,4 +124,22 @@ export function pgIntegerCents(value: unknown): number {
 export function pgOptionalIntegerCents(value: unknown): number | null {
   if (value == null) return null;
   return pgIntegerCents(value);
+}
+
+/**
+ * W1-DATA-09: coerce Postgres NUMERIC major-unit money to integer cents.
+ * `node-pg` returns NUMERIC as string — prefer that path over `Number(numeric)`.
+ */
+export function pgNumericMajorToCents(value: unknown): number {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return majorUnitsToCents(value);
+  }
+  throw new BusinessRuleError(
+    `Money major units has unsupported type: ${typeof value}`,
+  );
+}
+
+/** Display major units derived from integer cents (string → number for API compat). */
+export function majorUnitsNumberFromCents(cents: number): number {
+  return Number(centsToMajorUnits(cents));
 }

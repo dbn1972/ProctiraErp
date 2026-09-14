@@ -13,6 +13,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { majorUnitsToCents } from '@proctira/common';
 
 import { createInvoiceAction } from '../../fees-actions';
 import type { FeePlan } from '@/lib/api/fees';
@@ -49,11 +50,20 @@ export function NewInvoiceForm({ plans }: { plans: FeePlan[] }) {
 
     startTransition(async () => {
       setError(null);
+      let amountCents: number | undefined;
+      if (amountRupees !== undefined) {
+        try {
+          amountCents = majorUnitsToCents(amountRupees);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Invalid amount');
+          return;
+        }
+      }
       const result = await createInvoiceAction({
         studentId,
         planId: planId || undefined,
         title: title || undefined,
-        amountCents: amountRupees === undefined ? undefined : Math.round(amountRupees * 100),
+        amountCents,
         currency: 'INR',
       });
       if (result.status === 'error') {

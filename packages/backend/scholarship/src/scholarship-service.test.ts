@@ -97,6 +97,7 @@ describe('ScholarshipService', () => {
       expect(program.totalSlots).toBe(50);
       expect(program.usedSlots).toBe(0);
       expect(program.amountPerRecipient).toBe(5000);
+      expect(program.amountPerRecipientCents).toBe(500_000);
       expect(program.status).toBe('draft');
       expect(program.eligibility.minGPA).toBe(3.0);
       expect(program.currency).toBe('USD');
@@ -798,6 +799,7 @@ describe('ScholarshipService', () => {
           scheduledDate: '2024-04-01',
         });
         expect(disbursement.amountCents).toBe(1999);
+        expect(program.amountPerRecipientCents).toBe(1999);
         await service.updateDisbursement(TENANT_ID, disbursement.id, {
           paymentStatus: 'paid',
           paidDate: '2024-04-01',

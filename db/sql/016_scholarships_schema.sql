@@ -1,6 +1,10 @@
 -- Scholarships domain (G-204): programs, applications, disbursements, compliance.
 -- Raw SQL — no Prisma. Applied after 015 via tools/scripts/apply-sql.sh.
 --
+-- Money: amount_per_recipient / amount are NUMERIC major units for display compat.
+-- Integer minor units land via 060_scholarship_amount_cents.sql (disbursements.amount_cents)
+-- and 076_scholarship_program_amount_cents.sql (programs.amount_per_recipient_cents).
+--
 -- RLS policies are included here (tables created after 015).
 
 CREATE TABLE IF NOT EXISTS scholarship_programs (

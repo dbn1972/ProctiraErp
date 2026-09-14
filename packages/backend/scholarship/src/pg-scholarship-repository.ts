@@ -9,6 +9,11 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
+import {
+  majorUnitsNumberFromCents,
+  pgIntegerCents,
+  pgNumericMajorToCents,
+} from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
@@ -82,6 +87,24 @@ function amountCentsSqlPath(): string {
   return candidates[0]!;
 }
 
+function programAmountCentsSqlPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, '../../../../db/sql/076_scholarship_program_amount_cents.sql'),
+    join(process.cwd(), 'db/sql/076_scholarship_program_amount_cents.sql'),
+    join(process.cwd(), '../../db/sql/076_scholarship_program_amount_cents.sql'),
+  ];
+  for (const path of candidates) {
+    try {
+      readFileSync(path, 'utf8');
+      return path;
+    } catch {
+      // try next
+    }
+  }
+  return candidates[0]!;
+}
+
 export async function ensureScholarshipSchema(
   pool: PgPoolLike = getSharedScholarshipPool()!,
 ): Promise<void> {
@@ -92,6 +115,8 @@ export async function ensureScholarshipSchema(
       await pool.query(sql);
       const sql060 = readFileSync(amountCentsSqlPath(), 'utf8');
       await pool.query(sql060);
+      const sql076 = readFileSync(programAmountCentsSqlPath(), 'utf8');
+      await pool.query(sql076);
     })();
   }
   await schemaReady;
@@ -123,7 +148,19 @@ function parseJson<T>(value: unknown, fallback: T): T {
   return value as T;
 }
 
+function resolveAmountCents(
+  centsRaw: unknown,
+  majorRaw: unknown,
+): number {
+  if (centsRaw != null) return pgIntegerCents(centsRaw);
+  return pgNumericMajorToCents(majorRaw);
+}
+
 function mapProgram(row: Record<string, unknown>): ScholarshipProgramEntity {
+  const amountPerRecipientCents = resolveAmountCents(
+    row.amount_per_recipient_cents,
+    row.amount_per_recipient,
+  );
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
@@ -133,7 +170,8 @@ function mapProgram(row: Record<string, unknown>): ScholarshipProgramEntity {
     applicationEndDate: dateOnly(row.application_end_date),
     totalSlots: Number(row.total_slots),
     usedSlots: Number(row.used_slots),
-    amountPerRecipient: Number(row.amount_per_recipient),
+    amountPerRecipient: majorUnitsNumberFromCents(amountPerRecipientCents),
+    amountPerRecipientCents,
     currency: String(row.currency),
     disbursementFrequency: String(row.disbursement_frequency) as DisbursementFrequency,
     eligibility: parseJson<EligibilityCriteria>(row.eligibility, {}),
@@ -170,15 +208,13 @@ function mapApplication(row: Record<string, unknown>): ScholarshipApplicationEnt
 }
 
 function mapDisbursement(row: Record<string, unknown>): DisbursementEntity {
+  const amountCents = resolveAmountCents(row.amount_cents, row.amount);
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
     applicationId: String(row.application_id),
-    amount: Number(row.amount),
-    amountCents:
-      row.amount_cents == null
-        ? Math.round(Number(row.amount) * 100)
-        : Number(row.amount_cents),
+    amount: majorUnitsNumberFromCents(amountCents),
+    amountCents,
     scheduledDate: dateOnly(row.scheduled_date),
     paidDate: row.paid_date == null ? null : dateOnly(row.paid_date),
     paymentStatus: String(row.payment_status) as PaymentStatus,
@@ -236,10 +272,10 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       const result = await client.query(
         `INSERT INTO scholarship_programs (
            id, tenant_id, name, description, application_start_date, application_end_date,
-           total_slots, used_slots, amount_per_recipient, currency, disbursement_frequency,
-           eligibility, status, academic_period_id, funding_source_id
+           total_slots, used_slots, amount_per_recipient, amount_per_recipient_cents, currency,
+           disbursement_frequency, eligibility, status, academic_period_id, funding_source_id
          ) VALUES (
-           $1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10,$11,$12::jsonb,$13,$14,$15
+           $1,$2,$3,$4,$5::date,$6::date,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15,$16
          ) RETURNING *`,
         [
           data.id,
@@ -251,6 +287,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
           data.totalSlots,
           data.usedSlots,
           data.amountPerRecipient,
+          data.amountPerRecipientCents,
           data.currency,
           data.disbursementFrequency,
           JSON.stringify(data.eligibility ?? {}),
@@ -281,9 +318,9 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         `UPDATE scholarship_programs SET
            name = $3, description = $4, application_start_date = $5::date,
            application_end_date = $6::date, total_slots = $7, used_slots = $8,
-           amount_per_recipient = $9, currency = $10, disbursement_frequency = $11,
-           eligibility = $12::jsonb, status = $13, academic_period_id = $14,
-           funding_source_id = $15, updated_at = now()
+           amount_per_recipient = $9, amount_per_recipient_cents = $10, currency = $11,
+           disbursement_frequency = $12, eligibility = $13::jsonb, status = $14,
+           academic_period_id = $15, funding_source_id = $16, updated_at = now()
          WHERE id = $1 AND tenant_id = $2
          RETURNING *`,
         [
@@ -296,6 +333,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
           merged.totalSlots,
           merged.usedSlots,
           merged.amountPerRecipient,
+          merged.amountPerRecipientCents,
           merged.currency,
           merged.disbursementFrequency,
           JSON.stringify(merged.eligibility ?? {}),
@@ -776,12 +814,13 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       const paidDisbursements = disbursementsList.filter(
         (d) => approvedAppIds.has(d.applicationId) && d.paymentStatus === 'paid',
       );
-      const totalAmount = paidDisbursements.reduce((sum, d) => sum + d.amount, 0);
+      const totalAmountCents = paidDisbursements.reduce((sum, d) => sum + d.amountCents, 0);
+      const totalAmount = majorUnitsNumberFromCents(totalAmountCents);
       const currency = programs.length > 0 && programs[0] ? programs[0].currency : 'USD';
       const groupBy = filter.groupBy ?? 'program';
       const groupMap = new Map<
         string,
-        { applicationCount: number; approvedCount: number; disbursedAmount: number }
+        { applicationCount: number; approvedCount: number; disbursedAmountCents: number }
       >();
 
       const groupKeyFor = (app: ScholarshipApplicationEntity): string => {
@@ -801,7 +840,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
       for (const app of apps) {
         const key = groupKeyFor(app);
         if (!groupMap.has(key)) {
-          groupMap.set(key, { applicationCount: 0, approvedCount: 0, disbursedAmount: 0 });
+          groupMap.set(key, { applicationCount: 0, approvedCount: 0, disbursedAmountCents: 0 });
         }
         const group = groupMap.get(key)!;
         group.applicationCount++;
@@ -813,7 +852,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         const app = appById.get(d.applicationId);
         if (!app) continue;
         const group = groupMap.get(groupKeyFor(app));
-        if (group) group.disbursedAmount += d.amount;
+        if (group) group.disbursedAmountCents += d.amountCents;
       }
 
       const breakdown = Array.from(groupMap.entries()).map(([key, data]) => ({
@@ -821,7 +860,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         groupValue: key,
         applicationCount: data.applicationCount,
         approvedCount: data.approvedCount,
-        disbursedAmount: data.disbursedAmount,
+        disbursedAmountCents: data.disbursedAmountCents,
+        disbursedAmount: majorUnitsNumberFromCents(data.disbursedAmountCents),
         utilizationRate:
           data.applicationCount > 0
             ? Math.round((data.approvedCount / data.applicationCount) * 10000) / 100
@@ -834,6 +874,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         totalApproved: approvedApps.length,
         totalDisbursed: paidDisbursements.length,
         totalAmount,
+        totalAmountCents,
         currency,
         breakdown,
       };
