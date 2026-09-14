@@ -11,6 +11,8 @@
  * - 16.5: Multi-language interface with session-persisted language selection
  * - 16.6: Check application status by tracking number without authentication
  */
+import { randomInt } from 'node:crypto';
+
 import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -41,12 +43,13 @@ import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES, TRACKING_NUMBER_PREFIX } from 
 /**
  * Generates a unique tracking number in the format REG-XXXXXXXX
  * where X is an uppercase alphanumeric character.
+ * Uses CSPRNG (node:crypto randomInt) for public identifier entropy.
  */
 export function generateTrackingNumber(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
   for (let i = 0; i < 8; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(randomInt(chars.length));
   }
   return `${TRACKING_NUMBER_PREFIX}-${code}`;
 }

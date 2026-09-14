@@ -9,6 +9,10 @@
  * - Institution location queries
  * - Error handling for invalid institutions
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, it, expect, beforeEach } from 'vitest';
 import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 
@@ -385,6 +389,16 @@ describe('generateTrackingNumber', () => {
     }
     // With 36^8 possible combinations, 100 should all be unique
     expect(numbers.size).toBe(100);
+  });
+
+  it('uses CSPRNG via node:crypto randomInt (W1-SEC-05)', () => {
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), 'registration-service.ts'),
+      'utf8',
+    );
+    expect(src).toMatch(/import\s*\{\s*randomInt\s*\}\s*from\s*['"]node:crypto['"]/);
+    expect(src).toMatch(/randomInt\s*\(\s*chars\.length\s*\)/);
+    expect(src).not.toMatch(/Math\.random\s*\(/);
   });
 });
 

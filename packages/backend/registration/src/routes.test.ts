@@ -3,6 +3,10 @@
  *
  * Tests the Fastify routes with in-memory repository.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, it, expect, beforeEach } from 'vitest';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
@@ -247,6 +251,15 @@ describe('Registration Routes', () => {
       const body = JSON.parse(response.body);
       expect(body.language).toBe('ar');
       expect(body.sessionId).toBeDefined();
+      // CSPRNG session suffix: session-<epochMs>-<12 hex chars>
+      expect(body.sessionId).toMatch(/^session-\d+-[0-9a-f]{12}$/);
+    });
+
+    it('resolveSessionId uses CSPRNG via node:crypto randomBytes (W1-SEC-05)', () => {
+      const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'routes.ts'), 'utf8');
+      expect(src).toMatch(/import\s*\{\s*randomBytes\s*\}\s*from\s*['"]node:crypto['"]/);
+      expect(src).toMatch(/randomBytes\s*\(\s*6\s*\)/);
+      expect(src).not.toMatch(/Math\.random\s*\(/);
     });
 
     it('should return 400 for invalid language code', async () => {
