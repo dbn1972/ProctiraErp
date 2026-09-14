@@ -2,6 +2,17 @@
 
 Helm chart for deploying the ProctiraERP Unified Platform on Kubernetes.
 
+## Topology (W1-OPS-16)
+
+**Canonical:** `topology.mode=in-process` — domains run inside `api-gateway`.
+Backend `*Service` values default to `enabled: false` and stay disabled in
+`values-production.yaml`.
+
+**Non-prod / lab:** set `topology.mode=split` and enable individual
+`institutionService` / `studentService` / … only for experiments. Prefer the
+per-service `proctira-service` chart + `deploy.yml` for production releases of
+canonical deployables. See `docs/DEPLOYMENT_TOPOLOGY.md`.
+
 ## Prerequisites
 
 - Kubernetes 1.25+
@@ -61,6 +72,7 @@ See `values.yaml` for the full list of configurable parameters.
 
 | Parameter                            | Description            | Default       |
 | ------------------------------------ | ---------------------- | ------------- |
+| `topology.mode`                      | `in-process` \| `split` | `in-process` |
 | `global.domain`                      | Platform domain        | `proctira.io` |
 | `global.environment`                 | Environment name       | `production`  |
 | `apiGateway.replicaCount`            | API Gateway replicas   | `2`           |

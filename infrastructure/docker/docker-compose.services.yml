@@ -1,11 +1,17 @@
 # =============================================================================
-# ProctiraERP Unified Platform — Microservices Deployment Compose
+# ProctiraERP — Split-service compose (NON-PROD / LAB ONLY) — W1-OPS-16
 # =============================================================================
-# This compose file deploys backend services as independent microservices.
-# Use this when running the platform in a distributed/microservice topology
-# rather than the monolithic api-gateway mode.
+# *** NOT FOR PRODUCTION ***
 #
-# Usage:
+# Canonical production topology is the in-process API gateway (root
+# docker-compose.yml + Helm proctira-service / platform with topology.mode=
+# in-process). Domain packages mount inside apps/api-gateway; standalone
+# services here do not receive product traffic when prefixes are superseded.
+#
+# This file is retained for microservice experiments and future cutover labs.
+# See docs/DEPLOYMENT_TOPOLOGY.md and docs/audits/OPS_W1_OPS_16_TOPOLOGY.md.
+#
+# Usage (lab only):
 #   docker compose -f infrastructure/docker/docker-compose.services.yml up
 #
 # Prerequisites:

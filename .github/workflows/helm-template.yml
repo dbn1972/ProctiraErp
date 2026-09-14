@@ -41,6 +41,10 @@ on:
       - 'infrastructure/docker/Dockerfile.nextjs-app'
       - 'Dockerfile.fastify-base'
       - 'Dockerfile.web-base'
+      # W1-OPS-16 — topology canonical gate inputs
+      - 'tools/scripts/check-topology-canonical.sh'
+      - 'docs/DEPLOYMENT_TOPOLOGY.md'
+      - 'docs/audits/OPS_W1_OPS_16_TOPOLOGY.md' 
   push:
     branches: [main]
     paths:
@@ -67,6 +71,9 @@ on:
       - 'infrastructure/docker/Dockerfile.nextjs-app'
       - 'Dockerfile.fastify-base'
       - 'Dockerfile.web-base'
+      - 'tools/scripts/check-topology-canonical.sh'
+      - 'docs/DEPLOYMENT_TOPOLOGY.md'
+      - 'docs/audits/OPS_W1_OPS_16_TOPOLOGY.md' 
 
 concurrency:
   group: helm-template-${{ github.ref }}

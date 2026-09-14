@@ -6,6 +6,9 @@
 # IMPORTANT: Secrets should be managed via external-secrets-operator or
 # sealed-secrets. Set secrets.existingSecret to reference a pre-created secret.
 
+topology:
+  mode: in-process # W1-OPS-16 canonical
+
 global:
   environment: production
   domain: proctira.io
@@ -128,8 +131,9 @@ developerPortal:
       cpu: 300m
       memory: 256Mi
 
-# -- Backend domain services (production overrides)
+# -- Backend domain services (W1-OPS-16: disabled in production; lab-only templates)
 institutionService:
+  enabled: false
   replicaCount: 3
   autoscaling:
     enabled: true
@@ -146,6 +150,7 @@ institutionService:
       memory: 1Gi
 
 studentService:
+  enabled: false
   replicaCount: 3
   autoscaling:
     enabled: true
@@ -162,6 +167,7 @@ studentService:
       memory: 1Gi
 
 staffService:
+  enabled: false
   replicaCount: 3
   autoscaling:
     enabled: true
@@ -178,6 +184,7 @@ staffService:
       memory: 1Gi
 
 assessmentService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -193,6 +200,7 @@ assessmentService:
       memory: 1Gi
 
 attendanceService:
+  enabled: false
   replicaCount: 3
   autoscaling:
     enabled: true
@@ -208,6 +216,7 @@ attendanceService:
       memory: 1Gi
 
 examinationService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -223,6 +232,7 @@ examinationService:
       memory: 1Gi
 
 workflowService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -238,6 +248,7 @@ workflowService:
       memory: 1Gi
 
 notificationService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true
@@ -253,6 +264,7 @@ notificationService:
       memory: 512Mi
 
 reportService:
+  enabled: false
   replicaCount: 2
   autoscaling:
     enabled: true

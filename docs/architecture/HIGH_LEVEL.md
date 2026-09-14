@@ -53,7 +53,7 @@ flowchart LR
 | Workers  | `apps/etl-worker`               | Pipelines / ETL                                             |
 | Data     | Postgres, Redis, MinIO/S3       | System of record, cache, blobs                              |
 
-**Runtime honesty:** Domains are mounted **in-process** in the gateway for local/dev. K8s charts may sketch split services as a future topology.
+**Runtime honesty (W1-OPS-16):** Domains are mounted **in-process** in the gateway for **production, staging, and local compose**. Standalone domain Deployments / `docker-compose.services.yml` are a **non-prod / lab** sketch only — see `docs/DEPLOYMENT_TOPOLOGY.md`.
 
 ## Auth flow (deployed)
 

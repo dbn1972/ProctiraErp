@@ -134,8 +134,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Master list of releasable services. Adding a new service requires
-          # adding it here AND providing a Dockerfile in infrastructure/docker/.
+          # Master list of releasable images.
+          # Canonical runtime: api-gateway (+ portals) + etl-worker (+ dr-tools).
+          # institution…report are W1-OPS-16 NON-PROD / lab split-domain images
+          # (still buildable; not the default deploy path).
           ALL_SERVICES="api-gateway,web,registration-portal,admin-console,developer-portal,install-wizard,public-website,etl-worker,dr-tools,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
 
           # Manual override via workflow_dispatch.

@@ -10,11 +10,12 @@ resources:
   - pod-disruption-budget.yaml
 
 # W1-OPS-08 — pin all service images via shared image-tag component
+# W1-OPS-16 — do NOT include components/split-domain-services (canonical in-process)
 components:
   - ../../components/image-tag
 
 patches:
-  # Production replicas — frontend
+  # Production replicas — canonical services only
   - target:
       kind: Deployment
       name: api-gateway
@@ -25,35 +26,6 @@ patches:
   - target:
       kind: Deployment
       name: web
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 3
-  # Production replicas — backend services
-  - target:
-      kind: Deployment
-      name: institution-service
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 3
-  - target:
-      kind: Deployment
-      name: student-service
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 3
-  - target:
-      kind: Deployment
-      name: staff-service
-    patch: |
-      - op: replace
-        path: /spec/replicas
-        value: 3
-  - target:
-      kind: Deployment
-      name: attendance-service
     patch: |
       - op: replace
         path: /spec/replicas
@@ -69,36 +41,6 @@ patches:
       - op: replace
         path: /spec/maxReplicas
         value: 20
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: institution-service
-    patch: |
-      - op: replace
-        path: /spec/minReplicas
-        value: 3
-      - op: replace
-        path: /spec/maxReplicas
-        value: 12
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: student-service
-    patch: |
-      - op: replace
-        path: /spec/minReplicas
-        value: 3
-      - op: replace
-        path: /spec/maxReplicas
-        value: 12
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: attendance-service
-    patch: |
-      - op: replace
-        path: /spec/minReplicas
-        value: 3
-      - op: replace
-        path: /spec/maxReplicas
-        value: 12
   # Production ConfigMap overrides
   - target:
       kind: ConfigMap

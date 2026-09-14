@@ -6,6 +6,11 @@
 # tests are deployed. Builds container images for affected services, pushes to
 # the registry, and deploys to the appropriate environment via Helm.
 #
+# Topology (W1-OPS-16): default path is canonical in-process gateway
+# (api-gateway + edge apps + etl-worker). Split-domain service names are
+# lab-only — pass them explicitly via workflow_dispatch inputs.services.
+# See docs/DEPLOYMENT_TOPOLOGY.md.
+#
 # Triggers:
 #   - workflow_run: After CI completes successfully on main/develop
 #   - workflow_dispatch: Manual deploy for any ref (with optional service list)
@@ -138,36 +143,33 @@ jobs:
 
           SERVICES=""
 
-          # Check each service directory for changes
+          # W1-OPS-16 — canonical topology = in-process gateway.
+          # Domain package changes redeploy api-gateway (not orphan split services).
+          # Split names (institution, student, …) only via inputs.services (lab).
           declare -A SERVICE_MAP=(
             ["apps/api-gateway"]="api-gateway"
             ["apps/web"]="web"
             ["apps/registration-portal"]="registration-portal"
             ["apps/etl-worker"]="etl-worker"
-            ["packages/backend/institution"]="institution"
-            ["packages/backend/student"]="student"
-            ["packages/backend/staff"]="staff"
-            ["packages/backend/assessment"]="assessment"
-            ["packages/backend/attendance"]="attendance"
-            ["packages/backend/examination"]="examination"
-            ["packages/backend/workflow"]="workflow"
-            ["packages/backend/notification"]="notification"
-            ["packages/backend/report"]="report"
+            ["packages/backend/"]="api-gateway"
           )
 
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
 
-          # If shared packages changed, rebuild all services
+          # Shared packages → canonical fan-out (no split-domain releases)
           if echo "$CHANGED_FILES" | grep -q "^packages/shared/"; then
-            SERVICES="api-gateway,web,registration-portal,etl-worker,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
+            SERVICES="api-gateway,web,registration-portal,etl-worker"
             echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           for path in "${!SERVICE_MAP[@]}"; do
-            if echo "$CHANGED_FILES" | grep -q "^${path}/"; then
+            if echo "$CHANGED_FILES" | grep -q "^${path}"; then
               if [ -n "$SERVICES" ]; then
-                SERVICES="${SERVICES},${SERVICE_MAP[$path]}"
+                case ",${SERVICES}," in
+                  *",${SERVICE_MAP[$path]},"*) ;;
+                  *) SERVICES="${SERVICES},${SERVICE_MAP[$path]}" ;;
+                esac
               else
                 SERVICES="${SERVICE_MAP[$path]}"
               fi
