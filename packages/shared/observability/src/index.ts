@@ -22,6 +22,17 @@ export { observabilityPlugin } from './fastify-plugin.js';
 export type { ObservabilityPluginOptions } from './fastify-plugin.js';
 
 export {
+  authorizeMetricsAccess,
+  metricsAccessEnvFromProcess,
+  isLoopbackIp,
+  normalizeClientIp,
+  parseAllowlist,
+  extractBearerToken,
+  tokensMatch,
+} from './metrics-access.js';
+export type { MetricsAccessEnv, MetricsAccessDecision } from './metrics-access.js';
+
+export {
   registerServiceSLO,
   buildServiceSLO,
   SLOValidationError,
