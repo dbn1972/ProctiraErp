@@ -8,7 +8,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import {
+  BusinessRuleError,
+  NotFoundError,
+  pgIntegerCents,
+  pgOptionalIntegerCents,
+} from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
@@ -117,7 +122,7 @@ function mapPlan(row: Record<string, unknown>): FeePlanEntity {
     code: String(row.code),
     name: String(row.name),
     description: String(row.description),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     frequency: String(row.frequency) as FeePlanFrequency,
     status: String(row.status) as FeePlanStatus,
@@ -135,7 +140,7 @@ function mapInvoice(row: Record<string, unknown>): FeeInvoiceEntity {
     planId: row.plan_id == null ? null : String(row.plan_id),
     title: String(row.title),
     description: String(row.description),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     status: String(row.status) as InvoiceStatus,
     dueAt: row.due_at == null ? null : toDate(row.due_at),
@@ -183,7 +188,7 @@ function mapPayment(row: Record<string, unknown>): FeePaymentEntity {
     invoiceId: String(row.invoice_id),
     tenantId: String(row.tenant_id),
     payerUserId: String(row.payer_user_id),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     method: String(row.method) as PaymentMethod,
     status: String(row.status) as PaymentStatus,
     paidAt: toDate(row.paid_at),
@@ -199,7 +204,7 @@ function mapReceipt(row: Record<string, unknown>): FeeReceiptEntity {
     paymentId: String(row.payment_id),
     invoiceId: String(row.invoice_id),
     receiptNumber: String(row.receipt_number),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     issuedAt: toDate(row.issued_at),
     createdAt: toDate(row.created_at),
@@ -216,7 +221,7 @@ function mapLedgerEntry(row: Record<string, unknown>): FeeLedgerEntryEntity {
     receiptId: row.receipt_id == null ? null : String(row.receipt_id),
     account: String(row.account) as LedgerAccount,
     side: String(row.side) as LedgerSide,
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     memo: row.memo == null ? null : String(row.memo),
     postedBy: row.posted_by == null ? null : String(row.posted_by),
@@ -237,7 +242,7 @@ function mapStructure(row: Record<string, unknown>): FeeStructureEntity {
     term: row.term == null ? null : String(row.term),
     code: String(row.code),
     name: String(row.name),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     status: String(row.status) as FeeStructureStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
@@ -252,7 +257,7 @@ function mapComponent(row: Record<string, unknown>): FeeStructureComponentEntity
     tenantId: String(row.tenant_id),
     structureId: String(row.structure_id),
     name: String(row.name),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     createdAt: toDate(row.created_at),
   };
 }
@@ -263,7 +268,7 @@ function mapInstalment(row: Record<string, unknown>): FeeStructureInstalmentEnti
     tenantId: String(row.tenant_id),
     structureId: String(row.structure_id),
     sequence: Number(row.sequence),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     dueOffsetDays: Number(row.due_offset_days),
     label: String(row.label ?? ''),
     createdAt: toDate(row.created_at),
@@ -279,7 +284,7 @@ function mapConcession(row: Record<string, unknown>): FeeConcessionEntity {
     invoiceId: row.invoice_id == null ? null : String(row.invoice_id),
     kind: String(row.kind) as ConcessionKind,
     percent: row.percent == null ? null : Number(row.percent),
-    amountCents: row.amount_cents == null ? null : Number(row.amount_cents),
+    amountCents: pgOptionalIntegerCents(row.amount_cents),
     reason: String(row.reason),
     sourceDisbursementId:
       row.source_disbursement_id == null ? null : String(row.source_disbursement_id),
@@ -296,7 +301,7 @@ function mapCreditNote(row: Record<string, unknown>): FeeCreditNoteEntity {
     id: String(row.id),
     tenantId: String(row.tenant_id),
     invoiceId: String(row.invoice_id),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     reason: String(row.reason),
     status: String(row.status) as FeeCreditNoteEntity['status'],
     createdBy: row.created_by == null ? null : String(row.created_by),
@@ -309,7 +314,7 @@ function mapWriteOff(row: Record<string, unknown>): FeeWriteOffEntity {
     id: String(row.id),
     tenantId: String(row.tenant_id),
     invoiceId: String(row.invoice_id),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     reason: String(row.reason),
     status: String(row.status) as FeeWriteOffEntity['status'],
     createdBy: row.created_by == null ? null : String(row.created_by),
@@ -323,7 +328,7 @@ function mapRefund(row: Record<string, unknown>): FeeRefundEntity {
     tenantId: String(row.tenant_id),
     invoiceId: String(row.invoice_id),
     paymentId: row.payment_id == null ? null : String(row.payment_id),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     reason: String(row.reason),
     status: String(row.status) as RefundStatus,
     createdBy: row.created_by == null ? null : String(row.created_by),
@@ -360,7 +365,7 @@ function mapReconRow(row: Record<string, unknown>): FeeReconciliationRowEntity {
     tenantId: String(row.tenant_id),
     batchId: String(row.batch_id),
     invoiceNumber: String(row.invoice_number),
-    amountCents: Number(row.amount_cents),
+    amountCents: pgIntegerCents(row.amount_cents),
     matched,
     invoiceId: row.invoice_id == null ? null : String(row.invoice_id),
     note: row.note == null ? null : String(row.note),
@@ -466,8 +471,8 @@ export class PgFeesRepository implements FeesRepository {
         debit: string;
         credit: string;
       }[]) {
-        const d = Number(raw.debit);
-        const c = Number(raw.credit);
+        const d = pgIntegerCents(raw.debit);
+        const c = pgIntegerCents(raw.credit);
         debitCents += d;
         creditCents += c;
         accounts[raw.account] = d - c;
@@ -707,7 +712,7 @@ export class PgFeesRepository implements FeesRepository {
           WHERE tenant_id = $1 AND invoice_id = $2 AND status = 'succeeded'`,
         [tenantId, invoiceId],
       );
-      const paidCents = Number((paidResult.rows[0] as { paid: string }).paid);
+      const paidCents = pgIntegerCents((paidResult.rows[0] as { paid: string }).paid);
       const remainingCents = invoice.amountCents - paidCents;
       if (remainingCents <= 0) {
         throw new BusinessRuleError('Invoice has no remaining balance');

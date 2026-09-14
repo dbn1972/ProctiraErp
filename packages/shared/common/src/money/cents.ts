@@ -1,13 +1,16 @@
 /**
- * W2-FIN-08: major-currency ↔ integer-cents conversion without silent float drift.
+ * W2-FIN-08 / W1-DATA-09: major-currency ↔ integer-cents conversion without silent float drift.
  *
  * Scholarship / admissions store NUMERIC major units; the fee ledger is integer cents.
- * Never use bare `Math.round(Number(x) * 100)` at call sites — centralize the guard here.
+ * Never use bare `Math.round(Number(x) * 100)` or bare `Number(bigint)` at call sites —
+ * centralize the guard here.
  */
 
-import { BusinessRuleError } from '@proctira/common';
+import { BusinessRuleError } from '../exceptions/index.js';
 
 const CENT_EPS = 1e-8;
+const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
+const MIN_SAFE = BigInt(Number.MIN_SAFE_INTEGER);
 
 /**
  * Convert a major-unit money value to integer cents.
@@ -74,4 +77,51 @@ export function assertMajorMatchesCents(major: number | string, cents: number): 
       `Scholarship amount ${String(major)} does not reconcile to ${cents} cents (expected ${expected})`,
     );
   }
+}
+
+/**
+ * W1-DATA-09: coerce Postgres INTEGER / BIGINT money columns to JS safe integer cents.
+ *
+ * `node-pg` returns BIGINT as string; INTEGER may arrive as number. Bare `Number(bigint)`
+ * silently loses precision past 2^53−1 and accepts float strings like `"10.5"`.
+ */
+export function pgIntegerCents(value: unknown): number {
+  if (typeof value === 'bigint') {
+    if (value > MAX_SAFE || value < MIN_SAFE) {
+      throw new BusinessRuleError(`Money cents overflow safe integer: ${value}`);
+    }
+    return Number(value);
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isInteger(value) || !Number.isSafeInteger(value)) {
+      throw new BusinessRuleError(`Money cents must be a safe integer: ${value}`);
+    }
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw || !/^-?\d+$/.test(raw)) {
+      throw new BusinessRuleError(`Money cents is not an integer string: ${value}`);
+    }
+    let asBig: bigint;
+    try {
+      asBig = BigInt(raw);
+    } catch {
+      throw new BusinessRuleError(`Money cents is not an integer string: ${value}`);
+    }
+    if (asBig > MAX_SAFE || asBig < MIN_SAFE) {
+      throw new BusinessRuleError(`Money cents overflow safe integer: ${raw}`);
+    }
+    return Number(asBig);
+  }
+
+  throw new BusinessRuleError(`Money cents has unsupported type: ${typeof value}`);
+}
+
+/** Like {@link pgIntegerCents} but maps SQL NULL to `null`. */
+export function pgOptionalIntegerCents(value: unknown): number | null {
+  if (value == null) return null;
+  return pgIntegerCents(value);
 }

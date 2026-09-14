@@ -35,6 +35,14 @@ import type {
   DowngradeResult,
 } from './schemas.js';
 
+/** W1-DATA-09: plan prices are integer minor units (cents), never floats. */
+function assertIntegerCentsPrice(label: string, value: number | null | undefined): void {
+  if (value == null) return;
+  if (!Number.isInteger(value) || value < 0 || !Number.isSafeInteger(value)) {
+    throw new BusinessRuleError(`${label} must be a non-negative safe integer (cents)`);
+  }
+}
+
 /**
  * Service handling billing business logic.
  */
@@ -57,6 +65,9 @@ export class BillingService {
     if (existingByName) {
       throw new ConflictError(`Plan with name '${input.name}' already exists`);
     }
+
+    assertIntegerCentsPrice('priceMonthly', input.priceMonthly);
+    assertIntegerCentsPrice('priceYearly', input.priceYearly);
 
     const plan: Omit<PlanEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
@@ -98,6 +109,9 @@ export class BillingService {
         throw new ConflictError(`Plan with name '${input.name}' already exists`);
       }
     }
+
+    assertIntegerCentsPrice('priceMonthly', input.priceMonthly);
+    assertIntegerCentsPrice('priceYearly', input.priceYearly);
 
     const updateData: Partial<PlanEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;

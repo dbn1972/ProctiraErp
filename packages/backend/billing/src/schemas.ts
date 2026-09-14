@@ -107,8 +107,12 @@ export const CreatePlanSchema = Type.Object({
   tier: PricingTierEnum,
   features: Type.Array(PlanFeatureSchema, { description: 'Features included in this plan' }),
   quotas: Type.Array(PlanQuotaSchema, { description: 'Quota limits for this plan' }),
-  priceMonthly: Type.Optional(Type.Number({ minimum: 0, description: 'Monthly price in cents' })),
-  priceYearly: Type.Optional(Type.Number({ minimum: 0, description: 'Yearly price in cents' })),
+  priceMonthly: Type.Optional(
+    Type.Integer({ minimum: 0, description: 'Monthly price in integer cents (W1-DATA-09)' }),
+  ),
+  priceYearly: Type.Optional(
+    Type.Integer({ minimum: 0, description: 'Yearly price in integer cents (W1-DATA-09)' }),
+  ),
   trialDays: Type.Optional(
     Type.Number({ minimum: 0, maximum: 365, default: 0, description: 'Number of trial days' }),
   ),
@@ -129,8 +133,12 @@ export const UpdatePlanSchema = Type.Object({
     Type.Array(PlanFeatureSchema, { description: 'Features included in this plan' }),
   ),
   quotas: Type.Optional(Type.Array(PlanQuotaSchema, { description: 'Quota limits for this plan' })),
-  priceMonthly: Type.Optional(Type.Number({ minimum: 0, description: 'Monthly price in cents' })),
-  priceYearly: Type.Optional(Type.Number({ minimum: 0, description: 'Yearly price in cents' })),
+  priceMonthly: Type.Optional(
+    Type.Integer({ minimum: 0, description: 'Monthly price in integer cents (W1-DATA-09)' }),
+  ),
+  priceYearly: Type.Optional(
+    Type.Integer({ minimum: 0, description: 'Yearly price in integer cents (W1-DATA-09)' }),
+  ),
   trialDays: Type.Optional(
     Type.Number({ minimum: 0, maximum: 365, description: 'Number of trial days' }),
   ),
@@ -285,8 +293,12 @@ export const PlanResponseSchema = Type.Object({
   status: PlanStatusEnum,
   features: Type.Array(PlanFeatureSchema, { description: 'Features included' }),
   quotas: Type.Array(PlanQuotaSchema, { description: 'Quota limits' }),
-  priceMonthly: Type.Union([Type.Number(), Type.Null()], { description: 'Monthly price in cents' }),
-  priceYearly: Type.Union([Type.Number(), Type.Null()], { description: 'Yearly price in cents' }),
+  priceMonthly: Type.Union([Type.Integer(), Type.Null()], {
+    description: 'Monthly price in integer cents',
+  }),
+  priceYearly: Type.Union([Type.Integer(), Type.Null()], {
+    description: 'Yearly price in integer cents',
+  }),
   trialDays: Type.Number({ description: 'Trial period in days' }),
   sortOrder: Type.Number({ description: 'Display sort order' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),

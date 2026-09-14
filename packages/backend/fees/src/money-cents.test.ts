@@ -1,5 +1,5 @@
 /**
- * W2-FIN-08 money conversion unit tests (fees re-export surface).
+ * W2-FIN-08 / W1-DATA-09 money conversion unit tests (fees re-export surface).
  */
 import { describe, expect, it } from 'vitest';
 import { BusinessRuleError } from '@proctira/common';
@@ -8,6 +8,8 @@ import {
   assertMajorMatchesCents,
   centsToMajorUnits,
   majorUnitsToCents,
+  pgIntegerCents,
+  pgOptionalIntegerCents,
 } from './money-cents.js';
 
 describe('W2-FIN-08 majorUnitsToCents', () => {
@@ -35,5 +37,17 @@ describe('W2-FIN-08 majorUnitsToCents', () => {
     expect(centsToMajorUnits(30)).toBe('0.30');
     assertMajorMatchesCents(19.99, 1999);
     expect(() => assertMajorMatchesCents(19.99, 2000)).toThrow(BusinessRuleError);
+  });
+});
+
+describe('W1-DATA-09 pgIntegerCents (fees re-export)', () => {
+  it('coerces pg BIGINT string without float rounding', () => {
+    expect(pgIntegerCents('125000')).toBe(125_000);
+    expect(pgOptionalIntegerCents(null)).toBeNull();
+  });
+
+  it('rejects residual float money strings', () => {
+    expect(() => pgIntegerCents('10.5')).toThrow(BusinessRuleError);
+    expect(() => pgIntegerCents(10.5)).toThrow(BusinessRuleError);
   });
 });

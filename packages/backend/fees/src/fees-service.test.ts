@@ -7,7 +7,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 
 import { InMemoryFeesRepository } from './in-memory-repository.js';
-import { FeesService } from './fees-service.js';
+import { FeesService, parseReconciliationCsv } from './fees-service.js';
 import { SandboxPaymentAdapter, type PaymentAdapter } from './payment-adapter.js';
 
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
@@ -260,6 +260,12 @@ describe('FeesService', () => {
   });
 
   describe('reconciliation exceptions (F3)', () => {
+    it('rejects float money in bank CSV (W1-DATA-09) instead of Math.round', () => {
+      const rows = parseReconciliationCsv('invoiceNumber,amountCents\nINV-1,10.5\nINV-2,1000');
+      expect(Number.isNaN(rows[0]?.amountCents)).toBe(true);
+      expect(rows[1]?.amountCents).toBe(1000);
+    });
+
     it('lists match/exception rows and resolves with audit', async () => {
       const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
         studentId: STUDENT_ID,

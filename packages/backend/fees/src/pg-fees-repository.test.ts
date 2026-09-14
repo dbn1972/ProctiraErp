@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { pgIntegerCents } from '@proctira/common';
 import { describe, expect, it } from 'vitest';
 
 import { FeesService } from './fees-service.js';
@@ -135,7 +136,7 @@ function createMockFeesPool(): PgPoolLike {
             payment.invoice_id === invoiceId &&
             payment.status === 'succeeded',
         )
-        .reduce((sum, payment) => sum + Number(payment.amount_cents), 0);
+        .reduce((sum, payment) => sum + pgIntegerCents(payment.amount_cents), 0);
       return { rows: [{ paid: String(paid) }] };
     }
 
