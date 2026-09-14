@@ -18,7 +18,10 @@ on:
       - 'tools/scripts/pg-restore.sh'
       - 'tools/scripts/backup-crypto.sh'
       - 'tools/scripts/restore-drill.sh'
+      - 'tools/scripts/check-restore-drill-evidence.sh'
       - 'tools/scripts/phi-retention-job.mjs'
+      - 'docs/audits/evidence/restore-drill-*.json'
+      - 'docs/audits/OPS_W1_OPS_20_RESTORE.md'
       - 'infrastructure/docker/Dockerfile.dr-tools'
       - 'infrastructure/helm/proctira-platform/templates/dr/**'
       - '.github/workflows/restore-drill.yml'
@@ -206,6 +209,12 @@ jobs:
             proctira/dr-tools:drill bash tools/scripts/pg-backup.sh /backups/from-image.dump
           docker run --rm proctira/dr-tools:drill node tools/scripts/phi-retention-job.mjs \
             | tee "$ARTIFACT_DIR/image-phi-retention-plan.json"
+
+      # W1-OPS-20 — tip-committed pack must declare timestamp / encryption /
+      # offsiteTarget and must not claim production restore. Fail closed even
+      # when the live Postgres drill above succeeded.
+      - name: Verify tip evidence pack (fail closed)
+        run: bash tools/scripts/check-restore-drill-evidence.sh
 
       - name: Upload drill evidence
         if: always()

@@ -1,10 +1,25 @@
 {
-  "gap": "P0-13 / G-503 / G-707",
+  "gap": "P0-13 / G-503 / G-707 / W1-OPS-20",
   "title": "backup-restore-drill tip evidence",
   "recordedAt": "2026-09-12T15:38:59Z",
+  "timestamp": "20260912T153859Z",
   "branch": "cursor/backup-restore-drill-56c3",
   "mode": "local-full-db",
   "ok": true,
+  "claimsProductionRestore": false,
+  "encryption": {
+    "method": "age",
+    "ciRoundTripProven": true,
+    "productionAtRestEnabled": false,
+    "note": "CI restore-drill.yml encrypted round-trip (ephemeral age keypair) only. Helm dr.backup.encrypt.enabled defaults off — not a production at-rest encrypt proof."
+  },
+  "offsiteTarget": {
+    "uri": null,
+    "configured": false,
+    "exercised": false,
+    "helmPath": "dr.backup.offsite.*",
+    "note": "No BACKUP_OFFSITE_URI / S3 second-copy exercised. Tip pack is local/CI Postgres drill only — not offsite recovery proof."
+  },
   "localDrill": {
     "script": "tools/scripts/restore-drill.sh",
     "postgres": "16.15",
@@ -50,9 +65,11 @@
     "tools/scripts/restore-drill.sh"
   ],
   "runbook": "docs/BACKUP_RESTORE.md §7",
+  "honestyAudit": "docs/audits/OPS_W1_OPS_20_RESTORE.md",
   "honesty": [
     "Tip-committed pack proves tooling was exercised (local full-db) and cites latest successful GH Actions run URL.",
-    "Does not claim live cluster CronJob execution or production offsite restore.",
+    "Required W1-OPS-20 fields (timestamp, encryption, offsiteTarget) are declared; encryption.ciRoundTripProven reflects CI age round-trip only.",
+    "claimsProductionRestore=false — does not claim live cluster CronJob execution, production offsite restore, or operator RTO/RPO proof.",
     "Not a WAIVER — evidence is tip-committed under docs/audits/evidence/."
   ]
 }

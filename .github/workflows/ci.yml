@@ -840,10 +840,12 @@ jobs:
   # ---------------------------------------------------------------------------
   # Tip-committed backup/restore drill evidence must be present and coherent
   # on every PR. Does not re-run Postgres (see restore-drill.yml); fails closed
-  # when the pack is missing, stale, or lacks a successful CI cross-ref.
+  # when the pack is missing, lacks required W1-OPS-20 fields (timestamp /
+  # encryption / offsiteTarget), claims production restore, or lacks a CI
+  # cross-ref.
   # ---------------------------------------------------------------------------
   restore-drill-evidence:
-    name: Restore Drill Evidence (W3-OPS-C6)
+    name: Restore Drill Evidence (W3-OPS-C6 / W1-OPS-20)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
