@@ -25,6 +25,9 @@ on:
       - 'tools/scripts/deploy-rollback-check.sh'
       - 'tools/scripts/deploy-secrets-gate-check.sh'
       - 'tools/scripts/check-no-latest-image-tags.sh'
+      # W1-OPS-09 — rollback runbook + COMPLETE evidence
+      - 'docs/runbooks/deploy-rollback.md'
+      - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
       # W1-OPS-21 — probe-contract app + image HEALTHCHECK surfaces
       - 'apps/api-gateway/src/plugins/health.ts'
       - 'apps/api-gateway/src/plugins/health.test.ts'
@@ -66,6 +69,8 @@ on:
       - 'tools/scripts/deploy-rollback-check.sh'
       - 'tools/scripts/deploy-secrets-gate-check.sh'
       - 'tools/scripts/check-no-latest-image-tags.sh'
+      - 'docs/runbooks/deploy-rollback.md'
+      - 'docs/audits/OPS_W1_OPS_09_COMPLETE.md'
       - 'apps/api-gateway/src/plugins/health.ts'
       - 'apps/api-gateway/src/plugins/health.test.ts'
       - 'apps/api-gateway/Dockerfile'

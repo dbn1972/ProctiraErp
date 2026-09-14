@@ -34,12 +34,17 @@ production path. Split-service lab artifacts: `docs/DEPLOYMENT_TOPOLOGY.md`.
 
 ## Atomic deploy + rollback (W1-OPS-09)
 
+**Supported ship mode:** single-wave RollingUpdate (`maxUnavailable: 0`) with
+Helm `--atomic --wait` on deploy. See runbook
+[`docs/runbooks/deploy-rollback.md`](../../../docs/runbooks/deploy-rollback.md).
+
 `deploy.yml` runs `helm upgrade --install ... --atomic --wait` so a failed
 release auto-rolls back. Manual rollback is `.github/workflows/rollback.yml`
-(`workflow_dispatch`: revision **or** known-good `image_tag`, `dry_run` default).
+(`workflow_dispatch`: revision **or** known-good `image_tag`; `dry_run`
+defaults **true** — fail-closed plan-only).
 
-Progressive delivery baseline remains `RollingUpdate` / `maxUnavailable: 0`.
-Optional canary annotations for Flagger/Argo:
+Optional canary annotations for Flagger/Argo are **off by default** and are
+hooks only — tip CI does **not** prove a production canary controller:
 
 ```bash
 helm template proctira-api-gateway ./infrastructure/helm/proctira-service \

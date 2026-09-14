@@ -342,8 +342,9 @@ jobs:
 
             # W1-OPS-09: --atomic auto-rolls back the release on failure;
             # --wait blocks until resources are ready (or timeout).
-            # Progressive baseline: chart strategy is RollingUpdate maxUnavailable=0.
+            # Supported mode: single-wave RollingUpdate maxUnavailable=0.
             # Optional canary annotations: --set progressiveDelivery.canary.enabled=true
+            # (hooks only — not a proven prod canary path).
             helm upgrade --install "proctira-${SERVICE}" \
               ./infrastructure/helm/proctira-service \
               --namespace "${NAMESPACE}" \
