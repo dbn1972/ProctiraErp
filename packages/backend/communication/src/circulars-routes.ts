@@ -24,6 +24,8 @@ import {
   type DeliveryLogParams,
   type DeliveryLogQuery,
 } from './circular-schemas.js';
+
+import { enforceCommunicationRouteAccess } from './communication-http-guard.js';
 import type { CircularsService } from './circulars-service.js';
 
 export interface CircularRoutesOptions {
@@ -142,6 +144,14 @@ export async function registerCircularRoutes(
   options: CircularRoutesOptions,
 ): Promise<void> {
   const { circularsService, prefix = '/communication' } = options;
+
+  // W1-SEC-02: package RBAC — staff CRM fail-closed; circular ack allowed for authenticated users.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceCommunicationRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
 
   fastify.get(
     `${prefix}/circulars`,

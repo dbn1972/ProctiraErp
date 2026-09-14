@@ -99,6 +99,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'library',
   'registration',
   'notification',
+  'communication',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -193,10 +194,10 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: false,
   },
   {
-    id: 'communication.deferred',
+    id: 'communication.staff',
     pathPrefix: '/api/v1/communication',
     resource: 'communication',
-    deferredDomainGuard: true,
+    deferredDomainGuard: false,
   },
   {
     id: 'lms.deferred',

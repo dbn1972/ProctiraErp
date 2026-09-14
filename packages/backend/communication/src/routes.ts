@@ -21,6 +21,8 @@ import {
   type EmergencyParams,
 } from './schemas.js';
 
+import { enforceCommunicationRouteAccess } from './communication-http-guard.js';
+
 export interface CommunicationRoutesOptions {
   communicationService: CommunicationService;
   prefix?: string;
@@ -93,6 +95,14 @@ export async function registerCommunicationRoutes(
   options: CommunicationRoutesOptions,
 ): Promise<void> {
   const { communicationService, prefix = '/communication' } = options;
+
+  // W1-SEC-02: package RBAC — staff CRM fail-closed; circular ack allowed for authenticated users.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceCommunicationRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
 
   fastify.post(
     `${prefix}/audience/preview`,

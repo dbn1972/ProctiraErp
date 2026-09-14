@@ -85,3 +85,18 @@ export type {
   WhatsAppSendResult,
 } from './whatsapp-adapter.js';
 export { CreateCircularSchema, AckCircularSchema } from './circular-schemas.js';
+
+export {
+  normalizeCommunicationRoles,
+  hasCommunicationAccess,
+  assertCommunicationAccess,
+  isCommunicationPortalPath,
+  communicationActionForPath,
+} from './communication-access.js';
+export type { CommunicationAction } from './communication-access.js';
+export {
+  communicationRequestRoles,
+  communicationHasUser,
+  requireCommunicationAction,
+  enforceCommunicationRouteAccess,
+} from './communication-http-guard.js';
