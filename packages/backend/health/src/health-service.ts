@@ -720,7 +720,7 @@ export class HealthService {
   async createAssessment(
     tenantId: string,
     input: CreateSpecialNeedsAssessmentInput,
-    accessContext: HealthAccessContext,,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (
         client: import('@proctira/database').PgQueryable,
@@ -765,7 +765,7 @@ export class HealthService {
   async createDiagnosis(
     tenantId: string,
     input: CreateDiagnosisInput,
-    accessContext: HealthAccessContext,,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (
         client: import('@proctira/database').PgQueryable,
@@ -811,7 +811,7 @@ export class HealthService {
   async createReferral(
     tenantId: string,
     input: CreateReferralInput,
-    accessContext: HealthAccessContext,,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (
         client: import('@proctira/database').PgQueryable,
@@ -872,7 +872,7 @@ export class HealthService {
   async createAccommodationPlan(
     tenantId: string,
     input: CreateAccommodationPlanInput,
-    accessContext: HealthAccessContext,,
+    accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (
         client: import('@proctira/database').PgQueryable,

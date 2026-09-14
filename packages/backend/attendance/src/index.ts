@@ -102,3 +102,17 @@ export type {
 // Routes
 export { registerAttendanceRoutes } from './routes.js';
 export type { AttendanceRoutesOptions } from './routes.js';
+
+// W1-SEC-02 package RBAC
+export {
+  assertAttendanceAccess,
+  hasAttendanceAccess,
+  normalizeAttendanceRoles,
+} from './attendance-access.js';
+export type { AttendanceAction } from './attendance-access.js';
+export {
+  attendanceActionForRequest,
+  attendanceRequestRoles,
+  enforceAttendanceRouteAccess,
+  requireAttendanceAction,
+} from './attendance-http-guard.js';

@@ -51,7 +51,10 @@ describe('Attendance Routes', () => {
     // Add user context
     app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
-      (request as typeof request & { user: { sub: string } }).user = { sub: 'test-user' };
+      (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+        sub: 'test-user',
+        roles: ['teacher'],
+      };
     });
 
     await registerAttendanceRoutes(app, { attendanceService: service });
@@ -270,4 +273,40 @@ describe('Attendance Routes', () => {
       expect(body.leaveTypes).toHaveLength(1);
     });
   });
+
+  describe('W1-SEC-02 package RBAC', () => {
+    it('returns 403 when roles are empty (fail closed)', async () => {
+      await app.close();
+      app = Fastify();
+      app.decorateRequest('tenantId', '');
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { tenantId: string }).tenantId = TENANT_ID;
+      });
+      app.decorateRequest('user', undefined);
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+          sub: 'test-user',
+          roles: [],
+        };
+      });
+      const service = new AttendanceService(repository);
+      await registerAttendanceRoutes(app, { attendanceService: service });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/attendance/student',
+        payload: {
+          studentId: STUDENT_ID,
+          institutionId: INSTITUTION_ID,
+          classId: CLASS_ID,
+          academicPeriodId: PERIOD_ID,
+          date: '2024-06-01',
+          status: 'present',
+        },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
 });
