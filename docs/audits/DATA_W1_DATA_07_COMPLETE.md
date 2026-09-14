@@ -1,7 +1,7 @@
 # DATA — W1-DATA-07 COMPLETE (append-only effective versions + payroll reverse/replace)
 
 **Module / slice:** Academic periods, fee structures, staff payroll runs  
-**Branch / tip:** `cursor/w1-data-07-dating-complete-56c3` @ `5f211d00`  
+**Branch / tip:** `cursor/w1-data-07-dating-complete-56c3` @ `883ab2ed`  
 **Date (UTC):** 2026-09-14  
 **Environment:** SQL contract + focused unit tests (live Postgres optional)
 
