@@ -9,7 +9,12 @@
  */
 
 // Tenant Resolution
-export { resolveTenantId, isValidUuid, TenantResolutionError } from './tenant-resolution.js';
+export {
+  resolveTenantId,
+  isValidUuid,
+  isAuthenticatedRequest,
+  TenantResolutionError,
+} from './tenant-resolution.js';
 export type { TenantResolutionResult, TenantResolutionOptions } from './tenant-resolution.js';
 
 // W3-TIME-01 — tenant timezone foundation

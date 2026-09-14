@@ -42,7 +42,6 @@ describe('tenant-resolution', () => {
       it('should resolve tenant from JWT claim', () => {
         const request = createMockRequest({
           user: { tenantId: validTenantId },
-          headers: { 'x-tenant-id': 'other-id' },
           hostname: 'tenant1.proctira.org',
         });
 
@@ -79,14 +78,45 @@ describe('tenant-resolution', () => {
         expect(result.source).toBe('header');
       });
 
-      it('should skip JWT if claim is empty string', () => {
+      it('should reject authenticated requests with empty JWT tenant even when header is set (W1-SEC-01)', () => {
         const request = createMockRequest({
-          user: { tenantId: '' },
+          user: { tenantId: '', sub: 'user-1' },
           headers: { 'x-tenant-id': validTenantId },
         });
 
-        const result = resolveTenantId(request);
-        expect(result.source).toBe('header');
+        expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
+        expect(() => resolveTenantId(request)).toThrow(/missing verified JWT tenantId/);
+      });
+
+      it('should reject authenticated requests missing JWT tenantId with no other identity (W1-SEC-01)', () => {
+        const request = createMockRequest({
+          user: { sub: 'user-1' },
+          hostname: 'localhost',
+        });
+
+        expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
+        expect(() => resolveTenantId(request)).toThrow(/missing verified JWT tenantId/);
+      });
+
+      it('should return subdomain slug for authenticated requests so trusted lookup can complete', () => {
+        const request = createMockRequest({
+          user: { sub: 'user-1' },
+          hostname: 'ministry-edu.proctira.org',
+        });
+
+        const result = resolveTenantId(request, { baseDomain: 'proctira.org' });
+        expect(result.source).toBe('subdomain');
+        expect(result.tenantId).toBe('ministry-edu');
+      });
+
+      it('should reject conflicting JWT and header tenant UUIDs (W1-SEC-01)', () => {
+        const request = createMockRequest({
+          user: { tenantId: validTenantId, sub: 'user-1' },
+          headers: { 'x-tenant-id': '660e8400-e29b-41d4-a716-446655440000' },
+        });
+
+        expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
+        expect(() => resolveTenantId(request)).toThrow(/Conflicting tenant identities/);
       });
     });
 
@@ -191,10 +221,10 @@ describe('tenant-resolution', () => {
     });
 
     describe('Priority order', () => {
-      it('should prefer JWT over header and subdomain', () => {
+      it('should prefer matching JWT over subdomain when header agrees', () => {
         const request = createMockRequest({
           user: { tenantId: validTenantId },
-          headers: { 'x-tenant-id': '660e8400-e29b-41d4-a716-446655440000' },
+          headers: { 'x-tenant-id': validTenantId },
           hostname: 'other-tenant.proctira.org',
         });
 
@@ -203,7 +233,7 @@ describe('tenant-resolution', () => {
         expect(result.source).toBe('jwt');
       });
 
-      it('should prefer header over subdomain', () => {
+      it('should prefer header over subdomain when unauthenticated', () => {
         const request = createMockRequest({
           headers: { 'x-tenant-id': validTenantId },
           hostname: 'other-tenant.proctira.org',

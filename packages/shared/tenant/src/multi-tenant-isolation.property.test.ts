@@ -278,7 +278,7 @@ describe('Property 6: Multi-Tenant Isolation', () => {
       );
     });
 
-    it('JWT claim takes precedence: tenant A credentials never resolve to tenant B', () => {
+    it('JWT claim rejects conflicting header rather than silently preferring JWT (W1-SEC-01)', () => {
       fc.assert(
         fc.property(distinctTenantPairArb, ({ tenantA, tenantB }) => {
           // Request has JWT for tenant A but header for tenant B
@@ -287,12 +287,8 @@ describe('Property 6: Multi-Tenant Isolation', () => {
             headers: { 'x-tenant-id': tenantB },
           });
 
-          const result = resolveTenantId(request);
-
-          // JWT claim (tenant A) must take precedence — never resolves to tenant B
-          expect(result.tenantId).toBe(tenantA);
-          expect(result.tenantId).not.toBe(tenantB);
-          expect(result.source).toBe('jwt');
+          expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
+          expect(() => resolveTenantId(request)).toThrow(/Conflicting tenant identities/);
         }),
         { numRuns: 100 },
       );
