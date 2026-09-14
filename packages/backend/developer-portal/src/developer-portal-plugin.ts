@@ -25,6 +25,12 @@ export interface DeveloperPortalPluginOptions {
   config?: Partial<DeveloperPortalServiceConfig>;
   /** Durable webhook delivery publisher (W2-JOB-07) */
   deliveryPublisher?: import('./queue-webhook-delivery-publisher.js').WebhookDeliveryPublisher;
+  /**
+   * W1-SEC-08 replay store for inbound webhook signature verification.
+   * Gateway should inject Redis-backed store in production via
+   * {@link createWebhookReplayStoreFromEnv}.
+   */
+  replayStore?: import('./webhook-signature.js').WebhookReplayStore | null;
   /** Route prefix (default: '/developer') */
   prefix?: string;
 }
@@ -44,13 +50,13 @@ export const developerPortalPlugin = fp(
     fastify: FastifyInstance,
     options: DeveloperPortalPluginOptions,
   ) {
-    const { repository, config = {}, deliveryPublisher, prefix = '/developer' } = options;
+    const { repository, config = {}, deliveryPublisher, replayStore, prefix = '/developer' } = options;
 
     // Merge config with defaults
     const fullConfig: DeveloperPortalServiceConfig = { ...DEFAULT_CONFIG, ...config };
 
     // Create service instance
-    const service = new DeveloperPortalService(repository, fullConfig, { deliveryPublisher });
+    const service = new DeveloperPortalService(repository, fullConfig, { deliveryPublisher, replayStore });
 
     // Decorate fastify with the service
     fastify.decorate('developerPortalService', service);

@@ -45,6 +45,12 @@ import type {
 } from './queue-webhook-delivery-publisher.js';
 import {
   createWebhookSignatureHeaders,
+  verifyWebhookSignatureSecure,
+} from './webhook-signature.js';
+
+import type {
+  WebhookReplayStore,
+  WebhookVerifyResult,
 } from './webhook-signature.js';
 
 export {
@@ -130,6 +136,8 @@ export type WebhookHttpFetch = (
 export class DeveloperPortalService {
   private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
   private readonly httpFetch: WebhookHttpFetch;
+  /** W1-SEC-08: nonce replay store for inbound signature verification. */
+  private readonly replayStore: WebhookReplayStore | null | undefined;
 
   constructor(
     private readonly repository: DeveloperPortalExtendedRepository,
@@ -137,15 +145,78 @@ export class DeveloperPortalService {
     options?: {
       deliveryPublisher?: WebhookDeliveryPublisher;
       httpFetch?: WebhookHttpFetch;
+      /** Injected replay store (Redis in prod / memory in non-prod). */
+      replayStore?: WebhookReplayStore | null;
     },
   ) {
     this.deliveryPublisher = options?.deliveryPublisher;
+    this.replayStore = options?.replayStore;
     this.httpFetch =
       options?.httpFetch ??
       (async (url, init) => {
         const res = await fetch(url, init);
         return { status: res.status, ok: res.ok };
       });
+  }
+
+  /**
+   * W1-SEC-08 — verify an inbound Proctira-signed webhook (skew + nonce replay).
+   * Used by the hosted reference receiver and partner integration tests.
+   */
+  async verifyInboundWebhook(input: {
+    payload: string;
+    secret: string;
+    signature: string;
+    timestamp: string | number;
+    nonce: string;
+    nowMs?: number;
+    nodeEnv?: string;
+  }): Promise<WebhookVerifyResult> {
+    return verifyWebhookSignatureSecure({
+      payload: input.payload,
+      secret: input.secret,
+      signature: input.signature,
+      timestamp: input.timestamp,
+      nonce: input.nonce,
+      nowMs: input.nowMs,
+      replayStore: this.replayStore ?? undefined,
+      nodeEnv: input.nodeEnv,
+    });
+  }
+
+  /**
+   * W1-SEC-08 self-check: sign → verify (accept) → verify again (replay).
+   * Proves the HTTP-mounted replay store is live without an external partner.
+   */
+  async runWebhookVerifySelfTest(nodeEnv?: string): Promise<{
+    first: WebhookVerifyResult;
+    second: WebhookVerifyResult;
+    headers: Record<string, string>;
+  }> {
+    const secret = `whsec_selftest_${generateApiKey()}`;
+    const payload = JSON.stringify({
+      id: 'self-test',
+      event: 'webhook.verify_self_test',
+      payload: { ok: true },
+    });
+    const signed = createWebhookSignatureHeaders(payload, secret);
+    const first = await this.verifyInboundWebhook({
+      payload,
+      secret,
+      signature: signed.signature,
+      timestamp: signed.timestamp,
+      nonce: signed.nonce,
+      nodeEnv,
+    });
+    const second = await this.verifyInboundWebhook({
+      payload,
+      secret,
+      signature: signed.signature,
+      timestamp: signed.timestamp,
+      nonce: signed.nonce,
+      nodeEnv,
+    });
+    return { first, second, headers: signed.headers };
   }
 
   // ─── Developer Accounts ─────────────────────────────────────────────────
