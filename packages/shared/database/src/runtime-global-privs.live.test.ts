@@ -1,10 +1,15 @@
 /**
  * W1-DATA-11 — runtime must not see or mutate migration ledgers; platform
- * catalogs are SELECT/INSERT only.
+ * catalogs are SELECT/INSERT only; catalog sync must not leave unauthorized
+ * privileges on classified tables.
  *
- * Requires DATABASE_URL as proctira_app against a DB that applied through 075.
+ * Requires DATABASE_URL as proctira_app against a DB that applied through 076
+ * + apply-runtime-table-privileges sync.
  */
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -17,6 +22,24 @@ const GLOBAL_CATALOGS = [
   'insights_ui_indicators',
   'insights_ui_geo_features',
 ] as const;
+
+const APPEND_ONLY = [
+  'fee_ledger_entries',
+  'audit_log_entries',
+  'workflow_transition_audit',
+  'transcript_issuances',
+  'audit_log_archive',
+  'enrollment_history',
+  'grade_change_audit',
+] as const;
+
+function loadCatalogClasses(): Record<string, string> {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../../../../');
+  const raw = JSON.parse(
+    readFileSync(join(root, 'db/runtime-table-privileges.json'), 'utf8'),
+  ) as { tables: Record<string, string> };
+  return raw.tables;
+}
 
 describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', () => {
   let pool: pg.Pool;
@@ -112,6 +135,52 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
       await client.query('ROLLBACK');
     } finally {
       client.release();
+    }
+  });
+
+  it('catalog gate: no unauthorized privilege on denied/select_insert/append_only tables', async () => {
+    const classes = loadCatalogClasses();
+    const { rows } = await pool.query<{
+      table_name: string;
+      privilege_type: string;
+    }>(`
+      SELECT
+        c.relname AS table_name,
+        acl.privilege_type
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) acl
+      JOIN pg_roles r ON r.oid = acl.grantee
+      WHERE n.nspname = 'public'
+        AND c.relkind IN ('r', 'p')
+        AND r.rolname = 'proctira_app'
+      ORDER BY 1, 2
+    `);
+
+    const allowed = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
+    const unauthorized: string[] = [];
+    for (const row of rows) {
+      const cls = classes[row.table_name];
+      if (!cls) {
+        unauthorized.push(`${row.table_name}:${row.privilege_type} (unclassified)`);
+        continue;
+      }
+      if (!allowed.has(row.privilege_type)) continue;
+      if (cls === 'denied') {
+        unauthorized.push(`${row.table_name}:${row.privilege_type} (denied)`);
+      } else if (
+        (cls === 'select_insert' || cls === 'append_only') &&
+        (row.privilege_type === 'UPDATE' || row.privilege_type === 'DELETE')
+      ) {
+        unauthorized.push(`${row.table_name}:${row.privilege_type} (${cls})`);
+      }
+    }
+    expect(unauthorized, unauthorized.join(', ')).toEqual([]);
+
+    for (const table of [...GLOBAL_CATALOGS, ...APPEND_ONLY]) {
+      expect(classes[table] === 'select_insert' || classes[table] === 'append_only').toBe(
+        true,
+      );
     }
   });
 });

@@ -1080,6 +1080,29 @@ jobs:
         run: node tools/scripts/check-codeowners.mjs
 
   # ---------------------------------------------------------------------------
+  # Runtime table privilege catalog — data gate (W1-DATA-11 COMPLETE)
+  # ---------------------------------------------------------------------------
+  # Fail closed when public tables are unclassified, 050 restores blanket
+  # TABLE DEFAULT PRIVILEGES, or apply-sql omits privilege catalog sync.
+  # No Postgres required — static catalog + SQL contract scan.
+  # ---------------------------------------------------------------------------
+  runtime-table-privileges:
+    name: Runtime Table Privileges (W1-DATA-11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test runtime privilege catalog gate
+        run: node --test tools/scripts/check-runtime-table-privileges.test.mjs
+
+      - name: Fail when runtime privileges are unclassified or blanket-defaulted
+        run: node tools/scripts/check-runtime-table-privileges.mjs
+
+  # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
   # ---------------------------------------------------------------------------
   # Runs ungated Chromium smokes for Next secondary apps that are not covered
@@ -1188,6 +1211,7 @@ jobs:
       - tenant-id-indexes
       - migration-timeouts
       - codeowners-gate
+      - runtime-table-privileges
       - secondary-apps-e2e
     if: always()
     steps:
@@ -1218,5 +1242,6 @@ jobs:
           TENANT_ID_INDEXES_RESULT: ${{ needs.tenant-id-indexes.result }}
           MIGRATION_TIMEOUTS_RESULT: ${{ needs.migration-timeouts.result }}
           CODEOWNERS_GATE_RESULT: ${{ needs.codeowners-gate.result }}
+          RUNTIME_TABLE_PRIVILEGES_RESULT: ${{ needs.runtime-table-privileges.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

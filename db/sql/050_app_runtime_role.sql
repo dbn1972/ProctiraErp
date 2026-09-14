@@ -49,11 +49,14 @@ END $$;
 
 GRANT USAGE ON SCHEMA public TO proctira_app;
 
+-- Bootstrap DML for tables that already exist when 050 runs. W1-DATA-11 COMPLETE
+-- (076 + apply-runtime-table-privileges.sh) REVOKEs these blanket grants and
+-- re-applies explicit per-table classes from db/runtime-table-privileges.json.
+-- Do NOT restore ALTER DEFAULT PRIVILEGES … ON TABLES — future tables must be
+-- classified in the catalog (CI gate) and synced after apply-sql.
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO proctira_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO proctira_app;
 
--- Future objects created by the current migrator/owner.
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO proctira_app;
+-- Sequences only: IDENTITY/serial INSERT needs USAGE without auto-granting table DML.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO proctira_app;

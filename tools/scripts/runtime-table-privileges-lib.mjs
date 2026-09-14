@@ -1,0 +1,403 @@
+#!/usr/bin/env node
+/**
+ * W1-DATA-11 COMPLETE — shared library for runtime table privilege classification.
+ *
+ * Source of truth: db/runtime-table-privileges.json
+ * Every public CREATE TABLE must be classified; blanket DEFAULT PRIVILEGES are
+ * forbidden; apply-sql syncs grants from this catalog on every run.
+ */
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const CATALOG_REL = 'db/runtime-table-privileges.json';
+export const ROLE_SQL_REL = 'db/sql/050_app_runtime_role.sql';
+export const CLASSIFY_SQL_REL = 'db/sql/084_runtime_privilege_classification.sql';
+export const APPLY_SQL_REL = 'tools/scripts/apply-sql.sh';
+export const SYNC_SCRIPT_REL = 'tools/scripts/apply-runtime-table-privileges.sh';
+
+export const VALID_CLASSES = new Set(['denied', 'select_insert', 'append_only', 'dml']);
+
+export const CLASS_PRIVILEGES = {
+  denied: [],
+  select_insert: ['SELECT', 'INSERT'],
+  append_only: ['SELECT', 'INSERT'],
+  dml: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+};
+
+/**
+ * @param {string} root
+ */
+export function defaultPaths(root) {
+  return {
+    catalog: join(root, CATALOG_REL),
+    roleSql: join(root, ROLE_SQL_REL),
+    classifySql: join(root, CLASSIFY_SQL_REL),
+    applySql: join(root, APPLY_SQL_REL),
+    syncScript: join(root, SYNC_SCRIPT_REL),
+    sqlDir: join(root, 'db/sql'),
+    prismaMigrations: join(root, 'packages/shared/database/prisma/migrations'),
+  };
+}
+
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
+function listNumberedSql(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((name) => /^[0-9].*\.sql$/i.test(name))
+    .map((name) => join(dir, name))
+    .filter((p) => statSync(p).isFile())
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * @param {string} dir
+ * @returns {string[]}
+ */
+function walkSqlFiles(dir) {
+  if (!existsSync(dir)) return [];
+  /** @type {string[]} */
+  const out = [];
+  for (const name of readdirSync(dir)) {
+    const abs = join(dir, name);
+    const st = statSync(abs);
+    if (st.isDirectory()) out.push(...walkSqlFiles(abs));
+    else if (st.isFile() && name.endsWith('.sql')) out.push(abs);
+  }
+  return out.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * @param {string} root
+ * @param {ReturnType<typeof defaultPaths>} paths
+ */
+export function collectSqlCorpus(root, paths = defaultPaths(root)) {
+  const files = [...listNumberedSql(paths.sqlDir), ...walkSqlFiles(paths.prismaMigrations)];
+  return {
+    files: files.map((abs) => relative(root, abs).replace(/\\/g, '/')),
+    text: files.map((abs) => readFileSync(abs, 'utf8')).join('\n\n'),
+  };
+}
+
+/**
+ * Tables declared via CREATE TABLE in the SQL corpus.
+ * Always includes migrator ledgers (may be created outside numbered SQL).
+ * @param {string} sqlText
+ * @returns {Set<string>}
+ */
+export function extractPublicTables(sqlText) {
+  const tables = new Set(['schema_migrations', '_prisma_migrations']);
+  const re =
+    /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?/gi;
+  let match;
+  while ((match = re.exec(sqlText)) !== null) {
+    tables.add(match[1].toLowerCase());
+  }
+  return tables;
+}
+
+/**
+ * @param {string} catalogPath
+ */
+export function loadCatalog(catalogPath) {
+  if (!existsSync(catalogPath)) {
+    throw new Error(`missing privilege catalog at ${catalogPath}`);
+  }
+  const raw = JSON.parse(readFileSync(catalogPath, 'utf8'));
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('privilege catalog must be a JSON object');
+  }
+  const tables = raw.tables;
+  if (!tables || typeof tables !== 'object' || Array.isArray(tables)) {
+    throw new Error('privilege catalog.tables must be an object map');
+  }
+  /** @type {Record<string, string>} */
+  const normalized = {};
+  for (const [name, cls] of Object.entries(tables)) {
+    const table = String(name).trim().toLowerCase();
+    const className = String(cls).trim().toLowerCase();
+    if (!table) throw new Error('catalog has empty table name');
+    if (!VALID_CLASSES.has(className)) {
+      throw new Error(`table ${table} has invalid class ${className}`);
+    }
+    normalized[table] = className;
+  }
+  return {
+    version: raw.version ?? 1,
+    classes: raw.classes ?? {},
+    tables: normalized,
+    sequences: raw.sequences ?? {},
+  };
+}
+
+/**
+ * Emit idempotent SQL that revokes blanket defaults and applies classified grants.
+ * @param {ReturnType<typeof loadCatalog>} catalog
+ */
+export function generateSyncSql(catalog) {
+  const byClass = {
+    denied: [],
+    select_insert: [],
+    append_only: [],
+    dml: [],
+  };
+  for (const [table, cls] of Object.entries(catalog.tables)) {
+    byClass[cls].push(table);
+  }
+  for (const key of Object.keys(byClass)) {
+    byClass[key].sort();
+  }
+
+  const lines = [
+    '-- Generated by tools/scripts/runtime-table-privileges-lib.mjs (W1-DATA-11 COMPLETE)',
+    '-- Do not grant via ALTER DEFAULT PRIVILEGES — every table is classified.',
+    '',
+    "DO $$",
+    'BEGIN',
+    "  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'proctira_app') THEN",
+    "    RAISE NOTICE 'W1-DATA-11: proctira_app missing — skip privilege sync';",
+    '    RETURN;',
+    '  END IF;',
+    'END $$;',
+    '',
+    '-- Remove blanket future-table DML (050 historical DEFAULT PRIVILEGES).',
+    'ALTER DEFAULT PRIVILEGES IN SCHEMA public',
+    '  REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM proctira_app;',
+    'ALTER DEFAULT PRIVILEGES IN SCHEMA public',
+    '  REVOKE ALL ON TABLES FROM proctira_app;',
+    '',
+    // Keep sequence USAGE/SELECT defaults so IDENTITY/serial INSERT keeps working
+    // for newly classified tables; table DML is never defaulted.
+    'ALTER DEFAULT PRIVILEGES IN SCHEMA public',
+    '  GRANT USAGE, SELECT ON SEQUENCES TO proctira_app;',
+    '',
+    "DO $$",
+    'DECLARE',
+    '  t TEXT;',
+    '  r RECORD;',
+    'BEGIN',
+    "  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'proctira_app') THEN",
+    '    RETURN;',
+    '  END IF;',
+    '',
+    '  -- Fail closed: strip every current public table privilege for runtime.',
+    '  FOR r IN',
+    '    SELECT c.relname AS name',
+    '    FROM pg_class c',
+    '    JOIN pg_namespace n ON n.oid = c.relnamespace',
+    "    WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')",
+    '  LOOP',
+    "    EXECUTE format('REVOKE ALL ON TABLE %I FROM proctira_app', r.name);",
+    "    EXECUTE format('REVOKE ALL ON TABLE %I FROM PUBLIC', r.name);",
+    '  END LOOP;',
+    '',
+  ];
+
+  function emitGrantLoop(className, privileges) {
+    const tables = byClass[className];
+    lines.push(`  -- class: ${className} (${privileges.join(', ') || 'NONE'})`);
+    if (tables.length === 0) {
+      lines.push(`  -- (no tables)`);
+      lines.push('');
+      return;
+    }
+    lines.push('  FOREACH t IN ARRAY ARRAY[');
+    for (let i = 0; i < tables.length; i++) {
+      const comma = i + 1 < tables.length ? ',' : '';
+      lines.push(`    '${tables[i]}'${comma}`);
+    }
+    lines.push('  ]');
+    lines.push('  LOOP');
+    lines.push('    IF to_regclass(format(\'public.%I\', t)) IS NOT NULL THEN');
+    if (privileges.length === 0) {
+      lines.push('      -- denied: leave revoked');
+      lines.push('      NULL;');
+    } else {
+      lines.push(
+        `      EXECUTE format('GRANT ${privileges.join(', ')} ON TABLE %I TO proctira_app', t);`,
+      );
+    }
+    lines.push('    END IF;');
+    lines.push('  END LOOP;');
+    lines.push('');
+  }
+
+  emitGrantLoop('denied', CLASS_PRIVILEGES.denied);
+  emitGrantLoop('select_insert', CLASS_PRIVILEGES.select_insert);
+  emitGrantLoop('append_only', CLASS_PRIVILEGES.append_only);
+  emitGrantLoop('dml', CLASS_PRIVILEGES.dml);
+
+  lines.push('  -- Sequences for INSERT into non-denied tables.');
+  lines.push('  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO proctira_app;');
+  lines.push('END $$;');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+/**
+ * Live/catalog unauthorized privilege detector SQL (for docs / live tests).
+ * Returns rows where proctira_app holds a privilege outside the catalog class.
+ */
+export function unauthorizedPrivilegeProbeSql() {
+  return `
+WITH class AS (
+  -- placeholder; live tests join against expected map in application code
+  SELECT NULL::text AS table_name, NULL::text AS class_name WHERE false
+),
+acl AS (
+  SELECT
+    c.relname AS table_name,
+    privilege_type
+  FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) acl
+  JOIN pg_roles r ON r.oid = acl.grantee
+  WHERE n.nspname = 'public'
+    AND c.relkind IN ('r', 'p')
+    AND r.rolname = 'proctira_app'
+)
+SELECT * FROM acl
+`.trim();
+}
+
+/**
+ * @param {{
+ *   catalog: ReturnType<typeof loadCatalog>,
+ *   corpusTables: Set<string>,
+ *   roleSql: string,
+ *   classifySql: string,
+ *   applySql: string,
+ *   syncScript: string,
+ * }} input
+ */
+export function evaluateRuntimePrivileges(input) {
+  /** @type {string[]} */
+  const issues = [];
+
+  const catalogTables = new Set(Object.keys(input.catalog.tables));
+  for (const table of [...input.corpusTables].sort()) {
+    if (!catalogTables.has(table)) {
+      issues.push(`unclassified public table: ${table} (add to ${CATALOG_REL})`);
+    }
+  }
+  for (const table of [...catalogTables].sort()) {
+    if (!input.corpusTables.has(table) && table !== '_prisma_migrations') {
+      // Allow catalog entries for tables not yet in corpus only for prisma ledger.
+      // Extra catalog entries for unknown tables are warnings → hard fail to keep 1:1.
+      issues.push(`catalog lists unknown table not in SQL corpus: ${table}`);
+    }
+  }
+
+  // 050 must not install blanket DEFAULT PRIVILEGES on TABLES for proctira_app.
+  if (/ALTER\s+DEFAULT\s+PRIVILEGES[\s\S]*?GRANT\s+SELECT\s*,\s*INSERT\s*,\s*UPDATE\s*,\s*DELETE\s+ON\s+TABLES\s+TO\s+proctira_app/i.test(
+    input.roleSql,
+  )) {
+    issues.push(
+      `${ROLE_SQL_REL} still grants blanket DEFAULT PRIVILEGES on TABLES to proctira_app`,
+    );
+  }
+
+  if (!input.classifySql) {
+    issues.push(`missing ${CLASSIFY_SQL_REL}`);
+  } else {
+    if (!/W1-DATA-11/.test(input.classifySql)) {
+      issues.push(`${CLASSIFY_SQL_REL} must reference W1-DATA-11`);
+    }
+    if (!/ALTER\s+DEFAULT\s+PRIVILEGES[\s\S]*?REVOKE[\s\S]*?ON\s+TABLES\s+FROM\s+proctira_app/i.test(
+      input.classifySql,
+    )) {
+      issues.push(`${CLASSIFY_SQL_REL} must REVOKE DEFAULT PRIVILEGES on TABLES from proctira_app`);
+    }
+    if (!/084_runtime_privilege_classification\.sql/.test(input.classifySql)) {
+      issues.push(`${CLASSIFY_SQL_REL} must record its own filename in schema_migrations`);
+    }
+  }
+
+  if (!input.applySql) {
+    issues.push(`missing ${APPLY_SQL_REL}`);
+  } else if (!/apply-runtime-table-privileges\.sh/.test(input.applySql)) {
+    issues.push(`${APPLY_SQL_REL} must invoke apply-runtime-table-privileges.sh after numbered SQL`);
+  }
+
+  if (!input.syncScript) {
+    issues.push(`missing ${SYNC_SCRIPT_REL}`);
+  } else if (!/runtime-table-privileges/.test(input.syncScript)) {
+    issues.push(`${SYNC_SCRIPT_REL} must sync from the privilege catalog`);
+  }
+
+  // Required class members (historical W1-DATA-11 + immutability).
+  const required = {
+    denied: ['schema_migrations', '_prisma_migrations'],
+    select_insert: [
+      'insights_ui_templates',
+      'insights_ui_indicators',
+      'insights_ui_geo_features',
+    ],
+    append_only: [
+      'fee_ledger_entries',
+      'audit_log_entries',
+      'workflow_transition_audit',
+      'transcript_issuances',
+      'audit_log_archive',
+      'enrollment_history',
+      'grade_change_audit',
+    ],
+  };
+  for (const [cls, tables] of Object.entries(required)) {
+    for (const table of tables) {
+      if (input.catalog.tables[table] !== cls) {
+        issues.push(`table ${table} must be classified as ${cls}`);
+      }
+    }
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues,
+    counts: {
+      corpus: input.corpusTables.size,
+      catalog: catalogTables.size,
+      byClass: Object.fromEntries(
+        [...VALID_CLASSES].map((cls) => [
+          cls,
+          Object.values(input.catalog.tables).filter((v) => v === cls).length,
+        ]),
+      ),
+    },
+  };
+}
+
+/**
+ * @param {string} root
+ */
+export function evaluateRepo(root) {
+  const paths = defaultPaths(root);
+  const catalog = loadCatalog(paths.catalog);
+  const corpus = collectSqlCorpus(root, paths);
+  const corpusTables = extractPublicTables(corpus.text);
+  const roleSql = existsSync(paths.roleSql) ? readFileSync(paths.roleSql, 'utf8') : '';
+  const classifySql = existsSync(paths.classifySql)
+    ? readFileSync(paths.classifySql, 'utf8')
+    : '';
+  const applySql = existsSync(paths.applySql) ? readFileSync(paths.applySql, 'utf8') : '';
+  const syncScript = existsSync(paths.syncScript)
+    ? readFileSync(paths.syncScript, 'utf8')
+    : '';
+
+  return evaluateRuntimePrivileges({
+    catalog,
+    corpusTables,
+    roleSql,
+    classifySql,
+    applySql,
+    syncScript,
+  });
+}
+
+export function repoRootFromHere() {
+  return join(dirname(fileURLToPath(import.meta.url)), '../..');
+}

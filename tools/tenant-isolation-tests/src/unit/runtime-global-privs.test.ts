@@ -86,9 +86,26 @@ describe('W1-DATA-11 runtime global table privileges (072 + 075)', () => {
     const root = join(sqlDir(), '..', '..');
     const privileges = join(root, 'docs/audits/DATA_W1_DATA_11_PRIVILEGES.md');
     const privs = join(root, 'docs/audits/DATA_W1_DATA_11_PRIVS.md');
+    const complete = join(root, 'docs/audits/DATA_W1_DATA_11_COMPLETE.md');
     expect(existsSync(privileges)).toBe(true);
     expect(existsSync(privs)).toBe(true);
+    expect(existsSync(complete)).toBe(true);
     expect(readFileSync(privileges, 'utf8')).toMatch(/072_control_ledger_privileges/);
     expect(readFileSync(privs, 'utf8')).toMatch(/075_runtime_global_table_privileges/);
+    expect(readFileSync(complete, 'utf8')).toMatch(/084_runtime_privilege_classification/);
+  });
+
+  it('076 + catalog remove blanket defaults and classify grants', () => {
+    const root = join(sqlDir(), '..', '..');
+    const classify = loadSql('084_runtime_privilege_classification.sql');
+    expect(classify).toMatch(/W1-DATA-11/);
+    expect(classify).toMatch(
+      /ALTER\s+DEFAULT\s+PRIVILEGES[\s\S]*?REVOKE[\s\S]*?ON\s+TABLES\s+FROM\s+proctira_app/i,
+    );
+    const role = loadSql('050_app_runtime_role.sql');
+    expect(role).not.toMatch(
+      /ALTER\s+DEFAULT\s+PRIVILEGES[\s\S]*?GRANT\s+SELECT\s*,\s*INSERT\s*,\s*UPDATE\s*,\s*DELETE\s+ON\s+TABLES\s+TO\s+proctira_app/i,
+    );
+    expect(existsSync(join(root, 'db/runtime-table-privileges.json'))).toBe(true);
   });
 });
