@@ -103,6 +103,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'lms',
   'attendance',
   'assessment',
+  'curriculum',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -230,6 +231,12 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     id: 'assessment.report-cards',
     pathPrefix: '/api/v1/report-cards',
     resource: 'assessment',
+    deferredDomainGuard: false,
+  },
+  {
+    id: 'curriculum.staff',
+    pathPrefix: '/api/v1/curriculum',
+    resource: 'curriculum',
     deferredDomainGuard: false,
   },
   {

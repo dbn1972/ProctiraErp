@@ -17,6 +17,14 @@ describe('curriculum routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as { tenantId?: string }).tenantId = TENANT;
     });
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+        sub: 'test-user',
+        roles: ['teacher'],
+      };
+    });
+
     await app.register(curriculumPlugin, {
       store: new InMemoryCurriculumStore(),
       prefix: '/curriculum',
@@ -64,4 +72,41 @@ describe('curriculum routes', () => {
     expect(coverage.statusCode).toBe(200);
     expect(coverage.json()).toMatchObject({ planned: 1, taught: 1, percent: 100 });
   });
+
+  describe('W1-SEC-02 package RBAC', () => {
+    it('returns 403 when roles are empty (fail closed)', async () => {
+      await app.close();
+      app = Fastify({ logger: false });
+      app.addHook('onRequest', async (request) => {
+        (request as { tenantId?: string }).tenantId = TENANT;
+      });
+      app.decorateRequest('user', undefined);
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+          sub: 'test-user',
+          roles: [],
+        };
+      });
+      await app.register(curriculumPlugin, {
+        store: new InMemoryCurriculumStore(),
+        prefix: '/curriculum',
+      });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/curriculum/units',
+        payload: {
+          subjectId: SUBJECT,
+          gradeId: GRADE,
+          academicPeriodId: PERIOD,
+          code: 'NS',
+          name: 'Number systems',
+        },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
 });
+

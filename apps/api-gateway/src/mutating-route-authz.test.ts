@@ -111,6 +111,7 @@ describe('W1-SEC-02 mutating-route authz inventory', () => {
     expect(deferred.some((r) => r.pathPrefix.includes('/lms'))).toBe(false);
     expect(deferred.some((r) => r.pathPrefix.includes('/attendance'))).toBe(false);
     expect(deferred.some((r) => r.pathPrefix.includes('/assessments'))).toBe(false);
+    expect(deferred.some((r) => r.pathPrefix.includes('/curriculum'))).toBe(false);
     expect(MUTATING_ROUTE_AUTHZ_INVENTORY.length).toBeGreaterThan(20);
   });
 });

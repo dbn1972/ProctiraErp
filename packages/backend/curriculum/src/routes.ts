@@ -12,6 +12,7 @@ import {
   MarkTaughtSchema,
 } from './schemas.js';
 import type { CurriculumService } from './service.js';
+import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 
 export interface CurriculumRoutesOptions {
   service: CurriculumService;
@@ -43,6 +44,14 @@ export async function registerCurriculumRoutes(
   fastify: FastifyInstance,
   options: CurriculumRoutesOptions,
 ): Promise<void> {
+  
+  // W1-SEC-02: package-level RBAC (clears deferred curriculum inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceCurriculumRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
   const prefix = options.prefix ?? '/curriculum';
   const { service } = options;
 
