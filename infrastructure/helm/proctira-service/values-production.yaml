@@ -1,3 +1,6 @@
+# W1-OPS-17 — Uniform production floor for deploy.yml thin-chart releases.
+# Must meet or exceed infrastructure/ops/production-replica-policy.yaml
+# (replicaCount ≥ 2, HPA minReplicas ≥ 2, PDB minAvailable coherent).
 environment: production
 replicaCount: 3
 resources:

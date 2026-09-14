@@ -1,0 +1,16 @@
+{{- if and .Values.adminConsole.enabled .Values.adminConsole.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "proctira.fullname" . }}-admin-console
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: admin-console
+spec:
+  minAvailable: {{ .Values.adminConsole.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: admin-console
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

@@ -1,0 +1,16 @@
+{{- if and .Values.registrationPortal.enabled .Values.registrationPortal.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "proctira.fullname" . }}-registration-portal
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: registration-portal
+spec:
+  minAvailable: {{ .Values.registrationPortal.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: registration-portal
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

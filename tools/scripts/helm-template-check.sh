@@ -225,6 +225,10 @@ bash "$ROOT/tools/scripts/check-no-latest-image-tags.sh"
 echo "==> W1-OPS-16 topology canonical gate"
 bash "$ROOT/tools/scripts/check-topology-canonical.sh"
 
+# W1-OPS-17 — production replica / PDB coherence
+echo "==> W1-OPS-17 replica policy gate"
+bash "$ROOT/tools/scripts/check-replica-policy.sh"
+
 # Production umbrella must not render split-domain Deployments
 echo "==> W1-OPS-16 production platform render (no split domains)"
 prod_out="$(mktemp)"
@@ -238,8 +242,15 @@ grep -q 'api-gateway' "$prod_out" || die "production platform missing api-gatewa
 if grep -E 'app.kubernetes.io/name: institution-service|name: .*institution-service$' "$prod_out" >/dev/null; then
   die "production platform must not render institution-service (W1-OPS-16)"
 fi
+# W1-OPS-17 — production render must include HA PDBs for canonical services
+for pdb_svc in api-gateway web etl-worker registration-portal public-website admin-console developer-portal; do
+  grep -q "app.kubernetes.io/name: ${pdb_svc}" "$prod_out" \
+    || die "production platform missing ${pdb_svc} resources (W1-OPS-17)"
+done
+pdb_count="$(grep -c '^kind: PodDisruptionBudget$' "$prod_out" || true)"
+[[ "$pdb_count" -ge 7 ]] || die "expected >=7 production PDBs for HA services, got ${pdb_count}"
 rm -f "$prod_out"
-echo "OK production platform without split-domain Deployments"
+echo "OK production platform without split-domain Deployments (+ W1-OPS-17 PDBs)"
 
 lines="$(wc -l <"$platform_out" | tr -d ' ')"
 rm -f "$platform_out"

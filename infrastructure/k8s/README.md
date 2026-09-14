@@ -57,6 +57,7 @@ kustomize edit set image proctira/api-gateway=proctira/api-gateway:sha-<gitsha>
 
 Regression gate: `./tools/scripts/check-no-latest-image-tags.sh` (also invoked from `helm-template-check.sh`).
 Topology gate: `./tools/scripts/check-topology-canonical.sh` (W1-OPS-16).
+Replica / PDB gate: `./tools/scripts/check-replica-policy.sh` (W1-OPS-17; policy in `infrastructure/ops/production-replica-policy.yaml`).
 
 ## Deployment
 

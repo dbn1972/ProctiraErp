@@ -44,7 +44,11 @@ on:
       # W1-OPS-16 — topology canonical gate inputs
       - 'tools/scripts/check-topology-canonical.sh'
       - 'docs/DEPLOYMENT_TOPOLOGY.md'
-      - 'docs/audits/OPS_W1_OPS_16_TOPOLOGY.md' 
+      - 'docs/audits/OPS_W1_OPS_16_TOPOLOGY.md'
+      # W1-OPS-17 — replica / PDB coherence gate
+      - 'tools/scripts/check-replica-policy.sh'
+      - 'infrastructure/ops/production-replica-policy.yaml'
+      - 'docs/audits/OPS_W1_OPS_17_REPLICAS.md'
   push:
     branches: [main]
     paths:
@@ -73,7 +77,10 @@ on:
       - 'Dockerfile.web-base'
       - 'tools/scripts/check-topology-canonical.sh'
       - 'docs/DEPLOYMENT_TOPOLOGY.md'
-      - 'docs/audits/OPS_W1_OPS_16_TOPOLOGY.md' 
+      - 'docs/audits/OPS_W1_OPS_16_TOPOLOGY.md'
+      - 'tools/scripts/check-replica-policy.sh'
+      - 'infrastructure/ops/production-replica-policy.yaml'
+      - 'docs/audits/OPS_W1_OPS_17_REPLICAS.md'
 
 concurrency:
   group: helm-template-${{ github.ref }}

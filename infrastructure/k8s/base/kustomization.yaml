@@ -12,8 +12,10 @@ resources:
   - web/hpa.yaml
   - registration-portal/deployment.yaml
   - registration-portal/service.yaml
+  - registration-portal/hpa.yaml
   - public-website/deployment.yaml
   - public-website/service.yaml
+  - public-website/hpa.yaml
   - admin-console/deployment.yaml
   - admin-console/service.yaml
   - developer-portal/deployment.yaml
