@@ -1,6 +1,4 @@
-/**
- * Postgres-backed staff HR store (raw `pg` — db/sql/043_staff_hr_schema.sql).
- */
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -83,12 +81,34 @@ function effectiveDatingSqlPath(): string {
 }
 
 
+function completeDatingSqlPath(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const name = '076_w1_data_07_append_only_versions.sql';
+  const roots = [
+    join(here, '../../../../db/sql'),
+    join(process.cwd(), 'db/sql'),
+    join(process.cwd(), '../../db/sql'),
+  ];
+  for (const root of roots) {
+    const path = join(root, name);
+    try {
+      readFileSync(path, 'utf8');
+      return path;
+    } catch {
+      // try next
+    }
+  }
+  return join(roots[0]!, name);
+}
+
+
 export async function ensureStaffHrSchema(pool: PgHrOpsPool): Promise<void> {
   if (!schemaReady) {
     schemaReady = (async () => {
       await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
       await pool.query(readFileSync(payrollSqlPath(), 'utf8'));
       await pool.query(readFileSync(effectiveDatingSqlPath(), 'utf8'));
+      await pool.query(readFileSync(completeDatingSqlPath(), 'utf8'));
     })().catch((err: unknown) => {
       schemaReady = null;
       throw err;
@@ -150,6 +170,52 @@ function mapAttendance(row: Record<string, unknown>): StaffAttendanceRecord {
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
+}
+
+function mapPayrollExport(row: Record<string, unknown>, month: string): StaffPayrollExportRecord {
+  return {
+    tenantId: String(row.tenant_id),
+    month: String(row.month),
+    runId: String(row.id),
+    filename: `payroll-${month}.csv`,
+    csv: String(row.csv_artifact),
+    rowsJson: row.lines_json == null ? '[]' : JSON.stringify(row.lines_json),
+    trialBalanceJson:
+      row.trial_balance_json == null ? '{}' : JSON.stringify(row.trial_balance_json),
+    grossCents: Number(row.gross_cents),
+    deductionsCents: Number(row.deductions_cents),
+    netCents: Number(row.net_cents),
+    createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    status: String(row.status) === 'reversal' ? 'reversal' : 'posted',
+    reversesRunId: row.reverses_run_id == null ? null : String(row.reverses_run_id),
+    replacesRunId: row.replaces_run_id == null ? null : String(row.replaces_run_id),
+  };
+}
+
+async function selectCurrentPayrollExport(
+  client: PgQueryable,
+  tenantId: string,
+  month: string,
+): Promise<StaffPayrollExportRecord | null> {
+  const { rows } = await client.query(
+    `SELECT id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
+            csv_artifact, trial_balance_json, lines_json, created_at,
+            reverses_run_id, replaces_run_id
+     FROM staff_payroll_runs p
+     WHERE tenant_id = $1
+       AND month = $2
+       AND status = 'posted'
+       AND csv_artifact IS NOT NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM staff_payroll_runs r
+         WHERE r.reverses_run_id = p.id AND r.status = 'reversal'
+       )
+     ORDER BY created_at DESC
+     LIMIT 1`,
+    [tenantId, month],
+  );
+  const row = rows[0] as Record<string, unknown> | undefined;
+  return row ? mapPayrollExport(row, month) : null;
 }
 
 export class PgStaffHrStore implements StaffHrStore {
@@ -429,52 +495,27 @@ export class PgStaffHrStore implements StaffHrStore {
   }
   async findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null> {
     await ensureStaffHrSchema(this.pool);
-    return this.run(tenantId, async (client) => {
-      const { rows } = await client.query(
-        `SELECT id, tenant_id, month, gross_cents, deductions_cents, net_cents,
-                csv_artifact, trial_balance_json, lines_json, created_at
-         FROM staff_payroll_runs
-         WHERE tenant_id = $1 AND month = $2
-         LIMIT 1`,
-        [tenantId, month],
-      );
-      const row = rows[0] as Record<string, unknown> | undefined;
-      if (!row || row.csv_artifact == null) return null;
-      return {
-        tenantId: String(row.tenant_id),
-        month: String(row.month),
-        runId: String(row.id),
-        filename: `payroll-${month}.csv`,
-        csv: String(row.csv_artifact),
-        rowsJson: row.lines_json == null ? '[]' : JSON.stringify(row.lines_json),
-        trialBalanceJson:
-          row.trial_balance_json == null ? '{}' : JSON.stringify(row.trial_balance_json),
-        grossCents: Number(row.gross_cents),
-        deductionsCents: Number(row.deductions_cents),
-        netCents: Number(row.net_cents),
-        createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
-      };
-    });
+    return this.run(tenantId, (client) => selectCurrentPayrollExport(client, tenantId, month));
   }
 
   async savePayrollExport(record: StaffPayrollExportRecord): Promise<StaffPayrollExportRecord> {
     await ensureStaffHrSchema(this.pool);
     return this.run(record.tenantId, async (client) => {
+      const existing = await selectCurrentPayrollExport(client, record.tenantId, record.month);
+      if (existing) {
+        throw new Error(
+          `staff_payroll_runs posted export already exists for ${record.month}; reverse and replace instead of overwrite`,
+        );
+      }
       await client.query(
         `INSERT INTO staff_payroll_runs (
            id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
-           csv_artifact, trial_balance_json, lines_json, posted_at, created_at
+           csv_artifact, trial_balance_json, lines_json, posted_at, created_at,
+           reverses_run_id, replaces_run_id
          ) VALUES (
-           $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10
-         )
-         ON CONFLICT (tenant_id, month) DO UPDATE SET
-           csv_artifact = EXCLUDED.csv_artifact,
-           trial_balance_json = EXCLUDED.trial_balance_json,
-           lines_json = EXCLUDED.lines_json,
-           gross_cents = EXCLUDED.gross_cents,
-           deductions_cents = EXCLUDED.deductions_cents,
-           net_cents = EXCLUDED.net_cents
-         RETURNING id`,
+           $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10,
+           NULL, $11
+         )`,
         [
           record.runId,
           record.tenantId,
@@ -486,9 +527,113 @@ export class PgStaffHrStore implements StaffHrStore {
           record.trialBalanceJson,
           record.rowsJson,
           record.createdAt,
+          record.replacesRunId ?? null,
         ],
       );
-      return record;
+      return {
+        ...record,
+        status: 'posted',
+        reversesRunId: null,
+        replacesRunId: record.replacesRunId ?? null,
+      };
+    });
+  }
+
+  async reverseAndReplacePayrollExport(
+    replacement: StaffPayrollExportRecord,
+  ): Promise<StaffPayrollExportRecord> {
+    await ensureStaffHrSchema(this.pool);
+    return this.run(replacement.tenantId, async (client) => {
+      const current = await selectCurrentPayrollExport(
+        client,
+        replacement.tenantId,
+        replacement.month,
+      );
+      if (!current) {
+        await client.query(
+          `INSERT INTO staff_payroll_runs (
+             id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
+             csv_artifact, trial_balance_json, lines_json, posted_at, created_at,
+             reverses_run_id, replaces_run_id
+           ) VALUES (
+             $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10,
+             NULL, NULL
+           )`,
+          [
+            replacement.runId,
+            replacement.tenantId,
+            replacement.month,
+            replacement.grossCents,
+            replacement.deductionsCents,
+            replacement.netCents,
+            replacement.csv,
+            replacement.trialBalanceJson,
+            replacement.rowsJson,
+            replacement.createdAt,
+          ],
+        );
+        return {
+          ...replacement,
+          status: 'posted',
+          reversesRunId: null,
+          replacesRunId: null,
+        };
+      }
+
+      const reversalId = randomUUID();
+      await client.query(
+        `INSERT INTO staff_payroll_runs (
+           id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
+           csv_artifact, trial_balance_json, lines_json, posted_at, created_at,
+           reverses_run_id, replaces_run_id
+         ) VALUES (
+           $1,$2,$3,'reversal',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), now(),
+           $10, NULL
+         )`,
+        [
+          reversalId,
+          current.tenantId,
+          current.month,
+          current.grossCents,
+          current.deductionsCents,
+          current.netCents,
+          current.csv,
+          current.trialBalanceJson,
+          current.rowsJson,
+          current.runId,
+        ],
+      );
+
+      await client.query(
+        `INSERT INTO staff_payroll_runs (
+           id, tenant_id, month, status, gross_cents, deductions_cents, net_cents,
+           csv_artifact, trial_balance_json, lines_json, posted_at, created_at,
+           reverses_run_id, replaces_run_id
+         ) VALUES (
+           $1,$2,$3,'posted',$4,$5,$6,$7,$8::jsonb,$9::jsonb, now(), $10,
+           NULL, $11
+         )`,
+        [
+          replacement.runId,
+          replacement.tenantId,
+          replacement.month,
+          replacement.grossCents,
+          replacement.deductionsCents,
+          replacement.netCents,
+          replacement.csv,
+          replacement.trialBalanceJson,
+          replacement.rowsJson,
+          replacement.createdAt,
+          current.runId,
+        ],
+      );
+
+      return {
+        ...replacement,
+        status: 'posted',
+        reversesRunId: null,
+        replacesRunId: current.runId,
+      };
     });
   }
 

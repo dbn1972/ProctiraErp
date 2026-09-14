@@ -459,23 +459,28 @@ export class StaffHrService {
 
   async exportPayroll(tenantId: string, query: PayrollExportQuery): Promise<PayrollExportResult> {
     const cacheKey = `${tenantId}:${query.month}`;
-    const prior = this.payrollRuns.get(cacheKey);
-    if (prior) {
-      return { ...prior, idempotent: true };
-    }
-    const stored = await this.store.findPayrollExport(tenantId, query.month);
-    if (stored) {
-      const result: PayrollExportResult = {
-        month: stored.month,
-        filename: stored.filename,
-        csv: stored.csv,
-        rows: JSON.parse(stored.rowsJson) as PayrollRow[],
-        runId: stored.runId,
-        idempotent: true,
-        trialBalance: JSON.parse(stored.trialBalanceJson) as PayrollLedgerTrial,
-      };
-      this.payrollRuns.set(cacheKey, result);
-      return result;
+    if (!query.replace) {
+      const prior = this.payrollRuns.get(cacheKey);
+      if (prior) {
+        return { ...prior, idempotent: true };
+      }
+      const stored = await this.store.findPayrollExport(tenantId, query.month);
+      if (stored) {
+        const result: PayrollExportResult = {
+          month: stored.month,
+          filename: stored.filename,
+          csv: stored.csv,
+          rows: JSON.parse(stored.rowsJson) as PayrollRow[],
+          runId: stored.runId,
+          idempotent: true,
+          trialBalance: JSON.parse(stored.trialBalanceJson) as PayrollLedgerTrial,
+        };
+        this.payrollRuns.set(cacheKey, result);
+        return result;
+      }
+    } else {
+      // Correction path: drop memoized current so we recompute and reverse/replace.
+      this.payrollRuns.delete(cacheKey);
     }
 
     const { from, to } = monthRange(query.month);
@@ -589,8 +594,7 @@ export class StaffHrService {
       idempotent: false,
       trialBalance,
     };
-    this.payrollRuns.set(cacheKey, result);
-    await this.store.savePayrollExport({
+    const exportRecord = {
       tenantId,
       month: result.month,
       runId: result.runId,
@@ -602,7 +606,13 @@ export class StaffHrService {
       deductionsCents: result.rows.reduce((s, r) => s + r.deductionsCents, 0),
       netCents: result.rows.reduce((s, r) => s + r.netCents, 0),
       createdAt: new Date(),
-    });
+    };
+    if (query.replace) {
+      await this.store.reverseAndReplacePayrollExport(exportRecord);
+    } else {
+      await this.store.savePayrollExport(exportRecord);
+    }
+    this.payrollRuns.set(cacheKey, result);
 
     // eslint-disable-next-line no-console
     console.info(
@@ -615,6 +625,7 @@ export class StaffHrService {
         grossCents: grossTotal,
         deductionsCents: deductionsTotal,
         netCents: netTotal,
+        replace: Boolean(query.replace),
       }),
     );
 

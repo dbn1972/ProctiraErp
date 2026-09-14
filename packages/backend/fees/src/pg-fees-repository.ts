@@ -108,6 +108,8 @@ export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!):
       await pool.query(sql061);
       const sql070 = readFileSync(resolveSqlPath('070_academic_fee_effective_dating.sql'), 'utf8');
       await pool.query(sql070);
+      const sql076 = readFileSync(resolveSqlPath('076_w1_data_07_append_only_versions.sql'), 'utf8');
+      await pool.query(sql076);
     })();
   }
   await schemaReady;
@@ -251,6 +253,8 @@ function mapStructure(row: Record<string, unknown>): FeeStructureEntity {
       ? toDate(row.created_at).toISOString().slice(0, 10)
       : String(row.valid_from).slice(0, 10)),
     validTo: row.valid_to == null ? null : String(row.valid_to).slice(0, 10),
+    version: row.version == null ? 1 : Number(row.version),
+    supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
@@ -1019,8 +1023,10 @@ export class PgFeesRepository implements FeesRepository {
         `INSERT INTO fee_structures (
            id, tenant_id, institution_id, academic_period_id, grade_id, class_id,
            category, term, code, name, amount_cents, currency, status,
-           valid_from, valid_to, created_by
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::date,$15::date,$16) RETURNING *`,
+           valid_from, valid_to, version, supersedes_id, created_by
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::date,$15::date,$16,$17,$18
+         ) RETURNING *`,
         [
           data.id,
           data.tenantId,
@@ -1037,9 +1043,30 @@ export class PgFeesRepository implements FeesRepository {
           data.status,
           data.validFrom,
           data.validTo,
+          data.version ?? 1,
+          data.supersedesId ?? null,
           data.createdBy,
         ],
       );
+      return mapStructure(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async closeFeeStructureValidTo(
+    tenantId: string,
+    id: string,
+    validTo: string,
+  ): Promise<FeeStructureEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE fee_structures
+         SET valid_to = $3::date, updated_at = now()
+         WHERE id = $1 AND tenant_id = $2
+         RETURNING *`,
+        [id, tenantId, validTo],
+      );
+      if (!result.rows[0]) return null;
       return mapStructure(result.rows[0] as Record<string, unknown>);
     });
   }

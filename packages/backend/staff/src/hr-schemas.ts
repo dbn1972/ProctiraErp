@@ -132,5 +132,7 @@ export type StaffImportInput = Static<typeof StaffImportSchema>;
 
 export const PayrollExportQuerySchema = Type.Object({
   month: Type.String({ pattern: MONTH_PATTERN }),
+  /** W1-DATA-07: when true, reverse the current posted run and insert a replacement. */
+  replace: Type.Optional(Type.Boolean()),
 });
 export type PayrollExportQuery = Static<typeof PayrollExportQuerySchema>;

@@ -408,6 +408,10 @@ model AcademicPeriod {
   kind      String   @default("year") @db.VarChar(20)
   /// G-905: owning academic year for sub-periods; null for years.
   parentId  String?  @map("parent_id") @db.Uuid
+  /// W1-DATA-07: append-only effective version (non-overlapping per code).
+  version   Int      @default(1)
+  /// W1-DATA-07: prior version this row supersedes (null for first version).
+  supersedesId String? @map("supersedes_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -417,10 +421,12 @@ model AcademicPeriod {
   tenant      Tenant           @relation(fields: [tenantId], references: [id])
   parent      AcademicPeriod?  @relation("AcademicPeriodHierarchy", fields: [parentId], references: [id])
   children    AcademicPeriod[] @relation("AcademicPeriodHierarchy")
+  supersedes  AcademicPeriod?  @relation("AcademicPeriodVersions", fields: [supersedesId], references: [id])
+  supersededBy AcademicPeriod[] @relation("AcademicPeriodVersions")
   enrollments Enrollment[]
   classes     Class[]
 
-  @@unique([tenantId, code])
+  @@unique([tenantId, code, version])
   @@index([tenantId, status])
   @@index([tenantId, parentId])
   @@map("academic_periods")

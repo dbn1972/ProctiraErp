@@ -24,6 +24,8 @@ describe('W1-DATA-07 fee structure effective dating', () => {
       amountCents: 100,
       validFrom: '2024-01-01',
       validTo: '2024-12-31',
+      version: 1,
+      supersedesId: null,
     });
     await repo.createFeeStructure({
       ...base,
@@ -33,6 +35,8 @@ describe('W1-DATA-07 fee structure effective dating', () => {
       amountCents: 200,
       validFrom: '2025-01-01',
       validTo: null,
+      version: 1,
+      supersedesId: null,
     });
     const asOf = await repo.listFeeStructures('t1', { asOf: '2025-06-01' });
     expect(asOf.map((r) => r.id)).toEqual(['b']);

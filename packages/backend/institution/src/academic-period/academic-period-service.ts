@@ -40,13 +40,15 @@ export class AcademicPeriodService {
       ]);
     }
 
-    // Check unique code within tenant
-    const existing = await this.prisma.academicPeriod.findUnique({
-      where: { tenantId_code: { tenantId, code: dto.code } },
+    // First version of a code must not collide with an active (non-deleted) row.
+    const existing = await this.prisma.academicPeriod.findFirst({
+      where: { tenantId, code: dto.code, deletedAt: null },
     });
 
     if (existing) {
-      throw new ConflictError(`Academic period with code '${dto.code}' already exists`);
+      throw new ConflictError(
+        `Academic period with code '${dto.code}' already exists — supersede it instead of mutating dates`,
+      );
     }
 
     const kind: AcademicPeriodKindType = dto.kind ?? 'year';
@@ -65,6 +67,7 @@ export class AcademicPeriodService {
         status: dto.status ?? 'active',
         kind,
         parentId,
+        version: 1,
       },
     });
   }
@@ -124,6 +127,8 @@ export class AcademicPeriodService {
 
   /**
    * Update an existing academic period.
+   * W1-DATA-07: start/end (effective) dates and code are immutable — use
+   * {@link supersede} to append a non-overlapping successor version.
    */
   async update(
     tenantId: string,
@@ -143,39 +148,21 @@ export class AcademicPeriodService {
       throw new BusinessRuleError('Cannot update an archived academic period');
     }
 
+    if (dto.startDate !== undefined || dto.endDate !== undefined || dto.code !== undefined) {
+      throw new BusinessRuleError(
+        'Academic period dates and code are immutable; insert a non-overlapping successor via supersede',
+      );
+    }
+
     // Validate status transition
     if (dto.status) {
       this.validateStatusTransition(period.status as AcademicPeriodStatusType, dto.status);
     }
 
-    // Validate dates if provided
-    const startDate = dto.startDate ? new Date(dto.startDate) : period.startDate;
-    const endDate = dto.endDate ? new Date(dto.endDate) : period.endDate;
-
-    if (endDate <= startDate) {
-      throw new ValidationError('End date must be after start date', [
-        { field: 'endDate', rule: 'dateRange', message: 'End date must be after start date' },
-      ]);
-    }
-
-    // Check unique code if changing
-    if (dto.code && dto.code !== period.code) {
-      const existing = await this.prisma.academicPeriod.findUnique({
-        where: { tenantId_code: { tenantId, code: dto.code } },
-      });
-      if (existing) {
-        throw new ConflictError(`Academic period with code '${dto.code}' already exists`);
-      }
-    }
-
     const currentKind = ((period as { kind?: string }).kind ?? 'year') as AcademicPeriodKindType;
     const currentParent = (period as { parentId?: string | null }).parentId ?? null;
     const kind = dto.kind ?? currentKind;
-    const hierarchyTouched =
-      dto.kind !== undefined ||
-      dto.parentId !== undefined ||
-      dto.startDate !== undefined ||
-      dto.endDate !== undefined;
+    const hierarchyTouched = dto.kind !== undefined || dto.parentId !== undefined;
     // Promoting a term to a year is fine; demoting a year that still owns
     // terms would orphan them — check before parent validation so the caller
     // sees the real reason rather than "parentId is required".
@@ -195,7 +182,7 @@ export class AcademicPeriodService {
         tenantId,
         kind,
         dto.parentId !== undefined ? dto.parentId : currentParent,
-        { startDate, endDate },
+        { startDate: period.startDate, endDate: period.endDate },
         id,
       );
     }
@@ -204,13 +191,86 @@ export class AcademicPeriodService {
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
-        ...(dto.code !== undefined && { code: dto.code }),
-        ...(dto.startDate !== undefined && { startDate }),
-        ...(dto.endDate !== undefined && { endDate }),
         ...(dto.status !== undefined && { status: dto.status }),
         ...(hierarchyTouched && { kind, parentId }),
       },
     });
+  }
+
+  /**
+   * W1-DATA-07: append a successor version with a new effective window.
+   * Prior version is archived (dates untouched). Windows must not overlap.
+   */
+  async supersede(
+    tenantId: string,
+    id: string,
+    dto: CreateAcademicPeriodDto,
+  ): Promise<AcademicPeriod> {
+    const prior = await this.prisma.academicPeriod.findFirst({
+      where: { id, tenantId, deletedAt: null },
+    });
+    if (!prior) {
+      throw new NotFoundError(`Academic period '${id}' not found`);
+    }
+
+    const startDate = new Date(dto.startDate);
+    const endDate = new Date(dto.endDate);
+    if (endDate <= startDate) {
+      throw new ValidationError('End date must be after start date', [
+        { field: 'endDate', rule: 'dateRange', message: 'End date must be after start date' },
+      ]);
+    }
+
+    const code = dto.code ?? prior.code;
+    if (code !== prior.code) {
+      throw new ValidationError('Successor must keep the same code (versioned append-only)', [
+        { field: 'code', rule: 'sameCode', message: 'code must match the prior version' },
+      ]);
+    }
+
+    if (isEffectiveOn(prior.startDate, prior.endDate, startDate) ||
+        isEffectiveOn(prior.startDate, prior.endDate, endDate) ||
+        isEffectiveOn(startDate, endDate, prior.startDate)) {
+      throw new ConflictError(
+        `Successor window overlaps prior version ${toUtcDateOnly(prior.startDate)}..${toUtcDateOnly(prior.endDate)}`,
+      );
+    }
+
+    const kind: AcademicPeriodKindType =
+      dto.kind ?? (((prior as { kind?: string }).kind ?? 'year') as AcademicPeriodKindType);
+    const parentId = await this.resolveParent(
+      tenantId,
+      kind,
+      dto.parentId !== undefined
+        ? dto.parentId
+        : ((prior as { parentId?: string | null }).parentId ?? null),
+      { startDate, endDate },
+    );
+
+    const priorVersion = (prior as { version?: number }).version ?? 1;
+    const next = await this.prisma.academicPeriod.create({
+      data: {
+        tenantId,
+        name: dto.name,
+        code,
+        startDate,
+        endDate,
+        status: dto.status ?? 'active',
+        kind,
+        parentId,
+        version: priorVersion + 1,
+        supersedesId: prior.id,
+      },
+    });
+
+    if (prior.status !== 'archived') {
+      await this.prisma.academicPeriod.update({
+        where: { id: prior.id },
+        data: { status: 'archived' },
+      });
+    }
+
+    return next;
   }
 
   /**
