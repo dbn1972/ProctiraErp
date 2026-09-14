@@ -1,14 +1,18 @@
 # =============================================================================
 # Rollback Pipeline - ProctiraERP (W1-OPS-09)
 # =============================================================================
-# Atomic sibling to deploy.yml. Uses the same Helm release naming
-# (proctira-${SERVICE} in namespace proctira-${environment}) and either:
+# Atomic sibling to deploy.yml for the supported **single-wave** Helm mode
+# (RollingUpdate maxUnavailable=0; deploy uses --atomic --wait).
+# Release naming: proctira-${SERVICE} in namespace proctira-${environment}.
+# Modes:
 #   1) helm rollback to a prior revision (default: previous = 0), or
 #   2) helm upgrade --atomic --wait to a known-good image tag.
 #
-# Manual only (workflow_dispatch). dry_run=true prints planned commands and
-# exits 0 without touching the cluster — also exercised by
-# tools/scripts/deploy-rollback-check.sh.
+# Manual only (workflow_dispatch). dry_run defaults to true (fail-closed /
+# plan-only). Apply requires Environment secrets.KUBECONFIG — missing secret
+# fails the job. Progressive canary controllers are NOT exercised here.
+# Local/CI gate: tools/scripts/deploy-rollback-check.sh
+# Runbook: docs/runbooks/deploy-rollback.md
 # =============================================================================
 
 name: Rollback
@@ -57,6 +61,18 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
       - uses: actions/checkout@v4
+
+      # Fail closed: apply path must not soft-succeed without cluster credentials.
+      - name: Require KUBECONFIG for apply
+        if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
+        env:
+          KUBECONFIG_SECRET: ${{ secrets.KUBECONFIG }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KUBECONFIG_SECRET}" ]; then
+            echo "::error::W1-OPS-09: secrets.KUBECONFIG is required when dry_run=false (fail-closed)"
+            exit 1
+          fi
 
       - name: Configure kubectl
         if: ${{ inputs.dry_run != true && inputs.dry_run != 'true' }}
