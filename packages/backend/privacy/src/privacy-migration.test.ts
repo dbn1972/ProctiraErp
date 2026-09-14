@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const sql067 = join(root, 'db/sql/067_privacy_legal_hold_erasure.sql');
-const sql076 = join(root, 'db/sql/076_privacy_lifecycle_complete.sql');
+const sql076 = join(root, 'db/sql/078_privacy_lifecycle_complete.sql');
 
 describe('W1-SEC-06 privacy SQL (static)', () => {
   it('ships additive migration for legal hold + erasure requests', () => {

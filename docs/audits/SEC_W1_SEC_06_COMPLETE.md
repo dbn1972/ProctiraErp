@@ -36,7 +36,7 @@
 | Anonymization workers durable (not stub-only) | ☑ | `privacy.anonymization` job type + `createPrivacyAnonymizationWorker` + restart-safe vitest |
 | Tenant offboard/wipe job with hold checks | ☑ | `privacy.tenant.offboard` + checklist via `ResidualTenantWipeExecutor` |
 | Shared process store for hold gates | ☑ | `getSharedInMemoryPrivacyRepository` used by student, tenant lifecycle, privacy plugin |
-| SQL additive + RLS/FORCE | ☑ | `067_privacy_legal_hold_erasure.sql`, `076_privacy_lifecycle_complete.sql` |
+| SQL additive + RLS/FORCE | ☑ | `067_privacy_legal_hold_erasure.sql`, `078_privacy_lifecycle_complete.sql` |
 | No secrets in git | ☑ | — |
 | Fake DSAR / prod wipe evidence avoided | ☑ | Residuals explicit below |
 
