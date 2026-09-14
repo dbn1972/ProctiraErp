@@ -1,7 +1,7 @@
 # OPS — W1-OPS-05 CI path filters (COMPLETE)
 
 **Module / slice:** CI path filtering — no silent skip for db/sql, tools, docs, infra  
-**Branch / tip:** `cursor/w1-ops-05-paths-complete-56c3` @ `44d3f3d22183ef27b5d9dd946f094e6e24ad5187`  
+**Branch / tip:** `cursor/w1-ops-05-paths-complete-56c3` @ `603519fc5e8cf835ed6d4883dc750078c6a9a791` (docs stamp; implementation `b91fb37a510c7cb0bb06089506a7bf5ed9c9f170`)  
 **Date (UTC):** 2026-09-14  
 **Base:** fresh `origin/main`  
 **Prior PARTIAL:** `#98` (aggregate), `#181` (db/tools/docs filters), `#195` (infra residual)

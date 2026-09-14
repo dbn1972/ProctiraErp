@@ -1,7 +1,7 @@
 # Release ops — W1-OPS-05 path filters COMPLETE
 
 **Slice / PR:** W1-OPS-05 CI path filters  
-**Branch / tip SHA:** `cursor/w1-ops-05-paths-complete-56c3` @ `44d3f3d22183ef27b5d9dd946f094e6e24ad5187`  
+**Branch / tip SHA:** `cursor/w1-ops-05-paths-complete-56c3` @ `603519fc5e8cf835ed6d4883dc750078c6a9a791` (docs stamp; implementation `b91fb37a510c7cb0bb06089506a7bf5ed9c9f170`)  
 **Base branch:** `main`  
 **Date (UTC):** 2026-09-14
 
