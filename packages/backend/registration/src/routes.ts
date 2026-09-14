@@ -10,6 +10,8 @@
  *
  * Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6
  */
+import { randomBytes } from 'node:crypto';
+
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -87,14 +89,15 @@ function resolveTenantId(request: FastifyRequest, defaultTenantId?: string): str
 
 /**
  * Resolves or creates a session ID from request cookies/headers.
+ * New IDs use CSPRNG (node:crypto randomBytes) for public identifier entropy.
  */
 function resolveSessionId(request: FastifyRequest): string {
   // Check for session cookie or header
   const sessionHeader = request.headers['x-session-id'];
   if (typeof sessionHeader === 'string' && sessionHeader.length > 0) return sessionHeader;
 
-  // Generate a simple session ID (in production, use proper session management)
-  return `session-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+  // CSPRNG suffix (12 hex chars / 48 bits); timestamp prefix aids ops correlation only
+  return `session-${Date.now()}-${randomBytes(6).toString('hex')}`;
 }
 
 /**
