@@ -1,54 +1,93 @@
 # =============================================================================
-# CODEOWNERS — ProctiraERP (G-726)
+# CODEOWNERS — ProctiraERP (W1-SEC-13 / G-726)
 # =============================================================================
-# Later rules win. Every path below requires a review from the listed team
-# before merge once branch protection enables "Require review from Code Owners".
-# Teams are GitHub teams under the repository owner's org; adjust slugs when the
-# org is created. Until then the repository owner is the fallback.
+# Later rules win. Once branch protection enables "Require review from Code
+# Owners", each matching path requires a review from a listed GitHub identity.
+#
+# Org teams do NOT exist yet (repo owner is a personal account: @dbn1972).
+# Do NOT invent fake @org/team slugs here — GitHub would treat unknown teams as
+# broken ownership. Until teams are created under a GitHub Organization:
+#
+#   • GitHub-resolvable owner on every rule = @dbn1972 (fallback / interim)
+#   • Specialist ownership is documented by DOMAIN comments + path-owner roles
+#     below, and in docs/audits/SEC_W1_SEC_13_CODEOWNERS.md
+#
+# Intended team slugs (create under the future org, then replace @dbn1972):
+#   @proctira/security   — auth, tenant, secrets, policy, audit, privacy, PHI
+#   @proctira/data       — schema, RLS, migrations, backup/restore SQL tooling
+#   @proctira/ops        — CI/CD, infrastructure, supply-chain, audit gates
+#   @proctira/web        — product web/mobile surfaces + portals
+#   @proctira/governance — audits, runbooks, CHANGELOG
 # =============================================================================
 
-*                                         @dbn1972
+# ---- Fallback (default for unmatched paths) ---------------------------------
+*                                                 @dbn1972
 
-# ---- Platform / security-sensitive ------------------------------------------
-apps/api-gateway/                         @dbn1972
-packages/shared/auth/                     @dbn1972
-packages/shared/tenant/                   @dbn1972
-packages/shared/secrets/                  @dbn1972
-packages/backend/auth/                    @dbn1972
-packages/backend/tenant/                  @dbn1972
-packages/backend/policy/                  @dbn1972
-packages/backend/audit/                   @dbn1972
+# =============================================================================
+# DOMAIN: security
+# Path owners (human / role): Security lead — authN/Z, tenancy, secrets,
+#   policy engine, audit trail, privacy lifecycle, PHI/money-regulated APIs.
+# Intended GitHub team (when org exists): @proctira/security
+# =============================================================================
+apps/api-gateway/                                 @dbn1972
+packages/shared/auth/                             @dbn1972
+packages/shared/tenant/                           @dbn1972
+packages/shared/secrets/                          @dbn1972
+packages/backend/auth/                            @dbn1972
+packages/backend/tenant/                          @dbn1972
+packages/backend/policy/                          @dbn1972
+packages/backend/audit/                           @dbn1972
+packages/backend/privacy/                         @dbn1972
+packages/backend/health/                          @dbn1972
+packages/backend/fees/                            @dbn1972
+packages/backend/billing/                         @dbn1972
+packages/backend/scholarship/                     @dbn1972
 
-# ---- Data layer (schema, RLS, migrations) -----------------------------------
-db/sql/                                   @dbn1972
-packages/shared/database/                 @dbn1972
-tools/scripts/apply-sql.sh                @dbn1972
-tools/scripts/pg-backup.sh                @dbn1972
-tools/scripts/pg-restore.sh               @dbn1972
-tools/scripts/restore-drill.sh            @dbn1972
+# =============================================================================
+# DOMAIN: data
+# Path owners (human / role): Data / DBA lead — SQL schema, RLS, migrations,
+#   apply scripts, backup & restore drills.
+# Intended GitHub team (when org exists): @proctira/data
+# =============================================================================
+db/sql/                                           @dbn1972
+packages/shared/database/                         @dbn1972
+tools/scripts/apply-sql.sh                        @dbn1972
+tools/scripts/pg-backup.sh                        @dbn1972
+tools/scripts/pg-restore.sh                       @dbn1972
+tools/scripts/restore-drill.sh                    @dbn1972
 
-# ---- PHI / regulated domains -------------------------------------------------
-packages/backend/health/                  @dbn1972
-packages/backend/fees/                    @dbn1972
-packages/backend/billing/                 @dbn1972
-packages/backend/scholarship/             @dbn1972
+# =============================================================================
+# DOMAIN: ops
+# Path owners (human / role): Platform / SRE lead — Actions, Helm/K8s,
+#   supply-chain allowlists, release audit gates.
+# Intended GitHub team (when org exists): @proctira/ops
+# =============================================================================
+.github/                                          @dbn1972
+infrastructure/                                   @dbn1972
+tools/supply-chain/                               @dbn1972
+tools/scripts/audit-gate.mjs                      @dbn1972
 
-# ---- CI / CD / infrastructure -------------------------------------------------
-.github/                                  @dbn1972
-infrastructure/                           @dbn1972
-tools/supply-chain/                       @dbn1972
-tools/scripts/audit-gate.mjs              @dbn1972
+# =============================================================================
+# DOMAIN: web (product surfaces)
+# Path owners (human / role): Web / product engineering lead — staff web,
+#   portals, public site, install wizard, Flutter mobile.
+# Intended GitHub team (when org exists): @proctira/web
+# =============================================================================
+apps/web/                                         @dbn1972
+apps/admin-console/                               @dbn1972
+apps/registration-portal/                         @dbn1972
+apps/public-website/                              @dbn1972
+apps/developer-portal/                            @dbn1972
+apps/install-wizard/                              @dbn1972
+apps/mobile/                                      @dbn1972
 
-# ---- Product surfaces ---------------------------------------------------------
-apps/web/                                 @dbn1972
-apps/admin-console/                       @dbn1972
-apps/registration-portal/                 @dbn1972
-apps/public-website/                      @dbn1972
-apps/developer-portal/                    @dbn1972
-apps/install-wizard/                      @dbn1972
-apps/mobile/                              @dbn1972
-
-# ---- Governance docs ----------------------------------------------------------
-docs/audits/                              @dbn1972
-docs/runbooks/                            @dbn1972
-CHANGELOG.md                              @dbn1972
+# =============================================================================
+# DOMAIN: governance
+# Path owners (human / role): Program / release governance — audit packs,
+#   runbooks, public changelog.
+# Intended GitHub team (when org exists): @proctira/governance
+# (Falls under ops review until a dedicated governance team exists.)
+# =============================================================================
+docs/audits/                                      @dbn1972
+docs/runbooks/                                    @dbn1972
+CHANGELOG.md                                      @dbn1972
