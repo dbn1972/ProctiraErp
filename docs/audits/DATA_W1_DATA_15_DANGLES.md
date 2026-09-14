@@ -94,14 +94,14 @@ pnpm exec vitest run tools/scripts/__tests__/cross-domain-fks.test.ts
 
 | Residual | Status |
 | -------- | ------ |
-| Prisma `student_attendance` / `assessment_results` `student_id` | **Deferred** — FORCE RLS + `app.current_tenant_id` without `missing_ok` / platform_admin breaks migrator VALIDATE |
+| Prisma `student_attendance` / `assessment_results` `student_id` | **Closed (NOT VALID only)** in `078` — see `DATA_W1_DATA_15_COMPLETE.md` (VALIDATE waived) |
 | Health counselling / special-needs `student_id TEXT` | **Out of scope** — type mismatch; needs typed UUID migration first |
 | Scholarship `applicant_id` (UUID, not necessarily `students.id`) | **Accepted** — identity may be applicant/user, not enrolled student |
 | Intentional bare `institution_id` / Phase 3–5 boundary UUIDs | **Accepted** — product boundary documented in schema comments (e.g. infrastructure) |
 | Composite same-tenant guarantee (`child.tenant_id = parent.tenant_id`) | **Not enforced** — single-column FKs only |
 | Migrator VALIDATE under FORCE RLS may be visibility-scoped | **Accepted** — same class as W1-DATA-06 / 068 / 072; NOT VALID still blocks new dangling writes |
 | Orphan cleanup for non-demo historical data | **Operator** — VALIDATE fails until repaired |
-| Staff / HR `staff_id` UUID without FK | **Deferred** — separate residual; not part of student dangling finding |
+| Staff / HR `staff_id` UUID without FK | **Closed** in `076` / `077` — see `DATA_W1_DATA_15_COMPLETE.md` |
 
 ## Sign-off
 

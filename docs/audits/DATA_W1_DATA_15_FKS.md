@@ -61,7 +61,8 @@ WHERE c.contype = 'f' AND NOT c.convalidated
 | Residual | Status |
 | -------- | ------ |
 | Hostel / library / LMS / transport `student_id` still UUID-only | **Closed** in residual `073` / `074` — see `DATA_W1_DATA_15_DANGLES.md` |
-| Prisma `student_attendance` / `assessment_results` `student_id` | **Deferred** — FORCE RLS + `app.current_tenant_id` without `missing_ok` / platform_admin breaks migrator VALIDATE |
+| Staff / HR `staff_id` + transport fee invoice/structure links | **Closed** in `076` / `077` — see `DATA_W1_DATA_15_COMPLETE.md` |
+| Prisma `student_attendance` / `assessment_results` `student_id` | **Closed (NOT VALID only)** in `078` — VALIDATE waived; see `DATA_W1_DATA_15_COMPLETE.md` |
 | Health counselling / special-needs `student_id TEXT` | **Out of scope** — type mismatch; needs typed UUID migration first |
 | Intentional bare cross-schema UUIDs (Phase 3–5 institution/attendance boundaries) | **Accepted** — product boundary, not a missing same-schema FK |
 | Composite / same-tenant guarantees (`child.tenant_id = parent.tenant_id`) | **Not enforced** — single-column FKs only; cross-tenant same-UUID collision still theoretical |

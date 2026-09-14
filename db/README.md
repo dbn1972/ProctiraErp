@@ -112,10 +112,15 @@ then `072_validate_cross_domain_fk_constraints.sql` **VALIDATE**s them.
 Residual campus / ops `student_id` refs (hostel, library, LMS, transport,
 health nurse incidents, exam seating) are closed by
 `073_cross_domain_fk_campus_ops.sql` + `074_validate_cross_domain_fk_campus_ops.sql`.
+Staff / HR `staff_id` and transport fee invoice/structure links are closed by
+`085_cross_domain_fk_staff_ops.sql` + `086_validate_cross_domain_fk_staff_ops.sql`.
+Prisma FORCE-RLS hazardous tables (`student_attendance`, `assessment_results`,
+examination candidate tables, `staff_attendance`) get **NOT VALID only** in
+`087_cross_domain_fk_prisma_not_valid.sql` (no VALIDATE companion — safe pattern).
 Always applied by `apply-sql.sh` (not gated on `APPLY_STRICT_FKS`). See
-`docs/audits/DATA_W1_DATA_15_DANGLES.md` (and wave-1
-`docs/audits/DATA_W1_DATA_15_FKS.md`) for closed sets and honest residuals
-(Prisma attendance/assessment VALIDATE, health TEXT ids, intentional
+`docs/audits/DATA_W1_DATA_15_COMPLETE.md` (and prior
+`DATA_W1_DATA_15_DANGLES.md` / `DATA_W1_DATA_15_FKS.md`) for closed sets and
+honest residuals (Prisma VALIDATE waiver, health TEXT ids, intentional
 institution-boundary bare UUIDs).
 
 ## Immutability privileges (W1-DATA-08)
