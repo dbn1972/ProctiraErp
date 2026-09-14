@@ -22,3 +22,19 @@
 ## Sign-off
 
 PARTIAL → COMPLETE for repository Done-when on tip `7daf039d`. Tip CI Aggregate green is **not** claimed by this pack alone.
+
+---
+
+## Re-audit residual fix (2026-09-14)
+
+Pinned re-audit noted the reusable-asset checker could sit outside the main
+required CI graph. Tip now adds always-on job `reusable-ci-assets` to
+`.github/workflows/ci.yml` and requires it from `ci-aggregate` via
+`REUSABLE_CI_ASSETS_RESULT` so dead `reusable-setup.yml` / composite /
+`validate-observability.mjs` callers fail closed on tip CI (not only actionlint).
+
+```bash
+node tools/scripts/assert-reusable-ci-assets.mjs
+node --test tools/scripts/assert-reusable-ci-assets.test.mjs tools/scripts/ci-aggregate-gate.test.mjs
+```
+
