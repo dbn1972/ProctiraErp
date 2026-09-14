@@ -1,5 +1,5 @@
 /**
- * G-503 PHI retention helpers — runnable via:
+ * G-503 / W1-OPS-19 PHI retention helpers — runnable via:
  *   node --test tools/scripts/__tests__/phi-retention-job.test.mjs
  */
 import { describe, it } from 'node:test';
@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   buildRetentionPlan,
   classifyRetentionBucket,
+  resolveRetentionDryRun,
   retentionCutoffIso,
 } from '../phi-retention-job.mjs';
 
@@ -41,5 +42,33 @@ describe('G-503 PHI retention helpers', () => {
     assert.equal(plan.dryRun, true);
     assert.equal(plan.candidates.counsellingSessions, 3);
     assert.equal(plan.applied.counsellingDeleted, 0);
+  });
+});
+
+describe('W1-OPS-19 RETENTION_DRY_RUN fail-closed', () => {
+  it('treats explicit "1" as sandbox dry-run', () => {
+    assert.equal(resolveRetentionDryRun({ RETENTION_DRY_RUN: '1' }), true);
+  });
+
+  it('treats explicit "0" as enforce/apply', () => {
+    assert.equal(resolveRetentionDryRun({ RETENTION_DRY_RUN: '0' }), false);
+  });
+
+  it('refuses unset mode (no silent dry-run default)', () => {
+    assert.throws(
+      () => resolveRetentionDryRun({}),
+      /RETENTION_DRY_RUN must be explicitly set/,
+    );
+    assert.throws(
+      () => resolveRetentionDryRun({ RETENTION_DRY_RUN: '' }),
+      /RETENTION_DRY_RUN must be explicitly set/,
+    );
+  });
+
+  it('refuses non-binary values', () => {
+    assert.throws(
+      () => resolveRetentionDryRun({ RETENTION_DRY_RUN: 'true' }),
+      /must be "0" or "1"/,
+    );
   });
 });

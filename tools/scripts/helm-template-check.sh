@@ -152,8 +152,52 @@ grep -Eq 'name: proctira-proctira-platform-pg-backup|name: proctira-pg-backup|pg
   || die "missing pg-backup CronJob"
 grep -q 'phi-retention' "$platform_out" || die "missing phi-retention"
 grep -q 'RETENTION_DRY_RUN' "$platform_out" || die "missing RETENTION_DRY_RUN"
+# W1-OPS-19 — staging/sandbox must set explicit dry-run (RETENTION_DRY_RUN=1)
+awk '
+  /name: RETENTION_DRY_RUN/ { found=1; next }
+  found && /value:/ {
+    if ($0 !~ /value: "1"/) { exit 2 }
+    exit 0
+  }
+' "$platform_out" || die "W1-OPS-19: staging phi-retention must set RETENTION_DRY_RUN=\"1\" (explicit sandbox dry-run)"
 grep -q 'kind: PersistentVolumeClaim' "$platform_out" || die "missing PVC"
 grep -q 'dr-tools' "$platform_out" || die "missing dr-tools"
+
+# W1-OPS-19 — production must enforce deletion (RETENTION_DRY_RUN=0); unset apply fails closed
+echo "==> W1-OPS-19 production PHI retention enforce"
+prod_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-production \
+  --set global.environment=production \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  -f "${PLATFORM_CHART}/values-production.yaml" \
+  >"$prod_out"
+awk '
+  /name: RETENTION_DRY_RUN/ { found=1; next }
+  found && /value:/ {
+    if ($0 !~ /value: "0"/) { exit 2 }
+    exit 0
+  }
+' "$prod_out" || die "W1-OPS-19: production phi-retention must set RETENTION_DRY_RUN=\"0\" (enforce deletion)"
+rm -f "$prod_out"
+
+unset_out="$(mktemp)"
+if helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-production \
+  --set global.environment=production \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  --set dr.phiRetention.apply=null \
+  -f "${PLATFORM_CHART}/values-production.yaml" \
+  >"$unset_out" 2>"${unset_out}.err"; then
+  rm -f "$unset_out" "${unset_out}.err"
+  die "W1-OPS-19: production with unset dr.phiRetention.apply must fail closed"
+fi
+grep -Eqi 'W1-OPS-19|dr.phiRetention.apply' "${unset_out}.err" \
+  || die "W1-OPS-19: expected fail message mentioning apply when unset"
+rm -f "$unset_out" "${unset_out}.err"
+echo "OK W1-OPS-19 PHI retention (prod enforce + unset refuse)"
 
 # W1-OPS-02 (B4) — etl-worker Helm probes must match Fastify handlers (/health/live, /health/ready).
 etl_deploy="$(awk '/Source: proctira-platform\/templates\/etl-worker\/deployment.yaml/,/^---$/' "$platform_out")"

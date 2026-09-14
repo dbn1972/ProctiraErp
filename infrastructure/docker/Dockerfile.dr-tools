@@ -6,7 +6,7 @@
 #   tools/scripts/pg-backup.sh          logical backup (custom format)
 #   tools/scripts/pg-restore.sh         restore a backup
 #   tools/scripts/restore-drill.sh      backup -> restore -> verify with evidence
-#   tools/scripts/phi-retention-job.mjs PHI retention (dry-run unless RETENTION_DRY_RUN=0)
+#   tools/scripts/phi-retention-job.mjs PHI retention (RETENTION_DRY_RUN required: 0=enforce, 1=dry-run)
 #
 # Build context: monorepo root.
 #   docker build -f infrastructure/docker/Dockerfile.dr-tools -t proctira/dr-tools .

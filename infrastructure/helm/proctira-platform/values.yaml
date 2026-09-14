@@ -1051,8 +1051,10 @@ dr:
     enabled: true
     # -- Weekly, Sunday 03:30
     schedule: '30 3 * * 0'
-    # -- false = dry-run (counts only). Flip only after policy sign-off.
-    apply: false
+    # -- W1-OPS-19: must be an explicit bool in env overlays (null here is refuse).
+    # production → true (enforce deletion / RETENTION_DRY_RUN=0)
+    # staging/development → false (explicit sandbox dry-run / RETENTION_DRY_RUN=1)
+    apply: null
     phiRetentionDays: 2555
     minorPhiRetentionDays: 3650
     resources:

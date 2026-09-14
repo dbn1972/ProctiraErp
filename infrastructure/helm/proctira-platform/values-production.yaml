@@ -336,3 +336,8 @@ postgresql:
 # Use external-secrets-operator in production
 secrets:
   existingSecret: proctira-prod-secrets
+
+# W1-OPS-19 — production PHI retention enforces deletion (not dry-run).
+dr:
+  phiRetention:
+    apply: true

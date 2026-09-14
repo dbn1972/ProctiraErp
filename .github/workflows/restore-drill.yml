@@ -207,7 +207,8 @@ jobs:
           docker run --rm --network host \
             -e DATABASE_URL="$DATABASE_URL" -e BACKUP_DIR=/backups \
             proctira/dr-tools:drill bash tools/scripts/pg-backup.sh /backups/from-image.dump
-          docker run --rm proctira/dr-tools:drill node tools/scripts/phi-retention-job.mjs \
+          docker run --rm -e RETENTION_DRY_RUN=1 proctira/dr-tools:drill \
+            node tools/scripts/phi-retention-job.mjs \
             | tee "$ARTIFACT_DIR/image-phi-retention-plan.json"
 
       # W1-OPS-20 — tip-committed pack must declare timestamp / encryption /
