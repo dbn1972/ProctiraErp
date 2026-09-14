@@ -2,12 +2,16 @@
  * G-916 — portal reads of loans/holds are bound at the API, not only in the web tier.
  * Students are pinned to their JWT subject; parents may only name linked children;
  * staff principals are never bound.
+ *
+ * W1-SEC-02: mutating seed runs as librarian; portal principals only get bound GETs.
  */
 import Fastify, { type FastifyInstance } from 'fastify';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { InMemoryLibraryRepository } from './in-memory-repository.js';
+import type { LibraryRepository } from './library-repository.js';
 import { libraryPlugin } from './library-plugin.js';
+import type { PatronBinding } from './routes.js';
 
 const TENANT_ID = '550e8400-e29b-41d4-a716-446655440000';
 const CHILD = '55555555-5555-4555-8555-555555555555';
@@ -27,12 +31,19 @@ function build(user: { sub: string; roles: Role[] } | null) {
   return app;
 }
 
-async function seedLoans(app: FastifyInstance) {
+async function seedLoans(repository: LibraryRepository, binding: PatronBinding) {
+  const app = build({
+    sub: 'librarian-seed',
+    roles: [{ roleId: 'librarian', roleName: 'Librarian' }],
+  });
+  await app.register(libraryPlugin, { repository, patronBinding: binding });
+  await app.ready();
   const item = await app.inject({
     method: 'POST',
     url: '/library/items',
     payload: { title: 'Bound Book', copies: 2 },
   });
+  expect(item.statusCode).toBe(201);
   for (const studentId of [CHILD, OTHER_CHILD]) {
     const res = await app.inject({
       method: 'POST',
@@ -41,10 +52,11 @@ async function seedLoans(app: FastifyInstance) {
     });
     expect(res.statusCode).toBe(201);
   }
+  await app.close();
 }
 
 describe('G-916 patron binding on GET /library/loans and /library/holds', () => {
-  const binding = {
+  const binding: PatronBinding = {
     isLinked: async (_tenantId: string, parentUserId: string, studentId: string) =>
       parentUserId === PARENT_SUB && studentId === CHILD,
   };
@@ -52,13 +64,11 @@ describe('G-916 patron binding on GET /library/loans and /library/holds', () => 
   describe('parent', () => {
     let app: FastifyInstance;
     beforeEach(async () => {
+      const repository = new InMemoryLibraryRepository();
+      await seedLoans(repository, binding);
       app = build({ sub: PARENT_SUB, roles: [{ roleId: 'parent', roleName: 'Parent' }] });
-      await app.register(libraryPlugin, {
-        repository: new InMemoryLibraryRepository(),
-        patronBinding: binding,
-      });
+      await app.register(libraryPlugin, { repository, patronBinding: binding });
       await app.ready();
-      await seedLoans(app);
     });
 
     it('reads loans for a linked child', async () => {
@@ -83,16 +93,23 @@ describe('G-916 patron binding on GET /library/loans and /library/holds', () => 
       const holds = await app.inject({ method: 'GET', url: '/library/holds' });
       expect(holds.statusCode).toBe(400);
     });
+
+    it('cannot mutate catalog as parent (W1-SEC-02)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/library/items',
+        payload: { title: 'Sneaky', copies: 1 },
+      });
+      expect(res.statusCode).toBe(403);
+    });
   });
 
   it('student is pinned to the JWT subject', async () => {
+    const repository = new InMemoryLibraryRepository();
+    await seedLoans(repository, binding);
     const app = build({ sub: CHILD, roles: [{ roleId: 'student', roleName: 'Student' }] });
-    await app.register(libraryPlugin, {
-      repository: new InMemoryLibraryRepository(),
-      patronBinding: binding,
-    });
+    await app.register(libraryPlugin, { repository, patronBinding: binding });
     await app.ready();
-    await seedLoans(app);
 
     const own = await app.inject({ method: 'GET', url: '/library/loans' });
     expect(own.statusCode).toBe(200);
@@ -108,6 +125,8 @@ describe('G-916 patron binding on GET /library/loans and /library/holds', () => 
   });
 
   it('staff principals are not bound', async () => {
+    const repository = new InMemoryLibraryRepository();
+    await seedLoans(repository, binding);
     const app = build({
       sub: 'librarian-1',
       roles: [
@@ -115,12 +134,8 @@ describe('G-916 patron binding on GET /library/loans and /library/holds', () => 
         { roleId: 'librarian', roleName: 'Librarian' },
       ],
     });
-    await app.register(libraryPlugin, {
-      repository: new InMemoryLibraryRepository(),
-      patronBinding: binding,
-    });
+    await app.register(libraryPlugin, { repository, patronBinding: binding });
     await app.ready();
-    await seedLoans(app);
 
     const res = await app.inject({ method: 'GET', url: '/library/loans' });
     expect(res.statusCode).toBe(200);
@@ -128,8 +143,10 @@ describe('G-916 patron binding on GET /library/loans and /library/holds', () => 
   });
 
   it('parent reads are refused when no binding is configured', async () => {
+    const repository = new InMemoryLibraryRepository();
+    await seedLoans(repository, binding);
     const app = build({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
-    await app.register(libraryPlugin, { repository: new InMemoryLibraryRepository() });
+    await app.register(libraryPlugin, { repository });
     await app.ready();
     const res = await app.inject({ method: 'GET', url: `/library/loans?studentId=${CHILD}` });
     expect(res.statusCode).toBe(403);

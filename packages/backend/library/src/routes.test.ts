@@ -17,7 +17,11 @@ describe('Library Routes', () => {
     app = Fastify({ logger: false });
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
-      (request as { tenantId: string }).tenantId = TENANT_ID;
+      (request as { tenantId: string; user?: { roles: string[] } }).tenantId = TENANT_ID;
+      // W1-SEC-02 package guards — staff principal for catalog/circulation writes.
+      (request as { tenantId: string; user?: { roles: string[] } }).user = {
+        roles: ['librarian'],
+      };
     });
 
     await app.register(libraryPlugin, { repository: new InMemoryLibraryRepository() });

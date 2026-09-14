@@ -69,3 +69,17 @@ export { computeFineCents, overdueDaysSince, HOLD_READY_MS } from './library-ops
 
 export { registerLibraryRoutes, type PatronBinding } from './routes.js';
 export type { LibraryRoutesOptions } from './routes.js';
+
+export {
+  normalizeLibraryRoles,
+  hasLibraryAccess,
+  assertLibraryAccess,
+  libraryActionForMethod,
+} from './library-access.js';
+export type { LibraryAction } from './library-access.js';
+export {
+  libraryRequestRoles,
+  requireLibraryAction,
+  resolveLibraryAction,
+} from './library-http-guard.js';
+
