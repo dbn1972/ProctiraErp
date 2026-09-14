@@ -5,7 +5,7 @@
  * webhook registration with HMAC verification, sandbox provisioning,
  * plugin submission/review workflow, marketplace, documentation, and analytics.
  */
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
@@ -43,6 +43,33 @@ import type {
   WebhookDeliveryJobPayload,
   WebhookDeliveryPublisher,
 } from './queue-webhook-delivery-publisher.js';
+import {
+  createWebhookSignatureHeaders,
+} from './webhook-signature.js';
+
+export {
+  WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_NONCE_HEADER,
+  buildWebhookSignedPayload,
+  generateWebhookSignature,
+  createWebhookSignatureHeaders,
+  verifyWebhookSignature,
+  verifyWebhookSignatureSecure,
+  MemoryWebhookReplayStore,
+  RedisWebhookReplayStore,
+  createWebhookReplayStoreFromEnv,
+} from './webhook-signature.js';
+export type {
+  WebhookReplayStore,
+  WebhookSignatureParts,
+  WebhookSignedHeaders,
+  WebhookVerifyFailureReason,
+  WebhookVerifyResult,
+  VerifyWebhookSignatureOptions,
+  RedisLikeForReplay,
+} from './webhook-signature.js';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -87,38 +114,6 @@ export function generateApiKey(): string {
 export function hashApiKey(key: string): string {
   const digest = createHash('sha256').update(key, 'utf8').digest('hex');
   return `sha256:${digest}`;
-}
-
-/**
- * Generate HMAC-SHA256 signature for a webhook payload.
- * Format matches common partner convention: `sha256=<hex>`.
- */
-export function generateWebhookSignature(payload: string, secret: string): string {
-  const digest = createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
-  return `sha256=${digest}`;
-}
-
-/**
- * Verify a webhook signature with timing-safe comparison.
- * Rejects wrong length, wrong prefix, or tampered payloads/secrets.
- */
-export function verifyWebhookSignature(
-  payload: string,
-  secret: string,
-  signature: string,
-): boolean {
-  if (typeof signature !== 'string' || !signature.startsWith('sha256=')) {
-    return false;
-  }
-  const expected = generateWebhookSignature(payload, secret);
-  try {
-    const a = Buffer.from(expected, 'utf8');
-    const b = Buffer.from(signature, 'utf8');
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
 }
 
 export type WebhookHttpFetch = (
@@ -486,7 +481,9 @@ export class DeveloperPortalService {
       'x-proctira-delivery': job.deliveryId,
     };
     if (job.signingSecret) {
-      headers['x-proctira-signature'] = generateWebhookSignature(body, job.signingSecret);
+      // W1-SEC-08: HMAC covers timestamp + nonce + body; receivers must
+      // enforce skew + nonce replay (see verifyWebhookSignatureSecure).
+      Object.assign(headers, createWebhookSignatureHeaders(body, job.signingSecret).headers);
     }
 
     try {
