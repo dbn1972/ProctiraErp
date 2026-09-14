@@ -304,6 +304,15 @@ describe('TokenService', () => {
 
       expect(refreshTokenStore.revokeAllForSession).toHaveBeenCalledWith(sessionId, 'Logout');
     });
+
+    it('denylists access-token sid so outstanding bearers fail closed (W1-SEC-09)', async () => {
+      const { MemoryAccessTokenRevocationStore } = await import('./access-token-revocation.js');
+      const revocation = new MemoryAccessTokenRevocationStore();
+      const wired = new TokenService(config, jwtSigner, refreshTokenStore, revocation);
+      const sessionId = 'session-revoke-sid';
+      await wired.revokeAllSessionTokens(sessionId, 'Logout');
+      expect(await revocation.isRevoked('sid', sessionId)).toBe(true);
+    });
   });
 
   describe('revokeAllUserTokens', () => {

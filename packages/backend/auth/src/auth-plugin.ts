@@ -3,11 +3,19 @@
  *
  * Registers @fastify/jwt for token verification and provides
  * an `authenticate` decorator for protecting routes.
+ * W1-SEC-09: after signature verification, access-token jti/sid revocation
+ * is enforced (fail closed when revoked).
  */
 import fastifyJwt from '@fastify/jwt';
 import type { AuthConfig, JwtPayload } from '@proctira/auth';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+
+import {
+  assertAccessTokenNotRevoked,
+  createAccessTokenRevocationStore,
+  type AccessTokenRevocationStore,
+} from './access-token-revocation.js';
 
 /**
  * Options for the auth Fastify plugin.
@@ -17,12 +25,18 @@ export interface AuthPluginOptions {
   config: AuthConfig;
   /** Routes to exclude from authentication */
   excludePaths?: string[];
+  /**
+   * Access-token jti/sid denylist (W1-SEC-09).
+   * Defaults to an in-process memory store when omitted.
+   */
+  revocationStore?: AccessTokenRevocationStore;
 }
 
 // Extend Fastify types
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    accessTokenRevocationStore: AccessTokenRevocationStore;
   }
 }
 
@@ -48,6 +62,16 @@ function isExcludedPath(path: string, excludePaths: string[]): boolean {
   return false;
 }
 
+function revocationMessage(reason: string): string {
+  if (reason === 'revoked_jti' || reason === 'revoked_sid') {
+    return 'Access token has been revoked';
+  }
+  if (reason === 'store_unavailable') {
+    return 'Access token revocation check unavailable';
+  }
+  return 'Invalid or expired access token';
+}
+
 /**
  * Fastify plugin that registers JWT verification and provides
  * an `authenticate` preHandler decorator.
@@ -64,6 +88,7 @@ export const authPlugin = fp(
         '/auth/refresh',
         '/auth/external/*',
       ],
+      revocationStore = createAccessTokenRevocationStore(),
     } = options;
 
     // Register @fastify/jwt
@@ -80,6 +105,10 @@ export const authPlugin = fp(
       },
     });
 
+    if (!fastify.hasDecorator('accessTokenRevocationStore')) {
+      fastify.decorate('accessTokenRevocationStore', revocationStore);
+    }
+
     // Decorate with authenticate function
     fastify.decorate(
       'authenticate',
@@ -92,12 +121,25 @@ export const authPlugin = fp(
         try {
           await request.jwtVerify();
 
-          // Set tenant context from JWT claim
           const user = request.user;
+          const revocation = await assertAccessTokenNotRevoked(
+            { jti: user.jti, sessionId: user.sessionId },
+            { store: revocationStore },
+          );
+          if (!revocation.ok) {
+            return reply.status(401).send({
+              code: 'TOKEN_REVOKED',
+              message: revocationMessage(revocation.reason),
+              statusCode: 401,
+              reason: revocation.reason,
+            });
+          }
+
+          // Set tenant context from JWT claim
           if (user.tenantId) {
             (request as FastifyRequest & { tenantId?: string }).tenantId = user.tenantId;
           }
-        } catch (err) {
+        } catch {
           return reply.status(401).send({
             code: 'UNAUTHORIZED',
             message: 'Invalid or expired access token',

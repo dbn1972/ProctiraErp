@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   accessTokenCookieOptions,
   clearCookieOptions,
+  clearRefreshTokenCookieOptions,
   isSecureCookieContext,
   refreshTokenCookieOptions,
 } from './cookies';
@@ -9,6 +10,7 @@ import {
 /**
  * G-719: the `Secure` attribute must follow the transport, not only NODE_ENV.
  * NODE_ENV is `test` under vitest so the production short-circuit is off.
+ * W1-SEC-09: refresh cookies use SameSite=Strict.
  */
 describe('cookies — Secure flag resolution (G-719)', () => {
   afterEach(() => {
@@ -63,16 +65,26 @@ describe('cookies — Secure flag resolution (G-719)', () => {
     expect(isSecureCookieContext(undefined)).toBe(true);
   });
 
-  it('keeps every auth cookie httpOnly + lax + path=/', () => {
-    for (const opts of [
-      accessTokenCookieOptions(),
-      refreshTokenCookieOptions(),
-      clearCookieOptions(),
-    ]) {
-      expect(opts.httpOnly).toBe(true);
-      expect(opts.sameSite).toBe('lax');
-      expect(opts.path).toBe('/');
-    }
-    expect(clearCookieOptions().maxAge).toBe(0);
+  it('keeps access cookies httpOnly + lax; refresh cookies httpOnly + strict (W1-SEC-09)', () => {
+    const access = accessTokenCookieOptions();
+    expect(access.httpOnly).toBe(true);
+    expect(access.sameSite).toBe('lax');
+    expect(access.path).toBe('/');
+
+    const refresh = refreshTokenCookieOptions();
+    expect(refresh.httpOnly).toBe(true);
+    expect(refresh.sameSite).toBe('strict');
+    expect(refresh.path).toBe('/');
+    expect(refresh.secure).toBe(isSecureCookieContext());
+
+    const clearAccess = clearCookieOptions();
+    expect(clearAccess.httpOnly).toBe(true);
+    expect(clearAccess.sameSite).toBe('lax');
+    expect(clearAccess.maxAge).toBe(0);
+
+    const clearRefresh = clearRefreshTokenCookieOptions();
+    expect(clearRefresh.httpOnly).toBe(true);
+    expect(clearRefresh.sameSite).toBe('strict');
+    expect(clearRefresh.maxAge).toBe(0);
   });
 });

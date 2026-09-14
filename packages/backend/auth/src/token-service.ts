@@ -4,9 +4,17 @@
  * Access tokens are short-lived JWTs containing userId, tenantId, roles.
  * Refresh tokens are opaque UUIDs stored in PostgreSQL with expiry and revocation status.
  * On refresh: old refresh token is revoked, new pair (access + refresh) is issued.
+ * W1-SEC-09: session-level refresh revocation also denylists access-token sid
+ * (and optional jti) so outstanding bearers fail closed before TTL.
  */
 import type { AuthUser, JwtPayload, TokenPair, RefreshToken, AuthConfig } from '@proctira/auth';
 import { v4 as uuidv4 } from 'uuid';
+
+import {
+  defaultAccessTokenRevocationTtlSeconds,
+  revokeAccessTokenIdentifiers,
+  type AccessTokenRevocationStore,
+} from './access-token-revocation.js';
 
 /**
  * Interface for JWT signing/verification (provided by @fastify/jwt).
@@ -40,6 +48,7 @@ export class TokenService {
     private readonly config: AuthConfig,
     private readonly jwtSigner: JwtSigner,
     private readonly refreshTokenStore: RefreshTokenStore,
+    private readonly accessTokenRevocationStore?: AccessTokenRevocationStore,
   ) {}
 
   /**
@@ -111,19 +120,13 @@ export class TokenService {
 
     if (storedToken.revoked) {
       // Potential token reuse attack - revoke all tokens for this session
-      await this.refreshTokenStore.revokeAllForSession(
-        storedToken.sessionId,
-        'Token reuse detected',
-      );
+      await this.revokeAllSessionTokens(storedToken.sessionId, 'Token reuse detected');
       throw new InvalidRefreshTokenError('Refresh token has been revoked (possible token reuse)');
     }
 
     if (storedToken.expiresAt < new Date()) {
       // Token expired - revoke it and all session tokens
-      await this.refreshTokenStore.revokeAllForSession(
-        storedToken.sessionId,
-        'Refresh token expired',
-      );
+      await this.revokeAllSessionTokens(storedToken.sessionId, 'Refresh token expired');
       throw new InvalidRefreshTokenError('Refresh token has expired');
     }
 
@@ -185,17 +188,37 @@ export class TokenService {
   }
 
   /**
-   * Revoke all refresh tokens for a session.
+   * Revoke all refresh tokens for a session and denylist access-token sid (W1-SEC-09).
    */
   async revokeAllSessionTokens(sessionId: string, reason: string): Promise<void> {
     await this.refreshTokenStore.revokeAllForSession(sessionId, reason);
+    if (this.accessTokenRevocationStore) {
+      await revokeAccessTokenIdentifiers(
+        this.accessTokenRevocationStore,
+        { sessionId },
+        defaultAccessTokenRevocationTtlSeconds(this.config.jwt.accessTokenExpiresIn),
+      );
+    }
   }
 
   /**
    * Revoke all refresh tokens for a user in a tenant.
+   * Note: per-session sid denylist is applied by callers that enumerate sessions.
    */
   async revokeAllUserTokens(userId: string, tenantId: string, reason: string): Promise<void> {
     await this.refreshTokenStore.revokeAllForUser(userId, tenantId, reason);
+  }
+
+  /**
+   * Denylist a specific access-token jti and/or sid (W1-SEC-09).
+   */
+  async revokeAccessTokenClaims(claims: { jti?: string; sessionId?: string }): Promise<void> {
+    if (!this.accessTokenRevocationStore) return;
+    await revokeAccessTokenIdentifiers(
+      this.accessTokenRevocationStore,
+      claims,
+      defaultAccessTokenRevocationTtlSeconds(this.config.jwt.accessTokenExpiresIn),
+    );
   }
 
   /**

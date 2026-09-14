@@ -1,6 +1,11 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { clearCookieOptions, getAuthServiceUrl } from '@/lib/auth/cookies';
+
+import {
+  clearCookieOptions,
+  clearRefreshTokenCookieOptions,
+  getAuthServiceUrl,
+} from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
 
 /**
@@ -33,7 +38,7 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const response = NextResponse.json({ success: true });
   response.cookies.set(AUTH_COOKIES.ACCESS_TOKEN, '', clearCookieOptions(request));
-  response.cookies.set(AUTH_COOKIES.REFRESH_TOKEN, '', clearCookieOptions(request));
+  response.cookies.set(AUTH_COOKIES.REFRESH_TOKEN, '', clearRefreshTokenCookieOptions(request));
   response.cookies.set(AUTH_COOKIES.SESSION_ID, '', clearCookieOptions(request));
   return response;
 }

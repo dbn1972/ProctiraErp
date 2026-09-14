@@ -11,9 +11,9 @@
  * 2. **Double-submit token.** A random, non-httpOnly `csrf_token` cookie is
  *    issued by the middleware on every page navigation. Clients echo it in the
  *    `x-csrf-token` header; the two must match exactly.
- * 3. Auth cookies stay `SameSite=Lax`, so cross-site POSTs never carry the
- *    session in the first place — the checks above cover the remaining
- *    same-site-but-different-origin and legacy-browser cases.
+ * 3. Refresh cookies use `SameSite=Strict` (W1-SEC-09). Access cookies stay
+ *    `SameSite=Lax` for OAuth top-level returns; the checks above cover the
+ *    remaining same-site-but-different-origin and legacy-browser cases.
  *
  * Everything here runs on the Edge runtime (Web Crypto only, no Node APIs).
  */

@@ -9,8 +9,13 @@
 import type { LoginRequest, RefreshRequest, AuthUser } from '@proctira/auth';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { AccountLockoutService } from './lockout-service.js';
+import {
+  defaultAccessTokenRevocationTtlSeconds,
+  revokeAccessTokenIdentifiers,
+  type AccessTokenRevocationStore,
+} from './access-token-revocation.js';
 import { verifyPassword } from './local-auth.js';
+import type { AccountLockoutService } from './lockout-service.js';
 import type { SessionService } from './session-service.js';
 import { InvalidRefreshTokenError } from './token-service.js';
 import type { RefreshTokenStore, TokenService } from './token-service.js';
@@ -60,6 +65,10 @@ export interface AuthRoutesOptions {
   refreshTokenStore: RefreshTokenStore;
   /** Account lockout service (optional - if not provided, lockout is disabled) */
   lockoutService?: AccountLockoutService;
+  /** Access-token jti/sid denylist (W1-SEC-09); used on logout. */
+  accessTokenRevocationStore?: AccessTokenRevocationStore;
+  /** Access-token TTL used for denylist entries (default from token service config). */
+  accessTokenExpiresIn?: number;
   /** Prefix for auth routes (default: '/auth') */
   prefix?: string;
 }
@@ -77,6 +86,8 @@ export async function registerAuthRoutes(
     userLookup,
     refreshTokenStore,
     lockoutService,
+    accessTokenRevocationStore,
+    accessTokenExpiresIn,
     prefix = '/auth',
   } = options;
 
@@ -302,7 +313,7 @@ export async function registerAuthRoutes(
 
   /**
    * POST /auth/logout
-   * Invalidate session and revoke refresh token.
+   * Invalidate session, revoke refresh tokens, and denylist access jti/sid (W1-SEC-09).
    */
   fastify.post(
     `${prefix}/logout`,
@@ -313,8 +324,18 @@ export async function registerAuthRoutes(
       // Invalidate the session
       await sessionService.invalidateSession(user.sessionId);
 
-      // Revoke all refresh tokens for this session
+      // Revoke all refresh tokens for this session (also denylists sid via TokenService when wired)
       await tokenService.revokeAllSessionTokens(user.sessionId, 'User logout');
+
+      // Explicit jti + sid denylist so outstanding bearers fail closed immediately
+      const store = accessTokenRevocationStore ?? fastify.accessTokenRevocationStore;
+      if (store) {
+        await revokeAccessTokenIdentifiers(
+          store,
+          { jti: user.jti, sessionId: user.sessionId },
+          defaultAccessTokenRevocationTtlSeconds(accessTokenExpiresIn),
+        );
+      }
 
       return reply.status(200).send({
         message: 'Logged out successfully',
