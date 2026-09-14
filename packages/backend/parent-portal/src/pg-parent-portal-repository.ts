@@ -90,7 +90,7 @@ export async function ensureParentPortalSchema(
       await pool.query(sql054);
       const sql076 = readFileSync(resolveSqlPath('077_guardian_custody_restrictions.sql'), 'utf8');
       await pool.query(sql076);
-      const sql089 = readFileSync(resolveSqlPath('089_consent_lifecycle_append_only.sql'), 'utf8');
+      const sql089 = readFileSync(resolveSqlPath('090_consent_lifecycle_append_only.sql'), 'utf8');
       await pool.query(sql089);
     })();
   }

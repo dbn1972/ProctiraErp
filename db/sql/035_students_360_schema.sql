@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS student_consents (
   granted BOOLEAN NOT NULL,
   actor_id TEXT NOT NULL,
   recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  -- W1-PRIV-01 COMPLETE: append-only versions (see 089_consent_lifecycle_append_only.sql)
+  -- W1-PRIV-01 COMPLETE: append-only versions (see 090_consent_lifecycle_append_only.sql)
   version INTEGER NOT NULL DEFAULT 1,
   supersedes_id UUID,
   valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -263,7 +263,7 @@ DO $$
 BEGIN
   IF to_regclass('public.schema_migrations') IS NOT NULL THEN
     INSERT INTO schema_migrations (filename)
-    VALUES ('089_consent_lifecycle_append_only.sql')
+    VALUES ('090_consent_lifecycle_append_only.sql')
     ON CONFLICT DO NOTHING;
   END IF;
 END $$;

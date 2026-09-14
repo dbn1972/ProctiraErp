@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const MIGRATION = '089_consent_lifecycle_append_only.sql';
+const MIGRATION = '090_consent_lifecycle_append_only.sql';
 
 function sqlDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));

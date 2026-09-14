@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const sql052 = join(root, 'db/sql/052_parent_consent_version.sql');
-const sql089 = join(root, 'db/sql/089_consent_lifecycle_append_only.sql');
+const sql089 = join(root, 'db/sql/090_consent_lifecycle_append_only.sql');
 
 describe('W1-PRIV-01 parent consent version (static PARTIAL foundation)', () => {
   it('ships additive migration requiring consent_version on parent_consents', () => {

@@ -2,7 +2,7 @@
 
 **Module / slice:** Parent portal consents + Students 360 consents  
 **Branch:** `cursor/w1-priv-01-consent-complete-56c3`  
-**Tip SHA:** _(filled at commit)_  
+**Tip SHA:** `f7e04a4939894edee48eeeae2a0396744910904e`  
 **Date (UTC):** 2026-09-14  
 **Environment:** SQL contract + focused unit tests (live Postgres optional; not claimed here)
 
@@ -19,7 +19,7 @@
 | Artifact | Path | Notes |
 | -------- | ---- | ----- |
 | Foundation | `db/sql/052_parent_consent_version.sql` | Policy version NOT NULL (unchanged) |
-| Complete SQL | `db/sql/089_consent_lifecycle_append_only.sql` | Chain/version/supersedes/`valid_*`; body immutability + DELETE reject; student unique-overwrite removed |
+| Complete SQL | `db/sql/090_consent_lifecycle_append_only.sql` | Chain/version/supersedes/`valid_*`; body immutability + DELETE reject; student unique-overwrite removed |
 | Fresh schema | `db/sql/010_parent_portal_schema.sql`, `035_students_360_schema.sql` | Columns aligned for new installs |
 | Parent service | `packages/backend/parent-portal/src/parent-portal-service.ts` | Decide/withdraw/supersede append successors; `refuseConsentBodyMutation()` |
 | Parent repo | in-memory + pg | `closeConsentValidTo` only; `listConsentVersions`; no body UPDATE API |
