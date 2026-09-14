@@ -2,7 +2,7 @@
 
 **Module / slice:** SIS enrollment lifecycle + gradebook change audit  
 **Branch / tip:** `cursor/w1-data-14-audit-complete-56c3`  
-**Tip SHA:** _(filled after commit)_  
+**Tip SHA:** `011183e6dcdbd5747fd79f4084cd2665940274ad`  
 **Date (UTC):** 2026-09-14  
 **Environment:** static SQL contract + live Postgres as `proctira_app` (local apply through `076`)
 
