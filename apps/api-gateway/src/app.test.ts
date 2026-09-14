@@ -146,6 +146,7 @@ describe('API Gateway', () => {
       expect(body.status).toBe('up');
       expect(body.dependencies).toBeDefined();
       expect(body.dependencies.database).toBe('in-memory');
+      expect(body.dependencies.redis).toBe('not-configured');
       expect(Object.values(body.dependencies)).not.toContain('unknown');
     });
 

@@ -1,5 +1,5 @@
 /**
- * W1-OPS-03 (B5) — gateway readiness must probe critical deps and fail closed.
+ * W1-OPS-03 / W3-C1 — gateway readiness must probe critical deps and fail closed.
  */
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,13 +12,15 @@ describe('runReadinessProbe', () => {
     delete process.env['REQUIRE_DATABASE'];
     delete process.env['NODE_ENV'];
     delete process.env['ALLOW_IN_MEMORY_IN_PRODUCTION'];
+    delete process.env['REDIS_URL'];
   });
 
-  it('reports in-memory when DATABASE_URL is unset in test', async () => {
+  it('reports in-memory database and not-configured redis when unset in test', async () => {
     const result = await runReadinessProbe({ env: { NODE_ENV: 'test' } });
     expect(result.ready).toBe(true);
     expect(result.dependencies.database).toBe('in-memory');
-    expect(result.dependencies.database).not.toBe('unknown');
+    expect(result.dependencies.redis).toBe('not-configured');
+    expect(Object.values(result.dependencies)).not.toContain('unknown');
   });
 
   it('fails closed when DATABASE_URL is set but probe fails', async () => {
@@ -55,12 +57,47 @@ describe('runReadinessProbe', () => {
     expect(result.ready).toBe(false);
     expect(result.dependencies.database).toBe('required-missing');
   });
+
+  it('fails closed when REDIS_URL is set but probe fails', async () => {
+    const result = await runReadinessProbe({
+      env: { NODE_ENV: 'test', REDIS_URL: 'redis://127.0.0.1:6379' },
+      probeRedis: async () => ({ ok: false, message: 'ECONNREFUSED', latencyMs: 3 }),
+    });
+    expect(result.ready).toBe(false);
+    expect(result.dependencies.redis).toBe('down');
+    expect(result.message).toMatch(/ECONNREFUSED/);
+  });
+
+  it('passes when REDIS_URL is set and probe succeeds', async () => {
+    const result = await runReadinessProbe({
+      env: { NODE_ENV: 'test', REDIS_URL: 'redis://127.0.0.1:6379' },
+      probeRedis: async () => ({ ok: true, latencyMs: 2 }),
+    });
+    expect(result.ready).toBe(true);
+    expect(result.dependencies.redis).toBe('up');
+  });
+
+  it('fails closed when DB is up but Redis is down', async () => {
+    const result = await runReadinessProbe({
+      env: {
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://good:5432/x',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+      },
+      probeDatabase: async () => ({ ok: true, latencyMs: 4 }),
+      probeRedis: async () => ({ ok: false, message: 'Redis unavailable', latencyMs: 2 }),
+    });
+    expect(result.ready).toBe(false);
+    expect(result.dependencies.database).toBe('up');
+    expect(result.dependencies.redis).toBe('down');
+  });
 });
 
-describe('GET /health/ready (W1-OPS-03)', () => {
+describe('GET /health/ready (W1-OPS-03 / W3-C1)', () => {
   async function mount(
     options?: Parameters<typeof healthPlugin>[1] & {
       probeDatabase?: () => Promise<{ ok: boolean; message?: string; latencyMs?: number }>;
+      probeRedis?: () => Promise<{ ok: boolean; message?: string; latencyMs?: number }>;
     },
   ) {
     const app = Fastify();
@@ -76,15 +113,17 @@ describe('GET /health/ready (W1-OPS-03)', () => {
     delete process.env['DATABASE_URL'];
     delete process.env['REQUIRE_DATABASE'];
     delete process.env['NODE_ENV'];
+    delete process.env['REDIS_URL'];
   });
 
-  it('returns 200 with database dependency (not unknown) in in-memory mode', async () => {
+  it('returns 200 with real dependency statuses (not unknown) in in-memory mode', async () => {
     const app = await mount();
     const res = await app.inject({ method: 'GET', url: '/health/ready' });
     expect(res.statusCode).toBe(200);
     const body = res.json() as ReadinessProbeResult & { status: string };
     expect(body.status).toBe('up');
     expect(body.dependencies.database).toBe('in-memory');
+    expect(body.dependencies.redis).toBe('not-configured');
     expect(Object.values(body.dependencies)).not.toContain('unknown');
     await app.close();
   });
@@ -98,21 +137,38 @@ describe('GET /health/ready (W1-OPS-03)', () => {
     expect(res.statusCode).toBe(503);
     expect(res.json()).toMatchObject({
       status: 'down',
-      dependencies: { database: 'down' },
+      dependencies: { database: 'down', redis: 'not-configured' },
+    });
+    await app.close();
+  });
+
+  it('returns 503 when redis probe fails (fail closed)', async () => {
+    const app = await mount({
+      probeRedis: async () => ({ ok: false, message: 'ECONNREFUSED', latencyMs: 1 }),
+      env: { NODE_ENV: 'test', REDIS_URL: 'redis://127.0.0.1:6379' },
+    });
+    const res = await app.inject({ method: 'GET', url: '/health/ready' });
+    expect(res.statusCode).toBe(503);
+    expect(res.json()).toMatchObject({
+      status: 'down',
+      dependencies: { database: 'in-memory', redis: 'down' },
     });
     await app.close();
   });
 
   it('GET /health/live stays cheap (no dependency probe)', async () => {
-    const probe = vi.fn(async () => ({ ok: false, message: 'should not run', latencyMs: 0 }));
+    const dbProbe = vi.fn(async () => ({ ok: false, message: 'should not run', latencyMs: 0 }));
+    const redisProbe = vi.fn(async () => ({ ok: false, message: 'should not run', latencyMs: 0 }));
     const app = await mount({
-      probeDatabase: probe,
-      env: { NODE_ENV: 'production', DATABASE_URL: 'postgres://x' },
+      probeDatabase: dbProbe,
+      probeRedis: redisProbe,
+      env: { NODE_ENV: 'production', DATABASE_URL: 'postgres://x', REDIS_URL: 'redis://x' },
     });
     const res = await app.inject({ method: 'GET', url: '/health/live' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ status: 'up' });
-    expect(probe).not.toHaveBeenCalled();
+    expect(dbProbe).not.toHaveBeenCalled();
+    expect(redisProbe).not.toHaveBeenCalled();
     await app.close();
   });
 });
