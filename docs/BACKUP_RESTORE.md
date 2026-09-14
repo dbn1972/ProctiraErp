@@ -477,13 +477,29 @@ DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
   bash tools/scripts/restore-drill.sh
 ```
 
-**Tip-committed evidence (P0-13):** GH Actions artifacts alone are not durable
-in-repo proof. After a successful local or CI drill, commit a dated pack under
-`docs/audits/evidence/restore-drill-YYYYMMDD.json` (mode, row counts, CI run
-URL). Current pack: [`docs/audits/evidence/restore-drill-20260912.json`](./audits/evidence/restore-drill-20260912.json)
+**Tip-committed evidence (P0-13 / W1-OPS-20):** GH Actions artifacts alone are
+not durable in-repo proof. After a successful local or CI drill, commit a dated
+pack under `docs/audits/evidence/restore-drill-YYYYMMDD.json`. Required fields
+(fail closed):
+
+| Field | Requirement |
+| ----- | ----------- |
+| `timestamp` (or `localDrill.timestamp` / `recordedAt`) | Non-empty ISO-8601 or `YYYYMMDDTHHMMSSZ` |
+| `encryption.method` | Non-empty string (e.g. `age`, `none`) |
+| `encryption.ciRoundTripProven` | Boolean (CI age round-trip ≠ prod at-rest) |
+| `offsiteTarget.uri` | String or `null` |
+| `offsiteTarget.configured` / `exercised` | Booleans |
+| `claimsProductionRestore` | Must be explicitly `false` |
+
+Also required: mode / row counts / CI run URL / `scriptsExercised` (existing
+P0-13 checks). Current pack:
+[`docs/audits/evidence/restore-drill-20260912.json`](./audits/evidence/restore-drill-20260912.json)
 (local `full-db` drill + cross-ref to the latest successful
 [`Restore Drill`](https://github.com/dbn1972/ProctiraErp/actions/runs/34683877155)
-workflow run). Validate the tip pack without re-running Postgres:
+workflow run). **Honesty:** the tip pack is **not** production or offsite
+recovery proof — see
+[`docs/audits/OPS_W1_OPS_20_RESTORE.md`](./audits/OPS_W1_OPS_20_RESTORE.md).
+Validate without re-running Postgres:
 
 ```bash
 ./tools/scripts/check-restore-drill-evidence.sh
@@ -638,5 +654,5 @@ npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup"
 
 ---
 
-_Last updated: 2026-09-14 (W1-OPS-10: align RPO/WAL/retention claims with Helm)_
+_Last updated: 2026-09-14 (W1-OPS-20: tip evidence requires timestamp/encryption/offsiteTarget; not prod restore)_
 _Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness_
