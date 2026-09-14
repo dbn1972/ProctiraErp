@@ -53,3 +53,11 @@ export const PRIVACY_TENANT_OFFBOARD_JOB_TYPE = 'privacy.tenant.offboard';
 
 /** Consumer binding pattern for all tenants' privacy offboard jobs. */
 export const PRIVACY_TENANT_OFFBOARD_CONSUME_TOPIC = 'tenant.*.privacy.tenant.offboard';
+/**
+ * W1-SEC-10 — optional outbox event when a domain prefers durable audit intent
+ * in the same txn as regulated state (relay materializes audit_log_entries).
+ */
+export const MUTATION_AUDIT_JOB_TYPE = 'mutation.audit.persist';
+
+/** Consumer binding pattern for all tenants' mutation-audit outbox jobs. */
+export const MUTATION_AUDIT_CONSUME_TOPIC = 'tenant.*.mutation.audit.persist';

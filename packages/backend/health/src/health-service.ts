@@ -284,6 +284,12 @@ export class HealthService {
     tenantId: string,
     input: CreateMeasurementInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthMeasurementEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -301,7 +307,7 @@ export class HealthService {
       visionRight: input.visionRight ?? null,
       notes: input.notes ?? null,
     };
-    return this.repository.createMeasurement(entity);
+    return this.repository.createMeasurement(entity, options);
   }
 
   async updateMeasurement(

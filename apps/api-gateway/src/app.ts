@@ -70,6 +70,7 @@ import {
   operationForMethod,
   persistMutationAudit,
   shouldAuditMutation,
+  wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
@@ -748,10 +749,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     destructiveDeleteGuard: new PrivacyService(getSharedInMemoryPrivacyRepository()),
   });
 
-  // W1-SEC-10: mutation audit onSend — log failures; fail closed for
-  // security-sensitive paths in production (unless ALLOW_MUTATION_AUDIT_DEGRADE).
+  // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
+  // Post-hoc onSend remains for unwired paths; production never degrades.
   app.addHook('onSend', async (request, reply, payload) => {
     if (!shouldAuditMutation(request.method, request.url)) return payload;
+    // Already committed domain + audit/outbox atomically — do not dual-write.
+    if (wasRegulatedMutationAuditCommitted(request)) return payload;
     // Skip unauthenticated / forbidden — still record validation failures (4xx)
     // so mutating attempts that passed RBAC leave an audit trail.
     if (reply.statusCode === 401 || reply.statusCode === 403) return payload;

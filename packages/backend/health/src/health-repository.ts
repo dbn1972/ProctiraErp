@@ -208,6 +208,12 @@ export interface HealthRepository {
   // Measurements
   createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthMeasurementEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity>;
   updateMeasurement(
     id: string,

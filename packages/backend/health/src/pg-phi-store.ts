@@ -220,36 +220,48 @@ export class PgPhiStore {
 
   async createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthMeasurementEntity,
+      ) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO health_measurements (
-        id, tenant_id, student_id, measured_on, height, weight, bmi,
-        blood_pressure_systolic, blood_pressure_diastolic, heart_rate,
-        vision_left, vision_right, notes, created_at, updated_at
-      ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.date,
-        data.height,
-        data.weight,
-        data.bmi,
-        data.bloodPressureSystolic,
-        data.bloodPressureDiastolic,
-        data.heartRate,
-        data.visionLeft,
-        data.visionRight,
-        encryptPhi(data.notes, scope),
-        now,
-        now,
-      ],
-    );
-    return mapMeasurement(result.rows[0] as Record<string, unknown>);
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO health_measurements (
+          id, tenant_id, student_id, measured_on, height, weight, bmi,
+          blood_pressure_systolic, blood_pressure_diastolic, heart_rate,
+          vision_left, vision_right, notes, created_at, updated_at
+        ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.date,
+          data.height,
+          data.weight,
+          data.bmi,
+          data.bloodPressureSystolic,
+          data.bloodPressureDiastolic,
+          data.heartRate,
+          data.visionLeft,
+          data.visionRight,
+          encryptPhi(data.notes, scope),
+          now,
+          now,
+        ],
+      );
+      const entity = mapMeasurement(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async updateMeasurement(

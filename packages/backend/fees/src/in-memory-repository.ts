@@ -492,6 +492,16 @@ export class InMemoryFeesRepository implements FeesRepository {
     tenantId: string,
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        settled: {
+          invoice: FeeInvoiceEntity;
+          payment: FeePaymentEntity;
+          receipt: FeeReceiptEntity;
+        },
+      ) => Promise<void>;
+    },
   ): Promise<{
     invoice: FeeInvoiceEntity;
     payment: FeePaymentEntity;
@@ -539,6 +549,12 @@ export class InMemoryFeesRepository implements FeesRepository {
       const updatedInvoice = await this.updateInvoice(invoiceId, tenantId, {
         status: settlement.invoiceStatus,
       });
+
+      // W1-SEC-12: production refuses in-memory fees. Same-txn audit requires PG;
+      // memory skips the binder so unit tests keep working without a SQL client.
+      if (options?.appendAuditInTxn) {
+        // no-op — callers should only attach binders when PgFeesRepository is active
+      }
 
       return { invoice: updatedInvoice!, payment, receipt };
     });

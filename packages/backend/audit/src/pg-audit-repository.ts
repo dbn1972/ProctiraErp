@@ -9,7 +9,7 @@
  */
 import { withPlatformScope, type PgPoolWithConnect, type PgQueryable } from '@proctira/database';
 
-import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
+import { verifyEntrySequence } from './audit-hash.js';
 import type {
   ArchivalResult,
   AuditLogEntry,
@@ -20,6 +20,7 @@ import type {
   ChainVerification,
   CreateAuditLogInput,
 } from './audit-repository.js';
+import { appendAuditEntryOnClient } from './txn-mutation-audit.js';
 
 function toDate(v: unknown): Date {
   return v instanceof Date ? v : new Date(String(v));
@@ -71,52 +72,10 @@ export class PgAuditRepository implements AuditRepository {
   /**
    * G-913: lock the tenant's chain head, compute prev/entry hash, append.
    * Must run inside the caller's transaction (withPlatformScope provides one).
+   * Shared with {@link appendAuditEntryOnClient} for same-txn regulated writes.
    */
-  private async insert(client: PgQueryable, input: CreateAuditLogInput): Promise<AuditLogEntry> {
-    await client.query(
-      `INSERT INTO audit_chain_heads (tenant_id) VALUES ($1) ON CONFLICT (tenant_id) DO NOTHING`,
-      [input.tenantId],
-    );
-    const head = await client.query(
-      `SELECT head_seq, head_hash FROM audit_chain_heads WHERE tenant_id = $1 FOR UPDATE`,
-      [input.tenantId],
-    );
-    const headRow = head.rows[0] as { head_seq: unknown; head_hash: string | null } | undefined;
-    const prevHash = headRow?.head_hash ?? null;
-    const chainSeq = Number(headRow?.head_seq ?? 0) + 1;
-    const entryHash = computeEntryHash(input, prevHash);
-
-    const res = await client.query(
-      `INSERT INTO audit_log_entries (
-         id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
-         ip_address, occurred_at, before_values, after_values, metadata,
-         chain_seq, prev_hash, entry_hash
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12::jsonb,$13,$14,$15)
-       RETURNING *`,
-      [
-        input.id,
-        input.tenantId,
-        input.entityType,
-        input.entityId,
-        input.operation,
-        input.userId,
-        input.userName,
-        input.ipAddress,
-        input.timestamp,
-        input.beforeValues == null ? null : JSON.stringify(input.beforeValues),
-        input.afterValues == null ? null : JSON.stringify(input.afterValues),
-        input.metadata == null ? null : JSON.stringify(input.metadata),
-        chainSeq,
-        prevHash,
-        entryHash,
-      ],
-    );
-    await client.query(
-      `UPDATE audit_chain_heads SET head_seq = $2, head_hash = $3, updated_at = now()
-       WHERE tenant_id = $1`,
-      [input.tenantId, chainSeq, entryHash],
-    );
-    return mapEntry(res.rows[0] as Record<string, unknown>);
+  private insert(client: PgQueryable, input: CreateAuditLogInput): Promise<AuditLogEntry> {
+    return appendAuditEntryOnClient(client, input);
   }
 
   async create(input: CreateAuditLogInput): Promise<AuditLogEntry> {

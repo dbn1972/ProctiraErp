@@ -57,6 +57,7 @@
 
 **Residual risks:**
 
-- Gateway mutation audit runs on `onSend` after the handler mutates state — a 503 means the client must not treat the mutation as acknowledged, but durable side effects may already exist; compensating reconciliation remains an ops concern.
-- `ALLOW_PHI_AUDIT_DEGRADE` / `ALLOW_MUTATION_AUDIT_DEGRADE` must never be set in normal production; they are emergency-only escape hatches.
+- **CLOSED for wired subset** — see `docs/audits/SEC_W1_SEC_10_COMPLETE.md` (same-txn audit for fees payments + health measurements; production degrade ignored).
+- Remaining regulated routes still use post-hoc `onSend` (503 cannot roll back) — listed as residuals in the COMPLETE audit.
+- `ALLOW_PHI_AUDIT_DEGRADE` must never be set in normal production; `ALLOW_MUTATION_AUDIT_DEGRADE` is ignored in production.
 - Non-sensitive mutations (e.g. library/LMS) still log audit failures but do not fail closed — intentional scope bound to PHI/money/custody/privacy surfaces.

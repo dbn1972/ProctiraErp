@@ -47,6 +47,19 @@ export { PgAuditRepository } from './pg-audit-repository.js';
 export { createAuditRepository } from './create-audit-repository.js';
 export type { AuditPersistence } from './create-audit-repository.js';
 
+// W1-SEC-10 COMPLETE — same-txn regulated mutation audit
+export {
+  appendAuditEntryOnClient,
+  newMutationAuditCorrelationId,
+  runRegulatedMutationInTxn,
+  toCreateAuditLogInput,
+} from './txn-mutation-audit.js';
+export type {
+  MutationAuditOutboxEnqueue,
+  MutationAuditTxnInput,
+  RunRegulatedMutationInTxnOptions,
+} from './txn-mutation-audit.js';
+
 // Schemas
 export {
   RecordAuditSchema,

@@ -1,8 +1,12 @@
 /**
  * G-105 / W1-SEC-10 — helpers for gateway mutation audit trail.
  *
- * Audit write failures must be surfaced (logged). Security-sensitive mutations
- * fail closed in production unless ALLOW_MUTATION_AUDIT_DEGRADE=1.
+ * PARTIAL (fail-closed onSend) closed to COMPLETE for regulated routes that
+ * commit domain state + audit/outbox in the same transaction. Post-hoc onSend
+ * remains a safety net for unwired regulated paths (see residual list in
+ * docs/audits/SEC_W1_SEC_10_COMPLETE.md) but cannot roll back an unaudited write.
+ *
+ * Production never honors ALLOW_MUTATION_AUDIT_DEGRADE (no production bypass).
  */
 
 import { createHash } from 'node:crypto';
@@ -26,6 +30,18 @@ const SECURITY_SENSITIVE_RESOURCES = new Set([
   'platform',
   'billing',
 ]);
+
+/**
+ * Regulated HTTP path prefixes that write domain state + audit in one txn
+ * (W1-SEC-10 COMPLETE subset). Handlers must call
+ * {@link markRegulatedMutationAuditCommitted} after a successful atomic write.
+ */
+export const ATOMIC_MUTATION_AUDIT_PATH_PREFIXES = [
+  '/api/v1/health/measurements',
+  '/api/v1/fees/payments',
+] as const;
+
+const REQUEST_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
 
 function truthy(value: string | undefined): boolean {
   const v = value?.trim().toLowerCase();
@@ -120,13 +136,25 @@ export function isSecuritySensitiveMutationPath(pathname: string): boolean {
   return resource != null && SECURITY_SENSITIVE_RESOURCES.has(resource);
 }
 
+export function isAtomicMutationAuditPath(pathname: string): boolean {
+  const path = pathname.split('?')[0] ?? pathname;
+  return ATOMIC_MUTATION_AUDIT_PATH_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
+/**
+ * Emergency degrade is never available in production (W1-SEC-10 COMPLETE).
+ * Non-production may set ALLOW_MUTATION_AUDIT_DEGRADE=1 for local tooling.
+ */
 export function isMutationAuditDegradeAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  if ((env.NODE_ENV ?? '').toLowerCase() === 'production') return false;
   return truthy(env.ALLOW_MUTATION_AUDIT_DEGRADE);
 }
 
 /**
  * When mutation audit persistence fails: fail closed for security-sensitive
- * paths in production unless an explicit degrade flag is set.
+ * paths in production. Degrade flag is ignored in production.
  */
 export function shouldFailClosedOnMutationAuditFailure(options: {
   path: string;
@@ -191,4 +219,17 @@ export async function persistMutationAudit(options: {
       error,
     };
   }
+}
+
+type AuditMarkedRequest = FastifyRequest & {
+  [REQUEST_AUDIT_COMMITTED]?: boolean;
+};
+
+/** Mark that regulated domain state + audit already committed atomically. */
+export function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
+  (request as AuditMarkedRequest)[REQUEST_AUDIT_COMMITTED] = true;
+}
+
+export function wasRegulatedMutationAuditCommitted(request: FastifyRequest): boolean {
+  return (request as AuditMarkedRequest)[REQUEST_AUDIT_COMMITTED] === true;
 }

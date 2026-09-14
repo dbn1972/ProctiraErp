@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@proctira/backend-audit": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/events": "workspace:*",

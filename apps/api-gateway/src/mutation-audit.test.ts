@@ -1,14 +1,20 @@
 /**
- * W1-SEC-10 — gateway mutation audit fail-closed / explicit degrade.
+ * W1-SEC-10 — gateway mutation audit fail-closed / no production bypass /
+ * same-txn markers for regulated routes.
  */
 import { describe, it, expect, vi } from 'vitest';
 
 import {
+  ATOMIC_MUTATION_AUDIT_PATH_PREFIXES,
+  isAtomicMutationAuditPath,
+  isMutationAuditDegradeAllowed,
   isSecuritySensitiveMutationPath,
+  markRegulatedMutationAuditCommitted,
   MUTATION_AUDIT_UNAVAILABLE_BODY,
   persistMutationAudit,
   shouldAuditMutation,
   shouldFailClosedOnMutationAuditFailure,
+  wasRegulatedMutationAuditCommitted,
 } from './mutation-audit.js';
 
 describe('W1-SEC-10 mutation audit policy', () => {
@@ -36,11 +42,26 @@ describe('W1-SEC-10 mutation audit policy', () => {
     ).toBe(true);
   });
 
-  it('allows explicit degrade via ALLOW_MUTATION_AUDIT_DEGRADE', () => {
+  it('ignores ALLOW_MUTATION_AUDIT_DEGRADE in production (no bypass)', () => {
+    expect(
+      isMutationAuditDegradeAllowed({
+        NODE_ENV: 'production',
+        ALLOW_MUTATION_AUDIT_DEGRADE: '1',
+      }),
+    ).toBe(false);
     expect(
       shouldFailClosedOnMutationAuditFailure({
         path: '/api/v1/fees/payments',
         env: { NODE_ENV: 'production', ALLOW_MUTATION_AUDIT_DEGRADE: '1' },
+      }),
+    ).toBe(true);
+  });
+
+  it('allows explicit degrade only outside production', () => {
+    expect(
+      shouldFailClosedOnMutationAuditFailure({
+        path: '/api/v1/fees/payments',
+        env: { NODE_ENV: 'development', ALLOW_MUTATION_AUDIT_DEGRADE: '1' },
       }),
     ).toBe(false);
   });
@@ -58,6 +79,20 @@ describe('W1-SEC-10 mutation audit policy', () => {
         env: { NODE_ENV: 'test' },
       }),
     ).toBe(false);
+  });
+
+  it('marks atomic regulated path prefixes', () => {
+    expect(ATOMIC_MUTATION_AUDIT_PATH_PREFIXES.length).toBeGreaterThan(0);
+    expect(isAtomicMutationAuditPath('/api/v1/health/measurements')).toBe(true);
+    expect(isAtomicMutationAuditPath('/api/v1/fees/payments')).toBe(true);
+    expect(isAtomicMutationAuditPath('/api/v1/privacy/holds')).toBe(false);
+  });
+
+  it('tracks request-level atomic audit commit marker', () => {
+    const request = {} as Parameters<typeof markRegulatedMutationAuditCommitted>[0];
+    expect(wasRegulatedMutationAuditCommitted(request)).toBe(false);
+    markRegulatedMutationAuditCommitted(request);
+    expect(wasRegulatedMutationAuditCommitted(request)).toBe(true);
   });
 
   it('persistMutationAudit returns failClosed for sensitive prod when recorder throws', async () => {

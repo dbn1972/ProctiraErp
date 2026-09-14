@@ -13,9 +13,11 @@ export { OutboxRelay } from './relay.js';
 export type { OutboxRelayOptions } from './relay.js';
 export {
   buildExamDocumentOutboxEntry,
+  buildMutationAuditOutboxEntry,
   buildWorkflowEscalationOutboxEntry,
 } from './builders.js';
 export type {
   ExamDocumentOutboxInput,
+  MutationAuditOutboxInput,
   WorkflowEscalationOutboxInput,
 } from './builders.js';

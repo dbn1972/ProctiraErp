@@ -400,11 +400,24 @@ export interface FeesRepository {
   /**
    * Lock the invoice row, read succeeded payment total, run `build`, then persist
    * payment + receipt + ledger + invoice status in the same transaction (Pg: FOR UPDATE).
+   *
+   * W1-SEC-10: optional `appendAuditInTxn` runs on the same client before COMMIT
+   * so a forced audit failure rolls back the payment write.
    */
   recordPaymentOnInvoice(
     tenantId: string,
     invoiceId: string,
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        settled: {
+          invoice: FeeInvoiceEntity;
+          payment: FeePaymentEntity;
+          receipt: FeeReceiptEntity;
+        },
+      ) => Promise<void>;
+    },
   ): Promise<{
     invoice: FeeInvoiceEntity;
     payment: FeePaymentEntity;

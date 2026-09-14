@@ -22,9 +22,14 @@
  * - 12.5: Screening programs
  */
 import { AppError } from '@proctira/common';
+import {
+  appendAuditEntryOnClient,
+  toCreateAuditLogInput,
+} from '@proctira/backend-audit';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { isPgPhiEnabled } from './pg-phi-store.js';
 import type { HealthService, HealthAccessContext } from './health-service.js';
 import {
   CreateMeasurementSchema,
@@ -77,6 +82,54 @@ function getAccessContext(request: FastifyRequest): HealthAccessContext {
   return { userId: '', roles: [], guardianOfStudentIds: [] };
 }
 
+/** Same Symbol.for key as api-gateway mutation-audit (W1-SEC-10 COMPLETE). */
+const MUTATION_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
+
+function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
+  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[
+    MUTATION_AUDIT_COMMITTED
+  ] = true;
+}
+
+function buildMeasurementAuditBinder(request: FastifyRequest, tenantId: string) {
+  if (!isPgPhiEnabled()) return undefined;
+  const access = getAccessContext(request);
+  const user = (
+    request as FastifyRequest & { user?: { sub?: string; displayName?: string; email?: string } }
+  ).user;
+  return {
+    appendAuditInTxn: async (
+      client: import('@proctira/database').PgQueryable,
+      entity: { id: string },
+    ) => {
+      await appendAuditEntryOnClient(
+        client,
+        toCreateAuditLogInput({
+          tenantId,
+          entityType: 'health_record',
+          entityId: entity.id,
+          operation: 'CREATE',
+          userId: user?.sub ?? access.userId ?? 'anonymous',
+          userName: user?.displayName ?? user?.email ?? user?.sub ?? access.userId ?? 'anonymous',
+          ipAddress: request.ip,
+          beforeValues: null,
+          afterValues: {
+            path: '/api/v1/health/measurements',
+            measurementId: entity.id,
+          },
+          metadata: {
+            method: request.method,
+            path: request.url.split('?')[0] ?? request.url,
+            regulated: 'health.measurement',
+            atomic: true,
+          },
+        }),
+      );
+      markRegulatedMutationAuditCommitted(request);
+    },
+  };
+}
+
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send(error.toJSON());
@@ -115,6 +168,7 @@ export async function registerHealthRoutes(
         tenantId,
         result.data,
         getAccessContext(request),
+        buildMeasurementAuditBinder(request, tenantId),
       );
       return reply.status(201).send(entity);
     } catch (error) {

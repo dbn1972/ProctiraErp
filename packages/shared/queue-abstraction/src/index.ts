@@ -66,6 +66,8 @@ export {
   PRIVACY_ANONYMIZATION_CONSUME_TOPIC,
   PRIVACY_TENANT_OFFBOARD_JOB_TYPE,
   PRIVACY_TENANT_OFFBOARD_CONSUME_TOPIC,
+  MUTATION_AUDIT_JOB_TYPE,
+  MUTATION_AUDIT_CONSUME_TOPIC,
 } from './job-types.js';
 
 // Transactional outbox (W2-JOB-04)
@@ -74,6 +76,7 @@ export {
   PgOutboxStore,
   OutboxRelay,
   buildExamDocumentOutboxEntry,
+  buildMutationAuditOutboxEntry,
   buildWorkflowEscalationOutboxEntry,
 } from './outbox';
 export type {
@@ -86,6 +89,7 @@ export type {
   OutboxRelayOptions,
   PgOutboxPool,
   ExamDocumentOutboxInput,
+  MutationAuditOutboxInput,
   WorkflowEscalationOutboxInput,
 } from './outbox';
 
