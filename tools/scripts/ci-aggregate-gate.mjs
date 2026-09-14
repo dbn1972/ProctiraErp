@@ -47,6 +47,11 @@ function secondaryAppsGate(changes) {
   return truthy(changes.secondaryAppsChanged);
 }
 
+function mobileFlutterGate(changes) {
+  // W1-OPS-07: Flutter analyze+test when apps/mobile (or flutter-core / harness) change.
+  return truthy(changes.mobileFlutterChanged);
+}
+
 /**
  * @param {{
  *   changes: Record<string, string | undefined>,
@@ -144,6 +149,11 @@ export function evaluate({ changes, results }) {
       job: 'secondary-apps-e2e',
       result: results.secondaryAppsE2e,
       requiredWhen: () => secondaryAppsGate(changes),
+    },
+    {
+      job: 'mobile-flutter',
+      result: results.mobileFlutter,
+      requiredWhen: () => mobileFlutterGate(changes),
     },
   ];
 
@@ -243,6 +253,7 @@ function readEnv() {
       backendChanged: process.env.BACKEND_CHANGED,
       infraChanged: process.env.INFRA_CHANGED,
       secondaryAppsChanged: process.env.SECONDARY_APPS_CHANGED,
+      mobileFlutterChanged: process.env.MOBILE_FLUTTER_CHANGED,
     },
     results: {
       detectChanges: process.env.DETECT_CHANGES_RESULT,
@@ -265,6 +276,7 @@ function readEnv() {
       runtimeRoleGate: process.env.RUNTIME_ROLE_GATE_RESULT,
       securityScans: process.env.SECURITY_SCANS_RESULT,
       secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
+      mobileFlutter: process.env.MOBILE_FLUTTER_RESULT,
     },
   };
 }
