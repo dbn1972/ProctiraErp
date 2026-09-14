@@ -80,7 +80,7 @@ CREATE TRIGGER trg_transcript_issuances_authenticity
   BEFORE INSERT ON transcript_issuances
   FOR EACH ROW EXECUTE FUNCTION transcript_issuances_require_authenticity();
 
--- Soft CHECK for new/rewritten rows; NOT VALID so pre-068 ISSUED rows without
+-- Soft CHECK for new/rewritten rows; NOT VALID so pre-069 ISSUED rows without
 -- signature_hmac (if any) do not block apply. New ISSUED inserts are enforced
 -- by the trigger above regardless.
 ALTER TABLE transcript_issuances
