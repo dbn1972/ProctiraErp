@@ -95,7 +95,9 @@ export type {
 export {
   createDeveloperPortalRepository,
   ensureDeveloperPortalPersistence,
+  isPgDeveloperPortalEnabled,
   isPgDeveloperPortalApiKeysEnabled,
+  resetDeveloperPortalRepositoryForTests,
 } from './create-developer-portal-repository.js';
 export { HybridDeveloperPortalRepository } from './hybrid-repository.js';
 export {
@@ -103,6 +105,11 @@ export {
   getSharedDeveloperPortalPool,
   ensureDeveloperPortalApiKeySchema,
 } from './pg-api-key-store.js';
+export {
+  PgDeveloperPortalDurableStore,
+  ensureDeveloperPortalDurableSchema,
+  resetDeveloperPortalDurableSchemaMemoForTests,
+} from './pg-durable-store.js';
 
 // In-memory repository (for testing)
 export { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
