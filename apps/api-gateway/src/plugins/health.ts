@@ -3,11 +3,12 @@
  *
  * Provides /health endpoint reporting readiness and liveness status.
  * - Liveness: The gateway process is running and can handle requests (cheap)
- * - Readiness: Critical dependencies (Postgres when configured) must be reachable
+ * - Readiness: Critical dependencies (Postgres / Redis when configured) must be reachable
  */
 
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
+import Redis from 'ioredis';
 import pg from 'pg';
 
 import type { ServiceRoute } from '../config.js';
@@ -18,6 +19,7 @@ export interface PersistencePolicyEnv {
   DATABASE_URL?: string;
   REQUIRE_DATABASE?: string;
   ALLOW_IN_MEMORY_IN_PRODUCTION?: string;
+  REDIS_URL?: string;
 }
 
 export interface HealthCheckOptions {
@@ -25,9 +27,11 @@ export interface HealthCheckOptions {
   services: Record<string, ServiceRoute>;
   /** Override DB probe (tests). */
   probeDatabase?: () => Promise<{ ok: boolean; message?: string; latencyMs?: number }>;
+  /** Override Redis probe (tests). */
+  probeRedis?: () => Promise<{ ok: boolean; message?: string; latencyMs?: number }>;
   /** Override env read (tests). */
   env?: PersistencePolicyEnv;
-  /** DB probe timeout in ms (default 3000). */
+  /** Dependency probe timeout in ms (default 3000). */
   probeTimeoutMs?: number;
 }
 
@@ -45,13 +49,19 @@ export interface HealthStatus {
 }
 
 export type DatabaseDependencyStatus = 'up' | 'down' | 'in-memory' | 'required-missing';
+export type RedisDependencyStatus = 'up' | 'down' | 'not-configured';
 
 export interface ReadinessProbeResult {
   ready: boolean;
-  dependencies: { database: DatabaseDependencyStatus };
+  dependencies: {
+    database: DatabaseDependencyStatus;
+    redis: RedisDependencyStatus;
+  };
   message?: string;
   latencyMs?: number;
 }
+
+type ProbeOutcome = { ok: boolean; message?: string; latencyMs?: number };
 
 function readEnv(override?: PersistencePolicyEnv): PersistencePolicyEnv {
   if (override) return override;
@@ -60,6 +70,7 @@ function readEnv(override?: PersistencePolicyEnv): PersistencePolicyEnv {
     DATABASE_URL: process.env['DATABASE_URL'],
     REQUIRE_DATABASE: process.env['REQUIRE_DATABASE'],
     ALLOW_IN_MEMORY_IN_PRODUCTION: process.env['ALLOW_IN_MEMORY_IN_PRODUCTION'],
+    REDIS_URL: process.env['REDIS_URL'],
   };
 }
 
@@ -79,7 +90,7 @@ function databaseRequired(env: PersistencePolicyEnv): boolean {
 async function defaultProbeDatabase(
   databaseUrl: string,
   timeoutMs: number,
-): Promise<{ ok: boolean; message?: string; latencyMs?: number }> {
+): Promise<ProbeOutcome> {
   const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
   const start = Date.now();
   try {
@@ -101,11 +112,37 @@ async function defaultProbeDatabase(
   }
 }
 
-/** W1-OPS-03 (B5): probe critical deps; fail closed when Postgres is required but unavailable. */
-export async function runReadinessProbe(
-  options: Pick<HealthCheckOptions, 'probeDatabase' | 'env' | 'probeTimeoutMs'> = {},
-): Promise<ReadinessProbeResult> {
-  const env = readEnv(options.env);
+async function defaultProbeRedis(redisUrl: string, timeoutMs: number): Promise<ProbeOutcome> {
+  const client = new Redis(redisUrl, {
+    maxRetriesPerRequest: 0,
+    lazyConnect: true,
+    enableOfflineQueue: false,
+    connectTimeout: timeoutMs,
+  });
+  const start = Date.now();
+  try {
+    await Promise.race([
+      client.connect().then(() => client.ping()),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Redis probe timed out after ${timeoutMs}ms`)), timeoutMs);
+      }),
+    ]);
+    return { ok: true, latencyMs: Date.now() - start };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+      latencyMs: Date.now() - start,
+    };
+  } finally {
+    await client.quit().catch(() => undefined);
+  }
+}
+
+async function probeDatabaseDependency(
+  env: PersistencePolicyEnv,
+  options: Pick<HealthCheckOptions, 'probeDatabase' | 'probeTimeoutMs'>,
+): Promise<{ ready: boolean; status: DatabaseDependencyStatus; message?: string; latencyMs?: number }> {
   const databaseUrl = env.DATABASE_URL?.trim() || null;
   const timeoutMs = options.probeTimeoutMs ?? 3000;
 
@@ -113,13 +150,13 @@ export async function runReadinessProbe(
     if (databaseRequired(env)) {
       return {
         ready: false,
-        dependencies: { database: 'required-missing' },
+        status: 'required-missing',
         message: 'DATABASE_URL is required but not configured',
       };
     }
     return {
       ready: true,
-      dependencies: { database: 'in-memory' },
+      status: 'in-memory',
       message: 'In-memory persistence (DATABASE_URL unset)',
     };
   }
@@ -130,7 +167,7 @@ export async function runReadinessProbe(
   if (!result.ok) {
     return {
       ready: false,
-      dependencies: { database: 'down' },
+      status: 'down',
       message: result.message ?? 'Database probe failed',
       latencyMs: result.latencyMs,
     };
@@ -138,8 +175,67 @@ export async function runReadinessProbe(
 
   return {
     ready: true,
-    dependencies: { database: 'up' },
+    status: 'up',
     latencyMs: result.latencyMs,
+  };
+}
+
+async function probeRedisDependency(
+  env: PersistencePolicyEnv,
+  options: Pick<HealthCheckOptions, 'probeRedis' | 'probeTimeoutMs'>,
+): Promise<{ ready: boolean; status: RedisDependencyStatus; message?: string; latencyMs?: number }> {
+  const redisUrl = env.REDIS_URL?.trim() || null;
+  const timeoutMs = options.probeTimeoutMs ?? 3000;
+
+  if (!redisUrl) {
+    return {
+      ready: true,
+      status: 'not-configured',
+      message: 'Redis optional (REDIS_URL unset)',
+    };
+  }
+
+  const probe = options.probeRedis ?? (() => defaultProbeRedis(redisUrl, timeoutMs));
+  const result = await probe();
+
+  if (!result.ok) {
+    return {
+      ready: false,
+      status: 'down',
+      message: result.message ?? 'Redis probe failed',
+      latencyMs: result.latencyMs,
+    };
+  }
+
+  return {
+    ready: true,
+    status: 'up',
+    latencyMs: result.latencyMs,
+  };
+}
+
+/** W1-OPS-03 / W3-C1: probe critical deps; fail closed when configured Postgres/Redis is unavailable. */
+export async function runReadinessProbe(
+  options: Pick<HealthCheckOptions, 'probeDatabase' | 'probeRedis' | 'env' | 'probeTimeoutMs'> = {},
+): Promise<ReadinessProbeResult> {
+  const env = readEnv(options.env);
+
+  const [database, redis] = await Promise.all([
+    probeDatabaseDependency(env, options),
+    probeRedisDependency(env, options),
+  ]);
+
+  const ready = database.ready && redis.ready;
+  const failures = [database, redis].filter((dep) => !dep.ready && dep.message);
+
+  return {
+    ready,
+    dependencies: {
+      database: database.status,
+      redis: redis.status,
+    },
+    message: failures.length > 0 ? failures.map((dep) => dep.message).join('; ') : undefined,
+    latencyMs: Math.max(database.latencyMs ?? 0, redis.latencyMs ?? 0) || undefined,
   };
 }
 
@@ -149,8 +245,12 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
 ) => {
   const startTime = Date.now();
 
-  const probeOptions = (): Pick<HealthCheckOptions, 'probeDatabase' | 'env' | 'probeTimeoutMs'> => ({
+  const probeOptions = (): Pick<
+    HealthCheckOptions,
+    'probeDatabase' | 'probeRedis' | 'env' | 'probeTimeoutMs'
+  > => ({
     probeDatabase: options.probeDatabase,
+    probeRedis: options.probeRedis,
     env: options.env,
     probeTimeoutMs: options.probeTimeoutMs,
   });
@@ -198,6 +298,7 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
 
       const readinessDetails: Record<string, string> = {
         database: readiness.dependencies.database,
+        redis: readiness.dependencies.redis,
       };
       if (readiness.message) {
         readinessDetails.message = readiness.message;
@@ -251,7 +352,8 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
     '/health/ready',
     {
       schema: {
-        description: 'Readiness probe - checks critical dependencies (Postgres when configured)',
+        description:
+          'Readiness probe - checks critical dependencies (Postgres and Redis when configured)',
         tags: ['Health'],
         response: {
           200: {
@@ -262,6 +364,7 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
                 type: 'object',
                 properties: {
                   database: { type: 'string' },
+                  redis: { type: 'string' },
                 },
               },
               message: { type: 'string' },
@@ -276,6 +379,7 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
                 type: 'object',
                 properties: {
                   database: { type: 'string' },
+                  redis: { type: 'string' },
                 },
               },
               message: { type: 'string' },
