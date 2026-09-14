@@ -71,8 +71,8 @@ Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` 
 
 | Package                | Mounted? | Prefix(es)       | Persistence | RBAC wired? | Notes                                                                                                                           |
 | ---------------------- | -------- | ---------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `backend/custom-field` | Yes      | `/custom-fields` | In-memory   | Yes         | Unparked: definitions/values for student/staff/institution. Durable schema + redesign UI residual.                              |
-| `backend/dashboards`   | Yes      | `/dashboards`    | In-memory   | Yes         | Unparked with `AreaHierarchyResolver` (W1-ARCH-04). Role-scoped dashboards; G-909 report dashboards remain on `backend/report`. |
+| `backend/custom-field` | Yes      | `/custom-fields` | Memory only when `DATABASE_URL` unset (factory); fail-closed when set (no durable schema yet) | Yes         | W1-SEC-12: `createCustomFieldRepositories()`. Redesign UI residual.                              |
+| `backend/dashboards`   | Yes      | `/dashboards`    | Memory only when `DATABASE_URL` unset (factory); fail-closed when set (no durable aggregates) | Yes         | W1-SEC-12: `createDashboardRepository()` + `AreaHierarchyResolver`. G-909 report dashboards remain on `backend/report`. |
 | `backend/privacy`      | Yes      | `/privacy`       | In-memory (shared) + durable queue when env set | Yes         | W1-SEC-06 complete: legal-hold, erasure/anonymize jobs, correction+audit, tenant offboard checklist. Schema `067`/`076`. Pg repository residual. |
 
 ## Registrar ↔ package map

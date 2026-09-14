@@ -39,7 +39,11 @@ import {
   type RolesAuditEvent,
   type TenantSettingsStore,
 } from '@proctira/backend-tenant';
-import { getSharedPgPool } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  assertPostgresRepositoryAvailable,
+  getSharedPgPool,
+} from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -69,10 +73,17 @@ export const tenantAdminPlugin = fp(
       ),
     }));
     const { repository, persistence } = createRolesRepository(seed);
-    const pool = getSharedPgPool();
-    const settingsStore: TenantSettingsStore = pool
-      ? new PgTenantSettingsStore(pool)
-      : new InMemoryTenantSettingsStore();
+    // W1-SEC-12: settings store follows the same fail-closed policy as roles
+    // (Pg when DATABASE_URL; never silent memory when Postgres is required).
+    let settingsStore: TenantSettingsStore;
+    if (process.env.DATABASE_URL?.trim()) {
+      const pool = getSharedPgPool();
+      assertPostgresRepositoryAvailable('tenant-settings', pool);
+      settingsStore = new PgTenantSettingsStore(pool);
+    } else {
+      assertInMemoryFallbackAllowed('tenant-settings');
+      settingsStore = new InMemoryTenantSettingsStore();
+    }
     fastify.log.info({ persistence }, 'tenant admin console repository ready');
 
     const rolesService = new RolesService(repository, async (event) => {

@@ -453,7 +453,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: true,
     registrarName: 'custom-field',
     notes:
-      'W1-ARCH-05: unparked. customFieldPlugin for student/staff/institution field definitions + values. In-memory only; durable schema + redesign UI residual.',
+      'W1-ARCH-05 / W1-SEC-12: unparked. createCustomFieldRepositories() — memory only when DATABASE_URL unset (asserted); fails closed when DATABASE_URL set until durable schema ships. Redesign UI residual.',
   },
   {
     package: 'dashboards',
@@ -463,7 +463,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: true,
     registrarName: 'dashboards',
     notes:
-      'W1-ARCH-05: unparked with AreaHierarchyResolver (W1-ARCH-04). Role-scoped country/state/board/school/teacher/me dashboards. In-memory aggregates; G-909 report dashboards remain separate.',
+      'W1-ARCH-05 / W1-SEC-12: unparked with AreaHierarchyResolver (W1-ARCH-04). createDashboardRepository() — memory only when DATABASE_URL unset (asserted); fails closed when DATABASE_URL set until durable aggregates ship. G-909 report dashboards remain separate.',
   },
   {
     package: 'data-warehouse',
