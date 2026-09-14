@@ -48,32 +48,21 @@ export type {
 // Factory
 export { createQueueAdapter, createQueueAdapterFromEnv } from './factory';
 
-/** Well-known job type for examination document generation workers (P0-06). */
-export const EXAM_DOCUMENT_JOB_TYPE = 'exam.document.generate';
-
-/** Consumer binding pattern for all tenants' exam document jobs. */
-export const EXAM_DOCUMENT_CONSUME_TOPIC = 'tenant.*.exam.document.generate';
-
-/** Well-known job type for workflow timeout escalations (P1-WF). */
-export const WORKFLOW_ESCALATION_JOB_TYPE = 'workflow.escalation';
-
-/** Consumer binding pattern for all tenants' workflow escalation jobs. */
-export const WORKFLOW_ESCALATION_CONSUME_TOPIC = 'tenant.*.workflow.escalation';
-
-/** Optional side-channel when an escalation transition notifies a role. */
-export const WORKFLOW_ESCALATION_NOTIFY_TYPE = 'workflow.escalation.notified';
-
-/** Well-known job type for notification delivery / retry workers (W2-JOB-01). */
-export const NOTIFICATION_DELIVERY_JOB_TYPE = 'notification.delivery';
-
-/** Consumer binding pattern for all tenants' notification delivery jobs. */
-export const NOTIFICATION_DELIVERY_CONSUME_TOPIC = 'tenant.*.notification.delivery';
-
-/** Well-known job type for assessment report-card generation workers (W2-JOB-02). */
-export const REPORT_CARD_JOB_TYPE = 'report-card.generate';
-
-/** Consumer binding pattern for all tenants' report-card generation jobs. */
-export const REPORT_CARD_CONSUME_TOPIC = 'tenant.*.report-card.generate';
+export {
+  EXAM_DOCUMENT_JOB_TYPE,
+  EXAM_DOCUMENT_CONSUME_TOPIC,
+  WORKFLOW_ESCALATION_JOB_TYPE,
+  WORKFLOW_ESCALATION_CONSUME_TOPIC,
+  WORKFLOW_ESCALATION_NOTIFY_TYPE,
+  NOTIFICATION_DELIVERY_JOB_TYPE,
+  NOTIFICATION_DELIVERY_CONSUME_TOPIC,
+  REPORT_CARD_JOB_TYPE,
+  REPORT_CARD_CONSUME_TOPIC,
+  STUDENT_IMPORT_JOB_TYPE,
+  STUDENT_IMPORT_CONSUME_TOPIC,
+  WEBHOOK_DELIVERY_JOB_TYPE,
+  WEBHOOK_DELIVERY_CONSUME_TOPIC,
+} from './job-types.js';
 
 // Transactional outbox (W2-JOB-04)
 export {
@@ -96,14 +85,3 @@ export type {
   WorkflowEscalationOutboxInput,
 } from './outbox';
 
-/** Well-known job type for student bulk import workers (W2-JOB-06). */
-export const STUDENT_IMPORT_JOB_TYPE = 'student.import';
-
-/** Consumer binding pattern for all tenants' student import jobs. */
-export const STUDENT_IMPORT_CONSUME_TOPIC = 'tenant.*.student.import';
-
-/** Well-known job type for developer-portal webhook HTTP delivery (W2-JOB-07). */
-export const WEBHOOK_DELIVERY_JOB_TYPE = 'webhook.delivery';
-
-/** Consumer binding pattern for all tenants' webhook delivery jobs. */
-export const WEBHOOK_DELIVERY_CONSUME_TOPIC = 'tenant.*.webhook.delivery';
