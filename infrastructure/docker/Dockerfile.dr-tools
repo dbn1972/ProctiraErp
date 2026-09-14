@@ -17,7 +17,8 @@ FROM node:${NODE_VERSION}
 
 # postgresql16-client must match the server major used by the platform
 # (pg_dump from a newer client can read older servers, not the reverse).
-RUN apk add --no-cache bash coreutils postgresql16-client python3 tini
+# age: W1-OPS-04 encrypt-at-rest; aws-cli: optional s3:// offsite copy
+RUN apk add --no-cache bash coreutils postgresql16-client python3 tini age aws-cli
 
 RUN addgroup --system --gid 1001 dr \
  && adduser --system --uid 1001 --ingroup dr dr
@@ -25,6 +26,7 @@ RUN addgroup --system --gid 1001 dr \
 WORKDIR /opt/proctira
 COPY --chown=dr:dr tools/scripts/pg-backup.sh \
      tools/scripts/pg-restore.sh \
+     tools/scripts/backup-crypto.sh \
      tools/scripts/restore-drill.sh \
      tools/scripts/phi-retention-job.mjs \
      tools/scripts/

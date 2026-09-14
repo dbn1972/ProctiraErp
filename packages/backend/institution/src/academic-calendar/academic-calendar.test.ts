@@ -434,6 +434,8 @@ describe('G-905 academic calendar', () => {
         enrollments: {
           considered: 1,
           toPromote: 1,
+          toRetain: 0,
+          retained: 0,
           promoted: 0,
           graduating: 0,
           alreadyInTarget: 0,
@@ -446,6 +448,55 @@ describe('G-905 academic calendar', () => {
       });
       expect(targetClasses.json()).toHaveLength(0);
     });
+
+    it('W2-SIS-05: retains listed students in the same grade instead of promoting', async () => {
+      const { institutionId, source, target, g7, classIds } = await seedYearWithSections();
+      const retainedId = await seedEnrollment({
+        institutionId,
+        periodId: source.id,
+        gradeId: g7,
+        classId: classIds['7-A']!,
+      });
+      const promotedId = await seedEnrollment({
+        institutionId,
+        periodId: source.id,
+        gradeId: g7,
+        classId: classIds['7-B']!,
+      });
+
+      const run = await app.inject({
+        method: 'POST',
+        url: `/academic-periods/${source.id}/rollover`,
+        payload: {
+          targetPeriodId: target.id,
+          promoteEnrollments: true,
+          dryRun: false,
+          retainStudentIds: [retainedId],
+        },
+      });
+      expect(run.statusCode).toBe(200);
+      expect(run.json()).toMatchObject({
+        enrollments: {
+          considered: 2,
+          toPromote: 1,
+          promoted: 1,
+          toRetain: 1,
+          retained: 1,
+          graduating: 0,
+          alreadyInTarget: 0,
+        },
+      });
+
+      const targetEnrollments = await deps.prisma.enrollment.findMany({
+        where: { tenantId: TENANT_A, academicPeriodId: target.id },
+      });
+      expect(targetEnrollments).toHaveLength(2);
+      const retained = targetEnrollments.find((e: { studentId: string }) => e.studentId === retainedId);
+      const promoted = targetEnrollments.find((e: { studentId: string }) => e.studentId === promotedId);
+      expect(retained?.gradeId).toBe(g7);
+      expect(promoted?.gradeId).not.toBe(g7);
+    });
+
 
     it('clones sections, promotes students one grade up and is idempotent on re-run', async () => {
       const { institutionId, source, target, g7, g8, classIds } = await seedYearWithSections();
@@ -482,6 +533,8 @@ describe('G-905 academic calendar', () => {
         enrollments: {
           considered: 2,
           toPromote: 1,
+          toRetain: 0,
+          retained: 0,
           promoted: 1,
           graduating: 1,
           alreadyInTarget: 0,
@@ -536,6 +589,8 @@ describe('G-905 academic calendar', () => {
           // still-ENROLLED promoted row is considered on re-run.
           considered: 1,
           toPromote: 0,
+          toRetain: 0,
+          retained: 0,
           promoted: 0,
           graduating: 0,
           alreadyInTarget: 1,

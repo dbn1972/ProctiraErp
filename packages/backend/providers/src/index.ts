@@ -1,6 +1,10 @@
 /**
- * G-7 headless provider facade — sandbox adapters + capability discovery.
- * Live IdP/PSP/SMS require secrets; sandbox mode is the honest default.
+ * @proctira/backend-providers — G-7 headless provider facade.
+ * Sandbox adapters + capability discovery.
+ *
+ * W2-INT-03: credentials / PROVIDER_MODE=live alone must NOT report liveReady.
+ * Live SMS/email/push/PSP adapters are not implemented in-tree; claiming live
+ * would enable silent stub success. IdP may report issuer URL presence only.
  */
 
 export type ProviderMode = 'sandbox' | 'live';
@@ -73,45 +77,65 @@ export function issueSandboxIdpToken(input: {
   };
 }
 
+/**
+ * Capability discovery for install / ops consoles.
+ *
+ * W2-INT-03 honesty: SMS/email/push/PSP live adapters are **not** wired.
+ * Env credentials must not flip `liveReady` or `mode: 'live'` — that previously
+ * implied production delivery while sandbox stubs still silently succeeded.
+ */
 export function listProviderCapabilities(
   env: Record<string, string | undefined> = {},
 ): ProviderCapability[] {
-  const mode = (env.PROVIDER_MODE === 'live' ? 'live' : 'sandbox') as ProviderMode;
+  const wantsLive = env.PROVIDER_MODE === 'live';
+  const idpConfigured = Boolean(env.KEYCLOAK_URL || env.OIDC_ISSUER);
+
   return [
     {
       channel: 'idp',
-      mode: env.KEYCLOAK_URL || env.OIDC_ISSUER ? mode : 'sandbox',
-      adapter: env.KEYCLOAK_URL || env.OIDC_ISSUER ? 'oidc/keycloak' : 'FakeLocalIdpAdapter',
-      liveReady: Boolean(env.KEYCLOAK_URL || env.OIDC_ISSUER),
-      notes: 'Live IdP waived without realm secrets (G-107).',
+      mode: idpConfigured ? (wantsLive ? 'live' : 'sandbox') : 'sandbox',
+      adapter: idpConfigured ? 'oidc/keycloak' : 'FakeLocalIdpAdapter',
+      // IdP mint/verify is external; URL presence is readiness signal only.
+      liveReady: idpConfigured,
+      notes: idpConfigured
+        ? 'OIDC issuer configured (G-107 realm secrets still required for production).'
+        : 'Live IdP waived without realm secrets (G-107).',
     },
     {
       channel: 'psp',
-      mode: env.PSP_API_KEY ? mode : 'sandbox',
-      adapter: env.PSP_API_KEY ? 'live-psp' : 'SandboxPaymentAdapter',
-      liveReady: Boolean(env.PSP_API_KEY),
-      notes: 'Fees uses SandboxPaymentAdapter by default (G-202).',
+      mode: 'sandbox',
+      adapter: 'SandboxPaymentAdapter',
+      liveReady: false,
+      notes: wantsLive
+        ? 'PROVIDER_MODE=live requested but live PSP adapter not implemented — sandbox stub only (G-202); refuse silent live success.'
+        : 'Fees uses SandboxPaymentAdapter by default (G-202).',
     },
     {
       channel: 'sms',
-      mode: env.TWILIO_AUTH_TOKEN ? mode : 'sandbox',
-      adapter: env.TWILIO_AUTH_TOKEN ? 'twilio' : 'SandboxSmsSender',
-      liveReady: Boolean(env.TWILIO_AUTH_TOKEN),
-      notes: 'Notification package sandbox SMS (G-709).',
+      mode: 'sandbox',
+      adapter: 'SandboxSmsSender',
+      liveReady: false,
+      notes: wantsLive || env.TWILIO_AUTH_TOKEN
+        ? 'Twilio credentials/PROVIDER_MODE=live detected but live SMS adapter not implemented — sandbox stub only; refuse silent live success.'
+        : 'Notification package sandbox SMS (G-709).',
     },
     {
       channel: 'email',
-      mode: env.SMTP_URL || env.SES_REGION ? mode : 'sandbox',
-      adapter: env.SMTP_URL || env.SES_REGION ? 'smtp/ses' : 'SandboxEmailSender',
-      liveReady: Boolean(env.SMTP_URL || env.SES_REGION),
-      notes: 'Sandbox email unless SMTP/SES configured.',
+      mode: 'sandbox',
+      adapter: 'SandboxEmailSender',
+      liveReady: false,
+      notes: wantsLive || env.SMTP_URL || env.SES_REGION
+        ? 'SMTP/SES/PROVIDER_MODE=live detected but live email adapter not implemented — sandbox stub only; refuse silent live success.'
+        : 'Sandbox email unless a live adapter is wired.',
     },
     {
       channel: 'push',
-      mode: env.FCM_SERVER_KEY ? mode : 'sandbox',
-      adapter: env.FCM_SERVER_KEY ? 'fcm' : 'SandboxPushSender',
-      liveReady: Boolean(env.FCM_SERVER_KEY),
-      notes: 'Push remains sandbox without FCM key.',
+      mode: 'sandbox',
+      adapter: 'SandboxPushSender',
+      liveReady: false,
+      notes: wantsLive || env.FCM_SERVER_KEY
+        ? 'FCM/PROVIDER_MODE=live detected but live push adapter not implemented — sandbox stub only; refuse silent live success.'
+        : 'Push remains sandbox without a live FCM adapter.',
     },
   ];
 }

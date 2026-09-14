@@ -7,9 +7,9 @@
  * Health probes (align with k8s/helm):
  *   GET /health       — legacy combined check (compat)
  *   GET /health/live  — liveness
- *   GET /health/ready — readiness (+ persistence mode)
+ *   GET /health/ready — readiness (+ persistence mode, DB probe when configured)
  *
- * Persistence (P0-05 / P0-10):
+ * Persistence (P0-05 / P0-10 / W3-C2):
  *   DATABASE_URL set  → Postgres pipeline store (fail-closed if pool unavailable)
  *   DATABASE_URL unset → in-memory (local / unit tests only; not for production)
  */
@@ -20,6 +20,12 @@ import {
   etlPlugin,
   type PipelineRepository,
 } from '@proctira/backend-etl';
+import {
+  readPersistencePolicyEnv,
+  runReadinessProbe,
+  type PersistencePolicyEnv,
+  type ReadinessProbeOptions,
+} from '@proctira/database';
 import { observabilityPlugin } from '@proctira/observability';
 import Fastify, { type FastifyInstance } from 'fastify';
 
@@ -33,10 +39,26 @@ export type EtlPersistenceMode = 'postgres' | 'memory';
 export interface BuildEtlWorkerOptions {
   /** Override repository (tests). Default: createPipelineRepository(). */
   repository?: PipelineRepository;
+  /** Override DB probe (tests). */
+  probeDatabase?: ReadinessProbeOptions['probeDatabase'];
+  /** Override env read (tests). */
+  env?: PersistencePolicyEnv;
+  /** DB probe timeout in ms (default 3000). */
+  probeTimeoutMs?: number;
 }
 
-function resolvePersistenceMode(): EtlPersistenceMode {
-  return process.env['DATABASE_URL']?.trim() ? 'postgres' : 'memory';
+function resolveEtlPersistenceMode(env: PersistencePolicyEnv = readPersistencePolicyEnv()): EtlPersistenceMode {
+  return env.DATABASE_URL?.trim() ? 'postgres' : 'memory';
+}
+
+function readinessOptions(
+  options: BuildEtlWorkerOptions,
+): Pick<ReadinessProbeOptions, 'probeDatabase' | 'env' | 'probeTimeoutMs'> {
+  return {
+    probeDatabase: options.probeDatabase,
+    env: options.env,
+    probeTimeoutMs: options.probeTimeoutMs,
+  };
 }
 
 /** Build the Fastify app without listening (injectable for tests). */
@@ -55,7 +77,9 @@ export async function buildEtlWorkerApp(
   });
 
   const repository = options.repository ?? createPipelineRepository();
-  const persistence = resolvePersistenceMode();
+  const env = options.env ?? readPersistencePolicyEnv();
+  const persistence = resolveEtlPersistenceMode(env);
+  const probeOpts = readinessOptions(options);
 
   await fastify.register(etlPlugin, {
     repository,
@@ -68,21 +92,38 @@ export async function buildEtlWorkerApp(
     prefix: '/api/v1/pipelines',
   });
 
-  fastify.get('/health', (_request, reply) =>
-    reply.send({ status: 'ok', service: 'etl-worker', persistence }),
-  );
+  fastify.get('/health', async (_request, reply) => {
+    const readiness = await runReadinessProbe(probeOpts);
+    return reply.status(readiness.ready ? 200 : 503).send({
+      status: readiness.ready ? 'ok' : 'degraded',
+      service: 'etl-worker',
+      persistence,
+      dependencies: readiness.dependencies,
+      ...(readiness.message ? { message: readiness.message } : {}),
+    });
+  });
 
   fastify.get('/health/live', (_request, reply) =>
     reply.send({ status: 'up', service: 'etl-worker' }),
   );
 
-  fastify.get('/health/ready', (_request, reply) =>
-    reply.status(200).send({
-      status: 'up',
+  fastify.get('/health/ready', async (_request, reply) => {
+    const readiness = await runReadinessProbe(probeOpts);
+    const body = {
+      status: readiness.ready ? 'up' : 'down',
       service: 'etl-worker',
       persistence,
-    }),
-  );
+      dependencies: readiness.dependencies,
+      ...(readiness.message ? { message: readiness.message } : {}),
+      ...(readiness.latencyMs !== undefined ? { latencyMs: readiness.latencyMs } : {}),
+    };
+
+    if (!readiness.ready) {
+      return reply.status(503).send(body);
+    }
+
+    return reply.status(200).send(body);
+  });
 
   return fastify;
 }
@@ -93,7 +134,7 @@ async function start() {
   try {
     await fastify.listen({ port: PORT, host: HOST });
     fastify.log.info(
-      `ETL Worker listening on ${HOST}:${PORT} (persistence=${resolvePersistenceMode()})`,
+      `ETL Worker listening on ${HOST}:${PORT} (persistence=${resolveEtlPersistenceMode()})`,
     );
   } catch (err) {
     fastify.log.error(err);

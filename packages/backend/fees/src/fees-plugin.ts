@@ -7,7 +7,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
-import { assertFeesAccess } from './fees-access.js';
+import { requireFeesAction, requireFeesRead } from './fees-http-guard.js';
 import type { FeesRepository } from './fees-repository.js';
 import {
   FeesService,
@@ -68,6 +68,7 @@ const RecordPaymentSchema = Type.Object({
     ]),
   ),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
+  idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
 
 const PayInvoiceSchema = Type.Object({
@@ -81,6 +82,7 @@ const PayInvoiceSchema = Type.Object({
   ),
   payerUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
   amountCents: Type.Optional(Type.Integer({ minimum: 0 })),
+  idempotencyKey: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
 
 const CreateFeeStructureSchema = Type.Object({
@@ -124,6 +126,16 @@ const ApplyConcessionSchema = Type.Object({
 
 const RecordRefundSchema = Type.Object({
   paymentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  amountCents: Type.Integer({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
+const IssueCreditNoteSchema = Type.Object({
+  amountCents: Type.Integer({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
+const WriteOffInvoiceSchema = Type.Object({
   amountCents: Type.Integer({ minimum: 1 }),
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
 });
@@ -203,11 +215,6 @@ function getTenantId(request: FastifyRequest): string | null {
 function getActorId(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
   return user?.sub ?? 'anonymous';
-}
-
-function getRoles(request: FastifyRequest): unknown {
-  const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
-  return user?.roles ?? [];
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -297,6 +304,7 @@ function formatPayment(entity: {
   method: string;
   status: string;
   paidAt: Date;
+  idempotencyKey?: string | null;
   createdAt: Date;
 }) {
   return {
@@ -308,6 +316,7 @@ function formatPayment(entity: {
     method: entity.method,
     status: entity.status,
     paidAt: entity.paidAt.toISOString(),
+    idempotencyKey: entity.idempotencyKey ?? null,
     createdAt: entity.createdAt.toISOString(),
   };
 }
@@ -345,6 +354,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/plans`, async function listPlans(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const plans = await feesService.listFeePlans(tenantId);
       return reply.status(200).send({ data: plans.map(formatPlan) });
     });
@@ -366,6 +376,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         try {
           const plan = await feesService.createFeePlan(tenantId, getActorId(request), result.data);
           return reply.status(201).send(formatPlan(plan));
@@ -381,6 +392,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/invoices`, async function listInvoices(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const institutionId =
         typeof (request.query as { institutionId?: string }).institutionId === 'string'
           ? (request.query as { institutionId?: string }).institutionId
@@ -422,6 +434,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         try {
           const invoice = await feesService.createInvoice(
             tenantId,
@@ -455,6 +468,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'invoice.void')) return;
         try {
           const invoice = await feesService.voidInvoice(tenantId, paramsResult.data.id);
           return reply.status(200).send(formatInvoice(invoice));
@@ -493,16 +507,17 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'payment.record')) return;
         try {
-          assertFeesAccess(getRoles(request), 'payment.record');
           const result = await feesService.recordPayment(tenantId, getActorId(request), {
             invoiceId: paramsResult.data.id,
             ...bodyResult.data,
           });
-          return reply.status(201).send({
+          return reply.status(result.idempotent ? 200 : 201).send({
             invoice: formatInvoice(result.invoice),
             payment: formatPayment(result.payment),
             receipt: formatReceipt(result.receipt),
+            idempotent: result.idempotent,
           });
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -516,6 +531,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/payments`, async function listPayments(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const payments = await feesService.listPayments(tenantId);
       return reply.status(200).send({ data: payments.map(formatPayment) });
     });
@@ -537,13 +553,14 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'payment.record')) return;
         try {
-          assertFeesAccess(getRoles(request), 'payment.record');
           const paid = await feesService.recordPayment(tenantId, getActorId(request), result.data);
-          return reply.status(201).send({
+          return reply.status(paid.idempotent ? 200 : 201).send({
             invoice: formatInvoice(paid.invoice),
             payment: formatPayment(paid.payment),
             receipt: formatReceipt(paid.receipt),
+            idempotent: paid.idempotent,
           });
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -557,6 +574,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/receipts`, async function listReceipts(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const scope = String((request.query as { scope?: string }).scope ?? '').toLowerCase();
       if (scope === 'parent' && parentBinding) {
         const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
@@ -588,6 +606,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesRead(request, reply)) return;
         try {
           const receipt = await feesService.getReceipt(tenantId, paramsResult.data.id);
           return reply.status(200).send(formatReceipt(receipt));
@@ -618,6 +637,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesRead(request, reply)) return;
         try {
           const entries = await feesService.getInvoiceLedger(tenantId, paramsResult.data.id);
           return reply.status(200).send({
@@ -639,6 +659,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/ledger/trial-balance`, async function trialBalance(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const balance = await feesService.getTrialBalance(tenantId);
       return reply.status(200).send({
         ...balance,
@@ -649,6 +670,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/structures`, async function listStructures(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const structures = await feesService.listFeeStructures(tenantId);
       return reply.status(200).send({
         data: structures.map((row) => ({
@@ -676,6 +698,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         try {
           const structure = await feesService.createFeeStructure(
             tenantId,
@@ -722,6 +745,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         try {
           const instalments = await feesService.generateInstalmentSchedule(
             tenantId,
@@ -760,6 +784,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesRead(request, reply)) return;
         try {
           const instalments = await feesService.listInstalments(tenantId, paramsResult.data.id);
           return reply.status(200).send({
@@ -803,6 +828,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         try {
           const result = await feesService.bulkInvoiceClass(tenantId, getActorId(request), {
             ...bodyResult.data,
@@ -839,6 +865,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.apply')) return;
         try {
           const applied = await feesService.applyConcession(
             tenantId,
@@ -852,6 +879,88 @@ export const feesPlugin = fp(
             },
             invoice: applied.invoice ? formatInvoice(applied.invoice) : null,
             discountCents: applied.discountCents,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/concessions/:id/approve`,
+      async function approveConcession(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid concession ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        try {
+          const applied = await feesService.approveConcession(
+            tenantId,
+            getActorId(request),
+            paramsResult.data.id,
+          );
+          return reply.status(200).send({
+            concession: {
+              ...applied.concession,
+              createdAt: applied.concession.createdAt.toISOString(),
+            },
+            invoice: applied.invoice ? formatInvoice(applied.invoice) : null,
+            discountCents: applied.discountCents,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/concessions/:id/reject`,
+      async function rejectConcession(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid concession ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        try {
+          const rejected = await feesService.rejectConcession(
+            tenantId,
+            getActorId(request),
+            paramsResult.data.id,
+          );
+          return reply.status(200).send({
+            concession: {
+              ...rejected.concession,
+              createdAt: rejected.concession.createdAt.toISOString(),
+            },
+            invoice: null,
+            discountCents: 0,
           });
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -888,6 +997,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'refund.record')) return;
         try {
           const refund = await feesService.recordRefund(tenantId, getActorId(request), {
             invoiceId: paramsResult.data.id,
@@ -906,9 +1016,115 @@ export const feesPlugin = fp(
       },
     );
 
+
+    fastify.post(
+      `${prefix}/invoices/:id/credit-notes`,
+      async function issueCreditNote(
+        request: FastifyRequest<{
+          Params: IdParams;
+          Body: { amountCents: number; reason: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(IssueCreditNoteSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'credit_note.issue')) return;
+        try {
+          const result = await feesService.issueCreditNote(tenantId, getActorId(request), {
+            invoiceId: paramsResult.data.id,
+            amountCents: bodyResult.data.amountCents,
+            reason: bodyResult.data.reason,
+          });
+          return reply.status(201).send({
+            creditNote: {
+              ...result.creditNote,
+              createdAt: result.creditNote.createdAt.toISOString(),
+            },
+            invoice: formatInvoice(result.invoice),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/invoices/:id/write-offs`,
+      async function writeOffInvoice(
+        request: FastifyRequest<{
+          Params: IdParams;
+          Body: { amountCents: number; reason: string };
+        }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(WriteOffInvoiceSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'write_off.record')) return;
+        try {
+          const result = await feesService.writeOffInvoice(tenantId, getActorId(request), {
+            invoiceId: paramsResult.data.id,
+            amountCents: bodyResult.data.amountCents,
+            reason: bodyResult.data.reason,
+          });
+          return reply.status(201).send({
+            writeOff: {
+              ...result.writeOff,
+              createdAt: result.writeOff.createdAt.toISOString(),
+            },
+            invoice: formatInvoice(result.invoice),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
     fastify.get(`${prefix}/reports/dues`, async function duesReport(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const asOfRaw = (request.query as { asOf?: string }).asOf;
       const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
       const report = await feesService.duesReport(tenantId, asOf);
@@ -945,6 +1161,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'reconciliation.import')) return;
         try {
           const imported = await feesService.importReconciliationCsv(
             tenantId,
@@ -974,6 +1191,7 @@ export const feesPlugin = fp(
       async function listReconBatches(request, reply) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesRead(request, reply)) return;
         const batches = await feesService.listReconciliationBatches(tenantId);
         return reply.status(200).send({ data: batches.map(formatReconBatch) });
       },
@@ -996,6 +1214,7 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesRead(request, reply)) return;
         const rows = await feesService.listReconciliationRows(tenantId, paramsResult.data.id);
         return reply.status(200).send({ data: rows.map(formatReconRow) });
       },
@@ -1030,8 +1249,8 @@ export const feesPlugin = fp(
         }
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'reconciliation.import')) return;
         try {
-          assertFeesAccess(getRoles(request), 'payment.record');
           const updated = await feesService.resolveReconciliationException(
             tenantId,
             getActorId(request),
@@ -1059,6 +1278,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/reminders/overdue`, async function overdueReminders(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const asOfRaw = (request.query as { asOf?: string }).asOf;
       const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
       const data = await feesService.listOverdueForReminder(tenantId, asOf);
@@ -1070,6 +1290,7 @@ export const feesPlugin = fp(
       async function listSuppressions(request, reply) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesRead(request, reply)) return;
         const data = await feesService.listReminderSuppressions(tenantId);
         return reply.status(200).send({
           data: data.map((row) => ({
@@ -1090,6 +1311,7 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'reminder.manage')) return;
         const body = request.body;
         if (!body?.reason) {
           return reply.status(400).send({
@@ -1125,6 +1347,7 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'reminder.manage')) return;
         try {
           await feesService.removeReminderSuppression(tenantId, request.params.id);
           return reply.status(204).send();
@@ -1140,6 +1363,7 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/reminders/audit`, async function listReminderAudit(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      if (!requireFeesRead(request, reply)) return;
       const data = await feesService.listReminderSendAudits(tenantId);
       return reply.status(200).send({
         data: data.map((row) => ({
@@ -1165,6 +1389,7 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'reminder.manage')) return;
         const body = request.body;
         if (!body?.invoiceIds?.length || !body?.channels?.length) {
           return reply.status(400).send({
@@ -1206,6 +1431,7 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         const body = request.body;
         if (!body?.studentId || !body?.disbursementId || !body?.amountCents) {
           return reply.status(400).send({
@@ -1242,6 +1468,7 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'fees.write')) return;
         const body = request.body;
         if (!body?.sourcePeriodId || !body?.targetPeriodId) {
           return reply.status(400).send({

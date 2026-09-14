@@ -111,6 +111,15 @@ grep -q 'RETENTION_DRY_RUN' "$platform_out" || die "missing RETENTION_DRY_RUN"
 grep -q 'kind: PersistentVolumeClaim' "$platform_out" || die "missing PVC"
 grep -q 'dr-tools' "$platform_out" || die "missing dr-tools"
 
+# W1-OPS-02 (B4) — etl-worker Helm probes must match Fastify handlers (/health/live, /health/ready).
+etl_deploy="$(awk '/Source: proctira-platform\/templates\/etl-worker\/deployment.yaml/,/^---$/' "$platform_out")"
+[[ -n "$etl_deploy" ]] || die "missing etl-worker Deployment in platform render"
+echo "$etl_deploy" | grep -q 'path: /health/live' \
+  || die "etl-worker liveness probe must be /health/live (W1-OPS-02 B4)"
+echo "$etl_deploy" | grep -q 'path: /health/ready' \
+  || die "etl-worker readiness probe must be /health/ready (W1-OPS-02 B4)"
+echo "OK etl-worker probe paths (W1-OPS-02 B4)"
+
 lines="$(wc -l <"$platform_out" | tr -d ' ')"
 rm -f "$platform_out"
 echo "OK proctira-platform (${lines} lines, ${cron_count} CronJobs)"

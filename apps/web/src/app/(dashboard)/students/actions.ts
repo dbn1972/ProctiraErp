@@ -10,7 +10,11 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
-import { listAcademicPeriods, listInstitutionGrades } from '@/lib/api/institutions';
+import {
+  listAcademicPeriods,
+  listInstitutionClasses,
+  listInstitutionGrades,
+} from '@/lib/api/institutions';
 import {
   addStudentDiscipline,
   addStudentSibling,
@@ -148,9 +152,7 @@ export async function transferStudentAction(
     academicPeriodId: parsed.data.academicPeriodId,
     transferDate: parsed.data.transferDate,
     reason: parsed.data.reason,
-    ...(parsed.data.destinationClassId
-      ? { destinationClassId: parsed.data.destinationClassId }
-      : {}),
+    destinationClassId: parsed.data.destinationClassId,
   };
 
   try {
@@ -296,9 +298,9 @@ export async function enrollStudentAction(
     studentId,
     institutionId: parsed.data.institutionId,
     gradeId: parsed.data.gradeId,
+    classId: parsed.data.classId,
     academicPeriodId: parsed.data.academicPeriodId,
     enrolledAt: parsed.data.enrolledAt,
-    ...(parsed.data.classId ? { classId: parsed.data.classId } : {}),
   };
 
   try {
@@ -461,6 +463,25 @@ export async function getInstitutionPeriodsAction(
   try {
     const periods = await listAcademicPeriods(institutionId);
     return periods.map((p) => ({ id: p.id, name: p.name }));
+  } catch {
+    return [];
+  }
+}
+
+/** Fetch class/section placements for an institution (optionally scoped to a period). */
+export async function getInstitutionClassesAction(
+  institutionId: string,
+  academicPeriodId?: string,
+): Promise<{ id: string; name: string; gradeId: string; academicPeriodId: string }[]> {
+  if (!institutionId) return [];
+  try {
+    const classes = await listInstitutionClasses(institutionId, academicPeriodId);
+    return classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      gradeId: c.gradeId,
+      academicPeriodId: c.academicPeriodId,
+    }));
   } catch {
     return [];
   }

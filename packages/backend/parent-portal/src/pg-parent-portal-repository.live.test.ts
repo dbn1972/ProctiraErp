@@ -2,10 +2,15 @@
  * Live Postgres proof for PgParentPortalRepository (G-732): guardian links,
  * fee plans and invoices persist through `withPgTenant`, invoice status
  * updates are tenant-bound, and a second tenant sees nothing under FORCE RLS.
+ *
+ * W3-C5 / W3-TEST-01 — guardian household/custody graph persists under RLS and
+ * ParentPortalService enforces cross-household deny on live Postgres.
  * Skipped without DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
+import { NotFoundError } from '@proctira/common';
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
 
@@ -13,8 +18,12 @@ import {
   getSharedParentPortalPool,
   PgParentPortalRepository,
 } from './pg-parent-portal-repository.js';
+import { ParentPortalService } from './parent-portal-service.js';
+
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-parent-portal-repository.live.test' });
 
 const pool = getSharedParentPortalPool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 async function seedTenant(tenantId: string): Promise<void> {
   await withPgTenant(pool!, tenantId, (client) =>
@@ -26,7 +35,7 @@ async function seedTenant(tenantId: string): Promise<void> {
 }
 
 describe('PgParentPortalRepository (live)', () => {
-  it.skipIf(!pool)('persists guardian links and enforces the per-tenant unique pair', async () => {
+  it.skipIf(!live)('persists guardian links and enforces the per-tenant unique pair', async () => {
     const repo = new PgParentPortalRepository(pool!);
     const tenantA = randomUUID();
     const tenantB = randomUUID();
@@ -44,6 +53,7 @@ describe('PgParentPortalRepository (live)', () => {
       isPrimary: true,
       canConsentMedical: true,
       canViewFees: true,
+      householdId: null,
     });
     expect(link.relationship).toBe('mother');
     expect(link.isPrimary).toBe(true);
@@ -72,11 +82,12 @@ describe('PgParentPortalRepository (live)', () => {
         isPrimary: false,
         canConsentMedical: false,
         canViewFees: false,
+        householdId: null,
       }),
     ).rejects.toThrow(/duplicate key|unique/i);
   });
 
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'persists fee plans and invoices; status updates stay tenant-bound',
     async () => {
       const repo = new PgParentPortalRepository(pool!);
@@ -130,7 +141,7 @@ describe('PgParentPortalRepository (live)', () => {
     },
   );
 
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'requires consent_version on write and exposes it on read (W1-PRIV-01)',
     async () => {
       const repo = new PgParentPortalRepository(pool!);
@@ -176,6 +187,125 @@ describe('PgParentPortalRepository (live)', () => {
           ),
         ),
       ).rejects.toThrow(/consent_version|null value/i);
+    },
+  );
+
+  it.skipIf(!live)(
+    'persists guardian household/custody graph and scopes list queries by tenant (W3-C5)',
+    async () => {
+      const repo = new PgParentPortalRepository(pool!);
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      await Promise.all([seedTenant(tenantA), seedTenant(tenantB)]);
+
+      const householdH1 = randomUUID();
+      const householdH2 = randomUUID();
+      const parentUserId = randomUUID();
+      const studentId = randomUUID();
+
+      await repo.createHousehold({
+        id: householdH1,
+        tenantId: tenantA,
+        label: 'Household A',
+        status: 'active',
+      });
+      await repo.createHousehold({
+        id: householdH2,
+        tenantId: tenantA,
+        label: 'Household B',
+        status: 'active',
+      });
+      await repo.addHouseholdMember({
+        id: randomUUID(),
+        tenantId: tenantA,
+        householdId: householdH1,
+        parentUserId,
+        role: 'primary',
+        status: 'active',
+      });
+      await repo.assignStudentCustody({
+        id: randomUUID(),
+        tenantId: tenantA,
+        studentId,
+        householdId: householdH1,
+        custodyType: 'sole',
+        status: 'active',
+        effectiveFrom: new Date(),
+      });
+      await repo.assignStudentCustody({
+        id: randomUUID(),
+        tenantId: tenantA,
+        studentId,
+        householdId: householdH2,
+        custodyType: 'none',
+        status: 'active',
+        effectiveFrom: new Date(),
+      });
+
+      expect(await repo.listActiveCustodyHouseholdIdsForStudent(tenantA, studentId)).toEqual([
+        householdH1,
+      ]);
+      expect(await repo.listActiveHouseholdIdsForParent(tenantA, parentUserId)).toEqual([
+        householdH1,
+      ]);
+
+      // Cross-tenant: custody graph invisible under tenant B.
+      expect(await repo.listActiveCustodyHouseholdIdsForStudent(tenantB, studentId)).toEqual([]);
+      expect(await repo.listActiveHouseholdIdsForParent(tenantB, parentUserId)).toEqual([]);
+    },
+  );
+
+  it.skipIf(!live)(
+    'ParentPortalService denies cross-household child access on live Postgres (W3-C5)',
+    async () => {
+      const repo = new PgParentPortalRepository(pool!);
+      const service = new ParentPortalService(repo);
+      const tenantId = randomUUID();
+      await seedTenant(tenantId);
+
+      const householdH1 = randomUUID();
+      const householdH2 = randomUUID();
+      const parentUserId = randomUUID();
+      const studentAllowed = randomUUID();
+      const studentDenied = randomUUID();
+
+      await service.createHousehold(tenantId, { id: householdH1, label: 'Household A' });
+      await service.createHousehold(tenantId, { id: householdH2, label: 'Household B' });
+      await service.addHouseholdMember(tenantId, {
+        householdId: householdH1,
+        parentUserId,
+        role: 'primary',
+      });
+      await service.assignStudentCustody(tenantId, {
+        studentId: studentAllowed,
+        householdId: householdH1,
+        custodyType: 'sole',
+      });
+      await service.assignStudentCustody(tenantId, {
+        studentId: studentDenied,
+        householdId: householdH2,
+        custodyType: 'sole',
+      });
+
+      await service.linkChild(tenantId, parentUserId, {
+        studentId: studentAllowed,
+        householdId: householdH1,
+      });
+      await service.linkChild(tenantId, parentUserId, {
+        studentId: studentDenied,
+        householdId: householdH1,
+      });
+
+      const listed = await service.listChildrenForParent(tenantId, parentUserId);
+      expect(listed.map((link) => link.studentId)).toEqual([studentAllowed]);
+
+      await expect(
+        service.createThread(tenantId, parentUserId, {
+          studentId: studentDenied,
+          subject: 'Cross-household probe',
+          body: 'Should not send',
+        }),
+      ).rejects.toThrow(NotFoundError);
     },
   );
 });

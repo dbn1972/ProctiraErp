@@ -4,7 +4,6 @@
  * Used for unit testing without database dependencies.
  */
 import type {
-  DeveloperPortalRepository,
   DeveloperPortalExtendedRepository,
   DeveloperAccountEntity,
   ApiKeyEntity,
@@ -98,6 +97,9 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     pageSize: number,
   ): Promise<{ data: ApiKeyEntity[]; total: number }> {
     let keys = Array.from(this.apiKeys.values()).filter((k) => k.accountId === filter.accountId);
+    if (filter.tenantId) {
+      keys = keys.filter((k) => k.tenantId === filter.tenantId);
+    }
     if (filter.status) {
       keys = keys.filter((k) => k.status === filter.status);
     }
@@ -145,6 +147,9 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     let webhooks = Array.from(this.webhooks.values()).filter(
       (w) => w.accountId === filter.accountId,
     );
+    if (filter.tenantId) {
+      webhooks = webhooks.filter((w) => w.tenantId === filter.tenantId);
+    }
     if (filter.active !== undefined) {
       webhooks = webhooks.filter((w) => w.active === filter.active);
     }

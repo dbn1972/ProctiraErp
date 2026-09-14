@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
-# G-503 — Logical PostgreSQL backup (pg_dump custom format).
+# G-503 / W1-OPS-04 — Logical PostgreSQL backup (pg_dump custom format).
 # Usage:
 #   DATABASE_URL=postgresql://... bash tools/scripts/pg-backup.sh [output.dump]
 # Env:
 #   BACKUP_DIR              where timestamped dumps go (default .backups/)
-#   BACKUP_RETENTION_DAYS   when set (>0), prune proctira-*.dump older than N
-#                           days from BACKUP_DIR after a successful dump (G-707)
+#   BACKUP_RETENTION_DAYS   when set (>0), prune proctira-* artifacts older
+#                           than N days from BACKUP_DIR after a successful dump
+#   BACKUP_AGE_RECIPIENT    age public key — encrypt dump at rest (.dump.age)
+#   BACKUP_GPG_RECIPIENT    gpg recipient — encrypt dump at rest (.dump.gpg)
+#   BACKUP_ENCRYPT          when 1/true, require encryption keys (fail closed)
+#   BACKUP_OFFSITE_URI      s3://bucket/prefix/ — push encrypted artifact offsite
+#   BACKUP_S3_SSE           S3 server-side encryption (AES256 or aws:kms)
+#   BACKUP_S3_SSE_KMS_KEY_ID  KMS key when BACKUP_S3_SSE=aws:kms
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=tools/scripts/backup-crypto.sh
+source "$ROOT/tools/scripts/backup-crypto.sh"
+
 DB_URL="${DATABASE_URL:?DATABASE_URL is required}"
 BACKUP_DIR="${BACKUP_DIR:-$ROOT/.backups}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -49,12 +58,21 @@ if [[ "$BYTES" -lt 1024 ]]; then
   echo "ERROR: dump is suspiciously small (${BYTES} bytes)" >&2
   exit 1
 fi
-echo "==> Backup OK (${BYTES} bytes): ${OUT}"
+echo "==> Dump OK (${BYTES} bytes): ${OUT}"
+
+FINAL_OUT="$(backup_encrypt_if_configured "$OUT")"
+if [[ "$FINAL_OUT" != "$OUT" ]]; then
+  BYTES="$(wc -c < "$FINAL_OUT" | tr -d ' ')"
+  echo "==> Encrypted artifact (${BYTES} bytes): ${FINAL_OUT}"
+fi
+
+backup_offsite_sync "$FINAL_OUT"
 
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-0}"
 if [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] && (( RETENTION_DAYS > 0 )); then
-  PRUNED="$(find "$(dirname "$OUT")" -maxdepth 1 -name 'proctira-*.dump' -type f \
+  PRUNED="$(find "$(dirname "$FINAL_OUT")" -maxdepth 1 -type f \
+    \( -name 'proctira-*.dump' -o -name 'proctira-*.dump.age' -o -name 'proctira-*.dump.gpg' \) \
     -mtime +"$RETENTION_DAYS" -print -delete | wc -l | tr -d ' ')"
-  echo "==> Retention: removed ${PRUNED} dump(s) older than ${RETENTION_DAYS} days"
+  echo "==> Retention: removed ${PRUNED} artifact(s) older than ${RETENTION_DAYS} days"
 fi
-echo "$OUT"
+echo "$FINAL_OUT"

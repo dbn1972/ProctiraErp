@@ -4,32 +4,168 @@ import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
-/** Navigation items for the sidebar */
+import { useAuth } from '@/providers/AuthProvider';
+
+import { filterNavItemsByAccess, type NavPermissionItem } from './nav-permissions';
+
+/** Navigation items for the sidebar (W2-UX-03: permission + role gated). */
 export const navItems = [
-  { key: 'dashboard', href: '/', icon: 'HomeIcon' },
-  { key: 'institutions', href: '/institutions', icon: 'BuildingIcon' },
-  { key: 'academicPeriods', href: '/academic-periods', icon: 'CalendarIcon' },
-  { key: 'students', href: '/students', icon: 'UsersIcon' },
-  { key: 'admissions', href: '/admissions', icon: 'ClipboardIcon' },
-  { key: 'staff', href: '/staff', icon: 'BriefcaseIcon' },
-  { key: 'assessments', href: '/assessments', icon: 'ClipboardIcon' },
-  { key: 'attendance', href: '/attendance', icon: 'CheckCircleIcon' },
-  { key: 'examinations', href: '/examinations', icon: 'DocumentIcon' },
-  { key: 'scholarships', href: '/scholarships', icon: 'AcademicCapIcon' },
-  { key: 'lms', href: '/lms', icon: 'BookOpenIcon' },
-  { key: 'health', href: '/health', icon: 'HeartIcon' },
-  { key: 'parentPortal', href: '/parent', icon: 'UserGroupIcon' },
-  { key: 'fees', href: '/fees', icon: 'CurrencyIcon' },
-  { key: 'notifications', href: '/notifications', icon: 'BellIcon' },
-  { key: 'transport', href: '/transport', icon: 'BusIcon' },
-  { key: 'communication', href: '/communication', icon: 'MegaphoneIcon' },
-  { key: 'hostel', href: '/hostel', icon: 'BedIcon' },
-  { key: 'library', href: '/library', icon: 'BookOpenIcon' },
-  { key: 'workflows', href: '/workflows', icon: 'ArrowPathIcon' },
-  { key: 'dataWarehouse', href: '/data-warehouse', icon: 'DatabaseIcon' },
-  { key: 'reports', href: '/reports', icon: 'ChartBarIcon' },
-  { key: 'admin', href: '/admin', icon: 'CogIcon' },
-] as const;
+  { key: 'dashboard', href: '/', icon: 'HomeIcon', requiredPermissions: [] },
+  {
+    key: 'institutions',
+    href: '/institutions',
+    icon: 'BuildingIcon',
+    requiredPermissions: ['institution.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'academicPeriods',
+    href: '/academic-periods',
+    icon: 'CalendarIcon',
+    requiredPermissions: ['institution.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'students',
+    href: '/students',
+    icon: 'UsersIcon',
+    requiredPermissions: ['student.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'admissions',
+    href: '/admissions',
+    icon: 'ClipboardIcon',
+    requiredPermissions: ['student.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'staff',
+    href: '/staff',
+    icon: 'BriefcaseIcon',
+    requiredPermissions: ['staff.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'assessments',
+    href: '/assessments',
+    icon: 'ClipboardIcon',
+    requiredPermissions: ['assessment.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'attendance',
+    href: '/attendance',
+    icon: 'CheckCircleIcon',
+    requiredPermissions: ['attendance.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'examinations',
+    href: '/examinations',
+    icon: 'DocumentIcon',
+    requiredPermissions: ['examination.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'scholarships',
+    href: '/scholarships',
+    icon: 'AcademicCapIcon',
+    requiredPermissions: ['scholarship.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'lms',
+    href: '/lms',
+    icon: 'BookOpenIcon',
+    requiredPermissions: ['lms.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'health',
+    href: '/health',
+    icon: 'HeartIcon',
+    requiredPermissions: ['health.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'parentPortal',
+    href: '/parent',
+    icon: 'UserGroupIcon',
+    requiredPermissions: [],
+    requiredRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'fees',
+    href: '/fees',
+    icon: 'CurrencyIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'notifications',
+    href: '/notifications',
+    icon: 'BellIcon',
+    requiredPermissions: [],
+  },
+  {
+    key: 'transport',
+    href: '/transport',
+    icon: 'BusIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'communication',
+    href: '/communication',
+    icon: 'MegaphoneIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'hostel',
+    href: '/hostel',
+    icon: 'BedIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'library',
+    href: '/library',
+    icon: 'BookOpenIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'workflows',
+    href: '/workflows',
+    icon: 'ArrowPathIcon',
+    requiredPermissions: ['workflow.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'dataWarehouse',
+    href: '/data-warehouse',
+    icon: 'DatabaseIcon',
+    requiredPermissions: ['data-warehouse.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'reports',
+    href: '/reports',
+    icon: 'ChartBarIcon',
+    requiredPermissions: ['report.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'admin',
+    href: '/admin',
+    icon: 'CogIcon',
+    requiredPermissions: [],
+    requiredRoleSubstrings: ['admin', 'principal', 'super-admin'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+] as const satisfies readonly NavPermissionItem[];
 
 type IconName = (typeof navItems)[number]['icon'];
 
@@ -41,6 +177,12 @@ type IconName = (typeof navItems)[number]['icon'];
 export function Sidebar() {
   const t = useTranslations('nav');
   const pathname = usePathname();
+  const { user } = useAuth();
+  const visibleItems = filterNavItemsByAccess(
+    navItems,
+    user?.permissions ?? [],
+    user?.roles ?? [],
+  );
 
   return (
     <aside className="flex w-64 flex-col bg-[var(--color-navy-900)] text-slate-300">
@@ -65,7 +207,7 @@ export function Sidebar() {
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main navigation">
         <ul className="space-y-0.5" role="list">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
 
             return (
@@ -76,6 +218,7 @@ export function Sidebar() {
                     isActive ? 'sidebar-link-active' : 'sidebar-link-inactive'
                   }`}
                   aria-current={isActive ? 'page' : undefined}
+                  data-testid={`sidebar-link-${item.key}`}
                 >
                   <NavIcon name={item.icon} />
                   <span>{t(item.key)}</span>

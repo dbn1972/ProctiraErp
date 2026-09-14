@@ -96,7 +96,22 @@ describe('service-router proxy', () => {
   });
 
   it('forwards POST body and preserves the upstream status code (201)', async () => {
-    const app = await buildGateway(upstreamUrl);
+    const app = Fastify();
+    app.addHook('onRequest', async (request) => {
+      (request as { tenantId?: string }).tenantId = 'verified-tenant';
+    });
+    await app.register(serviceRouter, {
+      services: {
+        students: {
+          prefix: '/students',
+          target: upstreamUrl,
+          healthCheck: '/health',
+        },
+      },
+      versionPrefix: '/api/v1',
+    });
+    await app.ready();
+
     const payload = { firstName: 'Aarav', lastName: 'Sharma' };
     const res = await app.inject({
       method: 'POST',
@@ -105,7 +120,7 @@ describe('service-router proxy', () => {
       headers: {
         'content-type': 'application/json',
         authorization: 'Bearer t',
-        'x-tenant-id': 'tenant-1',
+        'x-tenant-id': 'spoofed-tenant',
       },
     });
 
@@ -116,9 +131,9 @@ describe('service-router proxy', () => {
     expect(last.method).toBe('POST');
     expect(last.url).toBe('/students/echo');
     expect(JSON.parse(last.body)).toEqual(payload);
-    // Auth + tenant headers are propagated downstream.
+    // Auth + verified tenant context are propagated downstream (W1-SEC-01).
     expect(last.headers['authorization']).toBe('Bearer t');
-    expect(last.headers['x-tenant-id']).toBe('tenant-1');
+    expect(last.headers['x-tenant-id']).toBe('verified-tenant');
     // The gateway adds the client identity for downstream audit.
     expect(last.headers['x-forwarded-for']).toBeDefined();
     await app.close();

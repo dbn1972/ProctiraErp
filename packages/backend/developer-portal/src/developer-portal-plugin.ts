@@ -23,6 +23,8 @@ export interface DeveloperPortalPluginOptions {
   repository: DeveloperPortalExtendedRepository;
   /** Service configuration (optional, uses defaults) */
   config?: Partial<DeveloperPortalServiceConfig>;
+  /** Durable webhook delivery publisher (W2-JOB-07) */
+  deliveryPublisher?: import('./queue-webhook-delivery-publisher.js').WebhookDeliveryPublisher;
   /** Route prefix (default: '/developer') */
   prefix?: string;
 }
@@ -42,13 +44,13 @@ export const developerPortalPlugin = fp(
     fastify: FastifyInstance,
     options: DeveloperPortalPluginOptions,
   ) {
-    const { repository, config = {}, prefix = '/developer' } = options;
+    const { repository, config = {}, deliveryPublisher, prefix = '/developer' } = options;
 
     // Merge config with defaults
     const fullConfig: DeveloperPortalServiceConfig = { ...DEFAULT_CONFIG, ...config };
 
     // Create service instance
-    const service = new DeveloperPortalService(repository, fullConfig);
+    const service = new DeveloperPortalService(repository, fullConfig, { deliveryPublisher });
 
     // Decorate fastify with the service
     fastify.decorate('developerPortalService', service);

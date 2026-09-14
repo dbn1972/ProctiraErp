@@ -1,8 +1,8 @@
-# Security — Health PHI vault + field break-glass
+# Security — Health PHI vault + field break-glass + institution scope
 
-**Branch:** `cursor/health-phi-breakglass-56c3` (extends `cursor/health-phi-vault-56c3`)  
-**Date (UTC):** 2026-09-12  
-**Data classes:** PHI (counselling case notes), meta (break-glass grants, access log)
+**Branch:** `cursor/health-phi-authz-56c3` (extends `cursor/health-phi-breakglass-56c3`)  
+**Date (UTC):** 2026-09-13  
+**Data classes:** PHI (counselling case notes, profile fields), meta (break-glass grants, access log)
 
 ## Vault baseline (prior)
 
@@ -14,7 +14,7 @@
 | Counselling unchanged encryption      | ☑          | `PgCounsellingStore` encrypts reason/case_notes/outcome   |
 | Special-needs residual                | documented | PG since G-203; field ACL for findings **deferred**       |
 
-## P0-09 field ACL + dual-control (this slice)
+## P0-09 field ACL + dual-control (merged #82)
 
 | Check                                            | Pass | Evidence                                                         |
 | ------------------------------------------------ | ---- | ---------------------------------------------------------------- |
@@ -25,21 +25,24 @@
 | PHI access audit includes `break_glass_id`       | ☑    | `health_phi_access_log.break_glass_id` on unredact read          |
 | Unit/route deny + allow + audit                  | ☑    | `phi-breakglass.test.ts`, `routes.test.ts`                       |
 
-### Inventory (new / changed)
+## W1-SEC-04 (D7) institution scope + scoped DEK (this slice)
 
-| Route / API                                  | AuthZ                                      | Data class |
-| -------------------------------------------- | ------------------------------------------ | ---------- |
-| `GET …/counselling/sessions/student/:id`     | Coarse health + field ACL                  | PHI        |
-| `POST /health/break-glass`                   | `hasHealthAccess`                          | meta       |
-| `POST /health/break-glass/:id/approve\|deny` | `health_admin` / `system_admin` + dual-ctl | meta       |
-| `GET /health/phi-access`                     | health admin/officer (existing)            | meta       |
+| Check                                              | Pass | Evidence                                                              |
+| -------------------------------------------------- | ---- | --------------------------------------------------------------------- |
+| Break-glass on tip                                 | ☑    | **ALREADY-FIXED** — merged `10ec6b94` (#82); not re-litigated         |
+| Institution-scoped PHI DEK (not single global key) | ☑    | `enc:v2` HMAC-derived key per `{tenantId, institutionId}`             |
+| Legacy `enc:v1` read compat                        | ☑    | `phi-crypto.test.ts`, `phi-crypto-scoped.test.ts`                     |
+| School-bound staff denied cross-institution PHI    | ☑    | `hasHealthAccess` + `institutionIds` JWT claim; `health-institution-authz.test.ts` |
+| Enrollment institution lookup                      | ☑    | `pg-student-institution-lookup.ts` → `enrollments.institution_id`   |
+| Gateway JWT → domain context (not D2 route guards) | ☑    | `health-ui-plugin.ts` passes `institutionIds`                         |
 
-### Findings
+### Findings disposition
 
-| Sev | Finding                                              | Fix / waiver                            |
-| --- | ---------------------------------------------------- | --------------------------------------- |
-| —   | None blocking for this slice                         | —                                       |
-| P2  | Special-needs `findings` field ACL not in this slice | Deferred; same grant machinery reusable |
+| Original finding              | Disposition     | Evidence                                      |
+| ----------------------------- | --------------- | --------------------------------------------- |
+| No break-glass                | **REFUTED**     | P0-09 on tip: `PgBreakGlassStore`, routes, tests |
+| PHI single global key         | **CONFIRMED→FIX** | `enc:v2` scoped DEK in `phi-crypto.ts`      |
+| No institution scoping        | **CONFIRMED→FIX** | `HealthAccessContext.institutionIds` + lookup |
 
 **Waivers:** live IdP · device-farm · platform-admin BG unchanged by design  
-**Sign-off:** P0 field dual-control path safe to merge from security view for counselling case notes.
+**Sign-off:** W1-SEC-04 gaps closed for counselling/profile PHI crypto + school-bound authZ.

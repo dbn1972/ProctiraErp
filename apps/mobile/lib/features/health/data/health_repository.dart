@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
@@ -149,13 +150,16 @@ class HealthRepository {
     required AppDatabase database,
     required TenantProvider tenantProvider,
     required Dio dio,
+    required CacheCrypto cacheCrypto,
   })  : _database = database,
         _tenantProvider = tenantProvider,
-        _dio = dio;
+        _dio = dio,
+        _cacheCrypto = cacheCrypto;
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
+  final CacheCrypto _cacheCrypto;
 
   /// Fetch all health records for a student.
   Future<HealthRecords> getRecords({required String studentId}) async {
@@ -224,7 +228,7 @@ class HealthRepository {
       <String, Object?>{
         'tenant_id': tenantId,
         'student_id': studentId,
-        'payload': payload,
+        'payload': await _cacheCrypto.encrypt(payload),
         'updated_at': DateTime.now().millisecondsSinceEpoch,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -245,8 +249,10 @@ class HealthRepository {
 
     if (rows.isEmpty) return const HealthRecords();
 
+    final String payloadRaw =
+        await _cacheCrypto.decrypt(rows.first['payload'] as String);
     final Map<String, dynamic> data =
-        jsonDecode(rows.first['payload'] as String) as Map<String, dynamic>;
+        jsonDecode(payloadRaw) as Map<String, dynamic>;
 
     return HealthRecords(
       measurements: (data['measurements'] as List<dynamic>?)

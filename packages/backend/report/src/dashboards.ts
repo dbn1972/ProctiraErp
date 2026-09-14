@@ -1,7 +1,7 @@
 import { AppError, ErrorCode } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
-export type DashboardRole = 'board' | 'principal' | 'teacher' | 'parent';
+export type DashboardRole = 'board' | 'principal' | 'teacher' | 'staff' | 'parent';
 
 export interface DashboardCard {
   id: string;
@@ -64,6 +64,25 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
       { id: 'teacher-dues', title: 'Open invoices', value: '—', hint: 'Fee invoices still open' },
     ],
   },
+  staff: {
+    title: 'Staff dashboard',
+    cards: [
+      { id: 'staff-students', title: 'Students', value: '—', hint: 'Active student records' },
+      {
+        id: 'staff-attendance',
+        title: 'Attendance',
+        value: '—',
+        hint: 'Campus present share',
+      },
+      {
+        id: 'staff-enrolment',
+        title: 'Active enrolments',
+        value: '—',
+        hint: 'Current enrolments',
+      },
+      { id: 'staff-notifications', title: 'Open invoices', value: '—', hint: 'Fee invoices still open' },
+    ],
+  },
   parent: {
     title: 'Parent dashboard',
     cards: [
@@ -107,9 +126,20 @@ export function inferDashboardRole(
       .map((v) => v.toLowerCase()),
   );
   if (names.some((n) => n.includes('parent') || n.includes('guardian'))) return 'parent';
-  if (names.some((n) => n.includes('teacher') || n === 'staff')) return 'teacher';
+  if (names.some((n) => n.includes('teacher') || n.includes('faculty'))) return 'teacher';
+  if (names.some((n) => n === 'staff' || n.includes('clerk') || n.includes('counsellor'))) {
+    return 'staff';
+  }
   if (names.some((n) => n.includes('board') || n.includes('trustee'))) return 'board';
-  if (names.some((n) => n.includes('principal') || n.includes('head') || n.includes('admin'))) {
+  if (
+    names.some(
+      (n) =>
+        n.includes('principal') ||
+        n.includes('head') ||
+        n.includes('admin') ||
+        n.includes('super-admin'),
+    )
+  ) {
     return 'principal';
   }
   const requested = queryRole?.trim().toLowerCase();
@@ -117,11 +147,13 @@ export function inferDashboardRole(
     requested === 'board' ||
     requested === 'principal' ||
     requested === 'teacher' ||
+    requested === 'staff' ||
     requested === 'parent'
   ) {
     return requested;
   }
-  return 'principal';
+  // W2-UX-04: unknown roles no longer silently become principal.
+  return 'staff';
 }
 
 function parseRequestedRole(queryRole?: string | null): DashboardRole | null {
@@ -130,6 +162,7 @@ function parseRequestedRole(queryRole?: string | null): DashboardRole | null {
     requested === 'board' ||
     requested === 'principal' ||
     requested === 'teacher' ||
+    requested === 'staff' ||
     requested === 'parent'
   ) {
     return requested;
@@ -155,6 +188,13 @@ export function resolveDashboardRole(
   if (actor === 'teacher' && (requested === 'principal' || requested === 'board')) {
     throw new AppError(
       'Teachers cannot fetch principal or board dashboard aggregates',
+      ErrorCode.FORBIDDEN,
+      403,
+    );
+  }
+  if (actor === 'staff' && (requested === 'principal' || requested === 'board')) {
+    throw new AppError(
+      'Staff cannot fetch principal or board dashboard aggregates',
       ErrorCode.FORBIDDEN,
       403,
     );
@@ -306,6 +346,13 @@ export function valuesForRole(
         'teacher-attendance': fmtPct(agg.attendancePercent),
         'teacher-enrolment': fmtCount(agg.enrolments),
         'teacher-dues': fmtCount(agg.openInvoices),
+      };
+    case 'staff':
+      return {
+        'staff-students': fmtCount(agg.students),
+        'staff-attendance': fmtPct(agg.attendancePercent),
+        'staff-enrolment': fmtCount(agg.enrolments),
+        'staff-notifications': fmtCount(agg.openInvoices),
       };
     case 'parent':
       return {

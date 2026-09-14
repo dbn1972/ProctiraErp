@@ -2,6 +2,7 @@
  * G-717 — Postgres report-card repositories on db/sql/024 (skips without DATABASE_URL).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
@@ -17,6 +18,8 @@ import {
   createReportCardTemplateRepository,
 } from './repository-factory.js';
 import { InMemoryReportCardTemplateRepository } from './in-memory-report-card-repository.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-report-card-repository.live.test' });
+
 
 const pool = getSharedPgPool();
 const live = pool !== null;

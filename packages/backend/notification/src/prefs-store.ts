@@ -6,9 +6,12 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import pg from 'pg';
-
-import { assertInMemoryFallbackAllowed, withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook' | 'sms';
 export type NotificationCategory =
@@ -181,7 +184,7 @@ export function isPgNotificationPrefsEnabled(): boolean {
  * rejects the insert with "new row violates row-level security policy".
  */
 export function createPgNotificationPrefsStore(
-  pool: PgQueryable = new pg.Pool({ connectionString: process.env.DATABASE_URL }),
+  pool: PgQueryable = getSharedPgPool()!,
 ): NotificationPrefsStore {
   const scoped = <T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>) =>
     withPgTenant(pool, tenantId, fn);

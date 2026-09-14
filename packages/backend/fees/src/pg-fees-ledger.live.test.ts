@@ -3,6 +3,7 @@
  * DATABASE_URL. Requires db/sql/021 + 023 applied (ensureFeesSchema applies 023).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
@@ -10,11 +11,14 @@ import { describe, expect, it } from 'vitest';
 import { FeesService } from './fees-service.js';
 import { SandboxPaymentAdapter } from './payment-adapter.js';
 import { getSharedFeesPool, PgFeesRepository } from './pg-fees-repository.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-fees-ledger.live.test' });
+
 
 const pool = getSharedFeesPool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 describe('fee ledger (live Postgres)', () => {
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'issue → pay posts two balanced journals and the trial balance nets to 0 AR',
     async () => {
       const repo = new PgFeesRepository(pool!);
@@ -41,7 +45,40 @@ describe('fee ledger (live Postgres)', () => {
     },
   );
 
-  it.skipIf(!pool)(
+  // W3-TEST-01 — payment/receipt amount integrity after pay (re-read from Postgres).
+  it.skipIf(!live)(
+    'recordPayment persists payment.amountCents === receipt.amountCents on re-read',
+    async () => {
+      const repo = new PgFeesRepository(pool!);
+      const service = new FeesService(repo, new SandboxPaymentAdapter());
+      const tenantId = randomUUID();
+
+      const invoice = await service.createInvoice(tenantId, 'staff-1', {
+        studentId: randomUUID(),
+        title: 'Library fee',
+        amountCents: 42_500,
+      });
+      const paid = await service.recordPayment(tenantId, 'parent-1', {
+        invoiceId: invoice.id,
+        method: 'sandbox',
+      });
+
+      expect(paid.payment.amountCents).toBe(42_500);
+      expect(paid.receipt.amountCents).toBe(paid.payment.amountCents);
+      expect(paid.receipt.paymentId).toBe(paid.payment.id);
+
+      const payments = await service.listPayments(tenantId);
+      const receipts = await service.listReceipts(tenantId);
+      const payment = payments.find((p) => p.id === paid.payment.id);
+      const receipt = receipts.find((r) => r.id === paid.receipt.id);
+      expect(payment?.amountCents).toBe(42_500);
+      expect(receipt?.amountCents).toBe(payment?.amountCents);
+      expect(receipt?.paymentId).toBe(payment?.id);
+      expect(receipt?.invoiceId).toBe(invoice.id);
+    },
+  );
+
+  it.skipIf(!live)(
     'database rejects an unbalanced journal at COMMIT and keeps it append-only',
     async () => {
       const repo = new PgFeesRepository(pool!);

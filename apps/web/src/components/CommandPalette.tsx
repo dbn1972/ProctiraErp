@@ -40,13 +40,25 @@ export interface PaletteNavItem {
  * Resolves the full route path for a feature module based on its scope.
  * App-scope modules use App Router paths (no `/app` prefix) — G-404/G-406.
  */
+/**
+ * Vite `featureRegistry` prefixes that still point at the unrouted SPA.
+ * Map them onto the live App Router paths (W2-UX-02).
+ */
+export const APP_ROUTER_PATH_ALIASES: Readonly<Record<string, string>> = {
+  assessment: 'assessments',
+  analytics: 'reports',
+  etl: 'pipelines',
+  settings: 'admin',
+};
+
 export function getRoutePath(module: FeatureModule): string {
   switch (module.scope) {
     case 'app':
       if (module.routePrefix === 'dashboard' || module.routePrefix === '') {
         return '/';
       }
-      return `/${module.routePrefix}`;
+      const prefix = APP_ROUTER_PATH_ALIASES[module.routePrefix] ?? module.routePrefix;
+      return `/${prefix}`;
     case 'mobile':
       return `/mobile/${module.routePrefix}`;
     case 'auth':

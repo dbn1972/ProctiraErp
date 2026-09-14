@@ -157,6 +157,17 @@ export type {
   ReportCardServiceOptions,
   ReportCardPdfArtifact,
 } from './report-card-service.js';
+export { QueueReportCardPublisher } from './queue-report-card-publisher.js';
+export type { ReportCardGenerateJobPayload } from './queue-report-card-publisher.js';
+export { createReportCardPublisherFromEnv } from './report-card-publisher-factory.js';
+export type { ReportCardPublisherHandle } from './report-card-publisher-factory.js';
+export { createReportCardWorker } from './report-card-worker.js';
+export type {
+  ReportCardWorker,
+  ReportCardWorkerOptions,
+  ReportCardJobProcessor,
+  ReportCardWorkerLogger,
+} from './report-card-worker.js';
 export { ReportCardPdfGenerator, templateHeading } from './report-card-pdf-generator.js';
 export {
   InMemoryReportCardArtifactStore,

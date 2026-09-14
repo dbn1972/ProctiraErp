@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
+import 'package:uuid/uuid.dart';
 
 import '../storage/database.dart';
 import '../tenant/tenant_provider.dart';
@@ -98,6 +99,7 @@ class SyncEngine {
         cachePayload,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      final String idempotencyKey = const Uuid().v4();
       final int id = await txn.insert('pending_sync', <String, Object?>{
         'tenant_id': tenantId,
         'entity_type': entityType.toWire(),
@@ -110,6 +112,7 @@ class SyncEngine {
         'last_error': null,
         'base_version': baseVersion,
         'status': SyncStatus.pending.toWire(),
+        'idempotency_key': idempotencyKey,
       });
       return id;
     });
@@ -123,9 +126,11 @@ class SyncEngine {
     required Map<String, dynamic> syncPayload,
     String? entityId,
     String? baseVersion,
+    String? idempotencyKey,
   }) async {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
+    final String key = idempotencyKey ?? const Uuid().v4();
     return db.insert('pending_sync', <String, Object?>{
       'tenant_id': tenantId,
       'entity_type': entityType.toWire(),
@@ -136,6 +141,7 @@ class SyncEngine {
       'attempts': 0,
       'base_version': baseVersion,
       'status': SyncStatus.pending.toWire(),
+      'idempotency_key': key,
     });
   }
 

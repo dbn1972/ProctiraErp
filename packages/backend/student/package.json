@@ -24,6 +24,7 @@
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",
     "@proctira/pdf-lite": "workspace:*",
+    "@proctira/queue-abstraction": "workspace:*",
     "@proctira/storage": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
@@ -33,6 +34,7 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@proctira/testing": "workspace:*",
     "@types/node": "^20.12.0",
     "@types/pg": "^8.11.0",
     "@types/uuid": "^9.0.8",

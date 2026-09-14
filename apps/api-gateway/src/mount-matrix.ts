@@ -121,7 +121,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: true,
     notes:
-      'Prisma when DATABASE_URL set, else in-memory. G-701: /enrollments + /students/import mounted (pg enrollment repo on 001/021). G-914: /students/:id/{photo,id-card.pdf,siblings,consents,discipline,attendance-heatmap} on 035 (no new prefix).',
+      'Prisma when DATABASE_URL set, else in-memory. G-701: /enrollments + /students/import mounted (pg enrollment repo on 001/021). G-914: /students/:id/{photo,id-card.pdf,siblings,consents,discipline,attendance-heatmap} on 035 (no new prefix). W1-SEC-02: student route guards (read + write/delete).',
     registrarName: 'student',
   },
   {

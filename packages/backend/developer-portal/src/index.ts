@@ -29,7 +29,22 @@ export {
   generateWebhookSignature,
   verifyWebhookSignature,
 } from './developer-portal-service.js';
-export type { DeveloperPortalServiceConfig } from './developer-portal-service.js';
+export type { DeveloperPortalServiceConfig, WebhookHttpFetch } from './developer-portal-service.js';
+
+// Durable webhook delivery spine (W2-JOB-07)
+export { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
+export type {
+  WebhookDeliveryJobPayload,
+  WebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
+export { createWebhookDeliveryWorker } from './webhook-delivery-worker.js';
+export type {
+  WebhookDeliveryWorker,
+  WebhookDeliveryWorkerOptions,
+  WebhookDeliveryProcessor,
+} from './webhook-delivery-worker.js';
+export { createWebhookDeliveryPublisherFromEnv } from './webhook-delivery-publisher-factory.js';
+export type { WebhookDeliveryPublisherHandle } from './webhook-delivery-publisher-factory.js';
 
 // Repository
 export type {
@@ -55,6 +70,19 @@ export type {
   AnalyticsTimeSeries,
   AnalyticsFilter,
 } from './developer-portal-repository.js';
+
+// Repository factories
+export {
+  createDeveloperPortalRepository,
+  ensureDeveloperPortalPersistence,
+  isPgDeveloperPortalApiKeysEnabled,
+} from './create-developer-portal-repository.js';
+export { HybridDeveloperPortalRepository } from './hybrid-repository.js';
+export {
+  PgApiKeyStore,
+  getSharedDeveloperPortalPool,
+  ensureDeveloperPortalApiKeySchema,
+} from './pg-api-key-store.js';
 
 // In-memory repository (for testing)
 export { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';

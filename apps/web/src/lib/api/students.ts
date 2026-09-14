@@ -142,7 +142,7 @@ export interface StudentTransferInput {
   sourceEnrollmentId: string;
   destinationInstitutionId: string;
   destinationGradeId: string;
-  destinationClassId?: string;
+  destinationClassId: string;
   academicPeriodId: string;
   transferDate: string;
   reason: string;
@@ -296,7 +296,7 @@ export interface CreateEnrollmentInput {
   studentId: string;
   institutionId: string;
   gradeId: string;
-  classId?: string;
+  classId: string;
   academicPeriodId: string;
   enrolledAt: string;
 }

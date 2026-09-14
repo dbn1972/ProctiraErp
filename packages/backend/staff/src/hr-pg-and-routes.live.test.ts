@@ -3,6 +3,7 @@
  * Postgres stores persist with tenant isolation (live when DATABASE_URL set).
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { getSharedPgPool } from '@proctira/database';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -29,8 +30,11 @@ import {
   PgTrainingSessionRepository,
 } from './pg-training-repository.js';
 import { staffPlugin } from './staff-plugin.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'hr-pg-and-routes.live.test' });
+
 
 const pool = getSharedPgPool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 describe('staffPlugin mounts appraisal + training routes (G-717)', () => {
   let app: FastifyInstance;
@@ -101,7 +105,7 @@ describe('staffPlugin mounts appraisal + training routes (G-717)', () => {
 });
 
 describe('Pg appraisal + training repositories (live)', () => {
-  it.skipIf(!pool)('persists templates/appraisals with RLS isolation', async () => {
+  it.skipIf(!live)('persists templates/appraisals with RLS isolation', async () => {
     const templates = new PgAppraisalTemplateRepository(pool!);
     const appraisals = new PgAppraisalRepository(pool!);
     const tenantA = randomUUID();
@@ -155,7 +159,7 @@ describe('Pg appraisal + training repositories (live)', () => {
     expect(await appraisals.update(appraisal.id, tenantB, { status: 'APPROVED' })).toBeNull();
   });
 
-  it.skipIf(!pool)(
+  it.skipIf(!live)(
     'persists programs/sessions/attendance/certifications and finds expired ones',
     async () => {
       const programs = new PgTrainingProgramRepository(pool!);

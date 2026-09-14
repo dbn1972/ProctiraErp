@@ -96,7 +96,10 @@ export interface DisbursementEntity {
   id: string;
   tenantId: string;
   applicationId: string;
+  /** Major currency units (NUMERIC). */
   amount: number;
+  /** W2-FIN-08: integer cents reconciled from amount. */
+  amountCents: number;
   scheduledDate: string;
   paidDate: string | null;
   paymentStatus: PaymentStatus;

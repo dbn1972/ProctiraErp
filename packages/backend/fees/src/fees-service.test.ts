@@ -1,6 +1,8 @@
 /**
  * FeesService unit tests — plan → invoice → pay → receipt + amount invariant.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 
@@ -149,7 +151,7 @@ describe('FeesService', () => {
       ).rejects.toThrow(/unbalanced/);
     });
 
-    it('rejects mismatched amountCents override', async () => {
+    it('rejects overpayment beyond remaining balance (W2-FIN-01)', async () => {
       const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
         studentId: STUDENT_ID,
         title: 'Sports fee',
@@ -159,9 +161,9 @@ describe('FeesService', () => {
       await expect(
         service.recordPayment(TENANT_A, 'parent-a', {
           invoiceId: invoice.id,
-          amountCents: 1,
+          amountCents: 50001,
         }),
-      ).rejects.toThrow(BusinessRuleError);
+      ).rejects.toThrow(/exceeds remaining/i);
     });
 
     it('rejects paying a non-open invoice', async () => {
@@ -175,6 +177,34 @@ describe('FeesService', () => {
       await expect(
         service.recordPayment(TENANT_A, 'parent-a', { invoiceId: invoice.id }),
       ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('serializes concurrent full payments so only one receipt is issued (W3-RACE-03)', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Race',
+        amountCents: 10000,
+      });
+
+      const outcomes = await Promise.allSettled(
+        Array.from({ length: 5 }, (_, index) =>
+          service.recordPayment(TENANT_A, `parent-${index}`, { invoiceId: invoice.id }),
+        ),
+      );
+
+      const ok = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+      const fail = outcomes.filter((outcome) => outcome.status === 'rejected');
+      expect(ok).toHaveLength(1);
+      expect(fail).toHaveLength(4);
+
+      const payments = await service.listPayments(TENANT_A);
+      const receipts = await service.listReceipts(TENANT_A);
+      const invoicePayments = payments.filter(
+        (payment) => payment.invoiceId === invoice.id && payment.status === 'succeeded',
+      );
+      expect(invoicePayments).toHaveLength(1);
+      expect(receipts.filter((receipt) => receipt.invoiceId === invoice.id)).toHaveLength(1);
+      expect(invoicePayments[0]!.amountCents).toBe(invoice.amountCents);
     });
 
     it('rejects charge adapter amount mismatch', async () => {
@@ -298,6 +328,235 @@ describe('FeesService', () => {
     });
   });
 
+
+
+
+
+  describe('W2-FIN-04 concession approval', () => {
+    it('creates concessions as pending without changing invoice until four-eyes approve', async () => {
+      const structure = await service.createFeeStructure(TENANT_A, 'staff-1', {
+        name: 'Tuition',
+        category: 'tuition',
+        amountCents: 10_000,
+      });
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Tuition',
+        amountCents: 10_000,
+      });
+
+      const pending = await service.applyConcession(TENANT_A, 'clerk-1', {
+        studentId: STUDENT_ID,
+        structureId: structure.id,
+        invoiceId: invoice.id,
+        kind: 'amount',
+        amountCents: 2_000,
+        reason: 'hardship',
+      });
+      expect(pending.concession.status).toBe('pending');
+      expect(pending.invoice).toBeNull();
+      expect((await service.getInvoice(TENANT_A, invoice.id)).amountCents).toBe(10_000);
+
+      await expect(
+        service.approveConcession(TENANT_A, 'clerk-1', pending.concession.id),
+      ).rejects.toThrow(/self-approve/i);
+
+      const approved = await service.approveConcession(
+        TENANT_A,
+        'bursar-1',
+        pending.concession.id,
+      );
+      expect(approved.concession.status).toBe('approved');
+      expect(approved.concession.approverId).toBe('bursar-1');
+      expect(approved.invoice?.amountCents).toBe(8_000);
+
+      const legs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'concession applied',
+      );
+      expect(legs.every((e) => e.amountCents === 2_000)).toBe(true);
+    });
+  });
+
+  describe('W2-FIN-02 payment idempotency', () => {
+    it('replays the same payment/receipt when idempotencyKey is reused', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Bus fee',
+        amountCents: 3_000,
+      });
+
+      const first = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+        idempotencyKey: 'pay-event-1',
+      });
+      const second = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+        idempotencyKey: 'pay-event-1',
+      });
+
+      expect(second.payment.id).toBe(first.payment.id);
+      expect(second.receipt.id).toBe(first.receipt.id);
+      expect(second.idempotent).toBe(true);
+      expect(first.idempotent).toBe(false);
+
+      const payments = await service.listPayments(TENANT_A);
+      expect(payments.filter((p) => p.invoiceId === invoice.id)).toHaveLength(1);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.accounts.cash).toBe(3_000);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+    });
+
+    it('rejects reusing an idempotencyKey for a different invoice or amount', async () => {
+      const a = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'A',
+        amountCents: 1_000,
+      });
+      const b = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'B',
+        amountCents: 2_000,
+      });
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: a.id,
+        amountCents: 1_000,
+        idempotencyKey: 'shared-key',
+      });
+      await expect(
+        service.recordPayment(TENANT_A, 'parent-a', {
+          invoiceId: b.id,
+          amountCents: 2_000,
+          idempotencyKey: 'shared-key',
+        }),
+      ).rejects.toThrow(/idempotency/i);
+    });
+  });
+
+  describe('W2-FIN-01 partial payments', () => {
+    it('accepts a partial payment and leaves the invoice open with remaining AR', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Term fee',
+        amountCents: 10_000,
+      });
+
+      const first = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 4_000,
+      });
+
+      expect(first.payment.amountCents).toBe(4_000);
+      expect(first.receipt.amountCents).toBe(4_000);
+      expect(first.invoice.status).toBe('open');
+
+      const ledger = await service.getInvoiceLedger(TENANT_A, invoice.id);
+      const paymentLegs = ledger.filter((e) => e.memo === 'payment received');
+      expect(paymentLegs).toHaveLength(2);
+      expect(paymentLegs.every((e) => e.amountCents === 4_000)).toBe(true);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(6_000);
+      expect(trial.accounts.cash).toBe(4_000);
+      expect(trial.accounts.fee_revenue).toBe(-10_000);
+    });
+
+    it('marks the invoice paid when successive partials cover the face amount', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Lab',
+        amountCents: 5_000,
+      });
+
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 2_000,
+      });
+      const second = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+      });
+
+      expect(second.invoice.status).toBe('paid');
+      expect(second.payment.amountCents).toBe(3_000);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+      expect(trial.accounts.cash).toBe(5_000);
+    });
+  });
+
+  describe('W2-FIN-03 ledger amount foundation', () => {
+    it('postJournal posts an explicit amountCents argument (not invoice.amountCents)', () => {
+      const srcPath = fileURLToPath(new URL('./fees-service.ts', import.meta.url));
+      const src = readFileSync(srcPath, 'utf8');
+      const start = src.indexOf('private async postJournal');
+      const end = src.indexOf('async getInvoiceLedger');
+      expect(start).toBeGreaterThan(-1);
+      expect(end).toBeGreaterThan(start);
+      const body = src.slice(start, end);
+      // Foundation: journal legs take an explicit amount, not the invoice face amount.
+      expect(body).toMatch(/amountCents:\s*amountCents/);
+      expect(body).not.toMatch(/amountCents:\s*invoice\.amountCents/);
+    });
+
+    it('refund and concession journals use event amounts while invoice face stays independent', async () => {
+      const structure = await service.createFeeStructure(TENANT_A, 'staff-1', {
+        name: 'Tuition',
+        category: 'tuition',
+        amountCents: 10_000,
+      });
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Tuition',
+        amountCents: 10_000,
+      });
+
+      const pending = await service.applyConcession(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        structureId: structure.id,
+        invoiceId: invoice.id,
+        kind: 'amount',
+        amountCents: 1_500,
+        reason: 'sibling discount',
+      });
+      expect(pending.concession.status).toBe('pending');
+      await service.approveConcession(TENANT_A, 'bursar-1', pending.concession.id);
+
+      const afterConcession = await service.getInvoice(TENANT_A, invoice.id);
+      expect(afterConcession.amountCents).toBe(8_500);
+
+      const concessionLegs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'concession applied',
+      );
+      expect(concessionLegs).toHaveLength(2);
+      expect(concessionLegs.every((e) => e.amountCents === 1_500)).toBe(true);
+
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 8_500,
+      });
+
+      await service.recordRefund(TENANT_A, 'staff-1', {
+        invoiceId: invoice.id,
+        amountCents: 2_000,
+        reason: 'partial withdrawal',
+      });
+
+      const afterRefund = await service.getInvoice(TENANT_A, invoice.id);
+      expect(afterRefund.amountCents).toBe(8_500);
+
+      const refundLegs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'refund posted',
+      );
+      expect(refundLegs).toHaveLength(2);
+      expect(refundLegs.every((e) => e.amountCents === 2_000)).toBe(true);
+    });
+  });
+
   describe('money integrity (integer cents)', () => {
     it('rejects floating-point amountCents on create invoice / structure / payment / refund', async () => {
       await expect(
@@ -375,4 +634,137 @@ describe('FeesService', () => {
       expect(refund.amountCents).toBe(500);
     });
   });
+
+  describe('W2-FIN-05 write-off / credit-note integrity', () => {
+    it('issues a credit note against unpaid AR and posts DR fee_revenue / CR AR', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Tuition',
+        amountCents: 10_000,
+      });
+      const { creditNote, invoice: updated } = await service.issueCreditNote(
+        TENANT_A,
+        'bursar-1',
+        { invoiceId: invoice.id, amountCents: 2_500, reason: 'billing error' },
+      );
+      expect(creditNote.amountCents).toBe(2_500);
+      expect(creditNote.status).toBe('posted');
+      expect(updated.amountCents).toBe(7_500);
+
+      const legs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'credit note posted',
+      );
+      expect(legs).toHaveLength(2);
+      expect(legs.every((e) => e.amountCents === 2_500)).toBe(true);
+      expect(legs.map((e) => `${e.account}:${e.side}`).sort()).toEqual([
+        'accounts_receivable:credit',
+        'fee_revenue:debit',
+      ]);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(7_500);
+      expect(trial.accounts.fee_revenue).toBe(-7_500);
+    });
+
+    it('rejects credit notes that exceed unpaid balance or target paid invoices', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Lab',
+        amountCents: 5_000,
+      });
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 2_000,
+      });
+      await expect(
+        service.issueCreditNote(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 3_001,
+          reason: 'too much',
+        }),
+      ).rejects.toThrow(/exceeds unpaid balance/);
+
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+      });
+      const paid = await service.getInvoice(TENANT_A, invoice.id);
+      expect(paid.status).toBe('paid');
+      await expect(
+        service.issueCreditNote(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 100,
+          reason: 'after pay',
+        }),
+      ).rejects.toThrow(/paid invoice/);
+    });
+
+    it('writes off remaining AR to bad_debt_expense and marks written_off', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Uncollectible',
+        amountCents: 8_000,
+      });
+      await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        amountCents: 3_000,
+      });
+      const { writeOff, invoice: updated } = await service.writeOffInvoice(
+        TENANT_A,
+        'bursar-1',
+        { invoiceId: invoice.id, amountCents: 5_000, reason: 'left school' },
+      );
+      expect(writeOff.amountCents).toBe(5_000);
+      expect(updated.amountCents).toBe(3_000);
+      expect(updated.status).toBe('written_off');
+
+      const legs = (await service.getInvoiceLedger(TENANT_A, invoice.id)).filter(
+        (e) => e.memo === 'write-off posted',
+      );
+      expect(legs).toHaveLength(2);
+      expect(legs.map((e) => `${e.account}:${e.side}`).sort()).toEqual([
+        'accounts_receivable:credit',
+        'bad_debt_expense:debit',
+      ]);
+
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+      expect(trial.accounts.cash).toBe(3_000);
+      expect(trial.accounts.bad_debt_expense).toBe(5_000);
+      expect(trial.accounts.fee_revenue).toBe(-8_000);
+
+      await expect(
+        service.writeOffInvoice(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 1,
+          reason: 'again',
+        }),
+      ).rejects.toThrow(/written_off/);
+    });
+
+    it('rejects write-off above unpaid balance and floating amounts', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Partial',
+        amountCents: 4_000,
+      });
+      await expect(
+        service.writeOffInvoice(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 4_000.5,
+          reason: 'float',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+      await expect(
+        service.writeOffInvoice(TENANT_A, 'bursar-1', {
+          invoiceId: invoice.id,
+          amountCents: 4_001,
+          reason: 'over',
+        }),
+      ).rejects.toThrow(/exceeds unpaid balance/);
+    });
+  });
+
 });

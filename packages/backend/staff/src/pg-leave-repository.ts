@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
+  getSharedPgPool,
   withPgTenant,
   type PgQueryable,
 } from '@proctira/database';
@@ -23,29 +24,16 @@ import {
   type StaffLeaveType,
 } from './leave-repository.js';
 
-const { Pool } = pg;
-
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
-function resolveDatabaseUrl(): string | null {
-  const url = process.env.DATABASE_URL?.trim();
-  return url && url.length > 0 ? url : null;
-}
-
 export function isPgStaffLeaveEnabled(): boolean {
-  return resolveDatabaseUrl() !== null;
+  return Boolean(process.env.DATABASE_URL?.trim());
 }
 
 export function getSharedStaffLeavePool(): pg.Pool | null {
-  const url = resolveDatabaseUrl();
-  if (!url) return null;
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: url });
-  }
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 function schemaSqlPaths(): string[] {

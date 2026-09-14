@@ -11,7 +11,14 @@
  * - 11.4: Track disbursement schedules, payment status, and recipient compliance
  * - 11.5: Generate reports on scholarship utilization by program, area, gender, and institution
  */
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  ConflictError,
+  NotFoundError,
+  BusinessRuleError,
+  ValidationError,
+  majorUnitsToCents,
+  assertMajorMatchesCents,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -80,8 +87,8 @@ export interface ScholarshipServiceOptions {
   /** Default workflow ID for scholarship application approval */
   defaultWorkflowId?: string;
   /**
-   * G-1: when a disbursement becomes `paid`, net the amount onto student fees.
-   * amount is major currency units from the scholarship domain (convert to cents in the adapter).
+   * G-1 / W2-FIN-08: when a disbursement becomes `paid`, net integer cents onto student fees.
+   * amountCents is reconciled from major units via majorUnitsToCents (no float Math.round).
    */
   onDisbursementPaid?: (input: {
     tenantId: string;
@@ -89,6 +96,18 @@ export interface ScholarshipServiceOptions {
     applicationId: string;
     applicantId: string;
     amount: number;
+    amountCents: number;
+    currency: string;
+  }) => Promise<void>;
+  /**
+   * W2-FIN-08: when a paid disbursement is cancelled/failed, reverse the fee netting.
+   */
+  onDisbursementReversed?: (input: {
+    tenantId: string;
+    disbursementId: string;
+    applicationId: string;
+    applicantId: string;
+    amountCents: number;
     currency: string;
   }) => Promise<void>;
 }
@@ -99,6 +118,7 @@ export interface ScholarshipServiceOptions {
 export class ScholarshipService {
   private readonly defaultWorkflowId: string;
   private readonly onDisbursementPaid?: ScholarshipServiceOptions['onDisbursementPaid'];
+  private readonly onDisbursementReversed?: ScholarshipServiceOptions['onDisbursementReversed'];
 
   constructor(
     private readonly repository: ScholarshipRepository,
@@ -107,6 +127,7 @@ export class ScholarshipService {
   ) {
     this.defaultWorkflowId = options?.defaultWorkflowId ?? 'scholarship_approval';
     this.onDisbursementPaid = options?.onDisbursementPaid;
+    this.onDisbursementReversed = options?.onDisbursementReversed;
   }
 
   // ─── Program Operations ──────────────────────────────────────────────────
@@ -447,11 +468,14 @@ export class ScholarshipService {
     });
 
     if (decision.scheduleFirstDisbursement) {
+      const amountCents = majorUnitsToCents(program.amountPerRecipient);
+      assertMajorMatchesCents(program.amountPerRecipient, amountCents);
       await this.repository.createDisbursement({
         id: uuidv4(),
         tenantId,
         applicationId: id,
         amount: program.amountPerRecipient,
+        amountCents,
         scheduledDate: new Date().toISOString().slice(0, 10),
         paidDate: null,
         paymentStatus: 'scheduled',
@@ -518,11 +542,14 @@ export class ScholarshipService {
       throw new BusinessRuleError('Disbursements can only be created for approved applications');
     }
 
+    const amountCents = majorUnitsToCents(input.amount);
+    assertMajorMatchesCents(input.amount, amountCents);
     const disbursement: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
       applicationId: input.applicationId,
       amount: input.amount,
+      amountCents,
       scheduledDate: input.scheduledDate,
       paidDate: null,
       paymentStatus: 'scheduled',
@@ -562,6 +589,8 @@ export class ScholarshipService {
       throw new NotFoundError(`Disbursement with id '${id}' not found`);
     }
 
+    assertMajorMatchesCents(updated.amount, updated.amountCents);
+
     if (
       this.onDisbursementPaid &&
       updated.paymentStatus === 'paid' &&
@@ -581,6 +610,31 @@ export class ScholarshipService {
           applicationId: application.id,
           applicantId: application.applicantId,
           amount: updated.amount,
+          amountCents: updated.amountCents,
+          currency: program?.currency ?? 'INR',
+        });
+      }
+    }
+
+    if (
+      this.onDisbursementReversed &&
+      existing.paymentStatus === 'paid' &&
+      updated.paymentStatus !== 'paid'
+    ) {
+      const application = await this.repository.findApplicationById(
+        updated.applicationId,
+        tenantId,
+      );
+      const program = application
+        ? await this.repository.findProgramById(application.programId, tenantId)
+        : null;
+      if (application) {
+        await this.onDisbursementReversed({
+          tenantId,
+          disbursementId: updated.id,
+          applicationId: application.id,
+          applicantId: application.applicantId,
+          amountCents: updated.amountCents,
           currency: program?.currency ?? 'INR',
         });
       }

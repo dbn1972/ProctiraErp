@@ -9,7 +9,8 @@
     "./factories": "./src/factories/index.ts",
     "./database": "./src/database/index.ts",
     "./fixtures": "./src/fixtures/index.ts",
-    "./property-testing": "./src/property-testing/index.ts"
+    "./property-testing": "./src/property-testing/index.ts",
+    "./live-database": "./src/live-database.ts"
   },
   "scripts": {
     "build": "echo 'Testing package consumed at source level - no build needed'",

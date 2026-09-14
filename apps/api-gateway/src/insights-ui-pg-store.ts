@@ -7,8 +7,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import type pg from 'pg';
 
 import {
   seedGeoFeatures,
@@ -21,9 +21,6 @@ import {
   type ReportTemplate,
 } from './insights-ui-types.js';
 
-const { Pool } = pg;
-
-let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
 export function isPgInsightsUiEnabled(): boolean {
@@ -31,10 +28,7 @@ export function isPgInsightsUiEnabled(): boolean {
 }
 
 function getPool(): pg.Pool | null {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) return null;
-  if (!sharedPool) sharedPool = new Pool({ connectionString: url });
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 function schemaSqlPath(): string {

@@ -81,26 +81,124 @@ export class ParentPortalService {
       isPrimary: input.isPrimary ?? true,
       canConsentMedical: input.canConsentMedical ?? true,
       canViewFees: input.canViewFees ?? true,
+      householdId: input.householdId ?? null,
+    });
+  }
+
+  /** Staff provisioning — guardian household unit (W1-SEC-03). */
+  async createHousehold(tenantId: string, input: { id?: string; label?: string } = {}) {
+    return this.repository.createHousehold({
+      id: input.id ?? uuidv4(),
+      tenantId,
+      label: input.label ?? '',
+      status: 'active',
+    });
+  }
+
+  /** Staff provisioning — guardian membership in a household. */
+  async addHouseholdMember(
+    tenantId: string,
+    input: {
+      householdId: string;
+      parentUserId: string;
+      role?: 'primary' | 'guardian' | 'other';
+    },
+  ) {
+    return this.repository.addHouseholdMember({
+      id: uuidv4(),
+      tenantId,
+      householdId: input.householdId,
+      parentUserId: input.parentUserId,
+      role: input.role ?? 'guardian',
+      status: 'active',
+    });
+  }
+
+  /** Staff provisioning — assign student custody to a household. */
+  async assignStudentCustody(
+    tenantId: string,
+    input: {
+      studentId: string;
+      householdId: string;
+      custodyType?: 'sole' | 'joint' | 'visitation' | 'none';
+    },
+  ) {
+    return this.repository.assignStudentCustody({
+      id: uuidv4(),
+      tenantId,
+      studentId: input.studentId,
+      householdId: input.householdId,
+      custodyType: input.custodyType ?? 'sole',
+      status: 'active',
+      effectiveFrom: new Date(),
     });
   }
 
   async listChildrenForParent(tenantId: string, parentUserId: string) {
-    return this.repository.listChildLinksForParent(tenantId, parentUserId);
+    return this.getAccessibleLinks(tenantId, parentUserId);
   }
 
   async listChildrenForStudent(tenantId: string, studentId: string) {
     return this.repository.listChildLinksForStudent(tenantId, studentId);
   }
 
-  private async getLinkedStudentIds(tenantId: string, parentUserId: string): Promise<string[]> {
+  private async getAccessibleLinks(
+    tenantId: string,
+    parentUserId: string,
+  ): Promise<ParentChildLinkEntity[]> {
     const links = await this.repository.listChildLinksForParent(tenantId, parentUserId);
+    const accessible: ParentChildLinkEntity[] = [];
+    for (const link of links) {
+      if (await this.hasHouseholdCustodyAccess(tenantId, parentUserId, link.studentId, link.householdId)) {
+        accessible.push(link);
+      }
+    }
+    return accessible;
+  }
+
+  private async getLinkedStudentIds(tenantId: string, parentUserId: string): Promise<string[]> {
+    const links = await this.getAccessibleLinks(tenantId, parentUserId);
     return links.map((link) => link.studentId);
   }
 
   /** Student ids where the guardian may view/pay fees. */
   private async getFeeVisibleStudentIds(tenantId: string, parentUserId: string): Promise<string[]> {
-    const links = await this.repository.listChildLinksForParent(tenantId, parentUserId);
+    const links = await this.getAccessibleLinks(tenantId, parentUserId);
     return links.filter((link) => link.canViewFees).map((link) => link.studentId);
+  }
+
+  /**
+   * W1-SEC-03: when a student has active custody rows, the guardian must belong to
+   * a custody household; optional link.household_id must align with that overlap.
+   */
+  private async hasHouseholdCustodyAccess(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+    linkHouseholdId: string | null,
+  ): Promise<boolean> {
+    const custodyHouseholds = await this.repository.listActiveCustodyHouseholdIdsForStudent(
+      tenantId,
+      studentId,
+    );
+    if (custodyHouseholds.length === 0) {
+      return true;
+    }
+
+    const parentHouseholds = await this.repository.listActiveHouseholdIdsForParent(
+      tenantId,
+      parentUserId,
+    );
+    const eligible = custodyHouseholds.filter((householdId) =>
+      parentHouseholds.includes(householdId),
+    );
+    if (eligible.length === 0) {
+      return false;
+    }
+    if (linkHouseholdId != null && !eligible.includes(linkHouseholdId)) {
+      return false;
+    }
+    return true;
   }
 
   private async assertParentLinkedToStudent(
@@ -110,6 +208,9 @@ export class ParentPortalService {
   ): Promise<ParentChildLinkEntity> {
     const link = await this.repository.findActiveLink(tenantId, parentUserId, studentId);
     if (!link) {
+      throw new NotFoundError(`Student with id '${studentId}' not found`);
+    }
+    if (!(await this.hasHouseholdCustodyAccess(tenantId, parentUserId, studentId, link.householdId))) {
       throw new NotFoundError(`Student with id '${studentId}' not found`);
     }
     return link;

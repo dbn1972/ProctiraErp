@@ -280,7 +280,7 @@ export class ReportCardService {
       }
     }
 
-    // Create job record
+    // Create job record (durable source of truth — W2-JOB-02)
     const job = await this.jobRepo.create({
       id: uuidv4(),
       tenantId,
@@ -293,26 +293,32 @@ export class ReportCardService {
       outputUrl: null,
     });
 
-    // Publish to RabbitMQ for background processing
+    // Publish to durable queue for background processing. On publish failure the
+    // job row stays `queued` so reclaimQueuedJobs / worker start can recover
+    // (no silent orphan after create→dispatch dual-write crash).
     if (this.taskQueuePublisher) {
-      await this.taskQueuePublisher.publish({
-        id: job.id,
-        tenantId,
-        type: 'report-card.generate',
-        payload: {
-          jobId: job.id,
-          studentId: input.studentId,
-          academicPeriodId: input.academicPeriodId,
-          templateId,
-          institutionId: input.institutionId,
-        },
-        options: {
-          priority: 5,
-          delay: 0,
-          maxRetries: 3,
-          retryCount: 0,
-        },
-      });
+      try {
+        await this.taskQueuePublisher.publish({
+          id: job.id,
+          tenantId,
+          type: 'report-card.generate',
+          payload: {
+            jobId: job.id,
+            studentId: input.studentId,
+            academicPeriodId: input.academicPeriodId,
+            templateId,
+            institutionId: input.institutionId,
+          },
+          options: {
+            priority: 5,
+            delay: 0,
+            maxRetries: 3,
+            retryCount: 0,
+          },
+        });
+      } catch {
+        // Leave status=queued for reclaim — do not fail the API create.
+      }
     } else if (this.options.processInline) {
       return this.processReportCardJob(tenantId, job.id);
     }
@@ -361,26 +367,30 @@ export class ReportCardService {
         outputUrl: null,
       });
 
-      // Publish to RabbitMQ
+      // Publish to durable queue (W2-JOB-02: publish failure leaves job queued)
       if (this.taskQueuePublisher) {
-        await this.taskQueuePublisher.publish({
-          id: job.id,
-          tenantId,
-          type: 'report-card.generate',
-          payload: {
-            jobId: job.id,
-            studentId,
-            academicPeriodId: input.academicPeriodId,
-            templateId,
-            institutionId: input.institutionId,
-          },
-          options: {
-            priority: 3, // Lower priority for bulk operations
-            delay: 0,
-            maxRetries: 3,
-            retryCount: 0,
-          },
-        });
+        try {
+          await this.taskQueuePublisher.publish({
+            id: job.id,
+            tenantId,
+            type: 'report-card.generate',
+            payload: {
+              jobId: job.id,
+              studentId,
+              academicPeriodId: input.academicPeriodId,
+              templateId,
+              institutionId: input.institutionId,
+            },
+            options: {
+              priority: 3, // Lower priority for bulk operations
+              delay: 0,
+              maxRetries: 3,
+              retryCount: 0,
+            },
+          });
+        } catch {
+          // Leave status=queued for reclaimQueuedJobs.
+        }
       } else if (this.options.processInline) {
         jobs.push(await this.processReportCardJob(tenantId, job.id));
         continue;
@@ -410,6 +420,41 @@ export class ReportCardService {
   }
 
   /**
+   * W2-JOB-02: re-dispatch (or inline-process) jobs left in `queued` after a
+   * create→publish dual-write crash. Returns the number of jobs touched.
+   */
+  async reclaimQueuedJobs(tenantId: string): Promise<number> {
+    const orphaned = await this.jobRepo.listByStatus(tenantId, 'queued');
+    let count = 0;
+    for (const job of orphaned) {
+      if (this.taskQueuePublisher) {
+        await this.taskQueuePublisher.publish({
+          id: job.id,
+          tenantId: job.tenantId,
+          type: 'report-card.generate',
+          payload: {
+            jobId: job.id,
+            studentId: job.studentId,
+            academicPeriodId: job.academicPeriodId,
+            templateId: job.templateId,
+            institutionId: job.institutionId,
+          },
+          options: {
+            priority: 5,
+            delay: 0,
+            maxRetries: 3,
+            retryCount: 0,
+          },
+        });
+      } else if (this.options.processInline) {
+        await this.processReportCardJob(job.tenantId, job.id);
+      }
+      count += 1;
+    }
+    return count;
+  }
+
+  /**
    * Process a report card generation job (called by the background worker).
    *
    * Assembles all data and generates the PDF:
@@ -424,6 +469,11 @@ export class ReportCardService {
     const job = await this.jobRepo.findById(jobId, tenantId);
     if (!job) {
       throw new NotFoundError(`Report card job with id '${jobId}' not found`);
+    }
+
+    // Idempotent: completed jobs survive redelivery after worker crash/ack loss.
+    if (job.status === 'completed') {
+      return job;
     }
 
     // Mark as processing

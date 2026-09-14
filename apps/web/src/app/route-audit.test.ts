@@ -104,6 +104,8 @@ describe('G-727 App Router route audit', () => {
     }
   });
 
+
+
   it('sidebar navItems resolve to real routes', () => {
     const dead = navItems.map((i) => i.href).filter((h) => !routeExists(h));
     expect(dead).toEqual([]);

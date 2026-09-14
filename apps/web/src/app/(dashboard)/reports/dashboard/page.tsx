@@ -13,7 +13,7 @@ import { RoleDashboardPanel } from '../_components/role-dashboard-panel';
 
 export const dynamic = 'force-dynamic';
 
-const ROLES: DashboardRole[] = ['board', 'principal', 'teacher', 'parent'];
+const ROLES: DashboardRole[] = ['board', 'principal', 'teacher', 'staff', 'parent'];
 
 function parseRole(value: string | string[] | undefined): DashboardRole | undefined {
   const raw = Array.isArray(value) ? value[0] : value;

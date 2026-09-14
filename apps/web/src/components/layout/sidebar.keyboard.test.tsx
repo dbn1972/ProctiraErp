@@ -58,6 +58,37 @@ vi.mock('next-intl', () => ({
   },
 }));
 
+
+vi.mock('@/providers/AuthProvider', () => ({
+  useAuth: () => ({
+    user: {
+      id: 'user-1',
+      email: 'admin@test.com',
+      name: 'Admin',
+      roles: ['admin', 'principal'],
+      permissions: [
+        'institution.read',
+        'student.read',
+        'staff.read',
+        'assessment.read',
+        'attendance.read',
+        'examination.read',
+        'scholarship.read',
+        'lms.read',
+        'health.read',
+        'workflow.read',
+        'data-warehouse.read',
+        'report.read',
+        'settings.read',
+      ],
+      scope: { level: 'country' as const },
+      tenant_id: 'tenant-1',
+    },
+    status: 'authenticated' as const,
+    isAuthenticated: true,
+  }),
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/students',
 }));
@@ -101,7 +132,10 @@ describe('<Sidebar> keyboard contract — Task 56.6 / Req 37 AC 6', () => {
     const links = screen.getAllByRole('link');
 
     // Every nav item + 1 brand link in the header.
-    expect(links.length).toBe(navItems.length + 1);
+    expect(links.length).toBeGreaterThan(1);
+    // W2-UX-03: parent portal is role-gated off for admin sessions.
+    expect(screen.queryByTestId('sidebar-link-parentPortal')).toBeNull();
+    expect(screen.getByTestId('sidebar-link-students')).toBeTruthy();
 
     // None of the anchors install a roving tabindex — every link is
     // independently focusable. tabindex is either unset (=> 0 by

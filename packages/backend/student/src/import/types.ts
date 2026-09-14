@@ -162,6 +162,9 @@ export interface StudentRecord {
  * Repository interface for student data access during import.
  */
 export interface StudentRepository {
+  /** Find a student by id within a tenant (W2-JOB-12 rollback snapshots) */
+  findById(tenantId: string, id: string): Promise<StudentRecord | null>;
+
   /** Find a student by national ID within a tenant */
   findByNationalId(tenantId: string, nationalId: string): Promise<StudentRecord | null>;
 
@@ -188,6 +191,12 @@ export interface StudentRepository {
 
   /** Check if a national ID already exists in the tenant */
   nationalIdExists(tenantId: string, nationalId: string): Promise<boolean>;
+
+  /**
+   * Delete a student (W2-JOB-12 compensating rollback after a mid-batch failure).
+   * Required for transactional import semantics.
+   */
+  delete(tenantId: string, id: string): Promise<boolean>;
 }
 
 /**

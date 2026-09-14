@@ -46,6 +46,7 @@ import {
   createInstitutionBrandingRepository,
   createOutcomeRepository,
   createReportCardJobRepository,
+  createReportCardPublisherFromEnv,
   createReportCardTemplateRepository,
   createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
@@ -53,24 +54,31 @@ import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-
 import {
   communicationPlugin,
   createCommunicationRepository,
-  createSandboxDeliveryAdapter,
+  createDeliveryAdapterFromEnv,
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
+  createDeveloperPortalRepository,
+  createWebhookDeliveryPublisherFromEnv,
   developerPortalPlugin,
-  InMemoryDeveloperPortalRepository,
+  ensureDeveloperPortalPersistence,
 } from '@proctira/backend-developer-portal';
 import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import {
   createDocumentRepository,
-  createDocumentTaskQueueFromEnv,
+  createDocumentOutboxFromEnv,
   createExamOpsStore,
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
-import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
+import {
+  createFeesRepository,
+  FeesService,
+  feesPlugin,
+  majorUnitsToCents,
+} from '@proctira/backend-fees';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import {
   assertPhiKeyConfigured,
@@ -81,7 +89,11 @@ import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
-import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
+import {
+  createNotificationDeliveryPublisherFromEnv,
+  createNotificationStack,
+  notificationPlugin,
+} from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import {
   AdmissionsPipelineService,
@@ -100,6 +112,7 @@ import {
 import {
   bindAttendanceHeatmapSource,
   createEnrollmentRepository,
+  createStudentImportQueueFromEnv,
   createStudentRepository,
   EnrollmentService,
   StudentService,
@@ -248,8 +261,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // (Pg enrollment repository on db/sql/001 + 021 when DATABASE_URL set).
       // G-914 360 routes share the /students prefix (photo, id-card, siblings,
       // consents, discipline, attendance-heatmap).
+      // W2-JOB-06: durable import queue when QUEUE_BACKEND / RABBITMQ_URL set.
       const repository = createStudentRepository();
-      await scope.register(studentPlugin, { repository, prefix: '/students' });
+      const importHandle = await createStudentImportQueueFromEnv();
+      if (importHandle) {
+        scope.addHook('onClose', async () => {
+          await importHandle.disconnect();
+        });
+      }
+      await scope.register(studentPlugin, {
+        repository,
+        importQueue: importHandle?.importQueue,
+        prefix: '/students',
+      });
     },
   },
   {
@@ -414,11 +438,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       const examOpsStore = createExamOpsStore();
-      // P0-06: durable exam-document queue when QUEUE_BACKEND / RABBITMQ_URL set.
-      const documentQueueHandle = await createDocumentTaskQueueFromEnv();
-      if (documentQueueHandle) {
+      // W2-JOB-04: transactional outbox + relay when QUEUE_BACKEND / RABBITMQ_URL set.
+      const documentOutboxHandle = await createDocumentOutboxFromEnv();
+      if (documentOutboxHandle) {
         scope.addHook('onClose', async () => {
-          await documentQueueHandle.disconnect();
+          await documentOutboxHandle.disconnect();
         });
       }
       await scope.register(examinationPlugin, {
@@ -428,7 +452,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         // G-902: document routes (/documents/generate, /documents/jobs) only
         // register when a PdfGenerator is supplied.
         pdfGenerator: new SimplePdfGenerator(),
-        documentTaskQueue: documentQueueHandle?.queue,
+        outboxStore: documentOutboxHandle?.outboxStore,
         examOpsStore,
         prefix: '/examinations',
       });
@@ -444,6 +468,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       // G-210: report-card factories use pg `024` when DATABASE_URL is set.
       // Durable board HTML report cards also live at `/gradebook/report-cards`.
+      // W2-JOB-02: durable queue publisher when QUEUE_BACKEND / RABBITMQ_URL set.
+      const reportCardQueueHandle = await createReportCardPublisherFromEnv();
+      if (reportCardQueueHandle) {
+        scope.addHook('onClose', async () => {
+          await reportCardQueueHandle.disconnect();
+        });
+      }
       await scope.register(assessmentPlugin, {
         gradingSchemeRepository: createGradingSchemeRepository(),
         assessmentItemRepository: createAssessmentItemRepository(),
@@ -453,6 +484,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         teacherCommentRepository: createTeacherCommentRepository(),
         institutionBrandingRepository: createInstitutionBrandingRepository(),
         reportCardJobRepository: createReportCardJobRepository(),
+        taskQueuePublisher: reportCardQueueHandle?.publisher,
       });
     },
   },
@@ -520,8 +552,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/scholarships',
         serviceOptions: {
           onDisbursementPaid: async (input) => {
-            // Scholarship amounts are major units; fees ledger is cents.
-            const amountCents = Math.round(Number(input.amount) * 100);
+            // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
+            const amountCents =
+              input.amountCents ?? majorUnitsToCents(input.amount);
             if (amountCents <= 0) return;
             await feesForScholarships.applyScholarshipNetting(
               input.tenantId,
@@ -532,6 +565,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
                 amountCents,
                 currency: input.currency,
               },
+            );
+          },
+          onDisbursementReversed: async (input) => {
+            await feesForScholarships.reverseScholarshipNetting(
+              input.tenantId,
+              'scholarship-netting',
+              { disbursementId: input.disbursementId },
             );
           },
         },
@@ -685,10 +725,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/notifications'],
     register: async (scope) => {
       // In-memory notification records + prefs/devices (PG when DATABASE_URL).
+      // W2-JOB-01: durable delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
       const { repository, prefsStore } = createNotificationStack();
+      const deliveryHandle = await createNotificationDeliveryPublisherFromEnv();
+      if (deliveryHandle) {
+        scope.addHook('onClose', async () => {
+          await deliveryHandle.disconnect();
+        });
+      }
       await scope.register(notificationPlugin, {
         repository,
         prefsStore,
+        queuePublisher: deliveryHandle?.publisher,
         prefix: '/notifications',
       });
     },
@@ -724,7 +772,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createCommunicationRepository();
       await scope.register(communicationPlugin, {
         repository,
-        deliveryAdapter: createSandboxDeliveryAdapter(),
+        deliveryAdapter: createDeliveryAdapterFromEnv(),
         prefix: '/communication',
       });
     },
@@ -878,10 +926,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'developer',
     proxyPrefixes: ['/developer'],
     register: async (scope) => {
-      // G-607: AuthZ via gateway RBAC; in-memory API keys/docs; rate limits via
-      // global gateway rate-limit plugin. Live IdP key mint residual.
+      // G-607 / W1-ARCH-01: AuthZ via gateway RBAC; Postgres API keys when DATABASE_URL
+      // is set (hashed at rest, tenant-scoped); docs remain in-memory. Live IdP mint residual.
+      // W2-JOB-07: durable webhook delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
+      await ensureDeveloperPortalPersistence();
+      const webhookDelivery = await createWebhookDeliveryPublisherFromEnv();
+      if (webhookDelivery) {
+        scope.addHook('onClose', async () => {
+          await webhookDelivery.disconnect();
+        });
+      }
       await scope.register(developerPortalPlugin, {
-        repository: new InMemoryDeveloperPortalRepository(),
+        repository: createDeveloperPortalRepository(),
+        deliveryPublisher: webhookDelivery?.publisher,
         prefix: '/developer',
       });
     },

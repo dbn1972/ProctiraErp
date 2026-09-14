@@ -28,6 +28,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { requireBillingAction } from './billing-http-guard.js';
 import type { BillingService } from './billing-service.js';
 import type { PlanEntity, SubscriptionEntity } from './billing-repository.js';
 import {
@@ -91,6 +92,15 @@ export async function registerBillingRoutes(
   options: BillingRoutesOptions,
 ): Promise<void> {
   const { billingService, prefix = '/billing' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    const action =
+      method === 'GET' || method === 'HEAD' || method === 'OPTIONS'
+        ? 'billing.read'
+        : 'billing.manage';
+    requireBillingAction(request, reply, action);
+  });
 
   // ─── Plan Routes ───────────────────────────────────────────────────────
 

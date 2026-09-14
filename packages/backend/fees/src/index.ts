@@ -22,6 +22,8 @@ export type {
   BulkInvoiceInput,
   ApplyConcessionInput,
   RecordRefundInput,
+  IssueCreditNoteInput,
+  WriteOffInvoiceInput,
   ReminderChannel,
   ReminderSendAuditEntity,
   ReminderSuppressionEntity,
@@ -46,6 +48,8 @@ export type {
   FeeStructureEntity,
   FeeStructureInstalmentEntity,
   FeeConcessionEntity,
+  FeeCreditNoteEntity,
+  FeeWriteOffEntity,
   FeeRefundEntity,
 } from './fees-repository.js';
 export { UnbalancedJournalError, assertJournalBalanced } from './fees-repository.js';
@@ -72,5 +76,22 @@ export {
   ensureFeesSchema,
 } from './pg-fees-repository.js';
 
-export { SandboxPaymentAdapter } from './payment-adapter.js';
+export {
+  SandboxPaymentAdapter,
+  UnimplementedLivePaymentAdapter,
+  createPaymentAdapterFromEnv,
+} from './payment-adapter.js';
 export type { PaymentAdapter, ChargeInput, ChargeResult } from './payment-adapter.js';
+
+export {
+  assertFeesAccess,
+  hasFeesAccess,
+  normalizeFeesRoles,
+} from './fees-access.js';
+export type { FeesAction } from './fees-access.js';
+
+export {
+  majorUnitsToCents,
+  centsToMajorUnits,
+  assertMajorMatchesCents,
+} from './money-cents.js';

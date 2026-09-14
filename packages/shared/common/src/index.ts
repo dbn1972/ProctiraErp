@@ -23,7 +23,12 @@ export {
   AttendanceStatus,
   WorkflowStateType,
   PAGINATION_DEFAULTS,
+  ERROR_CODE_REGISTRY,
+  getErrorCodeDefinition,
+  applyDeprecationHeaders,
+  defaultSunsetDate,
 } from './constants/index.js';
+export type { ErrorCodeDefinition, DeprecationPolicy } from './constants/index.js';
 
 // Exceptions
 export {
@@ -38,3 +43,9 @@ export {
 // Utilities
 export { CircuitBreaker, CircuitState, CircuitBreakerError } from './circuit-breaker.js';
 export type { CircuitBreakerOptions } from './circuit-breaker.js';
+
+export {
+  majorUnitsToCents,
+  centsToMajorUnits,
+  assertMajorMatchesCents,
+} from './money/cents.js';

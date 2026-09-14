@@ -13,6 +13,16 @@ export interface TimedSlot {
   roomId: string;
 }
 
+export function sessionToSlot(session: TimedSlot): TimedSlot {
+  return {
+    id: session.id,
+    date: session.date,
+    startTime: session.startTime,
+    endTime: session.endTime,
+    roomId: session.roomId,
+  };
+}
+
 export interface InvigilatorAssignment {
   sessionId: string;
   staffId: string;

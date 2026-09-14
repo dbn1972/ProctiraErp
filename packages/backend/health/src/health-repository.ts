@@ -392,4 +392,7 @@ export interface HealthRepository {
     gradeLevel: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<ScreeningProgramEntity>>;
+
+  /** Active enrollment institution for institution-scoped PHI authZ (W1-SEC-04). */
+  findStudentInstitutionId?(tenantId: string, studentId: string): Promise<string | null>;
 }

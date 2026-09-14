@@ -93,6 +93,16 @@ describe('rbac-registry helpers', () => {
     expect(actionForMethod('DELETE')).toBe('delete');
   });
 
+  it('W1-SEC-02 (D4): HR roles may manage staff; teachers may not', () => {
+    const registry = createGatewayRbacRegistry();
+    for (const roleId of ['hr_officer', 'registrar', 'staff_admin', 'admissions_officer']) {
+      expect(registry.roleHasPermission(roleId, 'staff', 'create')).toBe(true);
+      expect(registry.roleHasPermission(roleId, 'staff', 'read')).toBe(true);
+    }
+    expect(registry.roleHasPermission('teacher', 'staff', 'create')).toBe(false);
+    expect(registry.roleHasPermission('teacher', 'staff', 'read')).toBe(false);
+  });
+
   it('extends admin with campus resources and registers platform_admin', () => {
     const registry = createGatewayRbacRegistry();
     expect(registry.roleHasPermission('admin', 'health', 'manage')).toBe(true);
@@ -241,6 +251,26 @@ describe('G-101 gateway RBAC enforcement', () => {
     });
 
     expect(response.statusCode).toBe(200);
+  });
+
+  it('W1-SEC-02 (D4): teacher without staff.read → 403 on GET /api/v1/staff', async () => {
+    const token = app.jwt.sign(
+      createTestJwtPayload({
+        roles: [{ roleId: 'teacher', roleName: 'Teacher', areaId: null }],
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/staff',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().code).toBe('FORBIDDEN');
   });
 
   it('G-712: any authenticated principal may read self-service notifications', async () => {
@@ -499,11 +529,28 @@ describe('G-301 campus module RBAC deny matrix', () => {
       payload: {
         firstName: 'Pat',
         lastName: 'Lee',
-        email: 'pat.lee@example.com',
-        employeeId: 'EMP-RBAC-1',
+        dateOfBirth: '1985-06-15',
+        identityNumber: 'EMP-RBAC-1',
+        contactPhone: '+15550001111',
+        position: 'Teacher',
       },
       deniedRole: 'teacher',
       allowedRole: 'admin',
+    },
+    {
+      id: 'staff-registrar',
+      method: 'POST',
+      url: '/api/v1/staff',
+      payload: {
+        firstName: 'Reg',
+        lastName: 'istrar',
+        dateOfBirth: '1985-06-15',
+        identityNumber: 'EMP-RBAC-REG',
+        contactPhone: '+15550002222',
+        position: 'Clerk',
+      },
+      deniedRole: 'teacher',
+      allowedRole: 'registrar',
     },
     {
       id: 'registration',

@@ -16,6 +16,44 @@ export type ConsentStatus = 'pending' | 'approved' | 'denied' | 'revoked';
 export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue';
 export type PaymentMethod = 'sandbox' | 'upi' | 'card' | 'cash';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
+export type HouseholdStatus = 'active' | 'archived';
+export type HouseholdMemberRole = 'primary' | 'guardian' | 'other';
+export type HouseholdMemberStatus = 'active' | 'revoked';
+export type CustodyType = 'sole' | 'joint' | 'visitation' | 'none';
+export type CustodyStatus = 'active' | 'ended';
+
+export interface GuardianHouseholdEntity {
+  id: string;
+  tenantId: string;
+  label: string;
+  status: HouseholdStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GuardianHouseholdMemberEntity {
+  id: string;
+  tenantId: string;
+  householdId: string;
+  parentUserId: string;
+  role: HouseholdMemberRole;
+  status: HouseholdMemberStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GuardianStudentCustodyEntity {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  householdId: string;
+  custodyType: CustodyType;
+  status: CustodyStatus;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface ParentChildLinkEntity {
   id: string;
@@ -30,6 +68,8 @@ export interface ParentChildLinkEntity {
   canConsentMedical: boolean;
   /** Required to list or pay student fee invoices. */
   canViewFees: boolean;
+  /** Household scope when custody graph is active (W1-SEC-03). */
+  householdId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -145,6 +185,24 @@ export interface ParentPortalRepository {
     studentId: string,
   ): Promise<ParentChildLinkEntity | null>;
   hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean>;
+
+  createHousehold(
+    data: Omit<GuardianHouseholdEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianHouseholdEntity>;
+  addHouseholdMember(
+    data: Omit<GuardianHouseholdMemberEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianHouseholdMemberEntity>;
+  assignStudentCustody(
+    data: Omit<
+      GuardianStudentCustodyEntity,
+      'createdAt' | 'updatedAt' | 'effectiveTo'
+    >,
+  ): Promise<GuardianStudentCustodyEntity>;
+  listActiveCustodyHouseholdIdsForStudent(
+    tenantId: string,
+    studentId: string,
+  ): Promise<string[]>;
+  listActiveHouseholdIdsForParent(tenantId: string, parentUserId: string): Promise<string[]>;
 
   createThread(
     data: Omit<MessageThreadEntity, 'createdAt' | 'updatedAt'>,

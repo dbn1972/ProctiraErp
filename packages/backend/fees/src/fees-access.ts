@@ -1,10 +1,23 @@
 /**
- * Fees RBAC helpers (PRD-005).
- * Finance / bursar roles may post payments; teachers/viewers are denied.
+ * Fees RBAC helpers (W1-SEC-02 D1 / PRD-005).
+ * Finance / bursar roles manage tenant fee ledgers; teachers/viewers are denied.
+ * Parents/guardians may pay and read own-scope invoices only.
  */
 import { AppError } from '@proctira/common';
 
-export type FeesAction = 'payment.record' | 'invoice.void' | 'refund.record';
+export type FeesAction =
+  | 'fees.read'
+  | 'fees.read.self'
+  | 'fees.write'
+  | 'payment.record'
+  | 'invoice.void'
+  | 'refund.record'
+  | 'credit_note.issue'
+  | 'write_off.record'
+  | 'concession.apply'
+  | 'concession.approve'
+  | 'reconciliation.import'
+  | 'reminder.manage';
 
 const ADMIN_ROLES = [
   'admin',
@@ -23,15 +36,27 @@ const FINANCE_ROLES = [
   'accountant',
   'fees_clerk',
   'cashier',
-  'parent',
-  'guardian',
+  'registrar',
   ...ADMIN_ROLES,
 ] as const;
 
+const SELF_READ_ROLES = ['parent', 'guardian', 'student'] as const;
+
+const SELF_PAY_ROLES = ['parent', 'guardian'] as const;
+
 const ACTION_ROLES: Record<FeesAction, readonly string[]> = {
-  'payment.record': FINANCE_ROLES,
+  'fees.read': FINANCE_ROLES,
+  'fees.read.self': [...SELF_READ_ROLES, ...FINANCE_ROLES],
+  'fees.write': FINANCE_ROLES,
+  'payment.record': [...SELF_PAY_ROLES, ...FINANCE_ROLES],
   'invoice.void': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
   'refund.record': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
+  'credit_note.issue': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
+  'write_off.record': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
+  'concession.apply': ['finance_officer', 'bursar', 'accountant', 'principal', ...ADMIN_ROLES],
+  'concession.approve': ['finance_officer', 'bursar', 'principal', ...ADMIN_ROLES],
+  'reconciliation.import': ['finance_officer', 'bursar', 'accountant', ...ADMIN_ROLES],
+  'reminder.manage': FINANCE_ROLES,
 };
 
 export function normalizeFeesRoles(roles: unknown): string[] {

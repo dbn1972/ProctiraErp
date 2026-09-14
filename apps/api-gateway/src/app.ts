@@ -30,7 +30,6 @@ import {
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
-  InMemoryAreaHierarchyResolver,
   InviteService,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
@@ -41,6 +40,10 @@ import {
   registerMfaRoutes,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
+import {
+  asTenantScopedResolver,
+  createAreaHierarchyResolver,
+} from '@proctira/backend-institution';
 import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
@@ -62,7 +65,9 @@ import {
   operationForMethod,
   shouldAuditMutation,
 } from './mutation-audit.js';
+import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
+import paginationCapPlugin from './plugins/pagination-cap.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
 import { providersPlugin } from './plugins/providers-plugin.js';
@@ -215,7 +220,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     },
   });
 
+  // 4b. W3-D1: reject unbounded list pageSize before domain handlers run
+  await app.register(paginationCapPlugin);
+
   // 5. Register health check (before auth, so it's always accessible)
+  await app.register(apiContractPlugin);
   await app.register(healthPlugin, {
     services: config.services,
   });
@@ -481,13 +490,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     request.user = payload as typeof request.user;
   });
 
-  // 7c. Strip forgeable actor headers AFTER auth (G-102).
-  // Clients must not be able to spoof identity via x-user-id / x-actor*.
+  // 7c. Strip forgeable client identity headers AFTER auth (G-102, W1-SEC-01).
   // Actor identity comes only from the verified JWT (request.user / getActor).
-  const FORGEABLE_ACTOR_HEADERS = new Set(['x-user-id', 'x-actor', 'x-actor-id', 'x-userid']);
+  // Tenant scope comes only from JWT claims or host subdomain — never from
+  // client-supplied X-Tenant-ID (see tenantPlugin registration below).
+  const FORGEABLE_CLIENT_HEADERS = new Set([
+    'x-user-id',
+    'x-actor',
+    'x-actor-id',
+    'x-userid',
+    'x-tenant-id',
+  ]);
   app.addHook('onRequest', async (request) => {
     for (const key of Object.keys(request.headers)) {
-      if (FORGEABLE_ACTOR_HEADERS.has(key.toLowerCase())) {
+      if (FORGEABLE_CLIENT_HEADERS.has(key.toLowerCase())) {
         delete request.headers[key];
       }
     }
@@ -598,9 +614,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
   const rbacRegistry = createGatewayRbacRegistry();
-  const areaResolver = new InMemoryAreaHierarchyResolver([
-    { id: 'root', parentId: null, level: 0, path: '/root' },
-  ]);
+  const areaResolver = createAreaHierarchyResolver();
   await app.register(rbacPlugin, {
     registry: rbacRegistry,
     areaResolver,
@@ -736,6 +750,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       areas: user.areas,
       institutions: user.institutions,
     };
+
+    const scopedResolver = asTenantScopedResolver(areaResolver);
+    if (scopedResolver && authUser.tenantId) {
+      await scopedResolver.ensureTenantLoaded(authUser.tenantId);
+    }
 
     const result = await evaluatePermission(authUser, resource, action, rbacRegistry, areaResolver);
 

@@ -27,8 +27,18 @@ import type {
   ReportStore,
   ScheduleCadence,
 } from './report-store.js';
+import {
+  InMemoryScheduleDelivery,
+  type ScheduleDeliveryPort,
+} from './schedule-delivery.js';
 import { computeNextRunAt } from './scheduler.js';
 import { createReportDownloadToken } from './signed-download.js';
+
+export const REPORT_SCHEDULE_LEASE_MS = 15 * 60_000;
+export const REPORT_SCHEDULE_RETRY_MS = 5 * 60_000;
+
+/** W2-RPT-01: hard cap — refuse unbounded synchronous generation. */
+export const MAX_CATALOGUE_REPORT_ROWS = 25_000;
 
 export interface GenerateInput {
   reportKey?: string;
@@ -46,10 +56,20 @@ export interface GenerateResult {
 }
 
 export class CatalogueService {
+  private readonly delivery: ScheduleDeliveryPort;
+
   constructor(
     private readonly store: ReportStore,
     private readonly blobs: ReportBlobStore,
-  ) {}
+    delivery?: ScheduleDeliveryPort,
+  ) {
+    this.delivery = delivery ?? new InMemoryScheduleDelivery();
+  }
+
+  /** Test/helper access to the delivery port. */
+  getDeliveryPort(): ScheduleDeliveryPort {
+    return this.delivery;
+  }
 
   listCatalogue() {
     return REPORT_CATALOGUE.map((e) => ({ ...e, format: [...e.format] }));
@@ -101,6 +121,19 @@ export class CatalogueService {
 
     try {
       const table = await fetchCatalogueTable(tenantId, reportKey, input.filters ?? {});
+      // W2-RPT-01: synchronous generate has no streaming — enforce a hard row cap.
+      if (table.rows.length > MAX_CATALOGUE_REPORT_ROWS) {
+        throw new ValidationError(
+          `Report exceeds maximum of ${MAX_CATALOGUE_REPORT_ROWS} rows; narrow filters or export asynchronously`,
+          [
+            {
+              field: 'filters',
+              rule: 'max',
+              message: `Row count ${table.rows.length} exceeds cap ${MAX_CATALOGUE_REPORT_ROWS}`,
+            },
+          ],
+        );
+      }
       const bytes = await generateReportBytes(reportKey, format, table);
       const digest = sha256Hex(bytes);
       const objectKey = `${tenantId}/reports/${artifactId}.${format}`;
@@ -273,13 +306,15 @@ export class CatalogueService {
 
   async tickDueSchedules(
     now = new Date(),
-  ): Promise<{ due: number; completed: number; failed: number }> {
-    const due = await this.store.listDueSchedules(now);
+  ): Promise<{ due: number; completed: number; failed: number; delivered: number }> {
+    // W2-JOB-08: claim (lease) before work so concurrent replicas do not double-run.
+    const due = await this.store.claimDueSchedules(now, REPORT_SCHEDULE_LEASE_MS);
     let completed = 0;
     let failed = 0;
+    let delivered = 0;
     for (const schedule of due) {
       try {
-        await this.generate(
+        const result = await this.generate(
           schedule.tenantId,
           schedule.createdBy,
           {
@@ -288,6 +323,19 @@ export class CatalogueService {
           },
           { source: 'schedule', scheduleId: schedule.id },
         );
+        // W2-JOB-09: deliver download link to configured recipients.
+        if (schedule.recipients.length > 0) {
+          await this.delivery.deliver({
+            tenantId: schedule.tenantId,
+            scheduleId: schedule.id,
+            reportKey: schedule.reportKey,
+            recipients: schedule.recipients,
+            downloadUrl: result.downloadUrl,
+            artifactId: result.artifact.id,
+            runId: result.run.id,
+          });
+          delivered += 1;
+        }
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
           nextRunAt: computeNextRunAt(schedule.cadence, now, schedule.hour),
@@ -295,13 +343,14 @@ export class CatalogueService {
         completed += 1;
       } catch {
         failed += 1;
+        // Honest failure: retry after backoff — do not advance the cadence window.
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
-          nextRunAt: computeNextRunAt(schedule.cadence, now, schedule.hour),
+          nextRunAt: new Date(now.getTime() + REPORT_SCHEDULE_RETRY_MS),
         });
       }
     }
-    return { due: due.length, completed, failed };
+    return { due: due.length, completed, failed, delivered };
   }
 
   toInsightsRun(result: GenerateResult, requestedBy: string) {

@@ -133,6 +133,7 @@ export class PrismaStudentRepository implements StudentRepository {
 
   async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
+      const customData = buildCustomData(data) as Prisma.InputJsonValue;
       const row = (await tx.student.create({
         data: {
           id: data.id,
@@ -142,9 +143,29 @@ export class PrismaStudentRepository implements StudentRepository {
           dateOfBirth: new Date(data.dateOfBirth),
           gender: data.gender,
           nationalId: data.nationalId,
-          customData: buildCustomData(data) as Prisma.InputJsonValue,
+          customData,
         },
       })) as StudentRow;
+
+      const admissionNo =
+        typeof data.customData?.['admissionNo'] === 'string'
+          ? data.customData['admissionNo']
+          : typeof data.customData?.['admissionNumber'] === 'string'
+            ? data.customData['admissionNumber']
+            : null;
+      if (admissionNo) {
+        // Persist first-class column when 063 migration is applied.
+        try {
+          await tx.$executeRaw`
+            UPDATE students
+               SET admission_number = ${admissionNo}
+             WHERE id = ${data.id}::uuid AND tenant_id = ${data.tenantId}::uuid
+          `;
+        } catch {
+          // Column may be absent until 063 is applied; customData still holds the number.
+        }
+      }
+
       return toEntity(row);
     });
   }
@@ -259,6 +280,23 @@ export class PrismaStudentRepository implements StudentRepository {
         data: { deletedAt: new Date() },
       });
       return result.count > 0;
+    });
+  }
+
+  async allocateAdmissionNumber(tenantId: string): Promise<string> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      // Monotonic counter under the tenant RLS session (W2-SIS-01).
+      const rows = await tx.$queryRaw<Array<{ last_value: bigint | number }>>`
+        INSERT INTO student_admission_counters (tenant_id, last_value, updated_at)
+        VALUES (${tenantId}::uuid, 1, now())
+        ON CONFLICT (tenant_id) DO UPDATE
+          SET last_value = student_admission_counters.last_value + 1,
+              updated_at = now()
+        RETURNING last_value
+      `;
+      const seq = Number(rows[0]?.last_value ?? 1);
+      const year = new Date().getUTCFullYear();
+      return `ADM-${year}-${String(seq).padStart(4, '0')}`;
     });
   }
 }

@@ -7,6 +7,7 @@ import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/commo
 import Fastify from 'fastify';
 import { describe, expect, it } from 'vitest';
 
+import { InMemoryAdmissionsCrmStore } from '../admissions-crm-store.js';
 import { InMemoryRegistrationRepository } from '../in-memory-repository.js';
 import { AdmissionsPipelineService } from './pipeline-service.js';
 import { InMemoryAdmissionsPipelineStore } from './pipeline-store.js';
@@ -295,3 +296,68 @@ describe('admissions pipeline service', () => {
     expect(accepted.enrolledStudentId).toBeTruthy();
   });
 });
+
+  it('W2-ADM-02: declining an offer promotes the head of the waitlist into a draft offer', async () => {
+    const store = new InMemoryAdmissionsPipelineStore();
+    const apps = new InMemoryRegistrationRepository();
+    const crm = new InMemoryAdmissionsCrmStore();
+    const service = new AdmissionsPipelineService(
+      store,
+      apps,
+      async () => ({ studentId: randomUUID(), enrollmentId: randomUUID() }),
+      undefined,
+      undefined,
+      crm,
+    );
+
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      quota: 'general',
+      seats: 2,
+    });
+
+    const offered = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Offered',
+      lastName: 'Student',
+      dateOfBirth: '2012-01-01',
+      guardianName: 'Parent A',
+      guardianPhone: '+911',
+    });
+    const waitlisted = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Wait',
+      lastName: 'Listed',
+      dateOfBirth: '2012-02-02',
+      guardianName: 'Parent B',
+      guardianPhone: '+922',
+    });
+    const convertedOffer = await service.convertEnquiry(TENANT, offered.id);
+    const convertedWait = await service.convertEnquiry(TENANT, waitlisted.id);
+
+    await crm.enqueueWaitlist({
+      tenantId: TENANT,
+      applicationId: convertedWait.application.id,
+      institutionId: INSTITUTION,
+    });
+
+    const offer = await service.createOffer(TENANT, {
+      applicationId: convertedOffer.application.id,
+    });
+    await service.sendOffer(TENANT, offer.id);
+
+    const declined = await service.declineOffer(TENANT, offer.id);
+    expect(declined.status).toBe('declined');
+    expect(declined.promotedOffer).toBeTruthy();
+    expect(declined.promotedOffer?.applicationId).toBe(convertedWait.application.id);
+    expect(declined.promotedOffer?.status).toBe('draft');
+
+    const remaining = await crm.listWaitlist(TENANT, INSTITUTION);
+    expect(remaining).toHaveLength(0);
+  });

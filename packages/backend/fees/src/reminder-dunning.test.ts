@@ -110,4 +110,18 @@ describe('FeesService dunning / reminders (F2)', () => {
       service.sendReminders(TENANT_A, 'staff-1', { invoiceIds: ['x'], channels: [] }, asOf),
     ).rejects.toBeInstanceOf(BusinessRuleError);
   });
+
+  it('W2-FIN-06: suppressions survive a new FeesService on the same repository', async () => {
+    const tenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+    await service.addReminderSuppression(tenantId, 'staff-1', {
+      studentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      reason: 'payment plan',
+    });
+
+    const restarted = new FeesService(repository);
+    const listed = await restarted.listReminderSuppressions(tenantId);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]!.reason).toBe('payment plan');
+  });
+
 });

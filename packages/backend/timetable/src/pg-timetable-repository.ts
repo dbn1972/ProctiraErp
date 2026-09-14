@@ -3,7 +3,7 @@
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql:
  *   bell_schedules, bell_periods, section_meetings, substitutions, rooms, sections
  */
-import { withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import { TimetableSchemaMissingError, TimetableVersionConflictError } from './timetable-errors.js';
@@ -26,28 +26,14 @@ import type {
   UpdateConcurrencyOpts,
 } from './timetable-repository.js';
 
-const { Pool } = pg;
-
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let sharedPool: pg.Pool | null = null;
-
-function resolveDatabaseUrl(): string | null {
-  const url = process.env.DATABASE_URL?.trim();
-  return url && url.length > 0 ? url : null;
-}
-
 export function isPgTimetableEnabled(): boolean {
-  return resolveDatabaseUrl() !== null;
+  return Boolean(process.env.DATABASE_URL?.trim());
 }
 
 export function getSharedTimetablePool(): pg.Pool | null {
-  const url = resolveDatabaseUrl();
-  if (!url) return null;
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: url });
-  }
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 /** Schema is applied via psql (003). Do not re-run psql meta from node-pg. */

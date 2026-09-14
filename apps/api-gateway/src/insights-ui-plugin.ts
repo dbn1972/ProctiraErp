@@ -36,8 +36,6 @@ export { clearBoardSummariesForTests, emptyBoardSummary, seedBoardSummaryForTest
 function resolveTenantId(request: FastifyRequest): string {
   const fromRequest = (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (fromRequest) return fromRequest;
-  const header = request.headers['x-tenant-id'];
-  if (typeof header === 'string' && header.length > 0) return header;
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
   return user?.tenantId ?? 'default';
 }

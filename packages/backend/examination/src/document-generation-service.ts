@@ -11,6 +11,7 @@
  */
 import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { FieldError } from '@proctira/common';
+import { buildExamDocumentOutboxEntry, type OutboxStore } from '@proctira/queue-abstraction';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -92,6 +93,11 @@ export class DocumentGenerationService {
     private readonly pdfGenerator: PdfGenerator,
     private readonly taskQueue: DocumentTaskQueue = new NoOpDocumentTaskQueue(),
     private readonly blobStore: DocumentBlobStore = new InMemoryDocumentBlobStore(),
+    /**
+     * W2-JOB-04: when set, job + outbox row are written atomically and the
+     * relay publishes — no dual-write createJob→publishDocumentTask.
+     */
+    private readonly outboxStore?: OutboxStore,
   ) {}
 
   /**
@@ -215,10 +221,23 @@ export class DocumentGenerationService {
       createdAt: new Date(),
     };
 
-    const savedJob = await this.documentRepository.createJob(job);
+    const savedJob = this.outboxStore
+      ? await this.documentRepository.createJobWithOutbox(
+          job,
+          buildExamDocumentOutboxEntry({
+            tenantId: job.tenantId,
+            jobId: job.id,
+            examinationId: job.examinationId,
+            documentType: job.documentType,
+          }),
+          this.outboxStore,
+        )
+      : await this.documentRepository.createJob(job);
 
-    // Queue for background processing via RabbitMQ
-    await this.taskQueue.publishDocumentTask(savedJob);
+    // Legacy dual-write path (tests / NoOp). Prefer outboxStore in production.
+    if (!this.outboxStore) {
+      await this.taskQueue.publishDocumentTask(savedJob);
+    }
 
     return savedJob;
   }

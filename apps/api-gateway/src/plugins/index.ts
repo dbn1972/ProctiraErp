@@ -18,3 +18,5 @@ export type { IdempotencyOptions, RedisClient } from './idempotency.js';
 
 export { default as rateLimitPlugin } from './rate-limit.js';
 export type { RateLimitPluginOptions } from './rate-limit.js';
+
+export { default as paginationCapPlugin } from './pagination-cap.js';

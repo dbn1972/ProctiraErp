@@ -95,40 +95,11 @@ export class TenantScopedQueryLayer<T extends { id: string; tenantId: string }> 
 }
 
 // ---------------------------------------------------------------------------
-// Tenant-scoped search index
+// Tenant-scoped search index (W3-D2 foundation — @proctira/search-index)
 // ---------------------------------------------------------------------------
 
-export interface SearchDocument {
-  id: string;
-  tenantId: string;
-  content: string;
-}
-
-export class TenantScopedSearchIndex {
-  private readonly docs = new Map<string, SearchDocument[]>();
-
-  index(doc: SearchDocument): void {
-    const bucket = this.docs.get(doc.tenantId) ?? [];
-    bucket.push(doc);
-    this.docs.set(doc.tenantId, bucket);
-  }
-
-  /** Returns docs that contain the query term, scoped to the calling tenant. */
-  search(tenantId: string, query: string): SearchDocument[] {
-    const bucket = this.docs.get(tenantId) ?? [];
-    const needle = query.toLowerCase();
-    return bucket.filter((doc) => doc.content.toLowerCase().includes(needle));
-  }
-
-  /** All docs across all tenants — verification helper only. */
-  allDocs(): SearchDocument[] {
-    return Array.from(this.docs.values()).flat();
-  }
-
-  clear(): void {
-    this.docs.clear();
-  }
-}
+export type { LegacySearchDocument as SearchDocument } from '@proctira/search-index';
+export { TenantScopedSearchIndex } from '@proctira/search-index';
 
 // ---------------------------------------------------------------------------
 // Tenant-namespaced cache (Redis-style)

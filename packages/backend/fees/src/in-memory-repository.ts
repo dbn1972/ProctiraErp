@@ -1,6 +1,8 @@
 /**
  * In-memory fees repository (unit tests / gateway without DATABASE_URL).
  */
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
+
 import {
   assertJournalBalanced,
   type FeeConcessionEntity,
@@ -11,16 +13,23 @@ import {
   type FeeReceiptEntity,
   type FeeReconciliationBatchEntity,
   type FeeReconciliationRowEntity,
+  type FeeCreditNoteEntity,
   type FeeRefundEntity,
+  type FeeWriteOffEntity,
   type FeeStructureComponentEntity,
   type FeeStructureEntity,
   type FeeStructureInstalmentEntity,
   type FeesRepository,
+  type InvoicePaymentBalance,
   type LedgerAccount,
   type LedgerTrialBalance,
+  type RecordPaymentOnInvoiceSettlement,
 } from './fees-repository.js';
+import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
 export class InMemoryFeesRepository implements FeesRepository {
+  private readonly reminderSuppressions: ReminderSuppressionEntity[] = [];
+  private readonly reminderSendAudits: ReminderSendAuditEntity[] = [];
   private plans: FeePlanEntity[] = [];
   private invoices: FeeInvoiceEntity[] = [];
   private payments: FeePaymentEntity[] = [];
@@ -31,9 +40,28 @@ export class InMemoryFeesRepository implements FeesRepository {
   private instalments: FeeStructureInstalmentEntity[] = [];
   private concessions: FeeConcessionEntity[] = [];
   private refunds: FeeRefundEntity[] = [];
+  private creditNotes: FeeCreditNoteEntity[] = [];
+  private writeOffs: FeeWriteOffEntity[] = [];
   private reconBatches: FeeReconciliationBatchEntity[] = [];
   private reconRows: FeeReconciliationRowEntity[] = [];
   private classRoster = new Map<string, string[]>();
+  private readonly invoicePaymentChains = new Map<string, Promise<unknown>>();
+
+  private runSerializedOnInvoice<T>(
+    tenantId: string,
+    invoiceId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const key = `${tenantId}:${invoiceId}`;
+    const prev = this.invoicePaymentChains.get(key) ?? Promise.resolve();
+    const result = prev.catch(() => undefined).then(fn);
+    this.invoicePaymentChains.set(key, result);
+    return result.finally(() => {
+      if (this.invoicePaymentChains.get(key) === result) {
+        this.invoicePaymentChains.delete(key);
+      }
+    }) as Promise<T>;
+  }
 
   /** Test helper — students billed when bulk-invoicing a class/grade. */
   seedClassRoster(
@@ -69,6 +97,7 @@ export class InMemoryFeesRepository implements FeesRepository {
       accounts_receivable: 0,
       cash: 0,
       fee_revenue: 0,
+      bad_debt_expense: 0,
     };
     let debitCents = 0;
     let creditCents = 0;
@@ -283,16 +312,62 @@ export class InMemoryFeesRepository implements FeesRepository {
     return this.concessions.filter((row) => row.tenantId === tenantId);
   }
 
+  async findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null> {
+    return this.concessions.find((row) => row.id === id && row.tenantId === tenantId) ?? null;
+  }
+
+  async findConcessionBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity | null> {
+    return (
+      this.concessions.find(
+        (row) =>
+          row.tenantId === tenantId && row.sourceDisbursementId === sourceDisbursementId,
+      ) ?? null
+    );
+  }
+
+
   async updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null> {
     const index = this.concessions.findIndex((row) => row.id === id && row.tenantId === tenantId);
     if (index === -1) return null;
     const updated = { ...this.concessions[index]!, ...data };
     this.concessions[index] = updated;
     return updated;
+  }
+
+
+  async createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity> {
+    const entity: FeeCreditNoteEntity = { ...data, createdAt: new Date() };
+    this.creditNotes.push(entity);
+    return entity;
+  }
+
+  async listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]> {
+    return this.creditNotes.filter((row) => row.tenantId === tenantId && row.invoiceId === invoiceId);
+  }
+
+  async listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]> {
+    return this.creditNotes.filter((row) => row.tenantId === tenantId);
+  }
+
+  async createWriteOff(data: Omit<FeeWriteOffEntity, 'createdAt'>): Promise<FeeWriteOffEntity> {
+    const entity: FeeWriteOffEntity = { ...data, createdAt: new Date() };
+    this.writeOffs.push(entity);
+    return entity;
+  }
+
+  async listWriteOffsForInvoice(tenantId: string, invoiceId: string): Promise<FeeWriteOffEntity[]> {
+    return this.writeOffs.filter((row) => row.tenantId === tenantId && row.invoiceId === invoiceId);
+  }
+
+  async listWriteOffsForTenant(tenantId: string): Promise<FeeWriteOffEntity[]> {
+    return this.writeOffs.filter((row) => row.tenantId === tenantId);
   }
 
   async createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity> {
@@ -365,6 +440,62 @@ export class InMemoryFeesRepository implements FeesRepository {
     return { ...next };
   }
 
+  async recordPaymentOnInvoice(
+    tenantId: string,
+    invoiceId: string,
+    build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+  ): Promise<{
+    invoice: FeeInvoiceEntity;
+    payment: FeePaymentEntity;
+    receipt: FeeReceiptEntity;
+  }> {
+    return this.runSerializedOnInvoice(tenantId, invoiceId, async () => {
+      const invoice = this.invoices.find((row) => row.id === invoiceId && row.tenantId === tenantId);
+      if (!invoice) {
+        throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+      }
+      if (invoice.status !== 'open') {
+        throw new BusinessRuleError('Invoice is not open for payment');
+      }
+
+      const paidCents = this.payments
+        .filter(
+          (payment) =>
+            payment.tenantId === tenantId &&
+            payment.invoiceId === invoiceId &&
+            payment.status === 'succeeded',
+        )
+        .reduce((sum, payment) => sum + payment.amountCents, 0);
+      const remainingCents = invoice.amountCents - paidCents;
+      if (remainingCents <= 0) {
+        throw new BusinessRuleError('Invoice has no remaining balance');
+      }
+
+      const settlement = await build({ invoice, paidCents, remainingCents });
+      if (
+        !Number.isInteger(settlement.paymentAmountCents) ||
+        settlement.paymentAmountCents <= 0
+      ) {
+        throw new BusinessRuleError('Payment amountCents must be a positive integer');
+      }
+      if (settlement.paymentAmountCents > remainingCents) {
+        throw new BusinessRuleError(
+          `Payment amountCents ${settlement.paymentAmountCents} exceeds remaining balance ${remainingCents}`,
+        );
+      }
+      assertJournalBalanced(settlement.ledgerEntries);
+
+      const payment = await this.createPayment(settlement.payment);
+      const receipt = await this.createReceipt(settlement.receipt);
+      await this.postLedgerEntries(settlement.ledgerEntries);
+      const updatedInvoice = await this.updateInvoice(invoiceId, tenantId, {
+        status: settlement.invoiceStatus,
+      });
+
+      return { invoice: updatedInvoice!, payment, receipt };
+    });
+  }
+
   async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {
     const entity: FeePaymentEntity = { ...data, createdAt: new Date() };
     this.payments.push(entity);
@@ -378,6 +509,18 @@ export class InMemoryFeesRepository implements FeesRepository {
   async findPaymentById(id: string, tenantId: string): Promise<FeePaymentEntity | null> {
     return (
       this.payments.find((payment) => payment.id === id && payment.tenantId === tenantId) ?? null
+    );
+  }
+
+  async findPaymentByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<FeePaymentEntity | null> {
+    return (
+      this.payments.find(
+        (payment) =>
+          payment.tenantId === tenantId && payment.idempotencyKey === idempotencyKey,
+      ) ?? null
     );
   }
 
@@ -395,5 +538,41 @@ export class InMemoryFeesRepository implements FeesRepository {
     return (
       this.receipts.find((receipt) => receipt.id === id && receipt.tenantId === tenantId) ?? null
     );
+  }
+
+  async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
+    return this.reminderSuppressions
+      .filter((row) => row.tenantId === tenantId)
+      .map((row) => ({ ...row }));
+  }
+
+  async createReminderSuppression(
+    data: ReminderSuppressionEntity,
+  ): Promise<ReminderSuppressionEntity> {
+    this.reminderSuppressions.push(data);
+    return { ...data };
+  }
+
+  async deleteReminderSuppression(tenantId: string, suppressionId: string): Promise<boolean> {
+    const index = this.reminderSuppressions.findIndex(
+      (row) => row.tenantId === tenantId && row.id === suppressionId,
+    );
+    if (index < 0) return false;
+    this.reminderSuppressions.splice(index, 1);
+    return true;
+  }
+
+  async listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]> {
+    return this.reminderSendAudits
+      .filter((row) => row.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((row) => ({ ...row }));
+  }
+
+  async createReminderSendAudit(
+    data: ReminderSendAuditEntity,
+  ): Promise<ReminderSendAuditEntity> {
+    this.reminderSendAudits.push(data);
+    return { ...data };
   }
 }

@@ -177,7 +177,17 @@ jobs:
   unit-test:
     name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [lint, typecheck]
+    needs: [detect-changes, lint, typecheck]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.lint.result != 'failure' &&
+      needs.lint.result != 'cancelled' &&
+      needs.typecheck.result != 'failure' &&
+      needs.typecheck.result != 'cancelled'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -199,10 +209,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run unit tests (affected packages)
-        run: pnpm turbo run test --filter='...[HEAD~1]'
+      # W3-TEST-03: unit job must not silently "pass" skipped *.live.test.ts
+      # suites. Exclude them here; integration-test runs them with DATABASE_URL
+      # and assert-live-test-execution.mjs enforces a minimum executed count.
+      - name: Run unit tests (affected packages, exclude live Postgres suites)
+        run: pnpm turbo run test --filter='...[HEAD~1]' -- --exclude '**/*.live.test.ts' --coverage
         env:
           CI: true
+          ALLOW_LIVE_TEST_SKIP: '1'
+
+      # W3-TEST-04: fail closed when unit job did not emit coverage artifacts
+      # or aggregate percentages fall below baseline floors.
+      - name: Assert unit-test coverage gate (W3-TEST-04)
+        run: pnpm test:coverage:assert
+        env:
+          CI: true
+          REQUIRE_COVERAGE_GATE: '1'
 
       - name: Upload test coverage
         if: always()
@@ -218,7 +240,14 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.unit-test.result == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -531,6 +560,30 @@ jobs:
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
+          REQUIRE_LIVE_TESTS: '1'
+
+      # W3-TEST-04: dedicated pg-gate runner asserts pg-* suites did not skip
+      # when DATABASE_URL is present (complements W3-TEST-03 live gate).
+      - name: Assert backend pg repository suites executed (W3-TEST-04)
+        run: pnpm test:pg:gate
+        env:
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          CI: true
+          FORBID_TEST_SKIPS: '1'
+          PG_TEST_MIN_EXECUTED: '25'
+          PG_TEST_MAX_ALLOWED_SKIPS: '1'
+          NODE_ENV: test
+
+      # W3-TEST-03: collect *.live.test.ts JSON and fail if any skipped or
+      # executed count is below LIVE_TEST_MIN_EXECUTED.
+      - name: Assert live Postgres suites executed (W3-TEST-03)
+        run: pnpm test:live:gate
+        env:
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          CI: true
+          REQUIRE_LIVE_TESTS: '1'
+          LIVE_TEST_MIN_EXECUTED: '10'
+          NODE_ENV: test
 
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
@@ -560,7 +613,14 @@ jobs:
   dod-checks:
     name: Definition of Done (Charter §32)
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.unit-test.result == 'success'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -591,12 +651,19 @@ jobs:
       - name: Page-wise regression matrix is complete and current (G-804)
         run: node tools/scripts/page-regression-matrix.mjs --check
 
+      # W3-D6: fail closed when the aggregator did not emit a complete report
+      # or when the committed baseline pack is missing/incoherent.
+      - name: Assert DoD evidence artifacts (W3-D6)
+        if: always()
+        run: pnpm run check:dod:evidence
+
       - name: Upload DoD JSON report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dod-report
           path: tools/dod-checks/reports/dod-report.json
+          if-no-files-found: error
           retention-days: 30
 
   # ---------------------------------------------------------------------------
@@ -612,7 +679,35 @@ jobs:
   tenant-isolation:
     name: Tenant Isolation Verification (Release Gate)
     runs-on: ubuntu-latest
-    needs: [unit-test]
+    needs: [detect-changes, unit-test]
+    if: |
+      always() &&
+      needs.detect-changes.result == 'success' &&
+      (needs.detect-changes.outputs.packages-changed == 'true' ||
+       needs.detect-changes.outputs.apps-changed == 'true' ||
+       needs.detect-changes.outputs.has-shared-changes == 'true') &&
+      needs.unit-test.result == 'success'
+    # W1-OPS-06: live RLS tests (src/integration/rls-live.test.ts) require a
+    # migrated Postgres with the non-superuser app role — same posture as
+    # integration-test. Without this service the suite skipped vacuously.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          # The bootstrap role is a superuser and therefore bypasses RLS. The
+          # suites connect as `proctira`, a NOSUPERUSER / NOBYPASSRLS owner
+          # provisioned below, so tenant-isolation assertions are real (the
+          # production posture; FORCE RLS applies to owners).
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -634,14 +729,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Provision non-superuser app role + database (production RLS posture)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          export PGPASSWORD=postgres
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c 'CREATE DATABASE proctira_test OWNER proctira;'
+          psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: test role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
+
+      - name: Run database migrations
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+
+      - name: Apply domain SQL schemas
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          APPLY_SEEDS: '1'
+
       - name: Run unit isolation tests
         run: pnpm test:tenant-isolation:unit
         env:
           CI: true
 
-      - name: Run integration isolation tests
+      - name: Run integration isolation tests (incl. live Postgres RLS)
         run: pnpm test:tenant-isolation:integration
         env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           CI: true
 
       - name: Run queue/event isolation tests
@@ -678,3 +800,70 @@ jobs:
             tools/tenant-isolation-tests/test-results/
             tools/tenant-isolation-tests/playwright-report/
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Restore Drill Evidence — ops gate (W3-OPS-C6)
+  # ---------------------------------------------------------------------------
+  # Tip-committed backup/restore drill evidence must be present and coherent
+  # on every PR. Does not re-run Postgres (see restore-drill.yml); fails closed
+  # when the pack is missing, stale, or lacks a successful CI cross-ref.
+  # ---------------------------------------------------------------------------
+  restore-drill-evidence:
+    name: Restore Drill Evidence (W3-OPS-C6)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify restore-drill evidence pack (fail closed)
+        run: bash tools/scripts/check-restore-drill-evidence.sh
+
+  # ---------------------------------------------------------------------------
+  # CI Aggregate — required merge gate (W1-OPS-05 B2)
+  # ---------------------------------------------------------------------------
+  # Always runs (even when upstream jobs skip) and fails closed when any
+  # required job failed/cancelled or was skipped without a proven path-filter
+  # justification. Branch protection should require this job name instead of
+  # individual matrix jobs that can cascade-skip to green.
+  # ---------------------------------------------------------------------------
+  ci-aggregate:
+    name: CI Aggregate (Required)
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - lint
+      - typecheck
+      - unit-test
+      - build
+      - bundle-budget
+      - lighthouse
+      - integration-test
+      - dod-checks
+      - tenant-isolation
+      - restore-drill-evidence
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify CI results (fail closed on failures and unproven skips)
+        env:
+          PACKAGES_CHANGED: ${{ needs.detect-changes.outputs.packages-changed }}
+          APPS_CHANGED: ${{ needs.detect-changes.outputs.apps-changed }}
+          SHARED_CHANGED: ${{ needs.detect-changes.outputs.has-shared-changes }}
+          FRONTEND_CHANGED: ${{ needs.detect-changes.outputs.has-frontend-changes }}
+          BACKEND_CHANGED: ${{ needs.detect-changes.outputs.has-backend-changes }}
+          DETECT_CHANGES_RESULT: ${{ needs.detect-changes.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          UNIT_TEST_RESULT: ${{ needs.unit-test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          BUNDLE_BUDGET_RESULT: ${{ needs.bundle-budget.result }}
+          LIGHTHOUSE_RESULT: ${{ needs.lighthouse.result }}
+          INTEGRATION_TEST_RESULT: ${{ needs.integration-test.result }}
+          DOD_CHECKS_RESULT: ${{ needs.dod-checks.result }}
+          TENANT_ISOLATION_RESULT: ${{ needs.tenant-isolation.result }}
+          RESTORE_DRILL_EVIDENCE_RESULT: ${{ needs.restore-drill-evidence.result }}
+        run: node tools/scripts/ci-aggregate-gate.mjs

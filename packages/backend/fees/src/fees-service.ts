@@ -6,6 +6,7 @@ import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
+  FeeConcessionEntity,
   FeeInvoiceEntity,
   FeeLedgerEntryEntity,
   FeePaymentEntity,
@@ -21,7 +22,7 @@ import {
   assertRefundWithinPaid,
   concessionDiscountCents,
 } from './instalment-schedule.js';
-import { SandboxPaymentAdapter, type PaymentAdapter } from './payment-adapter.js';
+import { createPaymentAdapterFromEnv, type PaymentAdapter } from './payment-adapter.js';
 import {
   FEES_REMINDER_SANDBOX_HONESTY_NOTE,
   type ReminderChannel,
@@ -72,6 +73,8 @@ export interface RecordPaymentInput {
   payerUserId?: string;
   method?: PaymentMethod;
   amountCents?: number;
+  /** W2-FIN-02: replay-safe client/PSP event key (unique per tenant). */
+  idempotencyKey?: string;
 }
 
 export interface CreateFeeStructureInput {
@@ -110,12 +113,31 @@ export interface ApplyConcessionInput {
   percent?: number;
   amountCents?: number;
   reason: string;
+  /** W2-FIN-09: when set, uniquely identifies scholarship netting source. */
+  sourceDisbursementId?: string;
   approverId?: string;
+  /**
+   * W2-FIN-04: when true (scholarship netting / system paths), approve immediately.
+   * Staff UI defaults to pending and requires a different approver.
+   */
+  autoApprove?: boolean;
 }
 
 export interface RecordRefundInput {
   invoiceId: string;
   paymentId?: string;
+  amountCents: number;
+  reason: string;
+}
+
+export interface IssueCreditNoteInput {
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+}
+
+export interface WriteOffInvoiceInput {
+  invoiceId: string;
   amountCents: number;
   reason: string;
 }
@@ -158,16 +180,12 @@ export function parseReconciliationCsv(csv: string): ReconciliationCsvRow[] {
 
 export class FeesService {
   private readonly paymentAdapter: PaymentAdapter;
-  /** F2 — process-local suppressions (sandbox console; not durable SQL). */
-  private readonly reminderSuppressions: ReminderSuppressionEntity[] = [];
-  /** F2 — process-local send audit trail (sandbox honesty). */
-  private readonly reminderSendAudits: ReminderSendAuditEntity[] = [];
 
   constructor(
     private readonly repository: FeesRepository,
     paymentAdapter?: PaymentAdapter,
   ) {
-    this.paymentAdapter = paymentAdapter ?? new SandboxPaymentAdapter();
+    this.paymentAdapter = paymentAdapter ?? createPaymentAdapterFromEnv();
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
@@ -257,16 +275,24 @@ export class FeesService {
 
     // G-718: DR accounts_receivable / CR fee_revenue
     if (amountCents > 0) {
-      await this.postJournal(invoice, actorId, 'invoice issued', [
-        ['accounts_receivable', 'debit'],
-        ['fee_revenue', 'credit'],
-      ]);
+      await this.postJournal(
+        invoice,
+        actorId,
+        'invoice issued',
+        [
+          ['accounts_receivable', 'debit'],
+          ['fee_revenue', 'credit'],
+        ],
+        amountCents,
+      );
     }
     return invoice;
   }
 
   /**
    * Post one balanced journal for an invoice-scoped financial event (G-718).
+   * W2-FIN-03: amountCents is explicit (may differ from invoice face — refunds,
+   * concessions, future partial posts) so callers never forge a mutated invoice.
    * Both legs carry the same amount so the journal is balanced by construction;
    * the repository still rejects unbalanced journals defensively.
    */
@@ -275,8 +301,12 @@ export class FeesService {
     actorId: string | null,
     memo: string,
     legs: ReadonlyArray<readonly [LedgerAccount, 'debit' | 'credit']>,
+    amountCents: number,
     refs: { paymentId?: string; receiptId?: string } = {},
   ): Promise<FeeLedgerEntryEntity[]> {
+    if (!Number.isInteger(amountCents) || amountCents < 0) {
+      throw new BusinessRuleError('Journal amountCents must be a non-negative integer');
+    }
     const journalId = uuidv4();
     const postedAt = new Date();
     return this.repository.postLedgerEntries(
@@ -289,7 +319,7 @@ export class FeesService {
         receiptId: refs.receiptId ?? null,
         account,
         side,
-        amountCents: invoice.amountCents,
+        amountCents: amountCents,
         currency: invoice.currency,
         memo,
         postedBy: actorId,
@@ -332,10 +362,16 @@ export class FeesService {
     const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
     // G-718: reverse the issuance — DR fee_revenue / CR accounts_receivable
     if (invoice.amountCents > 0) {
-      await this.postJournal(invoice, null, 'invoice voided', [
-        ['fee_revenue', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ]);
+      await this.postJournal(
+        invoice,
+        null,
+        'invoice voided',
+        [
+          ['fee_revenue', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        invoice.amountCents,
+      );
     }
     return updated!;
   }
@@ -357,8 +393,10 @@ export class FeesService {
   }
 
   /**
-   * Charge via payment adapter, persist payment + receipt, mark invoice paid.
-   * Enforces: receipt.amountCents === payment.amountCents === invoice.amountCents.
+   * Charge via payment adapter, persist payment + receipt, update invoice status.
+   * W2-FIN-01: partial payments allowed — receipt.amountCents === payment.amountCents
+   * and payment must be within the remaining balance. Invoice stays open until
+   * succeeded payments cover the face amount.
    */
   async recordPayment(
     tenantId: string,
@@ -368,94 +406,129 @@ export class FeesService {
     invoice: FeeInvoiceEntity;
     payment: FeePaymentEntity;
     receipt: FeeReceiptEntity;
+    idempotent: boolean;
   }> {
-    const invoice = await this.getInvoice(tenantId, input.invoiceId);
+    const idempotencyKey =
+      input.idempotencyKey != null && input.idempotencyKey.trim().length > 0
+        ? input.idempotencyKey.trim()
+        : null;
 
-    if (invoice.status !== 'open') {
-      throw new BusinessRuleError('Invoice is not open for payment');
-    }
-
-    if (input.amountCents != null) {
-      if (!Number.isInteger(input.amountCents) || input.amountCents < 0) {
-        throw new BusinessRuleError('Payment amountCents must be a non-negative integer');
-      }
-      if (input.amountCents !== invoice.amountCents) {
-        throw new BusinessRuleError('Payment amountCents must equal invoice.amountCents');
-      }
-    }
-
-    const charge = await this.paymentAdapter.charge({
-      tenantId,
-      invoiceId: invoice.id,
-      payerUserId: input.payerUserId ?? actorId,
-      amountCents: invoice.amountCents,
-      currency: invoice.currency,
-      method: input.method ?? 'sandbox',
-    });
-
-    if (charge.status !== 'succeeded') {
-      throw new BusinessRuleError(`Payment charge failed with status '${charge.status}'`);
-    }
-
-    if (charge.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError('Charge amountCents must equal invoice.amountCents');
-    }
-
-    const paidAt = new Date();
-    const payment = await this.repository.createPayment({
-      id: uuidv4(),
-      invoiceId: invoice.id,
-      tenantId,
-      payerUserId: input.payerUserId ?? actorId,
-      amountCents: invoice.amountCents,
-      method: charge.method,
-      status: 'succeeded',
-      paidAt,
-    });
-
-    if (payment.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError('payment.amountCents must equal invoice.amountCents');
-    }
-
-    const receipt = await this.repository.createReceipt({
-      id: uuidv4(),
-      tenantId,
-      paymentId: payment.id,
-      invoiceId: invoice.id,
-      receiptNumber: receiptNumberFor(payment.id),
-      amountCents: invoice.amountCents,
-      currency: invoice.currency,
-      issuedAt: paidAt,
-    });
-
-    if (
-      receipt.amountCents !== payment.amountCents ||
-      payment.amountCents !== invoice.amountCents ||
-      receipt.amountCents !== invoice.amountCents
-    ) {
-      throw new BusinessRuleError(
-        'receipt.amountCents === payment.amountCents === invoice.amountCents invariant violated',
+    if (idempotencyKey) {
+      const existing = await this.repository.findPaymentByIdempotencyKey(
+        tenantId,
+        idempotencyKey,
       );
+      if (existing) {
+        if (existing.invoiceId !== input.invoiceId) {
+          throw new BusinessRuleError(
+            'Idempotency key already used for a different invoice',
+          );
+        }
+        if (input.amountCents != null && input.amountCents !== existing.amountCents) {
+          throw new BusinessRuleError(
+            'Idempotency key already used for a different payment amount',
+          );
+        }
+        const invoice = await this.getInvoice(tenantId, existing.invoiceId);
+        const receipt =
+          (await this.repository.listReceiptsForTenant(tenantId)).find(
+            (r) => r.paymentId === existing.id,
+          ) ?? null;
+        if (!receipt) {
+          throw new BusinessRuleError(
+            'Idempotent payment is missing its receipt — refuse silent repair',
+          );
+        }
+        return { invoice, payment: existing, receipt, idempotent: true };
+      }
     }
 
-    // G-718: DR cash / CR accounts_receivable — the receivable opened at
-    // issuance is cleared by exactly the invoice amount.
-    await this.postJournal(
-      invoice,
-      actorId,
-      'payment received',
-      [
-        ['cash', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ],
-      { paymentId: payment.id, receiptId: receipt.id },
+    const { invoice, payment, receipt } = await this.repository.recordPaymentOnInvoice(
+      tenantId,
+      input.invoiceId,
+      async ({ invoice, paidCents, remainingCents }) => {
+        const paymentAmountCents = input.amountCents ?? remainingCents;
+        if (!Number.isInteger(paymentAmountCents) || paymentAmountCents <= 0) {
+          throw new BusinessRuleError('Payment amountCents must be a positive integer');
+        }
+        if (paymentAmountCents > remainingCents) {
+          throw new BusinessRuleError(
+            `Payment amountCents ${paymentAmountCents} exceeds remaining balance ${remainingCents}`,
+          );
+        }
+
+        const charge = await this.paymentAdapter.charge({
+          tenantId,
+          invoiceId: invoice.id,
+          payerUserId: input.payerUserId ?? actorId,
+          amountCents: paymentAmountCents,
+          currency: invoice.currency,
+          method: input.method ?? 'sandbox',
+        });
+
+        if (charge.status !== 'succeeded') {
+          throw new BusinessRuleError(`Payment charge failed with status '${charge.status}'`);
+        }
+
+        if (charge.amountCents !== paymentAmountCents) {
+          throw new BusinessRuleError('Charge amountCents must equal payment amountCents');
+        }
+
+        const paidAt = new Date();
+        const paymentId = uuidv4();
+        const receiptId = uuidv4();
+        const journalId = uuidv4();
+        const postedAt = paidAt;
+
+        return {
+          paymentAmountCents,
+          payment: {
+            id: paymentId,
+            invoiceId: invoice.id,
+            tenantId,
+            payerUserId: input.payerUserId ?? actorId,
+            amountCents: paymentAmountCents,
+            method: charge.method,
+            status: 'succeeded' as const,
+            paidAt,
+            idempotencyKey,
+          },
+          receipt: {
+            id: receiptId,
+            tenantId,
+            paymentId,
+            invoiceId: invoice.id,
+            receiptNumber: receiptNumberFor(paymentId),
+            amountCents: paymentAmountCents,
+            currency: invoice.currency,
+            issuedAt: paidAt,
+          },
+          ledgerEntries: [
+            ['cash', 'debit'],
+            ['accounts_receivable', 'credit'],
+          ].map(([account, side]) => ({
+            id: uuidv4(),
+            tenantId: invoice.tenantId,
+            journalId,
+            invoiceId: invoice.id,
+            paymentId,
+            receiptId,
+            account: account as LedgerAccount,
+            side: side as 'debit' | 'credit',
+            amountCents: paymentAmountCents,
+            currency: invoice.currency,
+            memo: 'payment received',
+            postedBy: actorId,
+            postedAt,
+          })),
+          invoiceStatus: (paidCents + paymentAmountCents >= invoice.amountCents
+            ? 'paid'
+            : 'open') as FeeInvoiceEntity['status'],
+        };
+      },
     );
 
-    const updatedInvoice = await this.repository.updateInvoice(invoice.id, tenantId, {
-      status: 'paid',
-    });
-
-    return { invoice: updatedInvoice!, payment, receipt };
+    return { invoice, payment, receipt, idempotent: false };
   }
 
   async createFeeStructure(tenantId: string, actorId: string, input: CreateFeeStructureInput) {
@@ -585,10 +658,16 @@ export class FeesService {
         gradeId: gradeId ?? null,
       });
       if (amountCents > 0) {
-        await this.postJournal(invoice, actorId, 'invoice issued', [
-          ['accounts_receivable', 'debit'],
-          ['fee_revenue', 'credit'],
-        ]);
+        await this.postJournal(
+          invoice,
+          actorId,
+          'invoice issued',
+          [
+            ['accounts_receivable', 'debit'],
+            ['fee_revenue', 'credit'],
+          ],
+          invoice.amountCents,
+        );
       }
       if (concession) {
         await this.repository.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
@@ -601,14 +680,29 @@ export class FeesService {
   async applyConcession(tenantId: string, actorId: string, input: ApplyConcessionInput) {
     const structure = await this.getFeeStructure(tenantId, input.structureId);
     const discount = concessionDiscountCents(structure.amountCents, input);
-    const existing = await this.repository.findConcessionForStudentStructure(
-      tenantId,
-      input.studentId,
-      input.structureId,
+    const peers = (await this.repository.listConcessions(tenantId)).filter(
+      (c) => c.studentId === input.studentId && c.structureId === input.structureId,
     );
-    if (existing) {
-      throw new BusinessRuleError('A concession already exists for this student and structure');
+    if (!input.sourceDisbursementId) {
+      const manual = peers.find((c) => c.sourceDisbursementId == null);
+      if (manual) {
+        throw new BusinessRuleError('A concession already exists for this student and structure');
+      }
     }
+
+    const autoApprove = input.autoApprove === true;
+    if (input.sourceDisbursementId) {
+      const bySource = await this.repository.findConcessionBySourceDisbursementId(
+        tenantId,
+        input.sourceDisbursementId,
+      );
+      if (bySource) {
+        throw new BusinessRuleError(
+          'A concession already exists for this scholarship disbursement',
+        );
+      }
+    }
+
     const concession = await this.repository.createConcession({
       id: uuidv4(),
       tenantId,
@@ -619,17 +713,74 @@ export class FeesService {
       percent: input.kind === 'percent' ? (input.percent ?? 0) : null,
       amountCents: input.kind === 'amount' ? (input.amountCents ?? 0) : null,
       reason: input.reason,
-      approverId: input.approverId ?? actorId,
-      status: 'approved',
+      sourceDisbursementId: input.sourceDisbursementId ?? null,
+      approverId: autoApprove ? (input.approverId ?? actorId) : null,
+      status: autoApprove ? 'approved' : 'pending',
       createdBy: actorId,
     });
 
-    const invoice = input.invoiceId
-      ? await this.getInvoice(tenantId, input.invoiceId)
+    if (!autoApprove) {
+      return { concession, invoice: null, discountCents: discount };
+    }
+
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, concession, discount);
+  }
+
+  /**
+   * W2-FIN-04: second actor (≠ createdBy) approves a pending concession and posts ledger.
+   */
+  async approveConcession(tenantId: string, actorId: string, concessionId: string) {
+    const concession = await this.repository.findConcessionById(concessionId, tenantId);
+    if (!concession) {
+      throw new NotFoundError(`Concession with id '${concessionId}' not found`);
+    }
+    if (concession.status !== 'pending') {
+      throw new BusinessRuleError('Only pending concessions can be approved');
+    }
+    if (concession.createdBy === actorId) {
+      throw new BusinessRuleError('Concession creator cannot self-approve (four-eyes)');
+    }
+    const discount = concessionDiscountCents(
+      (await this.getFeeStructure(tenantId, concession.structureId)).amountCents,
+      concession,
+    );
+    const approved = await this.repository.updateConcession(concession.id, tenantId, {
+      status: 'approved',
+      approverId: actorId,
+    });
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount);
+  }
+
+  async rejectConcession(tenantId: string, actorId: string, concessionId: string) {
+    const concession = await this.repository.findConcessionById(concessionId, tenantId);
+    if (!concession) {
+      throw new NotFoundError(`Concession with id '${concessionId}' not found`);
+    }
+    if (concession.status !== 'pending') {
+      throw new BusinessRuleError('Only pending concessions can be rejected');
+    }
+    if (concession.createdBy === actorId) {
+      throw new BusinessRuleError('Concession creator cannot self-reject (four-eyes)');
+    }
+    const rejected = await this.repository.updateConcession(concession.id, tenantId, {
+      status: 'rejected',
+      approverId: actorId,
+    });
+    return { concession: rejected!, invoice: null, discountCents: 0 };
+  }
+
+  private async applyApprovedConcessionToInvoice(
+    tenantId: string,
+    actorId: string,
+    concession: FeeConcessionEntity,
+    discount: number,
+  ) {
+    const invoice = concession.invoiceId
+      ? await this.getInvoice(tenantId, concession.invoiceId)
       : await this.repository.findInvoiceForStructureStudent(
           tenantId,
-          input.structureId,
-          input.studentId,
+          concession.structureId,
+          concession.studentId,
         );
     if (!invoice) {
       return { concession, invoice: null, discountCents: discount };
@@ -639,20 +790,23 @@ export class FeesService {
     }
     const nextAmount = Math.max(0, invoice.amountCents - discount);
     if (discount > 0 && invoice.amountCents > 0) {
-      const adjustment = {
-        ...invoice,
-        amountCents: discount,
-      };
-      await this.postJournal(adjustment, actorId, 'concession applied', [
-        ['fee_revenue', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ]);
+      await this.postJournal(
+        invoice,
+        actorId,
+        'concession applied',
+        [
+          ['fee_revenue', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        discount,
+      );
     }
     const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
       amountCents: nextAmount,
     });
     await this.repository.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
-    return { concession, invoice: updated, discountCents: discount };
+    const refreshed = await this.repository.findConcessionById(concession.id, tenantId);
+    return { concession: refreshed ?? concession, invoice: updated, discountCents: discount };
   }
 
   async recordRefund(tenantId: string, actorId: string, input: RecordRefundInput) {
@@ -677,49 +831,186 @@ export class FeesService {
       status: 'posted',
       createdBy: actorId,
     });
-    const refundInvoice = { ...invoice, amountCents: input.amountCents };
-    await this.postJournal(refundInvoice, actorId, 'refund posted', [
-      ['fee_revenue', 'debit'],
-      ['cash', 'credit'],
-    ]);
+    await this.postJournal(
+      invoice,
+      actorId,
+      'refund posted',
+      [
+        ['fee_revenue', 'debit'],
+        ['cash', 'credit'],
+      ],
+      input.amountCents,
+    );
     return refund;
   }
 
-  private isReminderSuppressed(tenantId: string, studentId: string, invoiceId: string): boolean {
-    return this.reminderSuppressions.some(
+  /**
+   * Unpaid AR on an open/overdue invoice: face amount minus succeeded payments.
+   * Credit notes / write-offs reduce face (and thus remaining) after posting.
+   */
+  private async unpaidBalanceCents(tenantId: string, invoice: FeeInvoiceEntity): Promise<number> {
+    const payments = (await this.repository.listPaymentsForTenant(tenantId)).filter(
+      (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
+    );
+    const paidCents = payments.reduce((sum, p) => sum + p.amountCents, 0);
+    return Math.max(0, invoice.amountCents - paidCents);
+  }
+
+  /**
+   * W2-FIN-05: credit note reduces outstanding AR (unpaid face) without cash movement.
+   * Journal: DR fee_revenue / CR accounts_receivable. Caps at unpaid balance.
+   * Rejects paid/void/written_off invoices — post-payment cash return uses refunds.
+   */
+  async issueCreditNote(tenantId: string, actorId: string, input: IssueCreditNoteInput) {
+    const invoice = await this.getInvoice(tenantId, input.invoiceId);
+    if (invoice.status === 'void' || invoice.status === 'written_off') {
+      throw new BusinessRuleError(`Cannot credit-note a ${invoice.status} invoice`);
+    }
+    if (invoice.status === 'paid') {
+      throw new BusinessRuleError(
+        'Cannot credit-note a paid invoice — use refund for post-payment cash return',
+      );
+    }
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+      throw new BusinessRuleError('Credit note amountCents must be a positive integer');
+    }
+    const reason = input.reason.trim();
+    if (reason.length === 0) {
+      throw new BusinessRuleError('Credit note reason is required');
+    }
+    const unpaid = await this.unpaidBalanceCents(tenantId, invoice);
+    if (input.amountCents > unpaid) {
+      throw new BusinessRuleError(
+        `Credit note amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+      );
+    }
+
+    const creditNote = await this.repository.createCreditNote({
+      id: uuidv4(),
+      tenantId,
+      invoiceId: invoice.id,
+      amountCents: input.amountCents,
+      reason,
+      status: 'posted',
+      createdBy: actorId,
+    });
+
+    const nextAmount = invoice.amountCents - input.amountCents;
+    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
+      amountCents: nextAmount,
+    });
+
+    await this.postJournal(
+      invoice,
+      actorId,
+      'credit note posted',
+      [
+        ['fee_revenue', 'debit'],
+        ['accounts_receivable', 'credit'],
+      ],
+      input.amountCents,
+    );
+
+    return { creditNote, invoice: updated! };
+  }
+
+  /**
+   * W2-FIN-05: write off uncollectible unpaid AR.
+   * Journal: DR bad_debt_expense / CR accounts_receivable. Caps at unpaid balance.
+   * When remaining unpaid hits zero, invoice status becomes written_off.
+   */
+  async writeOffInvoice(tenantId: string, actorId: string, input: WriteOffInvoiceInput) {
+    const invoice = await this.getInvoice(tenantId, input.invoiceId);
+    if (invoice.status === 'void' || invoice.status === 'written_off') {
+      throw new BusinessRuleError(`Cannot write off a ${invoice.status} invoice`);
+    }
+    if (invoice.status === 'paid') {
+      throw new BusinessRuleError('Cannot write off a paid invoice — use refund if needed');
+    }
+    if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
+      throw new BusinessRuleError('Write-off amountCents must be a positive integer');
+    }
+    const reason = input.reason.trim();
+    if (reason.length === 0) {
+      throw new BusinessRuleError('Write-off reason is required');
+    }
+    const unpaid = await this.unpaidBalanceCents(tenantId, invoice);
+    if (input.amountCents > unpaid) {
+      throw new BusinessRuleError(
+        `Write-off amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+      );
+    }
+
+    const writeOff = await this.repository.createWriteOff({
+      id: uuidv4(),
+      tenantId,
+      invoiceId: invoice.id,
+      amountCents: input.amountCents,
+      reason,
+      status: 'posted',
+      createdBy: actorId,
+    });
+
+    const nextAmount = invoice.amountCents - input.amountCents;
+    const nextUnpaid = unpaid - input.amountCents;
+    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
+      amountCents: nextAmount,
+      ...(nextUnpaid === 0 ? { status: 'written_off' as const } : {}),
+    });
+
+    await this.postJournal(
+      invoice,
+      actorId,
+      'write-off posted',
+      [
+        ['bad_debt_expense', 'debit'],
+        ['accounts_receivable', 'credit'],
+      ],
+      input.amountCents,
+    );
+
+    return { writeOff, invoice: updated! };
+  }
+
+
+  private isReminderSuppressedInRows(
+    suppressions: ReminderSuppressionEntity[],
+    studentId: string,
+    invoiceId: string,
+  ): boolean {
+    return suppressions.some(
       (row) =>
-        row.tenantId === tenantId &&
-        ((row.invoiceId != null && row.invoiceId === invoiceId) ||
-          (row.studentId != null && row.studentId === studentId)),
+        (row.invoiceId != null && row.invoiceId === invoiceId) ||
+        (row.studentId != null && row.studentId === studentId),
     );
   }
 
   async listOverdueForReminder(tenantId: string, asOf: Date) {
-    const invoices = await this.repository.listInvoicesForTenant(tenantId);
-    return invoices
-      .filter(
-        (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
-      )
-      .map((invoice) => ({
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoiceNumber,
-        studentId: invoice.studentId,
-        classId: invoice.classId,
-        amountCents: invoice.amountCents,
-        currency: invoice.currency,
-        dueAt: invoice.dueAt!.toISOString(),
-        overdueDays: Math.max(
-          1,
-          Math.floor((asOf.getTime() - invoice.dueAt!.getTime()) / 86_400_000),
-        ),
-        suppressed: this.isReminderSuppressed(tenantId, invoice.studentId, invoice.id),
-      }));
+    const [invoices, suppressions] = await Promise.all([
+      this.repository.listInvoicesForTenant(tenantId),
+      this.repository.listReminderSuppressions(tenantId),
+    ]);
+    const openOverdue = invoices.filter(
+      (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
+    );
+    return openOverdue.map((invoice) => ({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      studentId: invoice.studentId,
+      classId: invoice.classId,
+      amountCents: invoice.amountCents,
+      currency: invoice.currency,
+      dueAt: invoice.dueAt!.toISOString(),
+      overdueDays: Math.max(
+        1,
+        Math.floor((asOf.getTime() - invoice.dueAt!.getTime()) / 86_400_000),
+      ),
+      suppressed: this.isReminderSuppressedInRows(suppressions, invoice.studentId, invoice.id),
+    }));
   }
 
   async listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]> {
-    return this.reminderSuppressions
-      .filter((row) => row.tenantId === tenantId)
-      .map((row) => ({ ...row }));
+    return this.repository.listReminderSuppressions(tenantId);
   }
 
   async addReminderSuppression(
@@ -744,25 +1035,18 @@ export class FeesService {
       createdBy: actorId,
       createdAt: new Date(),
     };
-    this.reminderSuppressions.push(entity);
-    return { ...entity };
+    return this.repository.createReminderSuppression(entity);
   }
 
   async removeReminderSuppression(tenantId: string, suppressionId: string): Promise<void> {
-    const index = this.reminderSuppressions.findIndex(
-      (row) => row.tenantId === tenantId && row.id === suppressionId,
-    );
-    if (index < 0) {
+    const deleted = await this.repository.deleteReminderSuppression(tenantId, suppressionId);
+    if (!deleted) {
       throw new NotFoundError(`Reminder suppression ${suppressionId} not found`);
     }
-    this.reminderSuppressions.splice(index, 1);
   }
 
   async listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]> {
-    return this.reminderSendAudits
-      .filter((row) => row.tenantId === tenantId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((row) => ({ ...row }));
+    return this.repository.listReminderSendAudits(tenantId);
   }
 
   async sendReminders(
@@ -833,9 +1117,9 @@ export class FeesService {
       for (const channel of channels) {
         if (cadenceDays > 0) {
           const cutoff = asOf.getTime() - cadenceDays * 86_400_000;
-          const recent = this.reminderSendAudits.some(
+          const audits = await this.repository.listReminderSendAudits(tenantId);
+          const recent = audits.some(
             (audit) =>
-              audit.tenantId === tenantId &&
               audit.invoiceId === invoiceId &&
               audit.channel === channel &&
               audit.createdAt.getTime() >= cutoff,
@@ -866,7 +1150,7 @@ export class FeesService {
           actorId,
           createdAt: new Date(),
         };
-        this.reminderSendAudits.push(audit);
+        await this.repository.createReminderSendAudit(audit);
         results.push({
           invoiceId,
           studentId: row.studentId,
@@ -1109,8 +1393,9 @@ export class FeesService {
       throw new BusinessRuleError('Scholarship netting amountCents must be a positive integer');
     }
     const marker = `scholarship_netting:${input.disbursementId}`;
-    const prior = (await this.repository.listConcessions(tenantId)).find((c) =>
-      c.reason.includes(marker),
+    const prior = await this.repository.findConcessionBySourceDisbursementId(
+      tenantId,
+      input.disbursementId,
     );
     if (prior) {
       const invoice = prior.invoiceId
@@ -1154,6 +1439,8 @@ export class FeesService {
         kind: 'amount',
         amountCents: input.amountCents,
         reason: `${marker} (no open invoice — credit reserved)`,
+        sourceDisbursementId: input.disbursementId,
+        autoApprove: true,
       });
       return { ...concession, idempotent: false as const };
     }
@@ -1166,7 +1453,70 @@ export class FeesService {
         kind: 'amount',
         amountCents: Math.min(input.amountCents, invoice.amountCents),
         reason: marker,
+        sourceDisbursementId: input.disbursementId,
+        autoApprove: true,
       })),
+      idempotent: false as const,
+    };
+  }
+
+
+  /**
+   * W2-FIN-08: reverse a prior scholarship netting when a paid disbursement is cancelled/failed.
+   * Restores invoice face and posts the inverse journal (DR AR / CR fee_revenue).
+   */
+  async reverseScholarshipNetting(
+    tenantId: string,
+    actorId: string,
+    input: { disbursementId: string },
+  ) {
+    const prior = await this.repository.findConcessionBySourceDisbursementId(
+      tenantId,
+      input.disbursementId,
+    );
+    if (!prior) {
+      return { reversed: false as const, concession: null, invoice: null };
+    }
+    if (prior.status === 'rejected') {
+      return { reversed: true as const, concession: prior, invoice: null, idempotent: true as const };
+    }
+
+    const discountCents =
+      prior.kind === 'amount' ? (prior.amountCents ?? 0) : 0;
+    if (!Number.isInteger(discountCents) || discountCents <= 0) {
+      throw new BusinessRuleError('Cannot reverse scholarship netting without a positive amount');
+    }
+
+    let invoice = prior.invoiceId
+      ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
+      : null;
+
+    if (invoice) {
+      const restored = await this.repository.updateInvoice(invoice.id, tenantId, {
+        amountCents: invoice.amountCents + discountCents,
+        ...(invoice.status === 'written_off' ? { status: 'open' as const } : {}),
+      });
+      invoice = restored;
+      await this.postJournal(
+        invoice!,
+        actorId,
+        'scholarship netting reversed',
+        [
+          ['accounts_receivable', 'debit'],
+          ['fee_revenue', 'credit'],
+        ],
+        discountCents,
+      );
+    }
+
+    const rejected = await this.repository.updateConcession(prior.id, tenantId, {
+      status: 'rejected',
+    });
+    return {
+      reversed: true as const,
+      concession: rejected ?? prior,
+      invoice,
+      discountCents,
       idempotent: false as const,
     };
   }

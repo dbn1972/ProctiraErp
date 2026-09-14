@@ -10,6 +10,7 @@ import type { StudentEntity, StudentFilter, StudentRepository } from './student-
 
 export class InMemoryStudentRepository implements StudentRepository {
   private students: Map<string, StudentEntity> = new Map();
+  private admissionCounters: Map<string, number> = new Map();
 
   async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     const now = new Date();
@@ -164,9 +165,17 @@ export class InMemoryStudentRepository implements StudentRepository {
     return true;
   }
 
+  async allocateAdmissionNumber(tenantId: string): Promise<string> {
+    const next = (this.admissionCounters.get(tenantId) ?? 0) + 1;
+    this.admissionCounters.set(tenantId, next);
+    const year = new Date().getUTCFullYear();
+    return `ADM-${year}-${String(next).padStart(4, '0')}`;
+  }
+
   // Test helpers
   clear(): void {
     this.students.clear();
+    this.admissionCounters.clear();
   }
 
   getAll(): StudentEntity[] {

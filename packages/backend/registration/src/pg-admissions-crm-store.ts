@@ -130,6 +130,32 @@ export class PgAdmissionsCrmStore implements AdmissionsCrmStore {
     });
   }
 
+  async dequeueWaitlistHead(
+    tenantId: string,
+    institutionId: string,
+  ): Promise<WaitlistEntry | null> {
+    return this.withTenant(tenantId, async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+        `waitlist:${tenantId}:${institutionId}`,
+      ]);
+      const head = await client.query(
+        `SELECT * FROM admission_waitlist_entries
+          WHERE tenant_id = $1 AND institution_id = $2
+          ORDER BY position ASC
+          LIMIT 1
+          FOR UPDATE`,
+        [tenantId, institutionId],
+      );
+      const row = (head.rows as Record<string, unknown>[])[0];
+      if (!row) return null;
+      await client.query(`DELETE FROM admission_waitlist_entries WHERE id = $1 AND tenant_id = $2`, [
+        row.id,
+        tenantId,
+      ]);
+      return mapWaitlist(row);
+    });
+  }
+
   async createSlot(input: CreateSlotInput): Promise<InterviewSlot> {
     return this.withTenant(input.tenantId, async (client) => {
       const result = await client.query(

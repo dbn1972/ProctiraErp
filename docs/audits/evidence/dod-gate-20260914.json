@@ -1,0 +1,42 @@
+{
+  "gap": "W3-D6",
+  "title": "Definition-of-Done closure evidence gate",
+  "recordedAt": "2026-09-14T01:25:00Z",
+  "branch": "cursor/dod-evidence-gate-56c3",
+  "ok": true,
+  "gate": {
+    "script": "tools/scripts/assert-dod-evidence.mjs",
+    "tipCheck": "tools/scripts/check-dod-evidence.sh",
+    "requiredChecks": 7,
+    "baselinePath": "tools/dod-checks/reports/baseline.json",
+    "reportPath": "tools/dod-checks/reports/dod-report.json",
+    "npmScript": "check:dod:evidence"
+  },
+  "baselineSnapshot": {
+    "totalErrors": 64,
+    "totalWarnings": 416,
+    "checksPresent": 7,
+    "path": "tools/dod-checks/reports/baseline.json"
+  },
+  "ciCrossRef": {
+    "workflow": ".github/workflows/definition-of-done.yml",
+    "aggregateWorkflow": ".github/workflows/ci.yml (dod-checks job)",
+    "latestSuccessfulRun": {
+      "id": 34750332143,
+      "url": "https://github.com/dbn1972/ProctiraErp/actions/runs/34750332143",
+      "conclusion": "success",
+      "event": "push",
+      "headBranch": "main",
+      "headSha": "7a8d4ec9",
+      "note": "Last green Definition of Done on main before W3-D6 gate wiring; PR tip re-runs the same workflow."
+    },
+    "artifactName": "dod-report",
+    "artifactRetentionDays": 30
+  },
+  "scriptsExercised": [
+    "tools/dod-checks/bin/dod-check.mjs",
+    "tools/scripts/assert-dod-evidence.mjs",
+    "tools/scripts/check-dod-evidence.sh"
+  ],
+  "waivers": []
+}

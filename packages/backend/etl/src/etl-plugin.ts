@@ -40,6 +40,13 @@ export const etlPlugin = fp(
     // Create ETL service instance
     const etlService = new ETLService(repository, config);
 
+    // W2-JOB-05: start the in-process tick loop. Schedules themselves are
+    // rehydrated from durable pipeline rows via hydrateSchedules / ensureSchedulesHydrated.
+    etlService.getScheduler().start();
+    fastify.addHook('onClose', async () => {
+      etlService.getScheduler().stop();
+    });
+
     // Decorate fastify with the ETL service
     fastify.decorate('etlService', etlService);
 

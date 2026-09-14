@@ -12,6 +12,14 @@
 export { resolveTenantId, isValidUuid, TenantResolutionError } from './tenant-resolution.js';
 export type { TenantResolutionResult, TenantResolutionOptions } from './tenant-resolution.js';
 
+// W3-TIME-01 — tenant timezone foundation
+export {
+  DEFAULT_TENANT_TIMEZONE,
+  isValidIanaTimezone,
+  resolveTenantTimezone,
+} from './tenant-timezone.js';
+export type { TenantTimezoneSource } from './tenant-timezone.js';
+
 // Fastify Plugin
 export { tenantPlugin } from './fastify-plugin.js';
 export type { TenantPluginOptions } from './fastify-plugin.js';

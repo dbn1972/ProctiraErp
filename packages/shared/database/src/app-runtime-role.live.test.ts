@@ -9,11 +9,12 @@
  * (NOSUPERUSER NOBYPASSRLS, non-owner) so ENABLE RLS alone constrains reads.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
-const DATABASE_URL = process.env['DATABASE_URL'];
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'app-runtime-role.live.test' });
 
 describe.skipIf(!DATABASE_URL)('W1-DATA-01 app runtime role (live)', () => {
   let pool: pg.Pool;

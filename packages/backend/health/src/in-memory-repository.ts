@@ -71,6 +71,16 @@ export class InMemoryHealthRepository implements HealthRepository {
     createdAt: string;
   }> = [];
   private breakGlassGrants = new Map<string, HealthBreakGlassGrant>();
+  private studentInstitutions = new Map<string, string>();
+
+  /** Test helper — map student → active enrollment institution. */
+  setStudentInstitution(tenantId: string, studentId: string, institutionId: string): void {
+    this.studentInstitutions.set(`${tenantId}:${studentId}`, institutionId);
+  }
+
+  async findStudentInstitutionId(tenantId: string, studentId: string): Promise<string | null> {
+    return this.studentInstitutions.get(`${tenantId}:${studentId}`) ?? null;
+  }
 
   // ─── Measurements ─────────────────────────────────────────────────────────
 

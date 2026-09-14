@@ -98,6 +98,13 @@ export interface EnrollmentRepository {
   /** Find an enrollment by ID within a tenant */
   findEnrollmentById(id: string, tenantId: string): Promise<EnrollmentEntity | null>;
 
+  /** Active (ENROLLED) enrollment for a student in an academic period, if any */
+  findActiveEnrollment(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<EnrollmentEntity | null>;
+
   /** List enrollments with pagination and filtering */
   listEnrollments(
     tenantId: string,

@@ -10,7 +10,7 @@ import { scaffoldSourceFromResponse, type ScaffoldDataSource } from '@/lib/api/i
 export type { ScaffoldDataSource };
 
 export type ReportFormat = 'PDF' | 'XLSX' | 'CSV';
-export type DashboardRole = 'board' | 'principal' | 'teacher' | 'parent';
+export type DashboardRole = 'board' | 'principal' | 'teacher' | 'staff' | 'parent';
 export type ScheduleCadence = 'daily' | 'weekly' | 'monthly';
 
 export interface ReportFilter {

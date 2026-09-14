@@ -21,6 +21,7 @@ export interface DeveloperAccountEntity {
 
 export interface ApiKeyEntity {
   id: string;
+  tenantId: string;
   accountId: string;
   name: string;
   keyHash: string;
@@ -34,6 +35,7 @@ export interface ApiKeyEntity {
 
 export interface WebhookEntity {
   id: string;
+  tenantId: string;
   accountId: string;
   url: string;
   events: string[];
@@ -73,11 +75,13 @@ export interface SandboxEntity {
 
 export interface ApiKeyFilter {
   accountId: string;
+  tenantId?: string;
   status?: 'active' | 'revoked' | 'expired';
 }
 
 export interface WebhookFilter {
   accountId: string;
+  tenantId?: string;
   active?: boolean;
 }
 

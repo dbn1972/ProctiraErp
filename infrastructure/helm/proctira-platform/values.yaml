@@ -962,6 +962,8 @@ secrets:
   # -- Connection string for the BYPASSRLS backup role (G-707). pg_dump as the
   # app role fails under FORCE RLS; see docs/BACKUP_RESTORE.md §3.3.
   backupDatabaseUrl: ''
+  # -- W1-OPS-04: age public key for encrypting logical backups at rest.
+  backupAgeRecipient: ''
   # -- Redis connection string
   redisUrl: ''
   # -- Kafka broker addresses
@@ -986,11 +988,11 @@ serviceAccount:
   annotations: {}
 
 # -- Disaster recovery (G-707): scheduled backups + PHI retention.
-# Both CronJobs run infrastructure/docker/Dockerfile.dr-tools and write to one
-# PVC; the weekly restore drill (.github/workflows/restore-drill.yml) proves the
-# same scripts restore cleanly. Offsite replication of the PVC (snapshots /
-# object-storage sync) is the platform operator's responsibility — see
-# docs/BACKUP_RESTORE.md §4.
+# Both CronJobs run infrastructure/docker/Dockerfile.dr-tools. With
+# dr.backup.encrypt.enabled the CronJob writes age-encrypted artifacts to the
+# PVC and optionally pushes a second copy to BACKUP_OFFSITE_URI (S3 SSE). The
+# PVC is local retention only — not the sole copy when offsite is enabled.
+# Weekly restore drill (.github/workflows/restore-drill.yml) proves the scripts.
 dr:
   enabled: true
   # -- IANA time zone for the cron schedules (Kubernetes >= 1.27)
@@ -1025,6 +1027,16 @@ dr:
       limits:
         cpu: '1'
         memory: 1Gi
+    # -- W1-OPS-04: encrypt dumps at rest (age). Requires secrets.backupAgeRecipient.
+    encrypt:
+      enabled: false
+      secretKey: BACKUP_AGE_RECIPIENT
+    # -- W1-OPS-04: push encrypted artifact to object storage (second copy).
+    offsite:
+      enabled: false
+      uri: '' # s3://bucket/proctira/pg-backups/
+      sse: AES256
+      sseKmsKeyId: ''
   phiRetention:
     enabled: true
     # -- Weekly, Sunday 03:30

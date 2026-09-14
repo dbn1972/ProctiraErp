@@ -57,6 +57,13 @@ export {
   AreaHierarchyService,
   MAX_AREA_DEPTH,
   registerAreaHierarchyRoutes,
+  TenantScopedAreaHierarchyResolver,
+  toAreaNodes,
+  createAreaHierarchyResolver,
+  demoGatewayAreaHierarchy,
+  asTenantScopedResolver,
+  GATEWAY_DEMO_TENANT_ID,
+  isPgAreaHierarchyEnabled,
 } from './area-hierarchy/index.js';
 export type {
   CreateAreaInput,
@@ -65,6 +72,8 @@ export type {
   AreaTreeNode,
   AreaHierarchyDbClient,
   AreaHierarchyRoutesOptions,
+  RegisterableArea,
+  AreaHierarchyResolverConfig,
 } from './area-hierarchy/index.js';
 
 // Infrastructure Hierarchy

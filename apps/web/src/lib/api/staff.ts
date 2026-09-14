@@ -411,7 +411,11 @@ export interface PayrollExport {
     salaryBand: string;
     daysPresent: number;
     leaveDays: number;
+    absentDays: number;
     deductionsPlaceholder: number;
+    deductionsCents: number;
+    grossCents: number;
+    netCents: number;
     payableDays: number;
   }>;
 }

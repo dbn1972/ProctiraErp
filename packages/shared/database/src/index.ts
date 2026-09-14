@@ -52,7 +52,15 @@ export { withPgTenant } from './pg-tenant';
 export type { PgQueryable, PgPoolWithConnect, PgClient } from './pg-tenant';
 
 // G-704: shared node-pg pool + JSONB document collection for control-plane stores
-export { getSharedPgPool, closeSharedPgPools, resolveDatabaseUrl } from './pg-pool';
+export {
+  PG_POOL_DEFAULTS,
+  buildPgPoolOptions,
+  closeSharedPgPools,
+  getSharedPgPool,
+  resolveDatabaseUrl,
+  resolvePgPoolConfig,
+} from './pg-pool';
+export type { PgPoolEnv, PgPoolSizing } from './pg-pool';
 export type { PgPool } from './pg-pool';
 export { PgDocumentCollection, withPlatformScope, reviveDates } from './pg-document-store';
 export type { DocumentRow } from './pg-document-store';
@@ -61,7 +69,16 @@ export type { DocumentRow } from './pg-document-store';
 export {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
+  readPersistencePolicyEnv,
   resolvePersistenceMode,
   resetPersistenceWarnings,
 } from './persistence-policy';
 export type { PersistenceMode, PersistencePolicyEnv } from './persistence-policy';
+
+// W3-C2: shared readiness probe (Postgres when configured; fail-closed)
+export { runReadinessProbe } from './readiness-probe';
+export type {
+  DatabaseDependencyStatus,
+  ReadinessProbeOptions,
+  ReadinessProbeResult,
+} from './readiness-probe';

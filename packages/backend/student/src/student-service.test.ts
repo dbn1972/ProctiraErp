@@ -13,7 +13,7 @@
  * - Contacts, guardians, identity documents management
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 import { InMemoryStudentRepository } from './in-memory-repository.js';
 import { StudentService } from './student-service.js';
@@ -65,6 +65,28 @@ describe('StudentService', () => {
       expect(result.updatedAt).toBeInstanceOf(Date);
     });
 
+    it('W2-SIS-01: issues a unique admission number when none is provided', async () => {
+      const first = await service.create(TENANT_ID, validCreateInput({ firstName: 'Ada' }));
+      const second = await service.create(TENANT_ID, validCreateInput({ firstName: 'Alan' }));
+
+      const firstNo = first.customData['admissionNo'];
+      const secondNo = second.customData['admissionNo'];
+      expect(typeof firstNo).toBe('string');
+      expect(firstNo).toMatch(/^ADM-\d{4}-\d{4,}$/);
+      expect(secondNo).toMatch(/^ADM-\d{4}-\d{4,}$/);
+      expect(firstNo).not.toBe(secondNo);
+      expect(first.customData['admissionNumber']).toBe(firstNo);
+    });
+
+    it('W2-SIS-01: preserves an explicitly provided admission number', async () => {
+      const result = await service.create(
+        TENANT_ID,
+        validCreateInput({ customData: { admissionNo: 'ADM-MANUAL-1' } }),
+      );
+      expect(result.customData['admissionNo']).toBe('ADM-MANUAL-1');
+      expect(result.customData['admissionNumber']).toBe('ADM-MANUAL-1');
+    });
+
     it('should create a student with optional fields', async () => {
       const input = validCreateInput({
         nationalId: 'NID-12345',
@@ -101,7 +123,8 @@ describe('StudentService', () => {
       expect(result.guardians[0].id).toBeDefined();
       expect(result.identityDocuments).toHaveLength(1);
       expect(result.identityDocuments[0].type).toBe('passport');
-      expect(result.customData).toEqual({ allergies: ['peanuts'], bloodType: 'O+' });
+      expect(result.customData).toMatchObject({ allergies: ['peanuts'], bloodType: 'O+' });
+      expect(result.customData['admissionNo']).toMatch(/^ADM-/);
     });
 
     it('should set optional fields to defaults when not provided', async () => {
@@ -113,7 +136,7 @@ describe('StudentService', () => {
       expect(result.contacts).toEqual([]);
       expect(result.guardians).toEqual([]);
       expect(result.identityDocuments).toEqual([]);
-      expect(result.customData).toEqual({});
+      expect(result.customData['admissionNo']).toMatch(/^ADM-/);
     });
 
     it('should throw ConflictError when national ID already exists in same tenant', async () => {
@@ -167,7 +190,8 @@ describe('StudentService', () => {
       const input = validCreateInput({ customData });
       const result = await service.create(TENANT_ID, input);
 
-      expect(result.customData).toEqual(customData);
+      expect(result.customData).toMatchObject(customData);
+      expect(result.customData['admissionNo']).toMatch(/^ADM-/);
     });
   });
 
@@ -468,6 +492,65 @@ describe('StudentService', () => {
 
       const otherTenantId = uuid();
       await expect(service.delete(otherTenantId, created.id)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('mergeDuplicates (W2-SIS-02)', () => {
+    it('merges duplicate profile data into the survivor and soft-deletes the duplicate', async () => {
+      const survivor = await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Ada', nationalId: null }),
+      );
+      const duplicate = await service.create(
+        TENANT_ID,
+        validCreateInput({
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          nationalId: 'NID-DUP-1',
+          nationality: 'British',
+          contacts: [{ type: 'email', value: 'ada@example.com', isPrimary: true }],
+        }),
+      );
+
+      const result = await service.mergeDuplicates(TENANT_ID, {
+        survivorId: survivor.id,
+        duplicateId: duplicate.id,
+        reason: 'Same person entered twice',
+      });
+
+      expect(result.survivor.nationalId).toBe('NID-DUP-1');
+      expect(result.survivor.nationality).toBe('British');
+      expect(result.survivor.contacts).toHaveLength(1);
+      expect(result.mergeId).toBeDefined();
+      await expect(service.getById(TENANT_ID, duplicate.id)).rejects.toThrow(NotFoundError);
+    });
+
+    it('rejects merging a student into itself', async () => {
+      const student = await service.create(TENANT_ID, validCreateInput());
+      await expect(
+        service.mergeDuplicates(TENANT_ID, {
+          survivorId: student.id,
+          duplicateId: student.id,
+          reason: 'noop',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('reassigns enrollments when a reassign hook is provided', async () => {
+      let moved = 0;
+      const wired = new StudentService(repository, async () => {
+        moved = 2;
+        return 2;
+      });
+      const survivor = await wired.create(TENANT_ID, validCreateInput({ firstName: 'Surv' }));
+      const duplicate = await wired.create(TENANT_ID, validCreateInput({ firstName: 'Dup' }));
+      const result = await wired.mergeDuplicates(TENANT_ID, {
+        survivorId: survivor.id,
+        duplicateId: duplicate.id,
+        reason: 'Duplicate import',
+      });
+      expect(result.enrollmentsReassigned).toBe(2);
+      expect(moved).toBe(2);
     });
   });
 });

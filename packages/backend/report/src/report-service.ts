@@ -99,6 +99,9 @@ const DEFAULT_CONFIG: ReportServiceConfig = {
 
 // ─── Service ─────────────────────────────────────────────────────────────────
 
+/** W2-RPT-01: sync fallback without a queue publisher cannot stream. */
+export const MAX_SYNC_REPORT_ROWS = 10_000;
+
 export class ReportService {
   private readonly config: ReportServiceConfig;
 
@@ -138,6 +141,13 @@ export class ReportService {
       }
     }
 
+    // W2-JOB-13: return the in-flight job when the client supplies a dedupe key.
+    const dedupeKey = input.dedupeKey?.trim() || null;
+    if (dedupeKey) {
+      const existing = await this.repository.findActiveJobByDedupeKey(tenantId, dedupeKey, new Date());
+      if (existing) return existing;
+    }
+
     // Create the report job
     const job: ReportJobEntity = {
       id: uuidv4(),
@@ -150,6 +160,8 @@ export class ReportService {
       aggregations: input.aggregations ?? null,
       templateId: input.templateId ?? null,
       title: input.title ?? null,
+      dedupeKey,
+      leaseExpiresAt: null,
       requestedBy: userContext.userId,
       requestedByArea: userContext.areaId,
       requestedByRole: userContext.roleId,
@@ -176,59 +188,113 @@ export class ReportService {
   }
 
   /**
+   * W2-JOB-13: cancel a queued report job. Processing/completed jobs cannot be cancelled.
+   */
+  async cancelReportJob(tenantId: string, jobId: string): Promise<ReportJobEntity> {
+    const job = await this.repository.getJobById(tenantId, jobId);
+    if (!job) {
+      throw new NotFoundError(`Report job '${jobId}' not found`);
+    }
+    if (job.status !== 'queued') {
+      throw new BusinessRuleError(
+        `Report job cannot be cancelled (current status: ${job.status})`,
+      );
+    }
+    const updated = await this.repository.updateJob(jobId, tenantId, {
+      status: 'cancelled',
+      completedAt: new Date(),
+      errorMessage: 'Cancelled by requester',
+    });
+    return updated ?? { ...job, status: 'cancelled' };
+  }
+
+  /**
    * Process a report job: fetch data, apply RBAC, export to format.
    *
    * Requirement 17.2: Multi-format export (XLSX, PDF, CSV).
    * Requirement 17.5: RBAC permissions filter data based on user's area and role.
+   * W2-JOB-13: claim (lease) before work so concurrent workers do not double-run.
    */
   async processReportJob(
     job: ReportJobEntity,
     userContext: ReportUserContext,
+    asOf: Date = new Date(),
   ): Promise<ReportJobEntity> {
-    // Mark as processing
-    await this.repository.updateJob(job.id, job.tenantId, {
-      status: 'processing',
-      startedAt: new Date(),
-    });
+    const claimed = await this.repository.claimQueuedJob(
+      job.tenantId,
+      job.id,
+      5 * 60_000,
+      asOf,
+    );
+    if (!claimed) {
+      const current = await this.repository.getJobById(job.tenantId, job.id);
+      if (current?.status === 'cancelled') {
+        throw new BusinessRuleError('Report job was cancelled');
+      }
+      throw new BusinessRuleError(
+        `Report job is not claimable (current status: ${current?.status ?? 'missing'})`,
+      );
+    }
 
     try {
       // Fetch data with RBAC scoping
       const data = await this.dataSource.fetchData(
-        job.tenantId,
-        job.reportType,
-        job.filters,
-        job.groupBy,
-        job.aggregations,
+        claimed.tenantId,
+        claimed.reportType,
+        claimed.filters,
+        claimed.groupBy,
+        claimed.aggregations,
         userContext,
       );
 
+      // W2-RPT-01: when processing inline (no queue / worker), enforce a sync row cap.
+      if (!this.queuePublisher && data.totalRows > MAX_SYNC_REPORT_ROWS) {
+        throw new ValidationError(
+          `Synchronous report generation capped at ${MAX_SYNC_REPORT_ROWS} rows; configure a report queue or narrow filters`,
+          [
+            {
+              field: 'filters',
+              rule: 'max',
+              message: `Row count ${data.totalRows} exceeds sync cap ${MAX_SYNC_REPORT_ROWS}`,
+            },
+          ],
+        );
+      }
+
       // Export to requested format
-      const fileBuffer = await this.exportToFormat(job, data);
+      const fileBuffer = await this.exportToFormat(claimed, data);
 
       // Store the file
       let fileUrl: string | null = null;
       if (this.fileStorage && fileBuffer) {
-        fileUrl = await this.fileStorage.store(job.tenantId, job.id, job.format, fileBuffer);
+        fileUrl = await this.fileStorage.store(
+          claimed.tenantId,
+          claimed.id,
+          claimed.format,
+          fileBuffer,
+        );
       }
 
       // Mark as completed
-      const updated = await this.repository.updateJob(job.id, job.tenantId, {
+      const updated = await this.repository.updateJob(claimed.id, claimed.tenantId, {
         status: 'completed',
         completedAt: new Date(),
+        leaseExpiresAt: null,
         fileUrl,
         fileSize: fileBuffer ? fileBuffer.length : null,
         rowCount: data.totalRows,
       });
 
-      return updated ?? job;
+      return updated ?? claimed;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      const updated = await this.repository.updateJob(job.id, job.tenantId, {
+      const updated = await this.repository.updateJob(claimed.id, claimed.tenantId, {
         status: 'failed',
         errorMessage,
         completedAt: new Date(),
+        leaseExpiresAt: null,
       });
-      return updated ?? job;
+      return updated ?? claimed;
     }
   }
 

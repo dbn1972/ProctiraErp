@@ -46,14 +46,19 @@ export type { AudiencePreviewResult } from './audience.js';
 export { fetchLiveAudienceCounts } from './live-audience.js';
 export type { LiveAudienceCounts } from './live-audience.js';
 
-export { createSandboxDeliveryAdapter, COMMS_SANDBOX_HONESTY_NOTE } from './delivery-adapter.js';
+export {
+  createSandboxDeliveryAdapter,
+  createUnimplementedLiveDeliveryAdapter,
+  createDeliveryAdapterFromEnv,
+  COMMS_SANDBOX_HONESTY_NOTE,
+  COMMS_LIVE_UNIMPLEMENTED_NOTE,
+} from './delivery-adapter.js';
 export type {
   CommunicationDeliveryAdapter,
   DeliveryRequest,
   DeliveryResult,
   DeliveryChannel,
 } from './delivery-adapter.js';
-
 export type { CommunicationAuditEvent, CommunicationAuditSink } from './communication-service.js';
 
 export { registerCommunicationRoutes } from './routes.js';

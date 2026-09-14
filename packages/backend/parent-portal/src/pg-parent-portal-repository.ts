@@ -8,19 +8,27 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type {
   ConsentEntity,
   ConsentStatus,
   ConsentType,
+  CustodyStatus,
+  CustodyType,
   FeeInvoiceEntity,
   FeePaymentEntity,
   FeePlanEntity,
   FeePlanFrequency,
   FeePlanStatus,
   FeeReceiptEntity,
+  GuardianHouseholdEntity,
+  GuardianHouseholdMemberEntity,
+  GuardianStudentCustodyEntity,
+  HouseholdMemberRole,
+  HouseholdMemberStatus,
+  HouseholdStatus,
   InvoiceStatus,
   LinkRelationship,
   LinkStatus,
@@ -34,26 +42,13 @@ import type {
   ThreadStatus,
 } from './parent-portal-repository.js';
 
-const { Pool } = pg;
-
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 let seedReady: Promise<void> | null = null;
 
-function resolveDatabaseUrl(): string | null {
-  const url = process.env.DATABASE_URL?.trim();
-  return url && url.length > 0 ? url : null;
-}
-
 export function getSharedParentPortalPool(): pg.Pool | null {
-  const url = resolveDatabaseUrl();
-  if (!url) return null;
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: url });
-  }
-  return sharedPool;
+  return getSharedPgPool();
 }
 
 function resolveSqlPath(filename: string): string {
@@ -86,8 +81,10 @@ export async function ensureParentPortalSchema(
       await pool.query(sql011);
       const sql049 = readFileSync(resolveSqlPath('049_parent_child_link_authority.sql'), 'utf8');
       await pool.query(sql049);
-      const sql051 = readFileSync(resolveSqlPath('051_parent_consent_version.sql'), 'utf8');
+      const sql051 = readFileSync(resolveSqlPath('052_parent_consent_version.sql'), 'utf8');
       await pool.query(sql051);
+      const sql054 = readFileSync(resolveSqlPath('054_guardian_household_custody.sql'), 'utf8');
+      await pool.query(sql054);
     })();
   }
   await schemaReady;
@@ -128,6 +125,46 @@ function mapLink(row: Record<string, unknown>): ParentChildLinkEntity {
     isPrimary: row.is_primary == null ? true : Boolean(row.is_primary),
     canConsentMedical: row.can_consent_medical == null ? true : Boolean(row.can_consent_medical),
     canViewFees: row.can_view_fees == null ? true : Boolean(row.can_view_fees),
+    householdId: row.household_id == null ? null : String(row.household_id),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapHousehold(row: Record<string, unknown>): GuardianHouseholdEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    label: String(row.label),
+    status: String(row.status) as HouseholdStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapHouseholdMember(row: Record<string, unknown>): GuardianHouseholdMemberEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    householdId: String(row.household_id),
+    parentUserId: String(row.parent_user_id),
+    role: String(row.role) as HouseholdMemberRole,
+    status: String(row.status) as HouseholdMemberStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapStudentCustody(row: Record<string, unknown>): GuardianStudentCustodyEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    studentId: String(row.student_id),
+    householdId: String(row.household_id),
+    custodyType: String(row.custody_type) as CustodyType,
+    status: String(row.status) as CustodyStatus,
+    effectiveFrom: toDate(row.effective_from),
+    effectiveTo: row.effective_to == null ? null : toDate(row.effective_to),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -264,8 +301,8 @@ export class PgParentPortalRepository implements ParentPortalRepository {
       data.tenantId,
       `INSERT INTO parent_child_links (
          id, tenant_id, parent_user_id, student_id, relationship, status,
-         is_primary, can_consent_medical, can_view_fees
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+         is_primary, can_consent_medical, can_view_fees, household_id
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [
         data.id,
         data.tenantId,
@@ -276,6 +313,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
         data.isPrimary,
         data.canConsentMedical,
         data.canViewFees,
+        data.householdId,
       ],
     );
     return mapLink(result.rows[0] as Record<string, unknown>);
@@ -341,6 +379,84 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
     return (await this.findActiveLink(tenantId, parentUserId, studentId)) != null;
+  }
+
+  async createHousehold(
+    data: Omit<GuardianHouseholdEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianHouseholdEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO guardian_households (id, tenant_id, label, status)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [data.id, data.tenantId, data.label, data.status],
+    );
+    return mapHousehold(result.rows[0] as Record<string, unknown>);
+  }
+
+  async addHouseholdMember(
+    data: Omit<GuardianHouseholdMemberEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianHouseholdMemberEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO guardian_household_members (
+         id, tenant_id, household_id, parent_user_id, role, status
+       ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [data.id, data.tenantId, data.householdId, data.parentUserId, data.role, data.status],
+    );
+    return mapHouseholdMember(result.rows[0] as Record<string, unknown>);
+  }
+
+  async assignStudentCustody(
+    data: Omit<GuardianStudentCustodyEntity, 'createdAt' | 'updatedAt' | 'effectiveTo'>,
+  ): Promise<GuardianStudentCustodyEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO guardian_student_custody (
+         id, tenant_id, student_id, household_id, custody_type, status, effective_from
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.studentId,
+        data.householdId,
+        data.custodyType,
+        data.status,
+        data.effectiveFrom,
+      ],
+    );
+    return mapStudentCustody(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listActiveCustodyHouseholdIdsForStudent(
+    tenantId: string,
+    studentId: string,
+  ): Promise<string[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT household_id FROM guardian_student_custody
+       WHERE tenant_id = $1 AND student_id = $2 AND status = 'active'
+         AND custody_type <> 'none'`,
+      [tenantId, studentId],
+    );
+    return result.rows.map((row) => String((row as Record<string, unknown>).household_id));
+  }
+
+  async listActiveHouseholdIdsForParent(
+    tenantId: string,
+    parentUserId: string,
+  ): Promise<string[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT household_id FROM guardian_household_members
+       WHERE tenant_id = $1 AND parent_user_id = $2 AND status = 'active'`,
+      [tenantId, parentUserId],
+    );
+    return result.rows.map((row) => String((row as Record<string, unknown>).household_id));
   }
 
   async createThread(

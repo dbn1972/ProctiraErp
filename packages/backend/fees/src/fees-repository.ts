@@ -1,9 +1,10 @@
+import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 /**
  * Fees / finance repository interfaces (plans, invoices, payments, receipts).
  * Tables: parent_fee_* from db/sql/010 + 011.
  */
 
-export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue';
+export type InvoiceStatus = 'open' | 'paid' | 'void' | 'overdue' | 'written_off';
 export type PaymentMethod = 'sandbox' | 'upi' | 'card' | 'cash';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
 export type FeePlanFrequency = 'once' | 'term' | 'month' | 'year';
@@ -53,6 +54,8 @@ export interface FeePaymentEntity {
   method: PaymentMethod;
   status: PaymentStatus;
   paidAt: Date;
+  /** W2-FIN-02: optional client/PSP event key; unique per tenant when set. */
+  idempotencyKey: string | null;
   createdAt: Date;
 }
 
@@ -70,7 +73,7 @@ export interface FeeReceiptEntity {
 
 // ─── Double-entry ledger (G-718) ─────────────────────────────────────────────
 
-export type LedgerAccount = 'accounts_receivable' | 'cash' | 'fee_revenue';
+export type LedgerAccount = 'accounts_receivable' | 'cash' | 'fee_revenue' | 'bad_debt_expense';
 export type LedgerSide = 'debit' | 'credit';
 
 export interface FeeLedgerEntryEntity {
@@ -128,6 +131,7 @@ export type FeeStructureStatus = 'active' | 'archived';
 export type ConcessionKind = 'percent' | 'amount';
 export type ConcessionStatus = 'pending' | 'approved' | 'rejected';
 export type RefundStatus = 'pending' | 'posted' | 'rejected';
+export type AdjustmentStatus = 'posted' | 'voided';
 
 export interface FeeStructureEntity {
   id: string;
@@ -178,8 +182,33 @@ export interface FeeConcessionEntity {
   percent: number | null;
   amountCents: number | null;
   reason: string;
+  /** W2-FIN-09: stable scholarship disbursement key for netting idempotency. */
+  sourceDisbursementId: string | null;
   approverId: string | null;
   status: ConcessionStatus;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+
+export interface FeeCreditNoteEntity {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+  status: AdjustmentStatus;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+export interface FeeWriteOffEntity {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  amountCents: number;
+  reason: string;
+  status: AdjustmentStatus;
   createdBy: string | null;
   createdAt: Date;
 }
@@ -222,6 +251,22 @@ export interface FeeReconciliationRowEntity {
   resolvedAt: Date | null;
   resolutionNote: string | null;
   createdAt: Date;
+}
+
+/** Invoice balance read under row lock (W3-RACE-03). */
+export interface InvoicePaymentBalance {
+  invoice: FeeInvoiceEntity;
+  paidCents: number;
+  remainingCents: number;
+}
+
+/** Atomic payment settlement payload produced while the invoice row is locked. */
+export interface RecordPaymentOnInvoiceSettlement {
+  paymentAmountCents: number;
+  payment: Omit<FeePaymentEntity, 'createdAt'>;
+  receipt: Omit<FeeReceiptEntity, 'createdAt'>;
+  ledgerEntries: Omit<FeeLedgerEntryEntity, 'createdAt'>[];
+  invoiceStatus: InvoiceStatus;
 }
 
 export interface FeesRepository {
@@ -294,8 +339,22 @@ export interface FeesRepository {
   updateConcession(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status' | 'approverId'>>,
   ): Promise<FeeConcessionEntity | null>;
+  findConcessionById(id: string, tenantId: string): Promise<FeeConcessionEntity | null>;
+  findConcessionBySourceDisbursementId(
+    tenantId: string,
+    sourceDisbursementId: string,
+  ): Promise<FeeConcessionEntity | null>;
+
+
+  createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity>;
+  listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]>;
+  listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]>;
+
+  createWriteOff(data: Omit<FeeWriteOffEntity, 'createdAt'>): Promise<FeeWriteOffEntity>;
+  listWriteOffsForInvoice(tenantId: string, invoiceId: string): Promise<FeeWriteOffEntity[]>;
+  listWriteOffsForTenant(tenantId: string): Promise<FeeWriteOffEntity[]>;
 
   createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity>;
   listRefundsForInvoice(tenantId: string, invoiceId: string): Promise<FeeRefundEntity[]>;
@@ -324,11 +383,38 @@ export interface FeesRepository {
     >,
   ): Promise<FeeReconciliationRowEntity | null>;
 
+  /**
+   * Lock the invoice row, read succeeded payment total, run `build`, then persist
+   * payment + receipt + ledger + invoice status in the same transaction (Pg: FOR UPDATE).
+   */
+  recordPaymentOnInvoice(
+    tenantId: string,
+    invoiceId: string,
+    build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+  ): Promise<{
+    invoice: FeeInvoiceEntity;
+    payment: FeePaymentEntity;
+    receipt: FeeReceiptEntity;
+  }>;
+
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;
   findPaymentById(id: string, tenantId: string): Promise<FeePaymentEntity | null>;
+  findPaymentByIdempotencyKey(
+    tenantId: string,
+    idempotencyKey: string,
+  ): Promise<FeePaymentEntity | null>;
 
   createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity>;
   listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]>;
   findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null>;
+
+  /** W2-FIN-06 durable dunning state */
+  listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]>;
+  createReminderSuppression(
+    data: ReminderSuppressionEntity,
+  ): Promise<ReminderSuppressionEntity>;
+  deleteReminderSuppression(tenantId: string, suppressionId: string): Promise<boolean>;
+  listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]>;
+  createReminderSendAudit(data: ReminderSendAuditEntity): Promise<ReminderSendAuditEntity>;
 }

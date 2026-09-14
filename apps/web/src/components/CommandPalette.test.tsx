@@ -37,7 +37,16 @@ vi.mock('@/providers/AuthProvider', () => ({
       email: 'admin@test.com',
       name: 'Admin',
       roles: ['admin'],
-      permissions: ['institution.read', 'student.read', 'staff.read'],
+      permissions: [
+      'institution.read',
+      'student.read',
+      'staff.read',
+      'assessment.read',
+      'analytics.read',
+      'etl.read',
+      'settings.read',
+      'report.read',
+    ],
       scope: { level: 'country' as const },
       tenant_id: 'tenant-1',
     },
@@ -125,7 +134,7 @@ vi.mock('@proctira/ui/components', () => {
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
 
-import { CommandPalette } from './CommandPalette';
+import { APP_ROUTER_PATH_ALIASES, buildPaletteItems, CommandPalette } from './CommandPalette';
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -240,6 +249,39 @@ describe('CommandPalette', () => {
     expect(screen.queryByTestId('command-palette-item-transport')).not.toBeNull();
     expect(screen.queryByTestId('command-palette-item-library')).not.toBeNull();
     expect(screen.queryByTestId('command-palette-item-fees')).not.toBeNull();
+  });
+
+
+
+
+  it('W2-UX-02: app-scope palette hrefs resolve to live App Router aliases', () => {
+    const items = buildPaletteItems([
+      'institution.read',
+      'student.read',
+      'staff.read',
+      'assessment.read',
+      'analytics.read',
+      'etl.read',
+      'settings.read',
+      'report.read',
+      'attendance.read',
+      'examination.read',
+      'scholarship.read',
+      'lms.read',
+      'health.read',
+      'workflow.read',
+      'data-warehouse.read',
+    ]);
+    const hrefs = items.map((i) => i.href);
+    expect(hrefs).toContain('/assessments');
+    expect(hrefs).toContain('/pipelines');
+    expect(hrefs).toContain('/admin');
+    expect(hrefs).toContain('/reports');
+    expect(hrefs).not.toContain('/assessment');
+    expect(hrefs).not.toContain('/etl');
+    expect(hrefs).not.toContain('/settings');
+    expect(hrefs).not.toContain('/analytics');
+    expect(APP_ROUTER_PATH_ALIASES.assessment).toBe('assessments');
   });
 
   it('does not open on plain K key without modifier', () => {

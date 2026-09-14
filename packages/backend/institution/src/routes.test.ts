@@ -413,6 +413,24 @@ describe('Institution Routes', () => {
       expect(json.meta.totalPages).toBe(3);
     });
 
+    it('W3-D1 baseline: route-level parsing accepts pageSize above schema max without gateway cap', async () => {
+      for (let i = 0; i < 3; i++) {
+        await app.inject({
+          method: 'POST',
+          url: '/institutions',
+          payload: validCreateBody(),
+        });
+      }
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/institutions?pageSize=250',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().meta.pageSize).toBe(250);
+    });
+
     it('should filter by status', async () => {
       const body1 = validCreateBody();
       const body2 = validCreateBody();

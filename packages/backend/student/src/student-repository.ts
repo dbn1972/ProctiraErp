@@ -99,4 +99,10 @@ export interface StudentRepository {
 
   /** Delete a student (soft delete) */
   delete(id: string, tenantId: string): Promise<boolean>;
+
+  /**
+   * W2-SIS-01: allocate the next unique admission number for a tenant.
+   * Format: ADM-{YYYY}-{seq} (seq is monotonic per tenant).
+   */
+  allocateAdmissionNumber(tenantId: string): Promise<string>;
 }

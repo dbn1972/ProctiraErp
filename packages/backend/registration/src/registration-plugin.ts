@@ -82,8 +82,9 @@ export const registrationPlugin = fp(
       defaultTenantId,
     } = options;
 
-    // Create registration service instance
-    const registrationService = new RegistrationService(repository, crmStore);
+    // Shared CRM so waitlist enqueue (staff) and seat-release promote (pipeline) see one queue.
+    const crm = crmStore; // RegistrationService defaults to in-memory when undefined
+    const registrationService = new RegistrationService(repository, crm);
 
     // Decorate fastify with the registration service
     fastify.decorate('registrationService', registrationService);
@@ -101,6 +102,8 @@ export const registrationPlugin = fp(
       enrolOnAccept,
       createOfferFeeInvoice,
       assertOfferFeePaid,
+      // Prefer the same store RegistrationService uses (including its default in-memory).
+      (registrationService as unknown as { crm: AdmissionsCrmStore }).crm,
     );
     await registerAdmissionsPipelineRoutes(fastify, {
       service: pipelineService,

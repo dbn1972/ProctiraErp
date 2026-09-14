@@ -1,6 +1,7 @@
 import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { AdmissionsCrmStore } from '../admissions-crm-store.js';
 import type { RegistrationEntity, RegistrationRepository } from '../registration-repository.js';
 import { generateTrackingNumber } from '../registration-service.js';
 
@@ -107,11 +108,13 @@ export class AdmissionsPipelineService {
     private readonly store: AdmissionsPipelineStore,
     private readonly applications: Pick<
       RegistrationRepository,
-      'create' | 'findById' | 'listByTenant'
+      'create' | 'findById' | 'listByTenant' | 'updateStatus'
     >,
     private readonly enrolOnAccept?: EnrolOnAccept,
     private readonly createOfferFeeInvoice?: CreateOfferFeeInvoice,
     private readonly assertOfferFeePaid?: AssertOfferFeePaid,
+    /** Optional CRM waitlist used to promote the next applicant when a seat frees. */
+    private readonly crm?: AdmissionsCrmStore,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
@@ -509,9 +512,62 @@ export class AdmissionsPipelineService {
     if (offer.status === 'accepted') {
       throw new BusinessRuleError('Cannot decline an accepted offer');
     }
-    if (offer.status === 'declined') return formatOffer(offer);
+    if (offer.status === 'declined') {
+      return { ...formatOffer(offer), promotedOffer: null as ReturnType<typeof formatOffer> | null };
+    }
     const next: OfferRecord = { ...offer, status: 'declined', updatedAt: new Date() };
-    return formatOffer(await this.store.updateOffer(next));
+    const declined = formatOffer(await this.store.updateOffer(next));
+    const promotedOffer = await this.promoteNextWaitlisted(tenantId, offer);
+    return { ...declined, promotedOffer };
+  }
+
+  /**
+   * W2-ADM-02: when a seat is released by a declined offer, promote the head
+   * of the institution waitlist into a draft offer (when CRM is wired).
+   */
+  private async promoteNextWaitlisted(
+    tenantId: string,
+    released: OfferRecord,
+  ): Promise<ReturnType<typeof formatOffer> | null> {
+    if (!this.crm) return null;
+    const head = await this.crm.dequeueWaitlistHead(tenantId, released.institutionId);
+    if (!head) return null;
+
+    // Ensure placement matches the freed seat band when missing.
+    const existingPlacement = await this.store.getPlacement(tenantId, head.applicationId);
+    if (!existingPlacement) {
+      const application = await this.applications.findById(head.applicationId, tenantId);
+      if (!application) return null;
+      await this.store.upsertPlacement({
+        applicationId: head.applicationId,
+        tenantId,
+        institutionId: released.institutionId,
+        academicPeriodId: released.academicPeriodId,
+        gradeId: released.gradeId,
+        quota: released.quota,
+        interviewScore: 0,
+        testScore: 0,
+        firstName: application.firstName,
+        lastName: application.lastName,
+        submittedAt: application.submittedAt,
+      });
+    }
+
+    try {
+      if (this.applications.updateStatus) {
+        await this.applications.updateStatus(
+          head.applicationId,
+          'under_review',
+          'Promoted from waitlist after seat release',
+          tenantId,
+        );
+      }
+      return await this.createOffer(tenantId, { applicationId: head.applicationId });
+    } catch {
+      // If promotion fails (e.g. seat already refilled), leave the dequeue durable —
+      // staff can re-offer manually. Decline still succeeds.
+      return null;
+    }
   }
 
   async getApplicationBundle(tenantId: string, applicationId: string) {

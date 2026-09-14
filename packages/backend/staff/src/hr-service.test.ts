@@ -137,8 +137,44 @@ Grace,Hopper,1906-12-09,EMP-GH-1,+15551111,Teacher,grace@school.test,permanent,2
     const row = payroll.rows.find((r) => r.staffId === staffId);
     expect(row?.salaryBand).toBe('L5');
     expect(row?.daysPresent).toBe(1);
+    expect(row?.deductionsCents).toBe(0);
     expect(row?.deductionsPlaceholder).toBe(0);
+    expect(row?.grossCents).toBe(0);
+    expect(row?.netCents).toBe(0);
     expect(row?.payableDays).toBe(1);
+    expect(payroll.idempotent).toBe(false);
+    expect(payroll.trialBalance.debitCents).toBe(payroll.trialBalance.creditCents);
+
+    const again = await hr.exportPayroll(TENANT_A, { month: '2026-09' });
+    expect(again.idempotent).toBe(true);
+    expect(again.runId).toBe(payroll.runId);
+  });
+
+  it('W2-HR-01: computes unpaid absence deductions and balanced payroll posting', async () => {
+    const { hr, staffService } = services();
+    const created = await hire(staffService, TENANT_A, 'EMP-ADA-PAY');
+    await hr.createContract(TENANT_A, {
+      staffId: created.id,
+      contractType: 'permanent',
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      salaryBand: '30000.00',
+      monthlyGrossCents: 3_000_000,
+    });
+    await hr.markAttendance(TENANT_A, { staffId: created.id, date: '2026-09-01', status: 'absent' }, 'hr-1');
+    await hr.markAttendance(TENANT_A, { staffId: created.id, date: '2026-09-02', status: 'absent' }, 'hr-1');
+    await hr.markAttendance(TENANT_A, { staffId: created.id, date: '2026-09-03', status: 'absent' }, 'hr-1');
+    const payroll = await hr.exportPayroll(TENANT_A, { month: '2026-09' });
+    const row = payroll.rows.find((r) => r.staffId === created.id);
+    expect(row?.absentDays).toBe(3);
+    expect(row?.grossCents).toBe(3_000_000);
+    // 3000000 * 3 / 30 = 300000
+    expect(row?.deductionsCents).toBe(300_000);
+    expect(row?.netCents).toBe(2_700_000);
+    expect(payroll.trialBalance.debitCents).toBe(payroll.trialBalance.creditCents);
+    expect(payroll.trialBalance.accounts.salary_expense).toBe(3_000_000);
+    expect(payroll.trialBalance.accounts.wages_payable).toBe(-2_700_000);
+    expect(payroll.trialBalance.accounts.payroll_deductions).toBe(-300_000);
   });
 
   it('rejects empty import commit', async () => {

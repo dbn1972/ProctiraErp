@@ -135,7 +135,7 @@ describe('API Gateway', () => {
       expect(body.status).toBe('up');
     });
 
-    it('GET /health/ready returns readiness status', async () => {
+    it('GET /health/ready returns readiness status with database dependency', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/health/ready',
@@ -144,7 +144,10 @@ describe('API Gateway', () => {
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.status).toBe('up');
-      expect(body.services).toBeDefined();
+      expect(body.dependencies).toBeDefined();
+      expect(body.dependencies.database).toBe('in-memory');
+      expect(body.dependencies.redis).toBe('not-configured');
+      expect(Object.values(body.dependencies)).not.toContain('unknown');
     });
 
     it('health endpoints do not require authentication', async () => {
@@ -323,7 +326,7 @@ describe('API Gateway', () => {
   });
 
   describe('Tenant Resolution', () => {
-    it('resolves tenant from X-Tenant-ID header', async () => {
+    it('ignores client X-Tenant-ID and resolves tenant from JWT claim only (W1-SEC-01)', async () => {
       const token = app.jwt.sign(createTestJwtPayload());
 
       const response = await app.inject({
@@ -331,13 +334,11 @@ describe('API Gateway', () => {
         url: '/api/v1/institutions',
         headers: {
           authorization: `Bearer ${token}`,
-          'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+          'x-tenant-id': '660e8400-e29b-41d4-a716-446655440000',
         },
       });
 
-      // Request passed tenant resolution and was answered by the in-process
-      // institution route (which itself requires a tenant context; a missing
-      // tenant would have been rejected with 401 TENANT_RESOLUTION_FAILED).
+      // Spoofed header is stripped; JWT tenantId claim binds authorization scope.
       expect(response.statusCode).toBe(200);
       expect(response.json().data).toBeInstanceOf(Array);
     });

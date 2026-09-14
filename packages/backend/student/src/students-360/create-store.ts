@@ -4,14 +4,9 @@
  *   - `DATABASE_URL` set → {@link PgStudents360Store} (raw pg + RLS)
  *   - otherwise          → {@link InMemoryStudents360Store} (dev / tests)
  */
-import { assertInMemoryFallbackAllowed } from '@proctira/database';
-import pg from 'pg';
+import { assertInMemoryFallbackAllowed, getSharedPgPool } from '@proctira/database';
 
 import { InMemoryStudents360Store, PgStudents360Store, type Students360Store } from './store.js';
-
-const { Pool } = pg;
-
-let sharedPool: pg.Pool | null = null;
 
 export interface Students360StoreConfig {
   databaseUrl?: string;
@@ -23,8 +18,10 @@ export function createStudents360Store(config: Students360StoreConfig = {}): Stu
     assertInMemoryFallbackAllowed('student.students360');
     return new InMemoryStudents360Store();
   }
-  if (!sharedPool) {
-    sharedPool = new Pool({ connectionString: databaseUrl });
+  const pool = getSharedPgPool(databaseUrl);
+  if (!pool) {
+    assertInMemoryFallbackAllowed('student.students360');
+    return new InMemoryStudents360Store();
   }
-  return new PgStudents360Store(sharedPool);
+  return new PgStudents360Store(pool);
 }

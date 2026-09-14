@@ -53,8 +53,14 @@ export type {
 
 export { QueueDocumentTaskQueue } from './queue-document-task-queue.js';
 export type { ExamDocumentJobPayload } from './queue-document-task-queue.js';
-export { createDocumentTaskQueueFromEnv } from './document-task-queue-factory.js';
-export type { DocumentTaskQueueHandle } from './document-task-queue-factory.js';
+export {
+  createDocumentOutboxFromEnv,
+  createDocumentTaskQueueFromEnv,
+} from './document-task-queue-factory.js';
+export type {
+  DocumentOutboxHandle,
+  DocumentTaskQueueHandle,
+} from './document-task-queue-factory.js';
 
 // PDF Generator
 export { SimplePdfGenerator } from './pdf-generator.js';

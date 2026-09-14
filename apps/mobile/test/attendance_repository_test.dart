@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
+import 'package:proctira_mobile/core/storage/cache_crypto.dart';
 import 'package:proctira_mobile/core/storage/database.dart';
 import 'package:proctira_mobile/core/storage/secure_storage.dart';
 import 'package:proctira_mobile/core/sync/connectivity_monitor.dart';
@@ -22,11 +23,12 @@ class _NoopDispatcher implements SyncDispatcher {
   }
 }
 
-Future<({AppDatabase db, TenantProvider tenant, SyncEngine engine})> _bootstrap() async {
+Future<({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto})> _bootstrap() async {
   final Directory tempDir = await Directory.systemTemp.createTemp('att_repo_');
   final AppDatabase db = AppDatabase(overridePath: '${tempDir.path}/openemis.db');
   final SecureStorage secure = SecureStorage(const FlutterSecureStorage());
   await secure.writeTenant(tenantId: 'tenant-a', displayName: 'Tenant A');
+  final CacheCrypto crypto = await CacheCrypto.fromSecureStorage(secure);
   final TenantProvider tenant = TenantProvider(secure);
   await tenant.bootstrap();
   final FakeConnectivityMonitor connectivity = FakeConnectivityMonitor();
@@ -39,7 +41,7 @@ Future<({AppDatabase db, TenantProvider tenant, SyncEngine engine})> _bootstrap(
     },
     baseBackoff: Duration.zero,
   );
-  return (db: db, tenant: tenant, engine: engine);
+  return (db: db, tenant: tenant, engine: engine, crypto: crypto);
 }
 
 void main() {
@@ -56,7 +58,7 @@ void main() {
 
   test('loadRoster returns rows from students_cache filtered by institution',
       () async {
-    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine}) ctx =
+    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
         await _bootstrap();
     final Database raw = await ctx.db.database;
     await raw.insert('students_cache', <String, Object?>{
@@ -86,6 +88,7 @@ void main() {
       database: ctx.db,
       tenantProvider: ctx.tenant,
       syncEngine: ctx.engine,
+      cacheCrypto: ctx.crypto,
     );
 
     final List<AttendanceRosterEntry> roster = await repo.loadRoster(
@@ -102,7 +105,7 @@ void main() {
 
   test('markAttendance saves to attendance_offline and queues a sync op',
       () async {
-    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine}) ctx =
+    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
         await _bootstrap();
     final Database raw = await ctx.db.database;
     await raw.insert('students_cache', <String, Object?>{
@@ -121,6 +124,7 @@ void main() {
       database: ctx.db,
       tenantProvider: ctx.tenant,
       syncEngine: ctx.engine,
+      cacheCrypto: ctx.crypto,
     );
 
     final List<AttendanceRosterEntry> roster = await repo.loadRoster(
@@ -166,7 +170,7 @@ void main() {
 
   test('markAttendance update path queues an update op with base version',
       () async {
-    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine}) ctx =
+    final ({AppDatabase db, TenantProvider tenant, SyncEngine engine, CacheCrypto crypto}) ctx =
         await _bootstrap();
     final Database raw = await ctx.db.database;
     await raw.insert('students_cache', <String, Object?>{
@@ -185,6 +189,7 @@ void main() {
       database: ctx.db,
       tenantProvider: ctx.tenant,
       syncEngine: ctx.engine,
+      cacheCrypto: ctx.crypto,
     );
 
     AttendanceRosterEntry entry = (await repo.loadRoster(

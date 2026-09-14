@@ -4,17 +4,21 @@
  * `balance / days` of them succeed. Skipped without DATABASE_URL.
  */
 import { randomUUID } from 'node:crypto';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { describe, expect, it } from 'vitest';
 
 import { InsufficientLeaveBalanceError } from './leave-repository.js';
 import { StaffLeaveService } from './leave-service.js';
 import { getSharedStaffLeavePool, PgStaffLeaveRepository } from './pg-leave-repository.js';
+const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-leave-repository.live.test' });
+
 
 const pool = getSharedStaffLeavePool();
+const live = Boolean(DATABASE_URL) && pool !== null;
 
 describe('PgStaffLeaveRepository balance concurrency (live)', () => {
-  it.skipIf(!pool)('never over-consumes a balance under concurrent approvals', async () => {
+  it.skipIf(!live)('never over-consumes a balance under concurrent approvals', async () => {
     const repo = new PgStaffLeaveRepository(pool!);
     const service = new StaffLeaveService(repo);
     const tenantId = randomUUID();

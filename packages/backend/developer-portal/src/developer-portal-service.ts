@@ -39,6 +39,10 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
+import type {
+  WebhookDeliveryJobPayload,
+  WebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
@@ -117,13 +121,37 @@ export function verifyWebhookSignature(
   }
 }
 
+export type WebhookHttpFetch = (
+  url: string,
+  init: {
+    method: string;
+    headers: Record<string, string>;
+    body: string;
+  },
+) => Promise<{ status: number; ok: boolean }>;
+
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class DeveloperPortalService {
+  private readonly deliveryPublisher: WebhookDeliveryPublisher | undefined;
+  private readonly httpFetch: WebhookHttpFetch;
+
   constructor(
     private readonly repository: DeveloperPortalExtendedRepository,
     private readonly config: DeveloperPortalServiceConfig = DEFAULT_CONFIG,
-  ) {}
+    options?: {
+      deliveryPublisher?: WebhookDeliveryPublisher;
+      httpFetch?: WebhookHttpFetch;
+    },
+  ) {
+    this.deliveryPublisher = options?.deliveryPublisher;
+    this.httpFetch =
+      options?.httpFetch ??
+      (async (url, init) => {
+        const res = await fetch(url, init);
+        return { status: res.status, ok: res.ok };
+      });
+  }
 
   // ─── Developer Accounts ─────────────────────────────────────────────────
 
@@ -192,6 +220,7 @@ export class DeveloperPortalService {
 
   async createApiKey(
     accountId: string,
+    tenantId: string,
     input: CreateApiKeyInput,
   ): Promise<{ entity: ApiKeyEntity; rawKey: string }> {
     // Verify account exists and is active
@@ -204,7 +233,11 @@ export class DeveloperPortalService {
     }
 
     // Check key limit
-    const existing = await this.repository.listApiKeys({ accountId, status: 'active' }, 1, 1);
+    const existing = await this.repository.listApiKeys(
+      { accountId, tenantId, status: 'active' },
+      1,
+      1,
+    );
     if (existing.total >= this.config.maxApiKeysPerAccount) {
       throw new BusinessRuleError(
         `Maximum of ${this.config.maxApiKeysPerAccount} active API keys per account`,
@@ -221,6 +254,7 @@ export class DeveloperPortalService {
 
     const entity: ApiKeyEntity = {
       id: uuidv4(),
+      tenantId,
       accountId,
       name: input.name,
       keyHash,
@@ -238,11 +272,12 @@ export class DeveloperPortalService {
 
   async listApiKeys(
     accountId: string,
+    tenantId: string,
     page: number = 1,
     pageSize: number = 20,
     status?: 'active' | 'revoked' | 'expired',
   ): Promise<{ data: ApiKeyEntity[]; total: number }> {
-    return this.repository.listApiKeys({ accountId, status }, page, pageSize);
+    return this.repository.listApiKeys({ accountId, tenantId, status }, page, pageSize);
   }
 
   async revokeApiKey(accountId: string, keyId: string): Promise<ApiKeyEntity> {
@@ -282,7 +317,11 @@ export class DeveloperPortalService {
 
   // ─── Webhooks ───────────────────────────────────────────────────────────
 
-  async createWebhook(accountId: string, input: CreateWebhookInput): Promise<WebhookEntity> {
+  async createWebhook(
+    accountId: string,
+    tenantId: string,
+    input: CreateWebhookInput,
+  ): Promise<WebhookEntity> {
     // Verify account exists and is active
     const account = await this.repository.getAccountById(accountId);
     if (!account) {
@@ -292,8 +331,8 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('Cannot create webhook for inactive account');
     }
 
-    // Check webhook limit
-    const existing = await this.repository.listWebhooks({ accountId }, 1, 1);
+    // Check webhook limit (per account + tenant, matching API key scoping)
+    const existing = await this.repository.listWebhooks({ accountId, tenantId }, 1, 1);
     if (existing.total >= this.config.maxWebhooksPerAccount) {
       throw new BusinessRuleError(
         `Maximum of ${this.config.maxWebhooksPerAccount} webhooks per account`,
@@ -307,6 +346,7 @@ export class DeveloperPortalService {
     const now = new Date();
     const webhook: WebhookEntity = {
       id: uuidv4(),
+      tenantId,
       accountId,
       url: input.url,
       events: input.events,
@@ -320,9 +360,9 @@ export class DeveloperPortalService {
     return this.repository.createWebhook(webhook);
   }
 
-  async getWebhook(accountId: string, webhookId: string): Promise<WebhookEntity> {
+  async getWebhook(accountId: string, tenantId: string, webhookId: string): Promise<WebhookEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
-    if (!webhook || webhook.accountId !== accountId) {
+    if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
     return webhook;
@@ -330,20 +370,22 @@ export class DeveloperPortalService {
 
   async listWebhooks(
     accountId: string,
+    tenantId: string,
     page: number = 1,
     pageSize: number = 20,
     active?: boolean,
   ): Promise<{ data: WebhookEntity[]; total: number }> {
-    return this.repository.listWebhooks({ accountId, active }, page, pageSize);
+    return this.repository.listWebhooks({ accountId, tenantId, active }, page, pageSize);
   }
 
   async updateWebhook(
     accountId: string,
+    tenantId: string,
     webhookId: string,
     input: UpdateWebhookInput,
   ): Promise<WebhookEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
-    if (!webhook || webhook.accountId !== accountId) {
+    if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
 
@@ -360,9 +402,9 @@ export class DeveloperPortalService {
     return updated!;
   }
 
-  async deleteWebhook(accountId: string, webhookId: string): Promise<void> {
+  async deleteWebhook(accountId: string, tenantId: string, webhookId: string): Promise<void> {
     const webhook = await this.repository.getWebhookById(webhookId);
-    if (!webhook || webhook.accountId !== accountId) {
+    if (!webhook || webhook.accountId !== accountId || webhook.tenantId !== tenantId) {
       throw new NotFoundError(`Webhook '${webhookId}' not found`);
     }
     await this.repository.deleteWebhook(webhookId);
@@ -374,6 +416,7 @@ export class DeveloperPortalService {
     webhookId: string,
     event: string,
     payload: Record<string, unknown>,
+    signingSecret?: string,
   ): Promise<WebhookDeliveryEntity> {
     const webhook = await this.repository.getWebhookById(webhookId);
     if (!webhook) {
@@ -399,7 +442,77 @@ export class DeveloperPortalService {
       createdAt: new Date(),
     };
 
-    return this.repository.createDelivery(delivery);
+    const created = await this.repository.createDelivery(delivery);
+
+    // W2-JOB-07: enqueue durable HTTP delivery (no-op publisher = pending-only residual)
+    if (this.deliveryPublisher) {
+      await this.deliveryPublisher.enqueueDelivery({
+        deliveryId: created.id,
+        webhookId: webhook.id,
+        tenantId: webhook.tenantId,
+        url: webhook.url,
+        event,
+        body: payload,
+        signingSecret,
+        attempt: 0,
+      });
+    }
+
+    return created;
+  }
+
+  /**
+   * Durable queue consumer handler (W2-JOB-07).
+   * POSTs the webhook payload; on failure marks retry with exponential backoff
+   * and re-enqueues when a publisher is configured.
+   */
+  async processQueuedDelivery(job: WebhookDeliveryJobPayload): Promise<void> {
+    const delivery = await this.repository.getDeliveryById(job.deliveryId);
+    if (!delivery) {
+      return;
+    }
+    if (delivery.status === 'delivered' || delivery.status === 'failed') {
+      return;
+    }
+
+    const body = JSON.stringify({
+      id: job.deliveryId,
+      event: job.event,
+      payload: job.body,
+    });
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      'x-proctira-event': job.event,
+      'x-proctira-delivery': job.deliveryId,
+    };
+    if (job.signingSecret) {
+      headers['x-proctira-signature'] = generateWebhookSignature(body, job.signingSecret);
+    }
+
+    try {
+      const res = await this.httpFetch(job.url, { method: 'POST', headers, body });
+      if (res.ok) {
+        await this.markDeliverySuccess(job.deliveryId, res.status);
+        return;
+      }
+      const updated = await this.markDeliveryFailed(job.deliveryId, res.status);
+      if (updated.status === 'pending' && this.deliveryPublisher) {
+        const delayMs = Math.pow(2, updated.attempts) * 30000;
+        await this.deliveryPublisher.enqueueDelivery(
+          { ...job, attempt: updated.attempts },
+          delayMs,
+        );
+      }
+    } catch {
+      const updated = await this.markDeliveryFailed(job.deliveryId, null);
+      if (updated.status === 'pending' && this.deliveryPublisher) {
+        const delayMs = Math.pow(2, updated.attempts) * 30000;
+        await this.deliveryPublisher.enqueueDelivery(
+          { ...job, attempt: updated.attempts },
+          delayMs,
+        );
+      }
+    }
   }
 
   async listDeliveries(

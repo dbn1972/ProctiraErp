@@ -23,7 +23,8 @@ import {
   isPgCounsellingEnabled,
   type PgPoolLike,
 } from './pg-counselling-store.js';
-import { decryptPhi, encryptPhi } from './phi-crypto.js';
+import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
+import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
 let schemaReady: Promise<void> | null = null;
 
@@ -185,6 +186,11 @@ export interface PhiAccessLogInput {
 export class PgSpecialNeedsStore {
   constructor(private readonly pool: PgPoolLike) {}
 
+  private async phiScope(tenantId: string, studentId: string): Promise<PhiCryptoScope> {
+    const institutionId = await findStudentInstitutionId(this.pool, tenantId, studentId);
+    return phiScopeForStudent(tenantId, studentId, institutionId);
+  }
+
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool, tenantId, fn);
   }
@@ -272,6 +278,7 @@ export class PgSpecialNeedsStore {
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<SpecialNeedsAssessmentEntity> {
     await this.ensureSchema();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO health_special_needs_assessments
@@ -287,8 +294,8 @@ export class PgSpecialNeedsStore {
           data.assessorName,
           data.assessorRole,
           data.assessmentType,
-          encryptPhi(data.findings),
-          encryptPhi(data.recommendations),
+          encryptPhi(data.findings, scope),
+          encryptPhi(data.recommendations, scope),
         ],
       );
       return mapAssessment((result.rows as Record<string, unknown>[])[0]!);
@@ -331,6 +338,7 @@ export class PgSpecialNeedsStore {
     data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<DiagnosisEntity> {
     await this.ensureSchema();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO health_diagnoses
@@ -348,7 +356,7 @@ export class PgSpecialNeedsStore {
           data.condition,
           data.category,
           data.severity,
-          encryptPhi(data.notes),
+          encryptPhi(data.notes, scope),
         ],
       );
       return mapDiagnosis((result.rows as Record<string, unknown>[])[0]!);
@@ -388,6 +396,7 @@ export class PgSpecialNeedsStore {
     data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<ReferralEntity> {
     await this.ensureSchema();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO health_referrals
@@ -403,10 +412,10 @@ export class PgSpecialNeedsStore {
           data.referralDate,
           data.referredBy,
           data.referredTo,
-          encryptPhi(data.reason),
+          encryptPhi(data.reason, scope),
           data.status,
           data.appointmentDate,
-          encryptPhi(data.outcome),
+          encryptPhi(data.outcome, scope),
         ],
       );
       return mapReferral((result.rows as Record<string, unknown>[])[0]!);
@@ -436,6 +445,7 @@ export class PgSpecialNeedsStore {
         createdAt: current.createdAt,
         updatedAt: new Date(),
       };
+      const scope = await this.phiScope(tenantId, next.studentId);
       const result = await client.query(
         `UPDATE health_referrals SET
            diagnosis_id = $3, referral_date = $4, referred_by = $5, referred_to = $6,
@@ -449,10 +459,10 @@ export class PgSpecialNeedsStore {
           next.referralDate,
           next.referredBy,
           next.referredTo,
-          encryptPhi(next.reason),
+          encryptPhi(next.reason, scope),
           next.status,
           next.appointmentDate,
-          encryptPhi(next.outcome),
+          encryptPhi(next.outcome, scope),
         ],
       );
       return mapReferral((result.rows as Record<string, unknown>[])[0]!);
@@ -492,6 +502,7 @@ export class PgSpecialNeedsStore {
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<AccommodationPlanEntity> {
     await this.ensureSchema();
+    const scope = await this.phiScope(data.tenantId, data.studentId);
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO health_accommodation_plans
@@ -510,7 +521,7 @@ export class PgSpecialNeedsStore {
           JSON.stringify(data.accommodations),
           data.reviewDate,
           data.status,
-          encryptPhi(data.notes),
+          encryptPhi(data.notes, scope),
         ],
       );
       return mapPlan((result.rows as Record<string, unknown>[])[0]!);
@@ -540,6 +551,7 @@ export class PgSpecialNeedsStore {
         createdAt: current.createdAt,
         updatedAt: new Date(),
       };
+      const scope = await this.phiScope(tenantId, next.studentId);
       const result = await client.query(
         `UPDATE health_accommodation_plans SET
            diagnosis_id = $3, plan_name = $4, start_date = $5, end_date = $6,
@@ -556,7 +568,7 @@ export class PgSpecialNeedsStore {
           JSON.stringify(next.accommodations),
           next.reviewDate,
           next.status,
-          encryptPhi(next.notes),
+          encryptPhi(next.notes, scope),
         ],
       );
       return mapPlan((result.rows as Record<string, unknown>[])[0]!);

@@ -196,6 +196,18 @@ export const StudentParamsSchema = Type.Object({
 
 export type StudentParams = Static<typeof StudentParamsSchema>;
 
+const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+/**
+ * W2-SIS-02: merge duplicate student into survivor.
+ */
+export const MergeStudentsSchema = Type.Object({
+  survivorId: Type.String({ pattern: UuidPattern, description: 'Canonical student UUID' }),
+  duplicateId: Type.String({ pattern: UuidPattern, description: 'Duplicate student UUID to retire' }),
+  reason: Type.String({ minLength: 1, maxLength: 500, description: 'Why these records are duplicates' }),
+});
+export type MergeStudentsInput = Static<typeof MergeStudentsSchema>;
+
 /**
  * Schema for student response object.
  */

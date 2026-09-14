@@ -16,13 +16,15 @@ import {
   CreateStudentSchema,
   UpdateStudentSchema,
   StudentParamsSchema,
+  MergeStudentsSchema,
   type CreateStudentInput,
   type UpdateStudentInput,
   type StudentListQuery,
   type StudentSearchQuery,
   type StudentParams,
+  type MergeStudentsInput,
 } from './schemas.js';
-import { assertStudentWriteAccess } from './student-access.js';
+import { assertStudentReadAccess, assertStudentWriteAccess } from './student-access.js';
 import type { StudentService } from './student-service.js';
 
 function getRoles(request: FastifyRequest): unknown {
@@ -69,6 +71,12 @@ function formatStudentResponse(entity: {
     guardians: entity.guardians,
     identityDocuments: entity.identityDocuments,
     customData: entity.customData,
+    admissionNumber:
+      (typeof entity.customData?.['admissionNo'] === 'string' &&
+        entity.customData['admissionNo']) ||
+      (typeof entity.customData?.['admissionNumber'] === 'string' &&
+        entity.customData['admissionNumber']) ||
+      null,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };
@@ -116,6 +124,52 @@ export async function registerStudentRoutes(
         assertStudentWriteAccess(getRoles(request), 'student.create');
         const student = await studentService.create(tenantId, result.data);
         return reply.status(201).send(formatStudentResponse(student));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /students/merge — W2-SIS-02 merge duplicate into survivor.
+   */
+  fastify.post(
+    `${prefix}/merge`,
+    async function mergeHandler(
+      request: FastifyRequest<{ Body: MergeStudentsInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(MergeStudentsSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        assertStudentWriteAccess(getRoles(request), 'student.update');
+        const merged = await studentService.mergeDuplicates(tenantId, result.data);
+        return reply.status(200).send({
+          mergeId: merged.mergeId,
+          duplicateId: merged.duplicateId,
+          enrollmentsReassigned: merged.enrollmentsReassigned,
+          survivor: formatStudentResponse(merged.survivor),
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -211,15 +265,23 @@ export async function registerStudentRoutes(
         });
       }
 
-      const page = Number(query.page) || 1;
-      const pageSize = Number(query.pageSize) || 20;
+      try {
+        assertStudentReadAccess(getRoles(request));
+        const page = Number(query.page) || 1;
+        const pageSize = Number(query.pageSize) || 20;
 
-      const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
+        const result = await studentService.search(tenantId, query.q.trim(), { page, pageSize });
 
-      return reply.status(200).send({
-        data: result.data.map(formatStudentResponse),
-        meta: result.meta,
-      });
+        return reply.status(200).send({
+          data: result.data.map(formatStudentResponse),
+          meta: result.meta,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -245,23 +307,31 @@ export async function registerStudentRoutes(
       const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
-      const sortBy = query.sortBy ?? 'lastName';
-      const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
+      try {
+        assertStudentReadAccess(getRoles(request));
+        const sortBy = query.sortBy ?? 'lastName';
+        const sortOrder = (query.sortOrder ?? 'asc') as 'asc' | 'desc';
 
-      const result = await studentService.list(
-        tenantId,
-        {
-          gender: query.gender,
-          search: query.search,
-          institutionId: query.institutionId,
-        },
-        { page, pageSize, sortBy, sortOrder },
-      );
+        const result = await studentService.list(
+          tenantId,
+          {
+            gender: query.gender,
+            search: query.search,
+            institutionId: query.institutionId,
+          },
+          { page, pageSize, sortBy, sortOrder },
+        );
 
-      return reply.status(200).send({
-        data: result.data.map(formatStudentResponse),
-        meta: result.meta,
-      });
+        return reply.status(200).send({
+          data: result.data.map(formatStudentResponse),
+          meta: result.meta,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -295,6 +365,7 @@ export async function registerStudentRoutes(
       }
 
       try {
+        assertStudentReadAccess(getRoles(request));
         const student = await studentService.getById(tenantId, paramsResult.data.id);
         return reply.status(200).send(formatStudentResponse(student));
       } catch (error: unknown) {
@@ -336,6 +407,7 @@ export async function registerStudentRoutes(
       }
 
       try {
+        assertStudentWriteAccess(getRoles(request), 'student.delete');
         await studentService.delete(tenantId, paramsResult.data.id);
         return reply.status(204).send();
       } catch (error: unknown) {

@@ -38,6 +38,10 @@ export interface ReportJobEntity {
   aggregations: AggregationConfig[] | null;
   templateId: string | null;
   title: string | null;
+  /** W2-JOB-13: optional client-supplied dedupe key for in-flight jobs */
+  dedupeKey: string | null;
+  /** W2-JOB-13: worker lease expiry while processing */
+  leaseExpiresAt: Date | null;
   requestedBy: string;
   requestedByArea: string | null;
   requestedByRole: string | null;
@@ -182,6 +186,27 @@ export interface ReportRepository {
     options: ReportJobQueryOptions,
   ): Promise<PaginatedReportJobs>;
 
+  /**
+   * W2-JOB-13: find an in-flight (queued/processing) job by dedupe key.
+   * Processing jobs with an expired lease are treated as reclaimable (not active).
+   */
+  findActiveJobByDedupeKey(
+    tenantId: string,
+    dedupeKey: string,
+    now?: Date,
+  ): Promise<ReportJobEntity | null>;
+
+  /**
+   * W2-JOB-13 / W3-C3: atomically claim a queued job for processing (lease).
+   * Reclaims jobs stuck in `processing` when the worker lease has expired.
+   * Returns null when the job is missing, cancelled, or actively leased.
+   */
+  claimQueuedJob(
+    tenantId: string,
+    jobId: string,
+    leaseMs: number,
+    now?: Date,
+  ): Promise<ReportJobEntity | null>;
   // ─── Report Templates ──────────────────────────────────────────────────
 
   /** Create a report template */

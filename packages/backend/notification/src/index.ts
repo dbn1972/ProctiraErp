@@ -29,6 +29,17 @@ export type {
 export { createSandboxEmailSender, EMAIL_SANDBOX_HONESTY_NOTE } from './sandbox-email-sender.js';
 export { createSandboxPushSender, PUSH_SANDBOX_HONESTY_NOTE } from './sandbox-push-sender.js';
 export { createSandboxSmsSender, SMS_SANDBOX_HONESTY_NOTE } from './sandbox-sms-sender.js';
+export {
+  createEmailSenderFromEnv,
+  createPushSenderFromEnv,
+  createSmsSenderFromEnv,
+  createUnimplementedLiveEmailSender,
+  createUnimplementedLivePushSender,
+  createUnimplementedLiveSmsSender,
+  LIVE_EMAIL_UNIMPLEMENTED_NOTE,
+  LIVE_PUSH_UNIMPLEMENTED_NOTE,
+  LIVE_SMS_UNIMPLEMENTED_NOTE,
+} from './channel-sender-factory.js';
 
 // Repository
 export type {
@@ -108,6 +119,19 @@ export type {
 // Routes
 export { registerNotificationRoutes } from './routes.js';
 export type { NotificationRoutesOptions } from './routes.js';
+
+// Durable delivery queue spine (W2-JOB-01)
+export { QueueNotificationDeliveryPublisher } from './queue-notification-publisher.js';
+export type { NotificationDeliveryJobPayload } from './queue-notification-publisher.js';
+export { createNotificationDeliveryPublisherFromEnv } from './notification-delivery-publisher-factory.js';
+export type { NotificationDeliveryPublisherHandle } from './notification-delivery-publisher-factory.js';
+export { createNotificationDeliveryWorker } from './notification-delivery-worker.js';
+export type {
+  NotificationDeliveryWorker,
+  NotificationDeliveryWorkerOptions,
+  NotificationDeliveryProcessor,
+  NotificationDeliveryWorkerLogger,
+} from './notification-delivery-worker.js';
 
 // Default Templates (using {{brand_name}} variable substitution)
 export {
