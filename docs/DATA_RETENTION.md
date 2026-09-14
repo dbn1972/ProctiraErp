@@ -8,6 +8,12 @@
 | Minor-linked PHI                       | 3650 days (~10 years) | `MINOR_PHI_RETENTION_DAYS` |
 | Database logical backups               |         30 days local | `BACKUP_RETENTION_DAYS` (Helm `dr.backup.retentionDays`) |
 
+Safety rails on every count/delete:
+
+- Retention windows above
+- Skip rows under active tenant or student **legal hold** (`tenants.legal_hold` /
+  `privacy_legal_holds`, W1-SEC-06)
+
 `RETENTION_DRY_RUN` is **required**. There is no silent dry-run default:
 
 | Value | Meaning |

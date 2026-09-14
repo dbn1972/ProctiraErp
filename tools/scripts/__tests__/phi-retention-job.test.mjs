@@ -5,8 +5,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildCandidateCountSql,
+  buildDeleteSql,
   buildRetentionPlan,
   classifyRetentionBucket,
+  legalHoldExclusionSql,
   resolveRetentionDryRun,
   retentionCutoffIso,
 } from '../phi-retention-job.mjs';
@@ -40,8 +43,26 @@ describe('G-503 PHI retention helpers', () => {
     assert.equal(plan.ok, true);
     assert.equal(plan.gap, 'G-503');
     assert.equal(plan.dryRun, true);
+    assert.equal(plan.policy.legalHoldExclusion, true);
     assert.equal(plan.candidates.counsellingSessions, 3);
     assert.equal(plan.applied.counsellingDeleted, 0);
+  });
+
+  it('embeds legal-hold exclusion in count and delete SQL', () => {
+    const hold = legalHoldExclusionSql('r');
+    assert.match(hold, /privacy_legal_holds/);
+    assert.match(hold, /legal_hold/);
+    const countSql = buildCandidateCountSql(
+      'counselling_sessions',
+      '2020-01-01T00:00:00.000Z',
+    );
+    const deleteSql = buildDeleteSql(
+      'counselling_sessions',
+      '2020-01-01T00:00:00.000Z',
+    );
+    assert.match(countSql, /privacy_legal_holds/);
+    assert.match(deleteSql, /DELETE FROM counselling_sessions/);
+    assert.match(deleteSql, /privacy_legal_holds/);
   });
 });
 

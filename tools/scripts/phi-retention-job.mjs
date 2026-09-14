@@ -4,6 +4,10 @@
  *
  * Uses `psql` when DATABASE_URL is set (no Node `pg` dependency required).
  *
+ * Safety rails (count + delete):
+ *   - Retention windows (`PHI_RETENTION_DAYS` / `MINOR_PHI_RETENTION_DAYS`)
+ *   - Skip rows under active tenant or student legal hold (W1-SEC-06)
+ *
  * Env:
  *   DATABASE_URL              optional; without it writes policy plan only
  *   PHI_RETENTION_DAYS        default 2555 (~7y)
@@ -52,6 +56,47 @@ export function classifyRetentionBucket({ isMinor, phiDays, minorDays }) {
   return isMinor ? minorDays : phiDays;
 }
 
+
+/**
+ * SQL predicate: row alias must expose tenant_id + student_id (text).
+ * Skips tenants.legal_hold and active privacy_legal_holds (tenant or student).
+ */
+export function legalHoldExclusionSql(alias = 'r') {
+  return `NOT EXISTS (
+      SELECT 1 FROM tenants t
+      WHERE t.id::text = ${alias}.tenant_id
+        AND COALESCE(t.legal_hold, false) = true
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM privacy_legal_holds h
+      WHERE h.active = true
+        AND h.tenant_id::text = ${alias}.tenant_id
+        AND (
+          h.scope = 'tenant'
+          OR (
+            h.scope = 'subject'
+            AND h.subject_type = 'student'
+            AND h.subject_id = ${alias}.student_id
+          )
+        )
+    )`;
+}
+
+export function buildCandidateCountSql(table, cutoffIso) {
+  return `SELECT count(*)::int FROM ${table} r
+    WHERE r.created_at < '${cutoffIso}'::timestamptz
+      AND ${legalHoldExclusionSql('r')};`;
+}
+
+export function buildDeleteSql(table, cutoffIso) {
+  return `WITH d AS (
+         DELETE FROM ${table} r
+         WHERE r.created_at < '${cutoffIso}'::timestamptz
+           AND ${legalHoldExclusionSql('r')}
+         RETURNING 1
+       ) SELECT count(*)::int FROM d;`;
+}
+
 export function buildRetentionPlan({
   counsellingCount,
   specialNeedsCount,
@@ -68,6 +113,7 @@ export function buildRetentionPlan({
       minorPhiRetentionDays: minorDays,
       adultCutoff: retentionCutoffIso(phiDays),
       minorCutoff: retentionCutoffIso(minorDays),
+      legalHoldExclusion: true,
     },
     candidates: {
       counsellingSessions: counsellingCount,
@@ -133,22 +179,21 @@ async function main() {
   const adultCutoff = retentionCutoffIso(PHI_DAYS);
   const minorCutoff = retentionCutoffIso(MINOR_DAYS);
 
+  // Adult window for these tables today (no is_minor/DOB join). Minor window
+  // remains in the plan for policy honesty (residual).
+  void minorCutoff;
+
   let counsellingCount =
-    psqlScalar(
-      `SELECT count(*)::int FROM counselling_sessions WHERE created_at < '${adultCutoff}'::timestamptz;`,
-    ) ?? 0;
+    psqlScalar(buildCandidateCountSql('counselling_sessions', adultCutoff)) ?? 0;
 
   let specialNeedsCount =
     psqlScalar(
-      `SELECT count(*)::int FROM health_special_needs_assessments WHERE created_at < '${adultCutoff}'::timestamptz;`,
+      buildCandidateCountSql('health_special_needs_assessments', adultCutoff),
     ) ??
     psqlScalar(
-      `SELECT count(*)::int FROM health_special_needs_records WHERE created_at < '${adultCutoff}'::timestamptz;`,
+      buildCandidateCountSql('health_special_needs_records', adultCutoff),
     ) ??
     0;
-
-  // Silence unused minorCutoff in dry-run count path (documented for apply policy).
-  void minorCutoff;
 
   const plan = buildRetentionPlan({
     counsellingCount,
@@ -161,19 +206,21 @@ async function main() {
 
   if (!dryRun) {
     const counsellingDeleted = psqlExec(
-      `WITH d AS (
-         DELETE FROM counselling_sessions WHERE created_at < '${adultCutoff}'::timestamptz RETURNING 1
-       ) SELECT count(*)::int FROM d;`,
+      buildDeleteSql('counselling_sessions', adultCutoff),
     );
     let specialNeedsDeleted = 0;
     try {
       specialNeedsDeleted = psqlExec(
-        `WITH d AS (
-           DELETE FROM health_special_needs_assessments WHERE created_at < '${adultCutoff}'::timestamptz RETURNING 1
-         ) SELECT count(*)::int FROM d;`,
+        buildDeleteSql('health_special_needs_assessments', adultCutoff),
       );
     } catch {
-      specialNeedsDeleted = 0;
+      try {
+        specialNeedsDeleted = psqlExec(
+          buildDeleteSql('health_special_needs_records', adultCutoff),
+        );
+      } catch {
+        specialNeedsDeleted = 0;
+      }
     }
     plan.applied = { counsellingDeleted, specialNeedsDeleted };
   }

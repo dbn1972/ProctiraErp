@@ -22,7 +22,7 @@ expired PHI unless an operator remembered to flip `apply`.
 | Base values | `…/values.yaml` | `apply: null` (refuse until overlay sets bool) |
 | Production | `…/values-production.yaml` | `apply: true` → `RETENTION_DRY_RUN=0` |
 | Staging / development | `…/values-staging.yaml`, `…/values-development.yaml` | `apply: false` → explicit `RETENTION_DRY_RUN=1` |
-| Job script | `tools/scripts/phi-retention-job.mjs` | `resolveRetentionDryRun` — unset/invalid refuse |
+| Job script | `tools/scripts/phi-retention-job.mjs` | `resolveRetentionDryRun` — unset/invalid refuse; legal-hold + retention-window SQL |
 | CI gate | `tools/scripts/helm-template-check.sh` | Staging dry-run + prod enforce + unset refuse |
 | Docs | `docs/DATA_RETENTION.md`, `docs/BACKUP_RESTORE.md` | Honesty on required mode |
 | Audit | `docs/audits/OPS_W1_OPS_19_PHI_RETENTION.md` | This evidence pack |
@@ -48,6 +48,7 @@ RETENTION_DRY_RUN=1 node --test tools/scripts/__tests__/phi-retention-job.test.m
 | -------- | ------ |
 | Live cluster has not yet run an apply-mode deletion against production PHI | **Accepted** — manifests + CI gates closed; first prod Job after deploy is the operational proof |
 | Minor-linked cutoff is documented but adult cutoff still drives count/delete SQL | **Pre-existing** — out of scope for W1-OPS-19 mode flip |
+| Legal-hold / 067 schema required on apply | **Accepted** — deletes fail closed if `privacy_legal_holds` / `tenants.legal_hold` missing |
 | Manual one-off dry-run in a production namespace requires a Job/env override, not the CronJob | **By design** |
 
 ## Rollback

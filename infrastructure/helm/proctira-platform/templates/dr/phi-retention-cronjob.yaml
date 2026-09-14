@@ -14,6 +14,7 @@
 # G-707 / W1-OPS-19 — scheduled PHI / minor-data retention job.
 # Production: apply=true → RETENTION_DRY_RUN=0 (enforces deletion).
 # Sandbox: apply=false → RETENTION_DRY_RUN=1 (explicit dry-run only).
+# Job keeps retention windows + legal-hold exclusions (phi-retention-job.mjs).
 # Evidence (summary.json) lands on the backups volume next to the dumps.
 apiVersion: batch/v1
 kind: CronJob
