@@ -1,7 +1,7 @@
 # Security — W1-SEC-13 CODEOWNERS as-complete-as-possible
 
 **Module / slice:** `.github/CODEOWNERS` + fail-closed CI gate  
-**Branch / tip:** `cursor/w1-sec-13-codeowners-complete-56c3`  
+**Branch / tip:** `cursor/w1-sec-13-codeowners-complete-56c3` @ `975fd1b4b66e9645e1f0987bb2d4dc33affcd53b`  
 **Date (UTC):** 2026-09-14  
 **Prior pack:** `docs/audits/SEC_W1_SEC_13_CODEOWNERS.md` (domain split)  
 **Paired gate:** `tools/scripts/check-codeowners.mjs` (wired in `ci.yml`)
