@@ -1,7 +1,7 @@
 /**
  * Pipeline Scheduler Unit Tests
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   PipelineScheduler,
   normalizeCronExpression,
@@ -232,5 +232,35 @@ describe('PipelineScheduler', () => {
     await scheduler.tick();
 
     expect(executed).toContain('pipe-1');
+  });
+
+  it('stopAndDrain waits for an in-flight tick (W1-ARCH-07)', async () => {
+    const scheduler = new PipelineScheduler({ checkIntervalMs: 20 });
+    scheduler.registerSchedule('pipe-1', 'tenant-1', '@hourly');
+    const entry = scheduler.getSchedule('pipe-1')!;
+    entry.nextRunAt = new Date(Date.now() - 60_000);
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let entered = false;
+    let finished = false;
+    scheduler.onDue(async () => {
+      entered = true;
+      await gate;
+      finished = true;
+    });
+
+    scheduler.start();
+    await vi.waitFor(() => {
+      expect(entered).toBe(true);
+    });
+
+    const drain = scheduler.stopAndDrain();
+    expect(finished).toBe(false);
+    release();
+    await drain;
+    expect(finished).toBe(true);
   });
 });

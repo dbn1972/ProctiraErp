@@ -14,6 +14,8 @@
  *   KAFKA_BROKERS - Comma-separated Kafka broker list
  *   JWT_SECRET    - JWT verification secret
  */
+import { registerGracefulShutdown } from '@proctira/common';
+import { closeDatabaseResources } from '@proctira/database';
 import { observabilityPlugin } from '@proctira/observability';
 import Fastify from 'fastify';
 
@@ -84,20 +86,26 @@ async function start() {
     process.exit(1);
   }
 
-  // Graceful shutdown
-  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
-  for (const signal of signals) {
-    process.on(signal, () => {
-      app.log.info(`Received ${signal}, shutting down gracefully...`);
-      void app.close().then(
-        () => process.exit(0),
-        (err: unknown) => {
-          app.log.error(err);
-          process.exit(1);
+  // W1-ARCH-07: ordered close — HTTP (plugin onClose) → DB pools → exit.
+  registerGracefulShutdown({
+    logger: {
+      info: (obj, msg) => app.log.info(obj, msg),
+      warn: (obj, msg) => app.log.warn(obj, msg),
+      error: (obj, msg) => app.log.error(obj, msg),
+    },
+    steps: [
+      {
+        name: 'http',
+        close: async () => {
+          await app.close();
         },
-      );
-    });
-  }
+      },
+      {
+        name: 'database',
+        close: () => closeDatabaseResources(),
+      },
+    ],
+  });
 }
 
 start();

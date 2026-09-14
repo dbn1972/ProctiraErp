@@ -20,7 +20,9 @@ import {
   etlPlugin,
   type PipelineRepository,
 } from '@proctira/backend-etl';
+import { registerGracefulShutdown } from '@proctira/common';
 import {
+  closeDatabaseResources,
   readPersistencePolicyEnv,
   runReadinessProbe,
   type PersistencePolicyEnv,
@@ -128,6 +130,41 @@ export async function buildEtlWorkerApp(
   return fastify;
 }
 
+/** W1-ARCH-07: register SIGINT/SIGTERM with ordered HTTP → DB → tracing close. */
+export function installEtlWorkerShutdown(
+  fastify: FastifyInstance,
+  options: {
+    exit?: (code: number) => void;
+    processRef?: NodeJS.Process;
+  } = {},
+) {
+  return registerGracefulShutdown({
+    processRef: options.processRef,
+    exit: options.exit,
+    logger: {
+      info: (obj, msg) => fastify.log.info(obj, msg),
+      warn: (obj, msg) => fastify.log.warn(obj, msg),
+      error: (obj, msg) => fastify.log.error(obj, msg),
+    },
+    steps: [
+      {
+        name: 'http',
+        close: async () => {
+          await fastify.close();
+        },
+      },
+      {
+        name: 'database',
+        close: () => closeDatabaseResources(),
+      },
+      {
+        name: 'tracing',
+        close: () => shutdownTracing(),
+      },
+    ],
+  });
+}
+
 async function start() {
   // W1-OPS-13: tracer provider before listen (noop when OTLP unset).
   const tracing = initTracing({ serviceName: 'etl-worker' });
@@ -146,17 +183,7 @@ async function start() {
     process.exit(1);
   }
 
-  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
-  for (const signal of signals) {
-    process.on(signal, () => {
-      void (async () => {
-        fastify.log.info(`Received ${signal}, shutting down gracefully...`);
-        await fastify.close();
-        await shutdownTracing();
-        process.exit(0);
-      })();
-    });
-  }
+  installEtlWorkerShutdown(fastify);
 }
 
 // Auto-listen only when this file is the process entry (not when imported by tests).

@@ -582,7 +582,8 @@ export class ETLService {
   }
 
   /**
-   * Stop the pipeline scheduler.
+   * Stop the pipeline scheduler (clears interval; does not await in-flight tick).
+   * Process shutdown uses Fastify onClose → `stopAndDrain()`.
    */
   stopScheduler(): void {
     this.scheduler.stop();

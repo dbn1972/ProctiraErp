@@ -60,6 +60,12 @@ describe('@proctira/database exports', () => {
     expect(typeof disconnectPrisma).toBe('function');
   });
 
+  it('exports closeDatabaseResources function', async () => {
+    const { closeDatabaseResources } = await import('./index');
+    expect(closeDatabaseResources).toBeDefined();
+    expect(typeof closeDatabaseResources).toBe('function');
+  });
+
   it('Prisma namespace includes DMMF with all scalar fields', () => {
     // Verify the schema includes expected fields via Prisma's generated types
     const tenantFields = Prisma.TenantScalarFieldEnum;

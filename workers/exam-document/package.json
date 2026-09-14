@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@proctira/backend-examination": "workspace:*",
+    "@proctira/common": "workspace:*",
+    "@proctira/database": "workspace:*",
     "@proctira/queue-abstraction": "workspace:*"
   },
   "devDependencies": {
