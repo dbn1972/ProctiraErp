@@ -48,6 +48,7 @@ function allSkipped() {
     codeownersGate: 'success',
     runtimeTablePrivileges: 'success',
     runtimeRoleGate: 'success',
+    securityScans: 'success',
     secondaryAppsE2e: 'skipped',
   };
 }
@@ -72,6 +73,7 @@ function allSucceeded() {
     codeownersGate: 'success',
     runtimeTablePrivileges: 'success',
     runtimeRoleGate: 'success',
+    securityScans: 'success',
     secondaryAppsE2e: 'success',
   };
 }
@@ -129,12 +131,30 @@ test('codeowners-gate skip fails closed even on docs-only PRs (W1-SEC-13)', () =
   const report = evaluate({ changes: noChanges, results });
   assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'codeowners-gate'));
+});
+
 test('runtime-table-privileges skip fails closed even on docs-only PRs (W1-DATA-11)', () => {
+  const results = allSkipped();
   results.runtimeTablePrivileges = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'runtime-table-privileges'));
+});
+
 test('runtime-role-gate skip fails closed even on docs-only PRs (W1-DATA-01)', () => {
+  const results = allSkipped();
   results.runtimeRoleGate = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'runtime-role-gate'));
+});
+
+test('security-scans skip fails closed even on docs-only PRs (W1-OPS-11)', () => {
+  const results = allSkipped();
+  results.securityScans = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'security-scans'));
 });
 
 test('failing proof: skip cascade with code changes is unproven and gate fails', () => {
@@ -239,7 +259,9 @@ test('secondary-apps change with skipped e2e is unproven (W1-OPS-12)', () => {
   results.tenantIdIndexes = 'success';
   results.migrationTimeouts = 'success';
   results.codeownersGate = 'success';
+  results.runtimeTablePrivileges = 'success';
   results.runtimeRoleGate = 'success';
+  results.securityScans = 'success';
   results.secondaryAppsE2e = 'skipped';
   const report = evaluate({ changes, results });
   assert.equal(report.ok, false);
