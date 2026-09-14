@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: api-gateway
-          image: proctira/api-gateway:latest
+          image: proctira/api-gateway:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

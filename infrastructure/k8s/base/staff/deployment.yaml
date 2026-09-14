@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: staff-service
-          image: proctira/staff-service:latest
+          image: proctira/staff-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

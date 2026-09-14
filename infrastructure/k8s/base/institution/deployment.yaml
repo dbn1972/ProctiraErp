@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: institution-service
-          image: proctira/institution-service:latest
+          image: proctira/institution-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

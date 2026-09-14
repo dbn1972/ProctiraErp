@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: notification-service
-          image: proctira/notification-service:latest
+          image: proctira/notification-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

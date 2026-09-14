@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: workflow-service
-          image: proctira/workflow-service:latest
+          image: proctira/workflow-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

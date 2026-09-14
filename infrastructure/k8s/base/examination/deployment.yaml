@@ -28,7 +28,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: examination-service
-          image: proctira/examination-service:latest
+          image: proctira/examination-service:sha-pending
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
