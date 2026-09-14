@@ -68,3 +68,18 @@ export {
 } from './grading-engine.js';
 export * from './schemas.js';
 export { registerLmsRoutes, getLmsActor, type LmsRoutesOptions } from './routes.js';
+
+export {
+  normalizeLmsRoles,
+  hasLmsAccess,
+  assertLmsAccess,
+  isLmsLearnPath,
+  lmsActionForRequest,
+} from './lms-access.js';
+export type { LmsAction } from './lms-access.js';
+export {
+  lmsRequestRoles,
+  lmsHasUser,
+  requireLmsAction,
+  enforceLmsRouteAccess,
+} from './lms-http-guard.js';

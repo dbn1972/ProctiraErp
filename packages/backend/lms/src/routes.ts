@@ -33,6 +33,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { getLmsFile } from './lms-file-store.js';
 import type { LmsActor, LmsService } from './lms-service.js';
+import { enforceLmsRouteAccess } from './lms-http-guard.js';
 import {
   AssembleFromBankSchema,
   AssignmentListQuerySchema,
@@ -160,6 +161,14 @@ export async function registerLmsRoutes(
   options: LmsRoutesOptions,
 ): Promise<void> {
   const { lmsService, prefix = '/lms' } = options;
+
+  // W1-SEC-02: staff manage coursework; authenticated learners submit/PAL/discuss.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceLmsRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
 
   // ─── Skills ────────────────────────────────────────────────────────────
 

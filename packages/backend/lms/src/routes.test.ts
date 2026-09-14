@@ -57,7 +57,13 @@ function createApp(): FastifyInstance {
       typeof tenant === 'string' ? tenant : TENANT_A;
     const principal = request.headers['x-test-principal'];
     (request as unknown as { user: Principal | null }).user =
-      typeof principal === 'string' ? (JSON.parse(principal) as Principal) : null;
+      typeof principal === 'string'
+        ? (JSON.parse(principal) as Principal)
+        : {
+            sub: 'teacher-default',
+            roles: [{ roleId: 'teacher', roleName: 'Teacher', areaId: 'root' }],
+            institutions: [SCHOOL_1],
+          };
   });
   return app;
 }
