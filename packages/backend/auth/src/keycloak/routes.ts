@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
+  defaultAccessTokenRevocationTtlSeconds,
+  revokeAccessTokenIdentifiers,
+  type AccessTokenRevocationStore,
+} from '../access-token-revocation.js';
+
+import {
   identityInputFromClaims,
   linkKeycloakIdentity,
   type KeycloakIdentityStore,
@@ -14,6 +20,12 @@ export type KeycloakRouteConfig = KeycloakAuthConfig & {
   redirectUri: string;
   webOrigin?: string;
   identityStore?: KeycloakIdentityStore;
+  /**
+   * Access-token jti/sid denylist (W1-SEC-09).
+   * Prefer the shared store decorated by keycloakAuthPlugin; this override
+   * exists for tests and explicit DI.
+   */
+  revocationStore?: AccessTokenRevocationStore;
 };
 
 type IssuedTokens = {
@@ -65,11 +77,96 @@ function authorizeUrl(config: KeycloakRouteConfig, state: string): string {
   return url.toString();
 }
 
-function logoutUrl(config: KeycloakRouteConfig, redirect?: string): string {
+function logoutUrl(
+  config: KeycloakRouteConfig,
+  redirect?: string,
+  idTokenHint?: string,
+): string {
   const url = new URL(`${config.issuer.replace(/\/$/, '')}/protocol/openid-connect/logout`);
   url.searchParams.set('client_id', config.clientId);
   if (redirect) url.searchParams.set('post_logout_redirect_uri', redirect);
+  if (idTokenHint) url.searchParams.set('id_token_hint', idTokenHint);
   return url.toString();
+}
+
+function readBearer(request: FastifyRequest): string | undefined {
+  const header = request.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return undefined;
+  return header.slice('Bearer '.length).trim() || undefined;
+}
+
+function readHeaderOrQuery(
+  request: FastifyRequest<{
+    Querystring: Record<string, string | undefined>;
+  }>,
+  headerName: string,
+  queryName: string,
+): string | undefined {
+  const header = request.headers[headerName];
+  if (typeof header === 'string' && header.trim()) return header.trim();
+  const query = request.query?.[queryName];
+  if (typeof query === 'string' && query.trim()) return query.trim();
+  return undefined;
+}
+
+/**
+ * Extract denylist identifiers from a Keycloak JWT without signature verify.
+ * Logout must denylist before IdP redirect even when JWKS is briefly unavailable.
+ */
+function revocationClaimsFromJwt(token: string): {
+  jti?: string;
+  sessionId?: string;
+  ttlSeconds?: number;
+} | null {
+  try {
+    const { payload } = decodeJwt(token);
+    const jti = payload.jti?.trim() || undefined;
+    const sessionId = payload.sid?.trim() || jti || undefined;
+    const now = Math.floor(Date.now() / 1000);
+    const ttlSeconds =
+      typeof payload.exp === 'number' && payload.exp > now ? payload.exp - now : undefined;
+    if (!jti && !sessionId) return null;
+    return { jti, sessionId, ttlSeconds };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * W1-SEC-09: denylist presented access (and refresh, when JWT) jti/sid before
+ * redirecting to the IdP end-session endpoint — same path as POST /auth/logout.
+ */
+async function revokePresentedTokensBeforeIdpLogout(
+  store: AccessTokenRevocationStore | undefined,
+  tokens: { accessToken?: string; refreshToken?: string },
+): Promise<void> {
+  if (!store) return;
+
+  let ttl = defaultAccessTokenRevocationTtlSeconds();
+  if (tokens.accessToken) {
+    const claims = revocationClaimsFromJwt(tokens.accessToken);
+    if (claims) {
+      if (claims.ttlSeconds != null) {
+        ttl = defaultAccessTokenRevocationTtlSeconds(claims.ttlSeconds);
+      }
+      await revokeAccessTokenIdentifiers(
+        store,
+        { jti: claims.jti, sessionId: claims.sessionId },
+        ttl,
+      );
+    }
+  }
+
+  if (tokens.refreshToken) {
+    const claims = revocationClaimsFromJwt(tokens.refreshToken);
+    if (claims) {
+      await revokeAccessTokenIdentifiers(
+        store,
+        { jti: claims.jti, sessionId: claims.sessionId },
+        ttl,
+      );
+    }
+  }
 }
 
 export async function registerKeycloakAuthRoutes(
@@ -349,15 +446,41 @@ export async function registerKeycloakAuthRoutes(
     },
   );
 
+  /**
+   * GET /auth/logout
+   * W1-SEC-09: denylist current access jti/sid (and refresh JWT identifiers when
+   * presented) before redirecting to Keycloak end-session.
+   */
   fastify.get(
     `${prefix}/logout`,
     async (
       request: FastifyRequest<{
-        Querystring: { redirect?: string };
+        Querystring: {
+          redirect?: string;
+          refresh_token?: string;
+          id_token?: string;
+          id_token_hint?: string;
+        };
       }>,
       reply: FastifyReply,
     ) => {
-      return reply.redirect(logoutUrl(config, request.query.redirect ?? config.webOrigin), 302);
+      const accessToken = readBearer(request);
+      const refreshToken = readHeaderOrQuery(request, 'x-refresh-token', 'refresh_token');
+      const idTokenHint =
+        readHeaderOrQuery(request, 'x-id-token', 'id_token_hint') ??
+        readHeaderOrQuery(request, 'x-id-token', 'id_token');
+
+      const store =
+        config.revocationStore ??
+        (fastify as FastifyInstance & { accessTokenRevocationStore?: AccessTokenRevocationStore })
+          .accessTokenRevocationStore;
+
+      await revokePresentedTokensBeforeIdpLogout(store, { accessToken, refreshToken });
+
+      return reply.redirect(
+        logoutUrl(config, request.query.redirect ?? config.webOrigin, idTokenHint),
+        302,
+      );
     },
   );
 
