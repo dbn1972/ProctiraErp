@@ -1,7 +1,7 @@
 # OPS — W1-OPS-15 deploy secrets fail-closed (no greenwash)
 
 **Module / slice:** `.github/workflows/deploy.yml` production / staging deploy honesty  
-**Branch / tip:** `cursor/aud-w1-ops-15-deploy-skip-56c3` @ `4c77d41b40bc0f88f697ecfb71bd2988b31b0a84`  
+**Branch / tip:** `cursor/aud-w1-ops-15-deploy-skip-56c3`  
 **Date (UTC):** 2026-09-14  
 **Paired check:** `tools/scripts/deploy-secrets-gate-check.sh` (wired via `helm-template.yml`)
 
