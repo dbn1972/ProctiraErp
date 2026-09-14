@@ -821,7 +821,15 @@ export class InMemoryHealthRepository implements HealthRepository {
       .map((row) => ({ ...row }));
   }
 
-  async createBreakGlassGrant(input: CreateHealthBreakGlassInput): Promise<HealthBreakGlassGrant> {
+  async createBreakGlassGrant(
+    input: CreateHealthBreakGlassInput,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthBreakGlassGrant,
+      ) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant> {
     const now = new Date().toISOString();
     const grant: HealthBreakGlassGrant = {
       id: uuidv4(),

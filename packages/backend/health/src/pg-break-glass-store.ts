@@ -105,7 +105,15 @@ export class PgBreakGlassStore {
     await ensureBreakGlassSchema(this.pool);
   }
 
-  async create(input: CreateBreakGlassInput): Promise<HealthBreakGlassGrant> {
+  async create(
+    input: CreateBreakGlassInput,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: HealthBreakGlassGrant,
+      ) => Promise<void>;
+    },
+  ): Promise<HealthBreakGlassGrant> {
     await this.ensureSchema();
     const id = randomUUID();
     return this.withTenant(input.tenantId, async (client) => {
@@ -125,7 +133,12 @@ export class PgBreakGlassStore {
           input.durationMinutes,
         ],
       );
-      return mapRow(result.rows[0] as Record<string, unknown>);
+      const entity = mapRow(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: break-glass request + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
     });
   }
 
