@@ -1,7 +1,7 @@
 # Security — W1-SEC-09 COMPLETE (shared access-token revocation)
 
 **Module / slice:** `@proctira/backend-auth` + `apps/api-gateway` access-token denylist  
-**Branch / tip:** `cursor/w1-sec-09-revoke-complete-56c3`  
+**Branch / tip:** `cursor/w1-sec-09-revoke-complete-56c3` @ `d20aa81ca3dd5e7fd05f8e63623790e410dddf3a`  
 **Date (UTC):** 2026-09-14  
 **Prior status:** PARTIAL (`docs/audits/SEC_W1_SEC_09_TOKEN_REVOKE.md`) — jti/sid checks existed but factory could default to per-process memory  
 **Data classes:** authentication / session (access JWT denylist)  
