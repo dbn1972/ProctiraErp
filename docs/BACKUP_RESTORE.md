@@ -257,9 +257,13 @@ operator's gpg keyring.
 
 ---
 
-## 4. Object Storage Backup
+## 4. Object Storage Backup — operator guidance
 
-### 4.1 S3 Cross-Region Replication
+**Not scheduled by `proctira-platform`.** The optional `dr.backup.offsite`
+path only uploads **Postgres dump artifacts**. Bucket mirroring / CRR below
+are examples for operators who back up application object storage separately.
+
+### 4.1 S3 Cross-Region Replication (example)
 
 For AWS S3 deployments, enable cross-region replication:
 

@@ -6,7 +6,7 @@
 | -------------------------------------- | --------------------: | -------------------------- |
 | Adult PHI (counselling, special-needs) |  2555 days (~7 years) | `PHI_RETENTION_DAYS`       |
 | Minor-linked PHI                       | 3650 days (~10 years) | `MINOR_PHI_RETENTION_DAYS` |
-| Database logical backups               |         30 days local | `DB_BACKUP_RETENTION_DAYS` |
+| Database logical backups               |         30 days local | `BACKUP_RETENTION_DAYS` (Helm `dr.backup.retentionDays`) |
 
 Dry-run is the default. Set `RETENTION_DRY_RUN=0` only in controlled jobs.
 
