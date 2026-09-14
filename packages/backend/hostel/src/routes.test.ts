@@ -17,7 +17,8 @@ describe('Hostel Routes', () => {
     app = Fastify({ logger: false });
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
-      (request as { tenantId: string }).tenantId = TENANT_ID;
+      (request as { tenantId: string; user?: { roles: string[] } }).tenantId = TENANT_ID;
+      (request as { tenantId: string; user?: { roles: string[] } }).user = { roles: ['warden'] };
     });
 
     await app.register(hostelPlugin, { repository: new InMemoryHostelRepository() });
