@@ -68,7 +68,7 @@ export class AcademicPeriodService {
         kind,
         parentId,
         version: 1,
-      },
+      } as never,
     });
   }
 
@@ -260,7 +260,7 @@ export class AcademicPeriodService {
         parentId,
         version: priorVersion + 1,
         supersedesId: prior.id,
-      },
+      } as never,
     });
 
     if (prior.status !== 'archived') {
