@@ -38,6 +38,8 @@
     "test:live:assert": "node tools/scripts/assert-live-test-execution.mjs",
     "test:live:gate": "node tools/scripts/run-live-test-gate.mjs",
     "check:restore-drill": "bash tools/scripts/check-restore-drill-evidence.sh",
+    "check:prisma-sql-drift": "node tools/scripts/check-prisma-sql-drift.mjs",
+    "check:prisma-sql-drift:test": "node --test tools/scripts/check-prisma-sql-drift.test.mjs",
     "test:pg": "vitest run --config tools/vitest.pg-gate.config.ts",
     "test:pg:assert": "node tools/scripts/assert-vitest-skips.mjs",
     "test:pg:gate": "node tools/scripts/run-pg-test-gate.mjs",

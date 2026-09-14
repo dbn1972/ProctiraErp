@@ -837,6 +837,29 @@ jobs:
         run: bash tools/scripts/check-restore-drill-evidence.sh
 
   # ---------------------------------------------------------------------------
+  # Prisma ↔ SQL schema drift — data gate (W1-DATA-04)
+  # ---------------------------------------------------------------------------
+  # Static fail-closed check: Prisma @@map tables must have CREATE TABLE in
+  # prisma/migrations or db/sql; auth session models must keep columns in
+  # numbered SQL. No Postgres required.
+  # ---------------------------------------------------------------------------
+  prisma-sql-drift:
+    name: Prisma SQL Drift (W1-DATA-04)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test Prisma↔SQL drift gate
+        run: node --test tools/scripts/check-prisma-sql-drift.test.mjs
+
+      - name: Fail on Prisma↔SQL schema drift
+        run: node tools/scripts/check-prisma-sql-drift.mjs
+
+  # ---------------------------------------------------------------------------
   # CI Aggregate — required merge gate (W1-OPS-05 B2)
   # ---------------------------------------------------------------------------
   # Always runs (even when upstream jobs skip) and fails closed when any
@@ -859,6 +882,7 @@ jobs:
       - dod-checks
       - tenant-isolation
       - restore-drill-evidence
+      - prisma-sql-drift
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -881,4 +905,5 @@ jobs:
           DOD_CHECKS_RESULT: ${{ needs.dod-checks.result }}
           TENANT_ISOLATION_RESULT: ${{ needs.tenant-isolation.result }}
           RESTORE_DRILL_EVIDENCE_RESULT: ${{ needs.restore-drill-evidence.result }}
+          PRISMA_SQL_DRIFT_RESULT: ${{ needs.prisma-sql-drift.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

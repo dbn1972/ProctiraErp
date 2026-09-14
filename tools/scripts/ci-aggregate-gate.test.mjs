@@ -37,6 +37,7 @@ function allSkipped() {
     dodChecks: 'skipped',
     tenantIsolation: 'skipped',
     restoreDrillEvidence: 'success',
+    prismaSqlDrift: 'success',
   };
 }
 
@@ -53,6 +54,7 @@ function allSucceeded() {
     dodChecks: 'success',
     tenantIsolation: 'success',
     restoreDrillEvidence: 'success',
+    prismaSqlDrift: 'success',
   };
 }
 
@@ -69,6 +71,14 @@ test('restore-drill evidence skip fails closed even on docs-only PRs', () => {
   const report = evaluate({ changes: noChanges, results });
   assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'restore-drill-evidence'));
+});
+
+test('prisma-sql-drift skip fails closed even on docs-only PRs (W1-DATA-04)', () => {
+  const results = allSkipped();
+  results.prismaSqlDrift = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'prisma-sql-drift'));
 });
 
 test('failing proof: skip cascade with code changes is unproven and gate fails', () => {

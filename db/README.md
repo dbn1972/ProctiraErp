@@ -7,6 +7,24 @@ ProctiraERP uses **two** schema layers:
 
 If only Prisma is applied, raw-SQL modules fall back to in-memory stores in tests (gap **G-002**).
 
+## Schema authority (W1-DATA-04)
+
+The layers are **not** interchangeable. Competing DDL without a drift gate caused
+auth session models (`RefreshToken` / `UserSession`) to exist in
+`schema.prisma` with no executable CREATE TABLE on fresh Postgres.
+
+| Layer | Owns | Must not |
+| --- | --- | --- |
+| Prisma migrations | Platform tables that ship under `prisma/migrations/` | Be skipped before `apply-sql.sh` |
+| Numbered `db/sql/` | Domain schemas **and** Prisma-mapped tables that lack a Prisma migration (e.g. `066_auth_session_tables.sql`) | Drift from Prisma `@map` / column names for SQL-backed critical models |
+
+**Enforce:**
+
+1. Apply order below (Prisma → `apply-sql.sh`) — required in CI and live setup.
+2. Executable gate: `pnpm check:prisma-sql-drift` (`tools/scripts/check-prisma-sql-drift.mjs`).
+   Fails when any Prisma `@@map` table has no `CREATE TABLE` in migrations or
+   `db/sql/`, or when critical auth session columns are missing from `db/sql/`.
+
 ## Runtime vs migrator roles (W1-DATA-01)
 
 PostgreSQL table owners bypass RLS unless `FORCE ROW LEVEL SECURITY` is set.
