@@ -712,7 +712,13 @@ export class HealthService {
   async createAssessment(
     tenantId: string,
     input: CreateSpecialNeedsAssessmentInput,
-    accessContext: HealthAccessContext,
+    accessContext: HealthAccessContext,,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: SpecialNeedsAssessmentEntity,
+      ) => Promise<void>;
+    },
   ): Promise<SpecialNeedsAssessmentEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -726,7 +732,7 @@ export class HealthService {
       findings: input.findings,
       recommendations: input.recommendations ?? null,
     };
-    return this.repository.createAssessment(entity);
+    return this.repository.createAssessment(entity, options);
   }
 
   async listAssessments(
@@ -751,7 +757,13 @@ export class HealthService {
   async createDiagnosis(
     tenantId: string,
     input: CreateDiagnosisInput,
-    accessContext: HealthAccessContext,
+    accessContext: HealthAccessContext,,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: DiagnosisEntity,
+      ) => Promise<void>;
+    },
   ): Promise<DiagnosisEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -766,7 +778,7 @@ export class HealthService {
       severity: input.severity,
       notes: input.notes ?? null,
     };
-    return this.repository.createDiagnosis(entity);
+    return this.repository.createDiagnosis(entity, options);
   }
 
   async listDiagnoses(
@@ -791,7 +803,13 @@ export class HealthService {
   async createReferral(
     tenantId: string,
     input: CreateReferralInput,
-    accessContext: HealthAccessContext,
+    accessContext: HealthAccessContext,,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: ReferralEntity,
+      ) => Promise<void>;
+    },
   ): Promise<ReferralEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -807,7 +825,7 @@ export class HealthService {
       appointmentDate: input.appointmentDate ?? null,
       outcome: input.outcome ?? null,
     };
-    return this.repository.createReferral(entity);
+    return this.repository.createReferral(entity, options);
   }
 
   async updateReferral(
@@ -846,7 +864,13 @@ export class HealthService {
   async createAccommodationPlan(
     tenantId: string,
     input: CreateAccommodationPlanInput,
-    accessContext: HealthAccessContext,
+    accessContext: HealthAccessContext,,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: AccommodationPlanEntity,
+      ) => Promise<void>;
+    },
   ): Promise<AccommodationPlanEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     const entity = {
@@ -862,7 +886,7 @@ export class HealthService {
       status: input.status,
       notes: input.notes ?? null,
     };
-    return this.repository.createAccommodationPlan(entity);
+    return this.repository.createAccommodationPlan(entity, options);
   }
 
   async updateAccommodationPlan(
