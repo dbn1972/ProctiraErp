@@ -25,7 +25,8 @@
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0",
     "pg": "^8.21.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.0",
+    "@aws-sdk/client-kms": "^3.758.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

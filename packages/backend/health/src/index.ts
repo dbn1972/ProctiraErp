@@ -113,6 +113,8 @@ export {
   isPhiCiphertext,
   isPhiEncryptionEnabled,
   LocalStubPhiKmsClient,
+  AwsKmsPhiClient,
+  createPhiKmsClientFromEnv,
   phiScopeForStudent,
   PhiEnvelopeMisconfiguredError,
   PhiKeyMissingError,

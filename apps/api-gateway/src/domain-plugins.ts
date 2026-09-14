@@ -93,6 +93,7 @@ import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gr
 import {
   assertPhiEnvelopeConfigured,
   createHealthRepository,
+  createPhiKmsClientFromEnv,
   ensurePhiEnvelopeProvider,
   healthPlugin,
 } from '@proctira/backend-health';
@@ -617,8 +618,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // DATABASE_URL is set (raw pg — SQL 002 + 012 + 017 + 046); else memory.
       // UI aggregates merge seed + live counselling writes for list sync.
       // W1-SEC-04 / G-711: production requires KMS envelope (or explicit stub/opt-out).
+      // Inject AWS KMS (or ALLOW_PHI_KMS_STUB local-stub) — createPhiEnvelopeProvider
+      // fail-closes when PHI_ENVELOPE_PROVIDER=kms without a client.
       assertPhiEnvelopeConfigured();
-      await ensurePhiEnvelopeProvider();
+      const phiKmsClient = await createPhiKmsClientFromEnv();
+      await ensurePhiEnvelopeProvider(process.env, { kmsClient: phiKmsClient });
       const repository = createHealthRepository();
       await scope.register(healthUiPlugin, {
         // G-705: production serves only live repository rows; the demo seed is

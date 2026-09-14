@@ -41,6 +41,8 @@ export {
   setPhiEnvelopeProviderForTests,
   plaintextPhiAllowed,
 } from './phi-envelope.js';
+export { AwsKmsPhiClient, createPhiKmsClientFromEnv } from './aws-kms-phi-client.js';
+
 export type { PhiKmsClient, PhiEnvelopeProviderKind } from './phi-envelope.js';
 
 const PREFIX_V1 = 'enc:v1:';
