@@ -35,10 +35,15 @@ function dryRun(env: NodeJS.ProcessEnv = {}): {
   stdout: string;
   stderr: string;
 } {
+  const merged: NodeJS.ProcessEnv = { ...process.env };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete merged[key];
+    else merged[key] = value;
+  }
   const result = spawnSync('bash', [scriptPath, '--dry-run'], {
     encoding: 'utf8',
     cwd: repoRoot,
-    env: { ...process.env, ...env },
+    env: merged,
   });
   return {
     status: result.status ?? -1,
@@ -97,7 +102,9 @@ describe('apply-sql.sh', () => {
     expect(idx006b).toBeGreaterThanOrEqual(0);
     expect(idx006).toBeLessThan(idx006b);
 
-    const { status, stdout, stderr } = dryRun();
+    // Pin APPLY_STRICT_FKS=0 so CI=true agent environments do not flip the
+    // production default and change which files appear in the apply list.
+    const { status, stdout, stderr } = dryRun({ APPLY_STRICT_FKS: '0' });
     expect(status, stderr).toBe(0);
     expect(stdout).toMatch(/Dry run only/);
     expect(stdout).toMatch(/W1-DATA-05/);
@@ -110,19 +117,40 @@ describe('apply-sql.sh', () => {
     // also print as "  - db/sql/..." and must not be compared to readdir().
     const applySection = stdout.split('==> Skipped')[0] ?? stdout;
     const listed = [...applySection.matchAll(/^\s*-\s*(db\/sql\/[^\s]+)/gm)].map((m) => m[1]);
+    const strictFkFiles = new Set([
+      '021a_strict_fk_prerequisite_tenants.sql',
+      '021b_tenant_fk_constraints.sql',
+      '068_validate_tenant_fk_constraints.sql',
+      '082_repair_strict_tenant_fk_validate.sql',
+    ]);
     const expectedApplied = expected.filter((n) => {
       if (/^[0-9]+b_.*_seed\.sql$/.test(n) && process.env.APPLY_SEEDS !== '1') return false;
-      // W1-DATA-06: 021a prerequisite tenants + 021b NOT VALID FKs are opt-in.
-      if (
-        (n === '021a_strict_fk_prerequisite_tenants.sql' ||
-          n === '021b_tenant_fk_constraints.sql') &&
-        process.env.APPLY_STRICT_FKS !== '1'
-      ) {
-        return false;
-      }
+      // W1-DATA-06 COMPLETE: create + VALIDATE + repair are gated together.
+      if (strictFkFiles.has(n)) return false;
       return true;
     });
     expect(listed).toEqual(expectedApplied.map((n) => `db/sql/${n}`));
+  });
+
+  it('W1-DATA-06 COMPLETE: CI/production default ON includes strict FK files', () => {
+    const { status, stdout, stderr } = dryRun({
+      CI: 'true',
+      // Unset explicit flag so the script's CI default path is exercised.
+      APPLY_STRICT_FKS: undefined,
+    });
+    expect(status, stderr).toBe(0);
+    const applySection = stdout.split('==> Skipped')[0] ?? stdout;
+    expect(applySection).toContain('021b_tenant_fk_constraints.sql');
+    expect(applySection).toContain('068_validate_tenant_fk_constraints.sql');
+    expect(applySection).toContain('082_repair_strict_tenant_fk_validate.sql');
+  });
+
+  it('W1-DATA-06 COMPLETE static contract: default ON + gated validate/repair', () => {
+    expect(scriptSource).toMatch(/W1-DATA-06 COMPLETE/);
+    expect(scriptSource).toMatch(/NODE_ENV/);
+    expect(scriptSource).toMatch(/068_validate_tenant_fk_constraints\.sql/);
+    expect(scriptSource).toMatch(/082_repair_strict_tenant_fk_validate\.sql/);
+    expect(scriptSource).toMatch(/APPLY_STRICT_FKS\s*=\s*1/);
   });
 
   it('W1-DATA-05 static contract: ledger skip, checksum fail-closed, per-file TX', () => {

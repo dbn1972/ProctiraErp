@@ -42,6 +42,7 @@
     "check:prisma-sql-drift:test": "node --test tools/scripts/check-prisma-sql-drift.test.mjs",
     "check:strict-tenant-fks": "node tools/scripts/check-strict-tenant-fks.mjs",
     "check:strict-tenant-fks:test": "node --test tools/scripts/check-strict-tenant-fks.test.mjs",
+    "check:strict-tenant-fks:live": "node tools/scripts/check-strict-tenant-fks.mjs --live --require-live",
     "check:tenant-id-indexes": "node tools/scripts/check-tenant-id-indexes.mjs",
     "check:tenant-id-indexes:test": "node --test tools/scripts/check-tenant-id-indexes.test.mjs",
     "check:migration-timeouts": "node tools/scripts/check-migration-timeouts.mjs",

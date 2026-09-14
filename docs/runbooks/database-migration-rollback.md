@@ -56,9 +56,10 @@ reset` and never hand-editing `_prisma_migrations`.**
    rewrites a table (type change, `SET NOT NULL` on a large table) needs a
    maintenance window. `021b_tenant_fk_constraints.sql` uses `NOT VALID` for
    this reason; validate later with `068_validate_tenant_fk_constraints.sql`
-   (or `ALTER TABLE <t> VALIDATE CONSTRAINT <t>_tenant_fk`). Primary CI sets
-   `APPLY_STRICT_FKS=1` and the `check-strict-tenant-fks` gate fails closed when
-   that posture is skipped without `# STRICT_FK_SKIP_JUSTIFIED`.
+   (or `ALTER TABLE <t> VALIDATE CONSTRAINT <t>_tenant_fk`). Primary CI /
+   production default `APPLY_STRICT_FKS=1` (create + VALIDATE + repair);
+   `check-strict-tenant-fks` fails closed when that posture is skipped without
+   `# STRICT_FK_SKIP_JUSTIFIED`, and `--live` proves zero unvalidated leftovers.
 
 5. **Session timeouts (W1-DATA-17).** `apply-sql.sh` and
    `prisma-migrate-deploy.sh` set `lock_timeout` (default `5s`) and
