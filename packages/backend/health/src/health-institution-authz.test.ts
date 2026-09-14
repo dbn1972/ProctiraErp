@@ -1,14 +1,19 @@
 /**
- * W1-SEC-04 (D7) — school-bound health staff must not access PHI outside their institution.
+ * W1-SEC-04 COMPLETE — deny-on-missing institution scope + authoritative assignments.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ForbiddenError } from '@proctira/common';
 
-import { HealthService, hasHealthAccess } from './health-service.js';
+import {
+  HealthService,
+  hasHealthAccess,
+  isSchoolBoundHealthActor,
+  effectiveInstitutionIds,
+} from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 
-describe('W1-SEC-04 (D7) health institution authz', () => {
+describe('W1-SEC-04 COMPLETE health institution authz', () => {
   const tenantId = 'tenant-001';
   const studentId = 'student-inst-a';
   const institutionA = 'inst-a';
@@ -65,6 +70,52 @@ describe('W1-SEC-04 (D7) health institution authz', () => {
     expect(hasHealthAccess(tenantWide, studentId, { studentInstitutionId: institutionB })).toBe(
       true,
     );
+  });
+
+  it('denies school_nurse when institution scope is missing (no tenant-wide elevation)', () => {
+    const missingScope: HealthAccessContext = {
+      userId: 'nurse-noscope',
+      roles: ['school_nurse'],
+      guardianOfStudentIds: [],
+    };
+    expect(isSchoolBoundHealthActor(missingScope)).toBe(true);
+    expect(effectiveInstitutionIds(missingScope)).toEqual([]);
+    expect(
+      hasHealthAccess(missingScope, studentId, { studentInstitutionId: institutionA }),
+    ).toBe(false);
+  });
+
+  it('denies health_officer tenant-wide list when institution scope is missing', () => {
+    const officer: HealthAccessContext = {
+      userId: 'officer',
+      roles: ['health_officer'],
+      guardianOfStudentIds: [],
+    };
+    expect(hasHealthAccess(officer, '')).toBe(false);
+  });
+
+  it('authoritative assignments override JWT and deny when DB says none', async () => {
+    repository.setActorInstitutions(tenantId, 'nurse-a', []);
+    await expect(
+      service.listAllergies(tenantId, studentId, { page: 1, pageSize: 10 }, schoolNurseInstA),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('authoritative assignments allow when DB matches student institution', async () => {
+    repository.setActorInstitutions(tenantId, 'nurse-jwt-wrong', [institutionA]);
+    const ctx: HealthAccessContext = {
+      userId: 'nurse-jwt-wrong',
+      roles: ['school_nurse'],
+      guardianOfStudentIds: [],
+      institutionIds: [institutionB], // JWT lies — authoritative wins
+    };
+    const result = await service.listAllergies(
+      tenantId,
+      studentId,
+      { page: 1, pageSize: 10 },
+      ctx,
+    );
+    expect(result.data).toHaveLength(1);
   });
 
   it('service rejects list allergy for cross-institution school-bound nurse', async () => {

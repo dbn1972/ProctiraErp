@@ -17,12 +17,18 @@ describe('Health Routes', () => {
 
   const healthOfficerContext: HealthAccessContext = {
     userId: 'user-health-officer',
-    roles: ['health_officer'],
+    roles: ['health_admin'],
     guardianOfStudentIds: [],
+    institutionIds: ['inst-route-1'],
   };
 
   beforeEach(async () => {
     repository = new InMemoryHealthRepository();
+    healthOfficerContext.userId = 'user-health-officer';
+    healthOfficerContext.roles = ['health_admin'];
+    healthOfficerContext.guardianOfStudentIds = [];
+    healthOfficerContext.institutionIds = ['inst-route-1'];
+    healthOfficerContext.purpose = undefined;
     app = Fastify();
 
     // Simulate tenant and access context middleware
@@ -259,6 +265,8 @@ describe('Health Routes', () => {
     const sensitiveNotes = 'Discussed coping strategies — confidential';
 
     it('redacts counselling caseNotes without grant; unredacts after dual-control approve', async () => {
+      repository.setStudentInstitution('tenant-001', studentId, 'inst-route-1');
+
       await app.inject({
         method: 'POST',
         url: '/health/counselling/sessions',
@@ -284,6 +292,8 @@ describe('Health Routes', () => {
 
       healthOfficerContext.userId = 'user-requester';
       healthOfficerContext.roles = ['counsellor'];
+      healthOfficerContext.institutionIds = ['inst-route-1'];
+      healthOfficerContext.purpose = 'treatment';
       const createBg = await app.inject({
         method: 'POST',
         url: '/health/break-glass',
@@ -309,6 +319,8 @@ describe('Health Routes', () => {
 
       healthOfficerContext.userId = 'user-requester';
       healthOfficerContext.roles = ['counsellor'];
+      healthOfficerContext.institutionIds = ['inst-route-1'];
+      healthOfficerContext.purpose = 'treatment';
       const allowed = await app.inject({
         method: 'GET',
         url: `/health/counselling/sessions/student/${studentId}`,
@@ -328,14 +340,13 @@ describe('Health Routes', () => {
         auditBody.data as Array<{ resourceType: string; breakGlassId: string | null }>
       ).find((row) => row.resourceType === 'counselling_session.case_notes');
       expect(unredact?.breakGlassId).toBe(grant.id);
-
-      healthOfficerContext.userId = 'user-health-officer';
-      healthOfficerContext.roles = ['health_officer'];
     });
 
     it('rejects self-approval on break-glass route', async () => {
+      repository.setStudentInstitution('tenant-001', studentId, 'inst-route-1');
       healthOfficerContext.userId = 'user-same';
       healthOfficerContext.roles = ['counsellor'];
+      healthOfficerContext.institutionIds = ['inst-route-1'];
       const createBg = await app.inject({
         method: 'POST',
         url: '/health/break-glass',
@@ -345,6 +356,7 @@ describe('Health Routes', () => {
           justification: 'Need plaintext case notes for safeguarding case conference',
         },
       });
+      expect(createBg.statusCode).toBe(201);
       const grant = JSON.parse(createBg.body);
       healthOfficerContext.roles = ['health_admin', 'counsellor'];
       const approve = await app.inject({
@@ -352,8 +364,6 @@ describe('Health Routes', () => {
         url: `/health/break-glass/${grant.id}/approve`,
       });
       expect(approve.statusCode).toBeGreaterThanOrEqual(400);
-      healthOfficerContext.userId = 'user-health-officer';
-      healthOfficerContext.roles = ['health_officer'];
     });
   });
 });

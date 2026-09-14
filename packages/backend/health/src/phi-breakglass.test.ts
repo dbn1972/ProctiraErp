@@ -20,6 +20,8 @@ describe('Health PHI field ACL + break-glass (P0-09)', () => {
     userId: 'user-counsellor',
     roles: ['counsellor'],
     guardianOfStudentIds: [],
+    institutionIds: ['inst-1'],
+    purpose: 'treatment',
   };
 
   const approver: HealthAccessContext = {
@@ -30,6 +32,7 @@ describe('Health PHI field ACL + break-glass (P0-09)', () => {
 
   beforeEach(async () => {
     repository = new InMemoryHealthRepository();
+    repository.setStudentInstitution(tenantId, studentId, 'inst-1');
     service = new HealthService(repository);
     await service.createCounsellingSession(
       tenantId,

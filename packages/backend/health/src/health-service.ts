@@ -125,9 +125,32 @@ export interface HealthAccessContext {
   roles: string[];
   /** Guardian student IDs — students this user is a guardian of */
   guardianOfStudentIds: string[];
-  /** JWT institution claims — non-empty means school-bound staff (W1-SEC-04). */
+  /**
+   * JWT institution claims (hint). Prefer {@link authoritativeInstitutionIds}
+   * when resolved from staff assignments (W1-SEC-04 COMPLETE).
+   */
   institutionIds?: string[];
+  /**
+   * Authoritative actor institution assignments from staff_assignments (or
+   * test seed). When set (including `[]`), JWT claims are ignored for scope.
+   * `undefined` means not resolved yet — fall back to JWT, still deny if empty
+   * for non-tenant-wide roles.
+   */
+  authoritativeInstitutionIds?: string[];
+  /**
+   * Purpose of the PHI access (field ACL / audit). Case notes require a
+   * treatment-class purpose or an active break-glass grant.
+   */
+  purpose?: HealthPhiAccessPurpose;
 }
+
+export type HealthPhiAccessPurpose =
+  | 'treatment'
+  | 'care_coordination'
+  | 'breakglass'
+  | 'admin'
+  | 'dsar'
+  | 'audit';
 
 export interface HealthAccessOptions {
   /** Active enrollment institution for the student (from enrollments lookup). */
@@ -145,21 +168,57 @@ const HEALTH_AUTHORIZED_ROLES = [
 
 const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
 
-/** School-bound when JWT carries institution claims and role is not tenant-wide admin. */
-export function isSchoolBoundHealthActor(context: HealthAccessContext): boolean {
-  const boundIds = (context.institutionIds ?? []).filter(Boolean);
-  if (boundIds.length === 0) return false;
-  const tenantWide = context.roles.some((role) =>
+const CASE_NOTES_PURPOSES: readonly HealthPhiAccessPurpose[] = [
+  'treatment',
+  'care_coordination',
+  'breakglass',
+  'dsar',
+];
+
+/** Tenant-wide health admins may omit institution scope. */
+export function isTenantWideHealthActor(context: HealthAccessContext): boolean {
+  return context.roles.some((role) =>
     (TENANT_WIDE_HEALTH_ROLES as readonly string[]).includes(role),
   );
-  return !tenantWide;
+}
+
+/**
+ * Effective institution IDs: authoritative assignments win when present.
+ */
+export function effectiveInstitutionIds(context: HealthAccessContext): string[] {
+  if (context.authoritativeInstitutionIds !== undefined) {
+    return context.authoritativeInstitutionIds.filter(Boolean);
+  }
+  return (context.institutionIds ?? []).filter(Boolean);
+}
+
+/**
+ * School-bound when the actor has a health role that is not tenant-wide admin.
+ * Missing institution scope denies access (does not elevate to tenant-wide).
+ */
+export function isSchoolBoundHealthActor(context: HealthAccessContext): boolean {
+  if (isTenantWideHealthActor(context)) return false;
+  return context.roles.some((role) => HEALTH_AUTHORIZED_ROLES.includes(role));
+}
+
+/** Purpose gate for counselling case-notes field ACL (W1-SEC-04). */
+export function allowsCounsellingCaseNotesPurpose(
+  purpose: HealthPhiAccessPurpose | undefined,
+): boolean {
+  if (!purpose) return false;
+  return (CASE_NOTES_PURPOSES as readonly string[]).includes(purpose);
 }
 
 /**
  * Checks if the user has access to a student's health records.
  * Access is granted if:
  * - User is the student's guardian, OR
- * - User has an authorized health personnel role AND (tenant-wide OR student's institution is in JWT claims)
+ * - User has a tenant-wide health admin role, OR
+ * - User has an authorized school-bound health role AND student's institution
+ *   is in effective (authoritative || JWT) institution assignments
+ *
+ * W1-SEC-04 COMPLETE: missing institution scope for school-bound roles denies
+ * (no silent tenant-wide elevation).
  */
 export function hasHealthAccess(
   context: HealthAccessContext,
@@ -169,17 +228,21 @@ export function hasHealthAccess(
   const hasAuthorizedRole = context.roles.some((role) => HEALTH_AUTHORIZED_ROLES.includes(role));
 
   if (!studentId) {
+    // Tenant-wide list surfaces (immunisation register, nurse incidents).
     if (!hasAuthorizedRole) return false;
-    return !isSchoolBoundHealthActor(context);
+    return isTenantWideHealthActor(context);
   }
 
   if (context.guardianOfStudentIds.includes(studentId)) return true;
   if (!hasAuthorizedRole) return false;
-  if (!isSchoolBoundHealthActor(context)) return true;
+  if (isTenantWideHealthActor(context)) return true;
+
+  const institutions = effectiveInstitutionIds(context);
+  if (institutions.length === 0) return false;
 
   const studentInstitutionId = options.studentInstitutionId;
   if (!studentInstitutionId) return false;
-  return (context.institutionIds ?? []).includes(studentInstitutionId);
+  return institutions.includes(studentInstitutionId);
 }
 
 /**
@@ -197,16 +260,33 @@ export class HealthService {
     return lookup(tenantId, studentId);
   }
 
+  private async resolveAuthoritativeInstitutions(
+    tenantId: string,
+    accessContext: HealthAccessContext,
+  ): Promise<HealthAccessContext> {
+    if (accessContext.authoritativeInstitutionIds !== undefined) return accessContext;
+    if (isTenantWideHealthActor(accessContext)) return accessContext;
+    const lookup = this.repository.findActorInstitutionAssignments?.bind(this.repository);
+    if (!lookup || !accessContext.userId) return accessContext;
+    const assigned = await lookup(tenantId, accessContext.userId);
+    if (assigned === null) return accessContext;
+    return { ...accessContext, authoritativeInstitutionIds: assigned };
+  }
+
   private async assertHealthAccess(
     accessContext: HealthAccessContext,
     studentId: string,
     tenantId?: string,
   ): Promise<void> {
+    const effective =
+      tenantId != null
+        ? await this.resolveAuthoritativeInstitutions(tenantId, accessContext)
+        : accessContext;
     const studentInstitutionId =
       studentId && tenantId
         ? await this.resolveStudentInstitutionId(tenantId, studentId)
         : null;
-    if (!hasHealthAccess(accessContext, studentId, { studentInstitutionId })) {
+    if (!hasHealthAccess(effective, studentId, { studentInstitutionId })) {
       throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
       );
@@ -257,13 +337,19 @@ export class HealthService {
   ): Promise<CounsellingSessionEntity[]> {
     const byStudent = new Map<string, HealthBreakGlassGrant | null>();
     const out: CounsellingSessionEntity[] = [];
+    const purposeOk = allowsCounsellingCaseNotesPurpose(accessContext.purpose);
     for (const session of sessions) {
       let grant = byStudent.get(session.studentId);
       if (grant === undefined) {
         grant = await this.resolveCaseNotesGrant(tenantId, accessContext, session.studentId);
         byStudent.set(session.studentId, grant);
       }
-      const acl = applyCounsellingCaseNotesAcl(session, grant);
+      // Purpose controls: unredact only with treatment-class purpose + active grant,
+      // or break-glass purpose with an active grant. Missing purpose always redacts
+      // unless an active break-glass grant is present (grant implies breakglass purpose).
+      const effectiveGrant =
+        grant && (purposeOk || accessContext.purpose === undefined) ? grant : null;
+      const acl = applyCounsellingCaseNotesAcl(session, effectiveGrant);
       if (!acl.redacted) {
         await this.auditPhiRead(accessContext, {
           tenantId,

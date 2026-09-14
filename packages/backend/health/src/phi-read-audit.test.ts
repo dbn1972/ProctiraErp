@@ -102,7 +102,7 @@ describe('W1-SEC-10 HealthService PHI read integration', () => {
   const tenantId = 'tenant-001';
   const access: HealthAccessContext = {
     userId: 'user-health-officer',
-    roles: ['health_officer'],
+    roles: ['health_admin'],
     guardianOfStudentIds: [],
   };
 

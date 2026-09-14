@@ -26,6 +26,7 @@ import type {
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 import { createPgBreakGlassStore, type PgBreakGlassStore } from './pg-break-glass-store.js';
 import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
+import { findActorInstitutionAssignments } from './pg-actor-institution-assignments.js';
 import { getSharedCounsellingPool } from './pg-counselling-store.js';
 import {
   createPgCounsellingStore,
@@ -559,6 +560,15 @@ export class HybridHealthRepository implements HealthRepository {
     const fromMemory = await this.memory.findStudentInstitutionId(tenantId, studentId);
     if (fromMemory) return fromMemory;
     return findStudentInstitutionId(getSharedCounsellingPool(), tenantId, studentId);
+  }
+
+  async findActorInstitutionAssignments(
+    tenantId: string,
+    userId: string,
+  ): Promise<string[] | null> {
+    const fromMemory = await this.memory.findActorInstitutionAssignments(tenantId, userId);
+    if (fromMemory !== null) return fromMemory;
+    return findActorInstitutionAssignments(getSharedCounsellingPool(), tenantId, userId);
   }
 }
 

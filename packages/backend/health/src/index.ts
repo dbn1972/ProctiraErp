@@ -24,8 +24,15 @@ export {
   HealthService,
   hasHealthAccess,
   isSchoolBoundHealthActor,
+  isTenantWideHealthActor,
+  effectiveInstitutionIds,
+  allowsCounsellingCaseNotesPurpose,
 } from './health-service.js';
-export type { HealthAccessContext, HealthAccessOptions } from './health-service.js';
+export type {
+  HealthAccessContext,
+  HealthAccessOptions,
+  HealthPhiAccessPurpose,
+} from './health-service.js';
 
 export {
   PHI_FIELD_COUNSELLING_CASE_NOTES,
@@ -97,14 +104,28 @@ export {
 export type { NurseIncidentEntity } from './health-repository.js';
 export {
   assertPhiKeyConfigured,
+  assertPhiEnvelopeConfigured,
+  createPhiEnvelopeProvider,
+  ensurePhiEnvelopeProvider,
   decryptPhi,
   encryptPhi,
+  getPhiEnvelopeProviderKind,
   isPhiCiphertext,
   isPhiEncryptionEnabled,
+  LocalStubPhiKmsClient,
   phiScopeForStudent,
+  PhiEnvelopeMisconfiguredError,
   PhiKeyMissingError,
+  plaintextPhiAllowed,
+  resetPhiEnvelopeProviderForTests,
+  setPhiEnvelopeProviderForTests,
 } from './phi-crypto.js';
-export type { PhiCryptoScope } from './phi-crypto.js';
+export type {
+  PhiCryptoScope,
+  PhiEnvelopeProvider,
+  PhiEnvelopeProviderKind,
+  PhiKmsClient,
+} from './phi-crypto.js';
 
 export {
   isPhiAuditDegradeAllowed,

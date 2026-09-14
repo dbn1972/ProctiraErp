@@ -22,7 +22,7 @@ describe('HealthService', () => {
 
   const healthOfficerContext: HealthAccessContext = {
     userId: 'user-health-officer',
-    roles: ['health_officer'],
+    roles: ['health_admin'],
     guardianOfStudentIds: [],
   };
 
@@ -44,7 +44,7 @@ describe('HealthService', () => {
   });
 
   describe('hasHealthAccess', () => {
-    it('grants access to health_officer role', () => {
+    it('grants access to health_admin role (tenant-wide)', () => {
       expect(hasHealthAccess(healthOfficerContext, 'student-001')).toBe(true);
     });
 
@@ -60,13 +60,23 @@ describe('HealthService', () => {
       expect(hasHealthAccess(unauthorizedContext, 'student-001')).toBe(false);
     });
 
-    it('grants access to counsellor role', () => {
+    it('denies counsellor without institution scope (W1-SEC-04 COMPLETE)', () => {
       const ctx: HealthAccessContext = {
         userId: 'u1',
         roles: ['counsellor'],
         guardianOfStudentIds: [],
       };
-      expect(hasHealthAccess(ctx, 'student-001')).toBe(true);
+      expect(hasHealthAccess(ctx, 'student-001', { studentInstitutionId: 'inst-1' })).toBe(false);
+    });
+
+    it('grants counsellor with matching institution scope', () => {
+      const ctx: HealthAccessContext = {
+        userId: 'u1',
+        roles: ['counsellor'],
+        guardianOfStudentIds: [],
+        institutionIds: ['inst-1'],
+      };
+      expect(hasHealthAccess(ctx, 'student-001', { studentInstitutionId: 'inst-1' })).toBe(true);
     });
 
     it('grants access to system_admin role', () => {

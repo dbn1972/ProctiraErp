@@ -72,6 +72,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   }> = [];
   private breakGlassGrants = new Map<string, HealthBreakGlassGrant>();
   private studentInstitutions = new Map<string, string>();
+  private actorInstitutions = new Map<string, string[]>();
 
   /** Test helper — map student → active enrollment institution. */
   setStudentInstitution(tenantId: string, studentId: string, institutionId: string): void {
@@ -80,6 +81,20 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async findStudentInstitutionId(tenantId: string, studentId: string): Promise<string | null> {
     return this.studentInstitutions.get(`${tenantId}:${studentId}`) ?? null;
+  }
+
+  /** Test helper — authoritative actor institution assignments. */
+  setActorInstitutions(tenantId: string, userId: string, institutionIds: string[]): void {
+    this.actorInstitutions.set(`${tenantId}:${userId}`, [...institutionIds]);
+  }
+
+  async findActorInstitutionAssignments(
+    tenantId: string,
+    userId: string,
+  ): Promise<string[] | null> {
+    const key = `${tenantId}:${userId}`;
+    if (!this.actorInstitutions.has(key)) return null;
+    return [...(this.actorInstitutions.get(key) ?? [])];
   }
 
   // ─── Measurements ─────────────────────────────────────────────────────────

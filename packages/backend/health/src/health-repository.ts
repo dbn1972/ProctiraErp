@@ -401,4 +401,10 @@ export interface HealthRepository {
 
   /** Active enrollment institution for institution-scoped PHI authZ (W1-SEC-04). */
   findStudentInstitutionId?(tenantId: string, studentId: string): Promise<string | null>;
+
+  /**
+   * Authoritative actor institution assignments (staff_assignments).
+   * Returns `null` when lookup is unavailable; `[]` when resolved with none.
+   */
+  findActorInstitutionAssignments?(tenantId: string, userId: string): Promise<string[] | null>;
 }

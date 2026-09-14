@@ -46,3 +46,7 @@
 
 **Waivers:** live IdP · device-farm · platform-admin BG unchanged by design  
 **Sign-off:** W1-SEC-04 gaps closed for counselling/profile PHI crypto + school-bound authZ.
+
+## W1-SEC-04 COMPLETE (follow-up)
+
+See `docs/audits/SEC_W1_SEC_04_COMPLETE.md` — KMS envelope fail-closed (no silent env-only in production), deny-on-missing institution scope, authoritative staff assignments, purpose/field ACL enforcement.
