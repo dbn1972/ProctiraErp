@@ -729,30 +729,37 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Provision non-superuser app role + database (production RLS posture)
+      - name: Provision migrator + non-owner runtime roles (W1-DATA-01 posture)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
           export PGPASSWORD=postgres
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
             -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c "CREATE ROLE proctira_app LOGIN PASSWORD 'proctira_app_test' NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT;" \
             -c 'CREATE DATABASE proctira_test OWNER proctira;'
           psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
             -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
-            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";' \
+            -c 'GRANT CONNECT ON DATABASE proctira_test TO proctira_app;'
           PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
-            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: test role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: migrator role bypasses RLS' ELSE 'migrator role OK: NOSUPERUSER NOBYPASSRLS' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^migrator role OK'
+          PGPASSWORD=proctira_app_test psql -h localhost -U proctira_app -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: app role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
             | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
 
       - name: Run database migrations
         run: pnpm --filter @proctira/database run prisma:migrate:deploy
         env:
+          # DDL as table owner (migrator).
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 
       - name: Apply domain SQL schemas
         run: bash tools/scripts/apply-sql.sh
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           APPLY_SEEDS: '1'
 
       - name: Run unit isolation tests
@@ -763,7 +770,8 @@ jobs:
       - name: Run integration isolation tests (incl. live Postgres RLS)
         run: pnpm test:tenant-isolation:integration
         env:
-          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # W1-DATA-01: live RLS suites must use non-owner proctira_app.
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           CI: true
 
       - name: Run queue/event isolation tests
