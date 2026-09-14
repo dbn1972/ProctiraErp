@@ -10,17 +10,21 @@
 
 ## 0. Verdict
 
-**OPEN → as-complete-as-possible** on personal-account repo `dbn1972/proctiraerp`.
+**OPEN (externally blocked)** on personal-account repo `dbn1972/ProctiraErp`.
+
+This tip does **not** claim W1-SEC-13 closed. Re-audit correctly keeps the finding
+**OPEN** until both Done criteria below are green.
 
 | Done criteria | Status on this tip |
 | ------------- | ------------------ |
-| Resolvable qualified **teams** own security / privacy / RLS / migrations / finance / infra paths | **Not met** — owner type is `User`; no GitHub Organization teams |
+| Resolvable qualified **teams** own security / privacy / RLS / migrations / finance / infra paths | **Not met** — owner type is `User`; no GitHub Organization teams (create/API blocked from this agent) |
 | Required Code Owner review enabled on protected `main` | **Not met** — branch-protection API returns 403 to this agent; ops must enable **Require review from Code Owners** |
 
 | Honest limit controls | Status |
 | --------------------- | ------ |
 | CODEOWNERS structured with documented team slugs (comments, not inventable live handles) | ☑ |
 | Fail-closed CI gate blocks silent fake `@org/team` owners unless `PROCTIRA_CODEOWNERS_TEAMS_READY=1` | ☑ |
+| Personal-interim mode requires explicit `PROCTIRA_CODEOWNERS_ALLOW_PERSONAL_INTERIM=1` (no silent greenwash) | ☑ |
 | Organization-owned repos fail closed until `PROCTIRA_CODEOWNERS_TEAMS_READY=1` | ☑ |
 | Residual that org/team + branch protection is a **mandatory ops step** | ☑ (this document) |
 

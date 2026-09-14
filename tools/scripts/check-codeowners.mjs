@@ -80,6 +80,17 @@ export function isTeamsReady(value = process.env.PROCTIRA_CODEOWNERS_TEAMS_READY
 }
 
 /**
+ * Personal-interim ownership (@user only) is allowed only when explicitly waived.
+ * Silent green PASS without this waiver greenwashes W1-SEC-13 OPEN residual.
+ * @param {string | undefined} value
+ */
+export function isPersonalInterimAllowed(
+  value = process.env.PROCTIRA_CODEOWNERS_ALLOW_PERSONAL_INTERIM,
+) {
+  return TRUTHY.has(String(value ?? '').trim().toLowerCase());
+}
+
+/**
  * @param {string | undefined} value
  */
 export function isOrganizationOwner(value = process.env.GITHUB_OWNER_TYPE) {
@@ -175,6 +186,7 @@ export function findRuleForPath(rules, pathPrefix) {
  *   auditText?: string,
  *   completeAuditText?: string,
  *   teamsReady?: boolean,
+ *   allowPersonalInterim?: boolean,
  *   ownerType?: string,
  * }} input
  */
@@ -188,6 +200,8 @@ export function evaluateCodeowners(input) {
 
   const parsed = parseCodeowners(input.codeownersText ?? '');
   const teamsReady = input.teamsReady ?? isTeamsReady();
+  const allowPersonalInterim =
+    input.allowPersonalInterim ?? isPersonalInterimAllowed();
   const ownerType = String(input.ownerType ?? process.env.GITHUB_OWNER_TYPE ?? '').trim();
   const orgOwner = isOrganizationOwner(ownerType);
 
@@ -250,10 +264,16 @@ export function evaluateCodeowners(input) {
     if (userOwners.size === 0) {
       errors.push('pre-cutover mode requires at least one personal @user owner on rules');
     }
+    if (!allowPersonalInterim) {
+      errors.push(
+        'W1-SEC-13 OPEN: personal-interim CODEOWNERS (no specialist @org/team owners) requires explicit PROCTIRA_CODEOWNERS_ALLOW_PERSONAL_INTERIM=1 waiver until org teams exist and PROCTIRA_CODEOWNERS_TEAMS_READY=1',
+      );
+    }
     residuals.push(
-      'Personal-account / pre-cutover mode: specialist headings are comments; live owners resolve to personal account(s). Org teams + Require Code Owner review on protected main remain mandatory ops residuals.',
+      'W1-SEC-13 OPEN residual: personal-account / pre-cutover mode — specialist headings are comments; live owners resolve to personal account(s). Create org teams, set TEAMS_READY=1, enable Require review from Code Owners on protected main, then remove ALLOW_PERSONAL_INTERIM.',
     );
     notes.push('mode=personal-interim');
+    notes.push('finding=W1-SEC-13-OPEN');
   } else {
     notes.push('mode=teams-ready');
     const specialistPaths = [
@@ -354,6 +374,7 @@ function main() {
     auditText: loaded.auditText,
     completeAuditText: loaded.completeAuditText,
     teamsReady: isTeamsReady(),
+    allowPersonalInterim: isPersonalInterimAllowed(),
     ownerType: process.env.GITHUB_OWNER_TYPE,
   });
 
@@ -378,6 +399,7 @@ function main() {
   process.exit(report.ok ? 0 : 1);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+const entryArg = process.argv[1];
+if (entryArg && import.meta.url === pathToFileURL(entryArg).href) {
   main();
 }

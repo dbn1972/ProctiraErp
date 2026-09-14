@@ -54,6 +54,7 @@ function personalFixture(overrides = {}) {
     auditText: AUDIT,
     completeAuditText: COMPLETE,
     teamsReady: false,
+    allowPersonalInterim: true,
     ownerType: 'User',
     ...overrides,
   };
@@ -84,8 +85,15 @@ test('personal interim mode passes with documented teams + no fake handles', () 
   const report = evaluateCodeowners(personalFixture());
   assert.equal(report.ok, true, report.errors.join('\n'));
   assert.ok(report.residuals.length >= 1);
+  assert.ok(report.notes.includes('finding=W1-SEC-13-OPEN'));
   assert.deepEqual(report.userOwners, ['@dbn1972']);
   assert.deepEqual(report.teamOwners, []);
+});
+
+test('personal interim without explicit waiver fails closed (W1-SEC-13 OPEN)', () => {
+  const report = evaluateCodeowners(personalFixture({ allowPersonalInterim: false }));
+  assert.equal(report.ok, false);
+  assert.ok(report.errors.some((e) => /ALLOW_PERSONAL_INTERIM=1/.test(e)));
 });
 
 test('fake team handles without READY fail closed', () => {
