@@ -165,6 +165,69 @@ describe('GET /health/ready (W1-OPS-03 / W3-C1)', () => {
     await app.close();
   });
 
+  it('returns 200 with database/redis up when probes succeed (healthy path)', async () => {
+    const app = await mount({
+      probeDatabase: async () => ({ ok: true, latencyMs: 3 }),
+      probeRedis: async () => ({ ok: true, latencyMs: 2 }),
+      env: {
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://good:5432/x',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: '/health/ready' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      status: 'up',
+      dependencies: { database: 'up', redis: 'up' },
+    });
+    expect(Object.values((res.json() as ReadinessProbeResult).dependencies)).not.toContain(
+      'unknown',
+    );
+    await app.close();
+  });
+
+  it('GET /health returns 503 when readiness is down (Dockerfile HEALTHCHECK fail-closed)', async () => {
+    const app = await mount({
+      probeDatabase: async () => ({ ok: false, message: 'ECONNREFUSED', latencyMs: 1 }),
+      env: { NODE_ENV: 'production', DATABASE_URL: 'postgres://x' },
+    });
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(503);
+    const body = res.json() as {
+      status: string;
+      checks: { readiness: { status: string; details?: Record<string, string> } };
+    };
+    expect(body.status).toBe('unhealthy');
+    expect(body.checks.readiness.status).toBe('down');
+    expect(body.checks.readiness.details?.database).toBe('down');
+    expect(body.checks.readiness.details?.redis).toBe('not-configured');
+    await app.close();
+  });
+
+  it('GET /health returns 200 healthy when probes succeed', async () => {
+    const app = await mount({
+      probeDatabase: async () => ({ ok: true, latencyMs: 2 }),
+      probeRedis: async () => ({ ok: true, latencyMs: 1 }),
+      env: {
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgres://good:5432/x',
+        REDIS_URL: 'redis://127.0.0.1:6379',
+      },
+    });
+    const res = await app.inject({ method: 'GET', url: '/health' });
+    expect(res.statusCode).toBe(200);
+    const body = res.json() as {
+      status: string;
+      checks: { readiness: { status: string; details?: Record<string, string> } };
+    };
+    expect(body.status).toBe('healthy');
+    expect(body.checks.readiness.status).toBe('up');
+    expect(body.checks.readiness.details?.database).toBe('up');
+    expect(body.checks.readiness.details?.redis).toBe('up');
+    await app.close();
+  });
+
   it('GET /health/live stays cheap (no dependency probe)', async () => {
     const dbProbe = vi.fn(async () => ({ ok: false, message: 'should not run', latencyMs: 0 }));
     const redisProbe = vi.fn(async () => ({ ok: false, message: 'should not run', latencyMs: 0 }));
