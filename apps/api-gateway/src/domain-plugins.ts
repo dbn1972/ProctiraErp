@@ -134,7 +134,7 @@ import {
 } from '@proctira/backend-student';
 import {
   createPrivacyQueuePublishersFromEnv,
-  getSharedInMemoryPrivacyRepository,
+  createPrivacyRepository,
   PrivacyService,
   privacyPlugin,
 } from '@proctira/backend-privacy';
@@ -159,6 +159,10 @@ import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
+
+/** Single shared privacy repository for hold gates + /privacy HTTP (W1-SEC-06). */
+const sharedPrivacyRepository = createPrivacyRepository();
+
 /**
  * G-924: `/workflows` (UI aggregates) and `/workflow-engine` share one set of
  * repositories so the redesign UI and the engine see the same definitions,
@@ -291,7 +295,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       }
       // W1-SEC-06: legal-hold gate on student soft-delete / merge — shared store
       // with /privacy plugin + tenant lifecycle delete guard.
-      const privacyService = new PrivacyService(getSharedInMemoryPrivacyRepository());
+      const privacyService = new PrivacyService(sharedPrivacyRepository);
       await scope.register(studentPlugin, {
         repository,
         importQueue: importHandle?.importQueue,
@@ -1000,9 +1004,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'privacy',
     proxyPrefixes: ['/privacy'],
     register: async (scope) => {
-      // W1-ARCH-05 / W1-SEC-06: compose privacy HTTP. Shared in-memory store with
-      // student/tenant destructive gates. Durable anonymization/offboard publishers
-      // when QUEUE_BACKEND / RABBITMQ_URL set. Pg repository residual (067/076).
+      // W1-ARCH-05 / W1-SEC-06: compose privacy HTTP. Shared createPrivacyRepository()
+      // with student/tenant destructive gates (Pg when DATABASE_URL; else shared memory).
+      // Durable anonymization/offboard publishers when QUEUE_BACKEND / RABBITMQ_URL set.
       const queueHandle = await createPrivacyQueuePublishersFromEnv();
       if (queueHandle) {
         scope.addHook('onClose', async () => {
@@ -1010,7 +1014,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         });
       }
       await scope.register(privacyPlugin, {
-        repository: getSharedInMemoryPrivacyRepository(),
+        repository: sharedPrivacyRepository,
         prefix: '/privacy',
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,

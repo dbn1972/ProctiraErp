@@ -96,15 +96,19 @@ export interface TenantOffboardJobEntity {
   updatedAt: Date;
 }
 
+/**
+ * W1-SEC-06: every find/update-by-id takes tenantId and filters by it (IDOR fail-closed).
+ */
 export interface PrivacyRepository {
   createLegalHold(
     data: Omit<LegalHoldEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<LegalHoldEntity>;
   updateLegalHold(
     id: string,
+    tenantId: string,
     data: Partial<Pick<LegalHoldEntity, 'active' | 'releasedBy' | 'releasedAt'>>,
   ): Promise<LegalHoldEntity | null>;
-  findLegalHoldById(id: string): Promise<LegalHoldEntity | null>;
+  findLegalHoldById(id: string, tenantId: string): Promise<LegalHoldEntity | null>;
   listActiveLegalHolds(tenantId: string): Promise<LegalHoldEntity[]>;
 
   createErasureRequest(
@@ -112,11 +116,12 @@ export interface PrivacyRepository {
   ): Promise<ErasureRequestEntity>;
   updateErasureRequest(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<ErasureRequestEntity, 'status' | 'reviewedBy' | 'statusReason' | 'completedAt'>
     >,
   ): Promise<ErasureRequestEntity | null>;
-  findErasureRequestById(id: string): Promise<ErasureRequestEntity | null>;
+  findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null>;
   listErasureRequests(tenantId: string): Promise<ErasureRequestEntity[]>;
 
   createCorrectionRequest(
@@ -124,6 +129,7 @@ export interface PrivacyRepository {
   ): Promise<CorrectionRequestEntity>;
   updateCorrectionRequest(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<
         CorrectionRequestEntity,
@@ -131,7 +137,10 @@ export interface PrivacyRepository {
       >
     >,
   ): Promise<CorrectionRequestEntity | null>;
-  findCorrectionRequestById(id: string): Promise<CorrectionRequestEntity | null>;
+  findCorrectionRequestById(
+    id: string,
+    tenantId: string,
+  ): Promise<CorrectionRequestEntity | null>;
   listCorrectionRequests(tenantId: string): Promise<CorrectionRequestEntity[]>;
 
   createAnonymizationJob(
@@ -139,6 +148,7 @@ export interface PrivacyRepository {
   ): Promise<AnonymizationJobEntity>;
   updateAnonymizationJob(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<
         AnonymizationJobEntity,
@@ -151,7 +161,7 @@ export interface PrivacyRepository {
       >
     >,
   ): Promise<AnonymizationJobEntity | null>;
-  findAnonymizationJobById(id: string): Promise<AnonymizationJobEntity | null>;
+  findAnonymizationJobById(id: string, tenantId: string): Promise<AnonymizationJobEntity | null>;
   listAnonymizationJobs(tenantId: string): Promise<AnonymizationJobEntity[]>;
 
   createTenantOffboardJob(
@@ -159,6 +169,7 @@ export interface PrivacyRepository {
   ): Promise<TenantOffboardJobEntity>;
   updateTenantOffboardJob(
     id: string,
+    tenantId: string,
     data: Partial<
       Pick<
         TenantOffboardJobEntity,
@@ -171,6 +182,9 @@ export interface PrivacyRepository {
       >
     >,
   ): Promise<TenantOffboardJobEntity | null>;
-  findTenantOffboardJobById(id: string): Promise<TenantOffboardJobEntity | null>;
+  findTenantOffboardJobById(
+    id: string,
+    tenantId: string,
+  ): Promise<TenantOffboardJobEntity | null>;
   listTenantOffboardJobs(tenantId: string): Promise<TenantOffboardJobEntity[]>;
 }

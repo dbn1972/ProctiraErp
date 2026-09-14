@@ -20,11 +20,11 @@ export interface PrivacyWorkerLogger {
 }
 
 export interface PrivacyAnonymizationProcessor {
-  processAnonymizationJob(jobId: string): Promise<unknown>;
+  processAnonymizationJob(jobId: string, tenantId: string): Promise<unknown>;
 }
 
 export interface PrivacyOffboardProcessor {
-  processTenantOffboardJob(jobId: string): Promise<unknown>;
+  processTenantOffboardJob(jobId: string, tenantId: string): Promise<unknown>;
 }
 
 export interface PrivacyWorker {
@@ -90,7 +90,7 @@ export function createPrivacyAnonymizationWorker(options: {
             { tenantId, jobId, messageId: message.id },
             'privacy anonymization worker processing job',
           );
-          await options.processor.processAnonymizationJob(jobId);
+          await options.processor.processAnonymizationJob(jobId, tenantId);
           options.logger?.info({ tenantId, jobId }, 'privacy anonymization worker completed job');
         },
       );
@@ -145,7 +145,7 @@ export function createPrivacyOffboardWorker(options: {
             { tenantId, jobId, messageId: message.id },
             'privacy offboard worker processing job',
           );
-          await options.processor.processTenantOffboardJob(jobId);
+          await options.processor.processTenantOffboardJob(jobId, tenantId);
           options.logger?.info({ tenantId, jobId }, 'privacy offboard worker completed job');
         },
       );

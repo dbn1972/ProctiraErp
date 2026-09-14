@@ -17,6 +17,15 @@ export {
   resetSharedInMemoryPrivacyRepositoryForTests,
 } from './shared-store.js';
 export {
+  createPrivacyRepository,
+  isPgPrivacyEnabled,
+} from './create-privacy-repository.js';
+export {
+  PgPrivacyRepository,
+  getSharedPrivacyPool,
+  ensurePrivacySchema,
+} from './pg-privacy-repository.js';
+export {
   LegalHoldScopeEnum,
   ErasureStatusEnum,
   ErasureRequestTypeEnum,

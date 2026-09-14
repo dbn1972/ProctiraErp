@@ -48,7 +48,7 @@ import {
   createAreaHierarchyResolver,
 } from '@proctira/backend-institution';
 import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
-import { getSharedInMemoryPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
+import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -101,6 +101,10 @@ import {
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
+
+/** Same factory as domain-plugins — Pg or shared in-memory (W1-SEC-06). */
+const sharedPrivacyRepository = createPrivacyRepository();
+
 export interface BuildAppOptions {
   config: GatewayConfig;
   /** Optional access-token revocation store override (tests / DI). */
@@ -754,8 +758,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     prefix: '/api/v1/tenant-lifecycle',
     branding: { disabled: false },
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
-    // (shared store with /privacy + student delete gate).
-    destructiveDeleteGuard: new PrivacyService(getSharedInMemoryPrivacyRepository()),
+    // (shared createPrivacyRepository with /privacy + student delete gate).
+    destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
   });
 
   // W1-SEC-10 COMPLETE: prefer same-txn regulated audit (handler marks request).
