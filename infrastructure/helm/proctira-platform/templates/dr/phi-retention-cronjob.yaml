@@ -1,8 +1,20 @@
 {{- if and .Values.dr.enabled .Values.dr.phiRetention.enabled }}
-# G-707 — scheduled PHI / minor-data retention job. Dry-run by default: set
-# dr.phiRetention.apply=true only after the retention policy in
-# docs/DATA_RETENTION.md has been signed off. Evidence (summary.json) lands on
-# the backups volume next to the dumps.
+{{/*
+  W1-OPS-19 — PHI retention must not silently default to dry-run.
+  - apply must be an explicit bool (unset → fail closed).
+  - production requires apply=true (enforcing deletion).
+  - sandbox/staging/dev set apply=false → RETENTION_DRY_RUN=1 (explicit dry-run).
+*/}}
+{{- if not (kindIs "bool" .Values.dr.phiRetention.apply) }}
+{{- fail "W1-OPS-19: dr.phiRetention.apply must be an explicit boolean (true=enforce deletion / RETENTION_DRY_RUN=0, false=sandbox dry-run / RETENTION_DRY_RUN=1). Unset mode is refuse." }}
+{{- end }}
+{{- if and (eq .Values.global.environment "production") (not .Values.dr.phiRetention.apply) }}
+{{- fail "W1-OPS-19: production PHI retention must set dr.phiRetention.apply=true (enforcing deletion). For dry-run use staging/development with apply=false." }}
+{{- end }}
+# G-707 / W1-OPS-19 — scheduled PHI / minor-data retention job.
+# Production: apply=true → RETENTION_DRY_RUN=0 (enforces deletion).
+# Sandbox: apply=false → RETENTION_DRY_RUN=1 (explicit dry-run only).
+# Evidence (summary.json) lands on the backups volume next to the dumps.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

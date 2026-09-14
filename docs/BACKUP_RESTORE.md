@@ -154,10 +154,14 @@ DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
 `CronJob` (`<release>-pg-backup`, default `0 2 * * *` UTC) running the
 `proctira/dr-tools` image (`infrastructure/docker/Dockerfile.dr-tools`) against
 a dedicated PVC (`<release>-backups`, 50 Gi by default). A second CronJob
-(`<release>-phi-retention`, Sundays 03:30, **dry-run** unless
-`dr.phiRetention.apply=true`) runs `tools/scripts/phi-retention-job.mjs`.
-Values live under `dr:` in `values.yaml`; the CI job
-`.github/workflows/helm-template.yml` asserts both CronJobs render.
+(`<release>-phi-retention`, Sundays 03:30) runs
+`tools/scripts/phi-retention-job.mjs`. **Production** sets
+`dr.phiRetention.apply=true` → `RETENTION_DRY_RUN=0` (enforces deletion).
+**Staging/development** set `apply=false` → `RETENTION_DRY_RUN=1` (explicit
+sandbox dry-run). Unset `apply` fails closed at `helm template` (W1-OPS-19).
+Values live under `dr:` in `values.yaml` + env overlays; the CI job
+`.github/workflows/helm-template.yml` asserts both CronJobs render and the
+production enforce / unset-refuse gates.
 
 **Docker Compose / bare metal:** call the same script from cron:
 
@@ -626,8 +630,9 @@ DATABASE_URL=postgresql://proctira:.../proctira \
   ARTIFACT_DIR=/opt/cursor/artifacts/restore-drill \
   bash tools/scripts/restore-drill.sh
 
-# PHI / minor retention dry-run
+# PHI / minor retention dry-run (explicit RETENTION_DRY_RUN=1)
 DATABASE_URL=postgresql://proctira:.../proctira \
+  RETENTION_DRY_RUN=1 \
   ARTIFACT_DIR=/opt/cursor/artifacts/phi-retention \
   node tools/scripts/phi-retention-job.mjs
 ```

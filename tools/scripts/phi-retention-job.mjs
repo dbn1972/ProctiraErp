@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * G-503 — PHI / minor-data retention job (dry-run by default).
+ * G-503 / W1-OPS-19 — PHI / minor-data retention job.
  *
  * Uses `psql` when DATABASE_URL is set (no Node `pg` dependency required).
  *
@@ -8,7 +8,8 @@
  *   DATABASE_URL              optional; without it writes policy plan only
  *   PHI_RETENTION_DAYS        default 2555 (~7y)
  *   MINOR_PHI_RETENTION_DAYS  default 3650 (~10y)
- *   RETENTION_DRY_RUN         default "1"
+ *   RETENTION_DRY_RUN         required: "0" (enforce deletion) or "1" (sandbox dry-run)
+ *                             Unset / other values fail closed (no silent dry-run default).
  *   ARTIFACT_DIR              evidence output directory
  */
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -16,7 +17,26 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const DRY_RUN = (process.env.RETENTION_DRY_RUN ?? '1') !== '0';
+/**
+ * Resolve RETENTION_DRY_RUN. Fail closed when unset — dry-run is opt-in via "1".
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {boolean} true when dry-run
+ */
+export function resolveRetentionDryRun(env = process.env) {
+  const raw = env.RETENTION_DRY_RUN;
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    throw new Error(
+      'W1-OPS-19: RETENTION_DRY_RUN must be explicitly set to "0" (apply/enforce) or "1" (sandbox dry-run). Unset mode is refuse.',
+    );
+  }
+  const v = String(raw).trim();
+  if (v === '1') return true;
+  if (v === '0') return false;
+  throw new Error(
+    `W1-OPS-19: RETENTION_DRY_RUN must be "0" or "1" (got ${JSON.stringify(v)}).`,
+  );
+}
+
 const PHI_DAYS = Number(process.env.PHI_RETENTION_DAYS ?? '2555');
 const MINOR_DAYS = Number(process.env.MINOR_PHI_RETENTION_DAYS ?? '3650');
 const ARTIFACT_DIR =
@@ -88,13 +108,14 @@ function psqlExec(sql) {
 }
 
 async function main() {
+  const dryRun = resolveRetentionDryRun(process.env);
   await mkdir(ARTIFACT_DIR, { recursive: true });
 
   if (!DATABASE_URL) {
     const plan = buildRetentionPlan({
       counsellingCount: 0,
       specialNeedsCount: 0,
-      dryRun: true,
+      dryRun,
       phiDays: PHI_DAYS,
       minorDays: MINOR_DAYS,
     });
@@ -132,13 +153,13 @@ async function main() {
   const plan = buildRetentionPlan({
     counsellingCount,
     specialNeedsCount,
-    dryRun: DRY_RUN,
+    dryRun,
     phiDays: PHI_DAYS,
     minorDays: MINOR_DAYS,
   });
-  plan.mode = DRY_RUN ? 'dry-run' : 'apply';
+  plan.mode = dryRun ? 'dry-run' : 'apply';
 
-  if (!DRY_RUN) {
+  if (!dryRun) {
     const counsellingDeleted = psqlExec(
       `WITH d AS (
          DELETE FROM counselling_sessions WHERE created_at < '${adultCutoff}'::timestamptz RETURNING 1

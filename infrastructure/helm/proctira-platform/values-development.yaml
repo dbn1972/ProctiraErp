@@ -215,3 +215,8 @@ reportService:
 
 config:
   tenantBaseDomain: proctira.localhost
+
+# W1-OPS-19 — sandbox: explicit dry-run (RETENTION_DRY_RUN=1); never inherit unset.
+dr:
+  phiRetention:
+    apply: false
