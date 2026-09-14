@@ -49,12 +49,31 @@ function stripComments(src: string): string {
     .replace(/^\s*\/\/.*$/gm, '');
 }
 
-/** Extract a top-level async method body (brace-balanced). */
+/**
+ * Extract a top-level async method body (brace-balanced).
+ * Parameter lists may contain object type literals (`filter: { … }`); skip those
+ * by balancing parentheses first, then taking the `{` that opens the body.
+ */
 function extractMethod(src: string, name: string): string {
   const re = new RegExp(`async ${name}\\s*\\(`);
   const m = re.exec(src);
   if (!m) throw new Error(`method ${name} not found`);
-  const start = src.indexOf('{', m.index);
+  const paramOpen = m.index + m[0].length - 1; // index of '('
+  let paren = 0;
+  let paramEnd = -1;
+  for (let i = paramOpen; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === '(') paren++;
+    else if (ch === ')') {
+      paren--;
+      if (paren === 0) {
+        paramEnd = i;
+        break;
+      }
+    }
+  }
+  if (paramEnd < 0) throw new Error(`method ${name}: unbalanced params`);
+  const start = src.indexOf('{', paramEnd);
   if (start < 0) throw new Error(`method ${name}: missing body`);
   let depth = 0;
   for (let i = start; i < src.length; i++) {
