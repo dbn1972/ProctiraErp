@@ -106,3 +106,12 @@ export type {
 // Routes
 export { registerScholarshipRoutes } from './routes.js';
 export type { ScholarshipRoutesOptions } from './routes.js';
+
+// RBAC (W1-SEC-02 residual)
+export {
+  assertScholarshipAccess,
+  hasScholarshipAccess,
+  normalizeScholarshipRoles,
+} from './scholarship-access.js';
+export type { ScholarshipAction } from './scholarship-access.js';
+export { requireScholarshipAction } from './scholarship-http-guard.js';
