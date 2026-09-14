@@ -2,6 +2,8 @@
  * Kafka configuration interface and defaults.
  */
 
+import { buildTenantPrefixedName } from '../tenant-scope.js';
+
 export interface KafkaConfig {
   /** Kafka broker addresses */
   brokers: string[];
@@ -35,7 +37,8 @@ export const DEFAULT_KAFKA_CONFIG: Partial<KafkaConfig> = {
 /**
  * Builds a tenant-prefixed topic name.
  * Format: tenant.{tenantId}.{topicName}
+ * W1-SEC-11: fails closed when tenantId is missing/blank.
  */
 export function buildTenantTopic(tenantId: string, topicName: string): string {
-  return `tenant.${tenantId}.${topicName}`;
+  return buildTenantPrefixedName(tenantId, topicName, 'events.buildTenantTopic');
 }

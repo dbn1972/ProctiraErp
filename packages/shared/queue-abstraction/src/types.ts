@@ -4,6 +4,8 @@
  * Kafka, RabbitMQ, and AWS SQS backends.
  */
 
+import { assertTenantId, assertTenantScopedQueueName, TenantScopeError } from './tenant-scope';
+
 /**
  * Message envelope for all queue operations.
  * Wraps the payload with routing and metadata information.
@@ -246,11 +248,18 @@ export interface QueueAdapter {
 /**
  * Builds a tenant-prefixed topic/queue name.
  * Format: tenant.{tenantId}.{name}
+ * W1-SEC-11: fails closed when tenantId is missing/blank; rejects unscoped names.
  *
  * @param tenantId - The tenant identifier
  * @param name - The base topic/queue name
  * @returns The tenant-prefixed name
  */
 export function buildTenantName(tenantId: string, name: string): string {
-  return `tenant.${tenantId}.${name}`;
+  assertTenantId(tenantId, 'queue.buildTenantName');
+  if (!name || name.trim().length === 0) {
+    throw new TenantScopeError('queue.buildTenantName: name must not be empty');
+  }
+  const result = `tenant.${tenantId.trim()}.${name.trim()}`;
+  assertTenantScopedQueueName(result, 'queue.buildTenantName');
+  return result;
 }

@@ -2,6 +2,8 @@
  * RabbitMQ configuration interface and defaults.
  */
 
+import { buildTenantPrefixedName } from '../tenant-scope.js';
+
 export interface RabbitMQConfig {
   /** RabbitMQ connection URL (amqp://user:pass@host:port/vhost) */
   url: string;
@@ -30,15 +32,17 @@ export const DEFAULT_RABBITMQ_CONFIG: Partial<RabbitMQConfig> = {
 /**
  * Builds a tenant-prefixed queue name.
  * Format: tenant.{tenantId}.{queueName}
+ * W1-SEC-11: fails closed when tenantId is missing/blank.
  */
 export function buildTenantQueue(tenantId: string, queueName: string): string {
-  return `tenant.${tenantId}.${queueName}`;
+  return buildTenantPrefixedName(tenantId, queueName, 'events.buildTenantQueue');
 }
 
 /**
  * Builds a tenant-prefixed routing key.
  * Format: tenant.{tenantId}.{routingKey}
+ * W1-SEC-11: fails closed when tenantId is missing/blank.
  */
 export function buildTenantRoutingKey(tenantId: string, routingKey: string): string {
-  return `tenant.${tenantId}.${routingKey}`;
+  return buildTenantPrefixedName(tenantId, routingKey, 'events.buildTenantRoutingKey');
 }

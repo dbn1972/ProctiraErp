@@ -15,8 +15,14 @@ describe('buildTenantName', () => {
     expect(buildTenantName('t1', 'reports')).toBe('tenant.t1.reports');
   });
 
-  it('should handle empty tenant ID', () => {
-    expect(buildTenantName('', 'events')).toBe('tenant..events');
+  it('should reject empty tenant ID (W1-SEC-11)', () => {
+    expect(() => buildTenantName('', 'events')).toThrow(/tenantId is required/);
+  });
+
+  it('should reject unscoped names via assert', async () => {
+    const { assertTenantScopedQueueName, TenantScopeError } = await import('../tenant-scope');
+    expect(() => assertTenantScopedQueueName('events')).toThrow(TenantScopeError);
+    expect(() => assertTenantScopedQueueName('tenant..events')).toThrow(TenantScopeError);
   });
 
   it('should handle complex topic names', () => {

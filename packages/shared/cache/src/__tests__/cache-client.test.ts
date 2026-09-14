@@ -40,7 +40,7 @@ describe('CacheClient', () => {
 
   beforeEach(() => {
     mockRedis = createMockRedis();
-    cache = new CacheClient({ redis: mockRedis as unknown as import('ioredis').default });
+    cache = new CacheClient({ redis: mockRedis as unknown as import('ioredis').default, requireTenantScope: false });
   });
 
   describe('get', () => {
