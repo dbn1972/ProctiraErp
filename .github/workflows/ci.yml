@@ -987,6 +987,29 @@ jobs:
         run: node tools/scripts/check-tenant-id-indexes.mjs
 
   # ---------------------------------------------------------------------------
+  # Migration lock/statement timeouts — data gate (W1-DATA-17)
+  # ---------------------------------------------------------------------------
+  # Fail closed when apply-sql / prisma migrate wrappers omit session
+  # lock_timeout + statement_timeout, or when policy docs regress.
+  # No Postgres required — static contract scan.
+  # ---------------------------------------------------------------------------
+  migration-timeouts:
+    name: Migration Timeouts (W1-DATA-17)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test migration timeout gate
+        run: node --test tools/scripts/check-migration-timeouts.test.mjs
+
+      - name: Fail when migration apply paths omit lock/statement timeouts
+        run: node tools/scripts/check-migration-timeouts.mjs
+
+  # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
   # ---------------------------------------------------------------------------
   # Runs ungated Chromium smokes for Next secondary apps that are not covered
@@ -1093,6 +1116,7 @@ jobs:
       - prisma-sql-drift
       - strict-tenant-fks
       - tenant-id-indexes
+      - migration-timeouts
       - secondary-apps-e2e
     if: always()
     steps:
@@ -1121,5 +1145,6 @@ jobs:
           PRISMA_SQL_DRIFT_RESULT: ${{ needs.prisma-sql-drift.result }}
           STRICT_TENANT_FKS_RESULT: ${{ needs.strict-tenant-fks.result }}
           TENANT_ID_INDEXES_RESULT: ${{ needs.tenant-id-indexes.result }}
+          MIGRATION_TIMEOUTS_RESULT: ${{ needs.migration-timeouts.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

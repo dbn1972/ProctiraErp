@@ -116,6 +116,11 @@ export function evaluate({ changes, results }) {
       requiredWhen: () => true,
     },
     {
+      job: 'migration-timeouts',
+      result: results.migrationTimeouts,
+      requiredWhen: () => true,
+    },
+    {
       job: 'secondary-apps-e2e',
       result: results.secondaryAppsE2e,
       requiredWhen: () => secondaryAppsGate(changes),
@@ -234,6 +239,7 @@ function readEnv() {
       prismaSqlDrift: process.env.PRISMA_SQL_DRIFT_RESULT,
       strictTenantFks: process.env.STRICT_TENANT_FKS_RESULT,
       tenantIdIndexes: process.env.TENANT_ID_INDEXES_RESULT,
+      migrationTimeouts: process.env.MIGRATION_TIMEOUTS_RESULT,
       secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
     },
   };

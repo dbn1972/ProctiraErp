@@ -44,6 +44,7 @@ function allSkipped() {
     prismaSqlDrift: 'success',
     strictTenantFks: 'success',
     tenantIdIndexes: 'success',
+    migrationTimeouts: 'success',
     secondaryAppsE2e: 'skipped',
   };
 }
@@ -64,6 +65,7 @@ function allSucceeded() {
     prismaSqlDrift: 'success',
     strictTenantFks: 'success',
     tenantIdIndexes: 'success',
+    migrationTimeouts: 'success',
     secondaryAppsE2e: 'success',
   };
 }
@@ -105,6 +107,14 @@ test('tenant-id-indexes skip fails closed even on docs-only PRs (W1-DATA-16)', (
   const report = evaluate({ changes: noChanges, results });
   assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'tenant-id-indexes'));
+});
+
+test('migration-timeouts skip fails closed even on docs-only PRs (W1-DATA-17)', () => {
+  const results = allSkipped();
+  results.migrationTimeouts = 'skipped';
+  const report = evaluate({ changes: noChanges, results });
+  assert.equal(report.ok, false);
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'migration-timeouts'));
 });
 
 test('failing proof: skip cascade with code changes is unproven and gate fails', () => {
@@ -207,6 +217,7 @@ test('secondary-apps change with skipped e2e is unproven (W1-OPS-12)', () => {
   results.prismaSqlDrift = 'success';
   results.strictTenantFks = 'success';
   results.tenantIdIndexes = 'success';
+  results.migrationTimeouts = 'success';
   results.secondaryAppsE2e = 'skipped';
   const report = evaluate({ changes, results });
   assert.equal(report.ok, false);

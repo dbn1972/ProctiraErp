@@ -145,6 +145,17 @@ describe('apply-sql.sh', () => {
     expect(scriptSource).toMatch(/BOOTSTRAP_DATABASE_URL/);
     expect(scriptSource).toMatch(/maybe_bootstrap_roles/);
   });
+
+  it('W1-DATA-17 static contract: lock_timeout + statement_timeout on every session', () => {
+    expect(scriptSource).toMatch(/W1-DATA-17/);
+    expect(scriptSource).toMatch(/migration-timeouts\.sh/);
+    expect(scriptSource).toMatch(/SET lock_timeout TO/);
+    expect(scriptSource).toMatch(/SET statement_timeout TO/);
+    expect(scriptSource).toMatch(/APPLY_SQL_LOCK_TIMEOUT/);
+    expect(scriptSource).toMatch(/APPLY_SQL_STATEMENT_TIMEOUT/);
+    expect(dryRun().stdout).toMatch(/W1-DATA-17/);
+    expect(dryRun().stdout).toMatch(/lock_timeout=/);
+  });
 });
 
 describe.skipIf(!LIVE_URL)('apply-sql.sh W1-DATA-05 ledger (live Postgres)', () => {
