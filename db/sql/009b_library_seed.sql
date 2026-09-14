@@ -1,4 +1,32 @@
 -- Demo library seed (idempotent by fixed UUIDs). Apply after 009_library_schema.sql.
+-- W1-DATA-15: ensure demo student exists before student_id loan row (residual FK
+-- target; student row shared with parent-portal seed).
+
+DO $$ BEGIN
+  PERFORM set_config('app.platform_admin', '1', true);
+END $$;
+
+INSERT INTO tenants (id, name, slug, config, status)
+VALUES (
+  '00000000-0000-4000-8000-000000000001',
+  'Library demo tenant',
+  'library-demo',
+  '{}'::jsonb,
+  'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO students (
+  id, tenant_id, first_name, last_name, date_of_birth, gender
+) VALUES (
+  '00000000-0000-4000-8000-000000000099',
+  '00000000-0000-4000-8000-000000000001',
+  'Demo',
+  'Student',
+  DATE '2012-06-15',
+  'unspecified'
+)
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO library_items (
   id, tenant_id, isbn, title, author, copies, available

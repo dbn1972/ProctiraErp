@@ -72,6 +72,16 @@ Executable gate: `pnpm check:tenant-id-indexes`. Additive fix migration:
 `db/sql/071_tenant_id_leading_indexes.sql`. See
 `docs/audits/DATA_W1_DATA_16_INDEXES.md`.
 
+## Cross-domain UUID FKs (W1-DATA-15)
+
+`071_cross_domain_fk_constraints.sql` adds the highest-value missing
+`REFERENCES` for student / enrollment / fee / grade cross-refs as **NOT VALID**,
+then `072_validate_cross_domain_fk_constraints.sql` **VALIDATE**s them.
+Always applied by `apply-sql.sh` (not gated on `APPLY_STRICT_FKS`). See
+`docs/audits/DATA_W1_DATA_15_FKS.md` for the closed set and honest residuals
+(hostel / library / LMS / transport / health TEXT ids / intentional
+cross-schema bare UUIDs).
+
 ## Immutability privileges (W1-DATA-08)
 
 Append-only tables (fee ledger, audit log, workflow transition audit, issued
