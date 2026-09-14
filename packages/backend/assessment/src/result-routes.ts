@@ -23,6 +23,8 @@ import {
   type StudentResultsQuery,
 } from './result-schemas.js';
 
+import { enforceAssessmentRouteAccess } from './assessment-http-guard.js';
+
 /**
  * Options for registering result routes.
  */
@@ -46,7 +48,14 @@ export async function registerResultRoutes(
   fastify: FastifyInstance,
   options: ResultRoutesOptions,
 ): Promise<void> {
-  const { resultService, resultsPrefix = '/results' } = options;
+  
+  // W1-SEC-02: package-level RBAC (clears deferred assessment inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceAssessmentRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+const { resultService, resultsPrefix = '/results' } = options;
 
   /**
    * POST /results

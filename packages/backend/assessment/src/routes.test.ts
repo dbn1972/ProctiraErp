@@ -38,6 +38,13 @@ describe('Assessment Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { tenantId: string }).tenantId = tenantId;
     });
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+        sub: 'test-user',
+        roles: ['teacher'],
+      };
+    });
 
     await registerAssessmentRoutes(app, { assessmentService: service });
     await app.ready();
@@ -412,4 +419,32 @@ describe('Assessment Routes', () => {
       expect(response.statusCode).toBe(204);
     });
   });
+
+  describe('W1-SEC-02 package RBAC', () => {
+    it('returns 403 when roles are empty (fail closed)', async () => {
+      await app.close();
+      app = Fastify();
+      app.decorateRequest('tenantId', '');
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { tenantId: string }).tenantId = tenantId;
+      });
+      app.decorateRequest('user', undefined);
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+          sub: 'test-user',
+          roles: [],
+        };
+      });
+      await registerAssessmentRoutes(app, { assessmentService: service });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/grading-schemes',
+        payload: {"name": "X", "type": "numeric", "minValue": 0, "maxValue": 100, "thresholds": []},
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
 });

@@ -233,3 +233,17 @@ export type {
 // Report Card Routes
 export { registerReportCardRoutes } from './report-card-routes.js';
 export type { ReportCardRoutesOptions } from './report-card-routes.js';
+
+// W1-SEC-02 package RBAC
+export {
+  assertAssessmentAccess,
+  hasAssessmentAccess,
+  normalizeAssessmentRoles,
+} from './assessment-access.js';
+export type { AssessmentAction } from './assessment-access.js';
+export {
+  assessmentActionForMethod,
+  assessmentRequestRoles,
+  enforceAssessmentRouteAccess,
+  requireAssessmentAction,
+} from './assessment-http-guard.js';
