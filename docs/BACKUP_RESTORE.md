@@ -27,11 +27,11 @@ Distinguish **implemented by default executable manifests** from **aspirational 
 | ---------- | ----------------------------------- | ----- |
 | Logical `pg_dump` CronJob | **Implemented** (`dr.backup.schedule`, default daily `0 2 * * *`) | See `infrastructure/helm/proctira-platform` |
 | On-volume retention pruning | **Implemented** (`dr.backup.retentionDays`, default **30**) | PVC copy is not offsite by itself |
-| Age/GPG encryption at rest | **Optional implemented** (`dr.backup.encrypt.enabled` + recipient secret) | Off unless enabled |
-| Second-copy / offsite push | **Optional implemented** (`dr.backup.offsite.*`) | Requires operator URI/credentials |
+| Age/GPG encryption at rest | **Required in production** (`dr.backup.encrypt.enabled`; sandbox optional) | Fail-closed via Helm + `check-backup-prod-gate.sh` |
+| Second-copy / offsite push | **Required in production** (`dr.backup.offsite.*` + documented `s3://` URI) | PVC prune does **not** delete offsite objects |
 | Continuous WAL archiving | **Not in default chart** | Documented below as a target architecture |
 | PITR ≤ 5 minutes RPO | **Not in default chart** | Requires managed Postgres or operator WAL+basebackup stack |
-| Immutable/WORM object-lock | **Not in default chart** | Bucket policy / object-lock is environment-owned |
+| Immutable/WORM object-lock | **Expressed in production values** (`offsite.objectLock.mode` + `retainDays`) | Bucket must be created with Object Lock; live vault **not** tip-proven |
 | Automated HA failover | **Not in default chart** | Platform/provider concern |
 
 Treat §2.2–2.3 aspirational rows as planning targets unless the matching control plane is actually provisioned.
@@ -170,10 +170,10 @@ production enforce / unset-refuse gates.
 0 2 * * * proctira DATABASE_URL=postgresql://proctira_backup:...@localhost:5432/proctira BACKUP_DIR=/backups/proctira BACKUP_RETENTION_DAYS=30 /opt/proctira/tools/scripts/pg-backup.sh >> /var/log/proctira-backup.log 2>&1
 ```
 
-By default the CronJob writes only to the PVC. Optional encrypt + offsite
-upload are gated by `dr.backup.encrypt.enabled` / `dr.backup.offsite.enabled`
-(§3.6). Application object-storage mirroring (§4) is separate and not scheduled
-by this chart.
+By default (sandbox / base chart) the CronJob writes only to the PVC. Production
+requires encrypt + offsite + Object Lock via `dr.backup.encrypt.enabled` /
+`dr.backup.offsite.*` (§3.6). Application object-storage mirroring (§4) is
+separate and not scheduled by this chart.
 
 ### 3.5 Backup role (FORCE RLS)
 
@@ -195,11 +195,22 @@ the CronJobs read `dr.databaseUrlSecretKey`, default `BACKUP_DATABASE_URL`).
 `pg-backup.sh` exits `2` with an explanatory message when the role cannot
 bypass RLS — the weekly drill asserts this.
 
-### 3.6 Encryption at rest (W1-OPS-04)
+### 3.6 Encryption, offsite, immutability (W1-OPS-04)
 
 Logical dumps are **plaintext pg_dump custom format** unless encryption is
-configured. For production clusters, enable age encryption and an offsite copy
-so the mutable PVC is not the sole retention surface.
+configured. **Production** (`values-production.yaml` +
+`global.environment=production`) **requires** age encryption, a documented
+`s3://` offsite URI, and Object Lock floors. Sandbox/staging may leave encrypt
+and offsite disabled. CI gate: `tools/scripts/check-backup-prod-gate.sh`
+(also invoked from `helm-template-check.sh`).
+
+| Control | Production | Sandbox |
+| ------- | ---------- | ------- |
+| `dr.backup.encrypt.enabled` | **true** (fail closed) | optional |
+| `dr.backup.offsite.enabled` + `uri` | **true** + `s3://proctira-prod-pg-backups/logical/` | optional |
+| `offsite.objectLock.mode` | **GOVERNANCE** or **COMPLIANCE** | optional / empty |
+| `objectLock.retainDays` | **≥ `retentionDays`** (independent of PVC prune) | optional |
+| Live vault upload / restore from offsite | **Operator evidence** — not claimed by tip alone | N/A |
 
 **Encrypt with age (recommended):**
 
@@ -215,17 +226,25 @@ DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
 # → /backups/proctira-YYYYMMDDTHHMMSSZ.dump.age (plaintext .dump removed)
 ```
 
-**Offsite copy (S3 with SSE — second copy):**
+**Offsite copy (S3 with SSE + Object Lock — second copy):**
 
 ```bash
-export BACKUP_OFFSITE_URI="s3://proctira-backups/pg/"
+export BACKUP_OFFSITE_URI="s3://proctira-prod-pg-backups/logical/"
+export BACKUP_REQUIRE_OFFSITE=1
 export BACKUP_S3_SSE="AES256"   # or aws:kms + BACKUP_S3_SSE_KMS_KEY_ID
+export BACKUP_S3_OBJECT_LOCK_MODE=GOVERNANCE
+export BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS=30
 export AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=... AWS_DEFAULT_REGION=...
 # Runs after encryption; uploads the .dump.age artifact, not plaintext.
+# PVC prune never deletes offsite objects (independent retention).
 bash tools/scripts/pg-backup.sh
 ```
 
-**Kubernetes (Helm):** set `secrets.backupAgeRecipient`, then:
+Create the offsite bucket **with Object Lock enabled** (AWS requires this at
+bucket creation). Tip CI does **not** prove the live bucket exists or that an
+upload succeeded — see `docs/audits/OPS_W1_OPS_04_COMPLETE.md` residuals.
+
+**Kubernetes (Helm production overlay):**
 
 ```yaml
 dr:
@@ -234,14 +253,17 @@ dr:
       enabled: true
     offsite:
       enabled: true
-      uri: s3://proctira-backups/pg/
+      uri: s3://proctira-prod-pg-backups/logical/
       sse: AES256
+      objectLock:
+        mode: GOVERNANCE
+        retainDays: 30
 ```
 
-The `<release>-pg-backup` CronJob sets `BACKUP_ENCRYPT=1`, reads
-`BACKUP_AGE_RECIPIENT` from the platform Secret, and when offsite is enabled
-pushes each encrypted artifact via `aws s3 cp` with server-side encryption.
-Re-use `secrets.s3AccessKey` / `secrets.s3SecretKey` for the upload credentials.
+Place `BACKUP_AGE_RECIPIENT` (and S3 credentials) in
+`secrets.existingSecret` (`proctira-prod-secrets`). The CronJob sets
+`BACKUP_ENCRYPT=1`, `BACKUP_REQUIRE_OFFSITE=1`, Object Lock env vars, and
+pushes each encrypted artifact via `aws s3 cp` with SSE + lock headers.
 
 **Restore from encrypted artifact:**
 
@@ -263,9 +285,10 @@ operator's gpg keyring.
 
 ## 4. Object Storage Backup — operator guidance
 
-**Not scheduled by `proctira-platform`.** The optional `dr.backup.offsite`
-path only uploads **Postgres dump artifacts**. Bucket mirroring / CRR below
-are examples for operators who back up application object storage separately.
+**Not scheduled by `proctira-platform` for application buckets.** The
+`dr.backup.offsite` path (required in production) only uploads **Postgres dump
+artifacts**. Bucket mirroring / CRR below are examples for operators who back
+up application object storage separately.
 
 ### 4.1 S3 Cross-Region Replication (example)
 
@@ -581,13 +604,16 @@ Data lost on the implemented path is bounded by the last successful daily dump
 
 | Backup Type                         | Retention                     | Where                                      |
 | ----------------------------------- | ----------------------------- | ------------------------------------------ |
-| Daily logical dumps (`pg-backup.sh`)| 30 days (`dr.backup.retentionDays` / `BACKUP_RETENTION_DAYS`) | Backups PVC (and optional S3 offsite copy) |
+| Daily logical dumps (`pg-backup.sh`)| 30 days (`dr.backup.retentionDays` / `BACKUP_RETENTION_DAYS`) | Backups PVC |
+| Offsite encrypted copy (prod)       | ≥ PVC days via `objectLock.retainDays` (WORM) | Documented `s3://` URI; **independent** of PVC prune |
 | Pre-upgrade / ad-hoc dumps          | Operator-managed              | Same volume / offsite prefix               |
 | Restore-drill CI artifacts          | 90 days (GitHub Actions)      | Workflow artifact only — not production DR |
 
-Offsite S3 lifecycle rules are **operator-owned**; the chart does not create
-bucket retention policies. Increasing `dr.backup.retentionDays` only affects
-on-volume prune — ensure PVC size and any offsite lifecycle match.
+`pg-backup.sh` retention prune only deletes under `BACKUP_DIR` (PVC). Offsite
+objects are retained independently. Production Object Lock
+(`BACKUP_S3_OBJECT_LOCK_*`) refuses early deletion until retain-until; the
+chart does not create the bucket — operators must enable Object Lock at
+creation and align lifecycle policies.
 
 ### 9.2 Aspirational (not shipped)
 
@@ -614,8 +640,11 @@ Variables actually read by `pg-backup.sh` / Helm CronJob (not legacy aliases):
 | `BACKUP_GPG_RECIPIENT`     | GPG recipient — encrypt dumps at rest            | —                                       |
 | `BACKUP_ENCRYPT`           | Require encryption keys (`1` / `true`)           | set by CronJob when encrypt enabled     |
 | `BACKUP_OFFSITE_URI`       | Offsite destination (`s3://bucket/prefix/`)      | `dr.backup.offsite.uri`                 |
+| `BACKUP_REQUIRE_OFFSITE`   | Fail if offsite URI missing (`1` / `true`)       | set when `offsite.enabled`              |
 | `BACKUP_S3_SSE`            | S3 server-side encryption (`AES256`, `aws:kms`)  | `dr.backup.offsite.sse`                 |
 | `BACKUP_S3_SSE_KMS_KEY_ID` | KMS key when `BACKUP_S3_SSE=aws:kms`             | `dr.backup.offsite.sseKmsKeyId`         |
+| `BACKUP_S3_OBJECT_LOCK_MODE` | `GOVERNANCE` / `COMPLIANCE`                    | `dr.backup.offsite.objectLock.mode`     |
+| `BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS` | Object Lock retain-until days             | `dr.backup.offsite.objectLock.retainDays` |
 
 Schedule is Helm `dr.backup.schedule` (default `0 2 * * *`), not an env var.
 Enable/disable is `dr.enabled` + `dr.backup.enabled` in values.

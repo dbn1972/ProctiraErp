@@ -10,8 +10,11 @@
 #   BACKUP_GPG_RECIPIENT    gpg recipient — encrypt dump at rest (.dump.gpg)
 #   BACKUP_ENCRYPT          when 1/true, require encryption keys (fail closed)
 #   BACKUP_OFFSITE_URI      s3://bucket/prefix/ — push encrypted artifact offsite
+#   BACKUP_REQUIRE_OFFSITE  when 1/true, refuse if BACKUP_OFFSITE_URI empty
 #   BACKUP_S3_SSE           S3 server-side encryption (AES256 or aws:kms)
 #   BACKUP_S3_SSE_KMS_KEY_ID  KMS key when BACKUP_S3_SSE=aws:kms
+#   BACKUP_S3_OBJECT_LOCK_MODE  GOVERNANCE|COMPLIANCE (WORM; optional)
+#   BACKUP_S3_OBJECT_LOCK_RETAIN_DAYS  retain-until days for Object Lock
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

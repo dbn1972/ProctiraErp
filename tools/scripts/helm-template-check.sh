@@ -199,6 +199,62 @@ grep -Eqi 'W1-OPS-19|dr.phiRetention.apply' "${unset_out}.err" \
 rm -f "$unset_out" "${unset_out}.err"
 echo "OK W1-OPS-19 PHI retention (prod enforce + unset refuse)"
 
+# W1-OPS-04 — production backups require encrypt + offsite + object-lock (fail closed)
+echo "==> W1-OPS-04 production backup encrypt/offsite gate"
+bash "$ROOT/tools/scripts/check-backup-prod-gate.sh"
+prod_backup_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-production \
+  --set global.environment=production \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  -f "${PLATFORM_CHART}/values-production.yaml" \
+  >"$prod_backup_out"
+grep -q 'BACKUP_ENCRYPT' "$prod_backup_out" \
+  || die "W1-OPS-04: production pg-backup CronJob must set BACKUP_ENCRYPT"
+grep -q 'BACKUP_OFFSITE_URI' "$prod_backup_out" \
+  || die "W1-OPS-04: production pg-backup CronJob must set BACKUP_OFFSITE_URI"
+grep -q 'BACKUP_REQUIRE_OFFSITE' "$prod_backup_out" \
+  || die "W1-OPS-04: production pg-backup CronJob must set BACKUP_REQUIRE_OFFSITE"
+grep -q 'BACKUP_S3_OBJECT_LOCK_MODE' "$prod_backup_out" \
+  || die "W1-OPS-04: production pg-backup CronJob must set Object Lock mode"
+grep -q 's3://proctira-prod-pg-backups/logical/' "$prod_backup_out" \
+  || die "W1-OPS-04: production render must include documented offsite URI"
+rm -f "$prod_backup_out"
+
+no_encrypt_err="$(mktemp)"
+if helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-production \
+  --set global.environment=production \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  --set dr.backup.encrypt.enabled=false \
+  -f "${PLATFORM_CHART}/values-production.yaml" \
+  >/dev/null 2>"$no_encrypt_err"; then
+  rm -f "$no_encrypt_err"
+  die "W1-OPS-04: production with encrypt.enabled=false must fail closed"
+fi
+grep -Eqi 'W1-OPS-04|encrypt' "$no_encrypt_err" \
+  || die "W1-OPS-04: expected fail message mentioning encrypt when disabled"
+rm -f "$no_encrypt_err"
+
+no_offsite_err="$(mktemp)"
+if helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-production \
+  --set global.environment=production \
+  --set secrets.jwtSecret=ci-placeholder \
+  --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+  --set dr.backup.offsite.enabled=false \
+  -f "${PLATFORM_CHART}/values-production.yaml" \
+  >/dev/null 2>"$no_offsite_err"; then
+  rm -f "$no_offsite_err"
+  die "W1-OPS-04: production with offsite.enabled=false must fail closed"
+fi
+grep -Eqi 'W1-OPS-04|offsite' "$no_offsite_err" \
+  || die "W1-OPS-04: expected fail message mentioning offsite when disabled"
+rm -f "$no_offsite_err"
+echo "OK W1-OPS-04 backup encrypt/offsite (prod require + disable refuse)"
+
 # W1-OPS-02 (B4) — etl-worker Helm probes must match Fastify handlers (/health/live, /health/ready).
 etl_deploy="$(awk '/Source: proctira-platform\/templates\/etl-worker\/deployment.yaml/,/^---$/' "$platform_out")"
 [[ -n "$etl_deploy" ]] || die "missing etl-worker Deployment in platform render"
