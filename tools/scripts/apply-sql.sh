@@ -24,7 +24,8 @@
 #
 # G-705: demo seed files inside db/sql (NNNb_*_seed.sql) are applied only when
 #        APPLY_SEEDS=1 (CI / local dev). Production must not set it.
-# G-718: 021b_tenant_fk_constraints.sql is applied only when APPLY_STRICT_FKS=1.
+# G-718 / W1-DATA-06: 021a + 021b (strict tenant FKs) apply only when
+#        APPLY_STRICT_FKS=1. Primary CI must set this (see check-strict-tenant-fks.mjs).
 #
 # Multi-statement limits (per-file transaction):
 #   psql --single-transaction wraps each file + its ledger INSERT. Statements
@@ -60,7 +61,7 @@ Environment:
   PGDATABASE             Used when neither URL is set (default: proctira)
   PGHOST/PGPORT/PGUSER/PGPASSWORD  Standard libpq vars when URL unset
   APPLY_SEEDS=1          Also apply db/sql/*b_*_seed.sql demo rows (never in prod)
-  APPLY_STRICT_FKS=1     Also apply 021b_tenant_fk_constraints.sql
+  APPLY_STRICT_FKS=1     Also apply 021a/021b strict tenant FK files
   APPLY_SQL_DIR          Override SQL directory (tests / fixtures)
   APPLY_SQL_NO_TX=1      Disable per-file --single-transaction for all files
 
@@ -75,7 +76,9 @@ is_seed_file() {
 }
 
 is_strict_fk_file() {
-  [[ "$(basename "$1")" == "021b_tenant_fk_constraints.sql" ]]
+  local base
+  base="$(basename "$1")"
+  [[ "$base" == "021a_strict_fk_prerequisite_tenants.sql" || "$base" == "021b_tenant_fk_constraints.sql" ]]
 }
 
 file_checksum() {

@@ -10,8 +10,9 @@
 --   6. Missing tenant_id indexes (bell_periods, grading_scale_bands, parent_*)
 --
 -- Tenant FK constraints are in 021b_tenant_fk_constraints.sql (opt-in via
--- APPLY_STRICT_FKS=1) because unit/integration fixtures create rows with ad-hoc
--- tenant ids that are not present in `tenants`.
+-- APPLY_STRICT_FKS=1; primary CI enforces this — W1-DATA-06). VALIDATE runs in
+-- 068_validate_tenant_fk_constraints.sql after 021a seeds the demo tenant used
+-- by colocated *b_* demo seeds.
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 

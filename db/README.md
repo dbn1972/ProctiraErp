@@ -35,6 +35,18 @@ use the table-owning migrator role via `MIGRATOR_DATABASE_URL` (falls back to
 
 See `db/sql/050_app_runtime_role.sql` and `db/docker-init/01_app_runtime_role.sql`.
 
+## Strict tenant foreign keys (W1-DATA-06)
+
+`021b_tenant_fk_constraints.sql` adds `tenant_id → tenants(id)` as **NOT VALID**
+(new rows checked; existing rows deferred). `068_validate_tenant_fk_constraints.sql`
+then **VALIDATE**s those constraints.
+
+Opt-in locally via `APPLY_STRICT_FKS=1` (also applies `021a` demo-tenant
+prerequisite so `*b_*_seed.sql` rows validate). Primary CI, restore-drill, and
+live onboard set `APPLY_STRICT_FKS=1`. Executable gate:
+`pnpm check:strict-tenant-fks` fails when a workflow runs `apply-sql.sh` without
+that flag unless the step documents `# STRICT_FK_SKIP_JUSTIFIED: …`.
+
 ## Immutability privileges (W1-DATA-08)
 
 Append-only tables (fee ledger, audit log, workflow transition audit, issued

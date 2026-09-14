@@ -92,6 +92,8 @@ jobs:
         run: bash tools/scripts/apply-sql.sh
         env:
           APPLY_SEEDS: '1'
+          # W1-DATA-06 / G-718: same validated tenant FK posture as production.
+          APPLY_STRICT_FKS: '1'
 
       - name: Record source row counts
         run: |

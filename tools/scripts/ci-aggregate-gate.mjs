@@ -99,6 +99,11 @@ export function evaluate({ changes, results }) {
       result: results.prismaSqlDrift,
       requiredWhen: () => true,
     },
+    {
+      job: 'strict-tenant-fks',
+      result: results.strictTenantFks,
+      requiredWhen: () => true,
+    },
   ];
 
   for (const gate of gates) {
@@ -210,6 +215,7 @@ function readEnv() {
       tenantIsolation: process.env.TENANT_ISOLATION_RESULT,
       restoreDrillEvidence: process.env.RESTORE_DRILL_EVIDENCE_RESULT,
       prismaSqlDrift: process.env.PRISMA_SQL_DRIFT_RESULT,
+      strictTenantFks: process.env.STRICT_TENANT_FKS_RESULT,
     },
   };
 }

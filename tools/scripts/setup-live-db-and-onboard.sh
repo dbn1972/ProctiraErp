@@ -10,8 +10,9 @@ mkdir -p "$ARTIFACT_DIR"
 export ARTIFACT_DIR
 export DATABASE_URL="$DB_URL"
 
-echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh)"
-DATABASE_URL="$DB_URL" bash "$ROOT/tools/scripts/apply-sql.sh" \
+echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh, APPLY_STRICT_FKS=1)"
+# W1-DATA-06: certification onboard uses production tenant FK + VALIDATE posture.
+DATABASE_URL="$DB_URL" APPLY_STRICT_FKS=1 bash "$ROOT/tools/scripts/apply-sql.sh" \
   | tee "$ARTIFACT_DIR/schema-apply.log"
 
 echo "==> Seeding boards/schools/students: db/seeds/002_multi_board_schools_500.sql"

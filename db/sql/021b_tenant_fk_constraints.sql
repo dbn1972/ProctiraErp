@@ -1,13 +1,15 @@
--- Wave 7 (G-718) — tenant_id → tenants(id) foreign keys (opt-in).
+-- Wave 7 (G-718) / W1-DATA-06 — tenant_id → tenants(id) foreign keys (opt-in).
 --
 -- Adds a NOT VALID FK from every UUID tenant_id column to tenants(id) where one
 -- is missing. NOT VALID skips validation of existing rows; new rows are checked.
 --
--- Opt-in: tools/scripts/apply-sql.sh applies this file only when
--- APPLY_STRICT_FKS=1, because unit/integration fixtures insert rows under ad-hoc
--- tenant ids. Production / staging should run with APPLY_STRICT_FKS=1.
+-- Opt-in: tools/scripts/apply-sql.sh applies this file (and 021a) only when
+-- APPLY_STRICT_FKS=1, because local unit fixtures may insert rows under ad-hoc
+-- tenant ids. Primary CI, staging, and production must set APPLY_STRICT_FKS=1
+-- (enforced by tools/scripts/check-strict-tenant-fks.mjs).
 --
--- Validate later with:  ALTER TABLE <t> VALIDATE CONSTRAINT <t>_tenant_fk;
+-- VALIDATE existing rows via 068_validate_tenant_fk_constraints.sql (always
+-- applied after this file when strict FKs are enabled).
 
 DO $$
 DECLARE

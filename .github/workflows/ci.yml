@@ -558,6 +558,8 @@ jobs:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           # G-705: demo seed files are opt-in; CI wants them, production never sets this.
           APPLY_SEEDS: '1'
+          # W1-DATA-06 / G-718: production tenant FK posture + VALIDATE via 068.
+          APPLY_STRICT_FKS: '1'
 
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
@@ -775,6 +777,8 @@ jobs:
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           APPLY_SEEDS: '1'
+          # W1-DATA-06 / G-718: production tenant FK posture + VALIDATE via 068.
+          APPLY_STRICT_FKS: '1'
 
       - name: Run unit isolation tests
         run: pnpm test:tenant-isolation:unit
@@ -867,6 +871,29 @@ jobs:
         run: node tools/scripts/check-prisma-sql-drift.mjs
 
   # ---------------------------------------------------------------------------
+  # Strict tenant FKs — data gate (W1-DATA-06)
+  # ---------------------------------------------------------------------------
+  # Fail closed when apply-sql.sh is invoked in CI without APPLY_STRICT_FKS=1
+  # (unless STRICT_FK_SKIP_JUSTIFIED), or when the VALIDATE migration / 021b
+  # corpus is missing. No Postgres required.
+  # ---------------------------------------------------------------------------
+  strict-tenant-fks:
+    name: Strict Tenant FKs (W1-DATA-06)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test strict tenant FK gate
+        run: node --test tools/scripts/check-strict-tenant-fks.test.mjs
+
+      - name: Fail when APPLY_STRICT_FKS / VALIDATE posture is skipped
+        run: node tools/scripts/check-strict-tenant-fks.mjs
+
+  # ---------------------------------------------------------------------------
   # CI Aggregate — required merge gate (W1-OPS-05 B2)
   # ---------------------------------------------------------------------------
   # Always runs (even when upstream jobs skip) and fails closed when any
@@ -890,6 +917,7 @@ jobs:
       - tenant-isolation
       - restore-drill-evidence
       - prisma-sql-drift
+      - strict-tenant-fks
     if: always()
     steps:
       - uses: actions/checkout@v4
@@ -914,4 +942,5 @@ jobs:
           TENANT_ISOLATION_RESULT: ${{ needs.tenant-isolation.result }}
           RESTORE_DRILL_EVIDENCE_RESULT: ${{ needs.restore-drill-evidence.result }}
           PRISMA_SQL_DRIFT_RESULT: ${{ needs.prisma-sql-drift.result }}
+          STRICT_TENANT_FKS_RESULT: ${{ needs.strict-tenant-fks.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs
