@@ -492,11 +492,17 @@ export class HybridHealthRepository implements HealthRepository {
 
   async createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: CounsellingSessionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity> {
     if (this.counselling) {
-      return this.counselling.create(data);
+      return this.counselling.create(data, options);
     }
-    return this.memory.createCounsellingSession(data);
+    return this.memory.createCounsellingSession(data, options);
   }
 
   async updateCounsellingSession(

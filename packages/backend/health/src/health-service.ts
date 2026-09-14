@@ -906,6 +906,12 @@ export class HealthService {
     tenantId: string,
     input: CreateCounsellingSessionInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: CounsellingSessionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
     if (input.followUpRequired && !input.followUpDate) {
@@ -927,7 +933,7 @@ export class HealthService {
       followUpDate: input.followUpDate ?? null,
       status: input.status,
     };
-    return this.repository.createCounsellingSession(entity);
+    return this.repository.createCounsellingSession(entity, options);
   }
 
   async updateCounsellingSession(

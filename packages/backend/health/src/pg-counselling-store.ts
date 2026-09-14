@@ -110,13 +110,19 @@ export class PgCounsellingStore {
 
   async create(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
+    options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: CounsellingSessionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity> {
     await this.ensureSchema();
     const now = new Date();
     const scope = await this.phiScope(data.tenantId, data.studentId);
-    const result = await this.query(
-      data.tenantId,
-      `INSERT INTO counselling_sessions (
+    return withPgTenant(this.pool, data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO counselling_sessions (
         id, tenant_id, student_id, counsellor_id, session_date, session_type,
         reason, case_notes, outcome, follow_up_required, follow_up_date, status,
         created_at, updated_at
@@ -124,24 +130,30 @@ export class PgCounsellingStore {
         $1,$2,$3,$4,$5::date,$6,$7,$8,$9,$10,$11::date,$12,$13,$14
       )
       RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.counsellorId,
-        data.sessionDate,
-        data.sessionType,
-        encryptPhi(data.reason, scope),
-        encryptPhi(data.caseNotes, scope),
-        encryptPhi(data.outcome, scope),
-        data.followUpRequired,
-        data.followUpDate,
-        data.status,
-        now,
-        now,
-      ],
-    );
-    return mapRow(result.rows[0] as Record<string, unknown>);
+        [
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.counsellorId,
+          data.sessionDate,
+          data.sessionType,
+          encryptPhi(data.reason, scope),
+          encryptPhi(data.caseNotes, scope),
+          encryptPhi(data.outcome, scope),
+          data.followUpRequired,
+          data.followUpDate,
+          data.status,
+          now,
+          now,
+        ],
+      );
+      const entity = mapRow(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: counselling write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async update(

@@ -190,6 +190,14 @@ function buildNurseIncidentAuditBinder(request: FastifyRequest, tenantId: string
   });
 }
 
+function buildCounsellingSessionAuditBinder(request: FastifyRequest, tenantId: string) {
+  return buildPhiWriteAuditBinder(request, tenantId, {
+    path: '/api/v1/health/counselling/sessions',
+    regulated: 'health.counselling_session',
+    idField: 'counsellingSessionId',
+  });
+}
+
 
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
@@ -1113,6 +1121,7 @@ export async function registerHealthRoutes(
           tenantId,
           result.data,
           getAccessContext(request),
+          buildCounsellingSessionAuditBinder(request, tenantId),
         );
         return reply.status(201).send(entity);
       } catch (error) {

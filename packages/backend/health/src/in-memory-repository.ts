@@ -564,6 +564,12 @@ export class InMemoryHealthRepository implements HealthRepository {
 
   async createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
+    _options?: {
+      appendAuditInTxn?: (
+        client: import('@proctira/database').PgQueryable,
+        entity: CounsellingSessionEntity,
+      ) => Promise<void>;
+    },
   ): Promise<CounsellingSessionEntity> {
     const now = new Date();
     const entity: CounsellingSessionEntity = { ...data, createdAt: now, updatedAt: now };
