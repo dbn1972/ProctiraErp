@@ -26,7 +26,7 @@ import {
   type PersistencePolicyEnv,
   type ReadinessProbeOptions,
 } from '@proctira/database';
-import { observabilityPlugin } from '@proctira/observability';
+import { initTracing, observabilityPlugin, shutdownTracing } from '@proctira/observability';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 const PORT = parseInt(process.env['ETL_WORKER_PORT'] ?? '3010', 10);
@@ -129,6 +129,8 @@ export async function buildEtlWorkerApp(
 }
 
 async function start() {
+  // W1-OPS-13: tracer provider before listen (noop when OTLP unset).
+  const tracing = initTracing({ serviceName: 'etl-worker' });
   const fastify = await buildEtlWorkerApp();
 
   try {
@@ -136,9 +138,24 @@ async function start() {
     fastify.log.info(
       `ETL Worker listening on ${HOST}:${PORT} (persistence=${resolveEtlPersistenceMode()})`,
     );
+    if (tracing.enabled) {
+      fastify.log.info({ tracingMode: tracing.mode }, 'OpenTelemetry tracing export enabled');
+    }
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
+  }
+
+  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+  for (const signal of signals) {
+    process.on(signal, () => {
+      void (async () => {
+        fastify.log.info(`Received ${signal}, shutting down gracefully...`);
+        await fastify.close();
+        await shutdownTracing();
+        process.exit(0);
+      })();
+    });
   }
 }
 

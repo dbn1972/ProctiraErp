@@ -402,18 +402,19 @@ function checkQueue(): ReadinessCategory {
 }
 
 function checkMonitoring(): ReadinessCategory {
-  // Honest scope (G-725): every Fastify service registers @proctira/observability
-  // and serves Prometheus /metrics unconditionally; METRICS_ENABLED=false is the
-  // only way to opt out. Distributed tracing is NOT implemented — no OpenTelemetry
-  // SDK or exporter is wired — so TRACING_ENABLED / OTEL_EXPORTER_OTLP_ENDPOINT
-  // must not earn readiness points.
+  // Honest scope (G-725 / W1-OPS-13): every Fastify service registers
+  // @proctira/observability and serves Prometheus /metrics unconditionally;
+  // METRICS_ENABLED=false is the only way to opt out. Distributed tracing is
+  // application-wired: OTEL_EXPORTER_OTLP_* enables OTLP export; unset → no-op.
   const metricsDisabled = process.env['METRICS_ENABLED'] === 'false';
   const alertingConfigured =
     envSet('ALERTING_WEBHOOK_URL') ||
     envSet('PAGERDUTY_INTEGRATION_KEY') ||
     envSet('SLACK_WEBHOOK_URL') ||
     envSet('ALERT_EMAIL_TO');
-  const tracingRequested = envSet('TRACING_ENABLED') || envSet('OTEL_EXPORTER_OTLP_ENDPOINT');
+  const tracingConfigured =
+    envSet('OTEL_EXPORTER_OTLP_ENDPOINT') || envSet('OTEL_EXPORTER_OTLP_TRACES_ENDPOINT');
+  const tracingForcedOff = process.env['TRACING_ENABLED'] === 'false';
 
   let score = 0;
   const active: string[] = [];
@@ -440,9 +441,15 @@ function checkMonitoring(): ReadinessCategory {
     );
   }
 
-  if (tracingRequested) {
+  if (tracingConfigured && !tracingForcedOff) {
+    active.push('tracing (OTLP endpoint configured)');
+  } else if (tracingForcedOff) {
     recommendations.push(
-      'TRACING_ENABLED / OTEL_EXPORTER_OTLP_ENDPOINT have no effect: distributed tracing is not implemented in this release (metrics + request-id log correlation only)',
+      'TRACING_ENABLED=false — OpenTelemetry export is forced off; unset to export when OTEL_EXPORTER_OTLP_* is set',
+    );
+  } else {
+    recommendations.push(
+      'Optional: set OTEL_EXPORTER_OTLP_ENDPOINT (or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT) to export traces to your collector; unset keeps a fail-safe no-op tracer (W1-OPS-13)',
     );
   }
 
@@ -453,7 +460,9 @@ function checkMonitoring(): ReadinessCategory {
       status: 'pass',
       score: 10,
       maxScore: 10,
-      message: 'Metrics + alerting configured (tracing: not available in this release)',
+      message: tracingConfigured && !tracingForcedOff
+        ? 'Metrics + alerting configured; OTLP tracing endpoint set (collector ingest not verified here)'
+        : 'Metrics + alerting configured; tracing available when OTEL_EXPORTER_OTLP_* is set',
       ...(recommendations.length > 0 ? { recommendations } : {}),
     };
   }

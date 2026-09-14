@@ -20,6 +20,8 @@ import {
   type MetricsAccessEnv,
 } from './metrics-access.js';
 import { DEFAULT_HTTP_DURATION_BUCKETS, MetricsRegistry } from './metrics-registry.js';
+import { tracingPlugin } from './tracing-plugin.js';
+import type { TracingEnv } from './tracing.js';
 
 export interface ObservabilityPluginOptions {
   /** Service name. Used as both a default label value and for the registry. */
@@ -62,6 +64,15 @@ export interface ObservabilityPluginOptions {
    * a snapshot of `process.env`. Tests inject production/token scenarios here.
    */
   metricsAccessEnv?: MetricsAccessEnv;
+
+  /**
+   * Register Fastify HTTP SERVER spans + W3C propagation (W1-OPS-13).
+   * Defaults to true. Fail-safe no-op when OTLP endpoint is unset.
+   */
+  tracing?: boolean;
+
+  /** Env override for tracing init (tests). */
+  tracingEnv?: TracingEnv;
 }
 
 declare module 'fastify' {
@@ -112,7 +123,20 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
     collectDefaultMetrics: collectDefault = true,
     enabled = process.env['METRICS_ENABLED'] !== 'false',
     metricsAccessEnv = metricsAccessEnvFromProcess(),
+    tracing = true,
+    tracingEnv,
   } = options;
+
+  // W1-OPS-13: distributed tracing hooks (noop provider when OTLP unset).
+  // Registered even when metrics are disabled so TRACING_ENABLED / OTLP still work.
+  if (tracing) {
+    await fastify.register(tracingPlugin, {
+      serviceName,
+      ignorePaths: [metricsPath, ...ignorePaths],
+      env: tracingEnv,
+      ensureInit: true,
+    });
+  }
 
   if (!enabled) {
     fastify.decorate('metrics', registry);

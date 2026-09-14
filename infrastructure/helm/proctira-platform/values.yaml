@@ -116,6 +116,7 @@ apiGateway:
   env:
     PORT: '3000'
     HOST: '0.0.0.0'
+    OTEL_SERVICE_NAME: api-gateway
   # -- Rolling update strategy for zero-downtime deployments
   strategy:
     type: RollingUpdate
@@ -222,6 +223,7 @@ etlWorker:
   env:
     ETL_WORKER_PORT: '3010'
     ETL_WORKER_HOST: '0.0.0.0'
+    OTEL_SERVICE_NAME: etl-worker
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -980,6 +982,13 @@ config:
   tenantHeaderName: x-tenant-id
   s3Region: us-east-1
   s3ForcePathStyle: 'true'
+  # W1-OPS-13: OpenTelemetry OTLP export (leave empty → app no-op tracer).
+  # Production expects a collector URL when operators enable tracing.
+  tracing:
+    # enabled: 'true'   # set 'false' to force off
+    otlpEndpoint: '' # e.g. http://otel-collector:4318
+    otlpTracesEndpoint: '' # optional full /v1/traces URL
+    headers: '' # optional OTEL_EXPORTER_OTLP_HEADERS (k=v,k2=v2)
 
 # -- Secrets (use external-secrets-operator in production)
 secrets:
