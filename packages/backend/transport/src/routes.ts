@@ -36,6 +36,10 @@
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import {
+  requireTransportAction,
+  transportActionForMethod,
+} from './transport-http-guard.js';
 
 import {
   CreateTransportRouteSchema,
@@ -121,6 +125,15 @@ export async function registerTransportRoutes(
   options: TransportRoutesOptions,
 ): Promise<void> {
   const { transportService, prefix = '/transport' } = options;
+
+  // W1-SEC-02: package-level RBAC (clears deferred transport inventory residual).
+  fastify.addHook('preHandler', async (request, reply) => {
+    const action = transportActionForMethod(request.method);
+    if (!requireTransportAction(request, reply, action)) {
+      return reply;
+    }
+  });
+
 
   // ─── Route Routes ──────────────────────────────────────────────────────
 

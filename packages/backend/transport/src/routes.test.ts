@@ -17,10 +17,13 @@ describe('Transport Routes', () => {
   beforeEach(async () => {
     app = Fastify();
 
-    // Add tenantId decorator to simulate tenant resolution
+    // Simulate gateway tenant + RBAC principal (W1-SEC-02 package guards).
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
-      (request as any).tenantId = tenantId;
+      (request as { tenantId?: string; user?: { roles: string[] } }).tenantId = tenantId;
+      (request as { tenantId?: string; user?: { roles: string[] } }).user = {
+        roles: ['transport_officer'],
+      };
     });
 
     const repository = new InMemoryTransportRepository();
@@ -272,4 +275,27 @@ describe('Transport Routes', () => {
       expect(live.json().honestyNote).toMatch(/SVG/i);
     });
   });
+
+  describe('W1-SEC-02 package RBAC', () => {
+    it('returns 403 when roles are empty (fail closed)', async () => {
+      await app.close();
+      app = Fastify();
+      app.decorateRequest('tenantId', '');
+      app.addHook('onRequest', async (request) => {
+        (request as { tenantId?: string; user?: { roles: string[] } }).tenantId = tenantId;
+        (request as { tenantId?: string; user?: { roles: string[] } }).user = { roles: [] };
+      });
+      const repository = new InMemoryTransportRepository();
+      await app.register(transportPlugin, { repository });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/transport/vehicles',
+        payload: { plateNumber: 'SEC02-1', capacity: 20 },
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
 });

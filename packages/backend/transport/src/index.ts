@@ -119,3 +119,15 @@ export { GPS_LIVE_HONESTY_NOTE, TRANSPORT_FEE_PENDING_NOTE } from './transport-s
 // Routes
 export { registerTransportRoutes } from './routes.js';
 export type { TransportRoutesOptions } from './routes.js';
+
+export {
+  normalizeTransportRoles,
+  hasTransportAccess,
+  assertTransportAccess,
+} from './transport-access.js';
+export type { TransportAction } from './transport-access.js';
+export {
+  transportRequestRoles,
+  requireTransportAction,
+  transportActionForMethod,
+} from './transport-http-guard.js';
