@@ -1,5 +1,32 @@
 -- Demo seed for parent portal (tenant 00000000-0000-4000-8000-000000000001).
 -- Parent user `parent-a` linked to demo student; open fee + pending consent.
+-- W1-DATA-15: insert the demo student before UUID cross-refs (FK-enforced).
+
+DO $$ BEGIN
+  PERFORM set_config('app.platform_admin', '1', true);
+END $$;
+
+INSERT INTO tenants (id, name, slug, config, status)
+VALUES (
+  '00000000-0000-4000-8000-000000000001',
+  'Parent portal demo tenant',
+  'parent-portal-demo',
+  '{}'::jsonb,
+  'active'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO students (
+  id, tenant_id, first_name, last_name, date_of_birth, gender
+) VALUES (
+  '00000000-0000-4000-8000-000000000099',
+  '00000000-0000-4000-8000-000000000001',
+  'Demo',
+  'Student',
+  DATE '2012-06-15',
+  'unspecified'
+)
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO parent_child_links (
   id, tenant_id, parent_user_id, student_id, relationship, status
