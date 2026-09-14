@@ -1,7 +1,7 @@
 # OPS — W1-OPS-19 PHI-retention CronJob enforce (no silent dry-run)
 
 **Module / slice:** Helm `dr.phiRetention` + `tools/scripts/phi-retention-job.mjs`  
-**Branch / tip:** `cursor/aud-w1-ops-19-phi-retention-56c3`  
+**Branch / tip:** `cursor/aud-w1-ops-19-phi-retention-56c3` @ `c63e15ad3591678868dfb60a582752fadc84af85`  
 **Date (UTC):** 2026-09-14  
 **Paired check:** `tools/scripts/helm-template-check.sh` + `node --test tools/scripts/__tests__/phi-retention-job.test.mjs`
 
