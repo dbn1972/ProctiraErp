@@ -40,7 +40,7 @@ ERROR: backup role '$(psql "$DB_URL" -At -c "SELECT current_user")' cannot bypas
          CREATE ROLE proctira_backup LOGIN PASSWORD '...' BYPASSRLS;
          GRANT pg_read_all_data TO proctira_backup;
        and point BACKUP_DATABASE_URL / dr.databaseUrlSecretKey at it
-       (docs/BACKUP_RESTORE.md §3.3).
+       (docs/BACKUP_RESTORE.md §3.5).
 MSG
   exit 2
 fi
