@@ -433,6 +433,9 @@ export const TenantResponseSchema = Type.Object({
   dataRetentionUntil: Type.Union([Type.String(), Type.Null()], {
     description: 'Data retention deadline (ISO 8601)',
   }),
+  legalHold: Type.Boolean({
+    description: 'W1-SEC-06: when true, permanent delete is blocked (fail-closed)',
+  }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
 });

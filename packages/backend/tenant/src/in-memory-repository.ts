@@ -68,6 +68,7 @@ export class InMemoryTenantRepository implements TenantRepository {
         data.dataRetentionUntil !== undefined
           ? data.dataRetentionUntil
           : existing.dataRetentionUntil,
+      legalHold: data.legalHold !== undefined ? data.legalHold : (existing.legalHold ?? false),
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };

@@ -50,11 +50,19 @@ import type {
 
 const logger = createLogger({ name: 'tenant-service' });
 
+/** Fail-closed gate for permanent destruction (W1-SEC-06). */
+export interface DestructiveDeleteGuard {
+  assertDestructiveDeleteAllowed(tenantId: string, subjectId?: string): Promise<void>;
+}
+
 /**
  * Service handling tenant lifecycle business logic.
  */
 export class TenantService {
-  constructor(private readonly repository: TenantRepository) {}
+  constructor(
+    private readonly repository: TenantRepository,
+    private readonly destructiveDeleteGuard?: DestructiveDeleteGuard,
+  ) {}
 
   // ─── Tenant CRUD ─────────────────────────────────────────────────────────
 
@@ -115,6 +123,7 @@ export class TenantService {
       suspendedReason: null,
       decommissionedAt: null,
       dataRetentionUntil: null,
+      legalHold: false,
     });
 
     logger.info(
@@ -319,8 +328,27 @@ export class TenantService {
       );
     }
 
+    if (tenant.legalHold) {
+      throw new BusinessRuleError(
+        `Cannot permanently delete tenant '${id}': legal hold is active`,
+      );
+    }
+    if (this.destructiveDeleteGuard) {
+      await this.destructiveDeleteGuard.assertDestructiveDeleteAllowed(id);
+    }
+
     await this.repository.deleteTenant(id);
     logger.info({ tenantId: id }, 'Tenant permanently deleted');
+  }
+
+  async setLegalHold(id: string, legalHold: boolean): Promise<TenantEntity> {
+    const tenant = await this.repository.findTenantById(id);
+    if (!tenant) {
+      throw new NotFoundError(`Tenant with id '${id}' not found`);
+    }
+    const updated = await this.repository.updateTenant(id, { legalHold });
+    logger.info({ tenantId: id, legalHold }, 'Tenant legal hold flag updated');
+    return updated!;
   }
 
   // ─── Configuration Management ────────────────────────────────────────────
@@ -780,6 +808,7 @@ export class TenantService {
       suspendedReason: entity.suspendedReason,
       decommissionedAt: entity.decommissionedAt?.toISOString() ?? null,
       dataRetentionUntil: entity.dataRetentionUntil?.toISOString() ?? null,
+      legalHold: entity.legalHold ?? false,
       createdAt: entity.createdAt.toISOString(),
       updatedAt: entity.updatedAt.toISOString(),
     };
