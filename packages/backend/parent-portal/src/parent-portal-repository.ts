@@ -134,6 +134,12 @@ export interface ConsentEntity {
   description: string;
   status: ConsentStatus;
   consentVersion: string;
+  /** Stable logical id across append-only versions (W1-PRIV-01). */
+  consentChainId: string;
+  version: number;
+  supersedesId: string | null;
+  validFrom: Date;
+  validTo: Date | null;
   decidedAt: Date | null;
   createdBy: string | null;
   createdAt: Date;
@@ -254,14 +260,22 @@ export interface ParentPortalRepository {
   listMessagesForThread(tenantId: string, threadId: string): Promise<MessageEntity[]>;
 
   createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'decidedAt'>,
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+      decidedAt?: Date | null;
+    },
   ): Promise<ConsentEntity>;
   listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]>;
   findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null>;
-  updateConsent(
-    id: string,
+  /** All versions for a consent chain (audit), oldest first. */
+  listConsentVersions(tenantId: string, consentChainId: string): Promise<ConsentEntity[]>;
+  /**
+   * Close an open version's effective window (valid_to only).
+   * Body/status mutation is refused by the DB + service layer.
+   */
+  closeConsentValidTo(
     tenantId: string,
-    data: Partial<Pick<ConsentEntity, 'status' | 'decidedAt'>>,
+    id: string,
+    validTo: Date,
   ): Promise<ConsentEntity | null>;
 
   createFeePlan(data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>): Promise<FeePlanEntity>;

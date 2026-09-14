@@ -76,6 +76,12 @@ CREATE TABLE IF NOT EXISTS parent_consents (
   consent_version TEXT NOT NULL,
   decided_at TIMESTAMPTZ,
   created_by TEXT,
+  -- W1-PRIV-01 COMPLETE: append-only versioning (see 089_consent_lifecycle_append_only.sql)
+  consent_chain_id UUID NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  supersedes_id UUID,
+  valid_from TIMESTAMPTZ NOT NULL DEFAULT now(),
+  valid_to TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

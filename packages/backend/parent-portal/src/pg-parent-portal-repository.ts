@@ -90,6 +90,8 @@ export async function ensureParentPortalSchema(
       await pool.query(sql054);
       const sql076 = readFileSync(resolveSqlPath('077_guardian_custody_restrictions.sql'), 'utf8');
       await pool.query(sql076);
+      const sql089 = readFileSync(resolveSqlPath('089_consent_lifecycle_append_only.sql'), 'utf8');
+      await pool.query(sql089);
     })();
   }
   await schemaReady;
@@ -237,6 +239,11 @@ function mapConsent(row: Record<string, unknown>): ConsentEntity {
     description: String(row.description),
     status: String(row.status) as ConsentStatus,
     consentVersion: String(row.consent_version),
+    consentChainId: String(row.consent_chain_id ?? row.id),
+    version: Number(row.version ?? 1),
+    supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
+    validFrom: toDate(row.valid_from ?? row.created_at),
+    validTo: row.valid_to == null ? null : toDate(row.valid_to),
     decidedAt: row.decided_at == null ? null : toDate(row.decided_at),
     createdBy: row.created_by == null ? null : String(row.created_by),
     createdAt: toDate(row.created_at),
@@ -614,15 +621,18 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   }
 
   async createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'decidedAt'>,
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+      decidedAt?: Date | null;
+    },
   ): Promise<ConsentEntity> {
     await this.ensureSchema();
+    const validFrom = data.validFrom ?? new Date();
     const result = await this.query(
       data.tenantId,
       `INSERT INTO parent_consents (
          id, tenant_id, student_id, parent_user_id, consent_type, title, description, status,
-         consent_version, created_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+         consent_version, consent_chain_id, version, supersedes_id, valid_from, decided_at, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
       [
         data.id,
         data.tenantId,
@@ -633,6 +643,11 @@ export class PgParentPortalRepository implements ParentPortalRepository {
         data.description,
         data.status,
         data.consentVersion,
+        data.consentChainId,
+        data.version,
+        data.supersedesId,
+        validFrom,
+        data.decidedAt ?? null,
         data.createdBy,
       ],
     );
@@ -644,7 +659,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     const result = await this.query(
       tenantId,
       `SELECT * FROM parent_consents
-       WHERE tenant_id = $1 AND parent_user_id = $2
+       WHERE tenant_id = $1 AND parent_user_id = $2 AND valid_to IS NULL
        ORDER BY created_at DESC`,
       [tenantId, parentUserId],
     );
@@ -662,39 +677,31 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapConsent(result.rows[0] as Record<string, unknown>);
   }
 
-  async updateConsent(
-    id: string,
+  async listConsentVersions(tenantId: string, consentChainId: string): Promise<ConsentEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_consents
+       WHERE tenant_id = $1 AND consent_chain_id = $2
+       ORDER BY version ASC`,
+      [tenantId, consentChainId],
+    );
+    return result.rows.map((row) => mapConsent(row as Record<string, unknown>));
+  }
+
+  async closeConsentValidTo(
     tenantId: string,
-    data: Partial<Pick<ConsentEntity, 'status' | 'decidedAt'>>,
+    id: string,
+    validTo: Date,
   ): Promise<ConsentEntity | null> {
     await this.ensureSchema();
-    const sets: string[] = [];
-    const values: unknown[] = [];
-    let i = 1;
-
-    if (data.status !== undefined) {
-      sets.push(`status = $${i++}`);
-      values.push(data.status);
-    }
-    if (data.decidedAt !== undefined) {
-      sets.push(`decided_at = $${i++}`);
-      values.push(data.decidedAt);
-    }
-
-    if (sets.length === 0) {
-      return this.findConsentById(id, tenantId);
-    }
-
-    sets.push(`updated_at = now()`);
-    values.push(id, tenantId);
-
     const result = await this.query(
       tenantId,
       `UPDATE parent_consents
-       SET ${sets.join(', ')}
-       WHERE id = $${i++} AND tenant_id = $${i}
+       SET valid_to = $1, updated_at = now()
+       WHERE id = $2 AND tenant_id = $3
        RETURNING *`,
-      values,
+      [validTo, id, tenantId],
     );
     if (!result.rows[0]) return null;
     return mapConsent(result.rows[0] as Record<string, unknown>);

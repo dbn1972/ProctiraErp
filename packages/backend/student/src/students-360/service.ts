@@ -298,7 +298,7 @@ export class Students360Service {
   ): Promise<ConsentRecord> {
     await this.requireStudent(tenantId, studentId);
     const recordedAt = new Date();
-    return this.deps.store.upsertConsent({
+    return this.deps.store.appendConsent({
       id: randomUUID(),
       tenantId,
       studentId,
@@ -306,6 +306,10 @@ export class Students360Service {
       granted: input.granted,
       actorId,
       recordedAt,
+      version: 1,
+      supersedesId: null,
+      validFrom: recordedAt,
+      validTo: null,
     });
   }
 
