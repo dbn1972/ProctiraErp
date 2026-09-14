@@ -23,6 +23,7 @@
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0",
+    "ioredis": "^5.4.0",
     "pg": "^8.21.0",
     "uuid": "^9.0.0"
   },

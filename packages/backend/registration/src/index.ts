@@ -44,6 +44,16 @@ export {
   createAdmissionsPipelineStore,
   isPgRegistrationEnabled,
 } from './create-registration-repository.js';
+
+// W1-SEC-05 — durable registration language-session store (Redis / in-memory)
+export {
+  createRegistrationSessionStore,
+  RedisRegistrationSessionStore,
+} from './create-registration-session-store.js';
+export type {
+  RedisLikeForRegistrationSession,
+  RegistrationSessionStoreEnv,
+} from './create-registration-session-store.js';
 export { InMemoryAdmissionsCrmStore } from './admissions-crm-store.js';
 export type {
   AdmissionsCrmStore,
