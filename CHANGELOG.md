@@ -13,6 +13,7 @@ section is renamed to the version + date.
 
 ### Added
 
+- **W1-OPS-14** — Production image builds (`release.yml`, supply-chain `sign-image`) emit BuildKit provenance (`mode=max`) + SBOM attestations and require keyless cosign (no `SUPPLY_CHAIN_SIGN_IMAGES` soft skip); regression guard in supply-chain advisory gate.
 - **G-735** — Next.js 15 + Fastify 5 majors; empty advisory allowlist; keyless cosign on the full release image matrix.
 - **G-734** — Product backlog rows + DSAR export endpoints on audit and health PHI (`GET /audit/dsar/:subjectId`, `GET /health/dsar/:studentId`).
 - **G-733** — Repo-wide Prettier format + CI `format:check` gate (replaces tip-only formatting).
