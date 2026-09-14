@@ -114,6 +114,7 @@ import {
   createAdmissionsCrmStore,
   createAdmissionsPipelineStore,
   createRegistrationRepository,
+  createRegistrationSessionStore,
   registrationPlugin,
 } from '@proctira/backend-registration';
 import { reportCataloguePlugin } from '@proctira/backend-report';
@@ -940,8 +941,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createRegistrationRepository();
       const crmStore = createAdmissionsCrmStore();
       const pipelineStore = createAdmissionsPipelineStore();
+      // W1-SEC-05: Redis when REDIS_URL (shared across replicas); else in-memory
+      // only when assertInMemoryFallbackAllowed permits (never production).
+      const sessionStore = createRegistrationSessionStore();
       await scope.register(registrationPlugin, {
         repository,
+        sessionStore,
         crmStore,
         pipelineStore,
         prefix: '/registrations',
