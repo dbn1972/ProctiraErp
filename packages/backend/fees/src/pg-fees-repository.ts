@@ -8,9 +8,15 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
+import {
+  assertJournalBalanced,
+  type InvoicePaymentBalance,
+  type RecordPaymentOnInvoiceSettlement,
+} from './fees-repository.js';
 import type {
   ConcessionKind,
   ConcessionStatus,
@@ -668,6 +674,137 @@ export class PgFeesRepository implements FeesRepository {
       } catch {
         return [];
       }
+    });
+  }
+
+  async recordPaymentOnInvoice(
+    tenantId: string,
+    invoiceId: string,
+    build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
+  ): Promise<{
+    invoice: FeeInvoiceEntity;
+    payment: FeePaymentEntity;
+    receipt: FeeReceiptEntity;
+  }> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const invoiceResult = await client.query(
+        `SELECT * FROM parent_fee_invoices WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+        [invoiceId, tenantId],
+      );
+      const invoiceRow = invoiceResult.rows[0] as Record<string, unknown> | undefined;
+      if (!invoiceRow) {
+        throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+      }
+      const invoice = mapInvoice(invoiceRow);
+      if (invoice.status !== 'open') {
+        throw new BusinessRuleError('Invoice is not open for payment');
+      }
+
+      const paidResult = await client.query(
+        `SELECT COALESCE(SUM(amount_cents), 0)::bigint AS paid
+           FROM parent_fee_payments
+          WHERE tenant_id = $1 AND invoice_id = $2 AND status = 'succeeded'`,
+        [tenantId, invoiceId],
+      );
+      const paidCents = Number((paidResult.rows[0] as { paid: string }).paid);
+      const remainingCents = invoice.amountCents - paidCents;
+      if (remainingCents <= 0) {
+        throw new BusinessRuleError('Invoice has no remaining balance');
+      }
+
+      const settlement = await build({ invoice, paidCents, remainingCents });
+      if (
+        !Number.isInteger(settlement.paymentAmountCents) ||
+        settlement.paymentAmountCents <= 0
+      ) {
+        throw new BusinessRuleError('Payment amountCents must be a positive integer');
+      }
+      if (settlement.paymentAmountCents > remainingCents) {
+        throw new BusinessRuleError(
+          `Payment amountCents ${settlement.paymentAmountCents} exceeds remaining balance ${remainingCents}`,
+        );
+      }
+      if (settlement.payment.amountCents !== settlement.paymentAmountCents) {
+        throw new BusinessRuleError('payment.amountCents must equal settlement paymentAmountCents');
+      }
+      if (settlement.receipt.amountCents !== settlement.paymentAmountCents) {
+        throw new BusinessRuleError(
+          'receipt.amountCents === payment.amountCents invariant violated',
+        );
+      }
+      assertJournalBalanced(settlement.ledgerEntries);
+
+      const paymentResult = await client.query(
+        `INSERT INTO parent_fee_payments (
+           id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status, paid_at,
+           idempotency_key
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          settlement.payment.id,
+          settlement.payment.invoiceId,
+          settlement.payment.tenantId,
+          settlement.payment.payerUserId,
+          settlement.payment.amountCents,
+          settlement.payment.method,
+          settlement.payment.status,
+          settlement.payment.paidAt,
+          settlement.payment.idempotencyKey,
+        ],
+      );
+      const payment = mapPayment(paymentResult.rows[0] as Record<string, unknown>);
+
+      const receiptResult = await client.query(
+        `INSERT INTO parent_fee_receipts (
+           id, tenant_id, payment_id, invoice_id, receipt_number, amount_cents, currency, issued_at
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [
+          settlement.receipt.id,
+          settlement.receipt.tenantId,
+          settlement.receipt.paymentId,
+          settlement.receipt.invoiceId,
+          settlement.receipt.receiptNumber,
+          settlement.receipt.amountCents,
+          settlement.receipt.currency,
+          settlement.receipt.issuedAt,
+        ],
+      );
+      const receipt = mapReceipt(receiptResult.rows[0] as Record<string, unknown>);
+
+      for (const entry of settlement.ledgerEntries) {
+        await client.query(
+          `INSERT INTO fee_ledger_entries (
+             id, tenant_id, journal_id, invoice_id, payment_id, receipt_id,
+             account, side, amount_cents, currency, memo, posted_by, posted_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [
+            entry.id,
+            entry.tenantId,
+            entry.journalId,
+            entry.invoiceId,
+            entry.paymentId,
+            entry.receiptId,
+            entry.account,
+            entry.side,
+            entry.amountCents,
+            entry.currency,
+            entry.memo,
+            entry.postedBy,
+            entry.postedAt,
+          ],
+        );
+      }
+
+      const updatedInvoiceResult = await client.query(
+        `UPDATE parent_fee_invoices
+         SET status = $1, updated_at = now()
+         WHERE id = $2 AND tenant_id = $3
+         RETURNING *`,
+        [settlement.invoiceStatus, invoiceId, tenantId],
+      );
+      const updatedInvoice = mapInvoice(updatedInvoiceResult.rows[0] as Record<string, unknown>);
+
+      return { invoice: updatedInvoice, payment, receipt };
     });
   }
 
