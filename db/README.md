@@ -77,10 +77,14 @@ Executable gate: `pnpm check:tenant-id-indexes`. Additive fix migration:
 `071_cross_domain_fk_constraints.sql` adds the highest-value missing
 `REFERENCES` for student / enrollment / fee / grade cross-refs as **NOT VALID**,
 then `072_validate_cross_domain_fk_constraints.sql` **VALIDATE**s them.
+Residual campus / ops `student_id` refs (hostel, library, LMS, transport,
+health nurse incidents, exam seating) are closed by
+`073_cross_domain_fk_campus_ops.sql` + `074_validate_cross_domain_fk_campus_ops.sql`.
 Always applied by `apply-sql.sh` (not gated on `APPLY_STRICT_FKS`). See
-`docs/audits/DATA_W1_DATA_15_FKS.md` for the closed set and honest residuals
-(hostel / library / LMS / transport / health TEXT ids / intentional
-cross-schema bare UUIDs).
+`docs/audits/DATA_W1_DATA_15_DANGLES.md` (and wave-1
+`docs/audits/DATA_W1_DATA_15_FKS.md`) for closed sets and honest residuals
+(Prisma attendance/assessment VALIDATE, health TEXT ids, intentional
+institution-boundary bare UUIDs).
 
 ## Immutability privileges (W1-DATA-08)
 
