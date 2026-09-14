@@ -53,6 +53,7 @@ export type { JwtSigner, RefreshTokenStore } from './token-service.js';
 export {
   assertAccessTokenNotRevoked,
   createAccessTokenRevocationStore,
+  decideAccessTokenRevocationStore,
   defaultAccessTokenRevocationTtlSeconds,
   MemoryAccessTokenRevocationStore,
   RedisAccessTokenRevocationStore,
@@ -64,6 +65,8 @@ export type {
   AccessTokenRevocationFailure,
   AccessTokenRevocationKind,
   AccessTokenRevocationStore,
+  AccessTokenRevocationStoreDecision,
+  AccessTokenRevocationStoreEnv,
   AssertAccessTokenNotRevokedOptions,
   RedisLikeForAccessTokenRevocation,
 } from './access-token-revocation.js';

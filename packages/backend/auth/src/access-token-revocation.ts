@@ -6,6 +6,9 @@
  * row, so a stolen access token remained valid until TTL. This module provides
  * a short-TTL denylist checked on every authenticated request (fail closed
  * when revoked).
+ *
+ * COMPLETE residual: production must use a shared store (Redis) so logout is
+ * consistent across gateway replicas. The factory fails closed without one.
  */
 import { DEFAULT_ACCESS_TOKEN_EXPIRES } from '@proctira/auth';
 
@@ -52,6 +55,12 @@ export interface AssertAccessTokenNotRevokedOptions {
 
 function isProductionEnv(nodeEnv: string | undefined): boolean {
   return (nodeEnv ?? process.env['NODE_ENV'] ?? '').toLowerCase() === 'production';
+}
+
+function truthy(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
 }
 
 /**
@@ -192,18 +201,75 @@ export class RedisAccessTokenRevocationStore implements AccessTokenRevocationSto
   }
 }
 
+export type AccessTokenRevocationStoreEnv = {
+  /** Shared Redis client (cluster-wide denylist). */
+  redis?: RedisLikeForAccessTokenRevocation;
+  /** Override NODE_ENV for tests / DI. */
+  NODE_ENV?: string;
+  /**
+   * Explicit single-replica emergency only — never set for multi-replica prod.
+   * When truthy, allows process-local memory without Redis.
+   */
+  ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION?: string;
+};
+
+export type AccessTokenRevocationStoreDecision =
+  | { mode: 'redis'; reason: string }
+  | { mode: 'memory'; reason: string };
+
+/**
+ * Decide whether access-token revocation uses Redis or process-local memory.
+ *
+ * - `redis` injected → Redis (cluster-wide).
+ * - production + no redis → throw unless ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION
+ *   (refuses silent multi-replica memory).
+ * - non-production + no redis → in-memory (dev/test).
+ */
+export function decideAccessTokenRevocationStore(
+  env: AccessTokenRevocationStoreEnv = {},
+): AccessTokenRevocationStoreDecision {
+  if (env.redis) {
+    return { mode: 'redis', reason: 'shared redis client injected (cluster-wide)' };
+  }
+
+  const nodeEnv = env.NODE_ENV ?? process.env['NODE_ENV'];
+  const allowMemory = truthy(
+    env.ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION ??
+      process.env['ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION'],
+  );
+
+  if (isProductionEnv(nodeEnv) && !allowMemory) {
+    throw new Error(
+      'Shared access-token revocation store (REDIS_URL / redis) is required in production (W1-SEC-09). ' +
+        'Inject redis (same REDIS_URL as rate-limit), or set ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION=1 ' +
+        'only for explicit single-replica emergency.',
+    );
+  }
+
+  return {
+    mode: 'memory',
+    reason: isProductionEnv(nodeEnv)
+      ? 'ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION=1 (single-replica emergency)'
+      : 'redis unset (dev/test process-local store)',
+  };
+}
+
 /**
  * Build a revocation store from env / DI.
  * - Injected `redis` → {@link RedisAccessTokenRevocationStore}
  * - Otherwise → {@link MemoryAccessTokenRevocationStore} (single-process)
  *
- * Multi-replica production should inject Redis (same REDIS_URL as rate-limit).
+ * Production refuses silent memory fallback (W1-SEC-09 COMPLETE): multi-replica
+ * logout requires a shared store. Use ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION=1
+ * only for explicit single-replica emergency.
  */
-export function createAccessTokenRevocationStore(env: {
-  redis?: RedisLikeForAccessTokenRevocation;
-} = {}): AccessTokenRevocationStore {
-  if (env.redis) {
-    return new RedisAccessTokenRevocationStore(env.redis);
+export function createAccessTokenRevocationStore(
+  env: AccessTokenRevocationStoreEnv = {},
+): AccessTokenRevocationStore {
+  const decision = decideAccessTokenRevocationStore(env);
+  if (decision.mode === 'redis') {
+    // decideAccessTokenRevocationStore only returns redis when env.redis is set
+    return new RedisAccessTokenRevocationStore(env.redis!);
   }
   return new MemoryAccessTokenRevocationStore();
 }
