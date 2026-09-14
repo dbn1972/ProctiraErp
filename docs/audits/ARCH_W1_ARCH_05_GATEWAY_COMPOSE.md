@@ -14,7 +14,8 @@ Prefer wiring clear plugins + an allowlist/regression gate over mounting all nin
 | --- | --- | --- |
 | `backend/custom-field` | `/custom-fields` | Definitions + values; in-memory |
 | `backend/dashboards` | `/dashboards` | Unblocked by W1-ARCH-04 `AreaHierarchyResolver` |
-| `backend/privacy` | `/privacy` | W1-SEC-06 legal hold + erasure HTTP (was missing from matrix) |
+| `backend/privacy` | `/privacy` | W1-SEC-06 legal hold + erasure + correction + offboard HTTP |
+
 
 ### Intentional non-goals (allowlisted)
 

@@ -59,3 +59,5 @@
 | Safe to merge from security view for this slice | ☑ |
 
 **Honesty:** foundation + fail-closed delete/erasure gates only — not full GDPR platform readiness. In-memory privacy store does not survive process restart; persist via Pg repository before production reliance.
+
+**Follow-up:** Complete slice on `docs/audits/SEC_W1_SEC_06_COMPLETE.md` (correction, durable anonymization, offboard checklist).

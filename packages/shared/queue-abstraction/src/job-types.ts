@@ -41,3 +41,15 @@ export const WEBHOOK_DELIVERY_JOB_TYPE = 'webhook.delivery';
 
 /** Consumer binding pattern for all tenants' webhook delivery jobs. */
 export const WEBHOOK_DELIVERY_CONSUME_TOPIC = 'tenant.*.webhook.delivery';
+
+/** Well-known job type for privacy anonymization / erasure execution (W1-SEC-06). */
+export const PRIVACY_ANONYMIZATION_JOB_TYPE = 'privacy.anonymization';
+
+/** Consumer binding pattern for all tenants' privacy anonymization jobs. */
+export const PRIVACY_ANONYMIZATION_CONSUME_TOPIC = 'tenant.*.privacy.anonymization';
+
+/** Well-known job type for tenant privacy offboard wipe orchestration (W1-SEC-06). */
+export const PRIVACY_TENANT_OFFBOARD_JOB_TYPE = 'privacy.tenant.offboard';
+
+/** Consumer binding pattern for all tenants' privacy offboard jobs. */
+export const PRIVACY_TENANT_OFFBOARD_CONSUME_TOPIC = 'tenant.*.privacy.tenant.offboard';
