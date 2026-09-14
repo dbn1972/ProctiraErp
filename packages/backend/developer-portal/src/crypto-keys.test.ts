@@ -1,5 +1,5 @@
 /**
- * P0-11: cryptographic API key generation + webhook HMAC verify/reject.
+ * P0-11 + W1-SEC-08: cryptographic API keys + webhook HMAC with timestamp/nonce.
  */
 import { createHmac } from 'node:crypto';
 
@@ -44,39 +44,61 @@ describe('developer-portal crypto (P0-11)', () => {
   describe('generateWebhookSignature / verifyWebhookSignature', () => {
     const secret = 'whsec_test_secret_do_not_use_in_prod';
     const payload = JSON.stringify({ event: 'student.created', id: 'stu-1' });
+    const timestamp = 1_700_000_000;
+    const nonce = 'aabbccddeeff00112233445566778899';
 
-    it('generates sha256=<hex> HMAC matching Node createHmac', () => {
-      const sig = generateWebhookSignature(payload, secret);
-      const expectedHex = createHmac('sha256', secret).update(payload, 'utf8').digest('hex');
+    it('generates sha256=<hex> HMAC over timestamp.nonce.payload', () => {
+      const sig = generateWebhookSignature(payload, secret, { timestamp, nonce });
+      const material = `${timestamp}.${nonce}.${payload}`;
+      const expectedHex = createHmac('sha256', secret).update(material, 'utf8').digest('hex');
       expect(sig).toBe(`sha256=${expectedHex}`);
       expect(sig).toMatch(/^sha256=[0-9a-f]{64}$/);
     });
 
     it('verifies a valid signature', () => {
-      const sig = generateWebhookSignature(payload, secret);
-      expect(verifyWebhookSignature(payload, secret, sig)).toBe(true);
+      const sig = generateWebhookSignature(payload, secret, { timestamp, nonce });
+      expect(verifyWebhookSignature(payload, secret, sig, { timestamp, nonce })).toBe(true);
     });
 
     it('rejects tampered payload', () => {
-      const sig = generateWebhookSignature(payload, secret);
-      expect(verifyWebhookSignature(payload + ' ', secret, sig)).toBe(false);
+      const sig = generateWebhookSignature(payload, secret, { timestamp, nonce });
+      expect(verifyWebhookSignature(payload + ' ', secret, sig, { timestamp, nonce })).toBe(false);
     });
 
     it('rejects wrong secret', () => {
-      const sig = generateWebhookSignature(payload, secret);
-      expect(verifyWebhookSignature(payload, 'other-secret', sig)).toBe(false);
+      const sig = generateWebhookSignature(payload, secret, { timestamp, nonce });
+      expect(verifyWebhookSignature(payload, 'other-secret', sig, { timestamp, nonce })).toBe(
+        false,
+      );
     });
 
     it('rejects tampered signature hex', () => {
-      const sig = generateWebhookSignature(payload, secret);
+      const sig = generateWebhookSignature(payload, secret, { timestamp, nonce });
       const flipped = sig.slice(0, -1) + (sig.endsWith('0') ? '1' : '0');
-      expect(verifyWebhookSignature(payload, secret, flipped)).toBe(false);
+      expect(verifyWebhookSignature(payload, secret, flipped, { timestamp, nonce })).toBe(false);
     });
 
     it('rejects missing or malformed signature', () => {
-      expect(verifyWebhookSignature(payload, secret, '')).toBe(false);
-      expect(verifyWebhookSignature(payload, secret, 'md5=deadbeef')).toBe(false);
-      expect(verifyWebhookSignature(payload, secret, 'sha256=short')).toBe(false);
+      expect(verifyWebhookSignature(payload, secret, '', { timestamp, nonce })).toBe(false);
+      expect(verifyWebhookSignature(payload, secret, 'md5=deadbeef', { timestamp, nonce })).toBe(
+        false,
+      );
+      expect(verifyWebhookSignature(payload, secret, 'sha256=short', { timestamp, nonce })).toBe(
+        false,
+      );
+    });
+
+    it('rejects when timestamp or nonce binding is wrong', () => {
+      const sig = generateWebhookSignature(payload, secret, { timestamp, nonce });
+      expect(
+        verifyWebhookSignature(payload, secret, sig, { timestamp: timestamp + 1, nonce }),
+      ).toBe(false);
+      expect(
+        verifyWebhookSignature(payload, secret, sig, {
+          timestamp,
+          nonce: 'ffffffffffffffffffffffffffffffff',
+        }),
+      ).toBe(false);
     });
   });
 });

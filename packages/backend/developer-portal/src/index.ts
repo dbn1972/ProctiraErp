@@ -27,9 +27,29 @@ export {
   generateApiKey,
   hashApiKey,
   generateWebhookSignature,
+  createWebhookSignatureHeaders,
   verifyWebhookSignature,
+  verifyWebhookSignatureSecure,
+  MemoryWebhookReplayStore,
+  RedisWebhookReplayStore,
+  createWebhookReplayStoreFromEnv,
+  WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_NONCE_HEADER,
+  buildWebhookSignedPayload,
 } from './developer-portal-service.js';
-export type { DeveloperPortalServiceConfig, WebhookHttpFetch } from './developer-portal-service.js';
+export type {
+  DeveloperPortalServiceConfig,
+  WebhookHttpFetch,
+  WebhookReplayStore,
+  WebhookSignatureParts,
+  WebhookSignedHeaders,
+  WebhookVerifyFailureReason,
+  WebhookVerifyResult,
+  VerifyWebhookSignatureOptions,
+  RedisLikeForReplay,
+} from './developer-portal-service.js';
 
 // Durable webhook delivery spine (W2-JOB-07)
 export { QueueWebhookDeliveryPublisher } from './queue-webhook-delivery-publisher.js';
