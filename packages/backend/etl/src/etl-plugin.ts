@@ -42,9 +42,10 @@ export const etlPlugin = fp(
 
     // W2-JOB-05: start the in-process tick loop. Schedules themselves are
     // rehydrated from durable pipeline rows via hydrateSchedules / ensureSchedulesHydrated.
+    // W1-ARCH-07: onClose drains the current tick before process-level DB close.
     etlService.getScheduler().start();
     fastify.addHook('onClose', async () => {
-      etlService.getScheduler().stop();
+      await etlService.getScheduler().stopAndDrain();
     });
 
     // Decorate fastify with the ETL service

@@ -102,7 +102,10 @@ export function getSharedPgPool(databaseUrl?: string): pg.Pool | null {
   return pool;
 }
 
-/** Test/shutdown helper: close every shared pool. */
+/**
+ * Test/shutdown helper: close every shared pool.
+ * Prefer `closeDatabaseResources()` from process entrypoints (W1-ARCH-07).
+ */
 export async function closeSharedPgPools(): Promise<void> {
   const open = Array.from(pools.values());
   pools.clear();

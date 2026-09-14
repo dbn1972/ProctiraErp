@@ -59,3 +59,17 @@ export {
   isSandboxProvidersExplicitlyAllowed,
 } from './provider-mode-policy.js';
 export type { ProviderDeliveryMode, ProviderModeEnv } from './provider-mode-policy.js';
+
+// W1-ARCH-07: ordered SIGINT/SIGTERM shutdown (HTTP → resources → exit)
+export {
+  DEFAULT_SHUTDOWN_TIMEOUT_MS,
+  registerGracefulShutdown,
+  resolveShutdownTimeoutMs,
+  runShutdownSteps,
+} from './graceful-shutdown.js';
+export type {
+  GracefulShutdownHandle,
+  GracefulShutdownLogger,
+  RegisterGracefulShutdownOptions,
+  ShutdownStep,
+} from './graceful-shutdown.js';

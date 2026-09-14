@@ -11,6 +11,8 @@ import {
   DocumentGenerationService,
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
+import { registerGracefulShutdown } from '@proctira/common';
+import { closeDatabaseResources } from '@proctira/database';
 import { createQueueAdapterFromEnv } from '@proctira/queue-abstraction';
 
 import { createExamDocumentWorker } from './worker.js';
@@ -44,13 +46,26 @@ async function main(): Promise<void> {
     },
   });
 
-  const shutdown = async (signal: string) => {
-    console.info(JSON.stringify({ level: 'info', msg: 'shutting down', signal }));
-    await worker.stop();
-    process.exit(0);
-  };
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  // W1-ARCH-07: drain queue consumer → close DB pools → exit (timeout + second-signal force).
+  registerGracefulShutdown({
+    logger: {
+      info: (obj, msg) => console.info(JSON.stringify({ level: 'info', msg, ...obj })),
+      warn: (obj, msg) => console.warn(JSON.stringify({ level: 'warn', msg, ...obj })),
+      error: (obj, msg) => console.error(JSON.stringify({ level: 'error', msg, ...obj })),
+    },
+    steps: [
+      {
+        name: 'queue-worker',
+        close: async () => {
+          await worker.stop();
+        },
+      },
+      {
+        name: 'database',
+        close: () => closeDatabaseResources(),
+      },
+    ],
+  });
 
   await worker.start();
   console.info(JSON.stringify({ level: 'info', msg: 'exam-document worker ready' }));

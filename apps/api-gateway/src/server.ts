@@ -4,6 +4,8 @@
  * Starts the Fastify API Gateway server.
  */
 
+import { registerGracefulShutdown } from '@proctira/common';
+import { closeDatabaseResources } from '@proctira/database';
 import { initTracing, shutdownTracing } from '@proctira/observability';
 
 import { buildApp } from './app.js';
@@ -29,18 +31,30 @@ async function main() {
     process.exit(1);
   }
 
-  // Graceful shutdown
-  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
-  for (const signal of signals) {
-    process.on(signal, () => {
-      void (async () => {
-        app.log.info(`Received ${signal}, shutting down gracefully...`);
-        await app.close();
-        await shutdownTracing();
-        process.exit(0);
-      })();
-    });
-  }
+  // W1-ARCH-07: ordered close — HTTP (queues/timers via onClose) → DB → tracing.
+  registerGracefulShutdown({
+    logger: {
+      info: (obj, msg) => app.log.info(obj, msg),
+      warn: (obj, msg) => app.log.warn(obj, msg),
+      error: (obj, msg) => app.log.error(obj, msg),
+    },
+    steps: [
+      {
+        name: 'http',
+        close: async () => {
+          await app.close();
+        },
+      },
+      {
+        name: 'database',
+        close: () => closeDatabaseResources(),
+      },
+      {
+        name: 'tracing',
+        close: () => shutdownTracing(),
+      },
+    ],
+  });
 }
 
 main().catch((err) => {

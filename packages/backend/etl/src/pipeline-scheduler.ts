@@ -171,6 +171,9 @@ export class PipelineScheduler {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly config: SchedulerConfig;
   private onDueCallback: ((entry: ScheduleEntry) => Promise<void>) | null = null;
+  /** In-flight tick promise (W1-ARCH-07 drain on stop). */
+  private tickInFlight: Promise<void> | null = null;
+  private stopping = false;
 
   constructor(config: Partial<SchedulerConfig> = {}) {
     this.config = {
@@ -268,19 +271,38 @@ export class PipelineScheduler {
    */
   start(): void {
     if (this.timer) return;
+    this.stopping = false;
 
-    this.timer = setInterval(async () => {
-      await this.tick();
+    this.timer = setInterval(() => {
+      if (this.stopping || this.tickInFlight) return;
+      this.tickInFlight = this.tick()
+        .catch(() => undefined)
+        .finally(() => {
+          this.tickInFlight = null;
+        });
     }, this.config.checkIntervalMs);
   }
 
   /**
-   * Stop the scheduler loop.
+   * Stop accepting new ticks. Does not wait for an in-flight tick.
+   * Prefer `stopAndDrain()` from Fastify onClose / process shutdown.
    */
   stop(): void {
+    this.stopping = true;
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+  }
+
+  /**
+   * W1-ARCH-07: clear the interval and await the current tick (if any)
+   * so in-flight scheduled pipeline work can finish before DB/pool close.
+   */
+  async stopAndDrain(): Promise<void> {
+    this.stop();
+    if (this.tickInFlight) {
+      await this.tickInFlight;
     }
   }
 

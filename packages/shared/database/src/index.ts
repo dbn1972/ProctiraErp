@@ -43,6 +43,9 @@ export {
   disconnectReadReplica,
 } from './read-replica';
 
+// W1-ARCH-07: ordered close of Prisma + shared node-pg pools
+export { closeDatabaseResources } from './close-database-resources';
+
 // Export tenant-scoped transaction helper (required for RLS-governed queries)
 export { withTenantTransaction } from './tenant-transaction';
 export type { TenantTransactionClient, TenantTransactionOptions } from './tenant-transaction';
