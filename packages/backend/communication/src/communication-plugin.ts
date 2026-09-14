@@ -9,7 +9,7 @@ import { CommunicationService, type CommunicationAuditSink } from './communicati
 import { createCircularStore } from './create-circular-store.js';
 import type { CommunicationDeliveryAdapter } from './delivery-adapter.js';
 import { registerCommunicationRoutes } from './routes.js';
-import { createSandboxWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
+import { createWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
 
 export interface CommunicationPluginOptions {
   repository: CommunicationRepository;
@@ -35,7 +35,8 @@ export const communicationPlugin = fp(
     const { repository, deliveryAdapter, auditSink = null, prefix = '/communication' } = options;
     const circularStore = options.circularStore ?? createCircularStore();
     const circularsService = new CircularsService(circularStore, {
-      whatsappAdapter: options.whatsappAdapter ?? createSandboxWhatsAppAdapter(),
+      // W1-ARCH-08: policy factory — not raw createSandboxWhatsAppAdapter().
+      whatsappAdapter: options.whatsappAdapter ?? createWhatsAppAdapter(),
     });
     const communicationService = new CommunicationService(repository, {
       deliveryAdapter,

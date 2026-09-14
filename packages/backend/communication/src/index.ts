@@ -71,7 +71,12 @@ export { PgCircularStore, ensureCircularSchema } from './pg-circular-store.js';
 export { createCircularStore } from './create-circular-store.js';
 export {
   createSandboxWhatsAppAdapter,
+  createUnimplementedLiveWhatsAppAdapter,
+  createWhatsAppAdapter,
   WHATSAPP_SANDBOX_HONESTY_NOTE,
+  WHATSAPP_LIVE_UNIMPLEMENTED_NOTE,
+  WHATSAPP_LIVE_MISSING_CREDS_NOTE,
+  WHATSAPP_REQUIRED_LIVE_ENV_VARS,
   WHATSAPP_LIVE_ENV_VARS,
 } from './whatsapp-adapter.js';
 export type {

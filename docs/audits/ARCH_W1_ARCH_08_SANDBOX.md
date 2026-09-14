@@ -28,6 +28,7 @@ Shared policy `@proctira/common` → `resolveProviderDeliveryMode(domain, env)`:
 | --- | --- | --- |
 | Notifications SMS/email/push | `createSms/Email/PushSenderFromEnv` | `@proctira/backend-notification` |
 | Communications delivery | `createDeliveryAdapterFromEnv` | `@proctira/backend-communication` |
+| WhatsApp / circulars | `createWhatsAppAdapter` | `@proctira/backend-communication` |
 | Payments / PSP | `createPaymentAdapterFromEnv` | `@proctira/backend-fees` |
 | Provider capability discovery | `listProviderCapabilities` + gateway `/providers/capabilities` | `@proctira/backend-providers` / api-gateway |
 
