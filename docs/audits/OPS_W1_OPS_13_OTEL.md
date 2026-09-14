@@ -39,7 +39,7 @@ Expected: `tracing.test.ts` passes (noop mode, test exporter span creation, Fast
 ## Tip SHA
 
 ```
-9fc4c62b7374583af9e86cf06269657c1975fcc1
+df78be9fc5789c7c8143b485360ca7ef9f16967b
 ```
 
 
