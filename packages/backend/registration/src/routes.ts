@@ -36,6 +36,8 @@ import {
   type BookInterviewInput,
 } from './schemas.js';
 
+import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
+
 /**
  * Options for registering registration routes.
  */
@@ -174,6 +176,14 @@ export async function registerRegistrationRoutes(
    * Submit a new registration application.
    * Requirement 16.1, 16.2, 16.3
    */
+
+  // W1-SEC-02: package RBAC — public apply/tracking ungated; staff CRM fail-closed.
+  fastify.addHook('preHandler', async (request, reply) => {
+    if (!enforceRegistrationRouteAccess(request, reply)) {
+      return reply;
+    }
+  });
+
   fastify.post(
     prefix,
     async function submitHandler(

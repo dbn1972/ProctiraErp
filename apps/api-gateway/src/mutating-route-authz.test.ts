@@ -105,7 +105,7 @@ describe('W1-SEC-02 mutating-route authz inventory', () => {
     const deferred = listDeferredMutatingAuthzRules();
     expect(deferred.some((r) => r.pathPrefix.includes('/transport'))).toBe(false);
     expect(deferred.some((r) => r.pathPrefix.includes('/library'))).toBe(false);
-    expect(deferred.some((r) => r.pathPrefix.includes('/registrations'))).toBe(true);
+    expect(deferred.some((r) => r.pathPrefix.includes('/registrations'))).toBe(false);
     expect(MUTATING_ROUTE_AUTHZ_INVENTORY.length).toBeGreaterThan(20);
   });
 });

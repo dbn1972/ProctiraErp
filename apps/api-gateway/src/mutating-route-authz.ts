@@ -97,6 +97,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'timetable',
   'transport',
   'library',
+  'registration',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -179,16 +180,16 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: false,
   },
   {
-    id: 'registration.deferred',
+    id: 'registration.staff',
     pathPrefix: '/api/v1/registrations',
     resource: 'registration',
-    deferredDomainGuard: true,
+    deferredDomainGuard: false,
   },
   {
-    id: 'admissions.deferred',
+    id: 'admissions.pipeline',
     pathPrefix: '/api/v1/admissions',
     resource: 'registration',
-    deferredDomainGuard: true,
+    deferredDomainGuard: false,
   },
   {
     id: 'communication.deferred',
@@ -473,12 +474,12 @@ export const INVENTORY_DENY_SAMPLES: ReadonlyArray<{
     },
   },
   {
-    id: 'registration.deferred',
+    id: 'registration.staff',
     method: 'POST',
-    url: '/api/v1/registrations',
+    url: '/api/v1/registrations/applications/00000000-0000-4000-8000-000000000001/status',
     deniedRole: 'teacher',
     allowedRole: 'admin',
-    payload: { applicantName: 'Test' },
+    payload: { status: 'under_review' },
   },
   {
     id: 'scholarship.programs',
