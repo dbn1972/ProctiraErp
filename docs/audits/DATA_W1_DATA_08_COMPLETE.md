@@ -1,7 +1,7 @@
 # DATA — W1-DATA-08 COMPLETE (transcript authenticity backfill + dedicated keys)
 
 **Module / slice:** SIS transcript issuances authenticity (close PARTIAL → COMPLETE)  
-**Branch / tip:** `cursor/w1-data-08-transcript-complete-56c3`  
+**Branch / tip:** `cursor/w1-data-08-transcript-complete-56c3` @ `f38c245f9ce7084fee2523d2a1e6651f7d2ffef4`  
 **Date (UTC):** 2026-09-14  
 **Environment:** SQL contract + unit tests; live Postgres proofs when `DATABASE_URL`
 
