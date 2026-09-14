@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const LEDGER_MIGRATION = '072_control_ledger_privileges.sql';
-const CATALOG_MIGRATION = '073_runtime_global_table_privileges.sql';
+const CATALOG_MIGRATION = '075_runtime_global_table_privileges.sql';
 
 const LEDGER_TABLES = ['schema_migrations', '_prisma_migrations'] as const;
 const GLOBAL_CATALOG_TABLES = [
@@ -51,7 +51,7 @@ describe('W1-DATA-11 runtime global table privileges (072 + 073)', () => {
     const catalogs = loadSql(CATALOG_MIGRATION);
     expect(ledger).toMatch(/W1-DATA-11/);
     expect(catalogs).toMatch(/W1-DATA-11/);
-    expect(catalogs).toMatch(/073_runtime_global_table_privileges\.sql/);
+    expect(catalogs).toMatch(/075_runtime_global_table_privileges\.sql/);
   });
 
   it('072 REVOKEs ALL on migration ledgers from proctira_app (+ PUBLIC)', () => {
@@ -89,6 +89,6 @@ describe('W1-DATA-11 runtime global table privileges (072 + 073)', () => {
     expect(existsSync(privileges)).toBe(true);
     expect(existsSync(privs)).toBe(true);
     expect(readFileSync(privileges, 'utf8')).toMatch(/072_control_ledger_privileges/);
-    expect(readFileSync(privs, 'utf8')).toMatch(/073_runtime_global_table_privileges/);
+    expect(readFileSync(privs, 'utf8')).toMatch(/075_runtime_global_table_privileges/);
   });
 });

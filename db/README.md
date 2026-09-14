@@ -134,7 +134,7 @@ Executable gate: `pnpm check:migration-timeouts`.
 | Object | Runtime after fix |
 | --- | --- |
 | `schema_migrations`, `_prisma_migrations` | **No** `SELECT` / DML (`072_control_ledger_privileges.sql` — also `REVOKE` from `PUBLIC`) |
-| `insights_ui_templates`, `insights_ui_indicators`, `insights_ui_geo_features` | **SELECT, INSERT** only (`073_runtime_global_table_privileges.sql`) |
+| `insights_ui_templates`, `insights_ui_indicators`, `insights_ui_geo_features` | **SELECT, INSERT** only (`075_runtime_global_table_privileges.sql`) |
 
 Bootstrap role docs: `db/bootstrap/README.md`. Audits:
 `docs/audits/DATA_W1_DATA_11_PRIVILEGES.md` (ledgers) and

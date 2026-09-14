@@ -52,5 +52,5 @@ BEGIN
 END $$;
 
 INSERT INTO schema_migrations (filename)
-VALUES ('073_runtime_global_table_privileges.sql')
+VALUES ('075_runtime_global_table_privileges.sql')
 ON CONFLICT (filename) DO NOTHING;

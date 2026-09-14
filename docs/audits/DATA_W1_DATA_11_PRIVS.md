@@ -23,7 +23,7 @@ reference data.
 
 | Artifact | Path | Notes |
 | -------- | ---- | ----- |
-| Migration | `db/sql/073_runtime_global_table_privileges.sql` | SELECT+INSERT only on catalogs; re-asserts ledger REVOKE |
+| Migration | `db/sql/075_runtime_global_table_privileges.sql` | SELECT+INSERT only on catalogs; re-asserts ledger REVOKE |
 | Docs | `db/README.md` | Extends W1-DATA-11 section for catalogs |
 | Static tests | `tools/tenant-isolation-tests/src/unit/runtime-global-privs.test.ts` | 073 contract |
 | Live tests | `packages/shared/database/src/runtime-global-privs.live.test.ts` | Denied UPDATE/DELETE on catalogs; ledgers still denied |
