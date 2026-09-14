@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { roundRatio } from './decimal-round.js';
 import {
   applyCreditRule,
   computeClassRanks,
@@ -147,5 +148,42 @@ describe('computeCgpa', () => {
     );
     expect(snap.unweightedGpa).toBe(9.5);
     expect(snap.weightedGpa).toBe(9.5);
+  });
+});
+
+describe('GPA rounding integrity (W3-D5)', () => {
+  it('uses HALF_UP ratio rounding so weighted GPA does not drift from float math', () => {
+    const snap = computeGpaSnapshot(
+      [
+        { courseCode: 'A', numericScore: 95, credits: 1 },
+        { courseCode: 'B', numericScore: 85, credits: 2 },
+        { courseCode: 'C', numericScore: 65, credits: 3 },
+      ],
+      CBSE_BANDS,
+      { roundTo: 3, roundingMode: 'HALF_UP' },
+    );
+    // (10 + 9*2 + 7*3) / 6 = 49/6 = 8.166666… → 8.167
+    expect(snap.weightedGpa).toBe(8.167);
+    expect(roundRatio(49, 6, 3)).toBe(8.167);
+  });
+
+  it('supports HALF_EVEN (banker) policy for board-configured GPA output', () => {
+    const snap = computeGpaSnapshot(
+      [{ courseCode: 'EDGE', numericScore: 65, credits: 2 }],
+      [{ label: 'P', minPercent: 0, maxPercent: 100, gradePoints: 2.5 }],
+      { roundTo: 0, roundingMode: 'HALF_EVEN' },
+    );
+    expect(snap.unweightedGpa).toBe(2);
+    expect(snap.weightedGpa).toBe(2);
+  });
+
+  it('rounds partial credit via ratio math instead of float multiply', () => {
+    const r = applyCreditRule(
+      { credits: 3, metadata: { minPercent: 33, partialCredit: true } },
+      { numericScore: 50 },
+      'HALF_UP',
+    );
+    expect(r.creditsEarned).toBe(1.5);
+    expect(r.creditsEarned).toBe(roundRatio(3 * 50, 100, 2));
   });
 });

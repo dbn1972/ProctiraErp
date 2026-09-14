@@ -3,6 +3,8 @@
  * Board-configurable via bands + policy hooks — no I/O.
  */
 
+import { roundDecimal, roundRatio, type RoundingMode } from './decimal-round.js';
+
 export type GradeBand = {
   label: string;
   minPercent: number;
@@ -19,6 +21,8 @@ export type GpaPolicy = {
   weightMode?: 'CREDITS' | 'EXPLICIT';
   /** Decimal places for GPA output. Default 3. */
   roundTo?: number;
+  /** HALF_UP (default) or HALF_EVEN (banker's) for GPA and credit rounding. */
+  roundingMode?: RoundingMode;
 };
 
 export type CourseGradeInput = {
@@ -55,11 +59,6 @@ export type GpaSnapshotResult = {
   creditsEarned: number;
   courses: CourseGpaResult[];
 };
-
-function round(value: number, places: number): number {
-  const f = 10 ** places;
-  return Math.round(value * f) / f;
-}
 
 /** Resolve band for a percent score (inclusive min, inclusive max). */
 export function resolveBandFromPercent(percent: number, bands: GradeBand[]): GradeBand | null {
@@ -118,6 +117,7 @@ export function applyCreditRule(
     };
   },
   opts: { numericScore?: number | null; passed?: boolean },
+  roundingMode: RoundingMode = 'HALF_UP',
 ): { creditsEarned: number; completed: boolean } {
   const minPercent = rule.metadata?.minPercent ?? 33;
   const requirePass = rule.metadata?.requirePass !== false;
@@ -129,9 +129,9 @@ export function applyCreditRule(
     return { creditsEarned: 0, completed: false };
   }
   if (rule.metadata?.partialCredit && score != null && Number.isFinite(score) && score < 100) {
-    const ratio = Math.max(0, Math.min(1, score / 100));
+    const clampedScore = Math.max(0, Math.min(100, score));
     return {
-      creditsEarned: round(rule.credits * ratio, 2),
+      creditsEarned: roundRatio(rule.credits * clampedScore, 100, 2, roundingMode),
       completed: passed,
     };
   }
@@ -146,6 +146,7 @@ export function computeGpaSnapshot(
   const passingPercent = policy.passingPercent ?? 33;
   const weightMode = policy.weightMode ?? 'CREDITS';
   const roundTo = policy.roundTo ?? 3;
+  const roundingMode = policy.roundingMode ?? 'HALF_UP';
 
   const results: CourseGpaResult[] = courses.map((course) => {
     const resolved = resolveGradePoints(
@@ -164,6 +165,7 @@ export function computeGpaSnapshot(
         metadata: { minPercent: passingPercent, requirePass: true },
       },
       { numericScore: course.numericScore, passed },
+      roundingMode,
     );
     const weight = weightMode === 'EXPLICIT' ? (course.weight ?? course.credits) : course.credits;
     return {
@@ -197,10 +199,12 @@ export function computeGpaSnapshot(
   }
 
   return {
-    unweightedGpa: unweightedDen > 0 ? round(unweightedNum / unweightedDen, roundTo) : null,
-    weightedGpa: weightedDen > 0 ? round(weightedNum / weightedDen, roundTo) : null,
-    creditsAttempted: round(creditsAttempted, 2),
-    creditsEarned: round(creditsEarned, 2),
+    unweightedGpa:
+      unweightedDen > 0 ? roundRatio(unweightedNum, unweightedDen, roundTo, roundingMode) : null,
+    weightedGpa:
+      weightedDen > 0 ? roundRatio(weightedNum, weightedDen, roundTo, roundingMode) : null,
+    creditsAttempted: roundDecimal(creditsAttempted, 2, roundingMode),
+    creditsEarned: roundDecimal(creditsEarned, 2, roundingMode),
     courses: results,
   };
 }
@@ -225,9 +229,9 @@ export type ClassRankRow = ClassRankInput & {
   tieCount: number;
 };
 
-function gpaKey(value: number | null): string {
+function gpaKey(value: number | null, roundingMode: RoundingMode = 'HALF_UP'): string {
   if (value == null || !Number.isFinite(value)) return '';
-  return value.toFixed(4);
+  return roundDecimal(value, 4, roundingMode).toFixed(4);
 }
 
 /**
