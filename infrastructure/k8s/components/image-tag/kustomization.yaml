@@ -1,0 +1,47 @@
+# =============================================================================
+# W1-OPS-08 — Shared image tag policy for Kustomize overlays
+# =============================================================================
+# Single place to set (or CD-rewrite) the deploy tag for every Proctira service.
+# Base deployments default to `:sha-pending` (never the mutable "latest" tag).
+# Staging/production overlays include this component so `images:` transformers
+# are explicit; CI/CD rewrites every `newTag` to `sha-<gitsha>` or a digest.
+#
+# Update all tags at once from this directory:
+#   kustomize edit set image proctira/api-gateway=proctira/api-gateway:sha-<gitsha>
+# =============================================================================
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+images:
+  - name: proctira/api-gateway
+    newTag: sha-pending
+  - name: proctira/web
+    newTag: sha-pending
+  - name: proctira/registration-portal
+    newTag: sha-pending
+  - name: proctira/public-website
+    newTag: sha-pending
+  - name: proctira/admin-console
+    newTag: sha-pending
+  - name: proctira/developer-portal
+    newTag: sha-pending
+  - name: proctira/institution-service
+    newTag: sha-pending
+  - name: proctira/student-service
+    newTag: sha-pending
+  - name: proctira/staff-service
+    newTag: sha-pending
+  - name: proctira/assessment-service
+    newTag: sha-pending
+  - name: proctira/attendance-service
+    newTag: sha-pending
+  - name: proctira/examination-service
+    newTag: sha-pending
+  - name: proctira/workflow-service
+    newTag: sha-pending
+  - name: proctira/notification-service
+    newTag: sha-pending
+  - name: proctira/report-service
+    newTag: sha-pending
+  - name: proctira/etl-worker
+    newTag: sha-pending

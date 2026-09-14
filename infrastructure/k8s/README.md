@@ -27,11 +27,32 @@ k8s/
 │   ├── public-website/            # Public website (port 3003)
 │   ├── admin-console/             # Admin console (port 3004)
 │   └── developer-portal/          # Developer portal (port 3005)
+├── components/
+│   └── image-tag/                 # Shared kustomize images: pin (W1-OPS-08)
 ├── overlays/
 │   ├── development/               # Dev overrides (single replicas, no HPA)
 │   ├── staging/                   # Staging overrides
 │   └── production/                # Production overrides (PDBs, network policies)
 ```
+
+## Image tags (W1-OPS-08)
+
+Container images use the `proctira/<service>` naming prefix consistently.
+
+| Layer | Tag policy |
+| ----- | ---------- |
+| `base/**/deployment.yaml` | `proctira/<svc>:sha-pending` — explicit non-runnable default (never the mutable `latest` tag) |
+| `components/image-tag` | Single kustomize `images:` list; CD rewrites every `newTag` |
+| `overlays/*` | Include the image-tag component so staging/production never fall back to an unpinned mutable tag |
+
+Update the shared pin:
+
+```bash
+cd infrastructure/k8s/components/image-tag
+kustomize edit set image proctira/api-gateway=proctira/api-gateway:sha-<gitsha>
+```
+
+Regression gate: `./tools/scripts/check-no-latest-image-tags.sh` (also invoked from `helm-template-check.sh`).
 
 ## Deployment
 

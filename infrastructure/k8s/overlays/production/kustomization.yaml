@@ -9,6 +9,10 @@ resources:
   - network-policy.yaml
   - pod-disruption-budget.yaml
 
+# W1-OPS-08 — pin all service images via shared image-tag component
+components:
+  - ../../components/image-tag
+
 patches:
   # Production replicas — frontend
   - target:
@@ -109,6 +113,3 @@ patches:
       - op: replace
         path: /data/TENANT_BASE_DOMAIN
         value: proctira.io
-
-# W1-OPS-08: pin image tags/digests per environment (never :latest).
-images: []
