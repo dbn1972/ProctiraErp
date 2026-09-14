@@ -242,7 +242,7 @@ export class PgPipelineRepository implements PipelineRepository {
  * - `DATABASE_URL` set → Postgres only; `assertPostgresRepositoryAvailable` fails closed
  *   (never silent InMemory when operators expect durable pipelines).
  * - `DATABASE_URL` unset → InMemory for local/unit tests after `assertInMemoryFallbackAllowed`
- *   (blocked in production unless `ALLOW_IN_MEMORY_IN_PRODUCTION=1`).
+ *   (always blocked in production — W1-SEC-12; no escape hatch).
  * See `apps/etl-worker/README.md`.
  */
 export function createPipelineRepository(): PipelineRepository {

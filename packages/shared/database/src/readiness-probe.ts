@@ -37,7 +37,9 @@ function truthy(value: string | undefined): boolean {
 
 function databaseRequired(env: PersistencePolicyEnv): boolean {
   if (truthy(env.REQUIRE_DATABASE)) return true;
-  if (env.NODE_ENV === 'production' && !truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)) {
+  // W1-SEC-12: production always requires Postgres — ALLOW_IN_MEMORY_IN_PRODUCTION
+  // is obsolete and must not keep readiness green on in-memory stores.
+  if (env.NODE_ENV === 'production') {
     return true;
   }
   return Boolean(env.DATABASE_URL?.trim());
@@ -78,10 +80,14 @@ export async function runReadinessProbe(
 
   if (!databaseUrl) {
     if (databaseRequired(env)) {
+      const obsoleteEscape =
+        env.NODE_ENV === 'production' && truthy(env.ALLOW_IN_MEMORY_IN_PRODUCTION)
+          ? ' (ALLOW_IN_MEMORY_IN_PRODUCTION is disabled — W1-SEC-12)'
+          : '';
       return {
         ready: false,
         dependencies: { database: 'required-missing' },
-        message: 'DATABASE_URL is required but not configured',
+        message: `DATABASE_URL is required but not configured${obsoleteEscape}`,
       };
     }
     return {

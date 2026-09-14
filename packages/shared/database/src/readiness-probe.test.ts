@@ -50,4 +50,13 @@ describe('runReadinessProbe (W3-C2)', () => {
     expect(result.ready).toBe(false);
     expect(result.dependencies.database).toBe('required-missing');
   });
+
+  it('W1-SEC-12: fails closed in production even when ALLOW_IN_MEMORY_IN_PRODUCTION=1', async () => {
+    const result = await runReadinessProbe({
+      env: { NODE_ENV: 'production', ALLOW_IN_MEMORY_IN_PRODUCTION: '1' },
+    });
+    expect(result.ready).toBe(false);
+    expect(result.dependencies.database).toBe('required-missing');
+    expect(result.message).toMatch(/ALLOW_IN_MEMORY_IN_PRODUCTION is disabled/);
+  });
 });

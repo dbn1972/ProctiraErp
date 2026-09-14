@@ -19,6 +19,6 @@ Deploy manifests (`infrastructure/k8s/base/etl-worker`, Helm `etlWorker`) probe:
 | `DATABASE_URL` set    | Postgres document store (`etl_pipelines` / `etl_pipeline_runs`, SQL 046). Boot **fails closed** if the shared PG pool cannot be constructed — never silent in-memory. |
 | `DATABASE_URL` unset  | In-memory repository for **local / unit tests only**. Emits a one-shot warning.                                                                                       |
 | `REQUIRE_DATABASE=1`  | Forbid in-memory even when URL unset.                                                                                                                                 |
-| `NODE_ENV=production` | In-memory forbidden unless `ALLOW_IN_MEMORY_IN_PRODUCTION=1` (emergency only).                                                                                        |
+| `NODE_ENV=production` | In-memory **always forbidden** (W1-SEC-12). `ALLOW_IN_MEMORY_IN_PRODUCTION` is obsolete/ignored — set `DATABASE_URL` or refuse boot.                                  |
 
 Compose / k8s always supply `DATABASE_URL` for deployed ETL.
