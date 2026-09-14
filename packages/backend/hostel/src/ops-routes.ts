@@ -5,6 +5,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { requireHostelAction } from './hostel-http-guard.js';
 import type { HostelService } from './hostel-service.js';
 import {
   CreateAttendanceSchema,
@@ -51,6 +52,7 @@ export async function registerHostelOpsRoutes(
   prefix: string,
 ): Promise<void> {
   fastify.get(`${prefix}/mess/plans`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const hostelId =
@@ -75,6 +77,7 @@ export async function registerHostelOpsRoutes(
   fastify.post(
     `${prefix}/mess/plans`,
     async (request: FastifyRequest<{ Body: CreateMessPlanInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const result = validate(CreateMessPlanSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -106,6 +109,7 @@ export async function registerHostelOpsRoutes(
   );
 
   fastify.get(`${prefix}/mess/menu`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const planId = (request.query as { planId?: string }).planId;
@@ -134,6 +138,7 @@ export async function registerHostelOpsRoutes(
   fastify.post(
     `${prefix}/mess/menu`,
     async (request: FastifyRequest<{ Body: CreateMessMenuItemInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const result = validate(CreateMessMenuItemSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -165,6 +170,7 @@ export async function registerHostelOpsRoutes(
   );
 
   fastify.get(`${prefix}/mess/subscriptions`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const planId =
@@ -190,6 +196,7 @@ export async function registerHostelOpsRoutes(
   fastify.post(
     `${prefix}/mess/subscriptions`,
     async (request: FastifyRequest<{ Body: CreateMessSubscriptionInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const result = validate(CreateMessSubscriptionSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -222,6 +229,7 @@ export async function registerHostelOpsRoutes(
   );
 
   fastify.get(`${prefix}/gate-passes`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const hostelId =
@@ -254,6 +262,7 @@ export async function registerHostelOpsRoutes(
   fastify.post(
     `${prefix}/gate-passes`,
     async (request: FastifyRequest<{ Body: CreateGatePassInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const result = validate(CreateGatePassSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -389,6 +398,7 @@ export async function registerHostelOpsRoutes(
   }
 
   fastify.get(`${prefix}/fee-structures/summary`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'fee.manage')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const hostelId =
@@ -416,6 +426,7 @@ export async function registerHostelOpsRoutes(
   });
 
   fastify.get(`${prefix}/fee-structures`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'fee.manage')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const hostelId =
@@ -445,6 +456,7 @@ export async function registerHostelOpsRoutes(
   fastify.post(
     `${prefix}/fee-structures`,
     async (request: FastifyRequest<{ Body: CreateFeeStructureInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'fee.manage')) return;
       const result = validate(CreateFeeStructureSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -477,6 +489,7 @@ export async function registerHostelOpsRoutes(
   );
 
   fastify.get(`${prefix}/attendance`, async (request, reply) => {
+    if (!requireHostelAction(request, reply, 'hostel.read')) return;
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     const q = request.query as { blockId?: string; onDate?: string };
@@ -506,6 +519,7 @@ export async function registerHostelOpsRoutes(
   fastify.post(
     `${prefix}/attendance`,
     async (request: FastifyRequest<{ Body: CreateAttendanceInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const result = validate(CreateAttendanceSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -540,6 +554,7 @@ export async function registerHostelOpsRoutes(
   fastify.put(
     `${prefix}/attendance`,
     async (request: FastifyRequest<{ Body: CreateAttendanceInput }>, reply) => {
+      if (!requireHostelAction(request, reply, 'ops.write')) return;
       const result = validate(CreateAttendanceSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
