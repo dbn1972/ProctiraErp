@@ -31,6 +31,7 @@ import type {
   ScreeningProgramEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
+import { recordPhiReadAudit } from './phi-read-audit.js';
 import {
   PHI_FIELD_COUNSELLING_CASE_NOTES,
   HEALTH_BREAK_GLASS_DEFAULT_MINUTES,
@@ -213,18 +214,24 @@ export class HealthService {
   }
 
   /**
-   * PHI read audit — metadata only (never payloads). No-ops when the
-   * repository does not expose logPhiAccess (plain in-memory).
+   * PHI read audit — metadata only (never payloads).
+   * W1-SEC-10: fail closed in production when auditor missing/misconfigured
+   * unless ALLOW_PHI_AUDIT_DEGRADE=1.
    */
   private async auditPhiRead(
     accessContext: HealthAccessContext,
     input: Omit<PhiAccessLogInput, 'actorUserId'>,
   ): Promise<void> {
     const repo = this.repository as PhiAccessCapableRepository;
-    if (typeof repo.logPhiAccess !== 'function') return;
-    await repo.logPhiAccess({
-      ...input,
-      actorUserId: accessContext.userId,
+    await recordPhiReadAudit({
+      logPhiAccess:
+        typeof repo.logPhiAccess === 'function'
+          ? (entry) => repo.logPhiAccess!(entry)
+          : null,
+      entry: {
+        ...input,
+        actorUserId: accessContext.userId,
+      },
     });
   }
 
