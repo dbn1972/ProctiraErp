@@ -36,6 +36,7 @@ describe('PgTenantRepository (live)', () => {
       suspendedReason: null,
       decommissionedAt: null,
       dataRetentionUntil: null,
+      legalHold: false,
     });
     expect(created.createdAt).toBeInstanceOf(Date);
     expect((await repo.findTenantBySlug(slug.toUpperCase()))?.id).toBe(id);

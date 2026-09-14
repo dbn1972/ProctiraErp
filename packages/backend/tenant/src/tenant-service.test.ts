@@ -306,6 +306,34 @@ describe('TenantService', () => {
 
       await expect(service.deleteTenant(tenant.id)).rejects.toThrow(BusinessRuleError);
     });
+
+    it('should throw BusinessRuleError when legal hold is active (W1-SEC-06)', async () => {
+      const tenant = await service.createTenant(validCreateInput);
+      await service.decommissionTenant(tenant.id, { reason: 'Test', retainDataDays: 0 });
+      await repository.updateTenant(tenant.id, {
+        dataRetentionUntil: new Date(Date.now() - 86400000),
+      });
+      await service.setLegalHold(tenant.id, true);
+      await expect(service.deleteTenant(tenant.id)).rejects.toThrow(/legal hold/i);
+    });
+
+    it('should consult destructiveDeleteGuard when wired (W1-SEC-06)', async () => {
+      const guard = {
+        assertDestructiveDeleteAllowed: async () => {
+          throw new BusinessRuleError('Destructive delete blocked: privacy legal hold');
+        },
+      };
+      const guarded = new TenantService(repository, guard);
+      const tenant = await guarded.createTenant({
+        ...validCreateInput,
+        slug: `hold-${Date.now().toString(36)}`,
+      });
+      await guarded.decommissionTenant(tenant.id, { reason: 'Test', retainDataDays: 0 });
+      await repository.updateTenant(tenant.id, {
+        dataRetentionUntil: new Date(Date.now() - 86400000),
+      });
+      await expect(guarded.deleteTenant(tenant.id)).rejects.toThrow(/legal hold/i);
+    });
   });
 
   // ─── Configuration Management ────────────────────────────────────────────

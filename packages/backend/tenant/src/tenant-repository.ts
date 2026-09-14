@@ -27,6 +27,8 @@ export interface TenantEntity {
   suspendedReason: string | null;
   decommissionedAt: Date | null;
   dataRetentionUntil: Date | null;
+  /** W1-SEC-06: when true, permanent delete MUST fail closed. */
+  legalHold: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
