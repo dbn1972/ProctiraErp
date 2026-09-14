@@ -7,6 +7,7 @@ import type {
   FeePaymentEntity,
   FeePlanEntity,
   FeeReceiptEntity,
+  GuardianCustodyRestrictionEntity,
   GuardianHouseholdEntity,
   GuardianHouseholdMemberEntity,
   GuardianStudentCustodyEntity,
@@ -16,11 +17,22 @@ import type {
   ParentPortalRepository,
 } from './parent-portal-repository.js';
 
+function isEffectiveAt(
+  effectiveFrom: Date,
+  effectiveTo: Date | null,
+  at: Date,
+): boolean {
+  if (effectiveFrom.getTime() > at.getTime()) return false;
+  if (effectiveTo != null && effectiveTo.getTime() <= at.getTime()) return false;
+  return true;
+}
+
 export class InMemoryParentPortalRepository implements ParentPortalRepository {
   private links: ParentChildLinkEntity[] = [];
   private households: GuardianHouseholdEntity[] = [];
   private householdMembers: GuardianHouseholdMemberEntity[] = [];
   private studentCustody: GuardianStudentCustodyEntity[] = [];
+  private custodyRestrictions: GuardianCustodyRestrictionEntity[] = [];
   private threads: MessageThreadEntity[] = [];
   private messages: MessageEntity[] = [];
   private consents: ConsentEntity[] = [];
@@ -113,9 +125,23 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return entity;
   }
 
+  async createCustodyRestriction(
+    data: Omit<GuardianCustodyRestrictionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<GuardianCustodyRestrictionEntity> {
+    const now = new Date();
+    const entity: GuardianCustodyRestrictionEntity = {
+      ...data,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.custodyRestrictions.push(entity);
+    return entity;
+  }
+
   async listActiveCustodyHouseholdIdsForStudent(
     tenantId: string,
     studentId: string,
+    at: Date = new Date(),
   ): Promise<string[]> {
     return this.studentCustody
       .filter(
@@ -123,7 +149,8 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
           row.tenantId === tenantId &&
           row.studentId === studentId &&
           row.status === 'active' &&
-          row.custodyType !== 'none',
+          row.custodyType !== 'none' &&
+          isEffectiveAt(row.effectiveFrom, row.effectiveTo, at),
       )
       .map((row) => row.householdId);
   }
@@ -140,6 +167,22 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
           row.status === 'active',
       )
       .map((row) => row.householdId);
+  }
+
+  async listActiveCustodyRestrictions(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+    at: Date = new Date(),
+  ): Promise<GuardianCustodyRestrictionEntity[]> {
+    return this.custodyRestrictions.filter(
+      (row) =>
+        row.tenantId === tenantId &&
+        row.parentUserId === parentUserId &&
+        row.studentId === studentId &&
+        row.status === 'active' &&
+        isEffectiveAt(row.effectiveFrom, row.effectiveTo, at),
+    );
   }
 
   async createThread(

@@ -121,6 +121,7 @@ export class ParentPortalService {
       studentId: string;
       householdId: string;
       custodyType?: 'sole' | 'joint' | 'visitation' | 'none';
+      effectiveFrom?: Date;
     },
   ) {
     return this.repository.assignStudentCustody({
@@ -130,7 +131,42 @@ export class ParentPortalService {
       householdId: input.householdId,
       custodyType: input.custodyType ?? 'sole',
       status: 'active',
-      effectiveFrom: new Date(),
+      effectiveFrom: input.effectiveFrom ?? new Date(),
+    });
+  }
+
+  /** Staff provisioning — court / protective restriction order (W1-SEC-03 COMPLETE). */
+  async createCustodyRestriction(
+    tenantId: string,
+    input: {
+      studentId: string;
+      parentUserId: string;
+      householdId?: string | null;
+      restrictionKind?: 'court_order' | 'protective_order' | 'school_admin' | 'other';
+      blocksMedical?: boolean;
+      blocksFees?: boolean;
+      blocksAllAccess?: boolean;
+      effectiveFrom?: Date;
+      effectiveTo?: Date | null;
+      courtOrderRef?: string;
+      notes?: string;
+    },
+  ) {
+    return this.repository.createCustodyRestriction({
+      id: uuidv4(),
+      tenantId,
+      studentId: input.studentId,
+      parentUserId: input.parentUserId,
+      householdId: input.householdId ?? null,
+      restrictionKind: input.restrictionKind ?? 'court_order',
+      blocksMedical: input.blocksMedical ?? true,
+      blocksFees: input.blocksFees ?? true,
+      blocksAllAccess: input.blocksAllAccess ?? false,
+      status: 'active',
+      effectiveFrom: input.effectiveFrom ?? new Date(),
+      effectiveTo: input.effectiveTo ?? null,
+      courtOrderRef: input.courtOrderRef ?? '',
+      notes: input.notes ?? '',
     });
   }
 
@@ -164,12 +200,29 @@ export class ParentPortalService {
   /** Student ids where the guardian may view/pay fees. */
   private async getFeeVisibleStudentIds(tenantId: string, parentUserId: string): Promise<string[]> {
     const links = await this.getAccessibleLinks(tenantId, parentUserId);
-    return links.filter((link) => link.canViewFees).map((link) => link.studentId);
+    const visible: string[] = [];
+    for (const link of links) {
+      if (!link.canViewFees) continue;
+      const restrictions = await this.repository.listActiveCustodyRestrictions(
+        tenantId,
+        parentUserId,
+        link.studentId,
+      );
+      const blocked = restrictions.some((row) => {
+        if (link.householdId != null && row.householdId != null && row.householdId !== link.householdId) {
+          return false;
+        }
+        return row.blocksFees;
+      });
+      if (!blocked) visible.push(link.studentId);
+    }
+    return visible;
   }
 
   /**
-   * W1-SEC-03: when a student has active custody rows, the guardian must belong to
-   * a custody household; optional link.household_id must align with that overlap.
+   * W1-SEC-03 COMPLETE: guardian access requires an active effective-dated
+   * custody overlap with the parent's household. Missing custody ⇒ deny
+   * (fail closed). Active blocks_all_access restrictions also deny.
    */
   private async hasHouseholdCustodyAccess(
     tenantId: string,
@@ -181,8 +234,9 @@ export class ParentPortalService {
       tenantId,
       studentId,
     );
+    // Fail closed: no custody rows ⇒ no guardian access.
     if (custodyHouseholds.length === 0) {
-      return true;
+      return false;
     }
 
     const parentHouseholds = await this.repository.listActiveHouseholdIdsForParent(
@@ -198,7 +252,18 @@ export class ParentPortalService {
     if (linkHouseholdId != null && !eligible.includes(linkHouseholdId)) {
       return false;
     }
-    return true;
+
+    const restrictions = await this.repository.listActiveCustodyRestrictions(
+      tenantId,
+      parentUserId,
+      studentId,
+    );
+    const blocked = restrictions.some((row) => {
+      if (!row.blocksAllAccess) return false;
+      if (row.householdId != null && !eligible.includes(row.householdId)) return false;
+      return true;
+    });
+    return !blocked;
   }
 
   private async assertParentLinkedToStudent(
@@ -217,8 +282,10 @@ export class ParentPortalService {
   }
 
   /**
-   * Relationship-scoped gate: linked parent must hold the named authority flag.
-   * Unlinked → 404 (no existence leak). Linked without flag → 403.
+   * Relationship-scoped gate: linked parent must hold the named authority flag
+   * and must not be under an active restriction that suspends that authority.
+   * Unlinked / no custody → 404 (no existence leak). Linked without flag or
+   * restricted → 403.
    */
   private async assertParentAuthority(
     tenantId: string,
@@ -232,6 +299,26 @@ export class ParentPortalService {
         flag === 'canConsentMedical'
           ? 'Guardian is not authorised to decide medical consents for this student'
           : 'Guardian is not authorised to view or pay fees for this student',
+      );
+    }
+
+    const restrictions = await this.repository.listActiveCustodyRestrictions(
+      tenantId,
+      parentUserId,
+      studentId,
+    );
+    const blockedByRestriction = restrictions.some((row) => {
+      if (link.householdId != null && row.householdId != null && row.householdId !== link.householdId) {
+        return false;
+      }
+      if (flag === 'canConsentMedical') return row.blocksMedical;
+      return row.blocksFees;
+    });
+    if (blockedByRestriction) {
+      throw new ForbiddenError(
+        flag === 'canConsentMedical'
+          ? 'Guardian medical authority is suspended by an active custody restriction'
+          : 'Guardian fee authority is suspended by an active custody restriction',
       );
     }
     return link;

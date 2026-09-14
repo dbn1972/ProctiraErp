@@ -59,3 +59,14 @@
 | Safe to merge from security view (this slice)      | ☑      |
 
 **Residual risks:** Staff provisioning UI not shipped; custody effective-date transitions not automated.
+
+---
+
+## Update — W1-SEC-03 COMPLETE (2026-09-14)
+
+Closed by `docs/audits/SEC_W1_SEC_03_COMPLETE.md` on branch `cursor/w1-sec-03-custody-complete-56c3`:
+
+- Fail closed when custody rows are missing.
+- Effective-dated `guardian_custody_restrictions` (court/protective orders).
+- Governed medical/fee ops require authority flags **and** no active blocking restriction.
+- RLS backfill for `guardian_*` tables + restrictions.
