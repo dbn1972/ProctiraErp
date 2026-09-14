@@ -25,14 +25,14 @@ reference data.
 | -------- | ---- | ----- |
 | Migration | `db/sql/075_runtime_global_table_privileges.sql` | SELECT+INSERT only on catalogs; re-asserts ledger REVOKE |
 | Docs | `db/README.md` | Extends W1-DATA-11 section for catalogs |
-| Static tests | `tools/tenant-isolation-tests/src/unit/runtime-global-privs.test.ts` | 073 contract |
+| Static tests | `tools/tenant-isolation-tests/src/unit/runtime-global-privs.test.ts` | 075 contract |
 | Live tests | `packages/shared/database/src/runtime-global-privs.live.test.ts` | Denied UPDATE/DELETE on catalogs; ledgers still denied |
 | Audit | this file | |
 
 ## Invariants
 
 1. `proctira_app` has **no** privileges on `schema_migrations` / `_prisma_migrations`
-   (072 + idempotent re-assert in 073).
+   (072 + idempotent re-assert in 075).
 2. `proctira_app` may `SELECT` and `INSERT` the three insights platform catalogs,
    but not `UPDATE` / `DELETE` / `TRUNCATE` / `TRIGGER`.
 3. Cross-tenant **read** of catalog content remains (no RLS by design for platform
@@ -47,7 +47,7 @@ bash tools/scripts/apply-sql.sh
 pnpm --filter @proctira/tenant-isolation-tests exec vitest run \
   --config vitest.config.ts src/unit/runtime-global-privs.test.ts
 
-# live (DATABASE_URL=proctira_app against DB with 072+073):
+# live (DATABASE_URL=proctira_app against DB with 072+075):
 pnpm --filter @proctira/database exec vitest run src/runtime-global-privs.live.test.ts
 ```
 
@@ -55,7 +55,7 @@ pnpm --filter @proctira/database exec vitest run src/runtime-global-privs.live.t
 
 | Residual | Status |
 | -------- | ------ |
-| Re-running 050 alone re-grants ALL DML until 072/073 re-applied | **Accepted** — same pattern as 053 |
+| Re-running 050 alone re-grants ALL DML until 072/075 re-applied | **Accepted** — same pattern as 053 |
 | Catalog rows inserted by runtime cannot be deleted by runtime | **Accepted** — cleanup is migrator/ops |
 | Other future non-tenant tables need an explicit follow-up REVOKE | **Residual** — 050 default privileges remain name-agnostic |
 | `tenants` remains full DML under RLS | **By design** — not a platform-global catalog |

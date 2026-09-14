@@ -1,8 +1,8 @@
 /**
- * W1-DATA-11 residual — platform-global catalog privileges (073).
+ * W1-DATA-11 residual — platform-global catalog privileges (075).
  *
  * Ledgers are covered by 072_control_ledger_privileges.sql (#235).
- * 073 narrows insights platform catalogs to SELECT/INSERT and re-asserts
+ * 075 narrows insights platform catalogs to SELECT/INSERT and re-asserts
  * ledger REVOKE ALL.
  */
 import { existsSync, readFileSync } from 'node:fs';
@@ -43,8 +43,8 @@ function loadSql(file: string): string {
   return readFileSync(join(sqlDir(), file), 'utf8');
 }
 
-describe('W1-DATA-11 runtime global table privileges (072 + 073)', () => {
-  it('ships 072 ledger REVOKE and 073 catalog narrow', () => {
+describe('W1-DATA-11 runtime global table privileges (072 + 075)', () => {
+  it('ships 072 ledger REVOKE and 075 catalog narrow', () => {
     expect(existsSync(join(sqlDir(), LEDGER_MIGRATION))).toBe(true);
     expect(existsSync(join(sqlDir(), CATALOG_MIGRATION))).toBe(true);
     const ledger = loadSql(LEDGER_MIGRATION);
@@ -63,7 +63,7 @@ describe('W1-DATA-11 runtime global table privileges (072 + 073)', () => {
     }
   });
 
-  it('073 grants SELECT, INSERT only on platform-global catalogs', () => {
+  it('075 grants SELECT, INSERT only on platform-global catalogs', () => {
     const sql = loadSql(CATALOG_MIGRATION);
     expect(sql).toMatch(/GRANT SELECT, INSERT ON TABLE %I TO proctira_app/i);
     for (const table of GLOBAL_CATALOG_TABLES) {
@@ -74,7 +74,7 @@ describe('W1-DATA-11 runtime global table privileges (072 + 073)', () => {
     );
   });
 
-  it('073 re-asserts ledger REVOKE (idempotent with 072)', () => {
+  it('075 re-asserts ledger REVOKE (idempotent with 072)', () => {
     const sql = loadSql(CATALOG_MIGRATION);
     for (const table of LEDGER_TABLES) {
       expect(sql).toMatch(new RegExp(`['"]${table}['"]`));

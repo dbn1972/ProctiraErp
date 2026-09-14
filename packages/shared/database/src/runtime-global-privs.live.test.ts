@@ -2,7 +2,7 @@
  * W1-DATA-11 — runtime must not see or mutate migration ledgers; platform
  * catalogs are SELECT/INSERT only.
  *
- * Requires DATABASE_URL as proctira_app against a DB that applied through 073.
+ * Requires DATABASE_URL as proctira_app against a DB that applied through 075.
  */
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
