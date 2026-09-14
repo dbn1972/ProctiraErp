@@ -63,3 +63,13 @@
 | Safe to merge from security view | ☑ W1-SEC-02 COMPLETE with documented residuals |
 
 **Residual risks:** Transport / library / registration (and peers) still need hostel/scholarship-style package `*-access` guards for domain-action depth. Until then, gateway inventory exact resource/action + fail-closed coverage is the COMPLETE bar. Coarse read mapping and encapsulated plugin-wide write hooks remain by design.
+
+## Follow-up (transport package guards)
+
+Cleared `transport` from deferred domain-guard residuals:
+
+- `transport-access.ts` / `transport-http-guard.ts` — fail-closed role matrix
+- `registerTransportRoutes` preHandler maps GET→read, mutations→write
+- `DOMAIN_GUARD_COMPLETE_RESOURCES` includes `transport`
+- Evidence: `transport-access.test.ts`, `routes.test.ts` (403 fail-closed), mutating inventory tests
+

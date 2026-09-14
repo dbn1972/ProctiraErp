@@ -95,6 +95,7 @@ const DOMAIN_GUARD_COMPLETE_RESOURCES = new Set([
   'health',
   'gradebook',
   'timetable',
+  'transport',
 ]);
 
 function deferredForResource(resource: string): boolean {
@@ -165,10 +166,10 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
   },
   // Deferred campus domains — explicit inventory rows (coarse resource/action).
   {
-    id: 'transport.deferred',
+    id: 'transport.vehicles',
     pathPrefix: '/api/v1/transport',
     resource: 'transport',
-    deferredDomainGuard: true,
+    deferredDomainGuard: false,
   },
   {
     id: 'library.deferred',
@@ -452,7 +453,7 @@ export const INVENTORY_DENY_SAMPLES: ReadonlyArray<{
     },
   },
   {
-    id: 'transport.deferred',
+    id: 'transport.vehicles',
     method: 'POST',
     url: '/api/v1/transport/vehicles',
     deniedRole: 'parent',
