@@ -63,7 +63,9 @@ import {
   buildAuditValues,
   entityIdFromPath,
   entityTypeForPath,
+  MUTATION_AUDIT_UNAVAILABLE_BODY,
   operationForMethod,
+  persistMutationAudit,
   shouldAuditMutation,
 } from './mutation-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
@@ -683,23 +685,26 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     destructiveDeleteGuard: new PrivacyService(new InMemoryPrivacyRepository()),
   });
 
-  // Record mutating API calls (best-effort; never fail the request).
-  app.addHook('onResponse', async (request, reply) => {
-    if (!shouldAuditMutation(request.method, request.url)) return;
+  // W1-SEC-10: mutation audit onSend — log failures; fail closed for
+  // security-sensitive paths in production (unless ALLOW_MUTATION_AUDIT_DEGRADE).
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (!shouldAuditMutation(request.method, request.url)) return payload;
     // Skip unauthenticated / forbidden — still record validation failures (4xx)
     // so mutating attempts that passed RBAC leave an audit trail.
-    if (reply.statusCode === 401 || reply.statusCode === 403) return;
-    if (reply.statusCode >= 500) return;
+    if (reply.statusCode === 401 || reply.statusCode === 403) return payload;
+    if (reply.statusCode >= 500) return payload;
 
     const user = request.user;
-    if (!user) return;
+    if (!user) return payload;
 
     const path = request.url.split('?')[0]!;
     const operation = operationForMethod(request.method);
     const { beforeValues, afterValues } = buildAuditValues(operation, request);
 
-    try {
-      await app.auditService.recordAudit({
+    const outcome = await persistMutationAudit({
+      auditService: app.auditService,
+      path,
+      input: {
         tenantId: user.tenantId,
         entityType: entityTypeForPath(path),
         entityId: entityIdFromPath(path),
@@ -710,10 +715,21 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         beforeValues,
         afterValues,
         metadata: { method: request.method, path, statusCode: reply.statusCode },
-      });
-    } catch {
-      // Audit must not break the primary request path.
-    }
+      },
+    });
+
+    if (outcome.ok) return payload;
+
+    request.log.error(
+      { err: outcome.error, path, method: request.method },
+      'mutation audit failed (W1-SEC-10)',
+    );
+
+    if (!outcome.failClosed) return payload;
+
+    reply.code(503);
+    reply.header('content-type', 'application/json; charset=utf-8');
+    return JSON.stringify(MUTATION_AUDIT_UNAVAILABLE_BODY);
   });
 
   // G-702 / G-712: every /api/v1 request (reads included) is evaluated against

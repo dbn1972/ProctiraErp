@@ -106,6 +106,15 @@ export {
 } from './phi-crypto.js';
 export type { PhiCryptoScope } from './phi-crypto.js';
 
+export {
+  isPhiAuditDegradeAllowed,
+  isProductionEnv as isPhiAuditProductionEnv,
+  PhiAuditUnavailableError,
+  recordPhiReadAudit,
+  shouldFailClosedOnPhiAudit,
+} from './phi-read-audit.js';
+export type { PhiReadAuditor, RecordPhiReadAuditOptions } from './phi-read-audit.js';
+
 // Routes
 export { registerHealthRoutes } from './routes.js';
 export type { HealthRoutesOptions } from './routes.js';
