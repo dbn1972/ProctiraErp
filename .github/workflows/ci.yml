@@ -674,6 +674,13 @@ jobs:
           LIVE_TEST_MIN_EXECUTED: '10'
           NODE_ENV: test
 
+      - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)
+        run: bash tools/scripts/assert-runtime-database-role.sh
+        env:
+          RUNTIME_ROLE_GATE_REQUIRED: '1'
+          RUNTIME_ROLE_EXPECTED: proctira_app
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='${{ steps.turbo.outputs.filter }}'
         env:
@@ -869,6 +876,13 @@ jobs:
           # W1-DATA-01: live RLS suites must use non-owner proctira_app.
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
           CI: true
+
+      - name: Assert runtime DATABASE_URL role (W1-DATA-01 live)
+        run: bash tools/scripts/assert-runtime-database-role.sh
+        env:
+          RUNTIME_ROLE_GATE_REQUIRED: '1'
+          RUNTIME_ROLE_EXPECTED: proctira_app
+          DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
 
       - name: Run queue/event isolation tests
         run: pnpm test:tenant-isolation:queue
@@ -1085,9 +1099,15 @@ jobs:
   # Fail closed when public tables are unclassified, 050 restores blanket
   # TABLE DEFAULT PRIVILEGES, or apply-sql omits privilege catalog sync.
   # No Postgres required — static catalog + SQL contract scan.
-  # ---------------------------------------------------------------------------
   runtime-table-privileges:
     name: Runtime Table Privileges (W1-DATA-11)
+  # Runtime DB role gate — data gate (W1-DATA-01)
+  # Static contract: deploy.yml must prove the *actual* runtime DATABASE_URL
+  # secret is non-owner / NOSUPERUSER / NOBYPASSRLS. Fail closed on skip via
+  # ci-aggregate. Live probe runs in deploy.yml (and optionally with
+  # DATABASE_URL in integration / tenant-isolation).
+  runtime-role-gate:
+    name: Runtime Role Gate (W1-DATA-01)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1101,6 +1121,13 @@ jobs:
 
       - name: Fail when runtime privileges are unclassified or blanket-defaulted
         run: node tools/scripts/check-runtime-table-privileges.mjs
+      - name: Unit-test runtime role gate
+        run: |
+          node --test tools/scripts/assert-runtime-database-role.test.mjs
+          node --test tools/scripts/check-runtime-role-gate.test.mjs
+
+      - name: Fail when deploy/CI omit required runtime-role gate
+        run: node tools/scripts/check-runtime-role-gate.mjs
 
   # ---------------------------------------------------------------------------
   # Secondary Apps Playwright — path-filtered (W1-OPS-12)
@@ -1212,6 +1239,7 @@ jobs:
       - migration-timeouts
       - codeowners-gate
       - runtime-table-privileges
+      - runtime-role-gate
       - secondary-apps-e2e
     if: always()
     steps:
@@ -1243,5 +1271,6 @@ jobs:
           MIGRATION_TIMEOUTS_RESULT: ${{ needs.migration-timeouts.result }}
           CODEOWNERS_GATE_RESULT: ${{ needs.codeowners-gate.result }}
           RUNTIME_TABLE_PRIVILEGES_RESULT: ${{ needs.runtime-table-privileges.result }}
+          RUNTIME_ROLE_GATE_RESULT: ${{ needs.runtime-role-gate.result }}
           SECONDARY_APPS_E2E_RESULT: ${{ needs.secondary-apps-e2e.result }}
         run: node tools/scripts/ci-aggregate-gate.mjs

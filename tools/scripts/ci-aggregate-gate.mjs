@@ -125,6 +125,8 @@ export function evaluate({ changes, results }) {
       result: results.codeownersGate,
       job: 'runtime-table-privileges',
       result: results.runtimeTablePrivileges,
+      job: 'runtime-role-gate',
+      result: results.runtimeRoleGate,
       requiredWhen: () => true,
     },
     {
@@ -249,6 +251,7 @@ function readEnv() {
       migrationTimeouts: process.env.MIGRATION_TIMEOUTS_RESULT,
       codeownersGate: process.env.CODEOWNERS_GATE_RESULT,
       runtimeTablePrivileges: process.env.RUNTIME_TABLE_PRIVILEGES_RESULT,
+      runtimeRoleGate: process.env.RUNTIME_ROLE_GATE_RESULT,
       secondaryAppsE2e: process.env.SECONDARY_APPS_E2E_RESULT,
     },
   };

@@ -349,7 +349,11 @@ postgresql:
         memory: 4Gi
   readReplicaUrl: '${POSTGRES_READ_REPLICA_URL}'
 
-# Use external-secrets-operator in production
+# Use external-secrets-operator in production.
+# W1-DATA-01: the Secret referenced by existingSecret MUST expose DATABASE_URL
+# as postgresql://proctira_app:… (non-owner, NOSUPERUSER, NOBYPASSRLS). Helm
+# does not rewrite the URL — operators / ExternalSecret remote keys own this.
+# Deploy proves it via tools/scripts/assert-runtime-database-role.sh.
 secrets:
   existingSecret: proctira-prod-secrets
 

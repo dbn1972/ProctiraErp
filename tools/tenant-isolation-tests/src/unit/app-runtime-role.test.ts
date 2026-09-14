@@ -14,10 +14,16 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const sqlPath = join(root, 'db/sql/050_app_runtime_role.sql');
 const envExamplePath = join(root, '.env.example');
 const ciPath = join(root, '.github/workflows/ci.yml');
+const deployPath = join(root, '.github/workflows/deploy.yml');
 const secretsPath = join(
   root,
   'infrastructure/k8s/overlays/development/secrets.yaml',
 );
+const prodEsPath = join(
+  root,
+  'infrastructure/k8s/overlays/production/external-secret.yaml',
+);
+const assertShPath = join(root, 'tools/scripts/assert-runtime-database-role.sh');
 
 describe('W1-DATA-01 app runtime role split (static)', () => {
   it('ships db/sql/050_app_runtime_role.sql granting DML to proctira_app', () => {
@@ -80,5 +86,24 @@ describe('W1-DATA-01 app runtime role split (static)', () => {
     expect(secrets).not.toMatch(
       /(^|\n)\s*DATABASE_URL:\s*'postgresql:\/\/proctira:[^']+@postgres:5432\/proctira'/,
     );
+  });
+
+  it('deploy + production ExternalSecret require live runtime-role gate (W1-DATA-01 COMPLETE)', () => {
+    expect(existsSync(assertShPath), 'missing assert-runtime-database-role.sh').toBe(
+      true,
+    );
+    const deploy = readFileSync(deployPath, 'utf8');
+    expect(deploy).toMatch(/runtime-role-gate:/);
+    expect(deploy).toMatch(/assert-runtime-database-role\.sh/);
+    expect(deploy).toMatch(/RUNTIME_ROLE_GATE_REQUIRED/);
+
+    const prodEs = readFileSync(prodEsPath, 'utf8');
+    expect(prodEs).toMatch(/W1-DATA-01/);
+    expect(prodEs).toMatch(/proctira_app/);
+    expect(prodEs).toMatch(/DATABASE_URL/);
+
+    const ci = readFileSync(ciPath, 'utf8');
+    expect(ci).toMatch(/check-runtime-role-gate\.mjs/);
+    expect(ci).toMatch(/RUNTIME_ROLE_GATE_RESULT/);
   });
 });
