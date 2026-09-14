@@ -1,7 +1,7 @@
 # OPS — W1-OPS-08 COMPLETE (immutable app image tags + naming)
 
 **Module / slice:** Prod deploy image tags (kustomize / Helm / deploy / release / compose)  
-**Branch / tip:** `cursor/w1-ops-08-images-complete-56c3` @ `TIP_SHA_PENDING`  
+**Branch / tip:** `cursor/w1-ops-08-images-complete-56c3` @ `490e67ee864fd5a7eb397b141ce9b38cf50d062c`  
 **Date (UTC):** 2026-09-14  
 **Prior status:** PARTIAL (k8s `:sha-pending` + kustomize component; Helm/deploy/release still used mutable `latest` / hyphenated `proctira-<svc>`)  
 **This status:** **COMPLETE**
