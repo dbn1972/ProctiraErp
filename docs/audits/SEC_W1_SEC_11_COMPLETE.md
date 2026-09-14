@@ -1,7 +1,7 @@
 # Security — W1-SEC-11 COMPLETE (tenant namespaces)
 
 **Module / slice:** `@proctira/cache` · `@proctira/events` · `@proctira/queue-abstraction` · `@proctira/storage`  
-**Branch / tip:** `cursor/w1-sec-11-namespaces-complete-56c3` @ `f668725fa85dbf0182401deafd840d9b75edf5dc`
+**Branch / tip:** `cursor/w1-sec-11-namespaces-complete-56c3` @ `e2f03a729af1e95a045ec2bbea2de780a67b988d`
 **Date (UTC):** 2026-09-14  
 **Prior status:** PARTIAL (`docs/audits/SEC_W1_SEC_11_TENANT_NAMESPACES.md` / `#217`) — builders + CacheClient/storage raw-key gates landed; queue **subscribe/consume** still accepted caller-supplied unscoped topics  
 **Data classes:** shared infrastructure (PII / financial / PHI when domain payloads ride these buses)  
