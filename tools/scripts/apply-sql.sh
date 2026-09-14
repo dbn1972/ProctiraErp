@@ -9,6 +9,10 @@
 #   - Prefer one transaction per file (psql --single-transaction) so a failed
 #     file rolls back and is not recorded. See "Multi-statement limits" below.
 #   - Record filename + sha256 in schema_migrations only after successful apply.
+#   - Non-txn / CONCURRENTLY files: statement-level phase ledger
+#     (schema_migration_phases) so a mid-file failure resumes at the next
+#     unapplied phase. Phases must be idempotent (IF NOT EXISTS / OR REPLACE)
+#     so DDL that committed before the phase row was written can re-run safely.
 #
 # Usage:
 #   DATABASE_URL=postgresql://... bash tools/scripts/apply-sql.sh
@@ -41,8 +45,11 @@
 #   Postgres) must either be avoided under db/sql/ or applied with
 #   APPLY_SQL_NO_TX=1 (disables -1 for every file — use only when required).
 #   Files whose text matches CONCURRENTLY are applied without -1 automatically.
+#   Non-txn files use schema_migration_phases (per-statement) for resumable
+#   recovery; author phases as idempotent compensating-forward DDL.
 #   Whole-set atomicity across all numbered files is intentionally not
-#   attempted; resume safety is the ledger + per-file transactions.
+#   attempted; resume safety is the file ledger + per-file TX (txn path) or
+#   the phase ledger (non-txn path).
 #
 # W1-DATA-17 — session timeouts (online-safe apply):
 #   Every psql session sets lock_timeout + statement_timeout before DDL so a
@@ -96,6 +103,12 @@ Environment:
 W1-DATA-05 ledger:
   Applied files are recorded in schema_migrations (filename + sha256).
   Re-runs skip unchanged checksums and fail closed on checksum mismatch.
+  Non-txn / CONCURRENTLY files also use schema_migration_phases for mid-file resume.
+
+Test-only failure injection (requires APPLY_SQL_ALLOW_FAIL_INJECT=1):
+  APPLY_SQL_FAIL_BEFORE_PHASE=N       Exit before applying phase N (0-based)
+  APPLY_SQL_FAIL_AFTER_PHASE_DDL=N    Exit after phase N DDL, before phase row
+  APPLY_SQL_FAIL_AFTER_PHASE=N        Exit after phase N is recorded
 
 W1-DATA-10 bootstrap:
   See db/bootstrap/README.md and tools/scripts/bootstrap-db-roles.sh.
@@ -241,12 +254,14 @@ export_migration_timeout_pgoptions
 # W1-DATA-17: prepend SET lock_timeout / statement_timeout on every session.
 # stdin (heredoc from callers) is concatenated after the SETs so --single-
 # transaction still wraps timeouts + file + ledger INSERT together.
+# Always pass -q so SET acknowledgements do not pollute -At capture (ledger
+# status / phase digests).
 psql_q() {
   {
     printf "SET lock_timeout TO '%s';\n" "${APPLY_SQL_LOCK_TIMEOUT}"
     printf "SET statement_timeout TO '%s';\n" "${APPLY_SQL_STATEMENT_TIMEOUT}"
     cat
-  } | psql "${PSQL_TARGET[@]}" "${PSQL_ARGS[@]}" "$@"
+  } | psql "${PSQL_TARGET[@]}" -q "${PSQL_ARGS[@]}" "$@"
 }
 
 # W1-DATA-10: create migrator + runtime roles before ledger apply when asked.
@@ -265,7 +280,7 @@ maybe_bootstrap_roles() {
 
 maybe_bootstrap_roles
 
-echo "==> Ensuring schema_migrations ledger exists"
+echo "==> Ensuring schema_migrations + schema_migration_phases ledgers exist"
 psql_q -q <<'SQL'
 CREATE TABLE IF NOT EXISTS schema_migrations (
   filename    TEXT PRIMARY KEY,
@@ -273,7 +288,134 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   applied_by  TEXT NOT NULL DEFAULT current_user
 );
+CREATE TABLE IF NOT EXISTS schema_migration_phases (
+  filename      TEXT NOT NULL,
+  phase_idx     INT NOT NULL,
+  phase_digest  TEXT NOT NULL,
+  file_checksum TEXT NOT NULL,
+  applied_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (filename, phase_idx)
+);
 SQL
+
+SPLIT_PHASES_JS="$ROOT/tools/scripts/split-sql-phases.mjs"
+
+# Test-only hooks — ignored unless APPLY_SQL_ALLOW_FAIL_INJECT=1.
+maybe_fail_inject() {
+  local hook="$1"
+  local phase_idx="$2"
+  if [[ "${APPLY_SQL_ALLOW_FAIL_INJECT:-0}" != "1" ]]; then
+    return 0
+  fi
+  local want="${!hook:-}"
+  if [[ -n "$want" && "$want" == "$phase_idx" ]]; then
+    echo "error: W1-DATA-05 fail-inject $hook=$phase_idx (test hook)" >&2
+    exit 99
+  fi
+}
+
+# Apply a non-txn file statement-by-statement with resumable phase ledger.
+# Phases must be idempotent so a crash between DDL and phase INSERT can re-run.
+apply_file_with_phases() {
+  local f="$1"
+  local name="$2"
+  local sum="$3"
+  local rel="$4"
+  local phase_dir phase_count phase_file phase_idx phase_digest status
+  local sql_path_escaped
+
+  if [[ ! -f "$SPLIT_PHASES_JS" ]]; then
+    echo "error: W1-DATA-05 phase splitter missing: $SPLIT_PHASES_JS" >&2
+    exit 1
+  fi
+
+  phase_dir="$(mktemp -d "${TMPDIR:-/tmp}/w1-data05-phases.XXXXXX")"
+  # Clean temp phases on success return or fail-inject exit.
+  # shellcheck disable=SC2064
+  trap "rm -rf -- $(printf '%q' "$phase_dir")" EXIT
+
+  phase_count="$(node "$SPLIT_PHASES_JS" "$f" "$phase_dir" | tr -d '[:space:]')"
+  if [[ -z "$phase_count" || "$phase_count" == "0" ]]; then
+    echo "error: W1-DATA-05 no executable phases in $rel" >&2
+    exit 1
+  fi
+  echo "==> Phase ledger: $rel ($phase_count phases, resumable non-txn)"
+
+  mapfile -t PHASE_FILES < <(
+    shopt -s nullglob
+    printf '%s\n' "$phase_dir"/*.sql | LC_ALL=C sort
+  )
+
+  phase_idx=0
+  for phase_file in "${PHASE_FILES[@]}"; do
+    phase_digest="$(file_checksum "$phase_file")"
+    if [[ -z "$phase_digest" ]]; then
+      echo "error: W1-DATA-05 cannot checksum phase $phase_idx of $rel" >&2
+      exit 1
+    fi
+
+    status="$(
+      psql_q -At -v name="$name" -v idx="$phase_idx" <<'SQL'
+SELECT CASE
+  WHEN NOT EXISTS (
+    SELECT 1 FROM schema_migration_phases
+    WHERE filename = :'name' AND phase_idx = (:'idx')::int
+  ) THEN 'missing'
+  ELSE (
+    SELECT phase_digest || '|' || file_checksum
+    FROM schema_migration_phases
+    WHERE filename = :'name' AND phase_idx = (:'idx')::int
+  )
+END;
+SQL
+    )"
+
+    if [[ "$status" == "${phase_digest}|${sum}" ]]; then
+      echo "==> Skip phase $phase_idx of $rel (phase ledger match)"
+      maybe_fail_inject APPLY_SQL_FAIL_AFTER_PHASE "$phase_idx"
+      phase_idx=$((phase_idx + 1))
+      continue
+    fi
+
+    if [[ "$status" != "missing" ]]; then
+      echo "error: W1-DATA-05 phase checksum mismatch for $name phase $phase_idx" >&2
+      echo "  ledger: $status" >&2
+      echo "  phase:  ${phase_digest}|${sum}" >&2
+      echo "  Refusing to re-apply a drifted phase. Restore the original file or add a forward migration." >&2
+      exit 1
+    fi
+
+    maybe_fail_inject APPLY_SQL_FAIL_BEFORE_PHASE "$phase_idx"
+
+    echo "==> Applying phase $phase_idx of $rel"
+    sql_path_escaped="${phase_file//\'/\'\'}"
+    psql_q <<SQL
+\\i '${sql_path_escaped}'
+SQL
+
+    maybe_fail_inject APPLY_SQL_FAIL_AFTER_PHASE_DDL "$phase_idx"
+
+    psql_q -q -v name="$name" -v idx="$phase_idx" -v pdig="$phase_digest" -v sum="$sum" <<'SQL'
+INSERT INTO schema_migration_phases (filename, phase_idx, phase_digest, file_checksum)
+VALUES (:'name', (:'idx')::int, :'pdig', :'sum');
+SQL
+
+    maybe_fail_inject APPLY_SQL_FAIL_AFTER_PHASE "$phase_idx"
+    phase_idx=$((phase_idx + 1))
+  done
+
+  psql_q -q -v name="$name" -v sum="$sum" <<'SQL'
+INSERT INTO schema_migrations (filename, checksum)
+VALUES (:'name', :'sum')
+ON CONFLICT (filename) DO UPDATE
+SET checksum = EXCLUDED.checksum, applied_at = NOW();
+-- File complete: phase rows are retained for audit; resume uses schema_migrations
+-- first and only consults phases when the file ledger row is still missing.
+SQL
+
+  rm -rf -- "$phase_dir"
+  trap - EXIT
+}
 
 APPLIED=0
 LEDGER_SKIPPED=0
@@ -344,28 +486,27 @@ SQL
     echo "==> Applying $rel (per-file transaction)"
   fi
 
-  TX_ARGS=()
-  if [[ "$use_tx" -eq 1 ]]; then
-    TX_ARGS+=(--single-transaction)
-  fi
-
-  # Same psql session: \i the file then record checksum so --single-transaction
-  # commits both or neither (when use_tx=1).
-  sql_path_escaped="${f//\'/\'\'}"
-  if ! psql_q "${TX_ARGS[@]}" -v name="$name" -v sum="$sum" <<SQL
+  if [[ "$use_tx" -eq 0 ]]; then
+    apply_file_with_phases "$f" "$name" "$sum" "$rel"
+  else
+    # Same psql session: \i the file then record checksum so --single-transaction
+    # commits both or neither.
+    sql_path_escaped="${f//\'/\'\'}"
+    if ! psql_q --single-transaction -v name="$name" -v sum="$sum" <<SQL
 \i '${sql_path_escaped}'
 INSERT INTO schema_migrations (filename, checksum)
 VALUES (:'name', :'sum')
 ON CONFLICT (filename) DO UPDATE
 SET checksum = EXCLUDED.checksum, applied_at = NOW();
 SQL
-  then
-    echo "error: W1-DATA-17 apply failed for $rel" >&2
-    echo "  If psql reported lock_not_available / canceling statement due to lock_timeout:" >&2
-    echo "  wait for the blocking session to end (or schedule a maintenance window), then" >&2
-    echo "  re-run this script. Ledger-safe resume: $name was not recorded in schema_migrations." >&2
-    echo "  Drill: node tools/scripts/migration-lock-recovery-drill.mjs" >&2
-    exit 1
+    then
+      echo "error: W1-DATA-17 apply failed for $rel" >&2
+      echo "  If psql reported lock_not_available / canceling statement due to lock_timeout:" >&2
+      echo "  wait for the blocking session to end (or schedule a maintenance window), then" >&2
+      echo "  re-run this script. Ledger-safe resume: $name was not recorded in schema_migrations." >&2
+      echo "  Drill: node tools/scripts/migration-lock-recovery-drill.mjs" >&2
+      exit 1
+    fi
   fi
 
   APPLIED=$((APPLIED + 1))

@@ -18,6 +18,7 @@ After domain SQL `050` + `076` (and every `apply-sql.sh` privilege sync):
 | Append-only / platform catalogs | Owner | SELECT+INSERT only (class `append_only` / `select_insert`) |
 | `schema_migrations` | Full (apply-sql ledger writes) | **None** — class `denied` |
 | `_prisma_migrations` | Full (Prisma migrate) | **None** — class `denied` |
+| `schema_migration_phases` | Full (non-txn phase resume) | **None** — class `denied` via `088` |
 
 Runtime must never `SELECT` or mutate migration ledgers. Future public tables
 must be added to `db/runtime-table-privileges.json` (CI catalog gate) — there
