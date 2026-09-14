@@ -7,8 +7,10 @@ import { BusinessRuleError } from '../exceptions/index.js';
 import {
   assertMajorMatchesCents,
   centsToMajorUnits,
+  majorUnitsNumberFromCents,
   majorUnitsToCents,
   pgIntegerCents,
+  pgNumericMajorToCents,
   pgOptionalIntegerCents,
 } from './cents.js';
 
@@ -64,5 +66,23 @@ describe('W1-DATA-09 pgIntegerCents', () => {
     expect(pgOptionalIntegerCents(null)).toBeNull();
     expect(pgOptionalIntegerCents(undefined)).toBeNull();
     expect(pgOptionalIntegerCents('42')).toBe(42);
+  });
+});
+
+describe('W1-DATA-09 pgNumericMajorToCents / majorUnitsNumberFromCents', () => {
+  it('converts pg NUMERIC strings without Number()*100 Math.round', () => {
+    expect(pgNumericMajorToCents('19.99')).toBe(1999);
+    expect(pgNumericMajorToCents('1000.00')).toBe(100_000);
+    expect(pgNumericMajorToCents(19.99)).toBe(1999);
+  });
+
+  it('rejects unsupported NUMERIC types and non-cent values', () => {
+    expect(() => pgNumericMajorToCents(null)).toThrow(BusinessRuleError);
+    expect(() => pgNumericMajorToCents('1.001')).toThrow(BusinessRuleError);
+  });
+
+  it('derives display major from cents', () => {
+    expect(majorUnitsNumberFromCents(1999)).toBe(19.99);
+    expect(majorUnitsNumberFromCents(100_000)).toBe(1000);
   });
 });

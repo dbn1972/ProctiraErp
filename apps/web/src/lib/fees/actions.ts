@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { majorUnitsToCents } from '@proctira/common';
 import { GatewayError } from '@/lib/api/gateway';
 import {
   applyConcession,
@@ -92,7 +93,7 @@ export async function createFeeStructureAction(
       code: parsed.data.code || undefined,
       category: parsed.data.category,
       term: parsed.data.term || undefined,
-      amountCents: Math.round(parsed.data.amount * 100),
+      amountCents: majorUnitsToCents(parsed.data.amount),
       classId: parsed.data.classId || undefined,
       gradeId: parsed.data.gradeId || undefined,
       currency: 'INR',
@@ -150,7 +151,7 @@ export async function applyConcessionAction(
       percent: parsed.data.kind === 'percent' ? parsed.data.percent : undefined,
       amountCents:
         parsed.data.kind === 'amount' && parsed.data.amount != null
-          ? Math.round(parsed.data.amount * 100)
+          ? majorUnitsToCents(parsed.data.amount)
           : undefined,
       reason: parsed.data.reason,
     });
@@ -170,7 +171,7 @@ export async function refundInvoiceAction(
   }
   try {
     const refund = await refundInvoice(parsed.data.invoiceId, {
-      amountCents: Math.round(parsed.data.amount * 100),
+      amountCents: majorUnitsToCents(parsed.data.amount),
       reason: parsed.data.reason,
     });
     refreshFees();
@@ -245,7 +246,7 @@ export async function applyScholarshipNettingAction(
     const result = await applyScholarshipNetting({
       studentId: parsed.data.studentId,
       disbursementId: parsed.data.disbursementId.trim(),
-      amountCents: Math.round(parsed.data.amount * 100),
+      amountCents: majorUnitsToCents(parsed.data.amount),
       invoiceId: parsed.data.invoiceId || undefined,
       currency: parsed.data.currency || undefined,
     });

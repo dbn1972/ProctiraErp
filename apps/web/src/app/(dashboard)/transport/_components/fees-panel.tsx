@@ -13,6 +13,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { majorUnitsToCents } from '@proctira/common';
 
 import { createTransportFeeStructureAction } from '../actions';
 import type { TransportRoute } from '@/lib/api/transport';
@@ -61,6 +62,13 @@ export function FeesPanel({
               const rupees = Number(fd.get('amountRupees'));
               startTransition(async () => {
                 setError(null);
+                let amountCents: number;
+                try {
+                  amountCents = majorUnitsToCents(rupees);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Invalid amount');
+                  return;
+                }
                 const result = await createTransportFeeStructureAction({
                   name: String(fd.get('name') ?? '').trim(),
                   routeId: String(fd.get('routeId') ?? '') || undefined,
@@ -71,7 +79,7 @@ export function FeesPanel({
                   maxDistanceKm: String(fd.get('maxDistanceKm') ?? '')
                     ? Number(fd.get('maxDistanceKm'))
                     : undefined,
-                  amountCents: Math.round(rupees * 100),
+                  amountCents,
                   currency: 'INR',
                 });
                 if (result.status === 'error') setError(result.message ?? 'Failed');

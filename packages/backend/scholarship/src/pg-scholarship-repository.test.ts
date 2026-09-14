@@ -50,6 +50,7 @@ describe('PgScholarshipRepository', () => {
         totalSlots: 10,
         usedSlots: 0,
         amountPerRecipient: 1000,
+        amountPerRecipientCents: 100_000,
         currency: 'USD',
         disbursementFrequency: 'one_time',
         eligibility: { minGPA: 3.0 },

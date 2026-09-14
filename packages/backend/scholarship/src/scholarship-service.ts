@@ -17,6 +17,7 @@ import {
   BusinessRuleError,
   ValidationError,
   majorUnitsToCents,
+  majorUnitsNumberFromCents,
   assertMajorMatchesCents,
 } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
@@ -30,6 +31,8 @@ import type {
   UpdateDisbursementInput,
   RecipientComplianceInput,
   UtilizationReportQuery,
+  FinancialInfo,
+  EligibilityCriteria,
 } from './schemas.js';
 import type {
   ScholarshipProgramEntity,
@@ -78,6 +81,37 @@ export interface ApplicationDecision {
 function normaliseNotes(notes: string | null | undefined): string | null {
   const trimmed = notes?.trim();
   return trimmed ? trimmed : null;
+}
+
+/** Resolve major + optional cents into reconciled pair (W1-DATA-09). */
+function resolveMoneyPair(
+  major: number,
+  centsHint: number | undefined,
+  field: string,
+): { amount: number; amountCents: number } {
+  const amountCents =
+    centsHint !== undefined ? centsHint : majorUnitsToCents(major);
+  if (!Number.isInteger(amountCents) || amountCents < 0) {
+    throw new BusinessRuleError(`${field} cents must be a non-negative integer`);
+  }
+  assertMajorMatchesCents(major, amountCents);
+  return { amount: majorUnitsNumberFromCents(amountCents), amountCents };
+}
+
+/** Reject non-cent-representable money nested in application / eligibility JSON. */
+function assertCentRepresentableMoney(
+  financialInfo: FinancialInfo,
+  eligibility?: EligibilityCriteria,
+): void {
+  if (financialInfo.familyIncome !== undefined) {
+    majorUnitsToCents(financialInfo.familyIncome);
+  }
+  for (const other of financialInfo.otherScholarships ?? []) {
+    majorUnitsToCents(other.amount);
+  }
+  if (eligibility?.maxFamilyIncome !== undefined) {
+    majorUnitsToCents(eligibility.maxFamilyIncome);
+  }
 }
 
 /**
@@ -153,6 +187,13 @@ export class ScholarshipService {
       ]);
     }
 
+    const money = resolveMoneyPair(
+      input.amountPerRecipient,
+      input.amountPerRecipientCents,
+      'amountPerRecipient',
+    );
+    assertCentRepresentableMoney({}, input.eligibility);
+
     const program: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
@@ -162,7 +203,8 @@ export class ScholarshipService {
       applicationEndDate: input.applicationEndDate,
       totalSlots: input.totalSlots,
       usedSlots: 0,
-      amountPerRecipient: input.amountPerRecipient,
+      amountPerRecipient: money.amount,
+      amountPerRecipientCents: money.amountCents,
       currency: input.currency ?? 'USD',
       disbursementFrequency: (input.disbursementFrequency as DisbursementFrequency) ?? 'one_time',
       eligibility: input.eligibility,
@@ -216,13 +258,20 @@ export class ScholarshipService {
     if (input.applicationEndDate !== undefined)
       updateData.applicationEndDate = input.applicationEndDate;
     if (input.totalSlots !== undefined) updateData.totalSlots = input.totalSlots;
-    if (input.amountPerRecipient !== undefined)
-      updateData.amountPerRecipient = input.amountPerRecipient;
+    if (input.amountPerRecipient !== undefined || input.amountPerRecipientCents !== undefined) {
+      const major = input.amountPerRecipient ?? existing.amountPerRecipient;
+      const money = resolveMoneyPair(major, input.amountPerRecipientCents, 'amountPerRecipient');
+      updateData.amountPerRecipient = money.amount;
+      updateData.amountPerRecipientCents = money.amountCents;
+    }
     if (input.currency !== undefined) updateData.currency = input.currency;
     if (input.disbursementFrequency !== undefined)
       updateData.disbursementFrequency =
         input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];
-    if (input.eligibility !== undefined) updateData.eligibility = input.eligibility;
+    if (input.eligibility !== undefined) {
+      assertCentRepresentableMoney({}, input.eligibility);
+      updateData.eligibility = input.eligibility;
+    }
     if (input.status !== undefined)
       updateData.status = input.status as ScholarshipProgramEntity['status'];
     if (input.academicPeriodId !== undefined) updateData.academicPeriodId = input.academicPeriodId;
@@ -346,6 +395,8 @@ export class ScholarshipService {
       }
     }
 
+    assertCentRepresentableMoney(input.financialInfo);
+
     // Create application
     const application: Omit<ScholarshipApplicationEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
@@ -468,14 +519,13 @@ export class ScholarshipService {
     });
 
     if (decision.scheduleFirstDisbursement) {
-      const amountCents = majorUnitsToCents(program.amountPerRecipient);
-      assertMajorMatchesCents(program.amountPerRecipient, amountCents);
+      assertMajorMatchesCents(program.amountPerRecipient, program.amountPerRecipientCents);
       await this.repository.createDisbursement({
         id: uuidv4(),
         tenantId,
         applicationId: id,
         amount: program.amountPerRecipient,
-        amountCents,
+        amountCents: program.amountPerRecipientCents,
         scheduledDate: new Date().toISOString().slice(0, 10),
         paidDate: null,
         paymentStatus: 'scheduled',
@@ -542,14 +592,13 @@ export class ScholarshipService {
       throw new BusinessRuleError('Disbursements can only be created for approved applications');
     }
 
-    const amountCents = majorUnitsToCents(input.amount);
-    assertMajorMatchesCents(input.amount, amountCents);
+    const money = resolveMoneyPair(input.amount, input.amountCents, 'amount');
     const disbursement: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'> = {
       id: uuidv4(),
       tenantId,
       applicationId: input.applicationId,
-      amount: input.amount,
-      amountCents,
+      amount: money.amount,
+      amountCents: money.amountCents,
       scheduledDate: input.scheduledDate,
       paidDate: null,
       paymentStatus: 'scheduled',

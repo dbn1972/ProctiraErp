@@ -76,7 +76,16 @@ export const CreateScholarshipProgramSchema = Type.Object({
     maximum: 100000,
     description: 'Total available scholarship slots',
   }),
-  amountPerRecipient: Type.Number({ minimum: 0, description: 'Scholarship amount per recipient' }),
+  amountPerRecipient: Type.Number({
+    minimum: 0,
+    description: 'Scholarship amount per recipient (major units; must be cent-representable)',
+  }),
+  amountPerRecipientCents: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      description: 'Integer cents (preferred when provided; reconciled with amountPerRecipient)',
+    }),
+  ),
   currency: Type.Optional(
     Type.String({ minLength: 3, maxLength: 3, description: 'Currency code (ISO 4217)' }),
   ),
@@ -116,7 +125,16 @@ export const UpdateScholarshipProgramSchema = Type.Object({
     Type.Number({ minimum: 1, maximum: 100000, description: 'Total available slots' }),
   ),
   amountPerRecipient: Type.Optional(
-    Type.Number({ minimum: 0, description: 'Amount per recipient' }),
+    Type.Number({
+      minimum: 0,
+      description: 'Amount per recipient (major units; must be cent-representable)',
+    }),
+  ),
+  amountPerRecipientCents: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      description: 'Integer cents (preferred when provided)',
+    }),
   ),
   currency: Type.Optional(
     Type.String({ minLength: 3, maxLength: 3, description: 'Currency code' }),
@@ -251,7 +269,16 @@ export type ApplicationDecisionInput = Static<typeof ApplicationDecisionSchema>;
  */
 export const CreateDisbursementSchema = Type.Object({
   applicationId: Type.String({ pattern: UUID_PATTERN, description: 'Approved application UUID' }),
-  amount: Type.Number({ minimum: 0, description: 'Disbursement amount' }),
+  amount: Type.Number({
+    minimum: 0,
+    description: 'Disbursement amount (major units; must be cent-representable)',
+  }),
+  amountCents: Type.Optional(
+    Type.Integer({
+      minimum: 0,
+      description: 'Integer cents (preferred when provided; reconciled with amount)',
+    }),
+  ),
   scheduledDate: Type.String({
     pattern: '^\\d{4}-\\d{2}-\\d{2}$',
     description: 'Scheduled payment date (YYYY-MM-DD)',
@@ -399,6 +426,7 @@ export const ScholarshipProgramResponseSchema = Type.Object({
   totalSlots: Type.Number(),
   usedSlots: Type.Number(),
   amountPerRecipient: Type.Number(),
+  amountPerRecipientCents: Type.Integer({ minimum: 0 }),
   currency: Type.String(),
   disbursementFrequency: Type.String(),
   eligibility: EligibilityCriteriaSchema,
@@ -459,6 +487,7 @@ export const UtilizationReportResponseSchema = Type.Object({
   totalApproved: Type.Number(),
   totalDisbursed: Type.Number(),
   totalAmount: Type.Number(),
+  totalAmountCents: Type.Integer({ minimum: 0 }),
   currency: Type.String(),
   breakdown: Type.Array(
     Type.Object({
@@ -467,6 +496,7 @@ export const UtilizationReportResponseSchema = Type.Object({
       applicationCount: Type.Number(),
       approvedCount: Type.Number(),
       disbursedAmount: Type.Number(),
+      disbursedAmountCents: Type.Integer({ minimum: 0 }),
       utilizationRate: Type.Number(),
     }),
   ),

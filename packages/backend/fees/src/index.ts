@@ -96,4 +96,6 @@ export {
   assertMajorMatchesCents,
   pgIntegerCents,
   pgOptionalIntegerCents,
+  pgNumericMajorToCents,
+  majorUnitsNumberFromCents,
 } from './money-cents.js';

@@ -17,8 +17,8 @@ Residual `Number(bigint)` / `Math.round(Number(…))` on fees money paths (and b
 
 ## Non-goals
 
-Monorepo-wide sweep; scholarship NUMERIC major units; admissions `fee_amount NUMERIC`.
+Monorepo-wide sweep; **scholarship NUMERIC major units** (closed in `DATA_W1_DATA_09_COMPLETE.md`); admissions `fee_amount NUMERIC`.
 
 ## Sign-off
 
-Certified w/ waivers (fees/billing residual only).
+Certified w/ waivers (fees/billing residual only). Superseded for scholarships by `DATA_W1_DATA_09_COMPLETE.md`.

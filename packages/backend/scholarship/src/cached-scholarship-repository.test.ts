@@ -38,6 +38,7 @@ const programInput = {
   totalSlots: 10,
   usedSlots: 0,
   amountPerRecipient: 5000,
+  amountPerRecipientCents: 500_000,
   currency: 'USD',
   disbursementFrequency: 'annual' as const,
   eligibility: { minGPA: 3.0, requiredDocuments: ['transcript'] },

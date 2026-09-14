@@ -14,6 +14,7 @@ import {
   Input,
   Textarea,
 } from '@proctira/ui/components';
+import { majorUnitsToCents } from '@proctira/common';
 
 import { createFeePlanAction } from '../../fees-actions';
 
@@ -43,11 +44,18 @@ export function NewFeePlanForm() {
 
     startTransition(async () => {
       setError(null);
+      let amountCents: number;
+      try {
+        amountCents = majorUnitsToCents(amountRupees);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Invalid amount');
+        return;
+      }
       const result = await createFeePlanAction({
         name,
         code: code || undefined,
         description: description || undefined,
-        amountCents: Math.round(amountRupees * 100),
+        amountCents,
         currency: 'INR',
         frequency,
       });
