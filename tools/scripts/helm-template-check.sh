@@ -273,8 +273,8 @@ echo "$gw_deploy" | grep -q 'path: /health/ready' \
   || die "api-gateway readiness probe must be /health/ready (W1-OPS-21)"
 echo "OK api-gateway platform probe paths (W1-OPS-21)"
 
-# W1-OPS-08 — no mutable :latest under infrastructure/k8s/
-echo "==> W1-OPS-08 k8s image tag guard"
+# W1-OPS-08 — no mutable :latest under prod deploy paths (k8s/helm/workflows/compose)
+echo "==> W1-OPS-08 prod image tag + naming guard"
 bash "$ROOT/tools/scripts/check-no-latest-image-tags.sh"
 
 # W1-OPS-16 — canonical in-process topology

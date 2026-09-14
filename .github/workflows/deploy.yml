@@ -293,9 +293,9 @@ jobs:
           context: .
           file: ${{ steps.docker-config.outputs.dockerfile }}
           push: true
+          # W1-OPS-08 — immutable tag only (no mutable :latest).
           tags: |
             ${{ env.REGISTRY }}/proctira/${{ matrix.service }}:${{ needs.prepare.outputs.image-tag }}
-            ${{ env.REGISTRY }}/proctira/${{ matrix.service }}:latest
           build-args: ${{ steps.docker-config.outputs.build-args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
