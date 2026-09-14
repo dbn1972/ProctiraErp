@@ -86,6 +86,11 @@ export function evaluate({ changes, results }) {
       result: results.restoreDrillEvidence,
       requiredWhen: () => true,
     },
+    {
+      job: 'prisma-sql-drift',
+      result: results.prismaSqlDrift,
+      requiredWhen: () => true,
+    },
   ];
 
   for (const gate of gates) {
@@ -195,6 +200,7 @@ function readEnv() {
       dodChecks: process.env.DOD_CHECKS_RESULT,
       tenantIsolation: process.env.TENANT_ISOLATION_RESULT,
       restoreDrillEvidence: process.env.RESTORE_DRILL_EVIDENCE_RESULT,
+      prismaSqlDrift: process.env.PRISMA_SQL_DRIFT_RESULT,
     },
   };
 }
