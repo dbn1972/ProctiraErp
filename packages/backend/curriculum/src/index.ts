@@ -27,3 +27,17 @@ export {
   CreateLearningOutcomeSchema,
   MarkTaughtSchema,
 } from './schemas.js';
+
+// W1-SEC-02 package RBAC
+export {
+  assertCurriculumAccess,
+  hasCurriculumAccess,
+  normalizeCurriculumRoles,
+} from './curriculum-access.js';
+export type { CurriculumAction } from './curriculum-access.js';
+export {
+  curriculumActionForMethod,
+  curriculumRequestRoles,
+  enforceCurriculumRouteAccess,
+  requireCurriculumAction,
+} from './curriculum-http-guard.js';
