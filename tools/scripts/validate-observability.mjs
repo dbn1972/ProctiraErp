@@ -3,12 +3,15 @@
  * Lightweight syntactic check for the infra/observability artefacts.
  * - Parses every YAML file with js-yaml.
  * - Parses every Grafana dashboard JSON.
- * Exits non-zero on the first failure.
+ * - Asserts expected alert rule names are present.
+ * Exits non-zero on the first failure class.
+ *
+ * Wired into .github/workflows/observability-config.yml (W1-OPS-24).
  *
  * Usage: node tools/scripts/validate-observability.mjs
  */
-import { readFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -16,11 +19,7 @@ const root = resolve(here, '../..');
 
 const yamlFiles = [
   'infra/observability/prometheus.yml',
-  'infra/observability/alertmanager.yml',
-  'infra/observability/alerts/availability.yml',
-  'infra/observability/alerts/latency.yml',
-  'infra/observability/alerts/error_rate.yml',
-  'infra/observability/alerts/saturation.yml',
+  'infra/observability/alertmanager.yml.tpl',
   'infra/observability/grafana/provisioning/datasources.yml',
   'infra/observability/grafana/provisioning/dashboards.yml',
   'infra/observability/docker-compose.observability.yml',
@@ -33,12 +32,24 @@ const jsonFiles = [
   'infra/observability/grafana/dashboards/dependencies.json',
 ];
 
-// js-yaml is already in the workspace transitively (via pnpm). Resolve it
-// from the local pnpm store so this script works without a top-level
-// devDependency.
+const expectedAlertGroups = {
+  'infra/observability/alerts/availability.yml': ['ServiceErrorRateHigh', 'ServiceDown'],
+  'infra/observability/alerts/latency.yml': ['ServiceP95LatencyHigh'],
+  'infra/observability/alerts/error_rate.yml': ['ErrorBudgetBurnFast'],
+  'infra/observability/alerts/saturation.yml': ['ProcessCPUHigh', 'ProcessMemoryHigh'],
+  'infra/observability/alerts/queue_lag.yml': ['KafkaConsumerLagHigh', 'KafkaConsumerLagCritical'],
+  'infra/observability/alerts/critical_journeys.yml': [
+    'ParentPortalJourneyErrorBudgetBurn',
+    'AuthLoginJourneyErrorBudgetBurn',
+  ],
+};
+
 async function loadYaml() {
-  // Prefer a top-level dep if one ever exists
-  try { return await import('js-yaml'); } catch { /* fall through */ }
+  try {
+    return await import('js-yaml');
+  } catch {
+    /* fall through */
+  }
   const candidates = [
     '../../node_modules/.pnpm/js-yaml@4.1.1/node_modules/js-yaml/dist/js-yaml.mjs',
     '../../node_modules/js-yaml/dist/js-yaml.mjs',
@@ -46,7 +57,9 @@ async function loadYaml() {
   for (const c of candidates) {
     try {
       return await import(new URL(c, import.meta.url).href);
-    } catch { /* try next */ }
+    } catch {
+      /* try next */
+    }
   }
   throw new Error('Unable to locate js-yaml. Run `pnpm install` first.');
 }
@@ -54,10 +67,22 @@ async function loadYaml() {
 const yaml = await loadYaml();
 
 let failed = false;
-for (const f of yamlFiles) {
+
+const alertDir = resolve(root, 'infra/observability/alerts');
+const alertYamlFiles = readdirSync(alertDir)
+  .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+  .map((f) => join('infra/observability/alerts', f))
+  .sort();
+
+for (const f of [...yamlFiles, ...alertYamlFiles]) {
   const path = resolve(root, f);
   try {
-    yaml.load(await readFile(path, 'utf8'));
+    // alertmanager.yml.tpl uses ${VAR} — strip for YAML parse of structure.
+    let text = readFileSync(path, 'utf8');
+    if (f.endsWith('.tpl')) {
+      text = text.replace(/\$\{[A-Z0-9_]+(?::-?[^}]*)?\}/g, 'PLACEHOLDER');
+    }
+    yaml.load(text);
     console.log(`yaml  OK: ${f}`);
   } catch (err) {
     console.error(`yaml FAIL: ${f}: ${err.message}`);
@@ -68,7 +93,7 @@ for (const f of yamlFiles) {
 for (const f of jsonFiles) {
   const path = resolve(root, f);
   try {
-    JSON.parse(await readFile(path, 'utf8'));
+    JSON.parse(readFileSync(path, 'utf8'));
     console.log(`json  OK: ${f}`);
   } catch (err) {
     console.error(`json FAIL: ${f}: ${err.message}`);
@@ -76,17 +101,15 @@ for (const f of jsonFiles) {
   }
 }
 
-// Sanity-check the alert rules contain at least one alert expression
-// per file, so we don't ship a structurally-valid but empty rules file.
-const expectedAlertGroups = {
-  'infra/observability/alerts/availability.yml': ['ServiceErrorRateHigh', 'ServiceDown'],
-  'infra/observability/alerts/latency.yml': ['ServiceP95LatencyHigh'],
-  'infra/observability/alerts/error_rate.yml': ['ErrorBudgetBurnFast'],
-  'infra/observability/alerts/saturation.yml': ['ProcessCPUHigh', 'ProcessMemoryHigh'],
-};
-
 for (const [f, expected] of Object.entries(expectedAlertGroups)) {
-  const text = await readFile(resolve(root, f), 'utf8');
+  let text;
+  try {
+    text = readFileSync(resolve(root, f), 'utf8');
+  } catch (err) {
+    console.error(`alert FAIL: ${f}: ${err.message}`);
+    failed = true;
+    continue;
+  }
   for (const name of expected) {
     if (!text.includes(name)) {
       console.error(`alert FAIL: ${f} missing rule ${name}`);

@@ -4,6 +4,10 @@
 # Prometheus scrape config + alert rules must parse, and the Alertmanager
 # template must render to a valid config both with and without optional
 # receiver credentials (missing keys degrade to email, never to a dead route).
+#
+# W1-OPS-24: also runs tools/scripts/validate-observability.mjs (YAML/JSON
+# syntactic gate + expected alert names) so that script stays on the active CI
+# path rather than drifting as a disconnected local helper.
 # =============================================================================
 
 name: Observability Config
@@ -12,11 +16,16 @@ on:
   pull_request:
     paths:
       - 'infra/observability/**'
+      - 'tools/scripts/validate-observability.mjs'
+      - 'tools/scripts/assert-reusable-ci-assets.mjs'
+      - '.github/actions/setup-node-pnpm/**'
       - '.github/workflows/observability-config.yml'
   push:
     branches: [main]
     paths:
       - 'infra/observability/**'
+      - 'tools/scripts/validate-observability.mjs'
+      - '.github/workflows/observability-config.yml'
 
 concurrency:
   group: observability-config-${{ github.ref }}
@@ -28,6 +37,10 @@ permissions:
 env:
   PROMETHEUS_VERSION: 2.54.1
   ALERTMANAGER_VERSION: 0.27.0
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
 jobs:
   validate:
@@ -104,3 +117,20 @@ jobs:
             echo "::error::infra/observability/alertmanager.yml is tracked — it must be rendered from the template"
             exit 1
           fi
+
+  # W1-OPS-24 — keep validate-observability.mjs on an active workflow path.
+  syntactic:
+    name: validate-observability.mjs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node + pnpm
+        uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          pnpm-version: ${{ env.PNPM_VERSION }}
+          install-dependencies: 'true'
+
+      - name: Syntactic observability validation
+        run: node tools/scripts/validate-observability.mjs

@@ -72,14 +72,24 @@ Triggered on push to `main` (production) or `develop` (staging), or manually via
 
 ### `actionlint.yml` — Workflow Syntax Validation
 
-Runs [actionlint](https://github.com/rhysd/actionlint) (with shellcheck) on every PR and push that touches `.github/workflows/**`. Catches undefined secrets/variables, invalid expressions, and shell issues in `run:` blocks before they reach the runner.
+Runs [actionlint](https://github.com/rhysd/actionlint) (with shellcheck) on every PR and push that touches `.github/workflows/**` (and related reusable assets). Catches undefined secrets/variables, invalid expressions, and shell issues in `run:` blocks before they reach the runner.
+
+**W1-OPS-24:** also `uses: ./.github/workflows/reusable-setup.yml` (workflow_call smoke) and runs `tools/scripts/assert-reusable-ci-assets.mjs` so reusable setup / observability-validation assets cannot disconnect silently.
+
+### `observability-config.yml` — Observability Config Gate
+
+Runs promtool/amtool checks on `infra/observability/**`, plus `node tools/scripts/validate-observability.mjs` (syntactic YAML/JSON + expected alert names) via the shared `.github/actions/setup-node-pnpm` composite.
 
 ### `pr-check.yml` — Pull Request Checks
 
 Lightweight validation on every PR:
 
 - PR size warning (>1000 lines)
-- Affected module summary in PR comments
+- Affected module summary in PR comments (setup via `.github/actions/setup-node-pnpm`)
+
+### `reusable-setup.yml` — Reusable Setup (`workflow_call`)
+
+Shared Node/pnpm install wrapper around `.github/actions/setup-node-pnpm`. Must remain called by at least one active workflow (enforced by `assert-reusable-ci-assets.mjs`).
 
 ## Turborepo Remote Caching
 
