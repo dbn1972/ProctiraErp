@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 /**
- * W1-OPS-22 — Resolve the git SHA used in turbo `--filter=...[sha]`.
+ * W1-OPS-22 — Resolve the Turborepo filter range for CI.
  *
- * `HEAD~1` only covers the tip commit, so packages touched in earlier commits
- * of a multi-commit PR are omitted. Prefer:
- *   merge-base(HEAD, github.event.pull_request.base.sha || origin/main)
+ * Pull requests compare HEAD with the PR target merge-base. Push events compare
+ * HEAD with github.event.before so main/develop/release pushes do not collapse
+ * to origin/main === HEAD. New-branch, zero, equal, or unavailable push SHAs
+ * deliberately select every package rather than silently selecting no work.
  *
  * Usage (CI):
+ *   GITHUB_EVENT_NAME=${{ github.event_name }} \
  *   PR_BASE_SHA=${{ github.event.pull_request.base.sha }} \
- *     node tools/scripts/resolve-turbo-filter-base.mjs
+ *   PUSH_BEFORE_SHA=${{ github.event.before }} \
+ *     node tools/scripts/resolve-turbo-filter-base.mjs --github-output
  *
- * Prints the merge-base SHA to stdout. Optional `--github-output` appends
- * `base=<sha>` and `filter=...[<sha>]` to $GITHUB_OUTPUT.
+ * Prints the resolved base SHA, or `FULL` for an all-package fallback.
+ * `--github-output` appends base/filter/mode/reason outputs to $GITHUB_OUTPUT.
  */
 import { spawnSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
@@ -19,8 +22,18 @@ import { pathToFileURL } from 'node:url';
 
 const DEFAULT_FALLBACK_REF = 'origin/main';
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
+const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
+const ZERO_SHA_RE = /^0{40}$/;
+export const FULL_PACKAGE_FILTER = '*';
+
+/** @param {unknown} value */
+function normalize(value) {
+  return value == null ? '' : String(value).trim();
+}
 
 /**
+ * Resolve a PR/local comparison base through git merge-base.
+ *
  * @param {object} opts
  * @param {string | undefined | null} opts.prBaseSha
  * @param {string} [opts.fallbackRef]
@@ -37,8 +50,7 @@ export function resolveTurboFilterBase({
     throw new TypeError('execGit is required');
   }
 
-  const trimmed = prBaseSha == null ? '' : String(prBaseSha).trim();
-  const candidate = trimmed || fallbackRef;
+  const candidate = normalize(prBaseSha) || fallbackRef;
 
   try {
     execGit(['rev-parse', '--verify', `${candidate}^{commit}`]);
@@ -58,10 +70,125 @@ export function resolveTurboFilterBase({
 
 /** @param {string} baseSha */
 export function formatTurboFilter(baseSha) {
-  if (!SHA_RE.test(String(baseSha ?? '').trim())) {
+  if (!SHA_RE.test(normalize(baseSha))) {
     throw new Error(`Invalid turbo filter base SHA: ${JSON.stringify(baseSha)}`);
   }
   return `...[${baseSha.trim()}]`;
+}
+
+/** @param {string} reason */
+function fullPackageSelection(reason) {
+  return {
+    base: '',
+    filter: FULL_PACKAGE_FILTER,
+    mode: 'full',
+    reason,
+  };
+}
+
+/**
+ * Select the event-appropriate Turborepo range.
+ *
+ * @param {object} opts
+ * @param {string | undefined | null} opts.eventName
+ * @param {string | undefined | null} opts.prBaseSha
+ * @param {string | undefined | null} opts.pushBeforeSha
+ * @param {string} [opts.fallbackRef]
+ * @param {string} [opts.headRef]
+ * @param {(args: string[]) => string} opts.execGit
+ * @returns {{ base: string, filter: string, mode: string, reason: string }}
+ */
+export function resolveTurboFilterSelection({
+  eventName,
+  prBaseSha,
+  pushBeforeSha,
+  fallbackRef = DEFAULT_FALLBACK_REF,
+  headRef = 'HEAD',
+  execGit,
+}) {
+  if (typeof execGit !== 'function') {
+    throw new TypeError('execGit is required');
+  }
+
+  const event = normalize(eventName);
+
+  if (event === 'pull_request') {
+    const target = normalize(prBaseSha);
+    if (!target) {
+      throw new Error('pull_request event requires PR_BASE_SHA');
+    }
+    const base = resolveTurboFilterBase({
+      prBaseSha: target,
+      fallbackRef,
+      headRef,
+      execGit,
+    });
+    return {
+      base,
+      filter: formatTurboFilter(base),
+      mode: 'pull_request',
+      reason: 'pull_request_merge_base',
+    };
+  }
+
+  if (event === 'push') {
+    const before = normalize(pushBeforeSha);
+    if (!FULL_SHA_RE.test(before) || ZERO_SHA_RE.test(before)) {
+      return fullPackageSelection('push_before_missing_or_zero');
+    }
+
+    let verifiedBefore;
+    try {
+      verifiedBefore = execGit(['rev-parse', '--verify', `${before}^{commit}`]).trim();
+    } catch {
+      return fullPackageSelection('push_before_unresolvable');
+    }
+    if (!FULL_SHA_RE.test(verifiedBefore)) {
+      return fullPackageSelection('push_before_invalid');
+    }
+
+    const head = execGit(['rev-parse', '--verify', `${headRef}^{commit}`]).trim();
+    if (!FULL_SHA_RE.test(head)) {
+      throw new Error(`git rev-parse returned invalid HEAD SHA: ${JSON.stringify(head)}`);
+    }
+    if (verifiedBefore.toLowerCase() === head.toLowerCase()) {
+      return fullPackageSelection('push_before_equals_head');
+    }
+
+    let mergeBase;
+    try {
+      mergeBase = execGit(['merge-base', headRef, verifiedBefore]).trim();
+    } catch {
+      return fullPackageSelection('push_before_uncomparable');
+    }
+    if (!FULL_SHA_RE.test(mergeBase)) {
+      return fullPackageSelection('push_before_uncomparable');
+    }
+    if (mergeBase.toLowerCase() !== verifiedBefore.toLowerCase()) {
+      return fullPackageSelection('push_before_not_ancestor');
+    }
+
+    return {
+      base: verifiedBefore,
+      filter: formatTurboFilter(verifiedBefore),
+      mode: 'push',
+      reason: 'push_before',
+    };
+  }
+
+  // Local/manual compatibility: preserve the historical merge-base fallback.
+  const base = resolveTurboFilterBase({
+    prBaseSha,
+    fallbackRef,
+    headRef,
+    execGit,
+  });
+  return {
+    base,
+    filter: formatTurboFilter(base),
+    mode: 'fallback',
+    reason: 'non_ci_merge_base',
+  };
 }
 
 /**
@@ -95,7 +222,7 @@ function defaultExecGit(args) {
 }
 
 function parseArgs(argv) {
-  /** @type {{ prBaseSha?: string, fallbackRef: string, headRef: string, githubOutput: boolean, help?: boolean }} */
+  /** @type {{ eventName?: string, prBaseSha?: string, pushBeforeSha?: string, fallbackRef: string, headRef: string, githubOutput: boolean, help?: boolean }} */
   const out = {
     fallbackRef: DEFAULT_FALLBACK_REF,
     headRef: 'HEAD',
@@ -103,8 +230,12 @@ function parseArgs(argv) {
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--pr-base') {
+    if (arg === '--event-name') {
+      out.eventName = argv[++i];
+    } else if (arg === '--pr-base') {
       out.prBaseSha = argv[++i];
+    } else if (arg === '--push-before') {
+      out.pushBeforeSha = argv[++i];
     } else if (arg === '--fallback') {
       out.fallbackRef = argv[++i] ?? DEFAULT_FALLBACK_REF;
     } else if (arg === '--head') {
@@ -117,8 +248,14 @@ function parseArgs(argv) {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
+  if (out.eventName == null && process.env.GITHUB_EVENT_NAME) {
+    out.eventName = process.env.GITHUB_EVENT_NAME;
+  }
   if (out.prBaseSha == null && process.env.PR_BASE_SHA) {
     out.prBaseSha = process.env.PR_BASE_SHA;
+  }
+  if (out.pushBeforeSha == null && process.env.PUSH_BEFORE_SHA) {
+    out.pushBeforeSha = process.env.PUSH_BEFORE_SHA;
   }
   if (process.env.TURBO_FILTER_FALLBACK) {
     out.fallbackRef = process.env.TURBO_FILTER_FALLBACK;
@@ -130,26 +267,30 @@ function main(argv = process.argv.slice(2)) {
   const opts = parseArgs(argv);
   if (opts.help) {
     process.stdout.write(
-      'Usage: resolve-turbo-filter-base.mjs [--pr-base SHA] [--fallback REF] [--head REF] [--github-output]\n',
+      'Usage: resolve-turbo-filter-base.mjs [--event-name NAME] [--pr-base SHA] [--push-before SHA] [--fallback REF] [--head REF] [--github-output]\n',
     );
     return 0;
   }
 
-  const base = resolveTurboFilterBase({
+  const selection = resolveTurboFilterSelection({
+    eventName: opts.eventName,
     prBaseSha: opts.prBaseSha,
+    pushBeforeSha: opts.pushBeforeSha,
     fallbackRef: opts.fallbackRef,
     headRef: opts.headRef,
     execGit: defaultExecGit,
   });
-  const filter = formatTurboFilter(base);
-  process.stdout.write(`${base}\n`);
+  process.stdout.write(`${selection.base || 'FULL'}\n`);
 
   if (opts.githubOutput) {
     const path = process.env.GITHUB_OUTPUT;
     if (!path) {
       throw new Error('--github-output requires GITHUB_OUTPUT');
     }
-    appendFileSync(path, `base=${base}\nfilter=${filter}\n`);
+    appendFileSync(
+      path,
+      `base=${selection.base}\nfilter=${selection.filter}\nmode=${selection.mode}\nreason=${selection.reason}\n`,
+    );
   }
   return 0;
 }

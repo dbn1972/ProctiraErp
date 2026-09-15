@@ -109,6 +109,13 @@ jobs:
               - 'tools/**'
               - 'docs/**'
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test event-aware Turbo ranges (W1-OPS-22)
+        run: node --test tools/scripts/resolve-turbo-filter-base.test.mjs
+
   # ---------------------------------------------------------------------------
   # Lint - ESLint + Prettier check
   # ---------------------------------------------------------------------------
@@ -190,18 +197,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -247,18 +269,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -323,18 +360,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -579,18 +631,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
