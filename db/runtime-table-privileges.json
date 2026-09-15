@@ -18,7 +18,13 @@
         "SELECT",
         "INSERT"
       ],
-      "notes": "Immutable ledgers/audits \u2014 SELECT+INSERT only (matches 053/069/071 REVOKEs)"
+      "notes": "Application-written immutable ledgers/audits \u2014 SELECT+INSERT only"
+    },
+    "trigger_owned": {
+      "privileges": [
+        "SELECT"
+      ],
+      "notes": "Trigger-written immutable audits \u2014 runtime reads parent-trigger output but cannot append duplicates"
     },
     "dml": {
       "privileges": [
@@ -74,7 +80,7 @@
     "developer_portal_webhook_deliveries": "dml",
     "developer_portal_webhooks": "dml",
     "enquiry_followups": "dml",
-    "enrollment_history": "append_only",
+    "enrollment_history": "trigger_owned",
     "enrollments": "dml",
     "etl_pipeline_runs": "dml",
     "etl_pipelines": "dml",
@@ -105,7 +111,8 @@
     "gate_passes": "dml",
     "geographic_areas": "dml",
     "gpa_snapshots": "dml",
-    "grade_change_audit": "append_only",
+    "grade_change_audit": "trigger_owned",
+    "grade_change_audit_orphan_quarantine": "denied",
     "grade_entries": "dml",
     "grades": "dml",
     "grading_scale_bands": "dml",

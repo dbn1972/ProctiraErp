@@ -16,12 +16,19 @@ export const CLASSIFY_SQL_REL = 'db/sql/084_runtime_privilege_classification.sql
 export const APPLY_SQL_REL = 'tools/scripts/apply-sql.sh';
 export const SYNC_SCRIPT_REL = 'tools/scripts/apply-runtime-table-privileges.sh';
 
-export const VALID_CLASSES = new Set(['denied', 'select_insert', 'append_only', 'dml']);
+export const VALID_CLASSES = new Set([
+  'denied',
+  'select_insert',
+  'append_only',
+  'trigger_owned',
+  'dml',
+]);
 
 export const CLASS_PRIVILEGES = {
   denied: [],
   select_insert: ['SELECT', 'INSERT'],
   append_only: ['SELECT', 'INSERT'],
+  trigger_owned: ['SELECT'],
   dml: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
 };
 
@@ -142,6 +149,7 @@ export function generateSyncSql(catalog) {
     denied: [],
     select_insert: [],
     append_only: [],
+    trigger_owned: [],
     dml: [],
   };
   for (const [table, cls] of Object.entries(catalog.tables)) {
@@ -228,6 +236,7 @@ export function generateSyncSql(catalog) {
   emitGrantLoop('denied', CLASS_PRIVILEGES.denied);
   emitGrantLoop('select_insert', CLASS_PRIVILEGES.select_insert);
   emitGrantLoop('append_only', CLASS_PRIVILEGES.append_only);
+  emitGrantLoop('trigger_owned', CLASS_PRIVILEGES.trigger_owned);
   emitGrantLoop('dml', CLASS_PRIVILEGES.dml);
 
   lines.push('  -- Sequences for INSERT into non-denied tables.');
@@ -331,7 +340,11 @@ export function evaluateRuntimePrivileges(input) {
 
   // Required class members (historical W1-DATA-11 + immutability).
   const required = {
-    denied: ['schema_migrations', '_prisma_migrations'],
+    denied: [
+      'schema_migrations',
+      '_prisma_migrations',
+      'grade_change_audit_orphan_quarantine',
+    ],
     select_insert: [
       'insights_ui_templates',
       'insights_ui_indicators',
@@ -343,9 +356,8 @@ export function evaluateRuntimePrivileges(input) {
       'workflow_transition_audit',
       'transcript_issuances',
       'audit_log_archive',
-      'enrollment_history',
-      'grade_change_audit',
     ],
+    trigger_owned: ['enrollment_history', 'grade_change_audit'],
   };
   for (const [cls, tables] of Object.entries(required)) {
     for (const table of tables) {

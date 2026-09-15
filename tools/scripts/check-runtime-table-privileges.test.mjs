@@ -22,6 +22,7 @@ const MIN_CATALOG = {
   tables: {
     schema_migrations: 'denied',
     _prisma_migrations: 'denied',
+    grade_change_audit_orphan_quarantine: 'denied',
     insights_ui_templates: 'select_insert',
     insights_ui_indicators: 'select_insert',
     insights_ui_geo_features: 'select_insert',
@@ -30,8 +31,8 @@ const MIN_CATALOG = {
     workflow_transition_audit: 'append_only',
     transcript_issuances: 'append_only',
     audit_log_archive: 'append_only',
-    enrollment_history: 'append_only',
-    grade_change_audit: 'append_only',
+    enrollment_history: 'trigger_owned',
+    grade_change_audit: 'trigger_owned',
     students: 'dml',
   },
 };
@@ -72,6 +73,7 @@ test('generateSyncSql revokes defaults and grants by class', () => {
   const sql = generateSyncSql({ tables: MIN_CATALOG.tables, classes: {}, sequences: {} });
   assert.match(sql, /ALTER DEFAULT PRIVILEGES[\s\S]*REVOKE[\s\S]*ON TABLES FROM proctira_app/);
   assert.match(sql, /GRANT SELECT, INSERT ON TABLE %I TO proctira_app/);
+  assert.match(sql, /class: trigger_owned \(SELECT\)[\s\S]*GRANT SELECT ON TABLE %I TO proctira_app/);
   assert.match(sql, /GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I TO proctira_app/);
   assert.match(sql, /'schema_migrations'/);
   assert.match(sql, /'students'/);
