@@ -46,7 +46,7 @@ dependencies:
   # Device capabilities for mobile features
   geolocator: ^13.0.0 # GPS for attendance geofence validation
   image_picker: ^1.1.0 # Camera + gallery for document capture
-  permission_handler: ^11.3.0 # Runtime permissions (location, camera)
+  permission_handler: ^13.0.2 # Runtime permissions (location, camera)
 
   # Workspace packages
   proctira_api_client:
