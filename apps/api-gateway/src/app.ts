@@ -47,11 +47,11 @@ import {
   asTenantScopedResolver,
   createAreaHierarchyResolver,
 } from '@proctira/backend-institution';
-import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
+import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
-import { tenantPlugin } from '@proctira/tenant';
+import { tenantPlugin, type TenantSlugResolver } from '@proctira/tenant';
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -62,6 +62,11 @@ import {
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
+import {
+  attachMutatingRouteAuthzTracker,
+  evaluateExactMutatingAuthzGate,
+  MUTATING_HTTP_METHODS,
+} from './mutating-route-authz.js';
 import {
   buildAuditValues,
   entityIdFromPath,
@@ -74,18 +79,17 @@ import {
 } from './mutation-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
-import paginationCapPlugin from './plugins/pagination-cap.js';
 import healthPlugin from './plugins/health.js';
-import idempotencyPlugin from './plugins/idempotency.js';
 import { resolveIdempotencyStore } from './plugins/idempotency-store.js';
+import idempotencyPlugin from './plugins/idempotency.js';
+import paginationCapPlugin from './plugins/pagination-cap.js';
 import { providersPlugin } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
 import {
-  attachMutatingRouteAuthzTracker,
-  evaluateExactMutatingAuthzGate,
-  MUTATING_HTTP_METHODS,
-} from './mutating-route-authz.js';
+  createRateLimitRedisClient,
+  decideRateLimitStore,
+} from './rate-limit-store.js';
 import {
   actionForMethod,
   createGatewayRbacRegistry,
@@ -94,10 +98,6 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
-import {
-  createRateLimitRedisClient,
-  decideRateLimitStore,
-} from './rate-limit-store.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
@@ -109,6 +109,8 @@ export interface BuildAppOptions {
   config: GatewayConfig;
   /** Optional access-token revocation store override (tests / DI). */
   accessTokenRevocationStore?: AccessTokenRevocationStore;
+  /** Trusted control-plane tenant slug resolver override (tests / DI). */
+  tenantSlugResolver?: TenantSlugResolver;
 }
 
 /**
@@ -339,6 +341,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
             type: 'apiKey',
             in: 'header',
             name: 'X-Tenant-ID',
+            description:
+              'Optional tenant consistency assertion. It never authenticates or authorizes a request.',
           },
         },
         parameters: {
@@ -356,7 +360,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           },
         },
       },
-      security: [{ bearerAuth: [] }, { tenantHeader: [] }],
+      security: [{ bearerAuth: [] }],
       tags: [
         { name: 'Health', description: 'Health check endpoints' },
         { name: 'Gateway', description: 'Gateway management endpoints' },
@@ -596,17 +600,34 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     request.user = payload as typeof request.user;
   });
 
-  // 7c. Strip forgeable client identity headers AFTER auth (G-102, W1-SEC-01).
-  // Actor identity comes only from the verified JWT (request.user / getActor).
-  // Tenant scope for authenticated routes requires a verified UUID JWT claim
-  // (or trusted slug→UUID lookup). Client X-Tenant-ID is never trusted; raw
-  // hostname slugs are rejected when slug lookup is disabled (below).
+  // 8. Register tenant resolution after auth so only verified claims can bind
+  // tenant scope. Supported hostname slugs are resolved against the trusted
+  // control-plane repository and compared with the JWT UUID; they never replace
+  // a missing JWT tenant claim.
+  const { repository: tenantRepository } = createTenantRepository();
+  const tenantSlugResolver: TenantSlugResolver =
+    options.tenantSlugResolver ??
+    (async (slug) => (await tenantRepository.findTenantBySlug(slug))?.id);
+
+  await app.register(tenantPlugin, {
+    baseDomain: config.tenant.baseDomain,
+    headerName: config.tenant.headerName,
+    excludePaths: [...authExcludePaths, '/api/v1/services'],
+    resolveSlugToId: true,
+    resolveTenantSlug: tenantSlugResolver,
+    requireJwtTenantWhenAuthenticated: true,
+  });
+
+  // 8a. Remove forgeable identity headers only after tenant resolution has
+  // compared the raw candidate with the verified JWT. Downstream hooks,
+  // handlers, and proxied services never receive client identity assertions.
   const FORGEABLE_CLIENT_HEADERS = new Set([
     'x-user-id',
     'x-actor',
     'x-actor-id',
     'x-userid',
     'x-tenant-id',
+    config.tenant.headerName.toLowerCase(),
   ]);
   app.addHook('onRequest', async (request) => {
     for (const key of Object.keys(request.headers)) {
@@ -616,19 +637,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
-  // 8. Register tenant resolution (after auth, so JWT claims are available).
-  // W1-SEC-01 COMPLETE: resolveSlugToId stays false here (no Prisma tenant
-  // finder on the gateway), so authenticated requests cannot fall through to
-  // a raw hostname slug — they need a verified UUID tenantId claim.
-  await app.register(tenantPlugin, {
-    baseDomain: config.tenant.baseDomain,
-    headerName: config.tenant.headerName,
-    excludePaths: [...authExcludePaths, '/api/v1/services'],
-    resolveSlugToId: false,
-    requireJwtTenantWhenAuthenticated: true,
-  });
-
-  // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth).
+  // 8b. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth).
   const SUSPEND_MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
@@ -754,7 +763,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     prefix: '/api/v1/billing',
   });
   await app.register(tenantLifecyclePlugin, {
-    repository: createTenantRepository().repository,
+    repository: tenantRepository,
     prefix: '/api/v1/tenant-lifecycle',
     branding: { disabled: false },
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold

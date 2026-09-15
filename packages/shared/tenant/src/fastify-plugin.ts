@@ -1,68 +1,61 @@
 /**
  * Fastify Tenant Plugin
  *
- * Registers an onRequest hook that:
- * 1. Resolves the tenant ID from the incoming request
- * 2. Binds the canonical PostgreSQL GUC `app.tenant_id` for RLS (legacy alias synced)
- * 3. Decorates the request with `tenantId` for downstream handlers
- *
- * This plugin must be registered AFTER the auth plugin (so JWT claims are available)
- * but BEFORE any route handlers that access tenant-scoped data.
- *
- * W1-SEC-01: Authenticated tenant routes require a verified UUID JWT claim or a
- * trusted slug→UUID database lookup. Raw hostname slugs are never accepted as
- * tenant identity for authenticated principals when lookup is disabled/unavailable.
+ * Runs after authentication and before tenant-scoped handlers. Authenticated
+ * requests are bound to a verified JWT tenant UUID; client headers and known
+ * tenant subdomains are comparison inputs only.
  */
 
+import { bindTenantGucPrisma } from '@proctira/database';
 import { createLogger } from '@proctira/logging';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-
-import { bindTenantGucPrisma } from '@proctira/database';
 
 import {
   isAuthenticatedRequest,
   isValidUuid,
   resolveTenantId,
+  resolveTenantSlugFromHostname,
+  TenantContextMismatchError,
   TenantResolutionError,
   type TenantResolutionOptions,
 } from './tenant-resolution.js';
 
 const logger = createLogger({ name: 'tenant-plugin' });
 
-/**
- * Options for the tenant Fastify plugin.
- */
+export type TenantSlugResolver = (slug: string) => Promise<string | undefined>;
+
+type TenantFindUnique = {
+  findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
+};
+
+type TenantDbClient = {
+  $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
+  tenant?: TenantFindUnique;
+};
+
+/** Options for the tenant Fastify plugin. */
 export interface TenantPluginOptions extends TenantResolutionOptions {
-  /**
-   * Routes to exclude from tenant resolution (e.g., health checks, public endpoints).
-   * Supports exact paths and prefix matching with trailing wildcard.
-   * Example: ['/health', '/api/v1/public/*']
-   */
+  /** Routes to exclude from tenant resolution. Supports trailing `/*`. */
   excludePaths?: string[];
 
-  /**
-   * Custom function to get a database client for setting the session variable.
-   * If not provided, the plugin will look for `fastify.prisma` or `request.server.prisma`.
-   */
-  getDbClient?: (request: FastifyRequest) =>
-    | {
-        $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
-      }
-    | undefined;
+  /** Optional database client used for tenant GUC binding and legacy slug lookup. */
+  getDbClient?: (request: FastifyRequest) => TenantDbClient | undefined;
 
   /**
-   * Whether to look up the tenant slug in the database to resolve to a UUID.
-   * When true, subdomain-resolved slugs will be looked up in the tenants table.
-   * Required for authenticated subdomain resolution (W1-SEC-01).
-   * Default: true
+   * Whether hostname slugs may be resolved through a trusted server-side
+   * lookup. Authenticated hostname candidates fail closed if lookup is disabled.
+   * Default: true.
    */
   resolveSlugToId?: boolean;
+
+  /**
+   * Trusted control-plane lookup for a supported tenant slug. Returning
+   * `undefined` means the hostname is not a supported tenant slug.
+   */
+  resolveTenantSlug?: TenantSlugResolver;
 }
 
-/**
- * Checks if a request path matches any of the excluded paths.
- */
 function isExcludedPath(path: string, excludePaths: string[]): boolean {
   for (const excluded of excludePaths) {
     if (excluded.endsWith('/*')) {
@@ -75,13 +68,7 @@ function isExcludedPath(path: string, excludePaths: string[]): boolean {
   return false;
 }
 
-type TenantFindUnique = {
-  findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
-};
-
-function getTenantFinder(
-  db: unknown,
-): TenantFindUnique | undefined {
+function getTenantFinder(db: unknown): TenantFindUnique | undefined {
   if (db && typeof db === 'object' && 'tenant' in db) {
     const tenant = (db as { tenant?: TenantFindUnique }).tenant;
     if (tenant && typeof tenant.findUnique === 'function') {
@@ -91,38 +78,34 @@ function getTenantFinder(
   return undefined;
 }
 
-/**
- * Resolve a hostname slug to a canonical tenant UUID via DB.
- * @throws TenantResolutionError when lookup is required but unavailable/fails
- */
 async function resolveSlugViaTrustedLookup(
   slug: string,
   db: unknown,
+  resolver: TenantSlugResolver | undefined,
   options: { required: boolean },
 ): Promise<string | undefined> {
-  const finder = getTenantFinder(db);
-  if (!finder) {
-    if (options.required) {
-      throw new TenantResolutionError(
-        'Authenticated tenant routes require verified UUID claim or trusted slug→UUID lookup (lookup unavailable)',
-      );
+  let tenantId: string | undefined;
+
+  if (resolver) {
+    tenantId = await resolver(slug);
+  } else {
+    const finder = getTenantFinder(db);
+    if (!finder) {
+      if (options.required) {
+        throw new TenantResolutionError('Trusted tenant slug lookup is unavailable');
+      }
+      return undefined;
     }
-    return undefined;
+    tenantId = (await finder.findUnique({ where: { slug } }))?.id;
   }
 
-  const tenant = await finder.findUnique({ where: { slug } });
-  if (!tenant) {
-    throw new TenantResolutionError(`Tenant not found for subdomain: ${slug}`);
+  if (!tenantId) return undefined;
+  if (!isValidUuid(tenantId)) {
+    throw new TenantResolutionError('Trusted tenant slug lookup returned an invalid tenant ID');
   }
-  if (!isValidUuid(tenant.id)) {
-    throw new TenantResolutionError(
-      `Trusted slug lookup returned non-UUID tenant id for subdomain: ${slug}`,
-    );
-  }
-  return tenant.id;
+  return tenantId.toLowerCase();
 }
 
-// Extend Fastify types
 declare module 'fastify' {
   interface FastifyRequest {
     tenantId?: string;
@@ -130,29 +113,21 @@ declare module 'fastify' {
   }
 
   interface FastifyInstance {
-    prisma?: {
-      $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
-      tenant?: {
-        findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
-      };
-    };
+    prisma?: TenantDbClient;
   }
 }
 
-/**
- * Fastify plugin that resolves tenant context on every request and sets
- * the PostgreSQL session variable for Row-Level Security enforcement.
- */
+/** Resolve and bind tenant context for each non-excluded request. */
 export const tenantPlugin = fp(
   async function tenantPluginImpl(fastify: FastifyInstance, options: TenantPluginOptions) {
     const {
       excludePaths = ['/health', '/healthz', '/ready', '/metrics'],
       getDbClient,
       resolveSlugToId = true,
+      resolveTenantSlug,
       ...resolutionOptions
     } = options;
 
-    // Decorate request with tenantId and tenantSource
     if (!fastify.hasRequestDecorator('tenantId')) {
       fastify.decorateRequest('tenantId', undefined);
     }
@@ -163,8 +138,8 @@ export const tenantPlugin = fp(
     fastify.addHook(
       'onRequest',
       async function tenantResolutionHook(request: FastifyRequest, reply: FastifyReply) {
-        // Skip excluded paths
-        if (isExcludedPath(request.url, excludePaths)) {
+        const path = request.url.split('?')[0]!;
+        if (isExcludedPath(path, excludePaths)) {
           return;
         }
 
@@ -174,55 +149,63 @@ export const tenantPlugin = fp(
           const authenticated = isAuthenticatedRequest(request);
           const db = getDbClient?.(request) ?? fastify.prisma;
 
-          // Subdomain yields a slug — authenticated principals must map via trusted lookup.
           if (resolution.source === 'subdomain') {
-            if (authenticated) {
-              if (!resolveSlugToId) {
-                throw new TenantResolutionError(
-                  'Authenticated tenant routes require verified UUID claim or trusted slug→UUID lookup',
-                );
-              }
-              const lookedUp = await resolveSlugViaTrustedLookup(tenantId, db, {
-                required: true,
-              });
-              tenantId = lookedUp!;
-            } else if (resolveSlugToId) {
-              const lookedUp = await resolveSlugViaTrustedLookup(tenantId, db, {
-                required: false,
-              });
+            if (!resolveSlugToId) {
+              // Anonymous resolver consumers may deliberately retain the slug.
+              // Authenticated requests cannot reach this branch because they
+              // require a JWT tenant claim in resolveTenantId().
+            } else {
+              const lookedUp = await resolveSlugViaTrustedLookup(
+                tenantId,
+                db,
+                resolveTenantSlug,
+                { required: authenticated },
+              );
               if (lookedUp) {
                 tenantId = lookedUp;
+              } else if (resolveTenantSlug || getTenantFinder(db)) {
+                throw new TenantResolutionError('Tenant subdomain is not recognized');
               }
-              // If no DB client available, use slug as-is (useful in testing / anonymous)
             }
-          } else if (
-            resolution.source === 'jwt' &&
-            authenticated &&
-            resolveSlugToId &&
-            typeof request.hostname === 'string'
-          ) {
-            // When JWT UUID and host slug both present, reject if trusted lookup
-            // yields a different tenant UUID (conflicting identities).
-            const host = request.hostname || request.headers['host'];
-            if (host && typeof host === 'string') {
-              const baseDomain =
-                resolutionOptions.baseDomain ??
-                process.env['TENANT_BASE_DOMAIN'] ??
-                'proctira.org';
-              const hostname = host.split(':')[0]!;
-              if (hostname.endsWith(`.${baseDomain}`)) {
-                const slug = hostname.slice(0, -(baseDomain.length + 1));
-                if (slug.length > 0 && !slug.includes('.')) {
-                  const finder = getTenantFinder(db);
-                  if (finder) {
-                    const tenant = await finder.findUnique({ where: { slug } });
-                    if (tenant && isValidUuid(tenant.id) && tenant.id !== tenantId) {
-                      throw new TenantResolutionError(
-                        `Conflicting tenant identities: JWT claim (${tenantId}) does not match host slug (${slug} → ${tenant.id})`,
-                      );
-                    }
-                  }
+          }
+
+          if (authenticated && resolution.source === 'jwt') {
+            const baseDomain =
+              resolutionOptions.baseDomain ??
+              process.env['TENANT_BASE_DOMAIN'] ??
+              'proctira.org';
+            const hostSlug = resolveTenantSlugFromHostname(request, baseDomain);
+
+            if (hostSlug) {
+              if (!resolveSlugToId) {
+                throw new TenantContextMismatchError(
+                  'Authenticated tenant hostname context cannot be verified',
+                );
+              }
+
+              let hostTenantId: string | undefined;
+              try {
+                hostTenantId = await resolveSlugViaTrustedLookup(
+                  hostSlug,
+                  db,
+                  resolveTenantSlug,
+                  { required: true },
+                );
+              } catch (error) {
+                if (error instanceof TenantResolutionError) {
+                  throw new TenantContextMismatchError(
+                    'Authenticated tenant hostname context cannot be verified',
+                  );
                 }
+                throw error;
+              }
+
+              // Only slugs recognized by the trusted control-plane lookup are
+              // tenant identities. Infrastructure/unknown host labels are not.
+              if (hostTenantId && hostTenantId !== tenantId) {
+                throw new TenantContextMismatchError(
+                  'Verified JWT tenant does not match hostname tenant context',
+                );
               }
             }
           }
@@ -230,18 +213,17 @@ export const tenantPlugin = fp(
           request.tenantId = tenantId;
           request.tenantSource = resolution.source;
 
-          // W1-DATA-12 / G-720: bind canonical app.tenant_id (+ legacy alias) as a parameter.
           if (db) {
             await bindTenantGucPrisma(db, tenantId);
           }
 
           logger.debug(
-            { tenantId, source: resolution.source, path: request.url },
+            { tenantId, source: resolution.source, path },
             'Tenant resolved',
           );
         } catch (error) {
           if (error instanceof TenantResolutionError) {
-            logger.warn({ path: request.url, error: error.message }, 'Tenant resolution failed');
+            logger.warn({ path, code: error.code }, 'Tenant resolution failed');
             return reply.status(error.statusCode).send({
               code: error.code,
               message: error.message,

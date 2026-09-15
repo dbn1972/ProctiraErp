@@ -11,11 +11,17 @@
 // Tenant Resolution
 export {
   resolveTenantId,
+  resolveTenantSlugFromHostname,
   isValidUuid,
   isAuthenticatedRequest,
+  TenantContextMismatchError,
   TenantResolutionError,
 } from './tenant-resolution.js';
-export type { TenantResolutionResult, TenantResolutionOptions } from './tenant-resolution.js';
+export type {
+  TenantResolutionErrorCode,
+  TenantResolutionResult,
+  TenantResolutionOptions,
+} from './tenant-resolution.js';
 
 // W3-TIME-01 — tenant timezone foundation
 export {
@@ -27,7 +33,7 @@ export type { TenantTimezoneSource } from './tenant-timezone.js';
 
 // Fastify Plugin
 export { tenantPlugin } from './fastify-plugin.js';
-export type { TenantPluginOptions } from './fastify-plugin.js';
+export type { TenantPluginOptions, TenantSlugResolver } from './fastify-plugin.js';
 
 // Provisioning
 export { provisionTenant } from './provisioning.js';

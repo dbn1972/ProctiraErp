@@ -1,25 +1,22 @@
 /**
- * W1-SEC-01 (COMPLETE) — tenant authorization scope must come from verified
- * JWT UUID claim or trusted slug→UUID lookup; client X-Tenant-ID and raw
- * hostname fallthrough must never grant tenant scope on authenticated routes.
+ * W1-SEC-01 — authenticated tenant scope is the verified JWT UUID. Client
+ * headers and supported hostname slugs may only corroborate that identity.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import Fastify, { type FastifyInstance } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 
 import { buildApp } from './app.js';
-import { healthUiPlugin } from './health-ui-plugin.js';
-import { HEALTH_DEMO_TENANT_ID } from './health-ui-seed.js';
 import type { GatewayConfig } from './config.js';
 
 delete process.env['DATABASE_URL'];
 
-const TENANT_A = HEALTH_DEMO_TENANT_ID;
-const TENANT_B = '11111111-1111-4111-8111-111111111111';
+const TENANT_A = '550e8400-e29b-41d4-a716-446655440000';
+const TENANT_B = '660e8400-e29b-41d4-a716-446655440000';
 
 function createTestJwtPayload(overrides?: Record<string, unknown>) {
   return {
     sub: 'user-123',
-    tenantId: '550e8400-e29b-41d4-a716-446655440000',
+    tenantId: TENANT_A,
     email: 'test@example.com',
     displayName: 'Test User',
     roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
@@ -31,7 +28,7 @@ function createTestJwtPayload(overrides?: Record<string, unknown>) {
   } as Record<string, unknown>;
 }
 
-function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
+function createTestConfig(): GatewayConfig {
   return {
     port: 0,
     host: '127.0.0.1',
@@ -56,15 +53,26 @@ function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
         healthCheck: '/health',
       },
     },
-    ...overrides,
   };
 }
 
-describe('W1-SEC-01 (COMPLETE) tenant context trust', () => {
+describe('W1-SEC-01 tenant context trust', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
-    app = await buildApp({ config: createTestConfig() });
+    const tenantsBySlug: Record<string, string> = {
+      'tenant-a': TENANT_A,
+      'tenant-b': TENANT_B,
+    };
+    app = await buildApp({
+      config: createTestConfig(),
+      tenantSlugResolver: async (slug) => tenantsBySlug[slug],
+    });
+    app.get('/_test/tenant-context', async (request) => ({
+      tenantId: request.tenantId ?? null,
+      tenantSource: request.tenantSource ?? null,
+      tenantHeader: request.headers['x-tenant-id'] ?? null,
+    }));
     await app.ready();
   });
 
@@ -72,108 +80,134 @@ describe('W1-SEC-01 (COMPLETE) tenant context trust', () => {
     await app.close();
   });
 
-  it('rejects authenticated requests when JWT lacks tenantId and only X-Tenant-ID is supplied', async () => {
-    const { tenantId: _omit, ...payloadWithoutTenant } = createTestJwtPayload();
-    const token = app.jwt.sign(payloadWithoutTenant);
+  it('rejects JWT tenant A with X-Tenant-ID B using 403', async () => {
+    const token = app.jwt.sign(createTestJwtPayload());
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/institutions',
+      url: '/_test/tenant-context',
       headers: {
         authorization: `Bearer ${token}`,
         'x-tenant-id': TENANT_B,
       },
     });
 
-    expect(response.statusCode).toBe(401);
-    expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      code: 'TENANT_CONTEXT_MISMATCH',
+      statusCode: 403,
+    });
   });
 
-  it('rejects authenticated requests when JWT lacks tenantId even if Host has a tenant subdomain', async () => {
+  it('rejects JWT tenant A with trusted hostname tenant B using 403', async () => {
+    const token = app.jwt.sign(createTestJwtPayload());
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/_test/tenant-context',
+      headers: {
+        authorization: `Bearer ${token}`,
+        host: 'tenant-b.proctira.org',
+      },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      code: 'TENANT_CONTEXT_MISMATCH',
+      statusCode: 403,
+    });
+  });
+
+  it('rejects an authenticated request missing a JWT tenant even when a header is supplied', async () => {
     const { tenantId: _omit, ...payloadWithoutTenant } = createTestJwtPayload();
     const token = app.jwt.sign(payloadWithoutTenant);
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/institutions',
+      url: '/_test/tenant-context',
       headers: {
         authorization: `Bearer ${token}`,
-        host: 'ministry-edu.proctira.org',
+        'x-tenant-id': TENANT_A,
       },
     });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(response.json().message)).toMatch(
-      /verified UUID claim|trusted slug|missing verified JWT tenantId/i,
-    );
+    expect(response.json()).toMatchObject({
+      code: 'TENANT_RESOLUTION_FAILED',
+      statusCode: 401,
+    });
   });
 
-  it('rejects authenticated requests with invalid (non-UUID) JWT tenantId', async () => {
-    const token = app.jwt.sign(createTestJwtPayload({ tenantId: 'not-a-uuid' }));
+  it('rejects an authenticated request missing a JWT tenant even when a trusted host is supplied', async () => {
+    const { tenantId: _omit, ...payloadWithoutTenant } = createTestJwtPayload();
+    const token = app.jwt.sign(payloadWithoutTenant);
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/institutions',
+      url: '/_test/tenant-context',
       headers: {
         authorization: `Bearer ${token}`,
-        host: 'ministry-edu.proctira.org',
+        host: 'tenant-a.proctira.org',
       },
     });
 
     expect(response.statusCode).toBe(401);
-    expect(response.json().code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(response.json().message)).toMatch(/Invalid tenant ID format/);
+    expect(response.json()).toMatchObject({
+      code: 'TENANT_RESOLUTION_FAILED',
+      statusCode: 401,
+    });
   });
 
-  it('JWT-bound tenant is accepted on protected routes even when X-Tenant-ID mismatches', async () => {
-    const jwtTenant = '550e8400-e29b-41d4-a716-446655440000';
-    const token = app.jwt.sign(
-      createTestJwtPayload({
-        tenantId: jwtTenant,
-        roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
-      }),
-    );
+  it('rejects a malformed authenticated JWT tenant claim without echoing it', async () => {
+    const malformedTenant = 'not-a-tenant-uuid';
+    const token = app.jwt.sign(createTestJwtPayload({ tenantId: malformedTenant }));
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/v1/institutions',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'x-tenant-id': TENANT_B,
-      },
+      url: '/_test/tenant-context',
+      headers: { authorization: `Bearer ${token}` },
     });
 
-    // Spoofed header must not cause tenant-resolution failure; JWT UUID binds scope.
-    expect(response.statusCode).not.toBe(401);
-    expect(response.json()?.code).not.toBe('TENANT_RESOLUTION_FAILED');
-    if (response.statusCode === 200) {
-      expect(response.json().data).toBeInstanceOf(Array);
-    }
+    expect(response.statusCode).toBe(401);
+    expect(response.json()).toMatchObject({
+      code: 'TENANT_RESOLUTION_FAILED',
+      statusCode: 401,
+    });
+    expect(response.body).not.toContain(malformedTenant);
   });
 
-  it('health UI must not prefer X-Tenant-ID over JWT user.tenantId when request.tenantId is unset', async () => {
-    const local = Fastify();
-    local.addHook('onRequest', async (request) => {
-      (request as { user?: { sub: string; tenantId: string; roles: unknown[] } }).user = {
-        sub: 'u1',
-        tenantId: TENANT_A,
-        roles: [{ roleId: 'health_officer', roleName: 'HEALTH_OFFICER', areaId: 'area-1' }],
-      };
-    });
-    await local.register(healthUiPlugin);
-    await local.ready();
-
-    const response = await local.inject({
+  it('keeps excluded public flows available without trusting tenant candidates', async () => {
+    const response = await app.inject({
       method: 'GET',
-      url: '/health/records',
-      headers: { 'x-tenant-id': TENANT_B },
+      url: '/health',
+      headers: {
+        host: 'tenant-b.proctira.org',
+        'x-tenant-id': 'malformed-public-candidate',
+      },
     });
 
     expect(response.statusCode).toBe(200);
-    const body = response.json() as { data: unknown[] };
-    expect(body.data.length).toBeGreaterThan(0);
+    expect(response.json().status).toBe('healthy');
+  });
 
-    await local.close();
+  it('accepts matching JWT, header, and trusted hostname contexts and strips the header', async () => {
+    const token = app.jwt.sign(createTestJwtPayload());
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/_test/tenant-context',
+      headers: {
+        authorization: `Bearer ${token}`,
+        host: 'tenant-a.proctira.org',
+        'x-tenant-id': TENANT_A,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      tenantId: TENANT_A,
+      tenantSource: 'jwt',
+      tenantHeader: null,
+    });
   });
 });

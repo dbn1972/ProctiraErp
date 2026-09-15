@@ -85,7 +85,7 @@ describe('tenant-resolution', () => {
         });
 
         expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
-        expect(() => resolveTenantId(request)).toThrow(/missing verified JWT tenantId/);
+        expect(() => resolveTenantId(request)).toThrow(/requires a verified UUID tenantId claim/);
       });
 
       it('should reject authenticated requests missing JWT tenantId with no other identity (W1-SEC-01)', () => {
@@ -95,18 +95,18 @@ describe('tenant-resolution', () => {
         });
 
         expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
-        expect(() => resolveTenantId(request)).toThrow(/missing verified JWT tenantId/);
+        expect(() => resolveTenantId(request)).toThrow(/requires a verified UUID tenantId claim/);
       });
 
-      it('should return subdomain slug for authenticated requests so trusted lookup can complete', () => {
+      it('should reject authenticated subdomain fallback without a JWT tenant claim', () => {
         const request = createMockRequest({
           user: { sub: 'user-1' },
           hostname: 'ministry-edu.proctira.org',
         });
 
-        const result = resolveTenantId(request, { baseDomain: 'proctira.org' });
-        expect(result.source).toBe('subdomain');
-        expect(result.tenantId).toBe('ministry-edu');
+        expect(() => resolveTenantId(request, { baseDomain: 'proctira.org' })).toThrow(
+          /requires a verified UUID tenantId claim/,
+        );
       });
 
       it('should reject conflicting JWT and header tenant UUIDs (W1-SEC-01)', () => {
@@ -116,7 +116,7 @@ describe('tenant-resolution', () => {
         });
 
         expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
-        expect(() => resolveTenantId(request)).toThrow(/Conflicting tenant identities/);
+        expect(() => resolveTenantId(request)).toThrow(/does not match x-tenant-id/);
       });
     });
 
