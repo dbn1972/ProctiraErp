@@ -326,7 +326,7 @@ describe('API Gateway', () => {
   });
 
   describe('Tenant Resolution', () => {
-    it('ignores client X-Tenant-ID and resolves tenant from JWT claim only (W1-SEC-01)', async () => {
+    it('rejects a client X-Tenant-ID that conflicts with the JWT tenant (W1-SEC-01)', async () => {
       const token = app.jwt.sign(createTestJwtPayload());
 
       const response = await app.inject({
@@ -338,9 +338,11 @@ describe('API Gateway', () => {
         },
       });
 
-      // Spoofed header is stripped; JWT tenantId claim binds authorization scope.
-      expect(response.statusCode).toBe(200);
-      expect(response.json().data).toBeInstanceOf(Array);
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toMatchObject({
+        code: 'TENANT_CONTEXT_MISMATCH',
+        statusCode: 403,
+      });
     });
 
     it('resolves tenant from JWT claim', async () => {

@@ -166,11 +166,10 @@ describe('tenantPlugin', () => {
     expect(body.source).toBe('subdomain');
   });
 
-  it('rejects authenticated subdomain fallthrough when slug→UUID lookup is disabled (W1-SEC-01)', async () => {
+  it('rejects authenticated subdomain fallback when the JWT has no tenant claim (W1-SEC-01)', async () => {
     app.addHook('onRequest', async (request) => {
       (request as unknown as { user: Record<string, unknown> }).user = {
         sub: 'user-123',
-        // intentionally no tenantId
       };
     });
 
@@ -180,10 +179,7 @@ describe('tenantPlugin', () => {
       getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
     });
 
-    app.get('/test', async (request) => {
-      return { tenantId: request.tenantId ?? null };
-    });
-
+    app.get('/test', async (request) => ({ tenantId: request.tenantId ?? null }));
     const response = await app.inject({
       method: 'GET',
       url: '/test',
@@ -191,18 +187,20 @@ describe('tenantPlugin', () => {
     });
 
     expect(response.statusCode).toBe(401);
-    const body = JSON.parse(response.body);
-    expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(body.message)).toMatch(/trusted slug/);
+    expect(JSON.parse(response.body)).toMatchObject({
+      code: 'TENANT_RESOLUTION_FAILED',
+      statusCode: 401,
+    });
   });
 
-  it('resolves authenticated subdomain via trusted slug→UUID lookup (W1-SEC-01)', async () => {
+  it('accepts a trusted hostname only when it resolves to the JWT tenant (W1-SEC-01)', async () => {
     const tenantUuid = '550e8400-e29b-41d4-a716-446655440000';
     const findUnique = vi.fn().mockResolvedValue({ id: tenantUuid });
 
     app.addHook('onRequest', async (request) => {
       (request as unknown as { user: Record<string, unknown> }).user = {
         sub: 'user-123',
+        tenantId: tenantUuid,
       };
     });
 
@@ -215,10 +213,10 @@ describe('tenantPlugin', () => {
       }),
     });
 
-    app.get('/test', async (request) => {
-      return { tenantId: request.tenantId ?? null, source: request.tenantSource ?? null };
-    });
-
+    app.get('/test', async (request) => ({
+      tenantId: request.tenantId ?? null,
+      source: request.tenantSource ?? null,
+    }));
     const response = await app.inject({
       method: 'GET',
       url: '/test',
@@ -226,9 +224,7 @@ describe('tenantPlugin', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    const body = JSON.parse(response.body);
-    expect(body.tenantId).toBe(tenantUuid);
-    expect(body.source).toBe('subdomain');
+    expect(JSON.parse(response.body)).toMatchObject({ tenantId: tenantUuid, source: 'jwt' });
     expect(findUnique).toHaveBeenCalledWith({ where: { slug: 'ministry-edu' } });
   });
 
@@ -254,17 +250,17 @@ describe('tenantPlugin', () => {
     });
 
     app.get('/test', async () => ({ ok: true }));
-
     const response = await app.inject({
       method: 'GET',
       url: '/test',
       headers: { host: 'other-tenant.proctira.org' },
     });
 
-    expect(response.statusCode).toBe(401);
-    const body = JSON.parse(response.body);
-    expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
-    expect(String(body.message)).toMatch(/Conflicting tenant identities/);
+    expect(response.statusCode).toBe(403);
+    expect(JSON.parse(response.body)).toMatchObject({
+      code: 'TENANT_CONTEXT_MISMATCH',
+      statusCode: 403,
+    });
   });
 
   it('should not set session variable when no DB client available', async () => {
