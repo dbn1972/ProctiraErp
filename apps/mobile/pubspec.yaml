@@ -16,7 +16,7 @@ dependencies:
 
   # Routing & DI
   go_router: ^14.0.0
-  get_it: ^7.7.0
+  get_it: ^9.2.1
 
   # State management
   flutter_bloc: ^8.1.6
