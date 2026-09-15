@@ -44,7 +44,7 @@ jobs:
     name: Scanner contract (fail-closed)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Verify W1-OPS-11 scanner contract
         # Missing / softened scanners must fail before soft-green.
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history for commit-range scan)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -96,10 +96,10 @@ jobs:
     needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -132,10 +132,10 @@ jobs:
     needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Trivy config scan (infrastructure/)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: false
         with:
           scan-type: config
@@ -150,13 +150,13 @@ jobs:
     needs: [security-scans-contract]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Inexpensive FS scan of Docker build contexts + lockfiles — no registry
       # login required. Documented equivalent for PR/main aggregate gate.
       # Does not replace image-digest CVE of published artifacts.
       - name: Trivy filesystem scan (docker + lockfiles)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         continue-on-error: false
         with:
           scan-type: fs
