@@ -58,14 +58,6 @@ import {
 } from '@proctira/backend-communication';
 import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
-  createCustomFieldRepositories,
-  customFieldPlugin,
-} from '@proctira/backend-custom-field';
-import {
-  createDashboardRepository,
-  dashboardsPlugin,
-} from '@proctira/backend-dashboards';
-import {
   createDeveloperPortalRepository,
   createWebhookDeliveryPublisherFromEnv,
   createWebhookReplayStoreFromEnv,
@@ -98,11 +90,7 @@ import {
   healthPlugin,
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
-import {
-  createAreaHierarchyResolver,
-  createInstitutionRepository,
-  institutionPlugin,
-} from '@proctira/backend-institution';
+import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import {
@@ -111,6 +99,12 @@ import {
   notificationPlugin,
 } from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
+import {
+  createPrivacyQueuePublishersFromEnv,
+  createPrivacyRepository,
+  PrivacyService,
+  privacyPlugin,
+} from '@proctira/backend-privacy';
 import {
   AdmissionsPipelineService,
   createAdmissionsCrmStore,
@@ -135,12 +129,6 @@ import {
   StudentService,
   studentPlugin,
 } from '@proctira/backend-student';
-import {
-  createPrivacyQueuePublishersFromEnv,
-  createPrivacyRepository,
-  PrivacyService,
-  privacyPlugin,
-} from '@proctira/backend-privacy';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import {
@@ -1003,35 +991,6 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         deliveryPublisher: webhookDelivery?.publisher,
         replayStore: webhookReplayStore,
         prefix: '/developer',
-      });
-    },
-  },
-  {
-    name: 'custom-field',
-    proxyPrefixes: ['/custom-fields'],
-    register: async (scope) => {
-      // W1-ARCH-05 / W1-SEC-12: unpark custom-field — definitions/values for
-      // student/staff/institution. No durable schema yet: factory fails closed
-      // when DATABASE_URL is set (honesty over fake Pg / silent memory).
-      const { definitionRepository, valueRepository } = createCustomFieldRepositories();
-      await scope.register(customFieldPlugin, {
-        definitionRepository,
-        valueRepository,
-        prefix: '/custom-fields',
-      });
-    },
-  },
-  {
-    name: 'dashboards',
-    proxyPrefixes: ['/dashboards'],
-    register: async (scope) => {
-      // W1-ARCH-05 / W1-SEC-12: unpark dashboards — AreaHierarchyResolver wired
-      // (W1-ARCH-04). No durable aggregate schema yet: factory fails closed when
-      // DATABASE_URL is set. G-909 role dashboards remain on backend-report.
-      await scope.register(dashboardsPlugin, {
-        repository: createDashboardRepository(),
-        areaResolver: createAreaHierarchyResolver(),
-        prefix: '/dashboards',
       });
     },
   },
