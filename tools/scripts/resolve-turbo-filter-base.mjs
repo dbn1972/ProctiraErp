@@ -1,20 +1,16 @@
 #!/usr/bin/env node
 /**
- * W1-OPS-22 — Resolve comparison SHAs for Turbo and changed-file CI gates.
+ * W1-OPS-22 — Resolve comparison ranges for Turbo and changed-file CI gates.
  *
- * The default mode preserves the Turbo merge-base contract. The explicit
- * `--changed-files-base` mode is event-aware: PRs compare against their target,
- * pushes compare against github.event.before, and all-zero branch-creation
- * pushes use a non-empty fallback rather than silently checking zero files.
+ * Default Turbo mode is event-aware and fail-safe: pull requests use the
+ * target merge-base, ordinary pushes use a verified ancestor
+ * `github.event.before`, and ambiguous push history selects every package.
  *
- * Usage (changed-file CI):
- *   node tools/scripts/resolve-turbo-filter-base.mjs \
- *     --changed-files-base --event-name "$GITHUB_EVENT_NAME" \
- *     --pr-base "$PR_BASE_SHA" --push-before "$PUSH_BEFORE_SHA" \
- *     --github-output
+ * `--changed-files-base` emits a concrete non-empty SHA for ESLint/Prettier:
+ * pull requests use their target merge-base, pushes use `github.event.before`,
+ * and all-zero branch-creation pushes fall back to a non-empty parent range.
  *
- * Prints the comparison SHA. `--github-output` appends `base=<sha>` and
- * `filter=...[<sha>]` to $GITHUB_OUTPUT.
+ * `--github-output` appends base/filter/mode/reason outputs to $GITHUB_OUTPUT.
  */
 import { spawnSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
@@ -24,6 +20,7 @@ const DEFAULT_FALLBACK_REF = 'origin/main';
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
 const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
 const ZERO_SHA_RE = /^0{40}$/;
+export const FULL_PACKAGE_FILTER = '*';
 
 /** @param {unknown} value */
 function normalize(value) {
@@ -31,6 +28,8 @@ function normalize(value) {
 }
 
 /**
+ * Resolve a PR/local comparison base through git merge-base.
+ *
  * @param {object} opts
  * @param {string | undefined | null} opts.prBaseSha
  * @param {string} [opts.fallbackRef]
@@ -154,10 +153,125 @@ export function resolveChangedFilesBase({
 
 /** @param {string} baseSha */
 export function formatTurboFilter(baseSha) {
-  if (!SHA_RE.test(String(baseSha ?? '').trim())) {
+  if (!SHA_RE.test(normalize(baseSha))) {
     throw new Error(`Invalid turbo filter base SHA: ${JSON.stringify(baseSha)}`);
   }
   return `...[${baseSha.trim()}]`;
+}
+
+/** @param {string} reason */
+function fullPackageSelection(reason) {
+  return {
+    base: '',
+    filter: FULL_PACKAGE_FILTER,
+    mode: 'full',
+    reason,
+  };
+}
+
+/**
+ * Select the event-appropriate Turborepo range.
+ *
+ * @param {object} opts
+ * @param {string | undefined | null} opts.eventName
+ * @param {string | undefined | null} opts.prBaseSha
+ * @param {string | undefined | null} opts.pushBeforeSha
+ * @param {string} [opts.fallbackRef]
+ * @param {string} [opts.headRef]
+ * @param {(args: string[]) => string} opts.execGit
+ * @returns {{ base: string, filter: string, mode: string, reason: string }}
+ */
+export function resolveTurboFilterSelection({
+  eventName,
+  prBaseSha,
+  pushBeforeSha,
+  fallbackRef = DEFAULT_FALLBACK_REF,
+  headRef = 'HEAD',
+  execGit,
+}) {
+  if (typeof execGit !== 'function') {
+    throw new TypeError('execGit is required');
+  }
+
+  const event = normalize(eventName);
+
+  if (event === 'pull_request') {
+    const target = normalize(prBaseSha);
+    if (!target) {
+      throw new Error('pull_request event requires PR_BASE_SHA');
+    }
+    const base = resolveTurboFilterBase({
+      prBaseSha: target,
+      fallbackRef,
+      headRef,
+      execGit,
+    });
+    return {
+      base,
+      filter: formatTurboFilter(base),
+      mode: 'pull_request',
+      reason: 'pull_request_merge_base',
+    };
+  }
+
+  if (event === 'push') {
+    const before = normalize(pushBeforeSha);
+    if (!FULL_SHA_RE.test(before) || ZERO_SHA_RE.test(before)) {
+      return fullPackageSelection('push_before_missing_or_zero');
+    }
+
+    let verifiedBefore;
+    try {
+      verifiedBefore = execGit(['rev-parse', '--verify', `${before}^{commit}`]).trim();
+    } catch {
+      return fullPackageSelection('push_before_unresolvable');
+    }
+    if (!FULL_SHA_RE.test(verifiedBefore)) {
+      return fullPackageSelection('push_before_invalid');
+    }
+
+    const head = execGit(['rev-parse', '--verify', `${headRef}^{commit}`]).trim();
+    if (!FULL_SHA_RE.test(head)) {
+      throw new Error(`git rev-parse returned invalid HEAD SHA: ${JSON.stringify(head)}`);
+    }
+    if (verifiedBefore.toLowerCase() === head.toLowerCase()) {
+      return fullPackageSelection('push_before_equals_head');
+    }
+
+    let mergeBase;
+    try {
+      mergeBase = execGit(['merge-base', headRef, verifiedBefore]).trim();
+    } catch {
+      return fullPackageSelection('push_before_uncomparable');
+    }
+    if (!FULL_SHA_RE.test(mergeBase)) {
+      return fullPackageSelection('push_before_uncomparable');
+    }
+    if (mergeBase.toLowerCase() !== verifiedBefore.toLowerCase()) {
+      return fullPackageSelection('push_before_not_ancestor');
+    }
+
+    return {
+      base: verifiedBefore,
+      filter: formatTurboFilter(verifiedBefore),
+      mode: 'push',
+      reason: 'push_before',
+    };
+  }
+
+  // Local/manual compatibility: preserve the historical merge-base fallback.
+  const base = resolveTurboFilterBase({
+    prBaseSha,
+    fallbackRef,
+    headRef,
+    execGit,
+  });
+  return {
+    base,
+    filter: formatTurboFilter(base),
+    mode: 'fallback',
+    reason: 'non_ci_merge_base',
+  };
 }
 
 /**
@@ -244,24 +358,38 @@ function main(argv = process.argv.slice(2)) {
     return 0;
   }
 
-  const resolver = opts.changedFilesBase ? resolveChangedFilesBase : resolveTurboFilterBase;
-  const base = resolver({
+  const resolverInput = {
     eventName: opts.eventName,
     prBaseSha: opts.prBaseSha,
     pushBeforeSha: opts.pushBeforeSha,
     fallbackRef: opts.fallbackRef,
     headRef: opts.headRef,
     execGit: defaultExecGit,
-  });
-  const filter = formatTurboFilter(base);
-  process.stdout.write(`${base}\n`);
+  };
+
+  let selection;
+  if (opts.changedFilesBase) {
+    const base = resolveChangedFilesBase(resolverInput);
+    selection = {
+      base,
+      filter: formatTurboFilter(base),
+      mode: 'changed_files',
+      reason: 'event_comparison_base',
+    };
+  } else {
+    selection = resolveTurboFilterSelection(resolverInput);
+  }
+  process.stdout.write(`${selection.base || 'FULL'}\n`);
 
   if (opts.githubOutput) {
     const path = process.env.GITHUB_OUTPUT;
     if (!path) {
       throw new Error('--github-output requires GITHUB_OUTPUT');
     }
-    appendFileSync(path, `base=${base}\nfilter=${filter}\n`);
+    appendFileSync(
+      path,
+      `base=${selection.base}\nfilter=${selection.filter}\nmode=${selection.mode}\nreason=${selection.reason}\n`,
+    );
   }
   return 0;
 }

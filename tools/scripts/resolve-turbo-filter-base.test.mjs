@@ -4,7 +4,9 @@
  * Run with: node --test tools/scripts/resolve-turbo-filter-base.test.mjs
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -12,8 +14,10 @@ import { fileURLToPath } from 'node:url';
 import {
   assertCiAvoidsTurboHeadParent,
   formatTurboFilter,
+  FULL_PACKAGE_FILTER,
   resolveChangedFilesBase,
   resolveTurboFilterBase,
+  resolveTurboFilterSelection,
 } from './resolve-turbo-filter-base.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -63,41 +67,222 @@ test('prefers PR base SHA and returns merge-base with HEAD', () => {
   ]);
 });
 
-test('falls back to origin/main when PR base SHA is empty', () => {
+test('pull request selection requires and merge-bases the PR target', () => {
+  const target = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const base = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
   const git = fakeGit({
-    'rev-parse --verify origin/main^{commit}': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    'merge-base HEAD origin/main': '2222222222222222222222222222222222222222',
+    [`rev-parse --verify ${target}^{commit}`]: target,
+    [`merge-base HEAD ${target}`]: base,
   });
 
-  const base = resolveTurboFilterBase({
-    prBaseSha: '   ',
+  const selection = resolveTurboFilterSelection({
+    eventName: 'pull_request',
+    prBaseSha: target,
+    pushBeforeSha: '',
     execGit: git.execGit,
   });
 
-  assert.equal(base, '2222222222222222222222222222222222222222');
-  assert.equal(git.calls[0][2], 'origin/main^{commit}');
+  assert.deepEqual(selection, {
+    base,
+    filter: `...[${base}]`,
+    mode: 'pull_request',
+    reason: 'pull_request_merge_base',
+  });
+  assert.throws(
+    () =>
+      resolveTurboFilterSelection({
+        eventName: 'pull_request',
+        prBaseSha: '',
+        pushBeforeSha: '',
+        execGit: git.execGit,
+      }),
+    /requires PR_BASE_SHA/,
+  );
 });
 
-test('falls back to origin/main when PR base SHA is null/undefined', () => {
+test('real explicit target fetch preserves divergent PR ancestry', (context) => {
+  const root = mkdtempSync(join(tmpdir(), 'w1-ops-22-'));
+  context.after(() => rmSync(root, { recursive: true, force: true }));
+
+  const remote = join(root, 'remote.git');
+  const seed = join(root, 'seed');
+  const checkout = join(root, 'checkout');
+  const runGit = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+
+  runGit(root, 'init', '--bare', remote);
+  runGit(root, 'init', seed);
+  runGit(seed, 'config', 'user.name', 'W1 OPS 22 Test');
+  runGit(seed, 'config', 'user.email', 'w1-ops-22@example.invalid');
+  writeFileSync(join(seed, 'base.txt'), 'base\n');
+  runGit(seed, 'add', 'base.txt');
+  runGit(seed, 'commit', '-m', 'base');
+  runGit(seed, 'branch', '-M', 'main');
+  runGit(seed, 'remote', 'add', 'origin', remote);
+  runGit(seed, 'push', '-u', 'origin', 'main');
+  const commonBase = runGit(seed, 'rev-parse', 'HEAD');
+
+  runGit(seed, 'checkout', '-b', 'feature');
+  writeFileSync(join(seed, 'feature.txt'), 'feature\n');
+  runGit(seed, 'add', 'feature.txt');
+  runGit(seed, 'commit', '-m', 'feature');
+  runGit(seed, 'push', '-u', 'origin', 'feature');
+
+  runGit(seed, 'checkout', 'main');
+  writeFileSync(join(seed, 'target.txt'), 'target\n');
+  runGit(seed, 'add', 'target.txt');
+  runGit(seed, 'commit', '-m', 'target');
+  const targetSha = runGit(seed, 'rev-parse', 'HEAD');
+  runGit(seed, 'push', 'origin', 'main');
+
+  runGit(root, 'clone', '--no-local', '--branch', 'feature', remote, checkout);
+  runGit(checkout, 'fetch', '--no-tags', 'origin', targetSha);
+  assert.equal(runGit(checkout, 'rev-parse', '--is-shallow-repository'), 'false');
+
+  const selection = resolveTurboFilterSelection({
+    eventName: 'pull_request',
+    prBaseSha: targetSha,
+    pushBeforeSha: '',
+    execGit(args) {
+      return runGit(checkout, ...args);
+    },
+  });
+  assert.equal(selection.base, commonBase);
+  assert.equal(selection.filter, `...[${commonBase}]`);
+});
+
+test('push selection uses an ancestor github.event.before instead of origin/main', () => {
+  const before = '1111111111111111111111111111111111111111';
+  const head = '2222222222222222222222222222222222222222';
+  const git = fakeGit({
+    [`rev-parse --verify ${before}^{commit}`]: before,
+    'rev-parse --verify HEAD^{commit}': head,
+    [`merge-base HEAD ${before}`]: before,
+  });
+
+  const selection = resolveTurboFilterSelection({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: before,
+    execGit: git.execGit,
+  });
+
+  assert.deepEqual(selection, {
+    base: before,
+    filter: `...[${before}]`,
+    mode: 'push',
+    reason: 'push_before',
+  });
+  assert.equal(
+    git.calls.some((call) => call.includes('origin/main')),
+    false,
+  );
+});
+
+test('divergent or uncomparable push history selects all packages', () => {
+  const before = '5555555555555555555555555555555555555555';
+  const head = '6666666666666666666666666666666666666666';
+  const ancestor = '7777777777777777777777777777777777777777';
+
+  const divergent = fakeGit({
+    [`rev-parse --verify ${before}^{commit}`]: before,
+    'rev-parse --verify HEAD^{commit}': head,
+    [`merge-base HEAD ${before}`]: ancestor,
+  });
+  const divergentSelection = resolveTurboFilterSelection({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: before,
+    execGit: divergent.execGit,
+  });
+  assert.equal(divergentSelection.filter, FULL_PACKAGE_FILTER);
+  assert.equal(divergentSelection.reason, 'push_before_not_ancestor');
+
+  const uncomparable = fakeGit({
+    [`rev-parse --verify ${before}^{commit}`]: before,
+    'rev-parse --verify HEAD^{commit}': head,
+    [`merge-base HEAD ${before}`]: new Error('no merge base'),
+  });
+  const uncomparableSelection = resolveTurboFilterSelection({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: before,
+    execGit: uncomparable.execGit,
+  });
+  assert.equal(uncomparableSelection.filter, FULL_PACKAGE_FILTER);
+  assert.equal(uncomparableSelection.reason, 'push_before_uncomparable');
+});
+
+test('new-branch or missing push before SHA selects all packages', () => {
+  for (const pushBeforeSha of ['', 'not-a-sha', '0000000000000000000000000000000000000000']) {
+    const git = fakeGit({});
+    const selection = resolveTurboFilterSelection({
+      eventName: 'push',
+      prBaseSha: '',
+      pushBeforeSha,
+      execGit: git.execGit,
+    });
+    assert.equal(selection.base, '');
+    assert.equal(selection.filter, FULL_PACKAGE_FILTER);
+    assert.equal(selection.mode, 'full');
+    assert.equal(selection.reason, 'push_before_missing_or_zero');
+    assert.equal(git.calls.length, 0);
+  }
+});
+
+test('unavailable push before SHA selects all packages', () => {
+  const before = '3333333333333333333333333333333333333333';
+  const git = fakeGit({
+    [`rev-parse --verify ${before}^{commit}`]: new Error('unknown revision'),
+  });
+
+  const selection = resolveTurboFilterSelection({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: before,
+    execGit: git.execGit,
+  });
+
+  assert.equal(selection.filter, FULL_PACKAGE_FILTER);
+  assert.equal(selection.mode, 'full');
+  assert.equal(selection.reason, 'push_before_unresolvable');
+});
+
+test('push before equal to HEAD selects all packages rather than no work', () => {
+  const sha = '4444444444444444444444444444444444444444';
+  const git = fakeGit({
+    [`rev-parse --verify ${sha}^{commit}`]: sha,
+    'rev-parse --verify HEAD^{commit}': sha,
+  });
+
+  const selection = resolveTurboFilterSelection({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: sha,
+    execGit: git.execGit,
+  });
+
+  assert.equal(selection.filter, FULL_PACKAGE_FILTER);
+  assert.equal(selection.reason, 'push_before_equals_head');
+});
+
+test('non-CI invocation preserves origin/main merge-base compatibility', () => {
   const git = fakeGit({
     'rev-parse --verify origin/main^{commit}': 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     'merge-base HEAD origin/main': '3333333333333333333333333333333333333333',
   });
 
-  assert.equal(
-    resolveTurboFilterBase({ prBaseSha: null, execGit: git.execGit }),
-    '3333333333333333333333333333333333333333',
-  );
-  assert.equal(
-    resolveTurboFilterBase({ prBaseSha: undefined, execGit: git.execGit }),
-    '3333333333333333333333333333333333333333',
-  );
+  const selection = resolveTurboFilterSelection({
+    eventName: '',
+    prBaseSha: undefined,
+    pushBeforeSha: undefined,
+    execGit: git.execGit,
+  });
+
+  assert.equal(selection.base, '3333333333333333333333333333333333333333');
+  assert.equal(selection.mode, 'fallback');
 });
 
 test('multi-commit PR: merge-base is older than HEAD~1 tip parent', () => {
-  // Simulate: main tip = baseSha; PR has commits C1 then C2 (HEAD).
-  // HEAD~1 would be C1 and miss packages only changed in C1 relative to main
-  // when filtering ...[HEAD~1] from C2. merge-base with baseSha is M.
   const baseSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const mergeBase = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
   const tipParent = 'cccccccccccccccccccccccccccccccccccccccc';
@@ -123,7 +308,7 @@ test('formatTurboFilter rejects invalid SHA', () => {
   assert.throws(() => formatTurboFilter(''), /Invalid turbo filter base SHA/);
 });
 
-test('throws when candidate ref cannot be resolved', () => {
+test('throws when fallback candidate ref cannot be resolved', () => {
   const git = fakeGit({
     'rev-parse --verify origin/main^{commit}': new Error('fatal: Needed a single revision'),
   });
@@ -143,7 +328,7 @@ test('assertCiAvoidsTurboHeadParent flags turbo HEAD~1 filters', () => {
   assert.equal(report.hits.length, 2);
 });
 
-test('assertCiAvoidsTurboHeadParent allows merge-base filter placeholders', () => {
+test('assertCiAvoidsTurboHeadParent allows event-aware filter placeholders', () => {
   const good = `
         run: pnpm turbo run typecheck --filter='\${{ steps.turbo.outputs.filter }}'
         run: git diff --name-only HEAD~1 HEAD -- '*.ts'
@@ -153,7 +338,7 @@ test('assertCiAvoidsTurboHeadParent allows merge-base filter placeholders', () =
   assert.equal(report.hits.length, 0);
 });
 
-test('ci.yml no longer uses turbo ...[HEAD~1] filters', () => {
+test('ci.yml wires each affected job and requires the resolver suite', () => {
   const yaml = readFileSync(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
   const report = assertCiAvoidsTurboHeadParent(yaml);
   assert.equal(
@@ -161,7 +346,42 @@ test('ci.yml no longer uses turbo ...[HEAD~1] filters', () => {
     true,
     `ci.yml still has tip-only turbo filters:\n${report.hits.join('\n')}`,
   );
-  assert.match(yaml, /resolve-turbo-filter-base\.mjs/);
+
+  function jobBlock(jobName) {
+    const marker = `\n  ${jobName}:\n`;
+    const start = yaml.indexOf(marker);
+    assert.notEqual(start, -1, `missing CI job ${jobName}`);
+    const remainder = yaml.slice(start + marker.length);
+    const nextJob = remainder.search(/\n  [a-zA-Z0-9_-]+:\n/);
+    return nextJob === -1 ? remainder : remainder.slice(0, nextJob);
+  }
+
+  for (const jobName of ['typecheck', 'unit-test', 'build', 'integration-test']) {
+    const block = jobBlock(jobName);
+    assert.equal(
+      (block.match(/resolve-turbo-filter-base\.mjs --github-output/g) ?? []).length,
+      1,
+      `${jobName} must invoke the resolver exactly once`,
+    );
+    assert.match(block, /EVENT_NAME:\s*\$\{\{ github\.event_name \}\}/);
+    assert.match(block, /PR_BASE_SHA:\s*\$\{\{ github\.event\.pull_request\.base\.sha \}\}/);
+    assert.match(block, /PUSH_BEFORE_SHA:\s*\$\{\{ github\.event\.before \}\}/);
+    assert.match(block, /git fetch --no-tags origin "\$PR_BASE_SHA"/);
+    assert.match(block, /git fetch --no-tags origin "\$PUSH_BEFORE_SHA"/);
+    assert.equal(
+      (block.match(/fetch-depth:\s*0/g) ?? []).length,
+      1,
+      `${jobName} must check out complete history exactly once`,
+    );
+    assert.doesNotMatch(
+      block,
+      /(^|\s)--(?:depth(?:=|\s+)\d+|deepen(?:=|\s+)\d+|shallow-since(?:=|\s+)|shallow-exclude(?:=|\s+))/m,
+    );
+    assert.match(block, /steps\.turbo\.outputs\.filter/);
+  }
+
+  const detectChanges = jobBlock('detect-changes');
+  assert.match(detectChanges, /node --test tools\/scripts\/resolve-turbo-filter-base\.test\.mjs/);
   assert.match(yaml, /W1-OPS-22/);
 });
 
