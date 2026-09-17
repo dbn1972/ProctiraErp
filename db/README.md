@@ -13,9 +13,9 @@ The layers are **not** interchangeable. Competing DDL without a drift gate cause
 auth session models (`RefreshToken` / `UserSession`) to exist in
 `schema.prisma` with no executable CREATE TABLE on fresh Postgres.
 
-| Layer | Owns | Must not |
-| --- | --- | --- |
-| Prisma migrations | Platform tables that ship under `prisma/migrations/` | Be skipped before `apply-sql.sh` |
+| Layer              | Owns                                                                                                          | Must not                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Prisma migrations  | Platform tables that ship under `prisma/migrations/`                                                          | Be skipped before `apply-sql.sh`                                       |
 | Numbered `db/sql/` | Domain schemas **and** Prisma-mapped tables that lack a Prisma migration (e.g. `066_auth_session_tables.sql`) | Drift from Prisma `@map` / column names for SQL-backed critical models |
 
 **Every Prisma-mapped table declares exactly one DDL authority** in
@@ -77,10 +77,11 @@ seed-free domain SQL with `APPLY_STRICT_FKS=1`, verifies migrations 082/091/092
 and hostel indexes, then checks the actual `proctira_app` secret with
 `assert-runtime-schema-ready.sh`. The migrator URL is never rendered into Helm
 or mounted into application pods.
+
 ## Strict tenant foreign keys (W1-DATA-06 COMPLETE)
 
 **Deploy / CI gate (W1-DATA-01 COMPLETE):** every production (and can-deploy)
-release must prove the *actual* runtime secret is non-owner:
+release must prove the _actual_ runtime secret is non-owner:
 
 ```bash
 # Fail closed when RUNTIME_ROLE_GATE_REQUIRED=1 or ENVIRONMENT=production
@@ -176,10 +177,10 @@ Evidence: `docs/audits/DATA_W1_DATA_14_COMPLETE.md`.
 DDL apply must not wait forever for locks. Both tracks set session GUCs before
 running migrations:
 
-| Applier | Wrapper | Defaults |
-| --- | --- | --- |
-| Raw `db/sql/` | `tools/scripts/apply-sql.sh` → `SET lock_timeout` / `SET statement_timeout` | `5s` / `30min` |
-| Prisma | `tools/scripts/prisma-migrate-deploy.sh` (via `prisma:migrate:deploy`) | same (URL `options=` + `PGOPTIONS`) |
+| Applier       | Wrapper                                                                     | Defaults                            |
+| ------------- | --------------------------------------------------------------------------- | ----------------------------------- |
+| Raw `db/sql/` | `tools/scripts/apply-sql.sh` → `SET lock_timeout` / `SET statement_timeout` | `5s` / `30min`                      |
+| Prisma        | `tools/scripts/prisma-migrate-deploy.sh` (via `prisma:migrate:deploy`)      | same (URL `options=` + `PGOPTIONS`) |
 
 Override with `MIGRATION_LOCK_TIMEOUT` / `MIGRATION_STATEMENT_TIMEOUT` (or the
 `APPLY_SQL_*` aliases). Raising `statement_timeout` is appropriate for large
@@ -190,12 +191,12 @@ Override with `MIGRATION_LOCK_TIMEOUT` / `MIGRATION_STATEMENT_TIMEOUT` (or the
 
 Prefer these forms so production apply stays concurrent with app traffic:
 
-| Prefer | Avoid (needs maintenance window) |
-| --- | --- |
-| `CREATE INDEX CONCURRENTLY` (file cannot use `--single-transaction`) | `CREATE INDEX` on hot tables |
-| `ADD CONSTRAINT … NOT VALID` then later `VALIDATE CONSTRAINT` | Validating FK/CHECK in the same deploy as the add |
-| Nullable column add + backfill job + separate `SET NOT NULL` | Instant `SET NOT NULL` / type rewrites on large tables |
-| Forward revert migration | Editing applied files (checksum ledger fail-closed) |
+| Prefer                                                               | Avoid (needs maintenance window)                       |
+| -------------------------------------------------------------------- | ------------------------------------------------------ |
+| `CREATE INDEX CONCURRENTLY` (file cannot use `--single-transaction`) | `CREATE INDEX` on hot tables                           |
+| `ADD CONSTRAINT … NOT VALID` then later `VALIDATE CONSTRAINT`        | Validating FK/CHECK in the same deploy as the add      |
+| Nullable column add + backfill job + separate `SET NOT NULL`         | Instant `SET NOT NULL` / type rewrites on large tables |
+| Forward revert migration                                             | Editing applied files (checksum ledger fail-closed)    |
 
 `021b_tenant_fk_constraints.sql` + `068_validate_tenant_fk_constraints.sql` are
 the reference NOT VALID → VALIDATE split. See
@@ -217,6 +218,7 @@ Executable gates:
 pnpm check:migration-timeouts
 DATABASE_URL=… node tools/scripts/migration-lock-recovery-drill.mjs
 ```
+
 ## Global control-ledger privileges (W1-DATA-11)
 
 **COMPLETE** (see `docs/audits/DATA_W1_DATA_11_COMPLETE.md`).
@@ -227,12 +229,12 @@ grants come from `db/runtime-table-privileges.json`, applied by
 `084_runtime_privilege_classification.sql` and re-synced at the end of every
 `apply-sql.sh` run.
 
-| Class | Runtime privileges | Examples |
-| --- | --- | --- |
-| `denied` | none | `schema_migrations`, `_prisma_migrations` (`072`) |
-| `select_insert` | SELECT, INSERT | insights platform catalogs (`075`) |
-| `append_only` | SELECT, INSERT | fee/audit/transcript/enrollment ledgers (`053`/`069`/`071`) |
-| `dml` | SELECT, INSERT, UPDATE, DELETE | Tenant/domain tables under RLS |
+| Class           | Runtime privileges             | Examples                                                    |
+| --------------- | ------------------------------ | ----------------------------------------------------------- |
+| `denied`        | none                           | `schema_migrations`, `_prisma_migrations` (`072`)           |
+| `select_insert` | SELECT, INSERT                 | insights platform catalogs (`075`)                          |
+| `append_only`   | SELECT, INSERT                 | fee/audit/transcript/enrollment ledgers (`053`/`069`/`071`) |
+| `dml`           | SELECT, INSERT, UPDATE, DELETE | Tenant/domain tables under RLS                              |
 
 Executable gate: `pnpm check:runtime-table-privileges` (CI job
 `runtime-table-privileges`). New `CREATE TABLE` without a catalog entry fails CI.
@@ -249,13 +251,13 @@ Numbered `db/sql/` apply is **not** whole-set atomic (Postgres cannot wrap every
 DDL form across dozens of files in one safe transaction). Resume safety comes
 from the `schema_migrations` ledger (and, for non-txn files, statement phases):
 
-| Behavior | Rule |
-| --- | --- |
-| Record | After each successful file: `filename` + sha256 in `schema_migrations` |
-| Skip | Ledger checksum matches current file → do not re-apply |
-| Fail-closed | Ledger checksum differs → exit non-zero (do not overwrite) |
-| Legacy NULL | Pre-checksum self-insert rows get the current digest adopted; file is not re-applied |
-| Per-file TX | Default `psql --single-transaction` for the file + ledger INSERT |
+| Behavior       | Rule                                                                                                                                                             |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Record         | After each successful file: `filename` + sha256 in `schema_migrations`                                                                                           |
+| Skip           | Ledger checksum matches current file → do not re-apply                                                                                                           |
+| Fail-closed    | Ledger checksum differs → exit non-zero (do not overwrite)                                                                                                       |
+| Legacy NULL    | Pre-checksum self-insert rows get the current digest adopted; file is not re-applied                                                                             |
+| Per-file TX    | Default `psql --single-transaction` for the file + ledger INSERT                                                                                                 |
 | Non-txn phases | `CONCURRENTLY` / `APPLY_SQL_NO_TX=1` files apply statement-by-statement with `schema_migration_phases` so a mid-file failure resumes at the next unapplied phase |
 
 **Multi-statement limits:** statements that cannot run inside a transaction
@@ -334,6 +336,7 @@ the **canonical** GUC `app.tenant_id` and sync the legacy alias
 never hand-roll a single GUC name.
 
 SQL helpers in `071_tenant_guc_canonical.sql`:
+
 - `app_tenant_id()` — effective tenant (canonical first, legacy alias fallback)
 - `set_app_tenant_id(text)` — writer that sets canonical + syncs legacy
 

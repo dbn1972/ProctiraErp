@@ -41,6 +41,11 @@ concurrency:
   group: deploy-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  actions: read
+  checks: read
+
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -74,6 +79,25 @@ jobs:
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
           echo "Deploying commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+
+      # W1-OPS-23: manual deploys must prove the selected SHA passed CI before
+      # any migration or rollout job can run.
+      - name: Checkout same-SHA CI gate
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.resolve.outputs.head-sha }}
+          sparse-checkout: |
+            tools/scripts/require-same-sha-ci.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Require successful CI on same SHA (manual deploy)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ steps.resolve.outputs.head-sha }}
+        run: node tools/scripts/require-same-sha-ci.mjs --sha "${HEAD_SHA}"
 
   # ---------------------------------------------------------------------------
   # Determine environment and affected services
@@ -155,11 +179,15 @@ jobs:
             ["db/"]="api-gateway"
             ["tools/scripts/run-target-database-migrations.sh"]="api-gateway"
             ["tools/scripts/assert-runtime-schema-ready.sh"]="api-gateway"
-            ["infrastructure/helm/proctira-service/"]="api-gateway"
             [".github/workflows/deploy.yml"]="api-gateway"
           )
 
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+          # The per-service chart is shared by every canonical workload.
+          if echo "$CHANGED_FILES" | grep -q "^infrastructure/helm/proctira-service/"; then
+            SERVICES="api-gateway,web,registration-portal,etl-worker"
+          fi
 
           # Shared packages → canonical fan-out (no split-domain releases)
           if echo "$CHANGED_FILES" | grep -q "^packages/shared/"; then

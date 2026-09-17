@@ -57,6 +57,13 @@ done
 
 echo "==> scanner tool identity (gitleaks / semgrep / trivy)"
 grep -q 'gitleaks detect' "$SCANS_WF" || die "secret scan must invoke gitleaks detect"
+grep -qF -- '--log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"' "$SCANS_WF" \
+  || die "secret scan must cover the complete pull-request base-to-head graph"
+if grep -qE -- '--no-merges|--first-parent' "$SCANS_WF"; then
+  die "secret scan must not omit merged source commits"
+fi
+grep -q 'security-scan-range.test.mjs' "$SCANS_WF" \
+  || die "scanner contract must run the merge-history range regression"
 grep -q 'semgrep scan' "$SCANS_WF" || die "SAST must invoke semgrep scan"
 grep -qF "SETUPTOOLS_VERSION: '80.9.0'" "$SCANS_WF" \
   || die "Semgrep compatibility requires pinned setuptools 80.9.0"

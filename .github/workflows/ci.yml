@@ -196,7 +196,12 @@ jobs:
           fi
           echo "Linting ${#FILES[@]} tip file(s):"
           printf '  %s\n' "${FILES[@]}"
-          pnpm exec eslint --no-error-on-unmatched-pattern "${FILES[@]}"
+          BATCH_SIZE=32
+          for ((offset = 0; offset < ${#FILES[@]}; offset += BATCH_SIZE)); do
+            batch=("${FILES[@]:offset:BATCH_SIZE}")
+            echo "Running ESLint batch $((offset / BATCH_SIZE + 1)) (${#batch[@]} files)"
+            pnpm exec eslint --no-error-on-unmatched-pattern "${batch[@]}"
+          done
 
       - name: Run accessibility ESLint scan (icon-only buttons)
         run: pnpm run lint:a11y

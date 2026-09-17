@@ -56,3 +56,47 @@ test('active Helm chart separates gateway liveness from schema-aware readiness',
   assert.match(deployment, /path: \{\{ include "proctira-service\.livenessPath"/);
   assert.match(deployment, /path: \{\{ include "proctira-service\.readinessPath"/);
 });
+
+test('manual deploy requires successful CI for the selected SHA', () => {
+  const deploy = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
+  assert.match(deploy, /permissions:[\s\S]*actions: read[\s\S]*checks: read/);
+
+  const gateStart = deploy.indexOf('\n  ci-gate:');
+  const prepareStart = deploy.indexOf('\n  prepare:', gateStart);
+  assert.ok(gateStart >= 0 && prepareStart > gateStart, 'deploy ci-gate job was not found');
+  const gate = deploy.slice(gateStart, prepareStart);
+  assert.match(
+    gate,
+    /if: github\.event_name == 'workflow_dispatch'[\s\S]*require-same-sha-ci\.mjs/,
+  );
+  assert.match(gate, /Require successful CI on same SHA \(manual deploy\)/);
+  assert.match(gate, /HEAD_SHA: \$\{\{ steps\.resolve\.outputs\.head-sha \}\}/);
+});
+
+test('shared per-service chart changes fan out to every canonical workload', () => {
+  const deploy = readFileSync(join(root, '.github/workflows/deploy.yml'), 'utf8');
+  assert.match(
+    deploy,
+    /infrastructure\/helm\/proctira-service\/[\s\S]*SERVICES="api-gateway,web,registration-portal,etl-worker"/,
+  );
+  assert.doesNotMatch(deploy, /\["infrastructure\/helm\/proctira-service\/"\]="api-gateway"/);
+});
+
+test('hostel index repair builds replacement before atomic swap and cleanup', () => {
+  const sql = readFileSync(join(root, 'db/sql/092_hostel_assignment_uniqueness.sql'), 'utf8');
+  const build = sql.indexOf('CREATE UNIQUE INDEX CONCURRENTLY %I');
+  const swap = sql.indexOf('DO $swap_indexes$');
+  const assertion = sql.indexOf('DO $assert_indexes$');
+  const cleanup = sql.lastIndexOf('DROP INDEX CONCURRENTLY IF EXISTS public.%I');
+
+  assert.ok(build >= 0, 'replacement index build is missing');
+  assert.ok(build < swap, 'replacement must be built before the canonical swap');
+  assert.ok(swap < assertion, 'canonical swap must precede contract assertion');
+  assert.ok(assertion < cleanup, 'retired index cleanup must follow contract assertion');
+  assert.doesNotMatch(
+    sql,
+    /DROP INDEX CONCURRENTLY IF EXISTS public\.%I',\s*index_name/,
+    'canonical index must not be dropped before replacement succeeds',
+  );
+  assert.match(sql, /old\/new rename pair runs in one transaction/);
+});

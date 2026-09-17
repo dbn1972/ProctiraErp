@@ -573,8 +573,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
-            const amountCents =
-              input.amountCents ?? majorUnitsToCents(input.amount);
+            const amountCents = input.amountCents ?? majorUnitsToCents(input.amount);
             if (amountCents <= 0) return;
             await feesForScholarships.applyScholarshipNetting(
               input.tenantId,

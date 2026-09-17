@@ -53,6 +53,9 @@ jobs:
         continue-on-error: false
         run: bash tools/scripts/check-security-scans-required.sh
 
+      - name: Unit-test complete secret-scan commit range
+        run: node --test tools/scripts/security-scan-range.test.mjs
+
   secret-scan:
     name: Secret scan (gitleaks)
     needs: [security-scans-contract]
@@ -81,7 +84,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             gitleaks detect \
               --source . \
-              --log-opts "--no-merges --first-parent ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
+              --log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
               --redact \
               --verbose \
               --exit-code 1

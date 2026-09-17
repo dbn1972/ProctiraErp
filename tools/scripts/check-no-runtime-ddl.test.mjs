@@ -120,15 +120,19 @@ test('fails when the runtime schema marker lags the latest non-seed migration', 
   ]);
 });
 
-test('hostel concurrent-index repair, rebuild, and assertion stay in one resumable phase', () => {
+test('hostel index repair preserves build, assertion, and cleanup phase ordering', () => {
   const migration = readFileSync(
     join(REPO_ROOT, 'db/sql/092_hostel_assignment_uniqueness.sql'),
     'utf8',
   );
   const phases = splitSqlPhases(migration);
-  assert.equal(phases.length, 1);
-  assert.match(phases[0], /DROP INDEX CONCURRENTLY/);
+  assert.equal(phases.length, 3);
   assert.match(phases[0], /CREATE UNIQUE INDEX CONCURRENTLY/);
-  assert.match(phases[0], /proctira_hostel_assignment_index_ready/);
-  assert.match(phases[0], /\\gexec/);
+  assert.match(phases[0], /DO \$swap_indexes\$/);
+  assert.doesNotMatch(phases[0], /DROP INDEX CONCURRENTLY IF EXISTS public\.%I',\s*index_name/);
+  assert.match(phases[1], /DO \$assert_indexes\$/);
+  assert.match(phases[1], /proctira_hostel_assignment_index_ready/);
+  assert.match(phases[2], /DROP INDEX CONCURRENTLY/);
+  assert.match(phases[2], /proctira_hostel_assignment_index_ready/);
+  assert.match(phases[2], /\\gexec/);
 });

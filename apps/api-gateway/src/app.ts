@@ -43,12 +43,9 @@ import {
   type AccessTokenRevocationStore,
 } from '@proctira/backend-auth';
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
-import {
-  asTenantScopedResolver,
-  createAreaHierarchyResolver,
-} from '@proctira/backend-institution';
-import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
+import { asTenantScopedResolver, createAreaHierarchyResolver } from '@proctira/backend-institution';
 import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
+import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -64,6 +61,11 @@ import {
 import { verifySecretCandidates } from './jwt-secrets.js';
 import { PARKED_GATEWAY_PREFIXES } from './mount-matrix.js';
 import {
+  attachMutatingRouteAuthzTracker,
+  evaluateExactMutatingAuthzGate,
+  MUTATING_HTTP_METHODS,
+} from './mutating-route-authz.js';
+import {
   buildAuditValues,
   entityIdFromPath,
   entityTypeForPath,
@@ -75,18 +77,14 @@ import {
 } from './mutation-audit.js';
 import { apiContractPlugin } from './plugins/api-contract.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
-import paginationCapPlugin from './plugins/pagination-cap.js';
 import healthPlugin from './plugins/health.js';
-import idempotencyPlugin from './plugins/idempotency.js';
 import { resolveIdempotencyStore } from './plugins/idempotency-store.js';
+import idempotencyPlugin from './plugins/idempotency.js';
+import paginationCapPlugin from './plugins/pagination-cap.js';
 import { providersPlugin } from './plugins/providers-plugin.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
-import {
-  attachMutatingRouteAuthzTracker,
-  evaluateExactMutatingAuthzGate,
-  MUTATING_HTTP_METHODS,
-} from './mutating-route-authz.js';
+import { createRateLimitRedisClient, decideRateLimitStore } from './rate-limit-store.js';
 import {
   actionForMethod,
   createGatewayRbacRegistry,
@@ -95,10 +93,6 @@ import {
   SELF_SERVICE_READ_RESOURCES,
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
-import {
-  createRateLimitRedisClient,
-  decideRateLimitStore,
-} from './rate-limit-store.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
@@ -287,9 +281,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         process.env['ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION'],
     });
   if (rateLimitRedis) {
-    app.log.info(
-      'Access-token revocation using Redis store for multi-replica logout (W1-SEC-09)',
-    );
+    app.log.info('Access-token revocation using Redis store for multi-replica logout (W1-SEC-09)');
   } else {
     app.log.warn(
       'Access-token revocation using in-memory store (single-process only; set REDIS_URL for multi-replica)',

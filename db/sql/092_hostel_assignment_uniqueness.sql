@@ -1,50 +1,140 @@
 -- UP-P0-02: move hostel assignment integrity DDL out of application runtime.
 --
--- This entire file is deliberately one apply-sql phase. psql \gexec runs any
--- missing/drifted-index cleanup and replacement before the catalog assertion.
--- If a concurrent build fails or the process crashes, the phase is not ledgered;
--- retry re-evaluates catalog state and rebuilds the canonical contract. Matching
--- valid indexes created by the former runtime guard remain online.
+-- Replacement is fail-safe for a valid-but-drifted canonical index:
+--   1. build and validate a temporary canonical replacement while the old
+--      index remains online;
+--   2. atomically rename old -> retired and replacement -> canonical;
+--   3. assert the canonical contract before dropping retired artifacts.
+--
+-- Concurrent build/drop statements are resumable apply-sql phases. A failed
+-- replacement build is never allowed to remove the existing uniqueness guard.
 
-WITH desired(index_name, key_column) AS (
+-- Remove only an unusable temporary replacement. The canonical index is not
+-- touched in this phase.
+WITH desired(index_name, key_column, replacement_name) AS (
   VALUES
-    ('uq_hostel_assignments_active_bed', 'bed_id'),
-    ('uq_hostel_assignments_active_student', 'student_id')
-), state AS (
+    (
+      'uq_hostel_assignments_active_bed',
+      'bed_id',
+      'uq_hostel_assignments_active_bed__replacement'
+    ),
+    (
+      'uq_hostel_assignments_active_student',
+      'student_id',
+      'uq_hostel_assignments_active_student__replacement'
+    )
+), replacement_state AS (
   SELECT desired.*,
-         index_class.oid AS index_oid,
+         replacement_class.oid AS replacement_oid,
          public.proctira_hostel_assignment_index_ready(
-           desired.index_name,
+           desired.replacement_name,
            desired.key_column
-         ) AS index_matches_contract
+         ) AS replacement_matches_contract
     FROM desired
-    LEFT JOIN pg_namespace AS index_namespace
-      ON index_namespace.nspname = 'public'
-    LEFT JOIN pg_class AS index_class
-      ON index_class.relnamespace = index_namespace.oid
-     AND index_class.relname = desired.index_name
-     AND index_class.relkind = 'i'
+    LEFT JOIN pg_namespace AS replacement_namespace
+      ON replacement_namespace.nspname = 'public'
+    LEFT JOIN pg_class AS replacement_class
+      ON replacement_class.relnamespace = replacement_namespace.oid
+     AND replacement_class.relname = desired.replacement_name
+     AND replacement_class.relkind = 'i'
 )
-SELECT command
-  FROM (
-    SELECT index_name,
-           1 AS action_order,
-           format('DROP INDEX CONCURRENTLY IF EXISTS public.%I', index_name) AS command
-      FROM state
-     WHERE index_oid IS NOT NULL AND NOT index_matches_contract
-    UNION ALL
-    SELECT index_name,
-           2 AS action_order,
-           format(
-             'CREATE UNIQUE INDEX CONCURRENTLY %I ON public.hostel_assignments (tenant_id, %I) WHERE is_active',
-             index_name,
-             key_column
-           ) AS command
-      FROM state
-     WHERE index_oid IS NULL OR NOT index_matches_contract
-  ) AS commands
- ORDER BY index_name, action_order
+SELECT format(
+         'DROP INDEX CONCURRENTLY IF EXISTS public.%I',
+         replacement_name
+       )
+  FROM replacement_state
+ WHERE replacement_oid IS NOT NULL
+   AND NOT replacement_matches_contract
+ ORDER BY replacement_name
 \gexec
+
+-- Build the replacement before changing or dropping the existing canonical
+-- index. Duplicate data or a timeout fails here with the old invariant intact.
+WITH desired(index_name, key_column, replacement_name) AS (
+  VALUES
+    (
+      'uq_hostel_assignments_active_bed',
+      'bed_id',
+      'uq_hostel_assignments_active_bed__replacement'
+    ),
+    (
+      'uq_hostel_assignments_active_student',
+      'student_id',
+      'uq_hostel_assignments_active_student__replacement'
+    )
+)
+SELECT format(
+         'CREATE UNIQUE INDEX CONCURRENTLY %I ON public.hostel_assignments (tenant_id, %I) WHERE is_active',
+         replacement_name,
+         key_column
+       )
+  FROM desired
+ WHERE NOT public.proctira_hostel_assignment_index_ready(index_name, key_column)
+   AND NOT public.proctira_hostel_assignment_index_ready(replacement_name, key_column)
+ ORDER BY index_name
+\gexec
+
+-- Each old/new rename pair runs in one transaction. If the replacement rename
+-- fails, PostgreSQL rolls back the old-index rename as well.
+DO $swap_indexes$
+DECLARE
+  target RECORD;
+BEGIN
+  FOR target IN
+    SELECT *
+      FROM (VALUES
+        (
+          'uq_hostel_assignments_active_bed',
+          'bed_id',
+          'uq_hostel_assignments_active_bed__replacement',
+          'uq_hostel_assignments_active_bed__retired'
+        ),
+        (
+          'uq_hostel_assignments_active_student',
+          'student_id',
+          'uq_hostel_assignments_active_student__replacement',
+          'uq_hostel_assignments_active_student__retired'
+        )
+      ) AS targets(index_name, key_column, replacement_name, retired_name)
+  LOOP
+    IF public.proctira_hostel_assignment_index_ready(
+      target.index_name,
+      target.key_column
+    ) THEN
+      CONTINUE;
+    END IF;
+
+    IF NOT public.proctira_hostel_assignment_index_ready(
+      target.replacement_name,
+      target.key_column
+    ) THEN
+      RAISE EXCEPTION
+        'UP-P0-02 replacement index is not ready: %',
+        target.replacement_name;
+    END IF;
+
+    IF to_regclass(format('%I.%I', 'public', target.retired_name)) IS NOT NULL THEN
+      RAISE EXCEPTION
+        'UP-P0-02 retired index name already exists; inspect before retry: %',
+        target.retired_name;
+    END IF;
+
+    IF to_regclass(format('%I.%I', 'public', target.index_name)) IS NOT NULL THEN
+      EXECUTE format(
+        'ALTER INDEX public.%I RENAME TO %I',
+        target.index_name,
+        target.retired_name
+      );
+    END IF;
+
+    EXECUTE format(
+      'ALTER INDEX public.%I RENAME TO %I',
+      target.replacement_name,
+      target.index_name
+    );
+  END LOOP;
+END
+$swap_indexes$;
 
 DO $assert_indexes$
 DECLARE
@@ -70,3 +160,29 @@ BEGIN
   END IF;
 END
 $assert_indexes$;
+
+-- Cleanup happens only after the canonical contract is proven. Replacement
+-- names normally disappear during rename; IF EXISTS keeps retries idempotent.
+WITH desired(index_name, key_column, replacement_name, retired_name) AS (
+  VALUES
+    (
+      'uq_hostel_assignments_active_bed',
+      'bed_id',
+      'uq_hostel_assignments_active_bed__replacement',
+      'uq_hostel_assignments_active_bed__retired'
+    ),
+    (
+      'uq_hostel_assignments_active_student',
+      'student_id',
+      'uq_hostel_assignments_active_student__replacement',
+      'uq_hostel_assignments_active_student__retired'
+    )
+)
+SELECT format('DROP INDEX CONCURRENTLY IF EXISTS public.%I', cleanup_name)
+  FROM desired
+ CROSS JOIN LATERAL (
+   VALUES (replacement_name), (retired_name)
+ ) AS cleanup(cleanup_name)
+ WHERE public.proctira_hostel_assignment_index_ready(index_name, key_column)
+ ORDER BY index_name, cleanup_name
+\gexec

@@ -461,6 +461,8 @@ test('lint and formatting use the resolved full PR comparison range', () => {
   assert.match(lintJob, /Run ESLint \(full change range\)/);
   assert.match(lintJob, /Check formatting \(full change range; baseline debt isolated\)/);
   assert.doesNotMatch(lintJob, /HEAD~1/);
+  assert.match(lintJob, /BATCH_SIZE=32/);
+  assert.match(lintJob, /FILES\[@\]:offset:BATCH_SIZE/);
 
   const baseUses = lintJob.match(/steps\.lint-base\.outputs\.base/g) ?? [];
   assert.equal(baseUses.length, 2, 'ESLint and Prettier must share the resolved PR base');
