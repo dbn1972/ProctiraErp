@@ -11,7 +11,7 @@ import type { Config } from 'tailwindcss';
  * composed with Tailwind opacity modifiers (e.g. `bg-primary/10`).
  */
 const config: Config = {
-  content: ['./src/**/*.{ts,tsx}'],
+  content: ['./src/**/*.{ts,tsx}', '../../packages/ui/components/src/**/*.{ts,tsx}'],
   darkMode: 'class',
   theme: {
     container: {
