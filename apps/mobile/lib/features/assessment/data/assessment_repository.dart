@@ -90,8 +90,8 @@ class AssessmentRepository {
         '/api/v1/assessments/results',
         queryParameters: <String, dynamic>{
           'studentId': studentId,
-          if (subjectFilter != null) 'subject': subjectFilter,
-          if (periodFilter != null) 'period': periodFilter,
+          'subject': ?subjectFilter,
+          'period': ?periodFilter,
         },
       );
 
