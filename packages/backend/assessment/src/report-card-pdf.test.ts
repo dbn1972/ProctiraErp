@@ -152,8 +152,14 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
       new ReportCardPdfGenerator(),
       { artifactStore, processInline },
     );
+    app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
-      (request as unknown as { tenantId: string }).tenantId = tenantId;
+      const context = request as unknown as {
+        tenantId: string;
+        user: { sub: string; roles: string[] };
+      };
+      context.tenantId = tenantId;
+      context.user = { sub: 'test-user', roles: ['teacher'] };
     });
     await registerReportCardRoutes(app, { reportCardService: service });
     await app.ready();

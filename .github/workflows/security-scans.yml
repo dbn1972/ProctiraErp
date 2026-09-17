@@ -38,6 +38,8 @@ concurrency:
 env:
   GITLEAKS_VERSION: '8.21.2'
   SEMGREP_VERSION: '1.97.0'
+  # Semgrep 1.97 imports pkg_resources; setuptools 81+ removes it.
+  SETUPTOOLS_VERSION: '80.9.0'
 
 jobs:
   security-scans-contract:
@@ -104,7 +106,10 @@ jobs:
           python-version: '3.12'
 
       - name: Install Semgrep
-        run: pip install --no-cache-dir "semgrep==${SEMGREP_VERSION}"
+        run: |
+          python -m pip install --no-cache-dir \
+            "setuptools==${SETUPTOOLS_VERSION}" \
+            "semgrep==${SEMGREP_VERSION}"
 
       # Community rulepacks only — no SEMGREP_APP_TOKEN / paid platform required.
       # --severity ERROR + --error: findings at ERROR (≈ high) fail the job.
@@ -183,16 +188,18 @@ jobs:
       - name: Require all scan jobs
         run: |
           set -euo pipefail
-          echo "## W1-OPS-11 security scans" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Job | Result |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| --- | --- |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| security-scans-contract | ${{ needs.security-scans-contract.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| secret-scan (gitleaks) | ${{ needs.secret-scan.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| sast-semgrep | ${{ needs.sast-semgrep.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| iac-trivy | ${{ needs.iac-trivy.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| container-fs-trivy | ${{ needs.container-fs-trivy.result }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Full OCI image CVE of published digests still requires registry credentials (see supply-chain.yml)." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## W1-OPS-11 security scans"
+            echo "| Job | Result |"
+            echo "| --- | --- |"
+            echo "| security-scans-contract | ${{ needs.security-scans-contract.result }} |"
+            echo "| secret-scan (gitleaks) | ${{ needs.secret-scan.result }} |"
+            echo "| sast-semgrep | ${{ needs.sast-semgrep.result }} |"
+            echo "| iac-trivy | ${{ needs.iac-trivy.result }} |"
+            echo "| container-fs-trivy | ${{ needs.container-fs-trivy.result }} |"
+            echo ""
+            echo "Full OCI image CVE of published digests still requires registry credentials (see supply-chain.yml)."
+          } >> "$GITHUB_STEP_SUMMARY"
 
           for r in \
             "${{ needs.security-scans-contract.result }}" \

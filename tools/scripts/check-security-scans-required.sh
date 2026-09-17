@@ -58,6 +58,12 @@ done
 echo "==> scanner tool identity (gitleaks / semgrep / trivy)"
 grep -q 'gitleaks detect' "$SCANS_WF" || die "secret scan must invoke gitleaks detect"
 grep -q 'semgrep scan' "$SCANS_WF" || die "SAST must invoke semgrep scan"
+grep -qF "SETUPTOOLS_VERSION: '80.9.0'" "$SCANS_WF" \
+  || die "Semgrep compatibility requires pinned setuptools 80.9.0"
+grep -qF '"setuptools==${SETUPTOOLS_VERSION}"' "$SCANS_WF" \
+  || die "Semgrep install must pin setuptools via SETUPTOOLS_VERSION"
+grep -qF '"semgrep==${SEMGREP_VERSION}"' "$SCANS_WF" \
+  || die "Semgrep install must remain version-pinned"
 grep -q 'scan-type: config' "$SCANS_WF" || die "IaC must use Trivy config scan"
 grep -q 'scan-type: fs' "$SCANS_WF" || die "container CVE equivalent must use Trivy fs scan"
 grep -q "severity: 'CRITICAL,HIGH'" "$SCANS_WF" || die "IaC must block HIGH+"

@@ -97,6 +97,19 @@ describe('phi-crypto', () => {
     expect(encryptPhi(cipher)).toBe(cipher);
   });
 
+  it('rejects AES-GCM ciphertext with a truncated authentication tag', () => {
+    process.env.NODE_ENV = 'test';
+    process.env.PHI_ENCRYPTION_KEY = 'unit-test-phi-key-please-change';
+    delete process.env.PHI_ENVELOPE_PROVIDER;
+
+    const cipher = encryptPhi('student diagnosis notes');
+    const [prefix, version, ivB64, tagB64, dataB64] = cipher.split(':');
+    const shortTagB64 = Buffer.from(tagB64!, 'base64').subarray(0, 8).toString('base64');
+    const truncated = [prefix, version, ivB64, shortTagB64, dataB64].join(':');
+
+    expect(() => decryptPhi(truncated)).toThrow('Invalid enc:v1 PHI ciphertext');
+  });
+
   it('accepts a 32-byte hex key', () => {
     process.env.NODE_ENV = 'test';
     process.env.PHI_ENCRYPTION_KEY = 'a'.repeat(64);

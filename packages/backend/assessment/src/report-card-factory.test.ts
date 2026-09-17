@@ -20,8 +20,14 @@ import {
 describe('report-card repository factories (G-210)', () => {
   it('wires report-card routes when factories are composed into assessmentPlugin', async () => {
     const app = Fastify();
+    app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
-      (request as { tenantId?: string }).tenantId = uuidv4();
+      const context = request as {
+        tenantId?: string;
+        user?: { sub: string; roles: string[] };
+      };
+      context.tenantId = uuidv4();
+      context.user = { sub: 'test-user', roles: ['teacher'] };
     });
 
     await app.register(assessmentPlugin, {

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import type { QuestionType } from './grading-engine.js';
 import type {
@@ -1803,8 +1803,8 @@ export class PgLmsRepository implements LmsRepository {
         `SELECT * FROM lms_modules WHERE tenant_id=$1 ORDER BY position ASC`,
         [tenantId],
       );
-      return res.rows
-        .map((row: Record<string, unknown>) => ({
+      return (res.rows as Record<string, unknown>[])
+        .map((row) => ({
           id: String(row.id),
           tenantId: String(row.tenant_id),
           institutionId: row.institution_id ? String(row.institution_id) : null,
@@ -1857,7 +1857,7 @@ export class PgLmsRepository implements LmsRepository {
         `SELECT * FROM lms_module_items WHERE tenant_id=$1 AND module_id=$2 ORDER BY position ASC`,
         [tenantId, moduleId],
       );
-      return res.rows.map((row: Record<string, unknown>) => ({
+      return (res.rows as Record<string, unknown>[]).map((row) => ({
         id: String(row.id),
         tenantId: String(row.tenant_id),
         moduleId: String(row.module_id),
