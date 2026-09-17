@@ -20,17 +20,19 @@ export default async function TenantDetailPage({
   params,
   searchParams,
 }: {
-  params: { id: string };
-  searchParams: { provisioned?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ provisioned?: string }>;
 }) {
-  await requireRole('tenants', `/tenants/${params.id}`);
-  const { tenant, source } = await getTenant(params.id);
+  const { id } = await params;
+  await requireRole('tenants', `/tenants/${id}`);
+  const resolvedSearchParams = await searchParams;
+  const { tenant, source } = await getTenant(id);
   if (!tenant) {
     return (
       <MissingResource
         title="Tenant"
         resourceLabel="Tenant"
-        id={params.id}
+        id={id}
         backHref="/tenants"
         backLabel="Back to tenants"
       />
@@ -53,7 +55,7 @@ export default async function TenantDetailPage({
 
       <StubDataBanner source={source} />
 
-      {searchParams?.provisioned === '1' && (
+      {resolvedSearchParams.provisioned === '1' && (
         <Alert variant="success" className="mb-6">
           <AlertDescription>
             Tenant provisioning request accepted. The tenant will become active once background
