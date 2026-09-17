@@ -16,9 +16,9 @@ function isBootstrapStep(value: string): value is BootstrapStep {
  */
 export async function POST(
   request: Request,
-  context: { params: { step: string } },
+  context: { params: Promise<{ step: string }> },
 ): Promise<NextResponse> {
-  const security = assertInstallSecurity(request);
+  const security = await assertInstallSecurity(request);
   if (!security.ok) {
     return NextResponse.json(
       { success: false, error: security.error },
@@ -26,7 +26,7 @@ export async function POST(
     );
   }
 
-  const stepParam = context.params.step;
+  const { step: stepParam } = await context.params;
   if (!isBootstrapStep(stepParam)) {
     return NextResponse.json(
       {
