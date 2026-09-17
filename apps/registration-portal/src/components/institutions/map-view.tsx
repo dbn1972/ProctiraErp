@@ -1,7 +1,7 @@
 'use client';
 
 import L from 'leaflet';
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import { useEffect, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
 import type { InstitutionLocation } from '@/lib/api';
 
@@ -16,8 +16,6 @@ const defaultIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-L.Marker.prototype.options.icon = defaultIcon;
-
 interface MapViewProps {
   institutions: InstitutionLocation[];
   loading: boolean;
@@ -31,19 +29,87 @@ const DEFAULT_ZOOM = 2;
  * Used by the school finder page; mounted client-side only via `next/dynamic`.
  */
 export function MapView({ institutions, loading }: MapViewProps) {
-  const withCoords = institutions.filter(
-    (inst): inst is InstitutionLocation & { latitude: number; longitude: number } =>
-      inst.latitude !== null && inst.longitude !== null,
-  );
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerLayerRef = useRef<L.LayerGroup | null>(null);
 
-  const center: [number, number] =
-    withCoords.length > 0
-      ? [
-          withCoords.reduce((sum, i) => sum + i.latitude, 0) / withCoords.length,
-          withCoords.reduce((sum, i) => sum + i.longitude, 0) / withCoords.length,
-        ]
-      : DEFAULT_CENTER;
-  const zoom = withCoords.length > 0 ? 8 : DEFAULT_ZOOM;
+  useEffect(() => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const map = L.map(container, {
+      center: DEFAULT_CENTER,
+      zoom: DEFAULT_ZOOM,
+      scrollWheelZoom: true,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    const markerLayer = L.layerGroup().addTo(map);
+
+    mapRef.current = map;
+    markerLayerRef.current = markerLayer;
+
+    return () => {
+      map.remove();
+      if (mapRef.current === map) mapRef.current = null;
+      if (markerLayerRef.current === markerLayer) markerLayerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const markerLayer = markerLayerRef.current;
+    if (!map || !markerLayer) return;
+
+    const withCoords = institutions.filter(
+      (inst): inst is InstitutionLocation & { latitude: number; longitude: number } =>
+        inst.latitude !== null && inst.longitude !== null,
+    );
+
+    markerLayer.clearLayers();
+
+    for (const institution of withCoords) {
+      const popupContent = document.createElement('div');
+      popupContent.className = 'min-w-[200px] text-sm';
+
+      const name = document.createElement('h3');
+      name.className = 'text-base font-semibold';
+      name.textContent = institution.name;
+      popupContent.append(name);
+
+      const details = [
+        [institution.typeName, 'text-gray-600'],
+        [institution.areaName, 'text-gray-600'],
+        [institution.address, 'mt-1 text-xs text-gray-500'],
+      ] as const;
+
+      for (const [text, className] of details) {
+        if (!text) continue;
+        const paragraph = document.createElement('p');
+        paragraph.className = className;
+        paragraph.textContent = text;
+        popupContent.append(paragraph);
+      }
+
+      L.marker([institution.latitude, institution.longitude], { icon: defaultIcon })
+        .bindPopup(popupContent)
+        .addTo(markerLayer);
+    }
+
+    const center: [number, number] =
+      withCoords.length > 0
+        ? [
+            withCoords.reduce((sum, institution) => sum + institution.latitude, 0) /
+              withCoords.length,
+            withCoords.reduce((sum, institution) => sum + institution.longitude, 0) /
+              withCoords.length,
+          ]
+        : DEFAULT_CENTER;
+    const zoom = withCoords.length > 0 ? 8 : DEFAULT_ZOOM;
+    map.setView(center, zoom);
+  }, [institutions]);
 
   return (
     <div className="relative h-[500px] w-full">
@@ -52,26 +118,7 @@ export function MapView({ institutions, loading }: MapViewProps) {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
         </div>
       )}
-      <MapContainer center={center} zoom={zoom} className="h-full w-full" scrollWheelZoom>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {withCoords.map((institution) => (
-          <Marker key={institution.id} position={[institution.latitude, institution.longitude]}>
-            <Popup>
-              <div className="min-w-[200px] text-sm">
-                <h3 className="text-base font-semibold">{institution.name}</h3>
-                {institution.typeName && <p className="text-gray-600">{institution.typeName}</p>}
-                {institution.areaName && <p className="text-gray-600">{institution.areaName}</p>}
-                {institution.address && (
-                  <p className="mt-1 text-xs text-gray-500">{institution.address}</p>
-                )}
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+      <div ref={mapContainerRef} className="h-full w-full" />
     </div>
   );
 }
