@@ -10,7 +10,8 @@ data:
   LOG_LEVEL: {{ .Values.global.logLevel | quote }}
   JWT_ISSUER: {{ .Values.config.jwtIssuer | quote }}
   JWT_AUDIENCE: {{ .Values.config.jwtAudience | quote }}
-  JWT_ACCESS_TOKEN_EXPIRES_IN: {{ .Values.config.jwtAccessTokenExpiresIn | quote }}
+  # Non-secret duration; the gateway still accepts the legacy env alias.
+  JWT_ACCESS_TTL: {{ .Values.config.jwtAccessTokenExpiresIn | quote }}
   RATE_LIMIT_WINDOW_MS: {{ .Values.config.rateLimitWindowMs | quote }}
   RATE_LIMIT_MAX_REQUESTS: {{ .Values.config.rateLimitMaxRequests | quote }}
   TENANT_BASE_DOMAIN: {{ .Values.config.tenantBaseDomain | quote }}

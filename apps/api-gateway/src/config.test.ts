@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEV_JWT_SECRET, resolveJwtSecret } from './config.js';
+import { DEV_JWT_SECRET, resolveAccessTokenExpiresIn, resolveJwtSecret } from './config.js';
 
 describe('resolveJwtSecret (G-703)', () => {
   const strong = 'a'.repeat(48);
@@ -24,5 +24,21 @@ describe('resolveJwtSecret (G-703)', () => {
 
   it('accepts a strong production secret', () => {
     expect(resolveJwtSecret('production', strong)).toBe(strong);
+  });
+});
+
+describe('resolveAccessTokenExpiresIn', () => {
+  it('prefers the non-secret Kubernetes TTL alias', () => {
+    expect(
+      resolveAccessTokenExpiresIn({
+        JWT_ACCESS_TTL: '20m',
+        JWT_ACCESS_TOKEN_EXPIRES_IN: '10m',
+      }),
+    ).toBe('20m');
+  });
+
+  it('keeps the historical environment variable compatible', () => {
+    expect(resolveAccessTokenExpiresIn({ JWT_ACCESS_TOKEN_EXPIRES_IN: '30m' })).toBe('30m');
+    expect(resolveAccessTokenExpiresIn({})).toBe('15m');
   });
 });
