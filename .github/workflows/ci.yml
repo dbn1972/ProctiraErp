@@ -1226,17 +1226,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
-      - name: Unit-test runtime role gate
-        run: |
-          node --test tools/scripts/assert-runtime-database-role.test.mjs
-          node --test tools/scripts/check-runtime-role-gate.test.mjs
+      - name: Install dependencies for AST-backed runtime source inspection
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit-test runtime database role evaluator
+        run: node --test tools/scripts/assert-runtime-database-role.test.mjs
+
+      - name: Unit-test runtime/deploy workflow contracts
+        run: node --test tools/scripts/check-runtime-role-gate.test.mjs
+
+      - name: Unit-test AST-backed runtime DDL gate
+        run: node --test tools/scripts/check-no-runtime-ddl.test.mjs
+
+      - name: Unit-test target migration contract
+        run: node --test tools/scripts/target-database-migration-contract.test.mjs
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
+
+      - name: Fail when application runtimes load migrations or issue DDL
+        run: node tools/scripts/check-no-runtime-ddl.mjs
 
   # ---------------------------------------------------------------------------
   # Security scans — SAST / secrets / IaC / container FS CVE (W1-OPS-11)

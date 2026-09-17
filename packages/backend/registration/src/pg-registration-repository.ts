@@ -5,13 +5,14 @@
  * using withPgTenant for RLS (G-103 / G-205). Institution / form-config helpers
  * remain seedable in-memory overlays (same as gateway demo / unit tests).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import { haversineKm, type InMemoryInstitution } from './in-memory-repository.js';
 import type {
@@ -26,41 +27,20 @@ import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureRegistrationSchemaReady = createDatabaseSchemaReadinessCheck(
+  'registration',
+  'registration',
+);
 
 export function getSharedRegistrationPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/014_admissions_crm_schema.sql'),
-    join(process.cwd(), 'db/sql/014_admissions_crm_schema.sql'),
-    join(process.cwd(), '../../db/sql/014_admissions_crm_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureRegistrationSchema(
   pool: PgPoolLike = getSharedRegistrationPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for registration schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureRegistrationSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {

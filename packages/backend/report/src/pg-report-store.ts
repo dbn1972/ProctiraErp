@@ -1,8 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
+  createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
   withPgTenant,
   withPlatformScope,
@@ -18,33 +15,10 @@ import type {
   ScheduleCadence,
 } from './report-store.js';
 
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/037_reports_schema.sql'),
-    join(process.cwd(), 'db/sql/037_reports_schema.sql'),
-    join(process.cwd(), '../../db/sql/037_reports_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
-let schemaReady: Promise<void> | null = null;
+const ensureReportSchemaReady = createDatabaseSchemaReadinessCheck('reports', 'reports');
 
 async function ensureSchema(pool: PgQueryable): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })();
-  }
-  await schemaReady;
+  await ensureReportSchemaReady(pool);
 }
 
 function asDate(value: unknown): Date {

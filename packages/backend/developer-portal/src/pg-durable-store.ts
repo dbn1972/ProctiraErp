@@ -5,11 +5,12 @@
  * db/sql/089_developer_portal_durable_state.sql. Composed with PgApiKeyStore
  * (055) inside HybridDeveloperPortalRepository.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  withPlatformScope,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type {
   DeveloperAccountEntity,
@@ -20,40 +21,19 @@ import type {
 } from './developer-portal-repository.js';
 import type { PgPoolLike } from './pg-api-key-store.js';
 
-let durableSchemaReady: Promise<void> | null = null;
-
-function durableSchemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/089_developer_portal_durable_state.sql'),
-    join(process.cwd(), 'db/sql/089_developer_portal_durable_state.sql'),
-    join(process.cwd(), '../../db/sql/089_developer_portal_durable_state.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
+const ensureDeveloperPortalDurableSchemaReady = createDatabaseSchemaReadinessCheck(
+  'developer portal durable state',
+  'developerPortalDurable',
+);
 
 export async function ensureDeveloperPortalDurableSchema(pool: PgPoolLike): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for developer-portal durable schema');
-  if (!durableSchemaReady) {
-    durableSchemaReady = (async () => {
-      const sql = readFileSync(durableSchemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await durableSchemaReady;
+  await ensureDeveloperPortalDurableSchemaReady(pool);
 }
 
-/** Test helper — reset schema-ensure memo (vitest isolation). */
+/** Test helper — reset schema-readiness memo (vitest isolation). */
 export function resetDeveloperPortalDurableSchemaMemoForTests(): void {
-  durableSchemaReady = null;
+  ensureDeveloperPortalDurableSchemaReady.reset();
 }
 
 function toDate(value: unknown): Date {

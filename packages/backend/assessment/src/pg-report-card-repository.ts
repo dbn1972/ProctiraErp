@@ -6,11 +6,12 @@
  * db/sql/024_wave7_domain_persistence_schema.sql. Every statement runs under
  * `withPgTenant` so the FORCEd RLS policies apply to the app role.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { withPgTenant, type PgQueryable, type PgPool } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+  type PgPool,
+} from '@proctira/database';
 
 import type {
   InstitutionBrandingEntity,
@@ -26,38 +27,13 @@ import type {
 
 export type ReportCardPgPool = Pick<PgPool, 'query'> & Partial<Pick<PgPool, 'connect' | 'end'>>;
 
-let schemaReady: Promise<void> | null = null;
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '024_wave7_domain_persistence_schema.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
+const ensureReportCardSchemaReady = createDatabaseSchemaReadinessCheck(
+  'report cards',
+  'reportCards',
+);
 
 export async function ensureReportCardSchema(pool: ReportCardPgPool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })().catch((err: unknown) => {
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
+  await ensureReportCardSchemaReady(pool);
 }
 
 type Row = Record<string, unknown>;

@@ -57,7 +57,28 @@ bash tools/scripts/bootstrap-db-roles.sh
 DML grants after schema exists remain in `db/sql/050_app_runtime_role.sql`.
 See `db/bootstrap/README.md`.
 
+Application runtimes must never load or replay numbered `db/sql/*.sql` files,
+or issue `CREATE`/`ALTER`/other DDL through a runtime database client. They may
+only perform read-only schema readiness checks: `to_regclass` verifies each
+centralized adapter relation and the narrowly permissioned
+`proctira_runtime_migration_status()` function verifies the minimum application
+schema marker plus strict-FK repair. The underlying migration ledgers remain
+denied to `proctira_app`. Missing relations or ALTER/integrity migrations fail
+with a migration-required error before domain DML. The fail-closed static gate
+is:
+
+```bash
+pnpm check:runtime-ddl
+```
+
+The active deploy workflow requires a separately scoped GitHub Environment
+secret named `MIGRATOR_DATABASE_URL`. Before Helm rollout it runs Prisma then
+seed-free domain SQL with `APPLY_STRICT_FKS=1`, verifies migrations 082/091/092
+and hostel indexes, then checks the actual `proctira_app` secret with
+`assert-runtime-schema-ready.sh`. The migrator URL is never rendered into Helm
+or mounted into application pods.
 ## Strict tenant foreign keys (W1-DATA-06 COMPLETE)
+
 **Deploy / CI gate (W1-DATA-01 COMPLETE):** every production (and can-deploy)
 release must prove the *actual* runtime secret is non-owner:
 

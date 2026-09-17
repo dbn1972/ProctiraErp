@@ -3,13 +3,13 @@
  *
  * When DATABASE_URL is set, transport CRUD persists via db/sql/006_transport_schema.sql.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type {
   AlertRuleEntity,
@@ -39,43 +39,17 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureTransportSchemaReady = createDatabaseSchemaReadinessCheck('transport', 'transport');
 
 export function getSharedTransportPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function resolveSqlFile(name: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${name}`),
-    join(process.cwd(), `db/sql/${name}`),
-    join(process.cwd(), `../../db/sql/${name}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureTransportSchema(
   pool: PgPoolLike = getSharedTransportPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for transport schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      for (const name of ['006_transport_schema.sql', '045_transport_ops_schema.sql']) {
-        const sql = readFileSync(resolveSqlFile(name), 'utf8');
-        await pool.query(sql);
-      }
-    })();
-  }
-  await schemaReady;
+  await ensureTransportSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {

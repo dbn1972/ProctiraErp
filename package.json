@@ -54,6 +54,9 @@
     "check:runtime-table-privileges:test": "node --test tools/scripts/check-runtime-table-privileges.test.mjs",
     "check:runtime-role-gate": "node tools/scripts/check-runtime-role-gate.mjs",
     "check:runtime-role-gate:test": "node --test tools/scripts/assert-runtime-database-role.test.mjs tools/scripts/check-runtime-role-gate.test.mjs",
+    "check:runtime-ddl": "node tools/scripts/check-no-runtime-ddl.mjs",
+    "check:runtime-ddl:test": "node --test tools/scripts/check-no-runtime-ddl.test.mjs",
+    "check:target-migration:test": "node --test tools/scripts/target-database-migration-contract.test.mjs",
     "check:reusable-ci-assets": "node tools/scripts/assert-reusable-ci-assets.mjs",
     "check:reusable-ci-assets:test": "node --test tools/scripts/assert-reusable-ci-assets.test.mjs",
     "check:observability": "node tools/scripts/validate-observability.mjs",
@@ -79,7 +82,8 @@
     "prettier": "^3.2.0",
     "turbo": "^2.0.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "yaml": "2.8.1"
   },
   "pnpm": {
     "packageExtensions": {

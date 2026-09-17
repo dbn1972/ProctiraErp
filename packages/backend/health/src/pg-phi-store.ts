@@ -2,12 +2,12 @@
  * Postgres-backed student profile PHI + screening programs (raw `pg` — no Prisma).
  * Complements PgCounsellingStore for peer-gap Health PHI vault.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { withPgTenant } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 import type pg from 'pg';
 
 import type {
@@ -26,41 +26,17 @@ import {
 import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
 import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
-let schemaReady: Promise<void> | null = null;
+const ensurePhiSchemaReady = createDatabaseSchemaReadinessCheck('health PHI', 'healthPhi');
 
 export function isPgPhiEnabled(): boolean {
   return isPgCounsellingEnabled();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/012_health_screenings_profile_schema.sql'),
-    join(process.cwd(), 'db/sql/012_health_screenings_profile_schema.sql'),
-    join(process.cwd(), '../../db/sql/012_health_screenings_profile_schema.sql'),
-  ];
-  for (const p of candidates) {
-    try {
-      readFileSync(p, 'utf8');
-      return p;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensurePhiSchema(
   pool: PgPoolLike = getSharedCounsellingPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for health PHI schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensurePhiSchemaReady(pool);
 }
 
 function toDateStr(value: unknown): string {
@@ -221,10 +197,7 @@ export class PgPhiStore {
   async createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthMeasurementEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity> {
     await this.ensureSchema();
@@ -350,10 +323,7 @@ export class PgPhiStore {
   async createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AllergyEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity> {
     await this.ensureSchema();
@@ -365,18 +335,18 @@ export class PgPhiStore {
         id, tenant_id, student_id, allergy_type, description, severity, reaction, treatment, diagnosed_date, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date,$10,$11) RETURNING *`,
         [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.allergyType,
-        encryptPhi(data.description, scope),
-        data.severity,
-        encryptPhi(data.reaction, scope),
-        encryptPhi(data.treatment, scope),
-        data.diagnosedDate,
-        now,
-        now,
-      ],
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.allergyType,
+          encryptPhi(data.description, scope),
+          data.severity,
+          encryptPhi(data.reaction, scope),
+          encryptPhi(data.treatment, scope),
+          data.diagnosedDate,
+          now,
+          now,
+        ],
       );
       const entity = mapAllergy(result.rows[0] as Record<string, unknown>);
       // W1-SEC-10: PHI write + audit share one COMMIT.
@@ -479,10 +449,7 @@ export class PgPhiStore {
   async createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthConditionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity> {
     await this.ensureSchema();
@@ -495,19 +462,19 @@ export class PgPhiStore {
         treatment, medication, notes, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9,$10,$11,$12) RETURNING *`,
         [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.conditionName,
-        data.conditionType,
-        data.diagnosedDate,
-        data.status,
-        encryptPhi(data.treatment, scope),
-        encryptPhi(data.medication, scope),
-        encryptPhi(data.notes, scope),
-        now,
-        now,
-      ],
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.conditionName,
+          data.conditionType,
+          data.diagnosedDate,
+          data.status,
+          encryptPhi(data.treatment, scope),
+          encryptPhi(data.medication, scope),
+          encryptPhi(data.notes, scope),
+          now,
+          now,
+        ],
       );
       const entity = mapCondition(result.rows[0] as Record<string, unknown>);
       // W1-SEC-10: PHI write + audit share one COMMIT.
@@ -611,10 +578,7 @@ export class PgPhiStore {
   async createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: VaccinationEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity> {
     await this.ensureSchema();
@@ -627,19 +591,19 @@ export class PgPhiStore {
         administered_by, batch_number, next_due_date, notes, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9::date,$10,$11,$12) RETURNING *`,
         [
-        data.id,
-        data.tenantId,
-        data.studentId,
-        data.vaccineName,
-        data.doseNumber,
-        data.dateAdministered,
-        data.administeredBy,
-        data.batchNumber,
-        data.nextDueDate,
-        encryptPhi(data.notes, scope),
-        now,
-        now,
-      ],
+          data.id,
+          data.tenantId,
+          data.studentId,
+          data.vaccineName,
+          data.doseNumber,
+          data.dateAdministered,
+          data.administeredBy,
+          data.batchNumber,
+          data.nextDueDate,
+          encryptPhi(data.notes, scope),
+          now,
+          now,
+        ],
       );
       const entity = mapVaccination(result.rows[0] as Record<string, unknown>);
       // W1-SEC-10: PHI write + audit share one COMMIT.
@@ -743,10 +707,7 @@ export class PgPhiStore {
   async createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: InsuranceEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity> {
     await this.ensureSchema();
@@ -861,10 +822,7 @@ export class PgPhiStore {
   async createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ScreeningProgramEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
     await this.ensureSchema();

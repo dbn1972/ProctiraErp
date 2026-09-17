@@ -3,12 +3,13 @@
  *
  * When DATABASE_URL is set, occupancy persists via db/sql/008_hostel_schema.sql.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import {
   BedAssignmentConflictError,
@@ -45,48 +46,15 @@ import {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureHostelSchemaReady = createDatabaseSchemaReadinessCheck('hostel', 'hostel');
 
 export function getSharedHostelPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function resolveSqlFile(name: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${name}`),
-    join(process.cwd(), `db/sql/${name}`),
-    join(process.cwd(), `../../db/sql/${name}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 export async function ensureHostelSchema(pool: PgPoolLike = getSharedHostelPool()!): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for hostel schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(resolveSqlFile('008_hostel_schema.sql'), 'utf8'));
-      await pool.query(readFileSync(resolveSqlFile('040_hostel_ops_schema.sql'), 'utf8'));
-      // P2-HOSTEL: unique active bed / student (partial indexes — package-owned guard).
-      await pool.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_hostel_assignments_active_bed
-          ON hostel_assignments (tenant_id, bed_id)
-          WHERE is_active;
-        CREATE UNIQUE INDEX IF NOT EXISTS uq_hostel_assignments_active_student
-          ON hostel_assignments (tenant_id, student_id)
-          WHERE is_active;
-      `);
-    })();
-  }
-  await schemaReady;
+  await ensureHostelSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
