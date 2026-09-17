@@ -86,14 +86,9 @@ export function createWebhookDeliveryWorker(
             'webhook-delivery worker processing job',
           );
           if (message.tenantId !== message.payload.tenantId) {
-            throw new Error(
-              `Webhook delivery tenant mismatch on message ${message.id}`,
-            );
+            throw new Error(`Webhook delivery tenant mismatch on message ${message.id}`);
           }
-          await options.processor.processQueuedDelivery(
-            message.payload.tenantId,
-            message.payload,
-          );
+          await options.processor.processQueuedDelivery(message.payload.tenantId, message.payload);
           options.logger?.info(
             { deliveryId: message.payload.deliveryId },
             'webhook-delivery worker completed job',

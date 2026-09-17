@@ -65,6 +65,7 @@
     "check:turbo-filter-base:test": "node --test tools/scripts/resolve-turbo-filter-base.test.mjs"
   },
   "devDependencies": {
+    "@types/node": "20.19.41",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitest/coverage-v8": "^1.6.1",

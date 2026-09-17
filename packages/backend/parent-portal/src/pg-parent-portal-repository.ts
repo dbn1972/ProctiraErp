@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import type {
   ConsentEntity,
@@ -517,10 +517,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return result.rows.map((row) => String((row as Record<string, unknown>).household_id));
   }
 
-  async listActiveHouseholdIdsForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<string[]> {
+  async listActiveHouseholdIdsForParent(tenantId: string, parentUserId: string): Promise<string[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
@@ -621,7 +618,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   }
 
   async createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
       decidedAt?: Date | null;
     },
   ): Promise<ConsentEntity> {

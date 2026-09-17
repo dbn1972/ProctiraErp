@@ -18,7 +18,7 @@ const paginationCapPluginImpl: FastifyPluginAsync = async (fastify: FastifyInsta
 
     const query = request.query as Record<string, unknown>;
     const result = validatePaginationQuery(query);
-    if ('skipped' in result && result.skipped) {
+    if ('skipped' in result) {
       return;
     }
 

@@ -35,6 +35,15 @@ import type {
 } from './schemas.js';
 
 /**
+ * Internal callers can reach the service without TypeBox route validation.
+ * Keep that boundary honest so a missing classId reaches the fail-closed
+ * business-rule check below; HTTP callers still use the required schema.
+ */
+export type CreateEnrollmentCommand = Omit<CreateEnrollmentInput, 'classId'> & {
+  classId?: CreateEnrollmentInput['classId'];
+};
+
+/**
  * Service handling enrollment lifecycle and transfer business logic.
  */
 export class EnrollmentService {
@@ -47,7 +56,7 @@ export class EnrollmentService {
    */
   async createEnrollment(
     tenantId: string,
-    input: CreateEnrollmentInput,
+    input: CreateEnrollmentCommand,
   ): Promise<EnrollmentEntity> {
     // Validate institution exists and is active
     const institution = await this.repository.findInstitutionById(input.institutionId, tenantId);

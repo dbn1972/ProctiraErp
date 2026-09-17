@@ -14,12 +14,7 @@
  */
 
 import type { PermissionAction } from '@proctira/backend-auth';
-import type {
-  FastifyInstance,
-  FastifyReply,
-  FastifyRequest,
-  RouteOptions,
-} from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
 
 import {
   actionForMethod,
@@ -269,9 +264,7 @@ function ruleMatches(rule: MutatingAuthzInventoryRule, method: string, path: str
   if (rule.methods && !rule.methods.includes(m as 'POST' | 'PUT' | 'PATCH' | 'DELETE')) {
     return false;
   }
-  const prefix = rule.pathPrefix.endsWith('/')
-    ? rule.pathPrefix.slice(0, -1)
-    : rule.pathPrefix;
+  const prefix = rule.pathPrefix.endsWith('/') ? rule.pathPrefix.slice(0, -1) : rule.pathPrefix;
   return path === prefix || path.startsWith(`${prefix}/`);
 }
 
@@ -327,7 +320,7 @@ export function attachMutatingRouteAuthzTracker(app: FastifyInstance): {
 
   app.addHook('onRoute', (route: RouteOptions) => {
     const methods = Array.isArray(route.method) ? route.method : [route.method];
-    const path = typeof route.url === 'string' ? route.url : route.path;
+    const path = route.url;
     if (typeof path !== 'string') return;
     const normalized = normalizePath(path);
     if (!normalized.startsWith('/api/v1/')) return;
@@ -359,10 +352,7 @@ declare module 'fastify' {
   }
 }
 
-export type ExactAuthzDenyReason =
-  | 'missing_inventory_guard'
-  | 'unmapped_resource'
-  | 'forbidden';
+export type ExactAuthzDenyReason = 'missing_inventory_guard' | 'unmapped_resource' | 'forbidden';
 
 /**
  * Enforce inventory-declared exact resource/action for mutating /api/v1 routes.

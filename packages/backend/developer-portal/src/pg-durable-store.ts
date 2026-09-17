@@ -40,9 +40,7 @@ function durableSchemaSqlPath(): string {
   return candidates[0]!;
 }
 
-export async function ensureDeveloperPortalDurableSchema(
-  pool: PgPoolLike,
-): Promise<void> {
+export async function ensureDeveloperPortalDurableSchema(pool: PgPoolLike): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for developer-portal durable schema');
   if (!durableSchemaReady) {
     durableSchemaReady = (async () => {
@@ -349,7 +347,7 @@ export class PgDeveloperPortalDurableStore {
       const result = await client.query(`DELETE FROM developer_portal_webhooks WHERE id = $1`, [
         id,
       ]);
-      return (result.rowCount ?? 0) > 0;
+      return Number(result.rowCount ?? 0) > 0;
     });
   }
 
@@ -454,8 +452,7 @@ export class PgDeveloperPortalDurableStore {
         attempts: updates.attempts ?? existing.attempts,
         lastAttemptAt:
           updates.lastAttemptAt !== undefined ? updates.lastAttemptAt : existing.lastAttemptAt,
-        nextRetryAt:
-          updates.nextRetryAt !== undefined ? updates.nextRetryAt : existing.nextRetryAt,
+        nextRetryAt: updates.nextRetryAt !== undefined ? updates.nextRetryAt : existing.nextRetryAt,
       };
       const result = await client.query(
         `UPDATE developer_portal_webhook_deliveries
@@ -463,14 +460,7 @@ export class PgDeveloperPortalDurableStore {
              last_attempt_at = $5, next_retry_at = $6
          WHERE id = $1
          RETURNING *`,
-        [
-          id,
-          next.status,
-          next.httpStatus,
-          next.attempts,
-          next.lastAttemptAt,
-          next.nextRetryAt,
-        ],
+        [id, next.status, next.httpStatus, next.attempts, next.lastAttemptAt, next.nextRetryAt],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapDelivery(row) : null;

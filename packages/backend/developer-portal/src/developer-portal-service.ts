@@ -47,10 +47,7 @@ import {
   createWebhookSignatureHeaders,
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
-import type {
-  WebhookReplayStore,
-  WebhookVerifyResult,
-} from './webhook-signature.js';
+import type { WebhookReplayStore, WebhookVerifyResult } from './webhook-signature.js';
 
 export {
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
@@ -531,10 +528,7 @@ export class DeveloperPortalService {
    * POSTs the webhook payload; on failure marks retry with exponential backoff
    * and re-enqueues when a publisher is configured.
    */
-  async processQueuedDelivery(
-    tenantId: string,
-    job: WebhookDeliveryJobPayload,
-  ): Promise<void> {
+  async processQueuedDelivery(tenantId: string, job: WebhookDeliveryJobPayload): Promise<void> {
     if (job.tenantId !== tenantId) {
       throw new BusinessRuleError('Webhook delivery tenant context mismatch');
     }
