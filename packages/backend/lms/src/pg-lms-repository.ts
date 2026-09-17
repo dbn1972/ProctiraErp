@@ -4,13 +4,14 @@
  * When DATABASE_URL is set, rows persist via db/sql/026_lms_schema.sql and
  * every query runs inside withPgTenant so RLS (`app.tenant_id`) is bound.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type { QuestionType } from './grading-engine.js';
 import type {
@@ -50,39 +51,15 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureLmsSchemaReady = createDatabaseSchemaReadinessCheck('LMS', 'lms');
 
 export function getSharedLmsPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function schemaSqlPath(file: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${file}`),
-    join(process.cwd(), `db/sql/${file}`),
-    join(process.cwd(), `../../db/sql/${file}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 export async function ensureLmsSchema(pool: PgPoolLike = getSharedLmsPool()!): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for LMS schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath('026_lms_schema.sql'), 'utf8'));
-      await pool.query(readFileSync(schemaSqlPath('038_lms_depth_schema.sql'), 'utf8'));
-    })();
-  }
-  await schemaReady;
+  await ensureLmsSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {

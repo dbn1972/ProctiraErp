@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type {
   StaffAttendanceRecord,
@@ -18,103 +19,13 @@ import type {
 
 export type PgHrOpsPool = PgQueryable & { connect?: unknown };
 
-let schemaReady: Promise<void> | null = null;
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '043_staff_hr_schema.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
-
-function payrollSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '062_staff_payroll_posting.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
-
-function effectiveDatingSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '070_academic_fee_effective_dating.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
-
-
-function completeDatingSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '083_w1_data_07_append_only_versions.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
-
+const ensureStaffHrSchemaReady = createDatabaseSchemaReadinessCheck(
+  'staff HR operations',
+  'staffHrOps',
+);
 
 export async function ensureStaffHrSchema(pool: PgHrOpsPool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-      await pool.query(readFileSync(payrollSqlPath(), 'utf8'));
-      await pool.query(readFileSync(effectiveDatingSqlPath(), 'utf8'));
-      await pool.query(readFileSync(completeDatingSqlPath(), 'utf8'));
-    })().catch((err: unknown) => {
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
+  await ensureStaffHrSchemaReady(pool);
 }
 
 function toDateStr(value: unknown): string {
@@ -287,7 +198,13 @@ export class PgStaffHrStore implements StaffHrStore {
     patch: Partial<
       Pick<
         StaffContractRecord,
-        'contractType' | 'startDate' | 'endDate' | 'salaryBand' | 'monthlyGrossCents' | 'status' | 'notes'
+        | 'contractType'
+        | 'startDate'
+        | 'endDate'
+        | 'salaryBand'
+        | 'monthlyGrossCents'
+        | 'status'
+        | 'notes'
       >
     >,
   ): Promise<StaffContractRecord | null> {
@@ -493,7 +410,10 @@ export class PgStaffHrStore implements StaffHrStore {
     const rows = await this.listAttendance(tenantId, { staffId, date });
     return rows[0] ?? null;
   }
-  async findPayrollExport(tenantId: string, month: string): Promise<StaffPayrollExportRecord | null> {
+  async findPayrollExport(
+    tenantId: string,
+    month: string,
+  ): Promise<StaffPayrollExportRecord | null> {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, (client) => selectCurrentPayrollExport(client, tenantId, month));
   }
@@ -636,5 +556,4 @@ export class PgStaffHrStore implements StaffHrStore {
       };
     });
   }
-
 }

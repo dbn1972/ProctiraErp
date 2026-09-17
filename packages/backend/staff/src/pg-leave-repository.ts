@@ -1,18 +1,15 @@
 /**
  * Postgres-backed staff leave repository (raw `pg` — no Prisma).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
+  createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
   withPgTenant,
   type PgQueryable,
 } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import {
@@ -26,7 +23,7 @@ import {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureStaffLeaveSchemaReady = createDatabaseSchemaReadinessCheck('staff leave', 'staffLeave');
 
 export function isPgStaffLeaveEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -36,45 +33,11 @@ export function getSharedStaffLeavePool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function schemaSqlPaths(): string[] {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const names = ['013_hr_leave_schema.sql', '018_hr_leave_balances_schema.sql'];
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  const resolved: string[] = [];
-  for (const name of names) {
-    let found: string | null = null;
-    for (const root of roots) {
-      const path = join(root, name);
-      try {
-        readFileSync(path, 'utf8');
-        found = path;
-        break;
-      } catch {
-        // try next
-      }
-    }
-    if (found) resolved.push(found);
-  }
-  return resolved;
-}
-
 export async function ensureStaffLeaveSchema(
   pool: PgPoolLike = getSharedStaffLeavePool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for staff leave schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      for (const path of schemaSqlPaths()) {
-        const sql = readFileSync(path, 'utf8');
-        await pool.query(sql);
-      }
-    })();
-  }
-  await schemaReady;
+  await ensureStaffLeaveSchemaReady(pool);
 }
 
 function toDateStr(value: unknown): string {

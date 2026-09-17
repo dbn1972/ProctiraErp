@@ -152,6 +152,11 @@ jobs:
             ["apps/registration-portal"]="registration-portal"
             ["apps/etl-worker"]="etl-worker"
             ["packages/backend/"]="api-gateway"
+            ["db/"]="api-gateway"
+            ["tools/scripts/run-target-database-migrations.sh"]="api-gateway"
+            ["tools/scripts/assert-runtime-schema-ready.sh"]="api-gateway"
+            ["infrastructure/helm/proctira-service/"]="api-gateway"
+            [".github/workflows/deploy.yml"]="api-gateway"
           )
 
           CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
@@ -302,13 +307,52 @@ jobs:
           platforms: linux/amd64
 
   # ---------------------------------------------------------------------------
+  # UP-P0-02 — Apply target migrations before any application rollout.
+  # MIGRATOR_DATABASE_URL is a GitHub Environment secret scoped to this job;
+  # it is never rendered into Helm values or mounted into application pods.
+  # ---------------------------------------------------------------------------
+  migrate-database:
+    name: Migrate target database
+    runs-on: ubuntu-latest
+    needs: [ci-gate, prepare, build-images]
+    if: needs.prepare.outputs.can-deploy == 'true'
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install migration dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+
+      - name: Apply and verify target schema as migrator
+        env:
+          MIGRATOR_DATABASE_URL: ${{ secrets.MIGRATOR_DATABASE_URL }}
+          MIGRATOR_ROLE_EXPECTED: proctira
+        run: bash tools/scripts/run-target-database-migrations.sh
+
+  # ---------------------------------------------------------------------------
   # Deploy to target environment via Helm
   # ---------------------------------------------------------------------------
   deploy:
     name: Deploy to ${{ needs.prepare.outputs.environment }}
     runs-on: ubuntu-latest
-    needs: [ci-gate, prepare, build-images]
-    if: needs.prepare.outputs.can-deploy == 'true'
+    needs: [ci-gate, prepare, build-images, migrate-database, runtime-role-gate]
+    if: needs.prepare.outputs.can-deploy == 'true' && needs.build-images.result == 'success' && needs.migrate-database.result == 'success' && needs.runtime-role-gate.result == 'success'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
       - uses: actions/checkout@v7
@@ -402,10 +446,9 @@ jobs:
   runtime-role-gate:
     name: Runtime DB role gate (W1-DATA-01)
     runs-on: ubuntu-latest
-    needs: [ci-gate, prepare, deploy]
-    # Run whenever deploy was attempted (can_deploy). Still evaluate if deploy
-    # itself failed so a bad runtime secret cannot hide behind an image error.
-    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.can-deploy == 'true'
+    needs: [ci-gate, prepare, migrate-database]
+    # Run before Helm so an invalid runtime role or lagging schema blocks rollout.
+    if: needs.ci-gate.result == 'success' && needs.prepare.result == 'success' && needs.prepare.outputs.can-deploy == 'true' && needs.migrate-database.result == 'success'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
       - uses: actions/checkout@v7
@@ -435,10 +478,12 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           RUNTIME_ROLE_NAMESPACE: proctira-${{ needs.prepare.outputs.environment }}
           RUNTIME_ROLE_EXPECTED: proctira_app
-        run: |
-          if [ "${ENVIRONMENT}" = "production" ]; then
-            export RUNTIME_ROLE_SECRET_NAME="${RUNTIME_ROLE_SECRET_NAME:-proctira-prod-secrets}"
-          else
-            export RUNTIME_ROLE_SECRET_NAME="${RUNTIME_ROLE_SECRET_NAME:-proctira-secrets}"
-          fi
-          bash tools/scripts/assert-runtime-database-role.sh
+        run: bash tools/scripts/assert-runtime-database-role.sh
+
+      - name: Assert target schema is ready for this application build (UP-P0-02)
+        env:
+          ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RUNTIME_ROLE_NAMESPACE: proctira-${{ needs.prepare.outputs.environment }}
+          RUNTIME_ROLE_EXPECTED: proctira_app
+        run: bash tools/scripts/assert-runtime-schema-ready.sh

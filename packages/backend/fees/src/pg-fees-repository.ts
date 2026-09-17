@@ -4,115 +4,65 @@
  * Persists against parent_fee_* tables from db/sql/010_parent_portal_schema.sql
  * and db/sql/011_fees_finance_schema.sql. Uses withPgTenant for RLS (G-103 / G-201).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
   BusinessRuleError,
   NotFoundError,
   pgIntegerCents,
   pgOptionalIntegerCents,
 } from '@proctira/common';
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import {
   assertJournalBalanced,
+  type ConcessionKind,
+  type ConcessionStatus,
+  type FeeConcessionEntity,
+  type FeeCreditNoteEntity,
+  type FeeInvoiceEntity,
+  type FeeLedgerEntryEntity,
+  type FeePaymentEntity,
+  type FeePlanEntity,
+  type FeePlanFrequency,
+  type FeePlanStatus,
+  type FeeReceiptEntity,
+  type FeeReconciliationBatchEntity,
+  type FeeReconciliationRowEntity,
+  type FeeRefundEntity,
+  type FeesRepository,
+  type FeeStructureComponentEntity,
+  type FeeStructureEntity,
+  type FeeStructureInstalmentEntity,
+  type FeeStructureStatus,
+  type FeeWriteOffEntity,
   type InvoicePaymentBalance,
+  type InvoiceStatus,
+  type LedgerAccount,
+  type LedgerSide,
+  type LedgerTrialBalance,
+  type PaymentMethod,
+  type PaymentStatus,
   type RecordPaymentOnInvoiceSettlement,
-} from './fees-repository.js';
-import type {
-  ConcessionKind,
-  ConcessionStatus,
-  FeeConcessionEntity,
-  FeeLedgerEntryEntity,
-  LedgerAccount,
-  LedgerSide,
-  LedgerTrialBalance,
-  FeeInvoiceEntity,
-  FeePaymentEntity,
-  FeePlanEntity,
-  FeePlanFrequency,
-  FeePlanStatus,
-  FeeReceiptEntity,
-  FeeReconciliationBatchEntity,
-  FeeReconciliationRowEntity,
-  FeeCreditNoteEntity,
-  FeeRefundEntity,
-  FeeWriteOffEntity,
-  FeeStructureComponentEntity,
-  FeeStructureEntity,
-  FeeStructureInstalmentEntity,
-  FeeStructureStatus,
-  FeesRepository,
-  InvoiceStatus,
-  PaymentMethod,
-  PaymentStatus,
-  RefundStatus,
+  type RefundStatus,
 } from './fees-repository.js';
 import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureFeesSchemaReady = createDatabaseSchemaReadinessCheck('fees', 'fees');
 
 export function getSharedFeesPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function resolveSqlPath(filename: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${filename}`),
-    join(process.cwd(), `db/sql/${filename}`),
-    join(process.cwd(), `../../db/sql/${filename}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for fees schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql010 = readFileSync(resolveSqlPath('010_parent_portal_schema.sql'), 'utf8');
-      await pool.query(sql010);
-      const sql011 = readFileSync(resolveSqlPath('011_fees_finance_schema.sql'), 'utf8');
-      await pool.query(sql011);
-      // G-718 double-entry ledger (needs schema_migrations from 021 for its ledger row).
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS schema_migrations (
-           filename TEXT PRIMARY KEY, checksum TEXT, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
-      );
-      const sql023 = readFileSync(resolveSqlPath('023_fee_ledger_schema.sql'), 'utf8');
-      await pool.query(sql023);
-      const sql031 = readFileSync(resolveSqlPath('031_fees_structures_schema.sql'), 'utf8');
-      await pool.query(sql031);
-      const sql048 = readFileSync(resolveSqlPath('048_fees_recon_exception_audit.sql'), 'utf8');
-      await pool.query(sql048);
-      const sql057 = readFileSync(resolveSqlPath('057_fees_payment_idempotency.sql'), 'utf8');
-      await pool.query(sql057);
-      const sql058 = readFileSync(resolveSqlPath('058_fees_reminder_durable_state.sql'), 'utf8');
-      await pool.query(sql058);
-      const sql059 = readFileSync(resolveSqlPath('059_fees_writeoff_creditnote.sql'), 'utf8');
-      await pool.query(sql059);
-      const sql061 = readFileSync(resolveSqlPath('061_fees_scholarship_netting_source.sql'), 'utf8');
-      await pool.query(sql061);
-      const sql070 = readFileSync(resolveSqlPath('070_academic_fee_effective_dating.sql'), 'utf8');
-      await pool.query(sql070);
-      const sql076 = readFileSync(resolveSqlPath('083_w1_data_07_append_only_versions.sql'), 'utf8');
-      await pool.query(sql076);
-    })();
-  }
-  await schemaReady;
+  await ensureFeesSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
@@ -157,7 +107,6 @@ function mapInvoice(row: Record<string, unknown>): FeeInvoiceEntity {
     gradeId: row.grade_id == null ? null : String(row.grade_id),
   };
 }
-
 
 function mapReminderSuppression(row: Record<string, unknown>): ReminderSuppressionEntity {
   return {
@@ -249,9 +198,10 @@ function mapStructure(row: Record<string, unknown>): FeeStructureEntity {
     amountCents: pgIntegerCents(row.amount_cents),
     currency: String(row.currency),
     status: String(row.status) as FeeStructureStatus,
-    validFrom: (row.valid_from == null
-      ? toDate(row.created_at).toISOString().slice(0, 10)
-      : String(row.valid_from).slice(0, 10)),
+    validFrom:
+      row.valid_from == null
+        ? toDate(row.created_at).toISOString().slice(0, 10)
+        : String(row.valid_from).slice(0, 10),
     validTo: row.valid_to == null ? null : String(row.valid_to).slice(0, 10),
     version: row.version == null ? 1 : Number(row.version),
     supersedesId: row.supersedes_id == null ? null : String(row.supersedes_id),
@@ -304,7 +254,6 @@ function mapConcession(row: Record<string, unknown>): FeeConcessionEntity {
     createdAt: toDate(row.created_at),
   };
 }
-
 
 function mapCreditNote(row: Record<string, unknown>): FeeCreditNoteEntity {
   return {
@@ -739,10 +688,7 @@ export class PgFeesRepository implements FeesRepository {
       }
 
       const settlement = await build({ invoice, paidCents, remainingCents });
-      if (
-        !Number.isInteger(settlement.paymentAmountCents) ||
-        settlement.paymentAmountCents <= 0
-      ) {
+      if (!Number.isInteger(settlement.paymentAmountCents) || settlement.paymentAmountCents <= 0) {
         throw new BusinessRuleError('Payment amountCents must be a positive integer');
       }
       if (settlement.paymentAmountCents > remainingCents) {
@@ -1007,9 +953,7 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
-  async createReminderSendAudit(
-    data: ReminderSendAuditEntity,
-  ): Promise<ReminderSendAuditEntity> {
+  async createReminderSendAudit(data: ReminderSendAuditEntity): Promise<ReminderSendAuditEntity> {
     await this.ensureSchema();
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
@@ -1273,7 +1217,6 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
-
   async findConcessionBySourceDisbursementId(
     tenantId: string,
     sourceDisbursementId: string,
@@ -1317,21 +1260,16 @@ export class PgFeesRepository implements FeesRepository {
              approver_id = COALESCE($3, approver_id)
          WHERE id = $4 AND tenant_id = $5
          RETURNING *`,
-        [
-          data.invoiceId ?? null,
-          data.status ?? null,
-          data.approverId ?? null,
-          id,
-          tenantId,
-        ],
+        [data.invoiceId ?? null, data.status ?? null, data.approverId ?? null, id, tenantId],
       );
       if (!result.rows[0]) return null;
       return mapConcession(result.rows[0] as Record<string, unknown>);
     });
   }
 
-
-  async createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity> {
+  async createCreditNote(
+    data: Omit<FeeCreditNoteEntity, 'createdAt'>,
+  ): Promise<FeeCreditNoteEntity> {
     await this.ensureSchema();
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
@@ -1352,7 +1290,10 @@ export class PgFeesRepository implements FeesRepository {
     });
   }
 
-  async listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]> {
+  async listCreditNotesForInvoice(
+    tenantId: string,
+    invoiceId: string,
+  ): Promise<FeeCreditNoteEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(

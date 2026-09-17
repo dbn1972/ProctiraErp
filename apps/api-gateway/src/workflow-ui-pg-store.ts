@@ -2,11 +2,12 @@
  * Postgres-backed store for workflow UI aggregates (G-208).
  * Keeps the UI API shape while persisting definitions/instances/approvals.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 import type pg from 'pg';
 
 import { shouldSeedDemoData } from './demo-seed-policy.js';
@@ -19,7 +20,7 @@ import {
   type WorkflowUiSeed,
 } from './workflow-ui-seed.js';
 
-let schemaReady: Promise<void> | null = null;
+const ensureWorkflowUiSchemaReady = createDatabaseSchemaReadinessCheck('workflow UI', 'workflowUi');
 
 export function isPgWorkflowUiEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -29,31 +30,8 @@ function getPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../db/sql/019_workflow_ui_schema.sql'),
-    join(process.cwd(), 'db/sql/019_workflow_ui_schema.sql'),
-    join(process.cwd(), '../../db/sql/019_workflow_ui_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 async function ensureSchema(pool: pg.Pool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })();
-  }
-  await schemaReady;
+  await ensureWorkflowUiSchemaReady(pool);
 }
 
 function parseSteps(value: unknown): UiWorkflowStep[] {

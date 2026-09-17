@@ -4,7 +4,11 @@
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import healthPlugin, { runReadinessProbe, type ReadinessProbeResult } from './health.js';
+import healthPlugin, {
+  GATEWAY_SCHEMA_READINESS_RELATIONS,
+  runReadinessProbe,
+  type ReadinessProbeResult,
+} from './health.js';
 
 describe('runReadinessProbe', () => {
   afterEach(() => {
@@ -13,6 +17,14 @@ describe('runReadinessProbe', () => {
     delete process.env['NODE_ENV'];
     delete process.env['ALLOW_IN_MEMORY_IN_PRODUCTION'];
     delete process.env['REDIS_URL'];
+  });
+
+  it('covers every centralized raw-PG relation in the default database probe', () => {
+    expect(GATEWAY_SCHEMA_READINESS_RELATIONS).toContain('public.parent_consents');
+    expect(GATEWAY_SCHEMA_READINESS_RELATIONS).toContain('public.hostel_assignments');
+    expect(new Set(GATEWAY_SCHEMA_READINESS_RELATIONS).size).toBe(
+      GATEWAY_SCHEMA_READINESS_RELATIONS.length,
+    );
   });
 
   it('reports in-memory database and not-configured redis when unset in test', async () => {

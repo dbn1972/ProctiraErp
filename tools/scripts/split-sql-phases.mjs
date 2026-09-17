@@ -13,8 +13,9 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-function splitSqlPhases(sql) {
+export function splitSqlPhases(sql) {
   const phases = [];
   let i = 0;
   let start = 0;
@@ -93,7 +94,7 @@ function splitSqlPhases(sql) {
   return phases;
 }
 
-function phaseHasExecutableSql(chunk) {
+export function phaseHasExecutableSql(chunk) {
   let i = 0;
   const n = chunk.length;
   while (i < n) {
@@ -136,4 +137,5 @@ function main(argv) {
   process.stdout.write(String(phases.length) + '\n');
 }
 
-main(process.argv);
+const isDirect = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+if (isDirect) main(process.argv);
