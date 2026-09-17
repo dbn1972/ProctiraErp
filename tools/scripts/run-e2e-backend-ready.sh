@@ -158,6 +158,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# The package start contract executes dist/server.js. Build on every harness
+# run so CI and local gates never start a missing or stale runtime artifact.
+echo "==> Building api-gateway runtime bundle"
+pnpm --filter @proctira/api-gateway build
+
 # Every spec shares one JWT subject per tenant, and the rate limiter buckets by
 # tenant:sub (not IP). With the default 100 req/min the Next.js server-side
 # fan-out (page + chain verify + retention + ...) trips RATE_LIMIT_EXCEEDED
