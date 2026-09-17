@@ -25,6 +25,29 @@ die() {
   exit 1
 }
 
+assert_deployment_hardening() {
+  local rendered="$1"
+  local label="$2"
+  local expected="$3"
+  local deployments
+  deployments="$(grep -c '^kind: Deployment$' "$rendered" || true)"
+  [[ "$deployments" -eq "$expected" ]] \
+    || die "${label}: expected ${expected} Deployments, got ${deployments}"
+
+  local marker count
+  for marker in \
+    'automountServiceAccountToken: false' \
+    'runAsNonRoot: true' \
+    'seccompProfile:' \
+    'allowPrivilegeEscalation: false' \
+    'readOnlyRootFilesystem: true' \
+    'mountPath: /tmp'; do
+    count="$(grep -c "$marker" "$rendered" || true)"
+    [[ "$count" -ge "$deployments" ]] \
+      || die "${label}: hardening marker '${marker}' covers ${count}/${deployments} Deployments"
+  done
+}
+
 # Require a string literal route in an app source file (W1-OPS-21).
 assert_app_route() {
   local file="$1"
@@ -42,6 +65,13 @@ command -v helm >/dev/null 2>&1 || die "helm not found on PATH (install Helm v3.
 [[ -f "${PLATFORM_CHART}/Chart.yaml" ]] || die "missing ${PLATFORM_CHART}/Chart.yaml"
 for env in development staging production; do
   [[ -f "${SERVICE_CHART}/values-${env}.yaml" ]] || die "missing ${SERVICE_CHART}/values-${env}.yaml"
+done
+
+mapfile -t K8S_BASE_DEPLOYMENTS < <(find ./infrastructure/k8s/base -mindepth 2 -maxdepth 2 -name deployment.yaml -print | sort)
+[[ "${#K8S_BASE_DEPLOYMENTS[@]}" -eq 16 ]] \
+  || die "expected 16 Kustomize base Deployments, got ${#K8S_BASE_DEPLOYMENTS[@]}"
+for deployment in "${K8S_BASE_DEPLOYMENTS[@]}"; do
+  assert_deployment_hardening "$deployment" "$deployment" 1
 done
 
 # Historical / wrong paths must NOT be what deploy expects
@@ -102,6 +132,7 @@ for SERVICE in api-gateway web student; do
   grep -q "kind: Deployment" "$out" || die "missing Deployment for ${SERVICE}"
   grep -q "readOnlyRootFilesystem: true" "$out" || die "missing readOnlyRootFilesystem (${SERVICE})"
   grep -q "runAsNonRoot: true" "$out" || die "missing runAsNonRoot (${SERVICE})"
+  assert_deployment_hardening "$out" "proctira-${SERVICE}" 1
   grep -q "kind: ServiceAccount" "$out" || die "missing ServiceAccount (${SERVICE})"
   grep -q "kind: PodDisruptionBudget" "$out" || die "missing PDB (${SERVICE})"
   grep -q "kind: NetworkPolicy" "$out" || die "missing NetworkPolicy (${SERVICE})"
@@ -134,6 +165,18 @@ echo "OK production profile"
 echo "==> lint + template ${PLATFORM_CHART}"
 # Umbrella may warn on icon/etc.; lint is advisory for platform.
 helm lint "${PLATFORM_CHART}" || true
+
+# Base values are intentionally non-destructive: DR jobs require an explicit
+# environment overlay, but all canonical Deployments must still render hardened.
+base_platform_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-base \
+  >"$base_platform_out"
+assert_deployment_hardening "$base_platform_out" "platform base" 7
+[[ "$(grep -c '^kind: CronJob$' "$base_platform_out" || true)" -eq 0 ]] \
+  || die "platform base must not render DR CronJobs without an environment overlay"
+rm -f "$base_platform_out"
+
 platform_out="$(mktemp)"
 helm template proctira "${PLATFORM_CHART}" \
   --namespace proctira-staging \
@@ -144,6 +187,27 @@ helm template proctira "${PLATFORM_CHART}" \
   >"$platform_out"
 [[ -s "$platform_out" ]] || die "empty platform template output"
 grep -Eq "proctira-platform|api-gateway|kind: Deployment" "$platform_out" || die "platform render missing expected content"
+assert_deployment_hardening "$platform_out" "platform staging" 7
+
+# Render every lab-only split service once so disabled templates cannot drift
+# from the same security baseline unnoticed.
+split_out="$(mktemp)"
+helm template proctira "${PLATFORM_CHART}" \
+  --namespace proctira-lab \
+  -f "${PLATFORM_CHART}/values-development.yaml" \
+  --set topology.mode=split \
+  --set institutionService.enabled=true \
+  --set studentService.enabled=true \
+  --set staffService.enabled=true \
+  --set assessmentService.enabled=true \
+  --set attendanceService.enabled=true \
+  --set examinationService.enabled=true \
+  --set workflowService.enabled=true \
+  --set notificationService.enabled=true \
+  --set reportService.enabled=true \
+  >"$split_out"
+assert_deployment_hardening "$split_out" "platform split lab" 16
+rm -f "$split_out"
 
 # G-707 — DR CronJobs
 cron_count="$(grep -c '^kind: CronJob$' "$platform_out" || true)"
@@ -173,6 +237,7 @@ helm template proctira "${PLATFORM_CHART}" \
   --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
   -f "${PLATFORM_CHART}/values-production.yaml" \
   >"$prod_out"
+assert_deployment_hardening "$prod_out" "platform production" 7
 awk '
   /name: RETENTION_DRY_RUN/ { found=1; next }
   found && /value:/ {

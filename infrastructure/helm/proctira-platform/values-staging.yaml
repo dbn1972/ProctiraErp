@@ -142,5 +142,6 @@ config:
 
 # W1-OPS-19 — sandbox: explicit dry-run (RETENTION_DRY_RUN=1); never inherit unset.
 dr:
+  enabled: true
   phiRetention:
     apply: false

@@ -28,15 +28,26 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "proctira.podSecurityContext" . | nindent 8 }}
       terminationGracePeriodSeconds: 30
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: registration-portal
           image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.registrationPortal.image "appVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.registrationPortal.image.pullPolicy }}
+          securityContext:
+            {{- include "proctira.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - name: http
               containerPort: {{ .Values.registrationPortal.service.targetPort }}

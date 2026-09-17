@@ -70,17 +70,18 @@ during voluntary disruptions (node drains, cluster upgrades).
 
 See `values.yaml` for the full list of configurable parameters.
 
-| Parameter                            | Description            | Default       |
-| ------------------------------------ | ---------------------- | ------------- |
-| `topology.mode`                      | `in-process` \| `split` | `in-process` |
-| `global.domain`                      | Platform domain        | `proctira.io` |
-| `global.environment`                 | Environment name       | `production`  |
-| `apiGateway.replicaCount`            | API Gateway replicas   | `2`           |
-| `apiGateway.autoscaling.enabled`     | Enable HPA             | `true`        |
-| `apiGateway.autoscaling.maxReplicas` | Max HPA replicas       | `10`          |
-| `web.replicaCount`                   | Web frontend replicas  | `2`           |
-| `ingress.enabled`                    | Enable ingress         | `true`        |
-| `secrets.existingSecret`             | Use pre-created secret | `""`          |
+| Parameter                            | Description             | Default                                          |
+| ------------------------------------ | ----------------------- | ------------------------------------------------ |
+| `topology.mode`                      | `in-process` \| `split` | `in-process`                                     |
+| `global.domain`                      | Platform domain         | `proctira.io`                                    |
+| `global.environment`                 | Environment name        | `production`                                     |
+| `dr.enabled`                         | Render DR CronJobs      | `false` (environment overlays enable explicitly) |
+| `apiGateway.replicaCount`            | API Gateway replicas    | `2`                                              |
+| `apiGateway.autoscaling.enabled`     | Enable HPA              | `true`                                           |
+| `apiGateway.autoscaling.maxReplicas` | Max HPA replicas        | `10`                                             |
+| `web.replicaCount`                   | Web frontend replicas   | `2`                                              |
+| `ingress.enabled`                    | Enable ingress          | `true`                                           |
+| `secrets.existingSecret`             | Use pre-created secret  | `""`                                             |
 
 ## Secrets Management
 

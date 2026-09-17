@@ -363,6 +363,7 @@ secrets:
 # Live vault upload is NOT proven by this overlay alone — see OPS_W1_OPS_04_COMPLETE.md.
 # W1-OPS-19 — production PHI retention enforces deletion (not dry-run).
 dr:
+  enabled: true
   backup:
     encrypt:
       enabled: true
