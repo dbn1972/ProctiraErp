@@ -134,6 +134,7 @@ describe('database schema readiness', () => {
     expect(requiredRuntimeMigrationsFor('093_future_schema.sql')).toEqual([
       '082_repair_strict_tenant_fk_validate.sql',
       '092_hostel_assignment_uniqueness.sql',
+      '093_developer_portal_tenant_fks.sql',
       '093_future_schema.sql',
     ]);
   });

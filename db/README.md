@@ -73,8 +73,8 @@ pnpm check:runtime-ddl
 
 The active deploy workflow requires a separately scoped GitHub Environment
 secret named `MIGRATOR_DATABASE_URL`. Before Helm rollout it runs Prisma then
-seed-free domain SQL with `APPLY_STRICT_FKS=1`, verifies migrations 082/091/092
-and hostel indexes, then checks the actual `proctira_app` secret with
+seed-free domain SQL with `APPLY_STRICT_FKS=1`, verifies migrations 082/091/092/093
+and hostel indexes plus developer-portal tenant foreign keys, then checks the actual `proctira_app` secret with
 `assert-runtime-schema-ready.sh`. The migrator URL is never rendered into Helm
 or mounted into application pods.
 

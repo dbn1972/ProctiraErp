@@ -13,12 +13,13 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '092_hostel_assignment_uniqueness.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '093_developer_portal_tenant_fks.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   '082_repair_strict_tenant_fk_validate.sql',
   '092_hostel_assignment_uniqueness.sql',
+  '093_developer_portal_tenant_fks.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {

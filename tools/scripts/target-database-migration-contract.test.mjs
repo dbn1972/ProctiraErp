@@ -25,6 +25,7 @@ test('target migration stage applies both tracks with strict FKs and verifies ma
   assert.match(source, /APPLY_SEEDS=0 APPLY_STRICT_FKS=1/);
   assert.match(source, /082_repair_strict_tenant_fk_validate\.sql/);
   assert.match(source, /092_hostel_assignment_uniqueness\.sql/);
+  assert.match(source, /093_developer_portal_tenant_fks\.sql/);
   assert.match(source, /proctira_hostel_assignment_index_ready/);
   assert.doesNotMatch(source, /\|\|\s*true|continue-on-error/);
 });
@@ -99,4 +100,19 @@ test('hostel index repair builds replacement before atomic swap and cleanup', ()
     'canonical index must not be dropped before replacement succeeds',
   );
   assert.match(sql, /old\/new rename pair runs in one transaction/);
+});
+
+test('developer-portal tenant FK migration creates, validates, and asserts both contracts', () => {
+  const sql = readFileSync(join(root, 'db/sql/093_developer_portal_tenant_fks.sql'), 'utf8');
+  for (const table of ['developer_portal_webhooks', 'developer_portal_webhook_deliveries']) {
+    assert.match(sql, new RegExp(`ALTER TABLE public\\.${table}`));
+    assert.match(sql, new RegExp(`${table}_tenant_fk`));
+  }
+  assert.match(
+    sql,
+    /FOREIGN KEY \(tenant_id\)[\s\S]*REFERENCES public\.tenants\(id\)[\s\S]*NOT VALID/,
+  );
+  assert.match(sql, /VALIDATE CONSTRAINT developer_portal_webhooks_tenant_fk/);
+  assert.match(sql, /VALIDATE CONSTRAINT developer_portal_webhook_deliveries_tenant_fk/);
+  assert.match(sql, /constraint_state\.convalidated/);
 });
