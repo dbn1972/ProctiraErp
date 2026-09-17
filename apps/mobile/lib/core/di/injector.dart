@@ -49,7 +49,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
 
   // Storage layer.
   const FlutterSecureStorage rawStorage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(),
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
   final SecureStorage secureStorage = SecureStorage(rawStorage);
