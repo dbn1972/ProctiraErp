@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import {
   assertCiAvoidsTurboHeadParent,
   formatTurboFilter,
+  resolveChangedFilesBase,
   resolveTurboFilterBase,
 } from './resolve-turbo-filter-base.mjs';
 
@@ -162,4 +163,102 @@ test('ci.yml no longer uses turbo ...[HEAD~1] filters', () => {
   );
   assert.match(yaml, /resolve-turbo-filter-base\.mjs/);
   assert.match(yaml, /W1-OPS-22/);
+});
+
+test('changed-file push selection uses github.event.before', () => {
+  const before = '1111111111111111111111111111111111111111';
+  const head = '2222222222222222222222222222222222222222';
+  const git = fakeGit({
+    [`rev-parse --verify ${before}^{commit}`]: before,
+    [`merge-base HEAD ${before}`]: before,
+    'rev-parse --verify HEAD^{commit}': head,
+  });
+
+  const base = resolveChangedFilesBase({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: before,
+    execGit: git.execGit,
+  });
+
+  assert.equal(base, before);
+  assert.equal(
+    git.calls.some((call) => call.includes('origin/main')),
+    false,
+  );
+});
+
+test('all-zero push before falls back to a non-empty parent range', () => {
+  const head = '3333333333333333333333333333333333333333';
+  const parent = '4444444444444444444444444444444444444444';
+  const git = fakeGit({
+    'rev-parse --verify origin/main^{commit}': head,
+    'merge-base HEAD origin/main': head,
+    'rev-parse --verify HEAD^{commit}': head,
+    'rev-parse --verify HEAD^': parent,
+  });
+
+  const base = resolveChangedFilesBase({
+    eventName: 'push',
+    prBaseSha: '',
+    pushBeforeSha: '0000000000000000000000000000000000000000',
+    execGit: git.execGit,
+  });
+
+  assert.equal(base, parent);
+  assert.notEqual(base, head);
+});
+
+test('changed-file push selection rejects a missing or malformed before SHA', () => {
+  for (const pushBeforeSha of ['', 'not-a-sha']) {
+    assert.throws(
+      () =>
+        resolveChangedFilesBase({
+          eventName: 'push',
+          prBaseSha: '',
+          pushBeforeSha,
+          execGit: fakeGit({}).execGit,
+        }),
+      /valid PUSH_BEFORE_SHA/,
+    );
+  }
+});
+
+test('lint and formatting use the resolved full PR comparison range', () => {
+  const yaml = readFileSync(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+  const start = yaml.indexOf('\n  lint:');
+  const end = yaml.indexOf('\n  typecheck:', start);
+  assert.ok(start >= 0 && end > start, 'ci.yml lint job was not found');
+
+  const lintJob = yaml.slice(start, end);
+  assert.match(lintJob, /fetch-depth:\s*0/);
+  assert.match(lintJob, /id:\s*lint-base/);
+  assert.match(lintJob, /resolve-turbo-filter-base\.mjs/);
+  assert.match(lintJob, /--changed-files-base/);
+  assert.match(lintJob, /EVENT_NAME:\s*\$\{\{ github\.event_name \}\}/);
+  assert.match(lintJob, /PUSH_BEFORE_SHA:\s*\$\{\{ github\.event\.before \}\}/);
+  assert.match(lintJob, /\^0\{40\}\$/);
+  assert.match(lintJob, /Run ESLint \(full change range\)/);
+  assert.match(lintJob, /Check formatting \(full change range; baseline debt isolated\)/);
+  assert.doesNotMatch(lintJob, /HEAD~1/);
+
+  const baseUses = lintJob.match(/steps\.lint-base\.outputs\.base/g) ?? [];
+  assert.equal(baseUses.length, 2, 'ESLint and Prettier must share the resolved PR base');
+});
+
+test('migration timeout job bootstraps runtime roles before live recovery tests', () => {
+  const yaml = readFileSync(join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+  const start = yaml.indexOf('\n  migration-timeouts:');
+  const end = yaml.indexOf('\n  codeowners-gate:', start);
+  assert.ok(start >= 0 && end > start, 'ci.yml migration-timeouts job was not found');
+
+  const job = yaml.slice(start, end);
+  const bootstrap = job.indexOf('bash tools/scripts/bootstrap-db-roles.sh');
+  const contractTests = job.indexOf('check-migration-timeouts.test.mjs');
+  const liveDrill = job.indexOf('migration-lock-recovery-drill.mjs');
+
+  assert.ok(bootstrap >= 0, 'migration-timeouts must invoke the canonical role bootstrap');
+  assert.match(job, /APP_ROLE_PASSWORD:\s*proctira_app_test/);
+  assert.ok(bootstrap < contractTests, 'role bootstrap must precede migration contract tests');
+  assert.ok(bootstrap < liveDrill, 'role bootstrap must precede the live recovery drill');
 });
