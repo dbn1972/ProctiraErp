@@ -10,8 +10,8 @@ function fakePrisma() {
   const executed: string[] = [];
   const txCreate = vi.fn(async (args: unknown) => ({ id: 'p1', args }));
   const tx = {
-    $executeRaw: vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
-      executed.push(`${strings.join('?')}|${values.join(',')}`);
+    $executeRawUnsafe: vi.fn(async (query: string, ...values: unknown[]) => {
+      executed.push(`${query}|${values.join(',')}`);
       return 1;
     }),
     academicPeriod: { create: txCreate },
