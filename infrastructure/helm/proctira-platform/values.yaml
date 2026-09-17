@@ -1031,7 +1031,9 @@ serviceAccount:
 # PVC is local retention only — not the sole copy when offsite is enabled.
 # Weekly restore drill (.github/workflows/restore-drill.yml) proves the scripts.
 dr:
-  enabled: true
+  # Base chart rendering is sandbox-safe and excludes destructive DR jobs.
+  # Every environment overlay explicitly enables DR and selects retention mode.
+  enabled: false
   # -- IANA time zone for the cron schedules (Kubernetes >= 1.27)
   timeZone: 'UTC'
   # -- Key inside the platform Secret holding the Postgres URL the jobs use.
