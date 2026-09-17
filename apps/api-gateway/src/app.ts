@@ -62,6 +62,7 @@ import {
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
+import { PARKED_GATEWAY_PREFIXES } from './mount-matrix.js';
 import {
   buildAuditValues,
   entityIdFromPath,
@@ -917,11 +918,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 10. Register service router for the remaining domains (proxies to
   // standalone services via SERVICE_ROUTES). In-process prefixes are excluded
   // so they don't conflict with the handlers registered above.
+  // Parked prefixes are also excluded so SERVICE_ROUTES cannot silently
+  // remount a package whose durable adapter and production evidence are absent.
+  const proxyExcludedPrefixes = [
+    ...new Set([...inProcessPrefixes, ...PARKED_GATEWAY_PREFIXES, ...(keycloak ? ['/auth'] : [])]),
+  ];
+
   await app.register(providersPlugin, { prefix: '/api/v1' });
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',
-    excludePrefixes: keycloak ? [...inProcessPrefixes, '/auth'] : inProcessPrefixes,
+    excludePrefixes: proxyExcludedPrefixes,
   });
 
   return app;
