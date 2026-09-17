@@ -11,15 +11,16 @@ import { requireRole } from '@/lib/auth/server';
 
 import { updateEntitlementsAction } from '../actions';
 
-export default async function PlanDetailPage({ params }: { params: { id: string } }) {
-  await requireRole('plans', `/plans/${params.id}`);
-  const { plan, source } = await getPlan(params.id);
+export default async function PlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  await requireRole('plans', `/plans/${id}`);
+  const { plan, source } = await getPlan(id);
   if (!plan) {
     return (
       <MissingResource
         title="Plan"
         resourceLabel="Plan"
-        id={params.id}
+        id={id}
         backHref="/plans"
         backLabel="Back to plans"
       />

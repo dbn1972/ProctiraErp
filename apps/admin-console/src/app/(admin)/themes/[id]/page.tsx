@@ -13,15 +13,16 @@ import { formatDateTime } from '@/lib/utils';
 
 import { themeDecisionAction } from '../actions';
 
-export default async function ThemeDetailPage({ params }: { params: { id: string } }) {
-  await requireRole('themes', `/themes/${params.id}`);
-  const { theme, source } = await getTheme(params.id);
+export default async function ThemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  await requireRole('themes', `/themes/${id}`);
+  const { theme, source } = await getTheme(id);
   if (!theme) {
     return (
       <MissingResource
         title="Theme"
         resourceLabel="Theme"
-        id={params.id}
+        id={id}
         backHref="/themes"
         backLabel="Back to themes"
       />

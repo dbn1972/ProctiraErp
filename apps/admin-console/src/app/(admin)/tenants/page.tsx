@@ -31,15 +31,16 @@ const VALID_STATUSES: ReadonlyArray<TenantStatus | 'all'> = [
 export default async function TenantsPage({
   searchParams,
 }: {
-  searchParams: { status?: string; q?: string };
+  searchParams: Promise<{ status?: string; q?: string }>;
 }) {
   await requireRole('tenants', '/tenants');
 
-  const statusParam = (searchParams?.status ?? 'all') as TenantStatus | 'all';
+  const resolvedSearchParams = await searchParams;
+  const statusParam = (resolvedSearchParams.status ?? 'all') as TenantStatus | 'all';
   const status = (VALID_STATUSES as ReadonlyArray<string>).includes(statusParam)
     ? statusParam
     : 'all';
-  const search = searchParams?.q ?? '';
+  const search = resolvedSearchParams.q ?? '';
 
   const { tenants, source } = await listTenants({ status, search });
 
