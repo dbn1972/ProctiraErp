@@ -10,8 +10,8 @@
     "./helpers": "./src/helpers/index.ts"
   },
   "scripts": {
-    "test": "pnpm test:all",
-    "test:all": "pnpm test:unit && pnpm test:integration && pnpm test:queue && pnpm test:search && pnpm test:cache && pnpm test:report && pnpm test:e2e",
+    "test": "vitest run --config vitest.config.ts",
+    "test:all": "pnpm test && pnpm test:e2e",
     "test:unit": "vitest run --config vitest.config.ts src/unit",
     "test:integration": "vitest run --config vitest.config.ts src/integration",
     "test:queue": "vitest run --config vitest.config.ts src/queue",

@@ -25,7 +25,7 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/providers/BrandConfigProvider', () => ({
-  useBrand: () => ({ name: 'ProctiraERP', brand: { name: 'ProctiraERP' }, loading: false }),
+  useBrand: () => ({ name: 'Test School', brand: { name: 'Test School' }, loading: false }),
 }));
 
 import { ParentPortalShell } from './ParentPortalShell';

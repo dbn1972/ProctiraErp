@@ -33,7 +33,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/academic-periods/[id]/bell-schedules` | smoke | `22-timetable-inventory-smoke.spec.ts` |
 | `/academic-periods/[id]/calendar` | functional | `38-academic-calendar-write-smoke.spec.ts` |
 | `/admin` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/admin/notification-rules` | dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/admin/notification-rules` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/permissions` | a11y, dark, functional, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`35-admin-console-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/roles` | a11y, dark, functional, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`35-admin-console-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/tenant` | a11y, dark, functional, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`35-admin-console-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |

@@ -17,11 +17,7 @@ import type {
   ParentPortalRepository,
 } from './parent-portal-repository.js';
 
-function isEffectiveAt(
-  effectiveFrom: Date,
-  effectiveTo: Date | null,
-  at: Date,
-): boolean {
+function isEffectiveAt(effectiveFrom: Date, effectiveTo: Date | null, at: Date): boolean {
   if (effectiveFrom.getTime() > at.getTime()) return false;
   if (effectiveTo != null && effectiveTo.getTime() <= at.getTime()) return false;
   return true;
@@ -155,16 +151,11 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
       .map((row) => row.householdId);
   }
 
-  async listActiveHouseholdIdsForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<string[]> {
+  async listActiveHouseholdIdsForParent(tenantId: string, parentUserId: string): Promise<string[]> {
     return this.householdMembers
       .filter(
         (row) =>
-          row.tenantId === tenantId &&
-          row.parentUserId === parentUserId &&
-          row.status === 'active',
+          row.tenantId === tenantId && row.parentUserId === parentUserId && row.status === 'active',
       )
       .map((row) => row.householdId);
   }
@@ -231,7 +222,7 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
   }
 
   async createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
       decidedAt?: Date | null;
     },
   ): Promise<ConsentEntity> {

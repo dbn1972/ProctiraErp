@@ -26,6 +26,10 @@ import type {
   AnalyticsTimeSeries,
 } from './developer-portal-repository.js';
 import type {
+  WebhookDeliveryJobPayload,
+  WebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
+import type {
   CreateDeveloperAccountInput,
   UpdateDeveloperAccountInput,
   CreateApiKeyInput,
@@ -39,19 +43,11 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
-import type {
-  WebhookDeliveryJobPayload,
-  WebhookDeliveryPublisher,
-} from './queue-webhook-delivery-publisher.js';
 import {
   createWebhookSignatureHeaders,
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
-
-import type {
-  WebhookReplayStore,
-  WebhookVerifyResult,
-} from './webhook-signature.js';
+import type { WebhookReplayStore, WebhookVerifyResult } from './webhook-signature.js';
 
 export {
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
@@ -532,9 +528,18 @@ export class DeveloperPortalService {
    * POSTs the webhook payload; on failure marks retry with exponential backoff
    * and re-enqueues when a publisher is configured.
    */
-  async processQueuedDelivery(job: WebhookDeliveryJobPayload): Promise<void> {
+  async processQueuedDelivery(tenantId: string, job: WebhookDeliveryJobPayload): Promise<void> {
+    if (job.tenantId !== tenantId) {
+      throw new BusinessRuleError('Webhook delivery tenant context mismatch');
+    }
+
+    const webhook = await this.repository.getWebhookById(job.webhookId);
+    if (!webhook || webhook.tenantId !== tenantId) {
+      return;
+    }
+
     const delivery = await this.repository.getDeliveryById(job.deliveryId);
-    if (!delivery) {
+    if (!delivery || delivery.webhookId !== webhook.id) {
       return;
     }
     if (delivery.status === 'delivered' || delivery.status === 'failed') {

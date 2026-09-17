@@ -11,7 +11,15 @@ import { Button, buttonVariants } from './Button';
  */
 
 const SIZES = ['default', 'sm', 'lg', 'icon'] as const;
-const VARIANTS = ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link'] as const;
+const VARIANTS = [
+  'default',
+  'destructive',
+  'accent',
+  'outline',
+  'secondary',
+  'ghost',
+  'link',
+] as const;
 
 describe('<Button /> — touch-target floor (Req 37.3, task 56.3)', () => {
   it.each(SIZES)('size="%s" includes min-h-[48px], min-w-[48px], and gap-3', (size) => {
@@ -36,6 +44,13 @@ describe('<Button /> — touch-target floor (Req 37.3, task 56.3)', () => {
     expect(el.className).toContain('min-h-[48px]');
     expect(el.className).toContain('min-w-[48px]');
     expect(el.className).toContain('gap-3');
+  });
+
+  it('accent uses the semantic accent foreground and background tokens', () => {
+    const classes = buttonVariants({ variant: 'accent' });
+    expect(classes).toContain('bg-[hsl(var(--accent))]');
+    expect(classes).toContain('text-[hsl(var(--accent-foreground))]');
+    expect(classes).toContain('hover:bg-[hsl(var(--accent))]/90');
   });
 
   it('keeps the size variant chrome (h-12 / w-12 / p-0 for icon) so the visual layout is preserved', () => {

@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 /**
- * W1-OPS-22 — Resolve the git SHA used in turbo `--filter=...[sha]`.
+ * W1-OPS-22 — Resolve comparison SHAs for Turbo and changed-file CI gates.
  *
- * `HEAD~1` only covers the tip commit, so packages touched in earlier commits
- * of a multi-commit PR are omitted. Prefer:
- *   merge-base(HEAD, github.event.pull_request.base.sha || origin/main)
+ * The default mode preserves the Turbo merge-base contract. The explicit
+ * `--changed-files-base` mode is event-aware: PRs compare against their target,
+ * pushes compare against github.event.before, and all-zero branch-creation
+ * pushes use a non-empty fallback rather than silently checking zero files.
  *
- * Usage (CI):
- *   PR_BASE_SHA=${{ github.event.pull_request.base.sha }} \
- *     node tools/scripts/resolve-turbo-filter-base.mjs
+ * Usage (changed-file CI):
+ *   node tools/scripts/resolve-turbo-filter-base.mjs \
+ *     --changed-files-base --event-name "$GITHUB_EVENT_NAME" \
+ *     --pr-base "$PR_BASE_SHA" --push-before "$PUSH_BEFORE_SHA" \
+ *     --github-output
  *
- * Prints the merge-base SHA to stdout. Optional `--github-output` appends
- * `base=<sha>` and `filter=...[<sha>]` to $GITHUB_OUTPUT.
+ * Prints the comparison SHA. `--github-output` appends `base=<sha>` and
+ * `filter=...[<sha>]` to $GITHUB_OUTPUT.
  */
 import { spawnSync } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
@@ -19,6 +22,13 @@ import { pathToFileURL } from 'node:url';
 
 const DEFAULT_FALLBACK_REF = 'origin/main';
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
+const FULL_SHA_RE = /^[0-9a-f]{40}$/i;
+const ZERO_SHA_RE = /^0{40}$/;
+
+/** @param {unknown} value */
+function normalize(value) {
+  return value == null ? '' : String(value).trim();
+}
 
 /**
  * @param {object} opts
@@ -37,16 +47,13 @@ export function resolveTurboFilterBase({
     throw new TypeError('execGit is required');
   }
 
-  const trimmed = prBaseSha == null ? '' : String(prBaseSha).trim();
-  const candidate = trimmed || fallbackRef;
+  const candidate = normalize(prBaseSha) || fallbackRef;
 
   try {
     execGit(['rev-parse', '--verify', `${candidate}^{commit}`]);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Turbo filter base candidate not resolvable: ${candidate} (${detail})`,
-    );
+    throw new Error(`Turbo filter base candidate not resolvable: ${candidate} (${detail})`);
   }
 
   const mergeBase = execGit(['merge-base', headRef, candidate]).trim();
@@ -54,6 +61,95 @@ export function resolveTurboFilterBase({
     throw new Error(`git merge-base returned invalid SHA: ${JSON.stringify(mergeBase)}`);
   }
   return mergeBase;
+}
+
+function avoidEmptyPushRange(base, headRef, execGit) {
+  const head = execGit(['rev-parse', '--verify', `${headRef}^{commit}`]).trim();
+  if (!FULL_SHA_RE.test(head)) {
+    throw new Error(`git rev-parse returned invalid HEAD SHA: ${JSON.stringify(head)}`);
+  }
+  if (base.toLowerCase() !== head.toLowerCase()) {
+    return base;
+  }
+
+  const parent = execGit(['rev-parse', '--verify', `${headRef}^`]).trim();
+  if (!FULL_SHA_RE.test(parent)) {
+    throw new Error(`Unable to resolve a non-empty push fallback: ${JSON.stringify(parent)}`);
+  }
+  return parent;
+}
+
+/**
+ * Resolve the comparison base for changed-file lint/format gates.
+ * Pull requests use their target merge-base. Pushes use github.event.before;
+ * all-zero branch-creation events fall back to origin/main and then HEAD^ when
+ * the branch points at the fallback tip. A push range is never allowed to
+ * collapse silently to HEAD..HEAD.
+ *
+ * @param {object} opts
+ * @param {string | undefined | null} opts.eventName
+ * @param {string | undefined | null} opts.prBaseSha
+ * @param {string | undefined | null} opts.pushBeforeSha
+ * @param {string} [opts.fallbackRef]
+ * @param {string} [opts.headRef]
+ * @param {(args: string[]) => string} opts.execGit
+ */
+export function resolveChangedFilesBase({
+  eventName,
+  prBaseSha,
+  pushBeforeSha,
+  fallbackRef = DEFAULT_FALLBACK_REF,
+  headRef = 'HEAD',
+  execGit,
+}) {
+  if (typeof execGit !== 'function') {
+    throw new TypeError('execGit is required');
+  }
+
+  const event = normalize(eventName);
+  if (event === 'pull_request') {
+    const target = normalize(prBaseSha);
+    if (!FULL_SHA_RE.test(target)) {
+      throw new Error('pull_request event requires a valid PR_BASE_SHA');
+    }
+    return resolveTurboFilterBase({
+      prBaseSha: target,
+      fallbackRef,
+      headRef,
+      execGit,
+    });
+  }
+
+  if (event === 'push') {
+    const before = normalize(pushBeforeSha);
+    let base;
+    if (ZERO_SHA_RE.test(before)) {
+      base = resolveTurboFilterBase({
+        prBaseSha: '',
+        fallbackRef,
+        headRef,
+        execGit,
+      });
+    } else {
+      if (!FULL_SHA_RE.test(before)) {
+        throw new Error('push event requires a valid PUSH_BEFORE_SHA');
+      }
+      base = resolveTurboFilterBase({
+        prBaseSha: before,
+        fallbackRef,
+        headRef,
+        execGit,
+      });
+    }
+    return avoidEmptyPushRange(base, headRef, execGit);
+  }
+
+  return resolveTurboFilterBase({
+    prBaseSha,
+    fallbackRef,
+    headRef,
+    execGit,
+  });
 }
 
 /** @param {string} baseSha */
@@ -95,20 +191,27 @@ function defaultExecGit(args) {
 }
 
 function parseArgs(argv) {
-  /** @type {{ prBaseSha?: string, fallbackRef: string, headRef: string, githubOutput: boolean, help?: boolean }} */
+  /** @type {{ eventName?: string, prBaseSha?: string, pushBeforeSha?: string, fallbackRef: string, headRef: string, changedFilesBase: boolean, githubOutput: boolean, help?: boolean }} */
   const out = {
     fallbackRef: DEFAULT_FALLBACK_REF,
     headRef: 'HEAD',
+    changedFilesBase: false,
     githubOutput: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--pr-base') {
+    if (arg === '--event-name') {
+      out.eventName = argv[++i];
+    } else if (arg === '--pr-base') {
       out.prBaseSha = argv[++i];
+    } else if (arg === '--push-before') {
+      out.pushBeforeSha = argv[++i];
     } else if (arg === '--fallback') {
       out.fallbackRef = argv[++i] ?? DEFAULT_FALLBACK_REF;
     } else if (arg === '--head') {
       out.headRef = argv[++i] ?? 'HEAD';
+    } else if (arg === '--changed-files-base') {
+      out.changedFilesBase = true;
     } else if (arg === '--github-output') {
       out.githubOutput = true;
     } else if (arg === '--help' || arg === '-h') {
@@ -117,8 +220,14 @@ function parseArgs(argv) {
       throw new Error(`Unknown argument: ${arg}`);
     }
   }
+  if (out.eventName == null && process.env.GITHUB_EVENT_NAME) {
+    out.eventName = process.env.GITHUB_EVENT_NAME;
+  }
   if (out.prBaseSha == null && process.env.PR_BASE_SHA) {
     out.prBaseSha = process.env.PR_BASE_SHA;
+  }
+  if (out.pushBeforeSha == null && process.env.PUSH_BEFORE_SHA) {
+    out.pushBeforeSha = process.env.PUSH_BEFORE_SHA;
   }
   if (process.env.TURBO_FILTER_FALLBACK) {
     out.fallbackRef = process.env.TURBO_FILTER_FALLBACK;
@@ -130,13 +239,16 @@ function main(argv = process.argv.slice(2)) {
   const opts = parseArgs(argv);
   if (opts.help) {
     process.stdout.write(
-      'Usage: resolve-turbo-filter-base.mjs [--pr-base SHA] [--fallback REF] [--head REF] [--github-output]\n',
+      'Usage: resolve-turbo-filter-base.mjs [--event-name NAME] [--pr-base SHA] [--push-before SHA] [--fallback REF] [--head REF] [--changed-files-base] [--github-output]\n',
     );
     return 0;
   }
 
-  const base = resolveTurboFilterBase({
+  const resolver = opts.changedFilesBase ? resolveChangedFilesBase : resolveTurboFilterBase;
+  const base = resolver({
+    eventName: opts.eventName,
     prBaseSha: opts.prBaseSha,
+    pushBeforeSha: opts.pushBeforeSha,
     fallbackRef: opts.fallbackRef,
     headRef: opts.headRef,
     execGit: defaultExecGit,
@@ -155,8 +267,7 @@ function main(argv = process.argv.slice(2)) {
 }
 
 const isDirectRun =
-  Boolean(process.argv[1]) &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
   try {

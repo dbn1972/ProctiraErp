@@ -18,7 +18,7 @@ import {
 /** Minimal Redis surface (ioredis-compatible) for GET / SET EX / DEL. */
 export interface RedisLikeForRegistrationSession {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string, ...args: Array<string | number>): Promise<string | null>;
+  set(key: string, value: string, expiryMode: 'EX', ttlSeconds: number): Promise<string | null>;
   del(...keys: string[]): Promise<number>;
 }
 
@@ -73,12 +73,7 @@ export class RedisRegistrationSessionStore implements RegistrationSessionStore {
 
   async set(sessionId: string, record: RegistrationSessionRecord): Promise<void> {
     const ttlSeconds = Math.max(1, Math.ceil((record.expiresAtMs - Date.now()) / 1000));
-    await this.redis.set(
-      `${this.keyPrefix}${sessionId}`,
-      JSON.stringify(record),
-      'EX',
-      ttlSeconds,
-    );
+    await this.redis.set(`${this.keyPrefix}${sessionId}`, JSON.stringify(record), 'EX', ttlSeconds);
   }
 
   async delete(sessionId: string): Promise<void> {
