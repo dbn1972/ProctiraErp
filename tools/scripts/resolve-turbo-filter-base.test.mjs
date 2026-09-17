@@ -5,12 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
@@ -111,8 +106,7 @@ test('real explicit target fetch preserves divergent PR ancestry', (context) => 
   const remote = join(root, 'remote.git');
   const seed = join(root, 'seed');
   const checkout = join(root, 'checkout');
-  const runGit = (cwd, ...args) =>
-    execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+  const runGit = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
 
   runGit(root, 'init', '--bare', remote);
   runGit(root, 'init', seed);
@@ -177,7 +171,10 @@ test('push selection uses an ancestor github.event.before instead of origin/main
     mode: 'push',
     reason: 'push_before',
   });
-  assert.equal(git.calls.some((call) => call.includes('origin/main')), false);
+  assert.equal(
+    git.calls.some((call) => call.includes('origin/main')),
+    false,
+  );
 });
 
 test('divergent or uncomparable push history selects all packages', () => {
@@ -215,11 +212,7 @@ test('divergent or uncomparable push history selects all packages', () => {
 });
 
 test('new-branch or missing push before SHA selects all packages', () => {
-  for (const pushBeforeSha of [
-    '',
-    'not-a-sha',
-    '0000000000000000000000000000000000000000',
-  ]) {
+  for (const pushBeforeSha of ['', 'not-a-sha', '0000000000000000000000000000000000000000']) {
     const git = fakeGit({});
     const selection = resolveTurboFilterSelection({
       eventName: 'push',
@@ -387,9 +380,6 @@ test('ci.yml wires each affected job and requires the resolver suite', () => {
   }
 
   const detectChanges = jobBlock('detect-changes');
-  assert.match(
-    detectChanges,
-    /node --test tools\/scripts\/resolve-turbo-filter-base\.test\.mjs/,
-  );
+  assert.match(detectChanges, /node --test tools\/scripts\/resolve-turbo-filter-base\.test\.mjs/);
   assert.match(yaml, /W1-OPS-22/);
 });

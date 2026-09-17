@@ -56,9 +56,7 @@ export function resolveTurboFilterBase({
     execGit(['rev-parse', '--verify', `${candidate}^{commit}`]);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `Turbo filter base candidate not resolvable: ${candidate} (${detail})`,
-    );
+    throw new Error(`Turbo filter base candidate not resolvable: ${candidate} (${detail})`);
   }
 
   const mergeBase = execGit(['merge-base', headRef, candidate]).trim();
@@ -296,8 +294,7 @@ function main(argv = process.argv.slice(2)) {
 }
 
 const isDirectRun =
-  Boolean(process.argv[1]) &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isDirectRun) {
   try {
