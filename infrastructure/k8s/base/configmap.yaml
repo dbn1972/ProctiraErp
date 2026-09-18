@@ -10,7 +10,8 @@ data:
   LOG_LEVEL: 'info'
   JWT_ISSUER: 'proctira-platform'
   JWT_AUDIENCE: 'proctira-api'
-  JWT_ACCESS_TOKEN_EXPIRES_IN: '15m'
+  # Non-secret duration; JWT_ACCESS_TOKEN_EXPIRES_IN remains a legacy app alias.
+  JWT_ACCESS_TTL: '15m'
   RATE_LIMIT_WINDOW_MS: '60000'
   RATE_LIMIT_MAX_REQUESTS: '100'
   TENANT_BASE_DOMAIN: 'proctira.io'

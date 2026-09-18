@@ -4,7 +4,8 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
+import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestStudent, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -20,17 +21,11 @@ import {
 import { InMemoryReportCardTemplateRepository } from './in-memory-report-card-repository.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-report-card-repository.live.test' });
 
-
 const pool = getSharedPgPool();
 const live = pool !== null;
 
 async function seedTenant(tenantId: string): Promise<void> {
-  await withPgTenant(pool!, tenantId, (client) =>
-    client.query(
-      `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [tenantId, `rc-${tenantId.slice(0, 8)}`, `rc-${tenantId}`],
-    ),
-  );
+  await ensurePgTestTenant(pool!, tenantId);
 }
 
 describe('report-card factories (G-717)', () => {
@@ -107,6 +102,7 @@ describe.skipIf(!live)('Pg report-card repositories', () => {
     const subjectId = randomUUID();
     const periodId = randomUUID();
     const institutionId = randomUUID();
+    await ensurePgTestStudent(pool!, tenantId, studentId);
 
     const c1 = await comments.upsert({
       id: randomUUID(),

@@ -12,6 +12,7 @@ import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { NotFoundError } from '@proctira/common';
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestStudent, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -26,12 +27,7 @@ const pool = getSharedParentPortalPool();
 const live = Boolean(DATABASE_URL) && pool !== null;
 
 async function seedTenant(tenantId: string): Promise<void> {
-  await withPgTenant(pool!, tenantId, (client) =>
-    client.query(
-      `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [tenantId, `parent-portal-test-${tenantId.slice(0, 8)}`, `parent-portal-test-${tenantId}`],
-    ),
-  );
+  await ensurePgTestTenant(pool!, tenantId);
 }
 
 describe('PgParentPortalRepository (live)', () => {
@@ -42,6 +38,7 @@ describe('PgParentPortalRepository (live)', () => {
     await Promise.all([seedTenant(tenantA), seedTenant(tenantB)]);
     const parentUserId = randomUUID();
     const studentId = randomUUID();
+    await ensurePgTestStudent(pool!, tenantA, studentId);
 
     const link = await repo.createChildLink({
       id: randomUUID(),
@@ -95,6 +92,7 @@ describe('PgParentPortalRepository (live)', () => {
       const tenantB = randomUUID();
       await Promise.all([seedTenant(tenantA), seedTenant(tenantB)]);
       const studentId = randomUUID();
+      await ensurePgTestStudent(pool!, tenantA, studentId);
 
       const plan = await repo.createFeePlan({
         id: randomUUID(),
@@ -150,6 +148,7 @@ describe('PgParentPortalRepository (live)', () => {
       const parentUserId = randomUUID();
       const studentId = randomUUID();
       const consentVersion = 'photo-media-v2026-01';
+      await ensurePgTestStudent(pool!, tenantId, studentId);
 
       const consentId = randomUUID();
       const consent = await repo.createConsent({
@@ -208,6 +207,7 @@ describe('PgParentPortalRepository (live)', () => {
       const householdH2 = randomUUID();
       const parentUserId = randomUUID();
       const studentId = randomUUID();
+      await ensurePgTestStudent(pool!, tenantA, studentId);
 
       await repo.createHousehold({
         id: householdH1,
@@ -274,6 +274,10 @@ describe('PgParentPortalRepository (live)', () => {
       const parentUserId = randomUUID();
       const studentAllowed = randomUUID();
       const studentDenied = randomUUID();
+      await Promise.all([
+        ensurePgTestStudent(pool!, tenantId, studentAllowed),
+        ensurePgTestStudent(pool!, tenantId, studentDenied),
+      ]);
 
       await service.createHousehold(tenantId, { id: householdH1, label: 'Household A' });
       await service.createHousehold(tenantId, { id: householdH2, label: 'Household B' });

@@ -100,14 +100,8 @@ test.describe('G-904 portals academic visibility — live (E2E_BACKEND_READY)', 
     page,
   }) => {
     test.slow();
-    const parentSub = `parent-g904-${Date.now()}`;
+    const parentSub = 'parent-e2e-seeded';
     const headers = parentPortalJwtHeaders(parentSub, { tenantId: TENANT_A });
-
-    const link = await request.post(`${GATEWAY_URL}/api/v1/parent-portal/children/links`, {
-      headers,
-      data: { studentId: STUDENT_ID, relationship: 'guardian' },
-    });
-    expect(link.status(), await link.text()).toBe(201);
 
     for (const route of PARENT_ACADEMIC_PAGES) {
       const linked = await request.get(academicUrl(STUDENT_ID, route.view), { headers });

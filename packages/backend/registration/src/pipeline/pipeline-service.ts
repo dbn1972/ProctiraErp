@@ -41,6 +41,7 @@ export interface EnrolOnAcceptInput {
   guardianEmail: string | null;
   institutionId: string;
   gradeId: string;
+  classId?: string | null;
   academicPeriodId: string;
 }
 
@@ -95,12 +96,24 @@ export type CreateOfferFeeInvoice = (input: {
   feeCurrency: string;
   firstName: string;
   lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  guardianName: string;
+  guardianPhone: string;
+  guardianEmail: string | null;
 }) => Promise<{ invoiceId: string }>;
 
 export type AssertOfferFeePaid = (input: {
   tenantId: string;
   invoiceId: string;
   paymentRef?: string | null;
+}) => Promise<void>;
+
+export type ReconcileOfferResources = (input: {
+  tenantId: string;
+  applicationId: string;
+  invoiceId: string | null;
+  status: 'declined' | 'expired';
 }) => Promise<void>;
 
 export class AdmissionsPipelineService {
@@ -115,6 +128,7 @@ export class AdmissionsPipelineService {
     private readonly assertOfferFeePaid?: AssertOfferFeePaid,
     /** Optional CRM waitlist used to promote the next applicant when a seat frees. */
     private readonly crm?: AdmissionsCrmStore,
+    private readonly reconcileOfferResources?: ReconcileOfferResources,
   ) {}
 
   async createEnquiry(tenantId: string, input: CreateEnquiryDto) {
@@ -369,35 +383,26 @@ export class AdmissionsPipelineService {
     }
     await this.assertSeatAvailable(tenantId, placement);
     const now = new Date();
-    const document = buildOfferDocument({
-      offerId: uuidv4(),
-      tenantId,
-      applicationId: application.id,
-      firstName: application.firstName,
-      lastName: application.lastName,
-      institutionId: placement.institutionId,
-      academicPeriodId: placement.academicPeriodId,
-      gradeId: placement.gradeId,
-      quota: placement.quota,
-      feeAmount: input.feeAmount ?? 0,
-      feeCurrency: input.feeCurrency ?? 'INR',
-      issuedAt: now.toISOString(),
-    });
-    let offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
-    const feeAmount = input.feeAmount ?? 0;
-    const feeCurrency = input.feeCurrency ?? 'INR';
-    if (!offerFeeInvoiceId && feeAmount > 0 && this.createOfferFeeInvoice) {
-      const invoice = await this.createOfferFeeInvoice({
+    const document = {
+      ...buildOfferDocument({
+        offerId: uuidv4(),
         tenantId,
         applicationId: application.id,
-        offerId: document.offerId,
-        feeAmount,
-        feeCurrency,
         firstName: application.firstName,
         lastName: application.lastName,
-      });
-      offerFeeInvoiceId = invoice.invoiceId;
-    }
+        institutionId: placement.institutionId,
+        academicPeriodId: placement.academicPeriodId,
+        gradeId: placement.gradeId,
+        quota: placement.quota,
+        feeAmount: input.feeAmount ?? 0,
+        feeCurrency: input.feeCurrency ?? 'INR',
+        issuedAt: now.toISOString(),
+      }),
+      classId: input.classId ?? null,
+    };
+    const offerFeeInvoiceId = input.offerFeeInvoiceId ?? null;
+    const feeAmount = input.feeAmount ?? 0;
+    const feeCurrency = input.feeCurrency ?? 'INR';
     const record: OfferRecord = {
       id: document.offerId,
       tenantId,
@@ -422,6 +427,12 @@ export class AdmissionsPipelineService {
   }
 
   async sendOffer(tenantId: string, offerId: string) {
+    return this.store.withOfferLock(tenantId, offerId, () =>
+      this.sendOfferLocked(tenantId, offerId),
+    );
+  }
+
+  private async sendOfferLocked(tenantId: string, offerId: string) {
     const offer = await this.requireOffer(tenantId, offerId);
     if (offer.status !== 'draft') {
       throw new BusinessRuleError(`Cannot send an offer in '${offer.status}' status`);
@@ -438,6 +449,11 @@ export class AdmissionsPipelineService {
         feeCurrency: offer.feeCurrency,
         firstName: application.firstName,
         lastName: application.lastName,
+        dateOfBirth: application.dateOfBirth,
+        gender: application.gender,
+        guardianName: application.guardianName,
+        guardianPhone: application.guardianPhone,
+        guardianEmail: application.guardianEmail,
       });
       offerFeeInvoiceId = invoice.invoiceId;
     }
@@ -451,13 +467,18 @@ export class AdmissionsPipelineService {
   }
 
   async acceptOffer(tenantId: string, offerId: string, input: AcceptOfferDto) {
+    return this.store.withOfferLock(tenantId, offerId, () =>
+      this.acceptOfferLocked(tenantId, offerId, input),
+    );
+  }
+
+  private async acceptOfferLocked(tenantId: string, offerId: string, input: AcceptOfferDto) {
     const offer = await this.requireOffer(tenantId, offerId);
     if (offer.status === 'accepted') {
       return formatOffer(offer);
     }
-    const effective = this.expireIfNeeded(offer);
+    const effective = await this.expireIfNeeded(offer);
     if (effective.status === 'expired') {
-      await this.store.updateOffer(effective);
       throw new BusinessRuleError('Offer has expired');
     }
     if (effective.status !== 'sent' && effective.status !== 'draft') {
@@ -491,6 +512,10 @@ export class AdmissionsPipelineService {
         guardianEmail: application.guardianEmail,
         institutionId: effective.institutionId,
         gradeId: effective.gradeId,
+        classId:
+          typeof effective.offerDocument['classId'] === 'string'
+            ? effective.offerDocument['classId']
+            : null,
         academicPeriodId: effective.academicPeriodId,
       });
       enrolledStudentId = enrolled.studentId;
@@ -508,12 +533,27 @@ export class AdmissionsPipelineService {
   }
 
   async declineOffer(tenantId: string, offerId: string) {
+    return this.store.withOfferLock(tenantId, offerId, () =>
+      this.declineOfferLocked(tenantId, offerId),
+    );
+  }
+
+  private async declineOfferLocked(tenantId: string, offerId: string) {
     const offer = await this.requireOffer(tenantId, offerId);
     if (offer.status === 'accepted') {
       throw new BusinessRuleError('Cannot decline an accepted offer');
     }
+    await this.reconcileOfferResources?.({
+      tenantId,
+      applicationId: offer.applicationId,
+      invoiceId: offer.offerFeeInvoiceId,
+      status: 'declined',
+    });
     if (offer.status === 'declined') {
-      return { ...formatOffer(offer), promotedOffer: null as ReturnType<typeof formatOffer> | null };
+      return {
+        ...formatOffer(offer),
+        promotedOffer: null as ReturnType<typeof formatOffer> | null,
+      };
     }
     const next: OfferRecord = { ...offer, status: 'declined', updatedAt: new Date() };
     const declined = formatOffer(await this.store.updateOffer(next));
@@ -562,7 +602,13 @@ export class AdmissionsPipelineService {
           tenantId,
         );
       }
-      return await this.createOffer(tenantId, { applicationId: head.applicationId });
+      return await this.createOffer(tenantId, {
+        applicationId: head.applicationId,
+        classId:
+          typeof released.offerDocument['classId'] === 'string'
+            ? released.offerDocument['classId']
+            : undefined,
+      });
     } catch {
       // If promotion fails (e.g. seat already refilled), leave the dequeue durable —
       // staff can re-offer manually. Decline still succeeds.
@@ -578,18 +624,18 @@ export class AdmissionsPipelineService {
       this.store.listEnquiries(tenantId),
     ]);
     const enquiry = enquiries.find((row) => row.applicationId === applicationId) ?? null;
+    const resolvedOffers = await Promise.all(offers.map((row) => this.expireIfNeeded(row)));
     return {
       application: this.formatApplication(application),
       placement,
       enquiry: enquiry ? formatEnquiry(enquiry) : null,
-      offers: offers.map((row) => formatOffer(this.expireIfNeeded(row))),
+      offers: resolvedOffers.map(formatOffer),
     };
   }
 
   async listOffers(tenantId: string, applicationId?: string) {
-    return (await this.store.listOffers(tenantId, applicationId)).map((row) =>
-      formatOffer(this.expireIfNeeded(row)),
-    );
+    const offers = await this.store.listOffers(tenantId, applicationId);
+    return Promise.all(offers.map(async (row) => formatOffer(await this.expireIfNeeded(row))));
   }
 
   /**
@@ -609,7 +655,7 @@ export class AdmissionsPipelineService {
       }
     > = [];
     for (const offer of offers) {
-      const effective = this.expireIfNeeded(offer);
+      const effective = await this.expireIfNeeded(offer);
       if (effective.status !== 'sent' && effective.status !== 'accepted') continue;
       const application = await this.applications.findById(effective.applicationId, tenantId);
       if (!application || application.tenantId !== tenantId) continue;
@@ -651,13 +697,20 @@ export class AdmissionsPipelineService {
     };
   }
 
-  private expireIfNeeded(offer: OfferRecord): OfferRecord {
+  private async expireIfNeeded(offer: OfferRecord): Promise<OfferRecord> {
     if (
       offer.expiresAt &&
       offer.expiresAt.getTime() < Date.now() &&
       (offer.status === 'draft' || offer.status === 'sent')
     ) {
-      return { ...offer, status: 'expired', updatedAt: new Date() };
+      const expired: OfferRecord = { ...offer, status: 'expired', updatedAt: new Date() };
+      await this.reconcileOfferResources?.({
+        tenantId: offer.tenantId,
+        applicationId: offer.applicationId,
+        invoiceId: offer.offerFeeInvoiceId,
+        status: 'expired',
+      });
+      return this.store.updateOffer(expired);
     }
     return offer;
   }

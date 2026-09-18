@@ -10,15 +10,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
-import {
-  DOMAIN_REGISTRAR_COMPOSITION,
-  DOMAIN_REGISTRAR_NAMES,
-} from './domain-plugins.js';
-import {
-  EXPECTED_PARKED,
-  MATRIX_REGISTRAR_NAMES,
-  MOUNT_MATRIX,
-} from './mount-matrix.js';
+import { DOMAIN_REGISTRAR_COMPOSITION, DOMAIN_REGISTRAR_NAMES } from './domain-plugins.js';
+import { EXPECTED_PARKED, MATRIX_REGISTRAR_NAMES, MOUNT_MATRIX } from './mount-matrix.js';
 
 delete process.env['DATABASE_URL'];
 
@@ -44,12 +37,7 @@ const PREFIX_PROBES: Record<string, { method: string; url: string }> = {
     method: 'GET',
     url: '/api/v1/infrastructure/lands',
   },
-  '/custom-fields': {
-    method: 'GET',
-    url: '/api/v1/custom-fields/definitions',
-  },
   '/privacy': { method: 'GET', url: '/api/v1/privacy/legal-holds' },
-  '/dashboards': { method: 'GET', url: '/api/v1/dashboards/me' },
   '/workflow-engine': {
     method: 'GET',
     url: '/api/v1/workflow-engine/definitions',
@@ -137,6 +125,8 @@ describe('W1-ARCH-06 live registrar composition (no source scrape)', () => {
   it('exports DOMAIN_REGISTRAR_NAMES from the executable registrar table', () => {
     expect(DOMAIN_REGISTRAR_NAMES.length).toBeGreaterThan(0);
     expect([...DOMAIN_REGISTRAR_NAMES].sort()).toEqual([...MATRIX_REGISTRAR_NAMES].sort());
+    expect(DOMAIN_REGISTRAR_NAMES).not.toContain('custom-field');
+    expect(DOMAIN_REGISTRAR_NAMES).not.toContain('dashboards');
   });
 
   it('DOMAIN_REGISTRAR_COMPOSITION matches names; proxyPrefixes are matrix-mounted', () => {
@@ -170,9 +160,7 @@ describe('W1-ARCH-06 live registrar composition (no source scrape)', () => {
     const orphans = DOMAIN_REGISTRAR_COMPOSITION.flatMap((r) =>
       r.proxyPrefixes.filter((p) => !mountedPrefixes.has(p)),
     );
-    expect(orphans, `Live prefixes missing from mounted matrix: ${orphans.join(', ')}`).toEqual(
-      [],
-    );
+    expect(orphans, `Live prefixes missing from mounted matrix: ${orphans.join(', ')}`).toEqual([]);
   });
 });
 
@@ -221,7 +209,9 @@ describe('W1-ARCH-06 executable mount composition', () => {
           payload: probe.method === 'POST' ? {} : undefined,
         });
         if (isUnregisteredRoute(res)) {
-          failures.push(`${entry.package}:${prefix} → ${probe.method} ${probe.url} (${res.statusCode}) ${res.body.slice(0, 120)}`);
+          failures.push(
+            `${entry.package}:${prefix} → ${probe.method} ${probe.url} (${res.statusCode}) ${res.body.slice(0, 120)}`,
+          );
         }
       }
     }
@@ -260,45 +250,6 @@ describe('W1-ARCH-06 executable mount composition', () => {
         ).toBe(true);
       }
     }
-  });
-
-  it('persists custom-field definitions in-process (in-memory composition)', async () => {
-    const created = await app.inject({
-      method: 'POST',
-      url: '/api/v1/custom-fields/definitions',
-      headers: adminHeaders(),
-      payload: {
-        entityType: 'student',
-        fieldKey: 'arch06_house',
-        label: 'House',
-        fieldType: 'text',
-        validationRules: {},
-        displayOrder: 1,
-      },
-    });
-    expect(created.statusCode).toBe(201);
-
-    const listed = await app.inject({
-      method: 'GET',
-      url: '/api/v1/custom-fields/definitions',
-      headers: adminHeaders(),
-    });
-    expect(listed.statusCode).toBe(200);
-    const body = listed.json() as { data?: Array<{ fieldKey: string }> } | Array<{ fieldKey: string }>;
-    const rows = Array.isArray(body) ? body : (body.data ?? []);
-    expect(rows.some((r) => r.fieldKey === 'arch06_house')).toBe(true);
-
-    const otherTenant = await app.inject({
-      method: 'GET',
-      url: '/api/v1/custom-fields/definitions',
-      headers: adminHeaders(TENANT_B),
-    });
-    expect(otherTenant.statusCode).toBe(200);
-    const otherBody = otherTenant.json() as
-      | { data?: Array<{ fieldKey: string }> }
-      | Array<{ fieldKey: string }>;
-    const otherRows = Array.isArray(otherBody) ? otherBody : (otherBody.data ?? []);
-    expect(otherRows.some((r) => r.fieldKey === 'arch06_house')).toBe(false);
   });
 
   it('persists privacy legal-holds in-process (in-memory composition)', async () => {

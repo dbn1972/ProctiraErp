@@ -19,10 +19,10 @@ const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
 const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 const STUDENT_A = '00000000-0000-4000-8000-0000000000aa';
 
-function headers(tenantId = TENANT_A) {
+function headers(tenantId = TENANT_A, sub = 'e2e-admin') {
   const token = createSignedJwt({
-    sub: 'e2e-admin',
-    email: 'admin@tenant-a.test',
+    sub,
+    email: `${sub}@tenant-a.test`,
     displayName: 'E2E Admin',
     tenantId,
     roles: [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }],
@@ -195,7 +195,18 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
       },
     });
     expect(concession.status(), await concession.text()).toBe(201);
-    expect(await concession.json()).toMatchObject({ discountCents: 20_000 });
+    const concessionBody = await concession.json();
+    expect(concessionBody).toMatchObject({ discountCents: 20_000 });
+
+    const approval = await request.post(
+      `${GATEWAY_URL}/api/v1/fees/concessions/${concessionBody.concession.id}/approve`,
+      { headers: headers(TENANT_A, 'e2e-finance-approver') },
+    );
+    expect(approval.status(), await approval.text()).toBe(200);
+    expect(await approval.json()).toMatchObject({
+      discountCents: 20_000,
+      invoice: { amountCents: 80_000 },
+    });
 
     const pay = await request.post(`${GATEWAY_URL}/api/v1/fees/invoices/${invoiceId}/pay`, {
       headers: headers(),

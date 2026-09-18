@@ -5,12 +5,13 @@
  * creates/updates/lists here so UI aggregates and domain POST stay in sync
  * across process restarts.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type { CounsellingSessionEntity } from './health-repository.js';
 import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
@@ -18,7 +19,10 @@ import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from 
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureCounsellingSchemaReady = createDatabaseSchemaReadinessCheck(
+  'health counselling',
+  'healthCounselling',
+);
 
 export function isPgCounsellingEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -28,36 +32,11 @@ export function getSharedCounsellingPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function schemaSqlPath(): string {
-  // Prefer repo-root SQL when running from monorepo; fall back to packaged copy.
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/002_health_counselling_schema.sql'),
-    join(process.cwd(), 'db/sql/002_health_counselling_schema.sql'),
-    join(process.cwd(), '../../db/sql/002_health_counselling_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 export async function ensureCounsellingSchema(
   pool: PgPoolLike = getSharedCounsellingPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for counselling schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureCounsellingSchemaReady(pool);
 }
 
 function mapRow(row: Record<string, unknown>): CounsellingSessionEntity {
@@ -111,10 +90,7 @@ export class PgCounsellingStore {
   async create(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: CounsellingSessionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity> {
     await this.ensureSchema();

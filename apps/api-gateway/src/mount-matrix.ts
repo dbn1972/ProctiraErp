@@ -49,8 +49,6 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'billing',
   'communication',
   'curriculum',
-  'custom-field',
-  'dashboards',
   'developer-portal',
   'etl',
   'examination',
@@ -82,6 +80,8 @@ export const EXPECTED_MOUNTED: readonly string[] = [
  */
 export const EXPECTED_UNMOUNTED: readonly string[] = [
   'admin-dashboard',
+  'custom-field',
+  'dashboards',
   'data-warehouse',
   'install',
   'plugin',
@@ -96,6 +96,8 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
  */
 export const PLUGIN_EXPORT_ALLOWLIST: readonly string[] = [
   'admin-dashboard',
+  'custom-field',
+  'dashboards',
   'data-warehouse',
   'install',
   'plugin',
@@ -109,10 +111,13 @@ export const PLUGIN_EXPORT_ALLOWLIST: readonly string[] = [
  * unmounted package carries a decision + rationale; no "undecided" rows).
  * Decision: packages exist but are not composed onto the gateway until
  * product UI + durable persistence are ready; theme prefix conflicts with
- * platform-admin stub; dashboards needs AreaHierarchyResolver product wiring.
+ * platform-admin stub. Memory-only domains remain parked until durable
+ * production adapters and behavioral evidence exist.
  */
 export const EXPECTED_PARKED: readonly string[] = [
   'admin-dashboard',
+  'custom-field',
+  'dashboards',
   'data-warehouse',
   'install',
   'plugin',
@@ -447,23 +452,27 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   },
   {
     package: 'custom-field',
-    mounted: true,
+    mounted: false,
     prefixes: ['/custom-fields'],
-    persistence: 'in-memory',
-    rbacWired: true,
-    registrarName: 'custom-field',
+    persistence: 'n/a',
+    rbacWired: false,
+    parked: true,
+    parkedReason:
+      'P0-01 PARKED — no durable Postgres schema or repository exists. The prior unconditional registrar made every DATABASE_URL-backed gateway fail during startup. Re-enable only with tenant-scoped durable persistence and production-adapter evidence.',
     notes:
-      'W1-ARCH-05 / W1-SEC-12: unparked. createCustomFieldRepositories() — memory only when DATABASE_URL unset (asserted); fails closed when DATABASE_URL set until durable schema ships. Redesign UI residual.',
+      'Package remains available for isolated development/tests; it is not composed into the production gateway.',
   },
   {
     package: 'dashboards',
-    mounted: true,
+    mounted: false,
     prefixes: ['/dashboards'],
-    persistence: 'in-memory',
-    rbacWired: true,
-    registrarName: 'dashboards',
+    persistence: 'n/a',
+    rbacWired: false,
+    parked: true,
+    parkedReason:
+      'P0-01 PARKED — no durable dashboard aggregate repository exists. The prior unconditional registrar made every DATABASE_URL-backed gateway fail during startup. Role dashboards remain available through backend-report.',
     notes:
-      'W1-ARCH-05 / W1-SEC-12: unparked with AreaHierarchyResolver (W1-ARCH-04). createDashboardRepository() — memory only when DATABASE_URL unset (asserted); fails closed when DATABASE_URL set until durable aggregates ship. G-909 report dashboards remain separate.',
+      'Package remains available for isolated development/tests; it is not composed into the production gateway.',
   },
   {
     package: 'data-warehouse',
@@ -523,11 +532,11 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'privacy',
     mounted: true,
     prefixes: ['/privacy'],
-    persistence: 'in-memory',
+    persistence: 'raw-pg',
     rbacWired: true,
     registrarName: 'privacy',
     notes:
-      'W1-ARCH-05: composed. Legal hold + erasure HTTP routes (W1-SEC-06). In-memory repository; schema 067 Pg residual.',
+      'W1-ARCH-05: composed. PostgreSQL repository when DATABASE_URL is configured; shared in-memory fallback only in allowed development/test modes. Legal hold + erasure HTTP routes (W1-SEC-06).',
   },
   {
     package: 'report',
@@ -572,6 +581,17 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
       'G-715: real workflowPlugin (definitions/instances/transitions+audit/cases) mounted under `/workflow-engine`; Pg on db/sql/025 when DATABASE_URL set, else in-memory. `/workflows` stays with workflow-ui. Gateway RBAC resource `workflow` via PATH_RESOURCE_MAP.',
   },
 ] as const;
+
+/**
+ * Prefixes intentionally unavailable on the canonical gateway.
+ *
+ * The service router must exclude these too; otherwise an operator-provided
+ * SERVICE_ROUTES entry could silently remount a package whose production
+ * persistence and review gates are not ready.
+ */
+export const PARKED_GATEWAY_PREFIXES: readonly string[] = MOUNT_MATRIX.filter(
+  (row) => row.parked === true,
+).flatMap((row) => row.prefixes);
 
 /** Registrar names documented in the matrix (must match DOMAIN_REGISTRAR_NAMES). */
 export const MATRIX_REGISTRAR_NAMES: readonly string[] = MOUNT_MATRIX.filter(

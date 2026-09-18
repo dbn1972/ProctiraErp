@@ -4,6 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestStudent } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { createLmsRepository, isPgLmsEnabled } from './create-lms-repository.js';
@@ -36,6 +37,7 @@ describe('PgLmsRepository', () => {
       const boardId = randomUUID();
       const schoolId = randomUUID();
       const studentId = randomUUID();
+      await ensurePgTestStudent(pool!, tenantA, studentId);
 
       const skill = await repo.createSkill({
         id: randomUUID(),

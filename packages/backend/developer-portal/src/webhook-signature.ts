@@ -47,9 +47,7 @@ export type WebhookVerifyFailureReason =
   | 'bad_signature'
   | 'replay_store_unavailable';
 
-export type WebhookVerifyResult =
-  | { ok: true }
-  | { ok: false; reason: WebhookVerifyFailureReason };
+export type WebhookVerifyResult = { ok: true } | { ok: false; reason: WebhookVerifyFailureReason };
 
 export interface VerifyWebhookSignatureOptions {
   payload: string;
@@ -257,7 +255,9 @@ export interface RedisLikeForReplay {
   set(
     key: string,
     value: string,
-    ...args: Array<string | number>
+    expiryMode: 'EX',
+    ttlSeconds: number,
+    existenceMode: 'NX',
   ): Promise<string | null>;
 }
 

@@ -27,11 +27,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DeveloperPortalService } from './developer-portal-service.js';
 import {
-  WEBHOOK_SIGNATURE_HEADER,
-  WEBHOOK_TIMESTAMP_HEADER,
-  WEBHOOK_NONCE_HEADER,
-} from './webhook-signature.js';
-import {
   CreateDeveloperAccountSchema,
   UpdateDeveloperAccountSchema,
   DeveloperAccountParamsSchema,
@@ -75,6 +70,11 @@ import type {
   AnalyticsQuery,
   RecordAnalyticsEventInput,
 } from './schemas.js';
+import {
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_NONCE_HEADER,
+} from './webhook-signature.js';
 
 /**
  * Options for registering developer portal routes.
@@ -632,8 +632,17 @@ export async function registerDeveloperPortalRoutes(
         });
       }
 
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
       try {
-        const key = await service.revokeApiKey(params.accountId, params.keyId);
+        const key = await service.revokeApiKey(params.accountId, tenantId, params.keyId);
         return reply.status(200).send(formatApiKeyResponse(key));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -1683,7 +1692,7 @@ export async function registerDeveloperPortalRoutes(
         return reply.status(200).send({ ok: true });
       }
 
-                              const statusByReason: Record<string, number> = {
+      const statusByReason: Record<string, number> = {
         bad_signature: 401,
         expired: 401,
         malformed: 401,
@@ -1707,12 +1716,10 @@ export async function registerDeveloperPortalRoutes(
    */
   fastify.post(
     `${prefix}/webhooks/verify-self-test`,
-    async function webhookVerifySelfTestHandler(
-      _request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function webhookVerifySelfTestHandler(_request: FastifyRequest, reply: FastifyReply) {
       const result = await service.runWebhookVerifySelfTest();
-      const passed = result.first.ok === true && result.second.ok === false && result.second.reason === 'replay';
+      const passed =
+        result.first.ok === true && result.second.ok === false && result.second.reason === 'replay';
       return reply.status(passed ? 200 : 503).send({
         ok: passed,
         first: result.first,
@@ -1720,5 +1727,4 @@ export async function registerDeveloperPortalRoutes(
       });
     },
   );
-
 }

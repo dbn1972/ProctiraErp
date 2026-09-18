@@ -11,7 +11,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import serviceRouter from './service-router.js';
+import serviceRouter, { isServicePrefixExcluded } from './service-router.js';
 
 interface CapturedRequest {
   method: string;
@@ -74,6 +74,19 @@ async function buildGateway(target: string, timeoutMs?: number): Promise<Fastify
   await app.ready();
   return app;
 }
+
+describe('service-router exclusions', () => {
+  it('blocks exact, descendant, and trailing-slash variants at path boundaries', () => {
+    const excluded = ['/custom-fields', '/dashboards'];
+
+    expect(isServicePrefixExcluded('/custom-fields', excluded)).toBe(true);
+    expect(isServicePrefixExcluded('/custom-fields/definitions', excluded)).toBe(true);
+    expect(isServicePrefixExcluded('/dashboards/', excluded)).toBe(true);
+    expect(isServicePrefixExcluded('/dashboards/school/1', excluded)).toBe(true);
+    expect(isServicePrefixExcluded('/custom-fields-v2', excluded)).toBe(false);
+    expect(isServicePrefixExcluded('/dashboard', excluded)).toBe(false);
+  });
+});
 
 describe('service-router proxy', () => {
   beforeAll(() => {

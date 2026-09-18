@@ -160,6 +160,17 @@ describe('G-909 catalogue plugin routes', () => {
   async function build() {
     const app = Fastify();
     apps.push(app);
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (
+        request as typeof request & {
+          user: { sub: string; roles: Array<{ roleName: string }> };
+        }
+      ).user = {
+        sub: 'principal',
+        roles: [{ roleName: 'PRINCIPAL' }],
+      };
+    });
     const store = new InMemoryReportStore();
     const blobs = new InMemoryReportBlobStore();
     await app.register(reportCataloguePlugin, { store, blobStore: blobs, disableScheduler: true });
@@ -300,7 +311,6 @@ describe('G-909 catalogue plugin routes', () => {
   });
 });
 
-
 describe('W2-JOB-08 / W2-JOB-09 scheduler lease + delivery', () => {
   it('claimDueSchedules prevents a second replica from claiming the same schedule', async () => {
     const store = new InMemoryReportStore();
@@ -346,10 +356,7 @@ describe('W2-JOB-08 / W2-JOB-09 scheduler lease + delivery', () => {
     expect(tick.completed).toBe(1);
     expect(tick.delivered).toBe(1);
     expect(delivery.sent).toHaveLength(1);
-    expect(delivery.sent[0]!.recipients).toEqual([
-      'office@school.test',
-      'principal@school.test',
-    ]);
+    expect(delivery.sent[0]!.recipients).toEqual(['office@school.test', 'principal@school.test']);
     expect(delivery.sent[0]!.downloadUrl).toContain('/api/v1/reports/artifacts/');
   });
 

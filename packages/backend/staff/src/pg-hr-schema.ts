@@ -1,47 +1,19 @@
 /**
- * Schema bootstrap for HR appraisal + training tables (G-717).
- * Applies db/sql/024_wave7_domain_persistence_schema.sql once per process.
+ * Read-only schema readiness for HR appraisal + training tables (G-717).
+ * DDL is applied by the migrator path before application startup.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
+import { createDatabaseSchemaReadinessCheck } from '@proctira/database';
 import type pg from 'pg';
 
 export type PgPoolLike = Pick<pg.Pool, 'query'> & Partial<Pick<pg.Pool, 'connect' | 'end'>>;
 
-let schemaReady: Promise<void> | null = null;
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '024_wave7_domain_persistence_schema.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
+const ensureHrSchemaReady = createDatabaseSchemaReadinessCheck(
+  'HR appraisals and training',
+  'hrAppraisalTraining',
+);
 
 export async function ensureHrSchema(pool: PgPoolLike): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })().catch((err: unknown) => {
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
+  await ensureHrSchemaReady(pool);
 }
 
 export function toDate(value: unknown): Date {

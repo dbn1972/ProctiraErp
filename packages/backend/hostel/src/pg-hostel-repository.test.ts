@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestStudent } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { isPgHostelEnabled } from './create-hostel-repository.js';
@@ -18,6 +19,8 @@ describe('PgHostelRepository', () => {
     const blockId = randomUUID();
     const roomId = randomUUID();
     const bedId = randomUUID();
+    const studentId = randomUUID();
+    await ensurePgTestStudent(pool!, tenantId, studentId);
 
     await repo.createHostel({
       id: hostelId,
@@ -57,7 +60,7 @@ describe('PgHostelRepository', () => {
     await repo.createAssignment({
       id: assignmentId,
       tenantId,
-      studentId: randomUUID(),
+      studentId,
       bedId,
       startDate: '2026-09-01',
       endDate: null,

@@ -3,12 +3,13 @@
  * accommodation plans + PHI access log. Uses withPgTenant for RLS.
  */
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type {
   AccommodationItem,
@@ -26,41 +27,20 @@ import {
 import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
 import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
-let schemaReady: Promise<void> | null = null;
+const ensureSpecialNeedsSchemaReady = createDatabaseSchemaReadinessCheck(
+  'health special needs',
+  'healthSpecialNeeds',
+);
 
 export function isPgSpecialNeedsEnabled(): boolean {
   return isPgCounsellingEnabled();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/017_health_special_needs_schema.sql'),
-    join(process.cwd(), 'db/sql/017_health_special_needs_schema.sql'),
-    join(process.cwd(), '../../db/sql/017_health_special_needs_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureSpecialNeedsSchema(
   pool: PgPoolLike = getSharedCounsellingPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for special-needs schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureSpecialNeedsSchemaReady(pool);
 }
 
 function toDateStr(value: unknown): string {
@@ -278,7 +258,7 @@ export class PgSpecialNeedsStore {
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         entity: SpecialNeedsAssessmentEntity,
       ) => Promise<void>;
     },
@@ -348,10 +328,7 @@ export class PgSpecialNeedsStore {
   async createDiagnosis(
     data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: DiagnosisEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: DiagnosisEntity) => Promise<void>;
     },
   ): Promise<DiagnosisEntity> {
     await this.ensureSchema();
@@ -417,10 +394,7 @@ export class PgSpecialNeedsStore {
   async createReferral(
     data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ReferralEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
     },
   ): Promise<ReferralEntity> {
     await this.ensureSchema();
@@ -534,10 +508,7 @@ export class PgSpecialNeedsStore {
   async createAccommodationPlan(
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AccommodationPlanEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
     },
   ): Promise<AccommodationPlanEntity> {
     await this.ensureSchema();

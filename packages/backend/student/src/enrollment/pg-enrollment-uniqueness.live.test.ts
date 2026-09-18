@@ -2,13 +2,11 @@
  * W3-RACE-02 — live Postgres invariants for enrollment uniqueness (B3).
  * Partial unique index uq_enrollments_active_student_period plus service guard.
  */
-import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { describe, expect, it } from 'vitest';
 
@@ -19,17 +17,16 @@ const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-enrollment-uniqueness.l
 const pool = DATABASE_URL ? getSharedPgPool(DATABASE_URL) : null;
 const live = Boolean(DATABASE_URL) && pool !== null;
 
-let indexEnsured = false;
-
-async function ensureEnrollmentUniquenessIndex(): Promise<void> {
-  if (!pool || indexEnsured) return;
-  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
-  const sql = readFileSync(
-    path.join(root, 'db/sql/065_enrollment_active_uniqueness.sql'),
-    'utf8',
+async function assertEnrollmentUniquenessIndex(): Promise<void> {
+  const result = await pool!.query<{ indexdef: string }>(
+    `SELECT indexdef
+       FROM pg_indexes
+      WHERE schemaname = 'public'
+        AND tablename = 'enrollments'
+        AND indexname = 'uq_enrollments_active_student_period'`,
   );
-  await pool.query(sql);
-  indexEnsured = true;
+  expect(result.rows).toHaveLength(1);
+  expect(result.rows[0]!.indexdef).toMatch(/student_id.*academic_period_id/i);
 }
 
 interface EnrollmentFixture {
@@ -51,11 +48,8 @@ async function seedEnrollmentFixture(): Promise<EnrollmentFixture> {
   const studentId = randomUUID();
   const suffix = tenantId.slice(0, 8);
 
+  await ensurePgTestTenant(pool!, tenantId);
   await withPgTenant(pool!, tenantId, async (client) => {
-    await client.query(
-      `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [tenantId, `enrollment-uniq-${suffix}`, `enrollment-uniq-${tenantId}`],
-    );
     await client.query(
       `INSERT INTO geographic_areas (id, tenant_id, name, code, level, parent_id, path, lft, rgt)
        VALUES ($1, $2, 'Root', 'ROOT', 0, NULL, '/', 1, 2)`,
@@ -102,7 +96,7 @@ describe('enrollment uniqueness (live Postgres)', () => {
   it.skipIf(!live)(
     'EnrollmentService rejects a second active enrollment for the same student/period',
     async () => {
-      await ensureEnrollmentUniquenessIndex();
+      await assertEnrollmentUniquenessIndex();
       const fx = await seedEnrollmentFixture();
       const repo = new PgEnrollmentRepository(pool!);
       const service = new EnrollmentService(repo);
@@ -124,7 +118,7 @@ describe('enrollment uniqueness (live Postgres)', () => {
   it.skipIf(!live)(
     'concurrent ENROLLED inserts: Postgres partial unique index allows only one row',
     async () => {
-      await ensureEnrollmentUniquenessIndex();
+      await assertEnrollmentUniquenessIndex();
       const fx = await seedEnrollmentFixture();
       const idA = randomUUID();
       const idB = randomUUID();

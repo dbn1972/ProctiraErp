@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
  * Bootstrap status for the current install session (or empty unlocked status).
  */
 export async function GET(request: Request): Promise<NextResponse> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token =
     readHeader(request, INSTALL_TOKEN_HEADER) || cookieStore.get(INSTALL_TOKEN_COOKIE)?.value;
   const session = getInstallSession(token);

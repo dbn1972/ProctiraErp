@@ -128,18 +128,19 @@ export class TenantScopedAreaHierarchyResolver implements AreaHierarchyResolver 
       return;
     }
 
+    type GeographicAreaRow = {
+      id: string;
+      parent_id: string | null;
+      level: number;
+    };
     const rows = await withPgTenant(pool, tenantId, async (client) => {
-      const result = await client.query<{
-        id: string;
-        parent_id: string | null;
-        level: number;
-      }>(
+      const result = await client.query(
         `SELECT id, parent_id, level
          FROM geographic_areas
          WHERE tenant_id = $1::uuid AND deleted_at IS NULL`,
         [tenantId],
       );
-      return result.rows;
+      return result.rows as GeographicAreaRow[];
     });
 
     this.registerTenantAreas(

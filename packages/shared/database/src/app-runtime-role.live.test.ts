@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
+import { ensurePgTestTenant } from './test-fixtures.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -69,6 +70,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-01 app runtime role (live)', () => {
     const idA = randomUUID();
     const idB = randomUUID();
     const period = randomUUID();
+    await Promise.all([ensurePgTestTenant(pool, tenantA), ensurePgTestTenant(pool, tenantB)]);
 
     const client = await pool.connect();
     try {

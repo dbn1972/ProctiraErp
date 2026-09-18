@@ -13,7 +13,9 @@ const MapView = dynamic(() => import('./map-view').then((mod) => mod.MapView), {
   ssr: false,
   loading: () => (
     <div className="flex h-[500px] items-center justify-center rounded-md bg-gray-100">
-      <span className="text-sm text-gray-500">Loading map…</span>
+      <span className="text-sm text-gray-600" role="status" aria-live="polite">
+        Loading map…
+      </span>
     </div>
   ),
 });
@@ -35,7 +37,7 @@ interface InstitutionMapProps {
 /**
  * Interactive school-finder map with area / type / grade / search filters.
  *
- * Uses Leaflet (via react-leaflet) for the map. The initial data is rendered
+ * Uses Leaflet for the map. The initial data is rendered
  * server-side and refined on the client as the user changes filters.
  */
 export function InstitutionMap({

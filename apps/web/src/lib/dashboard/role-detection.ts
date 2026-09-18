@@ -4,7 +4,11 @@
 import type { TokenPayload } from '@/lib/auth/session';
 import type { DashboardRole } from '@/lib/api/reports';
 
-export function detectDashboardRole(roles: TokenPayload['roles'] | undefined): DashboardRole {
+type DashboardRoleClaim = Pick<TokenPayload['roles'][number], 'roleId' | 'roleName'>;
+
+export function detectDashboardRole(
+  roles: readonly DashboardRoleClaim[] | undefined,
+): DashboardRole {
   const haystack = (roles ?? [])
     .map((r) => `${r.roleId ?? ''} ${r.roleName ?? ''}`.toLowerCase())
     .join(' ');

@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 
 import { ConflictError } from '@proctira/common';
 import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { invigilatorsAreClashFree } from './clash.js';
@@ -90,9 +91,7 @@ describe('W3-RACE-01 allocation concurrency (in-memory)', () => {
       ops.createSession(tenantId, examId, payload, actor),
     ]);
 
-    const ok = outcomes.filter(
-      (o) => o.status === 'fulfilled' && (o.value as { ok: boolean }).ok,
-    );
+    const ok = outcomes.filter((o) => o.status === 'fulfilled' && (o.value as { ok: boolean }).ok);
     const clash = outcomes.filter(
       (o) => o.status === 'fulfilled' && !(o.value as { ok: boolean }).ok,
     );
@@ -221,47 +220,48 @@ describe('W3-RACE-01 allocation concurrency (live Postgres)', () => {
   it.skipIf(!isPgExaminationEnabled())(
     'serializes concurrent room bookings with advisory lock',
     async () => {
-    const pool = getSharedPgPool();
-    expect(pool).not.toBeNull();
-    const tenantId = randomUUID();
-    const repository = new InMemoryExaminationRepository();
-    const store = new PgExamOpsStore(pool!);
-    const exams = new ExaminationService(repository);
-    const ops = new ExamOpsService({ store, examinations: repository });
-    const actor = { userId: randomUUID(), roles: ['Administrator'] };
+      const pool = getSharedPgPool();
+      expect(pool).not.toBeNull();
+      const tenantId = randomUUID();
+      await ensurePgTestTenant(pool!, tenantId);
+      const repository = new InMemoryExaminationRepository();
+      const store = new PgExamOpsStore(pool!);
+      const exams = new ExaminationService(repository);
+      const ops = new ExamOpsService({ store, examinations: repository });
+      const actor = { userId: randomUUID(), roles: ['Administrator'] };
 
-    const studentId = randomUUID();
-    repository.setStudentEnrollment({
-      studentId,
-      status: 'enrolled',
-      institutionId: randomUUID(),
-      completedSubjectCodes: ['MATH'],
-    });
-    const exam = await exams.create(tenantId, examBody());
-    const subjectId = exam.subjects[0]!.id;
-    const centerId = exam.centers[0]!.id;
-    const date = futureDate(8);
-    const payload = {
-      subjectId,
-      date,
-      startTime: '09:00',
-      endTime: '11:00',
-      roomId: `HALL-${randomUUID().slice(0, 6)}`,
-      centerId,
-    };
+      const studentId = randomUUID();
+      repository.setStudentEnrollment({
+        studentId,
+        status: 'enrolled',
+        institutionId: randomUUID(),
+        completedSubjectCodes: ['MATH'],
+      });
+      const exam = await exams.create(tenantId, examBody());
+      const subjectId = exam.subjects[0]!.id;
+      const centerId = exam.centers[0]!.id;
+      const date = futureDate(8);
+      const payload = {
+        subjectId,
+        date,
+        startTime: '09:00',
+        endTime: '11:00',
+        roomId: `HALL-${randomUUID().slice(0, 6)}`,
+        centerId,
+      };
 
-    const outcomes = await Promise.allSettled(
-      Array.from({ length: 5 }, () => ops.createSession(tenantId, exam.id, payload, actor)),
-    );
+      const outcomes = await Promise.allSettled(
+        Array.from({ length: 5 }, () => ops.createSession(tenantId, exam.id, payload, actor)),
+      );
 
-    const ok = outcomes.filter(
-      (o) => o.status === 'fulfilled' && (o.value as { ok: boolean }).ok,
-    );
-    const clash = outcomes.filter(
-      (o) => o.status === 'fulfilled' && !(o.value as { ok: boolean }).ok,
-    );
-    expect(ok).toHaveLength(1);
-    expect(clash).toHaveLength(4);
+      const ok = outcomes.filter(
+        (o) => o.status === 'fulfilled' && (o.value as { ok: boolean }).ok,
+      );
+      const clash = outcomes.filter(
+        (o) => o.status === 'fulfilled' && !(o.value as { ok: boolean }).ok,
+      );
+      expect(ok).toHaveLength(1);
+      expect(clash).toHaveLength(4);
     },
   );
 });
