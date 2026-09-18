@@ -1,0 +1,101 @@
+name: Bug report
+description: Report a reproducible defect using synthetic, non-sensitive data.
+title: '[Bug]: '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve ProctiraERP. Do not report vulnerabilities here; use [private vulnerability reporting](https://github.com/dbn1972/ProctiraErp/security/advisories/new). Never include secrets or real student, child, guardian, staff, health, academic, or financial data.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data-safety confirmation
+      options:
+        - label: This is not a security vulnerability or privacy incident.
+          required: true
+        - label: I replaced personal, tenant, institution, and credential data with synthetic values and checked attachments for metadata.
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary and impact
+      description: What failed, who is affected, and how severe is the impact?
+      placeholder: A concise description using synthetic identifiers.
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suggested severity
+      options:
+        - Low - inconvenience or cosmetic issue
+        - Medium - workflow degraded with a workaround
+        - High - critical workflow blocked or data integrity at risk
+        - Unsure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Release, image tag, branch, or commit SHA where observed.
+      placeholder: sha-abcdef0
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Deployment type, browser/device/OS, and relevant configuration without hostnames, secrets, or customer names.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Actor and scope
+      description: Synthetic role, tenant/institution scope, and affected module. Do not enter a real user, school, or tenant identifier.
+      placeholder: Synthetic teacher in tenant-demo / institution-demo using attendance.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest safe sequence and synthetic setup data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: regression
+    attributes:
+      label: Regression status
+      options:
+        - Yes - worked in an earlier known version
+        - No - never known to work
+        - Unknown
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+      description: Paste minimal logs or attach screenshots after removing tokens, PII, tenant/customer details, and file metadata.
+      render: shell
+  - type: textarea
+    id: workaround
+    attributes:
+      label: Workaround and additional context
+      description: Describe any safe workaround, frequency, timing, or related issue.

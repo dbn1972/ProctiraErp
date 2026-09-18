@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Check Saved Source File",
+      "trigger": "PostFileSave",
+      "description": "Checks formatting or Prisma validity after a supported file is saved.",
+      "matcher": "\\.(ts|tsx|js|jsx|mts|cts|mjs|cjs|json|md|yaml|yml|css|scss|prisma|dart)$",
+      "action": {
+        "type": "command",
+        "command": "node tools/kiro-hooks/check-saved-file.mjs",
+        "timeout": 30
+      }
+    }
+  ]
+}

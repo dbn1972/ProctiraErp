@@ -43,7 +43,8 @@ function walkCoverageArtifacts(dir, out = []) {
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.next') continue;
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === '.next')
+        continue;
       walkCoverageArtifacts(full, out);
       continue;
     }
@@ -136,6 +137,22 @@ export function evaluateCoverage({ artifactPaths, aggregates, baseline, env = pr
   const required = coverageGateRequired(env);
 
   if (required && baseline.requireArtifacts && artifactPaths.length === 0) {
+    // An affected-package filter can legitimately select no test-bearing
+    // workspace (for example a docs- or tooling-only change). That must not be
+    // reported as a missing-coverage failure, but "tests ran and produced no
+    // coverage" still must. The runner reports its executed task count so the
+    // two cases stay distinguishable instead of both looking like zero
+    // artifacts. Absent the signal we keep the strict, fail-closed reading.
+    if (env.COVERAGE_GATE_EXECUTED_TASKS === '0') {
+      return {
+        ok: true,
+        errors: [],
+        aggregate: null,
+        artifactCount: 0,
+        skipped: true,
+        noAffectedTestTasks: true,
+      };
+    }
     errors.push(
       'No coverage artifacts found (coverage-summary.json or coverage-final.json) — unit tests must run with --coverage in CI (W3-TEST-04)',
     );
@@ -187,8 +204,19 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   const result = evaluateCoverage({ artifactPaths, aggregates, baseline, env });
 
   if (result.skipped) {
-    console.warn('[W3-TEST-04] No coverage artifacts — skipping gate (local mode).');
+    console.warn(
+      result.noAffectedTestTasks
+        ? '[W3-TEST-04] No affected test tasks executed — no coverage expected, gate satisfied.'
+        : '[W3-TEST-04] No coverage artifacts — skipping gate (local mode).',
+    );
     return 0;
+  }
+
+  // aggregate is null on the fail-closed no-artifacts path. Report the reason
+  // instead of dereferencing it and losing the message to a TypeError.
+  if (!result.aggregate) {
+    for (const e of result.errors) console.error(`[W3-TEST-04] FAIL: ${e}`);
+    return 1;
   }
 
   console.log(

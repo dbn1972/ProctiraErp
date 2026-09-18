@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Protect Sensitive Operations",
+      "trigger": "PreToolUse",
+      "description": "Confirms destructive, protected-branch, and secret-file operations.",
+      "matcher": "execute_bash|control_bash_process|fs_write|str_replace|fs_append|delete_file",
+      "action": {
+        "type": "command",
+        "command": "node tools/kiro-hooks/guard-sensitive-operations.mjs",
+        "timeout": 5
+      }
+    }
+  ]
+}

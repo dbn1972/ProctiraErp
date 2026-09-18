@@ -366,18 +366,33 @@ jobs:
       # suites. Exclude them here; integration-test runs them with DATABASE_URL
       # and assert-live-test-execution.mjs enforces a minimum executed count.
       - name: Run unit tests (affected packages, exclude live Postgres suites)
-        run: pnpm turbo run test --filter='${{ steps.turbo.outputs.filter }}' -- --exclude '**/*.live.test.ts' --coverage
+        id: unit
+        run: |
+          set -euo pipefail
+          pnpm turbo run test --filter='${{ steps.turbo.outputs.filter }}' -- --exclude '**/*.live.test.ts' --coverage 2>&1 | tee /tmp/turbo-unit.log
+          # W3-TEST-04: an affected filter can legitimately select no test-bearing
+          # workspace (docs- or tooling-only change). Record turbo's own executed
+          # task count so the coverage gate can tell that apart from "tests ran
+          # but emitted no coverage", which must still fail closed.
+          if grep -qE '^ *Tasks: +0 successful, 0 total' /tmp/turbo-unit.log; then
+            echo 'executed-tasks=0' >> "$GITHUB_OUTPUT"
+          else
+            echo 'executed-tasks=1' >> "$GITHUB_OUTPUT"
+          fi
         env:
           CI: true
           ALLOW_LIVE_TEST_SKIP: '1'
 
       # W3-TEST-04: fail closed when unit job did not emit coverage artifacts
-      # or aggregate percentages fall below baseline floors.
+      # or aggregate percentages fall below baseline floors. The gate always
+      # runs so its verdict is always in the log; COVERAGE_GATE_EXECUTED_TASKS
+      # lets it distinguish "nothing to cover" from "coverage missing".
       - name: Assert unit-test coverage gate (W3-TEST-04)
         run: pnpm test:coverage:assert
         env:
           CI: true
           REQUIRE_COVERAGE_GATE: '1'
+          COVERAGE_GATE_EXECUTED_TASKS: ${{ steps.unit.outputs.executed-tasks }}
 
       - name: Upload test coverage
         if: always()
