@@ -4,12 +4,12 @@
  * When DATABASE_URL is set, data persists via db/sql/010_parent_portal_schema.sql
  * and db/sql/011_fees_finance_schema.sql.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type {
   ConsentEntity,
@@ -47,79 +47,40 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
-let seedReady: Promise<void> | null = null;
+const ensureParentPortalSchemaReady = createDatabaseSchemaReadinessCheck(
+  'parent portal',
+  'parentPortal',
+);
 
 export function getSharedParentPortalPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function resolveSqlPath(filename: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${filename}`),
-    join(process.cwd(), `db/sql/${filename}`),
-    join(process.cwd(), `../../db/sql/${filename}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureParentPortalSchema(
   pool: PgPoolLike = getSharedParentPortalPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for parent portal schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql010 = readFileSync(resolveSqlPath('010_parent_portal_schema.sql'), 'utf8');
-      await pool.query(sql010);
-      const sql011 = readFileSync(resolveSqlPath('011_fees_finance_schema.sql'), 'utf8');
-      await pool.query(sql011);
-      const sql049 = readFileSync(resolveSqlPath('049_parent_child_link_authority.sql'), 'utf8');
-      await pool.query(sql049);
-      const sql051 = readFileSync(resolveSqlPath('052_parent_consent_version.sql'), 'utf8');
-      await pool.query(sql051);
-      const sql054 = readFileSync(resolveSqlPath('054_guardian_household_custody.sql'), 'utf8');
-      await pool.query(sql054);
-      const sql076 = readFileSync(resolveSqlPath('077_guardian_custody_restrictions.sql'), 'utf8');
-      await pool.query(sql076);
-      const sql089 = readFileSync(resolveSqlPath('090_consent_lifecycle_append_only.sql'), 'utf8');
-      await pool.query(sql089);
-    })();
-  }
-  await schemaReady;
+  await ensureParentPortalSchemaReady(pool);
 }
 
+/**
+ * Runtime seed replay was removed with UP-P0-02. Demo seeds are an explicit
+ * migrator operation (`APPLY_SEEDS=1 bash tools/scripts/apply-sql.sh`).
+ */
 export async function ensureParentPortalSeed(
   pool: PgPoolLike = getSharedParentPortalPool()!,
 ): Promise<void> {
   if (!pool) return;
   await ensureParentPortalSchema(pool);
   if (
-    process.env.PARENT_PORTAL_APPLY_SEED !== '1' &&
-    process.env.PARENT_PORTAL_APPLY_SEED !== 'true'
+    process.env.PARENT_PORTAL_APPLY_SEED === '1' ||
+    process.env.PARENT_PORTAL_APPLY_SEED === 'true'
   ) {
-    return;
+    throw new Error(
+      'PARENT_PORTAL_APPLY_SEED cannot run in an application process. ' +
+        'Apply demo seeds explicitly with the migrator role before startup.',
+    );
   }
-  if (!seedReady) {
-    seedReady = (async () => {
-      const sql = readFileSync(resolveSqlPath('010b_parent_portal_seed.sql'), 'utf8');
-      await pool.query(sql);
-      const custodySeed = readFileSync(
-        resolveSqlPath('077b_guardian_custody_demo_seed.sql'),
-        'utf8',
-      );
-      await pool.query(custodySeed);
-    })();
-  }
-  await seedReady;
 }
 
 function toDate(value: unknown): Date {
@@ -517,10 +478,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return result.rows.map((row) => String((row as Record<string, unknown>).household_id));
   }
 
-  async listActiveHouseholdIdsForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<string[]> {
+  async listActiveHouseholdIdsForParent(tenantId: string, parentUserId: string): Promise<string[]> {
     await this.ensureSchema();
     const result = await this.query(
       tenantId,
@@ -621,7 +579,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   }
 
   async createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
       decidedAt?: Date | null;
     },
   ): Promise<ConsentEntity> {

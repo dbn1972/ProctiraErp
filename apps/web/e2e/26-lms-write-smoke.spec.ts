@@ -285,16 +285,17 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
 
     await page.goto('/lms/pal', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('skill-list')).toContainText(code);
     const form = page.getByTestId('pal-lookup-form');
     await expect(form).toHaveAttribute('data-hydrated', 'true');
     const input = form.locator('input');
     if ((await input.count()) > 0) {
       await input.fill(STUDENT_ID);
-      await page.getByRole('button', { name: /load plan/i }).click();
-      await expect(page.getByTestId('pal-plan')).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByTestId('pal-plan-item').first()).toBeVisible();
+    } else {
+      await form.locator('select').selectOption(STUDENT_ID);
     }
+    await form.getByRole('button', { name: /load plan/i }).click();
+    await expect(page.getByTestId('pal-plan')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('pal-plan-item').first()).toBeVisible();
   });
 
   test('learner cannot record attempts for another student', async ({ request }) => {

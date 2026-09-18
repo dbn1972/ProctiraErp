@@ -5,12 +5,13 @@
  * db/sql/025_workflow_engine_schema.sql. Every statement runs inside
  * `withPgTenant` so the FORCEd RLS policies apply to the app role.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
-import { withPgTenant, type PgPool, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgPool,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type { CaseEntity, CaseFilter, CaseRepository } from './case-repository.js';
 import type {
@@ -37,38 +38,13 @@ import type {
 
 export type WorkflowPgPool = Pick<PgPool, 'query'> & Partial<Pick<PgPool, 'connect' | 'end'>>;
 
-let schemaReady: Promise<void> | null = null;
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const name = '025_workflow_engine_schema.sql';
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  for (const root of roots) {
-    const path = join(root, name);
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return join(roots[0]!, name);
-}
+const ensureWorkflowEngineSchemaReady = createDatabaseSchemaReadinessCheck(
+  'workflow engine',
+  'workflowEngine',
+);
 
 export async function ensureWorkflowEngineSchema(pool: WorkflowPgPool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })().catch((err: unknown) => {
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
+  await ensureWorkflowEngineSchemaReady(pool);
 }
 
 type Row = Record<string, unknown>;

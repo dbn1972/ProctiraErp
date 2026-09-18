@@ -5,8 +5,9 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
-import { createPrismaClient, withTenantTransaction } from '@proctira/database';
+import { createPrismaClient, getSharedPgPool } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
+import { ensurePgTestStudent, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PrismaAttendanceRepository } from './prisma-attendance-repository.js';
@@ -17,25 +18,22 @@ describe.skipIf(!DATABASE_URL)('attendance_audit RLS (G-732)', () => {
   let prisma: PrismaClient;
   const tenantA = randomUUID();
   const tenantB = randomUUID();
+  const studentId = randomUUID();
   let attendanceId: string;
 
   beforeAll(async () => {
     prisma = createPrismaClient({ datasourceUrl: DATABASE_URL! });
-    for (const tenantId of [tenantA, tenantB]) {
-      await withTenantTransaction(prisma, tenantId, async (tx) => {
-        await tx.$executeRawUnsafe(
-          `INSERT INTO tenants (id, name, slug) VALUES ($1::uuid, $2, $3) ON CONFLICT (id) DO NOTHING`,
-          tenantId,
-          `att-${tenantId.slice(0, 8)}`,
-          `att-${tenantId}`,
-        );
-      });
-    }
+    const fixturePool = getSharedPgPool(DATABASE_URL!);
+    if (!fixturePool) throw new Error('DATABASE_URL is required for attendance fixtures');
+    await Promise.all([
+      ensurePgTestStudent(fixturePool, tenantA, studentId),
+      ensurePgTestTenant(fixturePool, tenantB),
+    ]);
     const repo = new PrismaAttendanceRepository(prisma);
     const record = await repo.createStudentAttendance({
       id: randomUUID(),
       tenantId: tenantA,
-      studentId: randomUUID(),
+      studentId,
       institutionId: randomUUID(),
       classId: randomUUID(),
       academicPeriodId: randomUUID(),

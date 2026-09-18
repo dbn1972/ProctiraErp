@@ -23,9 +23,10 @@ import { ApprovalActions } from './approval-actions';
 export default async function BreakGlassRequestsPage({
   searchParams,
 }: {
-  searchParams: { submitted?: string };
+  searchParams: Promise<{ submitted?: string }>;
 }) {
   const session = await requireRole('breakGlassRequest', '/break-glass/requests');
+  const resolvedSearchParams = await searchParams;
   const canDecide = hasRole(session.user.platformRole, 'breakGlassApprove');
   const [bg, tenantsResult] = await Promise.all([listBreakGlassRequests(), listTenants()]);
   const { requests, source } = bg;
@@ -61,11 +62,11 @@ export default async function BreakGlassRequestsPage({
 
       <StubDataBanner source={source} />
 
-      {searchParams?.submitted && (
+      {resolvedSearchParams.submitted && (
         <Alert variant="success" className="mb-6">
           <AlertDescription>
-            Request <code>{searchParams.submitted}</code> submitted. The security team has been
-            notified for approval.
+            Request <code>{resolvedSearchParams.submitted}</code> submitted. The security team has
+            been notified for approval.
           </AlertDescription>
         </Alert>
       )}

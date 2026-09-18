@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * Live IdP provisioning remains a residual when upstream install API is used.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const security = assertInstallSecurity(request);
+  const security = await assertInstallSecurity(request);
   if (!security.ok) {
     return NextResponse.json(
       { success: false, error: security.error },

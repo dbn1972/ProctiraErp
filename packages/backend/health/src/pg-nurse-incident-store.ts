@@ -2,11 +2,11 @@
  * Postgres nurse / clinic visit incidents (Wave 10 Option B).
  * Schema: db/sql/046_health_incidents_etl_schema.sql
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { withPgTenant } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type { NurseIncidentEntity } from './health-repository.js';
 import {
@@ -17,41 +17,20 @@ import {
 import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
 import { decryptPhi, encryptPhi, phiScopeForStudent, type PhiCryptoScope } from './phi-crypto.js';
 
-let schemaReady: Promise<void> | null = null;
+const ensureNurseIncidentSchemaReady = createDatabaseSchemaReadinessCheck(
+  'health nurse incidents',
+  'healthNurseIncidents',
+);
 
 export function isPgNurseIncidentEnabled(): boolean {
   return isPgCounsellingEnabled();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/046_health_incidents_etl_schema.sql'),
-    join(process.cwd(), 'db/sql/046_health_incidents_etl_schema.sql'),
-    join(process.cwd(), '../../db/sql/046_health_incidents_etl_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureNurseIncidentSchema(
   pool: PgPoolLike = getSharedCounsellingPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for nurse incident schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureNurseIncidentSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
@@ -91,8 +70,7 @@ export class PgNurseIncidentStore {
     institutionId?: string | null,
   ): Promise<PhiCryptoScope> {
     const resolved =
-      institutionId ??
-      (await findStudentInstitutionId(this.pool, tenantId, studentId));
+      institutionId ?? (await findStudentInstitutionId(this.pool, tenantId, studentId));
     return phiScopeForStudent(tenantId, studentId, resolved);
   }
 
@@ -103,10 +81,7 @@ export class PgNurseIncidentStore {
   async create(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: NurseIncidentEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: NurseIncidentEntity) => Promise<void>;
     },
   ): Promise<NurseIncidentEntity> {
     await this.ensureSchema();

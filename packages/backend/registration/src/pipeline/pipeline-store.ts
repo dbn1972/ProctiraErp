@@ -111,6 +111,7 @@ export interface OfferRecord {
 }
 
 export interface AdmissionsPipelineStore {
+  withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T>;
   createEnquiry(record: EnquiryRecord): Promise<EnquiryRecord>;
   listEnquiries(tenantId: string): Promise<EnquiryRecord[]>;
   findEnquiry(tenantId: string, id: string): Promise<EnquiryRecord | null>;
@@ -170,6 +171,25 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
   private meritLists = new Map<string, MeritListRecord>();
   private meritEntries = new Map<string, MeritListEntryRecord[]>();
   private offers = new Map<string, OfferRecord>();
+  private offerLocks = new Map<string, Promise<void>>();
+
+  async withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T> {
+    const key = `${tenantId}:${offerId}`;
+    const prior = this.offerLocks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = prior.then(() => current);
+    this.offerLocks.set(key, tail);
+    await prior;
+    try {
+      return await work();
+    } finally {
+      release();
+      if (this.offerLocks.get(key) === tail) this.offerLocks.delete(key);
+    }
+  }
 
   async createEnquiry(record: EnquiryRecord): Promise<EnquiryRecord> {
     this.enquiries.set(record.id, clone(record));

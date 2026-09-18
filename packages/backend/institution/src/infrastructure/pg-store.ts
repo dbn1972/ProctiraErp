@@ -11,13 +11,14 @@
  * bypassed for superuser / table-owner roles (the default `POSTGRES_USER` in
  * container images is one), so the policy alone is not a tenancy guarantee.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import { requireTenantId } from '../tenant-context.js';
+
 import type { InfrastructureTypeValue } from './schemas.js';
 import type {
   ConditionOptionRecord,
@@ -29,39 +30,14 @@ import type {
 /** Pool surface we need (real pg.Pool, or a test double with `query`). */
 export type InfrastructurePool = PgQueryable & { connect?: unknown; end?: () => Promise<void> };
 
-let schemaReady: Promise<void> | null = null;
+const ensureInfrastructureSchemaReady = createDatabaseSchemaReadinessCheck(
+  'institution infrastructure',
+  'institutionInfrastructure',
+);
 
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const file = '027_institution_infrastructure_schema.sql';
-  const candidates = [
-    join(here, '../../../../../db/sql', file),
-    join(process.cwd(), 'db/sql', file),
-    join(process.cwd(), '../../db/sql', file),
-    join(process.cwd(), '../../../db/sql', file),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
-/** Idempotently applies 027 (CREATE IF NOT EXISTS) — used by tests and standalone boot. */
+/** Verify operator-applied schema without granting runtime DDL privileges. */
 export async function ensureInfrastructureSchema(pool: InfrastructurePool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })().catch((error: unknown) => {
-      schemaReady = null;
-      throw error;
-    });
-  }
-  return schemaReady;
+  await ensureInfrastructureSchemaReady(pool);
 }
 
 interface InfraRow {

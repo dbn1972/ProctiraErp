@@ -1,5 +1,5 @@
 -- Live multi-board / multi-school onboarding seed
--- Profile: 3 boards × 2 schools × 500 students = 3000 enrollments
+-- Profile: 3 boards × 2 schools × 500 students = 3000 class-placed enrollments
 -- Idempotent for slug 'proctira-multiboard-cert' (deletes prior cert tenant cascade manually)
 --
 -- RLS: this seed runs under the production posture (NOSUPERUSER / NOBYPASSRLS
@@ -39,6 +39,7 @@ BEGIN
     BEGIN DELETE FROM credit_rules WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN DELETE FROM board_codes WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
     DELETE FROM enrollments WHERE tenant_id = tid;
+    DELETE FROM classes WHERE tenant_id = tid;
     DELETE FROM students WHERE tenant_id = tid;
     DELETE FROM staff WHERE tenant_id = tid;
     DELETE FROM institutions WHERE tenant_id = tid;
@@ -123,6 +124,24 @@ inst_ins AS (
   CROSS JOIN area_ins a
   RETURNING id, tenant_id, code, board_id
 ),
+-- One Grade 6 class per school, sized to the certification roster.
+class_ins AS (
+  INSERT INTO classes (
+    id, tenant_id, institution_id, grade_id, academic_period_id, name, capacity
+  )
+  SELECT
+    uuid_generate_v4(),
+    i.tenant_id,
+    i.id,
+    g.id,
+    p.id,
+    'Grade 6 - A',
+    500
+  FROM inst_ins i
+  CROSS JOIN grade_ins g
+  CROSS JOIN period_ins p
+  RETURNING id, tenant_id, institution_id, grade_id, academic_period_id
+),
 -- 25 staff per school
 staff_ins AS (
   INSERT INTO staff (id, tenant_id, first_name, last_name, date_of_birth, identity_number, custom_data)
@@ -159,26 +178,28 @@ student_ins AS (
 ),
 enroll_ins AS (
   INSERT INTO enrollments (
-    id, tenant_id, student_id, institution_id, grade_id, academic_period_id, status, enrolled_at
+    id, tenant_id, student_id, institution_id, grade_id, academic_period_id, class_id,
+    status, enrolled_at
   )
   SELECT
     uuid_generate_v4(),
     s.tenant_id,
     s.id,
     i.id,
-    g.id,
-    p.id,
+    c.grade_id,
+    c.academic_period_id,
+    c.id,
     'ENROLLED',
     DATE '2026-04-01'
   FROM student_ins s
   JOIN inst_ins i ON i.code = s.custom_data->>'institutionCode' AND i.tenant_id = s.tenant_id
-  CROSS JOIN grade_ins g
-  CROSS JOIN period_ins p
+  JOIN class_ins c ON c.institution_id = i.id AND c.tenant_id = s.tenant_id
   RETURNING id
 )
 SELECT
   (SELECT count(*) FROM board_rows) AS boards,
   (SELECT count(*) FROM inst_ins) AS schools,
+  (SELECT count(*) FROM class_ins) AS classes,
   (SELECT count(*) FROM student_ins) AS students,
   (SELECT count(*) FROM staff_ins) AS staff,
   (SELECT count(*) FROM enroll_ins) AS enrollments;

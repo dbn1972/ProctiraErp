@@ -1,5 +1,7 @@
 /**
- * W1-ARCH-05 — custom-field, dashboards, and privacy are composed on the gateway.
+ * P0-01 / W1-ARCH-05 — production composition must not mount memory-only
+ * custom-field or dashboard domains. Privacy remains gateway-composed because
+ * it has a durable PostgreSQL repository when DATABASE_URL is configured.
  */
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -31,11 +33,21 @@ function config(): GatewayConfig {
     tenant: { baseDomain: 'proctira.org', headerName: 'x-tenant-id' },
     services: {
       auth: { prefix: '/auth', target: 'http://127.0.0.1:1', healthCheck: '/health' },
+      customFields: {
+        prefix: '/custom-fields/definitions',
+        target: 'http://127.0.0.1:2',
+        healthCheck: '/health',
+      },
+      dashboards: {
+        prefix: '/dashboards/',
+        target: 'http://127.0.0.1:3',
+        healthCheck: '/health',
+      },
     },
   };
 }
 
-describe('W1-ARCH-05 gateway compose mounts', () => {
+describe('P0-01 production-safe gateway composition', () => {
   let app: FastifyInstance;
 
   const adminHeaders = (tenantId = TENANT_A) => ({
@@ -44,8 +56,6 @@ describe('W1-ARCH-05 gateway compose mounts', () => {
       tenantId,
       email: 'admin@example.com',
       displayName: 'Admin',
-      // privacy → platform resource; custom-fields → institution. Platform admin
-      // covers both for compose smoke (W1-ARCH-05 / W1-ARCH-06).
       roles: [
         { roleId: 'admin', roleName: 'Administrator', areaId: null },
         { roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null },
@@ -67,49 +77,13 @@ describe('W1-ARCH-05 gateway compose mounts', () => {
     await app.close();
   });
 
-  it('serves custom-field definitions under /api/v1/custom-fields', async () => {
-    const created = await app.inject({
-      method: 'POST',
-      url: '/api/v1/custom-fields/definitions',
-      headers: adminHeaders(),
-      payload: {
-        entityType: 'student',
-        fieldKey: 'blood_group',
-        label: 'Blood group',
-        fieldType: 'text',
-        validationRules: {},
-        displayOrder: 1,
-      },
-    });
-    expect(created.statusCode).toBe(201);
-    expect(created.json()).toMatchObject({ fieldKey: 'blood_group', entityType: 'student' });
-
-    const listed = await app.inject({
-      method: 'GET',
-      url: '/api/v1/custom-fields/definitions',
-      headers: adminHeaders(),
-    });
-    expect(listed.statusCode).toBe(200);
-  });
-
-  it('serves role dashboards under /api/v1/dashboards', async () => {
-    const me = await app.inject({
-      method: 'GET',
-      url: '/api/v1/dashboards/me',
-      headers: adminHeaders(),
-    });
-    // Scope mismatch may 403; missing role dashboard may 404 — route must be composed
-    // (not Fastify "Route … not found").
-    expect([200, 403, 404]).toContain(me.statusCode);
-    expect(me.json().message ?? '').not.toMatch(/^Route \w+:/);
-
-    const country = await app.inject({
-      method: 'GET',
-      url: '/api/v1/dashboards/country',
-      headers: adminHeaders(),
-    });
-    expect([200, 403, 404]).toContain(country.statusCode);
-    expect(country.json().message ?? '').not.toMatch(/^Route \w+:/);
+  it.each([
+    ['/api/v1/custom-fields/definitions', 'custom-field'],
+    ['/api/v1/dashboards/me', 'dashboards'],
+  ])('does not compose %s while its domain has no durable adapter', async (url, domain) => {
+    const response = await app.inject({ method: 'GET', url, headers: adminHeaders() });
+    expect(response.statusCode, `${domain} must remain parked`).toBe(404);
+    expect(response.json()).toMatchObject({ code: 'NOT_FOUND', message: 'Route not found' });
   });
 
   it('serves privacy legal-hold + erasure under /api/v1/privacy', async () => {
@@ -119,7 +93,7 @@ describe('W1-ARCH-05 gateway compose mounts', () => {
       headers: adminHeaders(),
       payload: {
         scope: 'tenant',
-        reason: 'W1-ARCH-05 compose smoke',
+        reason: 'P0-01 compose smoke',
       },
     });
     expect(hold.statusCode).toBe(201);

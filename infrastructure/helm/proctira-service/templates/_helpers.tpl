@@ -31,14 +31,23 @@ The Deployment mounts it via envFrom, so the app never sees the provider.
 {{- default (printf "%s-env" (include "proctira-service.fullname" .)) .Values.externalSecret.targetName -}}
 {{- end -}}
 
-{{/*
-Health probe path. Fastify services expose /health; Next.js apps expose
-/api/health. Resolved from serviceProfiles[<service.name>].healthPath so
-deploy.yml can keep passing only --set service.name.
-*/}}
-{{- define "proctira-service.healthPath" -}}
+{{/* Resolve a service-profile probe path with legacy healthPath fallback. */}}
+{{- define "proctira-service.livenessPath" -}}
 {{- $profile := index .Values.serviceProfiles .Values.service.name | default dict -}}
-{{- default .Values.healthPath (get $profile "healthPath") -}}
+{{- $legacy := default .Values.livenessPath (get $profile "healthPath") -}}
+{{- default $legacy (get $profile "livenessPath") -}}
+{{- end -}}
+
+{{- define "proctira-service.readinessPath" -}}
+{{- $profile := index .Values.serviceProfiles .Values.service.name | default dict -}}
+{{- $legacy := default .Values.readinessPath (get $profile "healthPath") -}}
+{{- default $legacy (get $profile "readinessPath") -}}
+{{- end -}}
+
+{{- define "proctira-service.startupPath" -}}
+{{- $profile := index .Values.serviceProfiles .Values.service.name | default dict -}}
+{{- $legacy := default .Values.startupPath (get $profile "healthPath") -}}
+{{- default $legacy (get $profile "startupPath") -}}
 {{- end -}}
 
 {{/*

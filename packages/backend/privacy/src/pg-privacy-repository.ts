@@ -4,12 +4,13 @@
  * Maps to db/sql/067_privacy_legal_hold_erasure.sql and
  * db/sql/078_privacy_lifecycle_complete.sql. Every query runs inside withPgTenant.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type {
   AnonymizationJobEntity,
@@ -31,41 +32,17 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensurePrivacySchemaReady = createDatabaseSchemaReadinessCheck('privacy', 'privacy');
 
 export function getSharedPrivacyPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function resolveSqlFile(name: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${name}`),
-    join(process.cwd(), `db/sql/${name}`),
-    join(process.cwd(), `../../db/sql/${name}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensurePrivacySchema(
   pool: PgPoolLike = getSharedPrivacyPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for privacy schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(resolveSqlFile('067_privacy_legal_hold_erasure.sql'), 'utf8'));
-      await pool.query(readFileSync(resolveSqlFile('078_privacy_lifecycle_complete.sql'), 'utf8'));
-    })();
-  }
-  await schemaReady;
+  await ensurePrivacySchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
@@ -369,10 +346,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     });
   }
 
-  async findErasureRequestById(
-    id: string,
-    tenantId: string,
-  ): Promise<ErasureRequestEntity | null> {
+  async findErasureRequestById(id: string, tenantId: string): Promise<ErasureRequestEntity | null> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
@@ -539,12 +513,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<
         AnonymizationJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'fieldsTouched'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'fieldsTouched' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<AnonymizationJobEntity | null> {
@@ -645,12 +614,7 @@ export class PgPrivacyRepository implements PrivacyRepository {
     data: Partial<
       Pick<
         TenantOffboardJobEntity,
-        | 'status'
-        | 'statusReason'
-        | 'checklist'
-        | 'residualNote'
-        | 'startedAt'
-        | 'completedAt'
+        'status' | 'statusReason' | 'checklist' | 'residualNote' | 'startedAt' | 'completedAt'
       >
     >,
   ): Promise<TenantOffboardJobEntity | null> {

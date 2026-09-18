@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestStudent } from '@proctira/database/test-fixtures';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { getSharedCounsellingPool } from './pg-counselling-store.js';
@@ -22,10 +23,12 @@ describe('PgNurseIncidentStore', () => {
     const store = createPgNurseIncidentStore()!;
     const tenantId = randomUUID();
     const id = randomUUID();
+    const studentId = randomUUID();
+    await ensurePgTestStudent(getSharedCounsellingPool()!, tenantId, studentId);
     await store.create({
       id,
       tenantId,
-      studentId: randomUUID(),
+      studentId,
       institutionId: null,
       incidentAt: new Date('2026-09-06T10:00:00.000Z'),
       category: 'clinic_visit',

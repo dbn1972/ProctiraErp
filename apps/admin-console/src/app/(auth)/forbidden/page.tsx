@@ -8,8 +8,13 @@ import { Card, CardContent } from '@/components/ui/card';
  * /forbidden — shown when an operator's role is not allowed in the requested
  * area. The audit log records the redirect.
  */
-export default function ForbiddenPage({ searchParams }: { searchParams: { area?: string } }) {
-  const area = searchParams?.area ?? 'this area';
+export default async function ForbiddenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ area?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const area = resolvedSearchParams.area ?? 'this area';
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-12">
       <Card className="w-full max-w-lg">

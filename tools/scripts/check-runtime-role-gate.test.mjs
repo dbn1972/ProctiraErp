@@ -29,21 +29,40 @@ proctira_app
 `;
 
 const GOOD_DEPLOY = `
+  migrate-database:
+    environment: production
+    steps:
+      - env:
+          MIGRATOR_DATABASE_URL: \${{ secrets.MIGRATOR_DATABASE_URL }}
+        run: bash tools/scripts/run-target-database-migrations.sh
+
   runtime-role-gate:
     name: Runtime DB role gate (W1-DATA-01)
+    needs: [prepare, migrate-database]
     steps:
-      - run: |
-          RUNTIME_ROLE_GATE_REQUIRED=1 \\
-          RUNTIME_ROLE_SECRET_NAME=proctira-prod-secrets \\
-          DATABASE_URL="\${{ secrets.DATABASE_URL }}" \\
-            bash tools/scripts/assert-runtime-database-role.sh
+      - env:
+          RUNTIME_ROLE_GATE_REQUIRED: '1'
+          RUNTIME_ROLE_SECRET_NAME: proctira-prod-secrets
+          DATABASE_URL: \${{ secrets.DATABASE_URL }}
+        run: bash tools/scripts/assert-runtime-database-role.sh
+      - run: bash tools/scripts/assert-runtime-schema-ready.sh
+
+  deploy:
+    needs: [prepare, build-images, migrate-database, runtime-role-gate]
+    if: needs.build-images.result == 'success' && needs.migrate-database.result == 'success' && needs.runtime-role-gate.result == 'success'
+    steps:
+      - run: helm upgrade --install
 `;
 
 const GOOD_CI = `
   runtime-role-gate:
     name: Runtime Role Gate (W1-DATA-01)
     steps:
+      - run: pnpm install --frozen-lockfile
+      - run: node --test tools/scripts/check-no-runtime-ddl.test.mjs
+      - run: node --test tools/scripts/target-database-migration-contract.test.mjs
       - run: node tools/scripts/check-runtime-role-gate.mjs
+      - run: node tools/scripts/check-no-runtime-ddl.mjs
 
   ci-aggregate:
     needs:
@@ -111,12 +130,62 @@ test('assertScriptContract requires ownership + privilege checks', () => {
   assert.ok(assertScriptContract('proctira_app only', 'x').length > 0);
 });
 
-test('deployWorkflowContract requires live gate wiring', () => {
+test('deployWorkflowContract requires pre-rollout migration and schema gates', () => {
   assert.equal(deployWorkflowContract(GOOD_DEPLOY).length, 0);
-  assert.ok(deployWorkflowContract('name: Deploy\n').length > 0);
+  assert.ok(deployWorkflowContract('name: Deploy\njobs: {}\n').length > 0);
   assert.ok(
     deployWorkflowContract(
-      GOOD_DEPLOY + '\n::warning::skipping runtime role check\n',
+      GOOD_DEPLOY.replace(
+        'bash tools/scripts/run-target-database-migrations.sh',
+        'bash tools/scripts/run-target-database-migrations.sh || true',
+      ),
+    ).length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(
+      GOOD_DEPLOY.replace(
+        'run: bash tools/scripts/run-target-database-migrations.sh',
+        'run: |\n          set +e\n          bash tools/scripts/run-target-database-migrations.sh\n          exit 0',
+      ),
+    ).length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(
+      GOOD_DEPLOY.replace(
+        'run: bash tools/scripts/run-target-database-migrations.sh',
+        'if: false\n        run: bash tools/scripts/run-target-database-migrations.sh',
+      ),
+    ).length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(GOOD_DEPLOY.replace('  deploy:\n', '  deploy:\n    if: always()\n'))
+      .length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(`${GOOD_DEPLOY}\n  migrate-database:\n    steps: []\n`).length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(
+      GOOD_DEPLOY.replace(
+        "if: needs.build-images.result == 'success' && needs.migrate-database.result == 'success' && needs.runtime-role-gate.result == 'success'",
+        'if: ${{ !cancelled() }}',
+      ),
+    ).length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(
+      GOOD_DEPLOY.replace(
+        '  migrate-database:\n',
+        '  migrate-database:\n    continue-on-error: ${{ true }}\n',
+      ),
+    ).length > 0,
+  );
+  assert.ok(
+    deployWorkflowContract(
+      GOOD_DEPLOY.replace(
+        '  migrate-database:\n',
+        '  migrate-database:\n    defaults:\n      run:\n        shell: bash {0} || true\n',
+      ),
     ).length > 0,
   );
 });
@@ -130,9 +199,79 @@ test('ciWorkflowContract rejects duplicate runtime-role-gate job keys (W1-OPS-05
   const dup = `${GOOD_CI}\n  runtime-role-gate:\n    name: duplicate\n`;
   const issues = ciWorkflowContract(dup);
   assert.ok(
-    issues.some((i) => /defines runtime-role-gate 2 times/.test(i)),
+    issues.some((i) => /YAML|Map keys must be unique|unique/i.test(i)),
     JSON.stringify(issues),
   );
+});
+
+test('ciWorkflowContract rejects comment-only or unrelated-job scanner references', () => {
+  const bypass = `
+  runtime-role-gate:
+    steps:
+      # node tools/scripts/check-no-runtime-ddl.mjs
+      - run: pnpm install --frozen-lockfile
+      - run: node tools/scripts/check-runtime-role-gate.mjs
+
+  unrelated:
+    steps:
+      - run: node --test tools/scripts/check-no-runtime-ddl.test.mjs
+      - run: node tools/scripts/check-no-runtime-ddl.mjs
+
+  ci-aggregate:
+    needs:
+      - runtime-role-gate
+    steps:
+      - env:
+          RUNTIME_ROLE_GATE_RESULT: result
+        run: node tools/scripts/ci-aggregate-gate.mjs
+`;
+  const issues = ciWorkflowContract(bypass);
+  assert.ok(issues.some((issue) => /unit-test the runtime-DDL gate/.test(issue)));
+  assert.ok(issues.some((issue) => /must run check-no-runtime-ddl\.mjs/.test(issue)));
+});
+
+test('ciWorkflowContract rejects shell and step-level soft-pass masking', () => {
+  for (const masked of [
+    GOOD_CI.replace(
+      'node tools/scripts/check-no-runtime-ddl.mjs',
+      'node tools/scripts/check-no-runtime-ddl.mjs || true',
+    ),
+    GOOD_CI.replace(
+      'node tools/scripts/check-no-runtime-ddl.mjs',
+      'node tools/scripts/check-no-runtime-ddl.mjs; true',
+    ),
+    GOOD_CI.replace(
+      '- run: node tools/scripts/check-no-runtime-ddl.mjs',
+      '- run: node tools/scripts/check-no-runtime-ddl.mjs\n        continue-on-error: true',
+    ),
+    GOOD_CI.replace(
+      'node tools/scripts/check-no-runtime-ddl.mjs',
+      'if false; then node tools/scripts/check-no-runtime-ddl.mjs; fi',
+    ),
+    GOOD_CI.replace(
+      '- run: node tools/scripts/check-no-runtime-ddl.mjs',
+      '- run: |\n          set +e\n          node tools/scripts/check-no-runtime-ddl.mjs\n          exit 0',
+    ),
+    GOOD_CI.replace(
+      '- run: node tools/scripts/check-no-runtime-ddl.mjs',
+      '- if: false\n        run: node tools/scripts/check-no-runtime-ddl.mjs',
+    ),
+    GOOD_CI.replace(
+      '- run: node tools/scripts/check-no-runtime-ddl.mjs',
+      '- run: node tools/scripts/check-no-runtime-ddl.mjs\n        continue-on-error: ${{ true }}',
+    ),
+    GOOD_CI.replace(
+      '  runtime-role-gate:\n',
+      '  runtime-role-gate:\n    continue-on-error: true\n',
+    ),
+    GOOD_CI.replace(
+      '  runtime-role-gate:\n',
+      '  runtime-role-gate:\n    defaults:\n      run:\n        shell: bash {0} || true\n',
+    ),
+  ]) {
+    const issues = ciWorkflowContract(masked);
+    assert.ok(issues.length > 0, JSON.stringify(issues));
+  }
 });
 
 test('secretDocsContract requires ExternalSecret + Helm proctira_app docs', () => {

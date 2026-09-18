@@ -46,7 +46,7 @@ function Hero() {
           <div>
             <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3.5 py-1.5 text-xs font-bold text-primary-700">
               <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
-              {t('open')}
+              {t('stats.open')}
             </span>
             <h1 className="text-3xl font-extrabold leading-[1.12] tracking-tight text-gray-900 sm:text-4xl lg:text-5xl">
               {t('heroTitle')}

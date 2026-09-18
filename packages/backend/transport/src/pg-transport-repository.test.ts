@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { isPgTransportEnabled } from './create-transport-repository.js';
@@ -15,6 +16,7 @@ describe('PgTransportRepository', () => {
     const repo = new PgTransportRepository(pool!);
     const tenantId = randomUUID();
     const routeId = randomUUID();
+    await ensurePgTestTenant(pool!, tenantId);
 
     await repo.createRoute({
       id: routeId,

@@ -21,11 +21,7 @@ export type HouseholdMemberRole = 'primary' | 'guardian' | 'other';
 export type HouseholdMemberStatus = 'active' | 'revoked';
 export type CustodyType = 'sole' | 'joint' | 'visitation' | 'none';
 export type CustodyStatus = 'active' | 'ended';
-export type CustodyRestrictionKind =
-  | 'court_order'
-  | 'protective_order'
-  | 'school_admin'
-  | 'other';
+export type CustodyRestrictionKind = 'court_order' | 'protective_order' | 'school_admin' | 'other';
 export type CustodyRestrictionStatus = 'active' | 'lifted';
 
 export interface GuardianHouseholdEntity {
@@ -225,10 +221,7 @@ export interface ParentPortalRepository {
     data: Omit<GuardianHouseholdMemberEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<GuardianHouseholdMemberEntity>;
   assignStudentCustody(
-    data: Omit<
-      GuardianStudentCustodyEntity,
-      'createdAt' | 'updatedAt' | 'effectiveTo'
-    >,
+    data: Omit<GuardianStudentCustodyEntity, 'createdAt' | 'updatedAt' | 'effectiveTo'>,
   ): Promise<GuardianStudentCustodyEntity>;
   createCustodyRestriction(
     data: Omit<GuardianCustodyRestrictionEntity, 'createdAt' | 'updatedAt'>,
@@ -260,7 +253,7 @@ export interface ParentPortalRepository {
   listMessagesForThread(tenantId: string, threadId: string): Promise<MessageEntity[]>;
 
   createConsent(
-    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo'> & {
+    data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'validTo' | 'decidedAt'> & {
       decidedAt?: Date | null;
     },
   ): Promise<ConsentEntity>;
@@ -272,11 +265,7 @@ export interface ParentPortalRepository {
    * Close an open version's effective window (valid_to only).
    * Body/status mutation is refused by the DB + service layer.
    */
-  closeConsentValidTo(
-    tenantId: string,
-    id: string,
-    validTo: Date,
-  ): Promise<ConsentEntity | null>;
+  closeConsentValidTo(tenantId: string, id: string, validTo: Date): Promise<ConsentEntity | null>;
 
   createFeePlan(data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>): Promise<FeePlanEntity>;
   listFeePlans(tenantId: string): Promise<FeePlanEntity[]>;

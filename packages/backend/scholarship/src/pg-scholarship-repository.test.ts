@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -39,6 +40,7 @@ describe('PgScholarshipRepository', () => {
       const disbursementId = randomUUID();
       const applicantId = randomUUID();
       const institutionId = randomUUID();
+      await ensurePgTestTenant(pool!, tenantId);
 
       await repo.createProgram({
         id: programId,

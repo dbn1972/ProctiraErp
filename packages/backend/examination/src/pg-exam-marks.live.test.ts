@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { describe, expect, it } from 'vitest';
 
@@ -53,6 +54,7 @@ describe('exam marks (live Postgres)', () => {
     'double entry persists variance and moderator resolution under Postgres',
     async () => {
       const tenantId = randomUUID();
+      await ensurePgTestTenant(pool!, tenantId);
       const repository = new InMemoryExaminationRepository();
       const store = new PgExamOpsStore(pool!);
       const exams = new ExaminationService(repository);
@@ -95,12 +97,7 @@ describe('exam marks (live Postgres)', () => {
       );
       expect(second.varianceFlag).toBe(true);
 
-      const pairBefore = await store.findMarksPair(
-        tenantId,
-        exam.id,
-        registration.id,
-        subjectId,
-      );
+      const pairBefore = await store.findMarksPair(tenantId, exam.id, registration.id, subjectId);
       expect(pairBefore).toHaveLength(2);
       expect(pairBefore.every((e) => e.varianceFlag)).toBe(true);
       expect(pairBefore.map((e) => e.marks).sort()).toEqual([72, 88]);
@@ -114,12 +111,7 @@ describe('exam marks (live Postgres)', () => {
       expect(resolved.finalMarks).toBe(80);
       expect(resolved.resolved).toBe(true);
 
-      const pairAfter = await store.findMarksPair(
-        tenantId,
-        exam.id,
-        registration.id,
-        subjectId,
-      );
+      const pairAfter = await store.findMarksPair(tenantId, exam.id, registration.id, subjectId);
       expect(pairAfter.every((e) => e.finalMarks === 80)).toBe(true);
       expect(pairAfter.every((e) => e.resolvedBy === moderator.userId)).toBe(true);
     },
@@ -129,6 +121,7 @@ describe('exam marks (live Postgres)', () => {
     'unique (tenant, exam, candidate, subject, entry_no) is enforced by Postgres',
     async () => {
       const tenantId = randomUUID();
+      await ensurePgTestTenant(pool!, tenantId);
       const repository = new InMemoryExaminationRepository();
       const store = new PgExamOpsStore(pool!);
       const exams = new ExaminationService(repository);

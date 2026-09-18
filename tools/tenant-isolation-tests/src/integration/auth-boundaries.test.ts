@@ -4,7 +4,7 @@
  * Drives the actual `@proctira/tenant` Fastify plugin (registered against an
  * ephemeral Fastify instance) plus a thin RBAC helper to verify that:
  *   1. Header-based tenant resolution works.
- *   2. JWT tenant claim takes precedence over header (no header spoofing).
+ *   2. Conflicting JWT and header tenant identities are rejected (no spoofing).
  *   3. RBAC scopes role checks to the resolved tenant; admin in tenant A
  *      gets nothing in tenant B.
  *   4. Refresh-token tenant-binding rejects cross-tenant reuse.
@@ -124,7 +124,7 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
     );
   });
 
-  it('JWT tenant claim wins over a spoofed X-Tenant-Id header', async () => {
+  it('rejects a spoofed X-Tenant-Id header that conflicts with the JWT claim', async () => {
     // Re-register with an onRequest hook that decorates request.user with a
     // JWT-derived tenant id (mimicking the auth plugin running before us).
     await app.close();
@@ -134,6 +134,7 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
       fc.asyncProperty(distinctTenantPairArb, async ({ tenantA, tenantB }) => {
         const local = Fastify();
         local.addHook('onRequest', async (request) => {
+          setConfigCalls.length = 0;
           (request as unknown as { user: { tenantId: string; sub: string } }).user = {
             tenantId: tenantA,
             sub: 'user-1',
@@ -156,9 +157,11 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
           headers: { 'x-tenant-id': tenantB },
         });
 
-        const body = JSON.parse(response.body) as { tenantId: string };
-        expect(body.tenantId).toBe(tenantA);
-        expect(body.tenantId).not.toBe(tenantB);
+        expect(response.statusCode).toBe(401);
+        const body = JSON.parse(response.body) as { code?: string; tenantId?: string };
+        expect(body.code).toBe('TENANT_RESOLUTION_FAILED');
+        expect(body.tenantId).toBeUndefined();
+        expect(setConfigCalls).toHaveLength(0);
 
         await local.close();
       }),

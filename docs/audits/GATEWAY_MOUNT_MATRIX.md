@@ -60,6 +60,8 @@ Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` 
 | Package                   | Mounted? | Prefix(es)           | Persistence | RBAC wired? | Decision / Notes                                                                                                                           |
 | ------------------------- | -------- | -------------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `backend/admin-dashboard` | No       | `/admin/scalability` | n/a         | No          | **PARKED — superseded (G-924)**: platform-admin UI + insights own every dashboard surface. Retire when no importer remains.                |
+| `backend/custom-field`    | No       | `/custom-fields`     | n/a         | No          | **P0-01 PARKED** — no durable PostgreSQL adapter; the previous unconditional mount prevented every database-backed gateway from starting.  |
+| `backend/dashboards`      | No       | `/dashboards`        | n/a         | No          | **P0-01 PARKED** — no durable aggregate adapter; role dashboards remain available through `backend/report`.                                |
 | `backend/data-warehouse`  | No       | `/warehouses`        | n/a         | No          | **PARKED — superseded (G-924)**: insights UI owns `/data-warehouse` (G-209); connector model needs an unfunded ETL runtime.                |
 | `backend/install`         | No       | `/install`           | n/a         | No          | **PARKED — out of gateway scope (G-924)**: install wizard is portal/demo scoped; must never be reachable on a live tenant gateway.         |
 | `backend/plugin`          | No       | `/plugins`           | n/a         | No          | **PARKED — superseded (G-924)**: `/plugins` served by platform-admin UI; marketplace runtime deferred.                                     |
@@ -67,13 +69,13 @@ Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` 
 | `backend/survey`          | No       | `/surveys`           | n/a         | No          | **PARKED (G-605)** — plugin ready; no gateway product surface/E2E.                                                                         |
 | `backend/theme`           | No       | `/themes`            | n/a         | No          | **PARKED (G-605)** — `/themes` owned by platform-admin UI stub (prefix conflict).                                                          |
 
-### W1-ARCH-05 newly mounted
+### W1-ARCH-05 composed capability
 
-| Package                | Mounted? | Prefix(es)       | Persistence | RBAC wired? | Notes                                                                                                                           |
-| ---------------------- | -------- | ---------------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `backend/custom-field` | Yes      | `/custom-fields` | Memory only when `DATABASE_URL` unset (factory); fail-closed when set (no durable schema yet) | Yes         | W1-SEC-12: `createCustomFieldRepositories()`. Redesign UI residual.                              |
-| `backend/dashboards`   | Yes      | `/dashboards`    | Memory only when `DATABASE_URL` unset (factory); fail-closed when set (no durable aggregates) | Yes         | W1-SEC-12: `createDashboardRepository()` + `AreaHierarchyResolver`. G-909 report dashboards remain on `backend/report`. |
-| `backend/privacy`      | Yes      | `/privacy`       | In-memory (shared) + durable queue when env set | Yes         | W1-SEC-06 complete: legal-hold, erasure/anonymize jobs, correction+audit, tenant offboard checklist. Schema `067`/`076`. Pg repository residual. |
+| Package           | Mounted? | Prefix(es) | Persistence                                                                                 | RBAC wired? | Notes                                                                                       |
+| ----------------- | -------- | ---------- | ------------------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------- |
+| `backend/privacy` | Yes      | `/privacy` | PostgreSQL when `DATABASE_URL` is set; shared memory only in allowed development/test modes | Yes         | W1-SEC-06: legal-hold, erasure/anonymize jobs, correction+audit, tenant offboard checklist. |
+
+`backend/custom-field` and `backend/dashboards` were returned to the PARKED set by P0-01. Their packages and isolated tests remain, but the gateway must not compose them until tenant-scoped durable adapters and production boot evidence exist.
 
 ## Registrar ↔ package map
 
@@ -107,8 +109,6 @@ Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` 
 | `fees`                   | `backend/fees`                                             |
 | `registration`           | `backend/registration`                                     |
 | `developer`              | `backend/developer-portal`                                 |
-| `custom-field`           | `backend/custom-field` (W1-ARCH-05)                        |
-| `dashboards`             | `backend/dashboards` (W1-ARCH-05)                          |
 | `privacy`                | `backend/privacy` (W1-ARCH-05 / W1-SEC-06)                 |
 
 ## Maintenance

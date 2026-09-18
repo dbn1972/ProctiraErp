@@ -64,13 +64,7 @@ const CITED_SITES = [
   {
     id: 'lms-modules',
     path: 'packages/backend/lms/src/pg-lms-repository.ts',
-    methods: [
-      'createModule',
-      'findModule',
-      'listModules',
-      'createModuleItem',
-      'listModuleItems',
-    ],
+    methods: ['createModule', 'findModule', 'listModules', 'createModuleItem', 'listModuleItems'],
   },
   {
     id: 'registration-lookups',
@@ -133,9 +127,7 @@ function walkTsFiles(dir: string, out: string[] = []): string[] {
 }
 
 function stripComments(src: string): string {
-  return src
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 }
 
 /**
@@ -216,9 +208,7 @@ function sqlPreview(call: ts.CallExpression): string {
     return arg.text;
   }
   if (ts.isTemplateExpression(arg)) {
-    return (
-      arg.head.text + arg.templateSpans.map((span) => span.literal.text).join('')
-    );
+    return arg.head.text + arg.templateSpans.map((span) => span.literal.text).join('');
   }
   if (ts.isIdentifier(arg)) return `id:${arg.text}`;
   if (ts.isCallExpression(arg)) return `call:${arg.getText().slice(0, 120)}`;
@@ -262,10 +252,7 @@ function classifyHit(hit: PoolQueryHit): Classification {
   if (isHealthProbeSql(hit.sqlPreview)) return 'health-probe';
 
   const tables = extractSqlTables(hit.sqlPreview);
-  if (
-    tables.length > 0 &&
-    tables.every((t) => PLATFORM_CATALOG_TABLES.has(t))
-  ) {
+  if (tables.length > 0 && tables.every((t) => PLATFORM_CATALOG_TABLES.has(t))) {
     return 'platform-catalog';
   }
 
@@ -282,13 +269,7 @@ function collectPoolQueryHits(): PoolQueryHit[] {
       const rel = relative(ROOT, file).replace(/\\/g, '/');
       const text = readFileSync(file, 'utf8');
       if (!/\.query\s*\(/.test(text)) continue;
-      const sf = ts.createSourceFile(
-        rel,
-        text,
-        ts.ScriptTarget.Latest,
-        true,
-        ts.ScriptKind.TS,
-      );
+      const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
       const visit = (node: ts.Node): void => {
         if (isPoolQueryCall(node)) {
           const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
@@ -309,18 +290,12 @@ function collectPoolQueryHits(): PoolQueryHit[] {
 
 describe('W1-DATA-13 query-helper bypass guard (static / AST)', () => {
   it('documents COMPLETE status in the audit pack', () => {
-    const complete = readFileSync(
-      join(ROOT, 'docs/audits/DATA_W1_DATA_13_COMPLETE.md'),
-      'utf8',
-    );
+    const complete = readFileSync(join(ROOT, 'docs/audits/DATA_W1_DATA_13_COMPLETE.md'), 'utf8');
     expect(complete).toMatch(/W1-DATA-13/);
     expect(complete).toMatch(/COMPLETE|Complete/);
     expect(complete).toMatch(/fail-closed|monorepo/i);
 
-    const prior = readFileSync(
-      join(ROOT, 'docs/audits/DATA_W1_DATA_13_QUERY_HELPER.md'),
-      'utf8',
-    );
+    const prior = readFileSync(join(ROOT, 'docs/audits/DATA_W1_DATA_13_QUERY_HELPER.md'), 'utf8');
     for (const site of CITED_SITES) {
       expect(prior, `prior audit must cite ${site.id}`).toContain(site.path);
     }
@@ -332,10 +307,9 @@ describe('W1-DATA-13 query-helper bypass guard (static / AST)', () => {
       const src = stripComments(raw);
       for (const method of site.methods) {
         const body = extractMethod(src, method);
-        expect(
-          body,
-          `${site.path}#${method} must not call pool.query for data`,
-        ).not.toMatch(/(?:this\.)?pool\.query\s*\(/);
+        expect(body, `${site.path}#${method} must not call pool.query for data`).not.toMatch(
+          /(?:this\.)?pool\.query\s*\(/,
+        );
         const usesTenantHelper =
           /withTenant\s*\(/.test(body) ||
           /withPgTenant\s*\(/.test(body) ||
@@ -395,16 +369,13 @@ describe('W1-DATA-13 query-helper bypass guard (static / AST)', () => {
         : undefined,
     ).toEqual([]);
 
-    // Sanity: DDL ensures still exist so the gate is scanning real repos.
-    expect(allowedCounts['ddl-ensure']).toBeGreaterThan(10);
+    // UP-P0-02: application repositories must contain no runtime DDL exceptions.
+    expect(allowedCounts['ddl-ensure']).toBe(0);
     expect(allowedCounts['health-probe']).toBeGreaterThanOrEqual(1);
   });
 
   it('approved helpers export withPgTenant / withPlatformScope binders', () => {
-    const pgTenant = readFileSync(
-      join(ROOT, 'packages/shared/database/src/pg-tenant.ts'),
-      'utf8',
-    );
+    const pgTenant = readFileSync(join(ROOT, 'packages/shared/database/src/pg-tenant.ts'), 'utf8');
     expect(pgTenant).toMatch(/export async function withPgTenant/);
 
     const docStore = readFileSync(

@@ -3,12 +3,12 @@
  *
  * When DATABASE_URL is set, campaigns/emergency persist via db/sql/007_communication_schema.sql.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type {
   CampaignEntity,
@@ -20,41 +20,20 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureCommunicationSchemaReady = createDatabaseSchemaReadinessCheck(
+  'communication',
+  'communication',
+);
 
 export function getSharedCommunicationPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/007_communication_schema.sql'),
-    join(process.cwd(), 'db/sql/007_communication_schema.sql'),
-    join(process.cwd(), '../../db/sql/007_communication_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureCommunicationSchema(
   pool: PgPoolLike = getSharedCommunicationPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for communication schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureCommunicationSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {

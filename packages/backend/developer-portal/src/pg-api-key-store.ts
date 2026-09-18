@@ -5,57 +5,33 @@
  * Uses withPgTenant for tenant-scoped CRUD and withPlatformScope for hash lookup
  * (validate-key has no tenant context upfront).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import {
+  createDatabaseSchemaReadinessCheck,
   getSharedPgPool,
   withPgTenant,
   withPlatformScope,
   type PgQueryable,
 } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import type { ApiKeyEntity, ApiKeyFilter } from './developer-portal-repository.js';
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureDeveloperPortalApiKeySchemaReady = createDatabaseSchemaReadinessCheck(
+  'developer portal API keys',
+  'developerPortalApiKeys',
+);
 
 export function getSharedDeveloperPortalPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/055_developer_portal_api_keys_schema.sql'),
-    join(process.cwd(), 'db/sql/055_developer_portal_api_keys_schema.sql'),
-    join(process.cwd(), '../../db/sql/055_developer_portal_api_keys_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureDeveloperPortalApiKeySchema(
   pool: PgPoolLike = getSharedDeveloperPortalPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for developer-portal API key schema');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureDeveloperPortalApiKeySchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
@@ -125,11 +101,12 @@ export class PgApiKeyStore {
     });
   }
 
-  async getApiKeyById(id: string): Promise<ApiKeyEntity | null> {
-    return withPlatformScope(this.pool, async (client) => {
-      const result = await client.query(`SELECT * FROM developer_portal_api_keys WHERE id = $1`, [
-        id,
-      ]);
+  async getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null> {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_api_keys WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapApiKey(row) : null;
     });
@@ -200,10 +177,10 @@ export class PgApiKeyStore {
 
   async updateApiKeyLastUsed(id: string, lastUsedAt: Date, tenantId: string): Promise<void> {
     await withPgTenant(this.pool, tenantId, async (client) => {
-      await client.query(
-        `UPDATE developer_portal_api_keys SET last_used_at = $2 WHERE id = $1`,
-        [id, lastUsedAt],
-      );
+      await client.query(`UPDATE developer_portal_api_keys SET last_used_at = $2 WHERE id = $1`, [
+        id,
+        lastUsedAt,
+      ]);
     });
   }
 

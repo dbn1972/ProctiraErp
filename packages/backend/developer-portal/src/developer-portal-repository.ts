@@ -104,7 +104,7 @@ export interface DeveloperPortalRepository {
 
   // API Keys
   createApiKey(key: ApiKeyEntity): Promise<ApiKeyEntity>;
-  getApiKeyById(id: string): Promise<ApiKeyEntity | null>;
+  getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null>;
   getApiKeyByHash(keyHash: string): Promise<ApiKeyEntity | null>;
   listApiKeys(
     filter: ApiKeyFilter,
@@ -114,8 +114,9 @@ export interface DeveloperPortalRepository {
   updateApiKeyStatus(
     id: string,
     status: 'active' | 'revoked' | 'expired',
+    tenantId: string,
   ): Promise<ApiKeyEntity | null>;
-  updateApiKeyLastUsed(id: string, lastUsedAt: Date): Promise<void>;
+  updateApiKeyLastUsed(id: string, lastUsedAt: Date, tenantId: string): Promise<void>;
 
   // Webhooks
   createWebhook(webhook: WebhookEntity): Promise<WebhookEntity>;

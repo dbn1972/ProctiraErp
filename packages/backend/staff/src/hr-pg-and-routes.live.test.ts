@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestStaff, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -31,7 +32,6 @@ import {
 } from './pg-training-repository.js';
 import { staffPlugin } from './staff-plugin.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'hr-pg-and-routes.live.test' });
-
 
 const pool = getSharedPgPool();
 const live = Boolean(DATABASE_URL) && pool !== null;
@@ -110,7 +110,9 @@ describe('Pg appraisal + training repositories (live)', () => {
     const appraisals = new PgAppraisalRepository(pool!);
     const tenantA = randomUUID();
     const tenantB = randomUUID();
+    await Promise.all([ensurePgTestTenant(pool!, tenantA), ensurePgTestTenant(pool!, tenantB)]);
     const staffId = randomUUID();
+    await ensurePgTestStaff(pool!, tenantA, staffId);
 
     const template = await templates.create({
       id: randomUUID(),
@@ -168,6 +170,7 @@ describe('Pg appraisal + training repositories (live)', () => {
       const certs = new PgCertificationRepository(pool!);
       const tenantId = randomUUID();
       const staffId = randomUUID();
+      await ensurePgTestStaff(pool!, tenantId, staffId);
 
       const program = await programs.create({
         id: randomUUID(),

@@ -23,14 +23,8 @@ export class AwsKmsPhiClient implements PhiKmsClient {
       }>;
     },
     private readonly commands: {
-      DecryptCommand: new (input: {
-        KeyId?: string;
-        CiphertextBlob: Uint8Array;
-      }) => unknown;
-      GenerateDataKeyCommand: new (input: {
-        KeyId: string;
-        KeySpec?: string;
-      }) => unknown;
+      DecryptCommand: new (input: { KeyId?: string; CiphertextBlob: Uint8Array }) => unknown;
+      GenerateDataKeyCommand: new (input: { KeyId: string; KeySpec?: 'AES_256' }) => unknown;
     },
   ) {}
 
@@ -61,7 +55,9 @@ export class AwsKmsPhiClient implements PhiKmsClient {
       }),
     );
     if (!out.Plaintext || !out.CiphertextBlob) {
-      throw new PhiEnvelopeMisconfiguredError('AWS KMS GenerateDataKey returned incomplete material');
+      throw new PhiEnvelopeMisconfiguredError(
+        'AWS KMS GenerateDataKey returned incomplete material',
+      );
     }
     return { Plaintext: out.Plaintext, CiphertextBlob: out.CiphertextBlob };
   }

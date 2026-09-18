@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { ConflictError } from '@proctira/common';
+import { ensurePgTestStudent, ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { HostelService } from './hostel-service.js';
@@ -120,12 +121,17 @@ describe('unique-active-bed concurrency guard (live Pg)', () => {
       const repo = new PgHostelRepository(pool!);
       const service = new HostelService(repo);
       const tenantId = randomUUID();
+      const studentIds = Array.from({ length: 5 }, () => randomUUID());
+      await ensurePgTestTenant(pool!, tenantId);
+      await Promise.all(
+        studentIds.map((studentId) => ensurePgTestStudent(pool!, tenantId, studentId)),
+      );
       const { bed } = await seedBed(service, tenantId);
 
       const outcomes = await Promise.allSettled(
-        Array.from({ length: 5 }, (_, i) =>
+        studentIds.map((studentId, i) =>
           service.createAssignment(tenantId, {
-            studentId: randomUUID(),
+            studentId,
             bedId: bed.id,
             startDate: `2026-09-0${(i % 9) + 1}`,
           }),

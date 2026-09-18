@@ -77,9 +77,9 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     return { ...key };
   }
 
-  async getApiKeyById(id: string): Promise<ApiKeyEntity | null> {
+  async getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null> {
     const key = this.apiKeys.get(id);
-    return key ? { ...key } : null;
+    return key?.tenantId === tenantId ? { ...key } : null;
   }
 
   async getApiKeyByHash(keyHash: string): Promise<ApiKeyEntity | null> {
@@ -112,17 +112,18 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
   async updateApiKeyStatus(
     id: string,
     status: 'active' | 'revoked' | 'expired',
+    tenantId: string,
   ): Promise<ApiKeyEntity | null> {
     const key = this.apiKeys.get(id);
-    if (!key) return null;
+    if (!key || key.tenantId !== tenantId) return null;
     const updated = { ...key, status };
     this.apiKeys.set(id, updated);
     return { ...updated };
   }
 
-  async updateApiKeyLastUsed(id: string, lastUsedAt: Date): Promise<void> {
+  async updateApiKeyLastUsed(id: string, lastUsedAt: Date, tenantId: string): Promise<void> {
     const key = this.apiKeys.get(id);
-    if (key) {
+    if (key?.tenantId === tenantId) {
       this.apiKeys.set(id, { ...key, lastUsedAt });
     }
   }

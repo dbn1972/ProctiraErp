@@ -21,7 +21,7 @@
         "**/*.spec.ts",
         "vitest.config.*"
       ],
-      "env": ["CI", "DATABASE_URL", "REDIS_URL"]
+      "env": ["CI", "DATABASE_URL", "REDIS_URL", "ALLOW_LIVE_TEST_SKIP", "REQUIRE_LIVE_TESTS"]
     },
     "test:e2e": {
       "dependsOn": ["build"],

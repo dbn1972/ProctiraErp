@@ -212,8 +212,8 @@ class ScholarshipRepository {
       data: <String, dynamic>{
         'programId': programId,
         'studentId': studentId,
-        if (additionalData != null) ...additionalData,
-        if (documentIds != null) 'documents': documentIds,
+        ...?additionalData,
+        'documents': ?documentIds,
       },
     );
 

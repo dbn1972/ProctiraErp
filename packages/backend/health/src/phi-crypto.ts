@@ -164,12 +164,7 @@ export function encryptPhi(
       );
     }
     const key = deriveScopedKeyV2(scope, root);
-    return encryptWithKey(
-      plaintext,
-      key,
-      PREFIX_V2,
-      `${scope.tenantId}:${scope.institutionId}`,
-    );
+    return encryptWithKey(plaintext, key, PREFIX_V2, `${scope.tenantId}:${scope.institutionId}`);
   }
 
   return encryptWithKey(plaintext, root, PREFIX_V1);
@@ -192,7 +187,8 @@ export function decryptPhi(
   try {
     root = resolvePhiRootKeySync();
   } catch (err) {
-    if (err instanceof PhiKeyMissingError || err instanceof PhiEnvelopeMisconfiguredError) throw err;
+    if (err instanceof PhiKeyMissingError || err instanceof PhiEnvelopeMisconfiguredError)
+      throw err;
     throw err;
   }
   if (!root) {
@@ -245,9 +241,12 @@ function decryptAesGcm(
   const iv = Buffer.from(ivB64, 'base64');
   const tag = Buffer.from(tagB64, 'base64');
   const data = Buffer.from(dataB64, 'base64');
-  const decipher = createDecipheriv('aes-256-gcm', key, iv);
-  decipher.setAuthTag(tag);
+  if (iv.length !== 12 || tag.length !== 16) {
+    throw new Error(`Invalid ${label} PHI ciphertext`);
+  }
   try {
+    const decipher = createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
+    decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
   } catch {
     throw new Error(`Invalid ${label} PHI ciphertext`);

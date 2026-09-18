@@ -47,11 +47,18 @@ resources:
     cpu: 500m
     memory: 512Mi
 
-# Probe path defaults to /health; Next.js apps are mapped to /api/health via
-# serviceProfiles below. The Deployment injects PORT=<service.targetPort> so
-# every image (Fastify or Next standalone) listens on the probed port.
+# Probe defaults preserve legacy /health for split/lab services. The canonical
+# api-gateway profile separates cheap liveness from schema-aware readiness.
 healthPath: /health
+livenessPath: /health
+readinessPath: /health
+startupPath: /health
 serviceProfiles:
+  api-gateway:
+    livenessPath: /health/live
+    readinessPath: /health/ready
+    startupPath: /health/live
+    metrics: true
   web: { healthPath: /api/health, metrics: false }
   registration-portal: { healthPath: /api/health, metrics: false }
   admin-console: { healthPath: /api/health, metrics: false }

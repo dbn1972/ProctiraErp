@@ -233,6 +233,22 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
           type: 'string',
           description: 'Prometheus text-format metrics.',
         },
+        401: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' },
+          },
+          required: ['error', 'message'],
+        },
+        403: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            message: { type: 'string' },
+          },
+          required: ['error', 'message'],
+        },
       },
     },
     handler: async (request, reply) => {

@@ -90,3 +90,27 @@ Return the configmap name
 {{- define "proctira.configmapName" -}}
 {{- include "proctira.fullname" . }}-config
 {{- end }}
+
+{{/*
+Pod-level security baseline shared by every platform Deployment.
+Matches the active proctira-service chart and the uid/gid baked into Node images.
+*/}}
+{{- define "proctira.podSecurityContext" -}}
+runAsNonRoot: true
+runAsUser: 1001
+runAsGroup: 1001
+fsGroup: 1001
+seccompProfile:
+  type: RuntimeDefault
+{{- end }}
+
+{{/* Container-level least-privilege baseline. */}}
+{{- define "proctira.containerSecurityContext" -}}
+allowPrivilegeEscalation: false
+readOnlyRootFilesystem: true
+runAsNonRoot: true
+runAsUser: 1001
+capabilities:
+  drop:
+    - ALL
+{{- end }}

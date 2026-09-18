@@ -51,6 +51,29 @@ function getBreaker(serviceName: string): CircuitBreaker {
 /** Default upstream request timeout. */
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+function normalizeRoutePrefix(prefix: string): string {
+  const trimmed = prefix.trim();
+  if (trimmed === '' || trimmed === '/') return '/';
+  const withLeadingSlash = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return withLeadingSlash.replace(/\/+$/, '');
+}
+
+/**
+ * Returns true when a configured service prefix is equal to, or a descendant
+ * of, an excluded domain root. Segment boundaries are preserved so excluding
+ * `/custom-fields` does not block an unrelated `/custom-fields-v2` service.
+ */
+export function isServicePrefixExcluded(
+  servicePrefix: string,
+  excludedPrefixes: readonly string[],
+): boolean {
+  const candidate = normalizeRoutePrefix(servicePrefix);
+  return excludedPrefixes.some((rawExcluded) => {
+    const excluded = normalizeRoutePrefix(rawExcluded);
+    return excluded === '/' || candidate === excluded || candidate.startsWith(`${excluded}/`);
+  });
+}
+
 /**
  * Hop-by-hop headers that must not be forwarded between connections
  * (RFC 7230 §6.1), plus length/encoding headers that the runtime recomputes.
@@ -86,15 +109,15 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
   options: ServiceRouterOptions,
 ) => {
   const { services, versionPrefix = '/api/v1', excludePrefixes = [] } = options;
-  const excluded = new Set(excludePrefixes);
 
   // Store service registry for introspection
   fastify.decorate('serviceRegistry', services);
 
   // Register a catch-all route for each service prefix under /api/v1
   for (const [serviceName, route] of Object.entries(services)) {
-    // Skip domains already served in-process by a domain plugin.
-    if (excluded.has(route.prefix)) continue;
+    // Skip domains already served in-process or deliberately parked. Descendant
+    // prefixes are blocked too so configuration cannot bypass a domain root.
+    if (isServicePrefixExcluded(route.prefix, excludePrefixes)) continue;
 
     const fullPrefix = `${versionPrefix}${route.prefix}`;
 
