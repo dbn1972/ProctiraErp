@@ -269,16 +269,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
-  // W1-SEC-09 COMPLETE: access-token jti/sid denylist must be shared across
-  // replicas. Prefer the same Redis client as rate-limit; production refuses
-  // silent per-process memory (inconsistent logout) unless explicit emergency.
+  // W1-SEC-09: the access-token jti/sid denylist must be shared across replicas
+  // or logout is inconsistent. Prefer the same Redis client as rate-limit.
+  // Production has no opt-out: without a cluster-visible store this throws.
   const accessTokenRevocationStore =
     options.accessTokenRevocationStore ??
     createAccessTokenRevocationStore({
       redis: rateLimitRedis,
       NODE_ENV: process.env['NODE_ENV'] ?? config.env,
-      ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION:
-        process.env['ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION'],
     });
   if (rateLimitRedis) {
     app.log.info('Access-token revocation using Redis store for multi-replica logout (W1-SEC-09)');
