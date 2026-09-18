@@ -116,7 +116,7 @@ BEGIN
     orphaned.grade_entry_id,
     to_jsonb(orphaned),
     'Missing grade_entries parent during W1-DATA-14 FK validation',
-    '092_w1_data_14_audit_fk_integrity.sql'
+    '096_w1_data_14_audit_fk_integrity.sql'
   FROM orphaned;
 
   GET DIAGNOSTICS v_quarantined = ROW_COUNT;
@@ -343,5 +343,5 @@ BEGIN
 END $$;
 
 INSERT INTO schema_migrations (filename)
-VALUES ('092_w1_data_14_audit_fk_integrity.sql')
+VALUES ('096_w1_data_14_audit_fk_integrity.sql')
 ON CONFLICT (filename) DO NOTHING;

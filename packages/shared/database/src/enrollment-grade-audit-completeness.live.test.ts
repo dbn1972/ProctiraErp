@@ -23,7 +23,7 @@ const MIGRATOR_DATABASE_URL = process.env['MIGRATOR_DATABASE_URL'];
 const MIGRATIONS = [
   '071_enrollment_grade_audit_completeness.sql',
   '080_enrollment_grade_audit_harden.sql',
-  '092_w1_data_14_audit_fk_integrity.sql',
+  '096_w1_data_14_audit_fk_integrity.sql',
 ] as const;
 
 const AUDIT_TRIGGERS = [
@@ -582,7 +582,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
           [sourceAuditId, tenantId, orphanGradeEntryId],
         );
 
-        await client.query(loadMigration('092_w1_data_14_audit_fk_integrity.sql'));
+        await client.query(loadMigration('096_w1_data_14_audit_fk_integrity.sql'));
 
         const { rows: sourceRows } = await client.query<{ count: number }>(
           `SELECT COUNT(*)::int AS count FROM grade_change_audit WHERE id = $1`,
@@ -607,7 +607,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
         expect(quarantineRows[0]).toMatchObject({
           tenant_id: tenantId,
           grade_entry_id: orphanGradeEntryId,
-          source_migration: '092_w1_data_14_audit_fk_integrity.sql',
+          source_migration: '096_w1_data_14_audit_fk_integrity.sql',
         });
         expect(quarantineRows[0]!.quarantine_reason).toMatch(/Missing grade_entries parent/);
         expect(quarantineRows[0]!.source_row).toMatchObject({

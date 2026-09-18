@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 
 const MIGRATION_071 = '071_enrollment_grade_audit_completeness.sql';
 const MIGRATION_080 = '080_enrollment_grade_audit_harden.sql';
-const MIGRATION_092 = '092_w1_data_14_audit_fk_integrity.sql';
+const MIGRATION_096 = '096_w1_data_14_audit_fk_integrity.sql';
 
 function sqlDir(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -40,7 +40,7 @@ function loadSql(file: string): string {
 
 describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', () => {
   it('ships the trigger, hardening, and forward integrity migrations', () => {
-    for (const file of [MIGRATION_071, MIGRATION_080, MIGRATION_092]) {
+    for (const file of [MIGRATION_071, MIGRATION_080, MIGRATION_096]) {
       expect(existsSync(join(sqlDir(), file)), `missing db/sql/${file}`).toBe(true);
     }
   });
@@ -96,7 +96,7 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
   });
 
   it('092 preserves legacy grade-audit orphans in immutable runtime-denied quarantine', () => {
-    const sql = loadSql(MIGRATION_092);
+    const sql = loadSql(MIGRATION_096);
     expect(sql).toMatch(/CREATE TABLE IF NOT EXISTS grade_change_audit_orphan_quarantine/i);
     expect(sql).toMatch(/DELETE FROM grade_change_audit[\s\S]*RETURNING a\.\*/i);
     expect(sql).toMatch(/to_jsonb\(orphaned\)/i);
@@ -109,7 +109,7 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
   });
 
   it('092 uses NOT VALID then requires validated canonical RESTRICT FKs', () => {
-    const sql = loadSql(MIGRATION_092);
+    const sql = loadSql(MIGRATION_096);
     expect(sql).toMatch(
       /ADD CONSTRAINT grade_change_audit_grade_entry_id_fkey[\s\S]*ON DELETE RESTRICT[\s\S]*NOT VALID/i,
     );
@@ -125,7 +125,7 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
   });
 
   it('092 removes direct application INSERT while retaining trigger-generated reads', () => {
-    const sql = loadSql(MIGRATION_092);
+    const sql = loadSql(MIGRATION_096);
     expect(sql).toMatch(
       /REVOKE ALL ON enrollment_history, grade_change_audit FROM proctira_app/i,
     );
@@ -139,6 +139,6 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
   it('records all three migrations in schema_migrations', () => {
     expect(loadSql(MIGRATION_071)).toMatch(/071_enrollment_grade_audit_completeness\.sql/);
     expect(loadSql(MIGRATION_080)).toMatch(/080_enrollment_grade_audit_harden\.sql/);
-    expect(loadSql(MIGRATION_092)).toMatch(/092_w1_data_14_audit_fk_integrity\.sql/);
+    expect(loadSql(MIGRATION_096)).toMatch(/096_w1_data_14_audit_fk_integrity\.sql/);
   });
 });
