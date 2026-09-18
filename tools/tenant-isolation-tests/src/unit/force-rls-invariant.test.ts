@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 
 const INVARIANT_MIGRATION = '051_force_rls_invariant.sql';
 const WAVE7_FORCE_MIGRATION = '021_wave7_integrity_schema.sql';
-const SAFE_DENY_MIGRATION = '091_w1_data_02_rls_safe_deny.sql';
+const SAFE_DENY_MIGRATION = '095_w1_data_02_rls_safe_deny.sql';
 
 const REGRESSED_047_POLICIES = [
   {
