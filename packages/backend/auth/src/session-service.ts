@@ -65,6 +65,15 @@ export class SessionService {
   }
 
   /**
+   * Read a session without mutating activity state.
+   * Logout uses this to verify the signed token still belongs to the stored
+   * user/tenant session, including idempotent retries after invalidation.
+   */
+  async getSession(sessionId: string): Promise<Session | null> {
+    return this.sessionStore.findById(sessionId);
+  }
+
+  /**
    * Validate a session is still active and not expired.
    * Updates last activity timestamp on successful validation.
    */

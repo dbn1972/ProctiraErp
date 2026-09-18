@@ -16,6 +16,8 @@ export type {
   AuthResult,
   LoginRequest,
   RefreshRequest,
+  LogoutRequest,
+  LogoutResponse,
 } from './types.js';
 
 // Configuration
