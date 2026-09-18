@@ -131,12 +131,13 @@ describe('database schema readiness', () => {
   });
 
   it('retains permanent integrity checks when a newer migration becomes current', () => {
-    expect(requiredRuntimeMigrationsFor('095_future_schema.sql')).toEqual([
+    expect(requiredRuntimeMigrationsFor('096_future_schema.sql')).toEqual([
       '082_repair_strict_tenant_fk_validate.sql',
       '092_hostel_assignment_uniqueness.sql',
       '093_developer_portal_tenant_fks.sql',
       '094_developer_portal_api_key_lookup.sql',
-      '095_future_schema.sql',
+      '095_w1_data_02_rls_safe_deny.sql',
+      '096_future_schema.sql',
     ]);
   });
 

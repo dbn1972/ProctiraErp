@@ -50,7 +50,8 @@ BEGIN
       ('091_runtime_schema_readiness_contract.sql'),
       ('092_hostel_assignment_uniqueness.sql'),
       ('093_developer_portal_tenant_fks.sql'),
-      ('094_developer_portal_api_key_lookup.sql')
+      ('094_developer_portal_api_key_lookup.sql'),
+      ('095_w1_data_02_rls_safe_deny.sql')
     ) AS required(filename)
    WHERE NOT EXISTS (
      SELECT 1
