@@ -51,7 +51,8 @@ BEGIN
       ('092_hostel_assignment_uniqueness.sql'),
       ('093_developer_portal_tenant_fks.sql'),
       ('094_developer_portal_api_key_lookup.sql'),
-      ('095_w1_data_02_rls_safe_deny.sql')
+      ('095_w1_data_02_rls_safe_deny.sql'),
+      ('096_w1_data_14_audit_fk_integrity.sql')
     ) AS required(filename)
    WHERE NOT EXISTS (
      SELECT 1

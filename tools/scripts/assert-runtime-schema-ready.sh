@@ -48,7 +48,8 @@ ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "
       ('092_hostel_assignment_uniqueness.sql'),
       ('093_developer_portal_tenant_fks.sql'),
       ('094_developer_portal_api_key_lookup.sql'),
-      ('095_w1_data_02_rls_safe_deny.sql')
+      ('095_w1_data_02_rls_safe_deny.sql'),
+      ('096_w1_data_14_audit_fk_integrity.sql')
   ), status AS (
     SELECT required.filename,
            migration.migration_applied
@@ -57,17 +58,26 @@ ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "
         ARRAY[required.filename]::text[]
       ) AS migration ON migration.migration_name = required.filename
   )
+  -- Nullable columns must come last: tab is IFS whitespace, so an empty field in
+  -- the middle collapses and shifts every later value into the wrong variable.
   SELECT current_user,
          count(*) FILTER (WHERE migration_applied IS DISTINCT FROM true)::text,
-         string_agg(filename, ',' ORDER BY filename)
-           FILTER (WHERE migration_applied IS DISTINCT FROM true)
+         count(*)::text,
+         string_agg(filename, ',' ORDER BY filename),
+         coalesce(
+           string_agg(filename, ',' ORDER BY filename)
+             FILTER (WHERE migration_applied IS DISTINCT FROM true),
+           ''
+         )
     FROM status
 ")"
-IFS=$'\t' read -r CURRENT_ROLE MISSING_COUNT MISSING_NAMES <<<"$ROW"
+IFS=$'\t' read -r CURRENT_ROLE MISSING_COUNT REQUIRED_COUNT REQUIRED_NAMES MISSING_NAMES <<<"$ROW"
 EXPECTED_ROLE="${RUNTIME_ROLE_EXPECTED:-proctira_app}"
 [[ "$CURRENT_ROLE" == "$EXPECTED_ROLE" ]] \
   || fail "current_user is ${CURRENT_ROLE:-unknown}, expected ${EXPECTED_ROLE}"
 [[ "${MISSING_COUNT:-1}" == "0" ]] \
   || fail "required target migrations missing: ${MISSING_NAMES:-unknown}"
 
-echo "assert-runtime-schema-ready: PASS — ${CURRENT_ROLE} sees required migrations 082, 092, 093, and 094"
+# Report the list the query actually verified. A hardcoded summary here silently
+# went stale when 095 and 096 were added to the contract above.
+echo "assert-runtime-schema-ready: PASS — ${CURRENT_ROLE} sees all ${REQUIRED_COUNT} required migrations: ${REQUIRED_NAMES}"
