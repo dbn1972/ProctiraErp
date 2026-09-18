@@ -23,14 +23,15 @@ import { AuditFilter } from './audit-filter';
 export default async function AuditPage({
   searchParams,
 }: {
-  searchParams: { q?: string; resourceType?: string; tenantId?: string };
+  searchParams: Promise<{ q?: string; resourceType?: string; tenantId?: string }>;
 }) {
   await requireRole('audit', '/audit');
+  const resolvedSearchParams = await searchParams;
   const [auditResult, tenantsResult] = await Promise.all([
     listAudit({
-      search: searchParams?.q,
-      resourceType: searchParams?.resourceType,
-      tenantId: searchParams?.tenantId,
+      search: resolvedSearchParams.q,
+      resourceType: resolvedSearchParams.resourceType,
+      tenantId: resolvedSearchParams.tenantId,
     }),
     listTenants(),
   ]);
@@ -72,9 +73,9 @@ export default async function AuditPage({
         <CardContent className="p-0">
           <div className="border-b border-border px-6 pb-4">
             <AuditFilter
-              q={searchParams?.q ?? ''}
-              resourceType={searchParams?.resourceType ?? ''}
-              tenantId={searchParams?.tenantId ?? ''}
+              q={resolvedSearchParams.q ?? ''}
+              resourceType={resolvedSearchParams.resourceType ?? ''}
+              tenantId={resolvedSearchParams.tenantId ?? ''}
             />
           </div>
           <Table>

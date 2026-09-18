@@ -26,10 +26,7 @@ export interface AccessTokenRevocationStore {
   isRevoked(kind: AccessTokenRevocationKind, id: string): Promise<boolean>;
 }
 
-export type AccessTokenRevocationFailure =
-  | 'revoked_jti'
-  | 'revoked_sid'
-  | 'store_unavailable';
+export type AccessTokenRevocationFailure = 'revoked_jti' | 'revoked_sid' | 'store_unavailable';
 
 export type AccessTokenRevocationCheckResult =
   | { ok: true }
@@ -175,7 +172,7 @@ export class MemoryAccessTokenRevocationStore implements AccessTokenRevocationSt
 
 /** Minimal Redis client surface (ioredis-compatible) for SET EX. */
 export interface RedisLikeForAccessTokenRevocation {
-  set(key: string, value: string, ...args: Array<string | number>): Promise<string | null>;
+  set(key: string, value: string, expiryMode: 'EX', ttlSeconds: number): Promise<string | null>;
   exists(...keys: string[]): Promise<number>;
 }
 

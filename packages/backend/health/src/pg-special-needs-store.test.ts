@@ -13,6 +13,7 @@ import {
   isPgSpecialNeedsEnabled,
   type PgSpecialNeedsStore,
 } from './pg-special-needs-store.js';
+import { isPhiCiphertext } from './phi-crypto.js';
 
 function getPool(store: PgSpecialNeedsStore): pg.Pool {
   return (store as unknown as { pool: pg.Pool }).pool;
@@ -86,7 +87,7 @@ describe('PgSpecialNeedsStore', () => {
         );
         return String((result.rows[0] as { findings: string }).findings);
       });
-      expect(raw.startsWith('enc:v1:')).toBe(true);
+      expect(isPhiCiphertext(raw)).toBe(true);
       expect(raw).not.toContain(findingsPlain);
     },
   );

@@ -96,3 +96,22 @@ export type {
   ReadinessProbeOptions,
   ReadinessProbeResult,
 } from './readiness-probe';
+
+// UP-P0-02: read-only schema readiness for non-owner application runtimes
+export {
+  assertDatabaseSchemaReady,
+  createDatabaseSchemaReadinessCheck,
+  CURRENT_RUNTIME_SCHEMA_MIGRATION,
+  DatabaseSchemaNotReadyError,
+  PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS,
+  REQUIRED_RUNTIME_MIGRATIONS,
+  requiredRuntimeMigrationsFor,
+  SCHEMA_READINESS_SQL,
+} from './schema-readiness';
+export type {
+  DatabaseSchemaReadinessCheck,
+  DatabaseSchemaRelations,
+  SchemaReadinessQueryable,
+} from './schema-readiness';
+export { DATABASE_SCHEMA_CONTRACTS } from './schema-contracts';
+export type { DatabaseSchemaContractName } from './schema-contracts';

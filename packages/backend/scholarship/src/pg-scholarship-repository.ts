@@ -4,18 +4,15 @@
  * When DATABASE_URL is set, programs / applications / disbursements persist via
  * db/sql/016_scholarships_schema.sql. Uses withPgTenant for RLS (G-103 / G-204).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
+import { majorUnitsNumberFromCents, pgIntegerCents, pgNumericMajorToCents } from '@proctira/common';
 import {
-  majorUnitsNumberFromCents,
-  pgIntegerCents,
-  pgNumericMajorToCents,
-} from '@proctira/common';
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type {
   AcademicRecord,
@@ -45,81 +42,20 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureScholarshipSchemaReady = createDatabaseSchemaReadinessCheck(
+  'scholarships',
+  'scholarships',
+);
 
 export function getSharedScholarshipPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/016_scholarships_schema.sql'),
-    join(process.cwd(), 'db/sql/016_scholarships_schema.sql'),
-    join(process.cwd(), '../../db/sql/016_scholarships_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
-function amountCentsSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/060_scholarship_amount_cents.sql'),
-    join(process.cwd(), 'db/sql/060_scholarship_amount_cents.sql'),
-    join(process.cwd(), '../../db/sql/060_scholarship_amount_cents.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
-function programAmountCentsSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/079_scholarship_program_amount_cents.sql'),
-    join(process.cwd(), 'db/sql/079_scholarship_program_amount_cents.sql'),
-    join(process.cwd(), '../../db/sql/079_scholarship_program_amount_cents.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureScholarshipSchema(
   pool: PgPoolLike = getSharedScholarshipPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for scholarship schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-      const sql060 = readFileSync(amountCentsSqlPath(), 'utf8');
-      await pool.query(sql060);
-      const sql076 = readFileSync(programAmountCentsSqlPath(), 'utf8');
-      await pool.query(sql076);
-    })();
-  }
-  await schemaReady;
+  await ensureScholarshipSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
@@ -148,10 +84,7 @@ function parseJson<T>(value: unknown, fallback: T): T {
   return value as T;
 }
 
-function resolveAmountCents(
-  centsRaw: unknown,
-  majorRaw: unknown,
-): number {
+function resolveAmountCents(centsRaw: unknown, majorRaw: unknown): number {
   if (centsRaw != null) return pgIntegerCents(centsRaw);
   return pgNumericMajorToCents(majorRaw);
 }

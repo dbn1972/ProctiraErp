@@ -6,6 +6,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -44,6 +45,7 @@ describe.skipIf(!DATABASE_URL)('PgInfrastructureStore (live Postgres)', () => {
     const tenantA = randomUUID();
     const tenantB = randomUUID();
     const institutionId = randomUUID();
+    await Promise.all([ensurePgTestTenant(pool!, tenantA), ensurePgTestTenant(pool!, tenantB)]);
 
     const created = await tenantContext.run({ tenantId: tenantA }, () =>
       store.create(record(institutionId, 'Campus A')),

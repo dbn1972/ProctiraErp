@@ -6,13 +6,13 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
+import { ensurePgTestStaff } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { InsufficientLeaveBalanceError } from './leave-repository.js';
 import { StaffLeaveService } from './leave-service.js';
 import { getSharedStaffLeavePool, PgStaffLeaveRepository } from './pg-leave-repository.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-leave-repository.live.test' });
-
 
 const pool = getSharedStaffLeavePool();
 const live = Boolean(DATABASE_URL) && pool !== null;
@@ -23,6 +23,7 @@ describe('PgStaffLeaveRepository balance concurrency (live)', () => {
     const service = new StaffLeaveService(repo);
     const tenantId = randomUUID();
     const staffId = randomUUID();
+    await ensurePgTestStaff(pool!, tenantId, staffId);
     await repo.setBalance(tenantId, staffId, 'annual', 3);
 
     // Five 2-day requests against a 3-day balance: exactly one may be approved.

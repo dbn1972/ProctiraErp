@@ -14,6 +14,8 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'rls-live.test' });
+// APPLY_STRICT_FKS=1 guarantees this parent row through migration 021a/082.
+const STRICT_FK_DEMO_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 
 const SAFE_DENY_POLICIES = [
   {
@@ -303,7 +305,7 @@ describe.skipIf(!DATABASE_URL)('Live Postgres RLS release gate', () => {
   });
 
   it('cross-tenant rows are invisible when app.tenant_id is bound (hostels smoke)', async () => {
-    const tenantA = randomUUID();
+    const tenantA = STRICT_FK_DEMO_TENANT_ID;
     const tenantB = randomUUID();
     const hostelId = randomUUID();
     const code = `w1ops06-${hostelId.slice(0, 8)}`;

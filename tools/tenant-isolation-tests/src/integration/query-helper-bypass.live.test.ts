@@ -15,6 +15,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const DATABASE_URL = requireLiveDatabaseUrl({
   suite: 'query-helper-bypass.live.test',
 });
+// APPLY_STRICT_FKS=1 guarantees this parent row through migration 021a/082.
+const STRICT_FK_DEMO_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 
 describe.skipIf(!DATABASE_URL)('W1-DATA-13 live cross-tenant denial (query helpers)', () => {
   let pool: pg.Pool;
@@ -28,7 +30,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-13 live cross-tenant denial (query helpe
   });
 
   it('withPgTenant isolates hostels; unbound pool.query returns zero rows', async () => {
-    const tenantA = randomUUID();
+    const tenantA = STRICT_FK_DEMO_TENANT_ID;
     const tenantB = randomUUID();
     const hostelId = randomUUID();
     const code = `w1d13-${hostelId.slice(0, 8)}`;
@@ -77,7 +79,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-13 live cross-tenant denial (query helpe
       return;
     }
 
-    const tenantA = randomUUID();
+    const tenantA = STRICT_FK_DEMO_TENANT_ID;
     const tenantB = randomUUID();
     const moduleId = randomUUID();
 
@@ -90,19 +92,17 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-13 live cross-tenant denial (query helpe
     });
 
     const seenByA = await withPgTenant(pool, tenantA, async (client) => {
-      const result = await client.query(
-        `SELECT id::text FROM lms_modules WHERE id = $1::uuid`,
-        [moduleId],
-      );
+      const result = await client.query(`SELECT id::text FROM lms_modules WHERE id = $1::uuid`, [
+        moduleId,
+      ]);
       return result.rows as Array<{ id: string }>;
     });
     expect(seenByA).toHaveLength(1);
 
     const seenByB = await withPgTenant(pool, tenantB, async (client) => {
-      const result = await client.query(
-        `SELECT id::text FROM lms_modules WHERE id = $1::uuid`,
-        [moduleId],
-      );
+      const result = await client.query(`SELECT id::text FROM lms_modules WHERE id = $1::uuid`, [
+        moduleId,
+      ]);
       return result.rows as Array<{ id: string }>;
     });
     expect(seenByB).toHaveLength(0);

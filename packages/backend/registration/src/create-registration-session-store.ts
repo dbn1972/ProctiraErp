@@ -18,7 +18,7 @@ import {
 /** Minimal Redis surface (ioredis-compatible) for GET / SET EX / DEL. */
 export interface RedisLikeForRegistrationSession {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string, ...args: Array<string | number>): Promise<string | null>;
+  set(key: string, value: string, expiryMode: 'EX', ttlSeconds: number): Promise<string | null>;
   del(...keys: string[]): Promise<number>;
 }
 
@@ -73,12 +73,7 @@ export class RedisRegistrationSessionStore implements RegistrationSessionStore {
 
   async set(sessionId: string, record: RegistrationSessionRecord): Promise<void> {
     const ttlSeconds = Math.max(1, Math.ceil((record.expiresAtMs - Date.now()) / 1000));
-    await this.redis.set(
-      `${this.keyPrefix}${sessionId}`,
-      JSON.stringify(record),
-      'EX',
-      ttlSeconds,
-    );
+    await this.redis.set(`${this.keyPrefix}${sessionId}`, JSON.stringify(record), 'EX', ttlSeconds);
   }
 
   async delete(sessionId: string): Promise<void> {
@@ -92,6 +87,13 @@ function createRedisClientFromUrl(redisUrl: string): RedisLikeForRegistrationSes
     retryStrategy: (times) => Math.min(times * 200, 2000),
     lazyConnect: true,
   });
+}
+
+function resolveEnvValue(
+  env: RegistrationSessionStoreEnv,
+  key: 'REDIS_URL' | 'NODE_ENV' | 'REQUIRE_DATABASE',
+): string | undefined {
+  return Object.prototype.hasOwnProperty.call(env, key) ? env[key] : process.env[key];
 }
 
 /**
@@ -114,7 +116,7 @@ export function createRegistrationSessionStore(
     return new RedisRegistrationSessionStore(env.redis);
   }
 
-  const redisUrl = (env.REDIS_URL ?? process.env['REDIS_URL'])?.trim();
+  const redisUrl = resolveEnvValue(env, 'REDIS_URL')?.trim();
   if (redisUrl) {
     return new RedisRegistrationSessionStore(createRedisClientFromUrl(redisUrl));
   }
@@ -122,10 +124,10 @@ export function createRegistrationSessionStore(
   assertInMemoryFallbackAllowed(
     'registration-session',
     readPersistencePolicyEnv({
-      NODE_ENV: env.NODE_ENV ?? process.env['NODE_ENV'],
+      NODE_ENV: resolveEnvValue(env, 'NODE_ENV'),
       // Intentionally omit DATABASE_URL — see factory note above.
       DATABASE_URL: undefined,
-      REQUIRE_DATABASE: env.REQUIRE_DATABASE ?? process.env['REQUIRE_DATABASE'],
+      REQUIRE_DATABASE: resolveEnvValue(env, 'REQUIRE_DATABASE'),
     }),
   );
   return new InMemorySessionStore();

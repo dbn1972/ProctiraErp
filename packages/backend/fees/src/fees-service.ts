@@ -3,6 +3,7 @@
  * recordPayment enforces receipt.amountCents === payment.amountCents === invoice.amountCents.
  */
 import { BusinessRuleError, ConflictError, NotFoundError, pgIntegerCents } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -356,7 +357,11 @@ export class FeesService {
   async voidInvoice(tenantId: string, invoiceId: string) {
     const invoice = await this.getInvoice(tenantId, invoiceId);
     if (invoice.status === 'paid') {
-      throw new BusinessRuleError('Cannot void a paid invoice');
+      const netCollected = await this.getNetCollectedCents(tenantId, invoice.id);
+      if (netCollected > 0) {
+        throw new BusinessRuleError('Cannot void a paid invoice with unreconciled collected cash');
+      }
+      return (await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' }))!;
     }
     if (invoice.status === 'void') {
       return invoice;
@@ -380,6 +385,17 @@ export class FeesService {
 
   async listPayments(tenantId: string) {
     return this.repository.listPaymentsForTenant(tenantId);
+  }
+
+  async getNetCollectedCents(tenantId: string, invoiceId: string): Promise<number> {
+    await this.getInvoice(tenantId, invoiceId);
+    const payments = (await this.repository.listPaymentsForTenant(tenantId))
+      .filter((payment) => payment.invoiceId === invoiceId && payment.status === 'succeeded')
+      .reduce((sum, payment) => sum + payment.amountCents, 0);
+    const refunds = (await this.repository.listRefundsForInvoice(tenantId, invoiceId))
+      .filter((refund) => refund.status === 'posted')
+      .reduce((sum, refund) => sum + refund.amountCents, 0);
+    return Math.max(0, payments - refunds);
   }
 
   async listReceipts(tenantId: string) {
@@ -406,7 +422,7 @@ export class FeesService {
     input: RecordPaymentInput,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         settlement: {
           invoice: FeeInvoiceEntity;
           payment: FeePaymentEntity;
@@ -426,15 +442,10 @@ export class FeesService {
         : null;
 
     if (idempotencyKey) {
-      const existing = await this.repository.findPaymentByIdempotencyKey(
-        tenantId,
-        idempotencyKey,
-      );
+      const existing = await this.repository.findPaymentByIdempotencyKey(tenantId, idempotencyKey);
       if (existing) {
         if (existing.invoiceId !== input.invoiceId) {
-          throw new BusinessRuleError(
-            'Idempotency key already used for a different invoice',
-          );
+          throw new BusinessRuleError('Idempotency key already used for a different invoice');
         }
         if (input.amountCents != null && input.amountCents !== existing.amountCents) {
           throw new BusinessRuleError(
@@ -1059,7 +1070,6 @@ export class FeesService {
     return { writeOff, invoice: updated! };
   }
 
-
   private isReminderSuppressedInRows(
     suppressions: ReminderSuppressionEntity[],
     studentId: string,
@@ -1547,7 +1557,6 @@ export class FeesService {
     };
   }
 
-
   /**
    * W2-FIN-08: reverse a prior scholarship netting when a paid disbursement is cancelled/failed.
    * Restores invoice face and posts the inverse journal (DR AR / CR fee_revenue).
@@ -1565,11 +1574,15 @@ export class FeesService {
       return { reversed: false as const, concession: null, invoice: null };
     }
     if (prior.status === 'rejected') {
-      return { reversed: true as const, concession: prior, invoice: null, idempotent: true as const };
+      return {
+        reversed: true as const,
+        concession: prior,
+        invoice: null,
+        idempotent: true as const,
+      };
     }
 
-    const discountCents =
-      prior.kind === 'amount' ? (prior.amountCents ?? 0) : 0;
+    const discountCents = prior.kind === 'amount' ? (prior.amountCents ?? 0) : 0;
     if (!Number.isInteger(discountCents) || discountCents <= 0) {
       throw new BusinessRuleError('Cannot reverse scholarship netting without a positive amount');
     }

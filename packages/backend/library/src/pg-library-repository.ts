@@ -4,12 +4,12 @@
  * Catalog/loans: db/sql/009_library_schema.sql
  * Copies/holds/fines: db/sql/039_library_ops_schema.sql
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import type {
   CopyStatus,
@@ -33,41 +33,17 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureLibrarySchemaReady = createDatabaseSchemaReadinessCheck('library', 'library');
 
 export function getSharedLibraryPool(): pg.Pool | null {
   return getSharedPgPool();
-}
-
-function resolveSqlFile(name: string): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, `../../../../db/sql/${name}`),
-    join(process.cwd(), `db/sql/${name}`),
-    join(process.cwd(), `../../db/sql/${name}`),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
 }
 
 export async function ensureLibrarySchema(
   pool: PgPoolLike = getSharedLibraryPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for library schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(resolveSqlFile('009_library_schema.sql'), 'utf8'));
-      await pool.query(readFileSync(resolveSqlFile('039_library_ops_schema.sql'), 'utf8'));
-    })();
-  }
-  await schemaReady;
+  await ensureLibrarySchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {

@@ -26,6 +26,10 @@ import type {
   AnalyticsTimeSeries,
 } from './developer-portal-repository.js';
 import type {
+  WebhookDeliveryJobPayload,
+  WebhookDeliveryPublisher,
+} from './queue-webhook-delivery-publisher.js';
+import type {
   CreateDeveloperAccountInput,
   UpdateDeveloperAccountInput,
   CreateApiKeyInput,
@@ -39,19 +43,11 @@ import type {
   UpdateDocPageInput,
   RecordAnalyticsEventInput,
 } from './schemas.js';
-import type {
-  WebhookDeliveryJobPayload,
-  WebhookDeliveryPublisher,
-} from './queue-webhook-delivery-publisher.js';
 import {
   createWebhookSignatureHeaders,
   verifyWebhookSignatureSecure,
 } from './webhook-signature.js';
-
-import type {
-  WebhookReplayStore,
-  WebhookVerifyResult,
-} from './webhook-signature.js';
+import type { WebhookReplayStore, WebhookVerifyResult } from './webhook-signature.js';
 
 export {
   WEBHOOK_TIMESTAMP_TOLERANCE_SECONDS,
@@ -346,8 +342,8 @@ export class DeveloperPortalService {
     return this.repository.listApiKeys({ accountId, tenantId, status }, page, pageSize);
   }
 
-  async revokeApiKey(accountId: string, keyId: string): Promise<ApiKeyEntity> {
-    const key = await this.repository.getApiKeyById(keyId);
+  async revokeApiKey(accountId: string, tenantId: string, keyId: string): Promise<ApiKeyEntity> {
+    const key = await this.repository.getApiKeyById(keyId, tenantId);
     if (!key) {
       throw new NotFoundError(`API key '${keyId}' not found`);
     }
@@ -358,7 +354,7 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('API key is already revoked');
     }
 
-    const updated = await this.repository.updateApiKeyStatus(keyId, 'revoked');
+    const updated = await this.repository.updateApiKeyStatus(keyId, 'revoked', tenantId);
     return updated!;
   }
 
@@ -369,7 +365,7 @@ export class DeveloperPortalService {
 
     // Check if expired
     if (key.expiresAt && key.expiresAt < new Date()) {
-      await this.repository.updateApiKeyStatus(key.id, 'expired');
+      await this.repository.updateApiKeyStatus(key.id, 'expired', key.tenantId);
       return null;
     }
 
@@ -377,7 +373,7 @@ export class DeveloperPortalService {
     if (key.status !== 'active') return null;
 
     // Update last used
-    await this.repository.updateApiKeyLastUsed(key.id, new Date());
+    await this.repository.updateApiKeyLastUsed(key.id, new Date(), key.tenantId);
     return key;
   }
 
@@ -532,9 +528,18 @@ export class DeveloperPortalService {
    * POSTs the webhook payload; on failure marks retry with exponential backoff
    * and re-enqueues when a publisher is configured.
    */
-  async processQueuedDelivery(job: WebhookDeliveryJobPayload): Promise<void> {
+  async processQueuedDelivery(tenantId: string, job: WebhookDeliveryJobPayload): Promise<void> {
+    if (job.tenantId !== tenantId) {
+      throw new BusinessRuleError('Webhook delivery tenant context mismatch');
+    }
+
+    const webhook = await this.repository.getWebhookById(job.webhookId);
+    if (!webhook || webhook.tenantId !== tenantId) {
+      return;
+    }
+
     const delivery = await this.repository.getDeliveryById(job.deliveryId);
-    if (!delivery) {
+    if (!delivery || delivery.webhookId !== webhook.id) {
       return;
     }
     if (delivery.status === 'delivered' || delivery.status === 'failed') {

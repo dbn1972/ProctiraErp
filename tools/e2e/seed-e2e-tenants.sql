@@ -37,6 +37,68 @@ ON CONFLICT (id) DO UPDATE
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN PERFORM set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true); END $$;
 
+-- ---------------------------------------------------------------------------
+-- Cross-domain student parents used by the parent, LMS, fees, and library
+-- live journeys. Keep these explicit even though some migration/demo paths
+-- create …0099: the E2E harness must remain self-contained and retry-safe.
+-- ---------------------------------------------------------------------------
+INSERT INTO students (id, tenant_id, first_name, last_name, date_of_birth, gender, custom_data)
+VALUES
+  ('00000000-0000-4000-8000-000000000099', '00000000-0000-4000-8000-000000000001', 'Parent',  'Portal', DATE '2012-01-01', 'unspecified', '{"e2e":true}'::jsonb),
+  ('00000000-0000-4000-8000-0000000000aa', '00000000-0000-4000-8000-000000000001', 'Fees',    'Student', DATE '2012-01-02', 'unspecified', '{"e2e":true}'::jsonb),
+  ('00000000-0000-4000-8000-000000000094', '00000000-0000-4000-8000-000000000001', 'Library', 'Hold', DATE '2012-01-03', 'unspecified', '{"e2e":true}'::jsonb),
+  ('c4018ef3-2454-4ee0-b904-22add0d1c596', '00000000-0000-4000-8000-000000000001', 'LMS', 'Learner', DATE '2012-01-04', 'unspecified', '{"e2e":true}'::jsonb),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '00000000-0000-4000-8000-000000000001', 'LMS', 'Essay', DATE '2012-01-05', 'unspecified', '{"e2e":true}'::jsonb)
+ON CONFLICT (id) DO UPDATE
+  SET deleted_at = NULL,
+      updated_at = now()
+  WHERE students.tenant_id = EXCLUDED.tenant_id;
+
+-- Guardian access is household/custody-scoped and fails closed. Seed stable
+-- actors so Playwright retries do not create duplicate links or bypass custody.
+INSERT INTO guardian_households (id, tenant_id, label, status)
+VALUES (
+  '00000000-0000-4000-8000-00000000a101',
+  '00000000-0000-4000-8000-000000000001',
+  'E2E Guardian Household',
+  'active'
+)
+ON CONFLICT (id) DO UPDATE SET status = 'active', updated_at = now();
+
+INSERT INTO guardian_household_members
+  (id, tenant_id, household_id, parent_user_id, role, status)
+VALUES
+  ('00000000-0000-4000-8000-00000000a111', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a101', 'parent-e2e-seeded', 'primary', 'active'),
+  ('00000000-0000-4000-8000-00000000a112', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a101', 'parent-jwt-seeded', 'guardian', 'active'),
+  ('00000000-0000-4000-8000-00000000a113', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000a101', 'parent-iso-seeded', 'guardian', 'active')
+ON CONFLICT (tenant_id, household_id, parent_user_id) DO UPDATE
+  SET status = 'active', updated_at = now();
+
+INSERT INTO guardian_student_custody
+  (id, tenant_id, student_id, household_id, custody_type, status, effective_from)
+VALUES (
+  '00000000-0000-4000-8000-00000000a121',
+  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-000000000099',
+  '00000000-0000-4000-8000-00000000a101',
+  'sole',
+  'active',
+  TIMESTAMPTZ '2026-01-01T00:00:00Z'
+)
+ON CONFLICT (tenant_id, student_id, household_id) DO UPDATE
+  SET custody_type = 'sole', status = 'active', effective_to = NULL, updated_at = now();
+
+INSERT INTO parent_child_links
+  (id, tenant_id, parent_user_id, student_id, relationship, status,
+   is_primary, can_consent_medical, can_view_fees, household_id)
+VALUES
+  ('00000000-0000-4000-8000-00000000a131', '00000000-0000-4000-8000-000000000001', 'parent-e2e-seeded', '00000000-0000-4000-8000-000000000099', 'guardian', 'active', true, true, true, '00000000-0000-4000-8000-00000000a101'),
+  ('00000000-0000-4000-8000-00000000a132', '00000000-0000-4000-8000-000000000001', 'parent-jwt-seeded', '00000000-0000-4000-8000-000000000099', 'guardian', 'active', true, true, true, '00000000-0000-4000-8000-00000000a101'),
+  ('00000000-0000-4000-8000-00000000a133', '00000000-0000-4000-8000-000000000001', 'parent-iso-seeded', '00000000-0000-4000-8000-000000000099', 'guardian', 'active', true, true, true, '00000000-0000-4000-8000-00000000a101')
+ON CONFLICT (tenant_id, parent_user_id, student_id) DO UPDATE
+  SET status = 'active', household_id = EXCLUDED.household_id,
+      can_consent_medical = true, can_view_fees = true, updated_at = now();
+
 INSERT INTO geographic_areas (id, tenant_id, name, code, level, parent_id, path, lft, rgt)
 VALUES (
   '00000000-0000-4000-8000-00000000a0ea',

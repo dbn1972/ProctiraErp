@@ -21,12 +21,13 @@ import { TenantPicker } from './tenant-picker';
 export default async function SupportPage({
   searchParams,
 }: {
-  searchParams: { tenantId?: string };
+  searchParams: Promise<{ tenantId?: string }>;
 }) {
   const session = await requireRole('support', '/support');
+  const resolvedSearchParams = await searchParams;
   const { tenants, source: tenantsSource } = await listTenants();
 
-  const selectedTenantId = searchParams?.tenantId;
+  const selectedTenantId = resolvedSearchParams.tenantId;
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId) ?? null;
 
   // An active break-glass grant for this tenant + the current operator is

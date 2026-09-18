@@ -97,6 +97,7 @@ export type ApplicationPlacementDto = Static<typeof ApplicationPlacementSchema>;
 export const CreateOfferSchema = Type.Object({
   applicationId: Uuid,
   meritListId: Type.Optional(Uuid),
+  classId: Type.Optional(Uuid),
   feeAmount: Type.Optional(Type.Number({ minimum: 0 })),
   feeCurrency: Type.Optional(Type.String({ minLength: 3, maxLength: 8 })),
   expiresAt: Type.Optional(Type.String({ minLength: 1 })),

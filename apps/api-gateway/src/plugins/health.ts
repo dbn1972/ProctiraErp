@@ -6,6 +6,7 @@
  * - Readiness: Critical dependencies (Postgres / Redis when configured) must be reachable
  */
 
+import { assertDatabaseSchemaReady, DATABASE_SCHEMA_CONTRACTS } from '@proctira/database';
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 import Redis from 'ioredis';
@@ -63,6 +64,10 @@ export interface ReadinessProbeResult {
 
 type ProbeOutcome = { ok: boolean; message?: string; latencyMs?: number };
 
+export const GATEWAY_SCHEMA_READINESS_RELATIONS = [
+  ...new Set(Object.values(DATABASE_SCHEMA_CONTRACTS).flat()),
+];
+
 function readEnv(override?: PersistencePolicyEnv): PersistencePolicyEnv {
   if (override) return override;
   return {
@@ -89,17 +94,17 @@ function databaseRequired(env: PersistencePolicyEnv): boolean {
   return Boolean(env.DATABASE_URL?.trim());
 }
 
-async function defaultProbeDatabase(
-  databaseUrl: string,
-  timeoutMs: number,
-): Promise<ProbeOutcome> {
+async function defaultProbeDatabase(databaseUrl: string, timeoutMs: number): Promise<ProbeOutcome> {
   const pool = new pg.Pool({ connectionString: databaseUrl, max: 1 });
   const start = Date.now();
   try {
     await Promise.race([
-      pool.query('SELECT 1 AS ok'),
+      assertDatabaseSchemaReady(pool, 'api gateway readiness', GATEWAY_SCHEMA_READINESS_RELATIONS),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Database probe timed out after ${timeoutMs}ms`)), timeoutMs);
+        setTimeout(
+          () => reject(new Error(`Database probe timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
       }),
     ]);
     return { ok: true, latencyMs: Date.now() - start };
@@ -126,7 +131,10 @@ async function defaultProbeRedis(redisUrl: string, timeoutMs: number): Promise<P
     await Promise.race([
       client.connect().then(() => client.ping()),
       new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error(`Redis probe timed out after ${timeoutMs}ms`)), timeoutMs);
+        setTimeout(
+          () => reject(new Error(`Redis probe timed out after ${timeoutMs}ms`)),
+          timeoutMs,
+        );
       }),
     ]);
     return { ok: true, latencyMs: Date.now() - start };
@@ -144,7 +152,12 @@ async function defaultProbeRedis(redisUrl: string, timeoutMs: number): Promise<P
 async function probeDatabaseDependency(
   env: PersistencePolicyEnv,
   options: Pick<HealthCheckOptions, 'probeDatabase' | 'probeTimeoutMs'>,
-): Promise<{ ready: boolean; status: DatabaseDependencyStatus; message?: string; latencyMs?: number }> {
+): Promise<{
+  ready: boolean;
+  status: DatabaseDependencyStatus;
+  message?: string;
+  latencyMs?: number;
+}> {
   const databaseUrl = env.DATABASE_URL?.trim() || null;
   const timeoutMs = options.probeTimeoutMs ?? 3000;
 
@@ -189,7 +202,12 @@ async function probeDatabaseDependency(
 async function probeRedisDependency(
   env: PersistencePolicyEnv,
   options: Pick<HealthCheckOptions, 'probeRedis' | 'probeTimeoutMs'>,
-): Promise<{ ready: boolean; status: RedisDependencyStatus; message?: string; latencyMs?: number }> {
+): Promise<{
+  ready: boolean;
+  status: RedisDependencyStatus;
+  message?: string;
+  latencyMs?: number;
+}> {
   const redisUrl = env.REDIS_URL?.trim() || null;
   const timeoutMs = options.probeTimeoutMs ?? 3000;
 

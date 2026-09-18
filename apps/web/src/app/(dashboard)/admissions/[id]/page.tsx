@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 
 import { getApplicationBundle } from '@/lib/api/admissions';
+import { listInstitutionClasses } from '@/lib/api/institutions';
 import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
 import { AdmissionsChrome } from '../_components/admissions-chrome';
 import { OfferPanel } from '../_components/offer-panel';
@@ -20,6 +21,11 @@ export default async function AdmissionApplicationPage({
   }
 
   const { application } = bundle;
+  const classes = bundle.placement
+    ? (
+        await listInstitutionClasses(application.institutionId, bundle.placement.academicPeriodId)
+      ).filter((row) => row.gradeId === bundle.placement!.gradeId)
+    : [];
   return (
     <div className="space-y-6 p-6">
       <div>
@@ -33,7 +39,7 @@ export default async function AdmissionApplicationPage({
       <AdmissionsChrome current="/admissions">
         <div className="space-y-6">
           <PlacementPanel bundle={bundle} periods={lookups.periods} grades={lookups.grades} />
-          <OfferPanel bundle={bundle} />
+          <OfferPanel bundle={bundle} classes={classes} />
         </div>
       </AdmissionsChrome>
     </div>

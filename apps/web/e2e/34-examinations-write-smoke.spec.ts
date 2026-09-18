@@ -87,6 +87,18 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
     { name: `Exam Grade ${stamp}`, code: `EG${stamp.slice(-4).toUpperCase()}`, order: 10 },
     201,
   );
+  const klass = await postOk(
+    request,
+    '/classes',
+    {
+      institutionId: INSTITUTION_A,
+      gradeId: grade.id,
+      academicPeriodId: period.id,
+      name: `Exam Class ${stamp}`,
+      capacity: 40,
+    },
+    201,
+  );
   const student = await postOk(
     request,
     '/students',
@@ -105,6 +117,7 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
       studentId: student.id,
       institutionId: INSTITUTION_A,
       gradeId: grade.id,
+      classId: klass.id,
       academicPeriodId: period.id,
       enrolledAt: isoDate(-10),
     },

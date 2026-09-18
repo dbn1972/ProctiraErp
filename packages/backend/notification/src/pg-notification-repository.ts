@@ -3,12 +3,13 @@
  * Persists NotificationEntity rows against db/sql/005_notifications_schema.sql.
  * Rules / templates / recipients stay on an in-memory delegate (hybrid).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
-import pg from 'pg';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
+import type pg from 'pg';
 
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
 import type {
@@ -29,7 +30,10 @@ import type {
 
 export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
-let schemaReady: Promise<void> | null = null;
+const ensureNotificationSchemaReady = createDatabaseSchemaReadinessCheck(
+  'notifications',
+  'notifications',
+);
 
 export function isPgNotificationEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -39,35 +43,11 @@ export function getSharedNotificationPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/005_notifications_schema.sql'),
-    join(process.cwd(), 'db/sql/005_notifications_schema.sql'),
-    join(process.cwd(), '../../db/sql/005_notifications_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 export async function ensureNotificationSchema(
   pool: PgPoolLike = getSharedNotificationPool()!,
 ): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for notification schema ensure');
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await schemaReady;
+  await ensureNotificationSchemaReady(pool);
 }
 
 function mapNotification(row: Record<string, unknown>): NotificationEntity {

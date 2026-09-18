@@ -3,16 +3,14 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   createDeveloperPortalRepository,
   isPgDeveloperPortalApiKeysEnabled,
 } from './create-developer-portal-repository.js';
-import {
-  generateApiKey,
-  hashApiKey,
-} from './developer-portal-service.js';
+import { generateApiKey, hashApiKey } from './developer-portal-service.js';
 import type { ApiKeyEntity } from './developer-portal-repository.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
 import {
@@ -226,6 +224,7 @@ describe('PgApiKeyStore (live Postgres)', () => {
     const tenantId = randomUUID();
     const accountId = randomUUID();
     const rawKey = generateApiKey();
+    await ensurePgTestTenant(pool, tenantId);
     const entity = buildEntity({
       tenantId,
       accountId,
@@ -237,6 +236,9 @@ describe('PgApiKeyStore (live Postgres)', () => {
     await storeA.createApiKey(entity);
 
     const storeB = new PgApiKeyStore(pool);
+    expect(await storeB.getApiKeyById(entity.id, randomUUID())).toBeNull();
+    expect(await storeB.updateApiKeyStatus(entity.id, 'revoked', randomUUID())).toBeNull();
+    expect((await storeB.getApiKeyById(entity.id, tenantId))?.status).toBe('active');
     const found = await storeB.getApiKeyByHash(hashApiKey(rawKey));
     expect(found?.id).toBe(entity.id);
   });

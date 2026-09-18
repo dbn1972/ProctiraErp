@@ -4,6 +4,8 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -25,6 +27,9 @@ describe('Pg notification deliveries (G-207)', () => {
       expect(repo).not.toBeNull();
 
       const tenantId = '00000000-0000-4000-8000-0000000000aa';
+      const pool = getSharedPgPool();
+      expect(pool).not.toBeNull();
+      await ensurePgTestTenant(pool!, tenantId);
       const id = randomUUID();
       const templateId = randomUUID();
       const recipientUserId = `user-${randomUUID()}`;

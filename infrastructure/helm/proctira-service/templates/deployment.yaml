@@ -92,21 +92,21 @@ spec:
           {{- with .Values.livenessProbe }}
           livenessProbe:
             httpGet:
-              path: {{ include "proctira-service.healthPath" $ }}
+              path: {{ include "proctira-service.livenessPath" $ }}
               port: http
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with .Values.readinessProbe }}
           readinessProbe:
             httpGet:
-              path: {{ include "proctira-service.healthPath" $ }}
+              path: {{ include "proctira-service.readinessPath" $ }}
               port: http
             {{- toYaml . | nindent 12 }}
           {{- end }}
           {{- with .Values.startupProbe }}
           startupProbe:
             httpGet:
-              path: {{ include "proctira-service.healthPath" $ }}
+              path: {{ include "proctira-service.startupPath" $ }}
               port: http
             {{- toYaml . | nindent 12 }}
           {{- end }}

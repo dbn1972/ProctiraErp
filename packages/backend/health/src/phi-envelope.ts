@@ -127,7 +127,9 @@ export class KmsPhiEnvelopeProvider implements PhiEnvelopeProvider {
     });
     const plain = Buffer.from(result.Plaintext);
     if (plain.length < 32) {
-      throw new PhiEnvelopeMisconfiguredError('KMS-unwrapped PHI root key must be at least 32 bytes');
+      throw new PhiEnvelopeMisconfiguredError(
+        'KMS-unwrapped PHI root key must be at least 32 bytes',
+      );
     }
     this.root = plain.length === 32 ? plain : createHash('sha256').update(plain).digest();
     return this.root;
@@ -164,7 +166,9 @@ export class LocalStubPhiKmsClient implements PhiKmsClient {
     const iv = buf.subarray(0, 12);
     const tag = buf.subarray(12, 28);
     const data = buf.subarray(28);
-    const decipher = createDecipheriv('aes-256-gcm', this.stubKey, iv);
+    const decipher = createDecipheriv('aes-256-gcm', this.stubKey, iv, {
+      authTagLength: 16,
+    });
     decipher.setAuthTag(tag);
     const plain = Buffer.concat([decipher.update(data), decipher.final()]);
     return { Plaintext: new Uint8Array(plain) };
@@ -332,7 +336,7 @@ export function resolvePhiRootKeySync(env: NodeJS.ProcessEnv = process.env): Buf
     const stubKey = createHash('sha256')
       .update(env.PHI_KMS_STUB_SECRET?.trim() || 'phi-local-stub-kms-not-for-prod', 'utf8')
       .digest();
-    const decipher = createDecipheriv('aes-256-gcm', stubKey, iv);
+    const decipher = createDecipheriv('aes-256-gcm', stubKey, iv, { authTagLength: 16 });
     decipher.setAuthTag(tag);
     const plain = Buffer.concat([decipher.update(data), decipher.final()]);
     const normalized = plain.length === 32 ? plain : createHash('sha256').update(plain).digest();

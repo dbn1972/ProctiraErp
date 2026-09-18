@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestStudent } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { isPgLibraryEnabled } from './create-library-repository.js';
@@ -16,6 +17,8 @@ describe('PgLibraryRepository', () => {
     const tenantId = randomUUID();
     const itemId = randomUUID();
     const loanId = randomUUID();
+    const studentId = randomUUID();
+    await ensurePgTestStudent(pool!, tenantId, studentId);
 
     await repo.createItem({
       id: itemId,
@@ -39,7 +42,7 @@ describe('PgLibraryRepository', () => {
       copyId: null,
       barcode: null,
       patronUserId: null,
-      studentId: randomUUID(),
+      studentId,
       checkoutAt: new Date(),
       dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       returnedAt: null,

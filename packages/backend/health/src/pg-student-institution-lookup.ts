@@ -13,7 +13,7 @@ export async function findStudentInstitutionId(
   if (!pool) return null;
   try {
     const result = await withPgTenant(pool, tenantId, async (client) =>
-      client.query<{ institution_id: string }>(
+      client.query(
         `SELECT institution_id::text AS institution_id
          FROM enrollments
          WHERE tenant_id = $1::uuid
@@ -25,7 +25,7 @@ export async function findStudentInstitutionId(
         [tenantId, studentId],
       ),
     );
-    const row = result.rows[0];
+    const row = result.rows[0] as { institution_id?: unknown } | undefined;
     return row?.institution_id ? String(row.institution_id) : null;
   } catch {
     return null;

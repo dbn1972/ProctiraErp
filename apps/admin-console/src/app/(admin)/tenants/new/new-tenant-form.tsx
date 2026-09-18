@@ -22,9 +22,9 @@ export function NewTenantForm() {
   const [state, formAction] = useFormState(createTenantAction, initialState);
 
   return (
-    <form className="grid gap-4 sm:grid-cols-2" action={formAction}>
+    <form className="grid gap-4 sm:grid-cols-2" action={formAction} noValidate>
       {state.error && (
-        <Alert variant="destructive" className="sm:col-span-2">
+        <Alert variant="destructive" className="sm:col-span-2" role="alert">
           <AlertDescription>{state.error}</AlertDescription>
         </Alert>
       )}

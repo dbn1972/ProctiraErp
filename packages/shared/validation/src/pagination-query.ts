@@ -7,16 +7,14 @@ import { validateQuery, type ValidationResult } from './validator.js';
 export type ParsedPagination = Static<typeof PaginationSchema>;
 
 export type PaginationQueryValidation =
-  | ValidationResult<ParsedPagination>
+  | ValidationResult<typeof PaginationSchema>
   | { success: true; skipped: true };
 
 /**
  * Validates `page` / `pageSize` when either query param is present.
  * Skips validation when neither is supplied so handlers can apply their own defaults.
  */
-export function validatePaginationQuery(
-  query: Record<string, unknown>,
-): PaginationQueryValidation {
+export function validatePaginationQuery(query: Record<string, unknown>): PaginationQueryValidation {
   const hasPage = query['page'] !== undefined && query['page'] !== '';
   const hasPageSize = query['pageSize'] !== undefined && query['pageSize'] !== '';
   if (!hasPage && !hasPageSize) {
@@ -34,7 +32,7 @@ export function validatePaginationQuery(
  */
 export function resolvePaginationQuery(
   query: Record<string, unknown>,
-): ValidationResult<ParsedPagination> {
+): ValidationResult<typeof PaginationSchema> {
   return validateQuery(PaginationSchema, {
     page: query['page'] ?? PAGINATION_DEFAULTS.PAGE,
     pageSize: query['pageSize'] ?? PAGINATION_DEFAULTS.PAGE_SIZE,

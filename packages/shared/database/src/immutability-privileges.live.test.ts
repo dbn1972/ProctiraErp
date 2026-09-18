@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
+import { ensurePgTestStudent } from './test-fixtures.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -45,9 +46,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
 
   it('runtime role cannot DROP immutability triggers on ledger/audit/transcript tables', async () => {
     for (const { table, trigger } of IMMUTABLE_APPEND_ONLY_TRIGGERS) {
-      await expect(
-        pool.query(`DROP TRIGGER IF EXISTS ${trigger} ON ${table}`),
-      ).rejects.toThrow(/must be owner|permission denied/i);
+      await expect(pool.query(`DROP TRIGGER IF EXISTS ${trigger} ON ${table}`)).rejects.toThrow(
+        /must be owner|permission denied/i,
+      );
     }
   });
 
@@ -83,9 +84,10 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
       await client.query('BEGIN');
       await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
       await expect(
-        client.query(`UPDATE transcript_issuances SET checksum_sha256 = repeat('b', 64) WHERE id = $1`, [
-          transcriptId,
-        ]),
+        client.query(
+          `UPDATE transcript_issuances SET checksum_sha256 = repeat('b', 64) WHERE id = $1`,
+          [transcriptId],
+        ),
       ).rejects.toThrow(/append-only|permission denied/i);
       await client.query('ROLLBACK');
 
@@ -102,7 +104,6 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
       client.release();
     }
   });
-
 
   it('runtime role cannot UPDATE/DELETE audit_log_archive rows (append-only + REVOKE)', async () => {
     const tenantId = randomUUID();
@@ -127,7 +128,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
       await client.query('BEGIN');
       await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
       await expect(
-        client.query(`UPDATE audit_log_archive SET entity_id = 'tampered' WHERE id = $1`, [entryId]),
+        client.query(`UPDATE audit_log_archive SET entity_id = 'tampered' WHERE id = $1`, [
+          entryId,
+        ]),
       ).rejects.toThrow(/append-only|permission denied/i);
       await client.query('ROLLBACK');
 
@@ -165,6 +168,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
         [studentId, tenantId],
       );
 
+      await client.query('SAVEPOINT missing_checksum');
       await expect(
         client.query(
           `INSERT INTO transcript_issuances (
@@ -173,7 +177,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
           [randomUUID(), tenantId, studentId],
         ),
       ).rejects.toThrow(/checksum_sha256|authenticity|integrity/i);
+      await client.query('ROLLBACK TO SAVEPOINT missing_checksum');
 
+      await client.query('SAVEPOINT missing_signature');
       await expect(
         client.query(
           `INSERT INTO transcript_issuances (
@@ -182,6 +188,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
           [randomUUID(), tenantId, studentId],
         ),
       ).rejects.toThrow(/signature_hmac|authenticity|integrity/i);
+      await client.query('ROLLBACK TO SAVEPOINT missing_signature');
 
       await client.query('ROLLBACK');
     } catch (err) {
@@ -232,12 +239,20 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
     const journalId = randomUUID();
     const invoiceId = randomUUID();
     const legId = randomUUID();
+    const studentId = randomUUID();
+    await ensurePgTestStudent(pool, tenantId, studentId);
     const client = await pool.connect();
 
     try {
       await client.query('BEGIN');
       await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
 
+      await client.query(
+        `INSERT INTO parent_fee_invoices (
+           id, tenant_id, student_id, title, description, amount_cents, currency, status
+         ) VALUES ($1, $2, $3, 'Immutability fixture', '', 100, 'INR', 'open')`,
+        [invoiceId, tenantId, studentId],
+      );
       await client.query(
         `INSERT INTO fee_ledger_entries (
            id, tenant_id, journal_id, invoice_id, account, side, amount_cents, currency
