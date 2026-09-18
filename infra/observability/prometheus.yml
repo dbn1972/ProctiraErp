@@ -127,9 +127,14 @@ scrape_configs:
 
   # ─── Kubernetes (Helm deployments) ─────────────────────────────────────────
   # Pods rendered by infrastructure/helm/proctira-service carry
-  # prometheus.io/scrape|port|path annotations (Fastify services only). This
-  # job is inert outside a cluster (no API server → no targets).
+  # prometheus.io/scrape|port|path annotations (Fastify services only). The
+  # chart injects METRICS_BEARER_TOKEN from the proctira-metrics Secret. Mount
+  # the same external-secret value in the Prometheus namespace at the path
+  # below; the Secret is never placed in annotations or this config.
   - job_name: kubernetes-pods
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/proctira-metrics/token
     kubernetes_sd_configs:
       - role: pod
         namespaces:

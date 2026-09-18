@@ -90,6 +90,27 @@ for (const f of [...yamlFiles, ...alertYamlFiles]) {
   }
 }
 
+// W1-SEC-07: the in-cluster discovery job must authenticate with the same
+// Secret-backed bearer path documented by the active Helm chart.
+try {
+  const prometheus = yaml.load(
+    readFileSync(resolve(root, 'infra/observability/prometheus.yml'), 'utf8'),
+  );
+  const jobs = Array.isArray(prometheus?.scrape_configs) ? prometheus.scrape_configs : [];
+  const kubernetesPods = jobs.find((job) => job?.job_name === 'kubernetes-pods');
+  const authorization = kubernetesPods?.authorization;
+  if (authorization?.type !== 'Bearer') {
+    throw new Error('kubernetes-pods must use Bearer authorization');
+  }
+  if (authorization?.credentials_file !== '/etc/prometheus/secrets/proctira-metrics/token') {
+    throw new Error('kubernetes-pods credentials_file does not match Helm Secret mount contract');
+  }
+  console.log('scrape OK: kubernetes-pods uses Secret-backed bearer credentials');
+} catch (err) {
+  console.error(`scrape FAIL: infra/observability/prometheus.yml: ${err.message}`);
+  failed = true;
+}
+
 for (const f of jsonFiles) {
   const path = resolve(root, f);
   try {

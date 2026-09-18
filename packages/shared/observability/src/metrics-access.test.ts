@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertMetricsAccessConfiguration,
   authorizeMetricsAccess,
   extractBearerToken,
   isLoopbackIp,
@@ -27,10 +28,7 @@ describe('normalizeClientIp / isLoopbackIp', () => {
 
 describe('parseAllowlist / bearer helpers', () => {
   it('parses comma-separated IPs', () => {
-    expect([...parseAllowlist(' 10.0.0.1, ::ffff:10.0.0.2 , ')]).toEqual([
-      '10.0.0.1',
-      '10.0.0.2',
-    ]);
+    expect([...parseAllowlist(' 10.0.0.1, ::ffff:10.0.0.2 , ')]).toEqual(['10.0.0.1', '10.0.0.2']);
   });
 
   it('extracts Bearer tokens case-insensitively', () => {
@@ -47,13 +45,47 @@ describe('parseAllowlist / bearer helpers', () => {
   });
 });
 
+describe('metrics production configuration (W1-SEC-07)', () => {
+  it('rejects METRICS_PUBLIC=1 at production startup', () => {
+    expect(() =>
+      assertMetricsAccessConfiguration({
+        NODE_ENV: 'production',
+        METRICS_PUBLIC: '1',
+      }),
+    ).toThrow(/METRICS_PUBLIC=1 is forbidden/);
+  });
+
+  it('preserves the explicit public escape hatch outside production', () => {
+    expect(() =>
+      assertMetricsAccessConfiguration({
+        NODE_ENV: 'development',
+        METRICS_PUBLIC: '1',
+      }),
+    ).not.toThrow();
+  });
+});
+
 describe('authorizeMetricsAccess (W1-SEC-07)', () => {
-  it('allows when METRICS_PUBLIC=1', () => {
-    const d = authorizeMetricsAccess({
-      env: { NODE_ENV: 'production', METRICS_PUBLIC: '1' },
-      clientIp: '203.0.113.9',
+  it('fails closed if production public mode reaches the decision function', () => {
+    expect(
+      authorizeMetricsAccess({
+        env: { NODE_ENV: 'production', METRICS_PUBLIC: '1' },
+        clientIp: '203.0.113.9',
+      }),
+    ).toEqual({
+      allow: false,
+      statusCode: 403,
+      reason: 'production_public_mode_forbidden',
     });
-    expect(d).toEqual({ allow: true, reason: 'metrics_public' });
+  });
+
+  it('allows METRICS_PUBLIC=1 outside production for local development', () => {
+    expect(
+      authorizeMetricsAccess({
+        env: { NODE_ENV: 'development', METRICS_PUBLIC: '1' },
+        clientIp: '203.0.113.9',
+      }),
+    ).toEqual({ allow: true, reason: 'metrics_public_non_production' });
   });
 
   it('requires bearer when METRICS_BEARER_TOKEN is set', () => {

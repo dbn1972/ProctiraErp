@@ -15,6 +15,7 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest 
 import fp from 'fastify-plugin';
 
 import {
+  assertMetricsAccessConfiguration,
   authorizeMetricsAccess,
   metricsAccessEnvFromProcess,
   type MetricsAccessEnv,
@@ -89,10 +90,11 @@ declare module 'fastify' {
 const HTTP_LABELS = ['service', 'method', 'route', 'status_code'] as const;
 const HTTP_DURATION_LABELS = ['service', 'method', 'route', 'status_code'] as const;
 const IN_FLIGHT_LABELS = ['service'] as const;
+const UNMATCHED_ROUTE_LABEL = '__unmatched__';
 
 /**
- * Resolve the route template for a request. Falls back to the raw URL when the
- * route hasn't been matched yet (e.g. for 404s or onRequest hooks).
+ * Resolve the registered route template. Unknown paths collapse to one stable
+ * label instead of using attacker-controlled raw URLs as Prometheus labels.
  */
 function getRoute(request: FastifyRequest): string {
   const routeFromContext = (
@@ -101,13 +103,10 @@ function getRoute(request: FastifyRequest): string {
     }
   ).routeOptions?.url;
   if (routeFromContext) return routeFromContext;
-  // Fastify v4: routerPath is set after route matching
+  // Fastify v4 compatibility: routerPath is set after route matching.
   const routerPath = (request as FastifyRequest & { routerPath?: string }).routerPath;
   if (routerPath) return routerPath;
-  // Strip query string from raw URL as a last resort.
-  const url = request.url || '/';
-  const qIdx = url.indexOf('?');
-  return qIdx >= 0 ? url.slice(0, qIdx) : url;
+  return UNMATCHED_ROUTE_LABEL;
 }
 
 const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = async (
@@ -126,6 +125,10 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
     tracing = true,
     tracingEnv,
   } = options;
+
+  // Invalid public production mode is rejected at registration even when the
+  // endpoint is disabled, so a dangerous deployment configuration is visible.
+  assertMetricsAccessConfiguration(metricsAccessEnv);
 
   // W1-OPS-13: distributed tracing hooks (noop provider when OTLP unset).
   // Registered even when metrics are disabled so TRACING_ENABLED / OTLP still work.
@@ -235,23 +238,25 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
         },
         401: {
           type: 'object',
+          required: ['error', 'message'],
           properties: {
             error: { type: 'string' },
             message: { type: 'string' },
           },
-          required: ['error', 'message'],
         },
         403: {
           type: 'object',
+          required: ['error', 'message'],
           properties: {
             error: { type: 'string' },
             message: { type: 'string' },
           },
-          required: ['error', 'message'],
         },
       },
     },
     handler: async (request, reply) => {
+      // request.ip is resolved by Fastify from the socket unless the app has an
+      // explicit trustProxy CIDR list. Raw forwarding headers are never read here.
       const decision = authorizeMetricsAccess({
         env: metricsAccessEnv,
         clientIp: request.ip,

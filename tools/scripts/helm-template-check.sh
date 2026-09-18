@@ -145,7 +145,7 @@ for SERVICE in api-gateway web student; do
   echo "OK proctira-${SERVICE}"
 done
 
-echo "==> production profile (HPA + ExternalSecret opt-in)"
+echo "==> production profile (HPA + ExternalSecret + authenticated metrics)"
 out="$(mktemp)"
 helm template proctira-api-gateway "${SERVICE_CHART}" \
   --namespace proctira-production \
@@ -159,8 +159,45 @@ grep -q "kind: HorizontalPodAutoscaler" "$out" || die "missing HPA"
 grep -q "kind: ExternalSecret" "$out" || die "missing ExternalSecret"
 grep -q "name: proctira-api-gateway-env" "$out" || die "missing ExternalSecret name"
 grep -q "topologySpreadConstraints" "$out" || die "missing topologySpreadConstraints"
+grep -q "name: METRICS_ENABLED" "$out" || die "missing METRICS_ENABLED binding"
+grep -q "name: METRICS_BEARER_TOKEN" "$out" || die "missing metrics bearer env"
+grep -q "name: proctira-metrics" "$out" || die "missing metrics Secret reference"
+grep -q "optional: false" "$out" || die "metrics Secret must fail closed when absent"
+grep -q 'prometheus.io/path: "/metrics"' "$out" || die "scrape path must match application /metrics"
+grep -q "app.kubernetes.io/name: prometheus" "$out" || die "missing Prometheus pod selector"
 rm -f "$out"
-echo "OK production profile"
+
+echo "==> W1-SEC-07 production metrics fail-closed render gates"
+public_err="$(mktemp)"
+if helm template proctira-api-gateway "${SERVICE_CHART}" \
+  --namespace proctira-production \
+  --set service.name=api-gateway \
+  --set image.tag=sha-ci \
+  --set env.METRICS_PUBLIC=1 \
+  --values "${SERVICE_CHART}/values-production.yaml" \
+  >/dev/null 2>"$public_err"; then
+  rm -f "$public_err"
+  die "W1-SEC-07: production METRICS_PUBLIC=1 must fail rendering"
+fi
+grep -q "METRICS_PUBLIC=1 is forbidden" "$public_err" \
+  || die "W1-SEC-07: public-mode failure must be explicit"
+rm -f "$public_err"
+
+missing_token_err="$(mktemp)"
+if helm template proctira-api-gateway "${SERVICE_CHART}" \
+  --namespace proctira-production \
+  --set service.name=api-gateway \
+  --set image.tag=sha-ci \
+  --set-string metrics.bearerTokenSecret.name= \
+  --values "${SERVICE_CHART}/values-production.yaml" \
+  >/dev/null 2>"$missing_token_err"; then
+  rm -f "$missing_token_err"
+  die "W1-SEC-07: production metrics without bearer Secret must fail rendering"
+fi
+grep -q "metrics.bearerTokenSecret.name" "$missing_token_err" \
+  || die "W1-SEC-07: missing bearer failure must be explicit"
+rm -f "$missing_token_err"
+echo "OK production profile + W1-SEC-07 metrics contract"
 
 echo "==> lint + template ${PLATFORM_CHART}"
 # Umbrella may warn on icon/etc.; lint is advisory for platform.

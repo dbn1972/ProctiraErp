@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEV_JWT_SECRET, resolveAccessTokenExpiresIn, resolveJwtSecret } from './config.js';
+import {
+  DEV_JWT_SECRET,
+  parseTrustedProxyCidrs,
+  resolveAccessTokenExpiresIn,
+  resolveJwtSecret,
+} from './config.js';
 
 describe('resolveJwtSecret (G-703)', () => {
   const strong = 'a'.repeat(48);
@@ -40,5 +45,19 @@ describe('resolveAccessTokenExpiresIn', () => {
   it('keeps the historical environment variable compatible', () => {
     expect(resolveAccessTokenExpiresIn({ JWT_ACCESS_TOKEN_EXPIRES_IN: '30m' })).toBe('30m');
     expect(resolveAccessTokenExpiresIn({})).toBe('15m');
+  });
+});
+
+describe('parseTrustedProxyCidrs (W1-SEC-07)', () => {
+  it('trusts no forwarding peer by default', () => {
+    expect(parseTrustedProxyCidrs(undefined)).toEqual([]);
+    expect(parseTrustedProxyCidrs('   ')).toEqual([]);
+  });
+
+  it('parses and de-duplicates explicit proxy IP/CIDR entries', () => {
+    expect(parseTrustedProxyCidrs('10.0.0.10, 10.0.0.0/24,10.0.0.10')).toEqual([
+      '10.0.0.10',
+      '10.0.0.0/24',
+    ]);
   });
 });

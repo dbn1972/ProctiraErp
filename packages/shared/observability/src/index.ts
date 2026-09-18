@@ -24,6 +24,7 @@ export { observabilityPlugin } from './fastify-plugin.js';
 export type { ObservabilityPluginOptions } from './fastify-plugin.js';
 
 export {
+  assertMetricsAccessConfiguration,
   authorizeMetricsAccess,
   metricsAccessEnvFromProcess,
   isLoopbackIp,
@@ -69,12 +70,7 @@ export {
   injectTraceContext,
   extractTraceContext,
 } from './tracing.js';
-export type {
-  TracingEnv,
-  TracingInitOptions,
-  TracingInitResult,
-  TracingMode,
-} from './tracing.js';
+export type { TracingEnv, TracingInitOptions, TracingInitResult, TracingMode } from './tracing.js';
 
 export { tracingPlugin } from './tracing-plugin.js';
 export type { TracingPluginOptions } from './tracing-plugin.js';

@@ -16,6 +16,12 @@ on:
   pull_request:
     paths:
       - 'infra/observability/**'
+      # W1-SEC-07 — rerun scrape validation when app/chart contract changes
+      - 'infrastructure/helm/proctira-service/**'
+      - 'packages/shared/observability/src/metrics-access.ts'
+      - 'packages/shared/observability/src/fastify-plugin.ts'
+      - 'apps/api-gateway/src/app.ts'
+      - 'apps/api-gateway/src/config.ts'
       - 'tools/scripts/validate-observability.mjs'
       - 'tools/scripts/assert-reusable-ci-assets.mjs'
       - '.github/actions/setup-node-pnpm/**'
@@ -24,6 +30,12 @@ on:
     branches: [main]
     paths:
       - 'infra/observability/**'
+      # W1-SEC-07 — rerun scrape validation when app/chart contract changes
+      - 'infrastructure/helm/proctira-service/**'
+      - 'packages/shared/observability/src/metrics-access.ts'
+      - 'packages/shared/observability/src/fastify-plugin.ts'
+      - 'apps/api-gateway/src/app.ts'
+      - 'apps/api-gateway/src/config.ts'
       - 'tools/scripts/validate-observability.mjs'
       - '.github/workflows/observability-config.yml'
 
@@ -61,6 +73,14 @@ jobs:
       - name: promtool check config + rules
         run: |
           set -euo pipefail
+          # W1-SEC-07: the kubernetes-pods job authenticates to /metrics with a
+          # bearer token read from disk. promtool stats credentials_file, and the
+          # real value is mounted from the proctira-metrics Secret at deploy time,
+          # so CI supplies a throwaway file to validate config structure without
+          # putting a credential in the repository.
+          sudo mkdir -p /etc/prometheus/secrets/proctira-metrics
+          printf 'ci-placeholder-not-a-real-token' \
+            | sudo tee /etc/prometheus/secrets/proctira-metrics/token >/dev/null
           /tmp/promtool check config infra/observability/prometheus.yml
           /tmp/promtool check rules infra/observability/alerts/*.yml
 

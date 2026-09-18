@@ -34,6 +34,11 @@ export const GatewayConfigSchema = Type.Object({
   env: Type.Union([Type.Literal('development'), Type.Literal('production'), Type.Literal('test')], {
     default: 'development',
   }),
+  /**
+   * Socket peers whose forwarding headers Fastify may trust. Empty/omitted
+   * means direct socket IP only; never enable broad `trustProxy: true`.
+   */
+  trustedProxyCidrs: Type.Optional(Type.Array(Type.String(), { default: [] })),
   /** Rate limiting configuration */
   rateLimiting: Type.Object({
     /** Time window in milliseconds */
@@ -105,6 +110,19 @@ const WEAK_JWT_SECRETS = new Set([
 
 /** Minimum HS256 key length (bytes) accepted in production. */
 export const MIN_PRODUCTION_JWT_SECRET_LENGTH = 32;
+
+/** Parse explicit trusted proxy IP/CIDR entries; blank means trust no proxy. */
+export function parseTrustedProxyCidrs(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return [
+    ...new Set(
+      raw
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
 
 /**
  * Resolve the HS256 signing secret. Production fails closed: missing, weak,
@@ -195,6 +213,7 @@ export function loadConfig(): GatewayConfig {
     port: parseInt(process.env['PORT'] || '3000', 10),
     host: process.env['HOST'] || '0.0.0.0',
     env,
+    trustedProxyCidrs: parseTrustedProxyCidrs(process.env['TRUSTED_PROXY_CIDRS']),
     rateLimiting: {
       windowMs: parseInt(process.env['RATE_LIMIT_WINDOW_MS'] || '60000', 10),
       maxRequests: parseInt(process.env['RATE_LIMIT_MAX_REQUESTS'] || '100', 10),

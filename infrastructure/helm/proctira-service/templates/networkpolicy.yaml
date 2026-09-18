@@ -20,7 +20,7 @@ spec:
         - protocol: TCP
           port: {{ .Values.service.targetPort }}
     {{- range .Values.networkPolicy.ingressNamespaces }}
-    # Ingress controller / monitoring namespaces named in values.
+    # Ingress controller / other explicitly named namespaces.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -28,6 +28,19 @@ spec:
       ports:
         - protocol: TCP
           port: {{ $.Values.service.targetPort }}
+    {{- end }}
+    {{- if and (include "proctira-service.metricsEnabled" .) .Values.metrics.networkPolicy.enabled }}
+    # W1-SEC-07: direct pod scrape only from selected Prometheus pods.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.metrics.networkPolicy.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.metrics.networkPolicy.podSelector.matchLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.targetPort }}
     {{- end }}
     {{- with .Values.networkPolicy.extraIngress }}
     {{- toYaml . | nindent 4 }}
