@@ -140,6 +140,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
                 : undefined,
           }
         : false,
+    // W1-SEC-07: forwarding headers are ignored unless the socket peer matches
+    // an explicit TRUSTED_PROXY_CIDRS entry. Never use blanket trustProxy=true.
+    trustProxy:
+      config.trustedProxyCidrs && config.trustedProxyCidrs.length > 0
+        ? config.trustedProxyCidrs
+        : false,
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
   });

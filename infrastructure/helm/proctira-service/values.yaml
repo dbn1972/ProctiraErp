@@ -118,9 +118,20 @@ serviceAccount:
 
 podAnnotations: {}
 
+# W1-SEC-07: production/staging override the Secret and scrape peer below.
+# The same token value must be mounted into Prometheus as credentials_file;
+# never place it in this values file or pod annotations.
 metrics:
   enabled: true
   path: /metrics
+  bearerTokenSecret:
+    name: ''
+    key: token
+  networkPolicy:
+    enabled: false
+    namespace: monitoring
+    podSelector:
+      matchLabels: {}
 
 # ---------------------------------------------------------------------------
 # Availability (G-724). Off by default so single-node dev clusters stay simple;
@@ -143,7 +154,8 @@ topologySpreadConstraints: []
 
 # ---------------------------------------------------------------------------
 # NetworkPolicy (G-724). Default-deny beyond same-namespace + DNS; list the
-# ingress-controller / monitoring namespaces and any external egress CIDRs.
+# ingress-controller namespaces and any external egress CIDRs. Metrics ingress
+# is a separate pod-selected peer under metrics.networkPolicy.
 # ---------------------------------------------------------------------------
 networkPolicy:
   enabled: false

@@ -31,11 +31,26 @@ topologySpreadConstraints:
     topologyKey: kubernetes.io/hostname
     whenUnsatisfiable: ScheduleAnyway
 
+# W1-SEC-07: the application receives a Secret-backed bearer. Prometheus must
+# mount the same external-secret value in its own namespace at the documented
+# credentials_file path. Missing Secret => pod startup fails closed.
+metrics:
+  enabled: true
+  path: /metrics
+  bearerTokenSecret:
+    name: proctira-metrics
+    key: token
+  networkPolicy:
+    enabled: true
+    namespace: monitoring
+    podSelector:
+      matchLabels:
+        app.kubernetes.io/name: prometheus
+
 networkPolicy:
   enabled: true
   ingressNamespaces:
     - ingress-nginx
-    - monitoring
   # Managed Postgres / Redis / PSP endpoints live outside the namespace; add
   # their CIDRs here per cluster (HTTPS egress to the public internet is the
   # only default, for IdP / email / SMS providers).

@@ -1,3 +1,4 @@
+{{- include "proctira-service.validateMetrics" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -75,6 +76,16 @@ spec:
             {{- range $key, $value := .Values.env }}
             - name: {{ $key }}
               value: {{ $value | quote }}
+            {{- end }}
+            - name: METRICS_ENABLED
+              value: {{ ternary "true" "false" (eq (include "proctira-service.metricsEnabled" .) "true") | quote }}
+            {{- if and (eq (include "proctira-service.metricsEnabled" .) "true") .Values.metrics.bearerTokenSecret.name }}
+            - name: METRICS_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.metrics.bearerTokenSecret.name }}
+                  key: {{ .Values.metrics.bearerTokenSecret.key }}
+                  optional: false
             {{- end }}
           {{- if or .Values.envFromSecrets .Values.externalSecret.enabled }}
           envFrom:

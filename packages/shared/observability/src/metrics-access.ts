@@ -1,9 +1,10 @@
 /**
  * W1-SEC-07 — Application-layer guard for GET /metrics.
  *
- * Fail-closed in production: without METRICS_BEARER_TOKEN / METRICS_ALLOWLIST,
- * only loopback clients are accepted unless METRICS_PUBLIC=1 (explicit opt-out
- * for local/dev). Bearer comparison is timing-safe.
+ * Fail-closed in production: METRICS_PUBLIC is forbidden and, without a
+ * bearer token or exact-IP allowlist, only loopback clients are accepted.
+ * Non-production remains open by default for deliberate local development.
+ * Bearer comparison is timing-safe.
  */
 import { timingSafeEqual } from 'node:crypto';
 
@@ -12,7 +13,7 @@ export interface MetricsAccessEnv {
   METRICS_BEARER_TOKEN?: string;
   /** Comma-separated client IPs permitted to scrape /metrics. */
   METRICS_ALLOWLIST?: string;
-  /** When `1`, skip auth (documented local/dev escape hatch). */
+  /** When `1`, skip auth outside production only (local/dev escape hatch). */
   METRICS_PUBLIC?: string;
 }
 
@@ -58,15 +59,26 @@ export function tokensMatch(expected: string, provided: string): boolean {
 }
 
 /**
+ * Refuse an unsafe production configuration during plugin registration. The
+ * decision function also denies this state so direct callers remain fail-safe.
+ */
+export function assertMetricsAccessConfiguration(env: MetricsAccessEnv): void {
+  if (env.NODE_ENV === 'production' && env.METRICS_PUBLIC === '1') {
+    throw new Error('METRICS_PUBLIC=1 is forbidden when NODE_ENV=production (W1-SEC-07)');
+  }
+}
+
+/**
  * Decide whether a /metrics scrape is permitted.
  *
  * Precedence:
- * 1. METRICS_PUBLIC=1 → allow
- * 2. METRICS_BEARER_TOKEN set → require matching Bearer token; if
+ * 1. production + METRICS_PUBLIC=1 → deny (defence in depth; startup rejects)
+ * 2. non-production + METRICS_PUBLIC=1 → allow local/dev escape hatch
+ * 3. METRICS_BEARER_TOKEN set → require matching Bearer token; if
  *    METRICS_ALLOWLIST is also set, require IP membership as well
- * 3. METRICS_ALLOWLIST only → require IP membership
- * 4. production + unset → loopback only (fail closed for remote scrapers)
- * 5. non-production + unset → allow (local DX)
+ * 4. METRICS_ALLOWLIST only → require IP membership
+ * 5. production + unset → loopback only (fail closed for remote scrapers)
+ * 6. non-production + unset → allow (local DX)
  */
 export function authorizeMetricsAccess(opts: {
   env: MetricsAccessEnv;
@@ -80,7 +92,14 @@ export function authorizeMetricsAccess(opts: {
   const ip = normalizeClientIp(clientIp);
 
   if (env.METRICS_PUBLIC === '1') {
-    return { allow: true, reason: 'metrics_public' };
+    if (isProd) {
+      return {
+        allow: false,
+        statusCode: 403,
+        reason: 'production_public_mode_forbidden',
+      };
+    }
+    return { allow: true, reason: 'metrics_public_non_production' };
   }
 
   if (token) {

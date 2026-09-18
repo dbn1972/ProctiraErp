@@ -16,6 +16,12 @@ on:
   pull_request:
     paths:
       - 'infra/observability/**'
+      # W1-SEC-07 — rerun scrape validation when app/chart contract changes
+      - 'infrastructure/helm/proctira-service/**'
+      - 'packages/shared/observability/src/metrics-access.ts'
+      - 'packages/shared/observability/src/fastify-plugin.ts'
+      - 'apps/api-gateway/src/app.ts'
+      - 'apps/api-gateway/src/config.ts'
       - 'tools/scripts/validate-observability.mjs'
       - 'tools/scripts/assert-reusable-ci-assets.mjs'
       - '.github/actions/setup-node-pnpm/**'
@@ -24,6 +30,12 @@ on:
     branches: [main]
     paths:
       - 'infra/observability/**'
+      # W1-SEC-07 — rerun scrape validation when app/chart contract changes
+      - 'infrastructure/helm/proctira-service/**'
+      - 'packages/shared/observability/src/metrics-access.ts'
+      - 'packages/shared/observability/src/fastify-plugin.ts'
+      - 'apps/api-gateway/src/app.ts'
+      - 'apps/api-gateway/src/config.ts'
       - 'tools/scripts/validate-observability.mjs'
       - '.github/workflows/observability-config.yml'
 

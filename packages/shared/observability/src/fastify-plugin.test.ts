@@ -3,7 +3,7 @@
  * that the /metrics endpoint is exposed, requests are counted, and
  * histograms record latency. W1-SEC-07 covers access guard + cardinality.
  */
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { observabilityPlugin } from './fastify-plugin.js';
@@ -13,7 +13,7 @@ describe('observabilityPlugin', () => {
   let app: FastifyInstance;
 
   beforeEach(async () => {
-    app = Fastify();
+    app = Fastify({ trustProxy: false });
     const registry = new MetricsRegistry('test-svc');
     await app.register(observabilityPlugin, {
       serviceName: 'test-svc',
@@ -71,6 +71,13 @@ describe('observabilityPlugin', () => {
     expect(res.body).not.toMatch(/tenant_id=/);
   });
 
+  it('collapses unmatched raw paths to a bounded route label', async () => {
+    await app.inject({ method: 'GET', url: '/students/private-student-123' });
+    const res = await app.inject({ method: 'GET', url: '/metrics' });
+    expect(res.body).toContain('route="__unmatched__"');
+    expect(res.body).not.toContain('private-student-123');
+  });
+
   it('decorates the fastify instance with a metrics registry', () => {
     expect(app.metrics).toBeInstanceOf(MetricsRegistry);
     expect(app.metrics.serviceName).toBe('test-svc');
@@ -78,8 +85,23 @@ describe('observabilityPlugin', () => {
 });
 
 describe('observabilityPlugin /metrics guard (W1-SEC-07)', () => {
+  it('rejects METRICS_PUBLIC=1 during production startup', async () => {
+    const app = Fastify({ trustProxy: false });
+    app.register(observabilityPlugin, {
+      serviceName: 'public-svc',
+      collectDefaultMetrics: false,
+      metricsAccessEnv: {
+        NODE_ENV: 'production',
+        METRICS_PUBLIC: '1',
+      },
+    });
+
+    await expect(app.ready()).rejects.toThrow(/METRICS_PUBLIC=1 is forbidden/);
+    await app.close();
+  });
+
   it('rejects unauthenticated remote scrapes in production when unset', async () => {
-    const app = Fastify();
+    const app = Fastify({ trustProxy: false });
     await app.register(observabilityPlugin, {
       serviceName: 'prod-svc',
       collectDefaultMetrics: false,
@@ -91,7 +113,6 @@ describe('observabilityPlugin /metrics guard (W1-SEC-07)', () => {
     const loopback = await app.inject({ method: 'GET', url: '/metrics' });
     expect(loopback.statusCode).toBe(200);
 
-    // Simulate a remote peer via remoteAddress on the inject options.
     const remote = await app.inject({
       method: 'GET',
       url: '/metrics',
@@ -102,7 +123,7 @@ describe('observabilityPlugin /metrics guard (W1-SEC-07)', () => {
   });
 
   it('accepts Bearer token when METRICS_BEARER_TOKEN is configured', async () => {
-    const app = Fastify();
+    const app = Fastify({ trustProxy: false });
     await app.register(observabilityPlugin, {
       serviceName: 'token-svc',
       collectDefaultMetrics: false,
@@ -132,7 +153,7 @@ describe('observabilityPlugin /metrics guard (W1-SEC-07)', () => {
   });
 
   it('honours METRICS_ALLOWLIST for production scrapes', async () => {
-    const app = Fastify();
+    const app = Fastify({ trustProxy: false });
     await app.register(observabilityPlugin, {
       serviceName: 'allow-svc',
       collectDefaultMetrics: false,
@@ -159,30 +180,66 @@ describe('observabilityPlugin /metrics guard (W1-SEC-07)', () => {
     await app.close();
   });
 
-  it('allows METRICS_PUBLIC=1 escape hatch', async () => {
-    const app = Fastify();
+  it('ignores spoofed forwarding headers when no proxy is trusted', async () => {
+    const app = Fastify({ trustProxy: false });
     await app.register(observabilityPlugin, {
-      serviceName: 'public-svc',
+      serviceName: 'direct-peer-svc',
       collectDefaultMetrics: false,
       metricsAccessEnv: {
         NODE_ENV: 'production',
-        METRICS_PUBLIC: '1',
+        METRICS_ALLOWLIST: '10.0.0.50',
       },
     });
     await app.ready();
-    const res = await app.inject({
+
+    const spoofed = await app.inject({
       method: 'GET',
       url: '/metrics',
-      remoteAddress: '203.0.113.1',
+      remoteAddress: '203.0.113.20',
+      headers: {
+        'x-forwarded-for': '10.0.0.50',
+        'x-real-ip': '10.0.0.50',
+        forwarded: 'for=10.0.0.50',
+      },
     });
-    expect(res.statusCode).toBe(200);
+    expect(spoofed.statusCode).toBe(403);
+    await app.close();
+  });
+
+  it('uses forwarded client IP only through an explicitly trusted proxy', async () => {
+    const app = Fastify({ trustProxy: ['10.0.0.1'] });
+    await app.register(observabilityPlugin, {
+      serviceName: 'trusted-proxy-svc',
+      collectDefaultMetrics: false,
+      metricsAccessEnv: {
+        NODE_ENV: 'production',
+        METRICS_ALLOWLIST: '10.0.0.50',
+      },
+    });
+    await app.ready();
+
+    const untrustedPeer = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '203.0.113.20',
+      headers: { 'x-forwarded-for': '10.0.0.50' },
+    });
+    expect(untrustedPeer.statusCode).toBe(403);
+
+    const trustedPeer = await app.inject({
+      method: 'GET',
+      url: '/metrics',
+      remoteAddress: '10.0.0.1',
+      headers: { 'x-forwarded-for': '10.0.0.50' },
+    });
+    expect(trustedPeer.statusCode).toBe(200);
     await app.close();
   });
 });
 
 describe('observabilityPlugin enabled switch (G-725)', () => {
   it('registers no /metrics route when enabled=false but still decorates fastify.metrics', async () => {
-    const app = Fastify();
+    const app = Fastify({ trustProxy: false });
     await app.register(observabilityPlugin, { serviceName: 'off-svc', enabled: false });
     app.get('/ping', async () => ({ ok: true }));
     await app.ready();
@@ -197,7 +254,7 @@ describe('observabilityPlugin enabled switch (G-725)', () => {
     const prev = process.env['METRICS_ENABLED'];
     process.env['METRICS_ENABLED'] = 'false';
     try {
-      const app = Fastify();
+      const app = Fastify({ trustProxy: false });
       await app.register(observabilityPlugin, { serviceName: 'env-off' });
       await app.ready();
       const res = await app.inject({ method: 'GET', url: '/metrics' });
