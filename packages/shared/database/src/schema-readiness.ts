@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '094_developer_portal_api_key_lookup.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '095_w1_data_02_rls_safe_deny.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
@@ -21,6 +21,9 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   '092_hostel_assignment_uniqueness.sql',
   '093_developer_portal_tenant_fks.sql',
   '094_developer_portal_api_key_lookup.sql',
+  // Residual 047 policies fail closed only once this migration is applied. Keep it
+  // permanently required so a later marker bump cannot silently stop verifying it.
+  '095_w1_data_02_rls_safe_deny.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {

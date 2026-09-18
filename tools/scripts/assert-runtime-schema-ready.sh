@@ -47,7 +47,8 @@ ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "
       ('082_repair_strict_tenant_fk_validate.sql'),
       ('092_hostel_assignment_uniqueness.sql'),
       ('093_developer_portal_tenant_fks.sql'),
-      ('094_developer_portal_api_key_lookup.sql')
+      ('094_developer_portal_api_key_lookup.sql'),
+      ('095_w1_data_02_rls_safe_deny.sql')
   ), status AS (
     SELECT required.filename,
            migration.migration_applied
