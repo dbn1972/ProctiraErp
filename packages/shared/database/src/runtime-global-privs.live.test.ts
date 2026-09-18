@@ -1,7 +1,7 @@
 /**
- * W1-DATA-11 — runtime must not see or mutate migration ledgers; platform
- * catalogs are SELECT/INSERT only; catalog sync must not leave unauthorized
- * privileges on classified tables.
+ * W1-DATA-11 — runtime must not see or mutate migration/quarantine ledgers;
+ * platform catalogs are SELECT/INSERT; trigger-owned audits are SELECT-only;
+ * catalog sync must not leave unauthorized privileges on classified tables.
  *
  * Requires DATABASE_URL as proctira_app against a DB that applied through 076
  * + apply-runtime-table-privileges sync.
@@ -29,15 +29,21 @@ const APPEND_ONLY = [
   'workflow_transition_audit',
   'transcript_issuances',
   'audit_log_archive',
-  'enrollment_history',
-  'grade_change_audit',
+] as const;
+
+const TRIGGER_OWNED = ['enrollment_history', 'grade_change_audit'] as const;
+
+const DENIED = [
+  'schema_migrations',
+  '_prisma_migrations',
+  'grade_change_audit_orphan_quarantine',
 ] as const;
 
 function loadCatalogClasses(): Record<string, string> {
   const root = join(dirname(fileURLToPath(import.meta.url)), '../../../../');
-  const raw = JSON.parse(
-    readFileSync(join(root, 'db/runtime-table-privileges.json'), 'utf8'),
-  ) as { tables: Record<string, string> };
+  const raw = JSON.parse(readFileSync(join(root, 'db/runtime-table-privileges.json'), 'utf8')) as {
+    tables: Record<string, string>;
+  };
   return raw.tables;
 }
 
@@ -67,16 +73,14 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
       /permission denied/i,
     );
     await expect(
-      pool.query(
-        `INSERT INTO schema_migrations (filename) VALUES ('w1-data-11-should-fail.sql')`,
-      ),
+      pool.query(`INSERT INTO schema_migrations (filename) VALUES ('w1-data-11-should-fail.sql')`),
     ).rejects.toThrow(/permission denied/i);
     await expect(
       pool.query(`UPDATE schema_migrations SET checksum = 'forged' WHERE false`),
     ).rejects.toThrow(/permission denied/i);
-    await expect(
-      pool.query(`DELETE FROM schema_migrations WHERE false`),
-    ).rejects.toThrow(/permission denied/i);
+    await expect(pool.query(`DELETE FROM schema_migrations WHERE false`)).rejects.toThrow(
+      /permission denied/i,
+    );
   });
 
   it('runtime cannot SELECT _prisma_migrations when the table exists', async () => {
@@ -103,9 +107,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
 
       await expect(pool.query(`SELECT 1 FROM ${table} LIMIT 1`)).resolves.toBeTruthy();
 
-      await expect(
-        pool.query(`UPDATE ${table} SET name = name WHERE false`),
-      ).rejects.toThrow(/permission denied/i);
+      await expect(pool.query(`UPDATE ${table} SET name = name WHERE false`)).rejects.toThrow(
+        /permission denied/i,
+      );
       await expect(pool.query(`DELETE FROM ${table} WHERE false`)).rejects.toThrow(
         /permission denied/i,
       );
@@ -157,7 +161,13 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
       ORDER BY 1, 2
     `);
 
-    const allowed = new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE']);
+    const allowedByClass: Record<string, ReadonlySet<string>> = {
+      denied: new Set(),
+      select_insert: new Set(['SELECT', 'INSERT']),
+      append_only: new Set(['SELECT', 'INSERT']),
+      trigger_owned: new Set(['SELECT']),
+      dml: new Set(['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+    };
     const unauthorized: string[] = [];
     for (const row of rows) {
       const cls = classes[row.table_name];
@@ -165,22 +175,26 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
         unauthorized.push(`${row.table_name}:${row.privilege_type} (unclassified)`);
         continue;
       }
-      if (!allowed.has(row.privilege_type)) continue;
-      if (cls === 'denied') {
-        unauthorized.push(`${row.table_name}:${row.privilege_type} (denied)`);
-      } else if (
-        (cls === 'select_insert' || cls === 'append_only') &&
-        (row.privilege_type === 'UPDATE' || row.privilege_type === 'DELETE')
-      ) {
+      const allowed = allowedByClass[cls];
+      if (!allowed) {
+        unauthorized.push(`${row.table_name}:${row.privilege_type} (unknown class ${cls})`);
+      } else if (!allowed.has(row.privilege_type)) {
         unauthorized.push(`${row.table_name}:${row.privilege_type} (${cls})`);
       }
     }
     expect(unauthorized, unauthorized.join(', ')).toEqual([]);
 
-    for (const table of [...GLOBAL_CATALOGS, ...APPEND_ONLY]) {
-      expect(classes[table] === 'select_insert' || classes[table] === 'append_only').toBe(
-        true,
-      );
+    for (const table of GLOBAL_CATALOGS) {
+      expect(classes[table]).toBe('select_insert');
+    }
+    for (const table of APPEND_ONLY) {
+      expect(classes[table]).toBe('append_only');
+    }
+    for (const table of TRIGGER_OWNED) {
+      expect(classes[table]).toBe('trigger_owned');
+    }
+    for (const table of DENIED) {
+      expect(classes[table]).toBe('denied');
     }
   });
 });

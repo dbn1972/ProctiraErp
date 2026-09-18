@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '095_w1_data_02_rls_safe_deny.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '096_w1_data_14_audit_fk_integrity.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
@@ -24,6 +24,10 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   // Residual 047 policies fail closed only once this migration is applied. Keep it
   // permanently required so a later marker bump cannot silently stop verifying it.
   '095_w1_data_02_rls_safe_deny.sql',
+  // Single audit authority: validated parent FKs plus SELECT-only runtime grants on
+  // the trigger-owned audit tables. Stays required so a later marker bump cannot
+  // let a database with unvalidated audit FKs pass readiness.
+  '096_w1_data_14_audit_fk_integrity.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {
