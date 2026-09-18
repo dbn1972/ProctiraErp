@@ -1,6 +1,7 @@
 import {
   createDatabaseSchemaReadinessCheck,
   withPgTenant,
+  type PgPoolWithConnect,
   type PgQueryable,
 } from '@proctira/database';
 
@@ -185,6 +186,28 @@ function mapOffer(row: Record<string, unknown>): OfferRecord {
 
 export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
   constructor(private readonly pool: PgPoolLike) {}
+
+  async withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T> {
+    await ensureAdmissionsPipelineSchema(this.pool);
+    const connectable = this.pool as unknown as PgPoolWithConnect;
+    if (typeof connectable.connect !== 'function') return work();
+    const client = await connectable.connect();
+    try {
+      await client.query(`SELECT pg_advisory_lock(hashtext($1), hashtext($2))`, [
+        tenantId,
+        `admissions-offer-transition:${offerId}`,
+      ]);
+      return await work();
+    } finally {
+      await client
+        .query(`SELECT pg_advisory_unlock(hashtext($1), hashtext($2))`, [
+          tenantId,
+          `admissions-offer-transition:${offerId}`,
+        ])
+        .catch(() => undefined);
+      client.release();
+    }
+  }
 
   private async withTenant<T>(
     tenantId: string,

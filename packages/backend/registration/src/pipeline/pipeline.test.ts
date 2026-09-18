@@ -5,12 +5,12 @@ import { randomUUID } from 'node:crypto';
 
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import Fastify from 'fastify';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryAdmissionsCrmStore } from '../admissions-crm-store.js';
 import { InMemoryRegistrationRepository } from '../in-memory-repository.js';
 import { AdmissionsPipelineService } from './pipeline-service.js';
-import { InMemoryAdmissionsPipelineStore } from './pipeline-store.js';
+import { InMemoryAdmissionsPipelineStore, type OfferRecord } from './pipeline-store.js';
 import { rankCandidates } from './ranking.js';
 import { registerAdmissionsPipelineRoutes } from './routes.js';
 
@@ -180,6 +180,107 @@ describe('admissions pipeline service', () => {
     expect(enrolCalls).toBe(1);
   });
 
+  it('converges when enrollment commits before the accepted-offer update is retried', async () => {
+    class FailAcceptedUpdateOnceStore extends InMemoryAdmissionsPipelineStore {
+      private fail = true;
+
+      override async updateOffer(record: OfferRecord): Promise<OfferRecord> {
+        if (record.status === 'accepted' && this.fail) {
+          this.fail = false;
+          throw new Error('simulated post-enrollment offer update failure');
+        }
+        return super.updateOffer(record);
+      }
+    }
+
+    const store = new FailAcceptedUpdateOnceStore();
+    const apps = new InMemoryRegistrationRepository();
+    const studentId = randomUUID();
+    const enrollmentId = randomUUID();
+    let enrolCalls = 0;
+    const service = new AdmissionsPipelineService(store, apps, async () => {
+      enrolCalls += 1;
+      return { studentId, enrollmentId };
+    });
+
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      seats: 5,
+    });
+    const enquiry = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Retry',
+      lastName: 'Student',
+      dateOfBirth: '2012-01-01',
+      guardianName: 'Parent',
+      guardianPhone: '+91999',
+    });
+    const converted = await service.convertEnquiry(TENANT, enquiry.id);
+    const offer = await service.createOffer(TENANT, { applicationId: converted.application.id });
+    await service.sendOffer(TENANT, offer.id);
+
+    await expect(
+      service.acceptOffer(TENANT, offer.id, { paymentRef: 'SANDBOX-RETRY' }),
+    ).rejects.toThrow(/simulated/);
+    const accepted = await service.acceptOffer(TENANT, offer.id, {
+      paymentRef: 'SANDBOX-RETRY',
+    });
+    expect(accepted.status).toBe('accepted');
+    expect(accepted.enrolledStudentId).toBe(studentId);
+    expect(enrolCalls).toBe(2);
+  });
+
+  it('reconciles provisional student and invoice resources before decline', async () => {
+    const store = new InMemoryAdmissionsPipelineStore();
+    const apps = new InMemoryRegistrationRepository();
+    const invoiceId = randomUUID();
+    const reconcile = vi.fn(async () => undefined);
+    const service = new AdmissionsPipelineService(
+      store,
+      apps,
+      undefined,
+      async () => ({ invoiceId }),
+      undefined,
+      undefined,
+      reconcile,
+    );
+
+    await service.upsertSeat(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      seats: 5,
+    });
+    const enquiry = await service.createEnquiry(TENANT, {
+      institutionId: INSTITUTION,
+      academicPeriodId: PERIOD,
+      gradeId: GRADE,
+      firstName: 'Decline',
+      lastName: 'Student',
+      dateOfBirth: '2012-01-01',
+      guardianName: 'Parent',
+      guardianPhone: '+91888',
+    });
+    const converted = await service.convertEnquiry(TENANT, enquiry.id);
+    const offer = await service.createOffer(TENANT, {
+      applicationId: converted.application.id,
+      feeAmount: 500,
+    });
+    await service.sendOffer(TENANT, offer.id);
+    await service.declineOffer(TENANT, offer.id);
+
+    expect(reconcile).toHaveBeenCalledWith({
+      tenantId: TENANT,
+      applicationId: converted.application.id,
+      invoiceId,
+      status: 'declined',
+    });
+  });
+
   it('mounts pipeline routes under /admissions and converts an enquiry', async () => {
     const store = new InMemoryAdmissionsPipelineStore();
     const apps = new InMemoryRegistrationRepository();
@@ -302,67 +403,67 @@ describe('admissions pipeline service', () => {
   });
 });
 
-  it('W2-ADM-02: declining an offer promotes the head of the waitlist into a draft offer', async () => {
-    const store = new InMemoryAdmissionsPipelineStore();
-    const apps = new InMemoryRegistrationRepository();
-    const crm = new InMemoryAdmissionsCrmStore();
-    const service = new AdmissionsPipelineService(
-      store,
-      apps,
-      async () => ({ studentId: randomUUID(), enrollmentId: randomUUID() }),
-      undefined,
-      undefined,
-      crm,
-    );
+it('W2-ADM-02: declining an offer promotes the head of the waitlist into a draft offer', async () => {
+  const store = new InMemoryAdmissionsPipelineStore();
+  const apps = new InMemoryRegistrationRepository();
+  const crm = new InMemoryAdmissionsCrmStore();
+  const service = new AdmissionsPipelineService(
+    store,
+    apps,
+    async () => ({ studentId: randomUUID(), enrollmentId: randomUUID() }),
+    undefined,
+    undefined,
+    crm,
+  );
 
-    await service.upsertSeat(TENANT, {
-      institutionId: INSTITUTION,
-      academicPeriodId: PERIOD,
-      gradeId: GRADE,
-      quota: 'general',
-      seats: 2,
-    });
-
-    const offered = await service.createEnquiry(TENANT, {
-      institutionId: INSTITUTION,
-      academicPeriodId: PERIOD,
-      gradeId: GRADE,
-      firstName: 'Offered',
-      lastName: 'Student',
-      dateOfBirth: '2012-01-01',
-      guardianName: 'Parent A',
-      guardianPhone: '+911',
-    });
-    const waitlisted = await service.createEnquiry(TENANT, {
-      institutionId: INSTITUTION,
-      academicPeriodId: PERIOD,
-      gradeId: GRADE,
-      firstName: 'Wait',
-      lastName: 'Listed',
-      dateOfBirth: '2012-02-02',
-      guardianName: 'Parent B',
-      guardianPhone: '+922',
-    });
-    const convertedOffer = await service.convertEnquiry(TENANT, offered.id);
-    const convertedWait = await service.convertEnquiry(TENANT, waitlisted.id);
-
-    await crm.enqueueWaitlist({
-      tenantId: TENANT,
-      applicationId: convertedWait.application.id,
-      institutionId: INSTITUTION,
-    });
-
-    const offer = await service.createOffer(TENANT, {
-      applicationId: convertedOffer.application.id,
-    });
-    await service.sendOffer(TENANT, offer.id);
-
-    const declined = await service.declineOffer(TENANT, offer.id);
-    expect(declined.status).toBe('declined');
-    expect(declined.promotedOffer).toBeTruthy();
-    expect(declined.promotedOffer?.applicationId).toBe(convertedWait.application.id);
-    expect(declined.promotedOffer?.status).toBe('draft');
-
-    const remaining = await crm.listWaitlist(TENANT, INSTITUTION);
-    expect(remaining).toHaveLength(0);
+  await service.upsertSeat(TENANT, {
+    institutionId: INSTITUTION,
+    academicPeriodId: PERIOD,
+    gradeId: GRADE,
+    quota: 'general',
+    seats: 2,
   });
+
+  const offered = await service.createEnquiry(TENANT, {
+    institutionId: INSTITUTION,
+    academicPeriodId: PERIOD,
+    gradeId: GRADE,
+    firstName: 'Offered',
+    lastName: 'Student',
+    dateOfBirth: '2012-01-01',
+    guardianName: 'Parent A',
+    guardianPhone: '+911',
+  });
+  const waitlisted = await service.createEnquiry(TENANT, {
+    institutionId: INSTITUTION,
+    academicPeriodId: PERIOD,
+    gradeId: GRADE,
+    firstName: 'Wait',
+    lastName: 'Listed',
+    dateOfBirth: '2012-02-02',
+    guardianName: 'Parent B',
+    guardianPhone: '+922',
+  });
+  const convertedOffer = await service.convertEnquiry(TENANT, offered.id);
+  const convertedWait = await service.convertEnquiry(TENANT, waitlisted.id);
+
+  await crm.enqueueWaitlist({
+    tenantId: TENANT,
+    applicationId: convertedWait.application.id,
+    institutionId: INSTITUTION,
+  });
+
+  const offer = await service.createOffer(TENANT, {
+    applicationId: convertedOffer.application.id,
+  });
+  await service.sendOffer(TENANT, offer.id);
+
+  const declined = await service.declineOffer(TENANT, offer.id);
+  expect(declined.status).toBe('declined');
+  expect(declined.promotedOffer).toBeTruthy();
+  expect(declined.promotedOffer?.applicationId).toBe(convertedWait.application.id);
+  expect(declined.promotedOffer?.status).toBe('draft');
+
+  const remaining = await crm.listWaitlist(TENANT, INSTITUTION);
+  expect(remaining).toHaveLength(0);
+});

@@ -23,7 +23,13 @@ import {
   sendOfferAction,
 } from '../../admissions-actions';
 
-export function OfferPanel({ bundle }: { bundle: ApplicationBundle }) {
+export function OfferPanel({
+  bundle,
+  classes,
+}: {
+  bundle: ApplicationBundle;
+  classes: Array<{ id: string; name: string }>;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -78,11 +84,32 @@ export function OfferPanel({ bundle }: { bundle: ApplicationBundle }) {
             run(() =>
               createOfferAction({
                 applicationId: application.id,
+                classId: String(fd.get('classId') ?? ''),
                 feeAmount: Number(fd.get('feeAmount') || 0),
               }),
             );
           }}
         >
+          <FormField id="offer-class" label="Class / section">
+            <select
+              id="offer-class"
+              name="classId"
+              required
+              defaultValue={classes.length === 1 ? classes[0]!.id : ''}
+              disabled={!hydrated || pending || classes.length === 0}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              data-testid="offer-class"
+            >
+              <option value="" disabled>
+                {classes.length === 0 ? 'No matching class available' : 'Select class'}
+              </option>
+              {classes.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name}
+                </option>
+              ))}
+            </select>
+          </FormField>
           <FormField id="offer-fee" label="Offer fee">
             <Input
               id="offer-fee"
@@ -97,7 +124,7 @@ export function OfferPanel({ bundle }: { bundle: ApplicationBundle }) {
           <Button
             type="submit"
             data-testid="create-offer"
-            disabled={!hydrated || pending || !bundle.placement}
+            disabled={!hydrated || pending || !bundle.placement || classes.length === 0}
           >
             Draft offer
           </Button>

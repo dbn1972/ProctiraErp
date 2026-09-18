@@ -116,3 +116,12 @@ test('developer-portal tenant FK migration creates, validates, and asserts both 
   assert.match(sql, /VALIDATE CONSTRAINT developer_portal_webhook_deliveries_tenant_fk/);
   assert.match(sql, /constraint_state\.convalidated/);
 });
+
+test('developer-portal API-key hash lookup uses a forward read-only policy migration', () => {
+  const sql = readFileSync(join(root, 'db/sql/094_developer_portal_api_key_lookup.sql'), 'utf8');
+  assert.match(sql, /CREATE POLICY platform_api_key_lookup/);
+  assert.match(sql, /FOR SELECT/);
+  assert.match(sql, /app\.platform_admin/);
+  assert.doesNotMatch(sql, /FOR (?:INSERT|UPDATE|DELETE|ALL)/);
+  assert.match(sql, /policyname = 'platform_api_key_lookup'/);
+});

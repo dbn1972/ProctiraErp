@@ -17,15 +17,13 @@ import {
   type AssertOfferFeePaid,
   type CreateOfferFeeInvoice,
   type EnrolOnAccept,
+  type ReconcileOfferResources,
 } from './pipeline/pipeline-service.js';
 import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
 import type { RegistrationRepository } from './registration-repository.js';
 import { RegistrationService } from './registration-service.js';
-import {
-  registerRegistrationRoutes,
-  type RegistrationSessionStore,
-} from './routes.js';
+import { registerRegistrationRoutes, type RegistrationSessionStore } from './routes.js';
 
 /**
  * Options for the registration plugin.
@@ -52,6 +50,8 @@ export interface RegistrationPluginOptions {
   createOfferFeeInvoice?: CreateOfferFeeInvoice;
   /** G-2: require paid offer invoice before enrol. */
   assertOfferFeePaid?: AssertOfferFeePaid;
+  /** Reconcile provisional student/invoice state when an offer ends without enrollment. */
+  reconcileOfferResources?: ReconcileOfferResources;
   /** Route prefix for registration endpoints (default: '/registrations') */
   prefix?: string;
   /** Staff admissions CRM prefix (default: '/admissions') */
@@ -86,6 +86,7 @@ export const registrationPlugin = fp(
       enrolOnAccept,
       createOfferFeeInvoice,
       assertOfferFeePaid,
+      reconcileOfferResources,
       prefix = '/registrations',
       admissionsPrefix = '/admissions',
       defaultTenantId,
@@ -114,6 +115,7 @@ export const registrationPlugin = fp(
       assertOfferFeePaid,
       // Prefer the same store RegistrationService uses (including its default in-memory).
       (registrationService as unknown as { crm: AdmissionsCrmStore }).crm,
+      reconcileOfferResources,
     );
     await registerAdmissionsPipelineRoutes(fastify, {
       service: pipelineService,

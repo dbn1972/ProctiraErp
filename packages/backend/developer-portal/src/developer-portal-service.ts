@@ -342,8 +342,8 @@ export class DeveloperPortalService {
     return this.repository.listApiKeys({ accountId, tenantId, status }, page, pageSize);
   }
 
-  async revokeApiKey(accountId: string, keyId: string): Promise<ApiKeyEntity> {
-    const key = await this.repository.getApiKeyById(keyId);
+  async revokeApiKey(accountId: string, tenantId: string, keyId: string): Promise<ApiKeyEntity> {
+    const key = await this.repository.getApiKeyById(keyId, tenantId);
     if (!key) {
       throw new NotFoundError(`API key '${keyId}' not found`);
     }
@@ -354,7 +354,7 @@ export class DeveloperPortalService {
       throw new BusinessRuleError('API key is already revoked');
     }
 
-    const updated = await this.repository.updateApiKeyStatus(keyId, 'revoked');
+    const updated = await this.repository.updateApiKeyStatus(keyId, 'revoked', tenantId);
     return updated!;
   }
 
@@ -365,7 +365,7 @@ export class DeveloperPortalService {
 
     // Check if expired
     if (key.expiresAt && key.expiresAt < new Date()) {
-      await this.repository.updateApiKeyStatus(key.id, 'expired');
+      await this.repository.updateApiKeyStatus(key.id, 'expired', key.tenantId);
       return null;
     }
 
@@ -373,7 +373,7 @@ export class DeveloperPortalService {
     if (key.status !== 'active') return null;
 
     // Update last used
-    await this.repository.updateApiKeyLastUsed(key.id, new Date());
+    await this.repository.updateApiKeyLastUsed(key.id, new Date(), key.tenantId);
     return key;
   }
 

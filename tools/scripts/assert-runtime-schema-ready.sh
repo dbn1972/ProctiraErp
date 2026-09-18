@@ -46,7 +46,8 @@ ROW="$(psql "$URL" -v ON_ERROR_STOP=1 -At -F $'\t' -c "
     VALUES
       ('082_repair_strict_tenant_fk_validate.sql'),
       ('092_hostel_assignment_uniqueness.sql'),
-      ('093_developer_portal_tenant_fks.sql')
+      ('093_developer_portal_tenant_fks.sql'),
+      ('094_developer_portal_api_key_lookup.sql')
   ), status AS (
     SELECT required.filename,
            migration.migration_applied
@@ -68,4 +69,4 @@ EXPECTED_ROLE="${RUNTIME_ROLE_EXPECTED:-proctira_app}"
 [[ "${MISSING_COUNT:-1}" == "0" ]] \
   || fail "required target migrations missing: ${MISSING_NAMES:-unknown}"
 
-echo "assert-runtime-schema-ready: PASS — ${CURRENT_ROLE} sees required migrations 082, 092, and 093"
+echo "assert-runtime-schema-ready: PASS — ${CURRENT_ROLE} sees required migrations 082, 092, 093, and 094"

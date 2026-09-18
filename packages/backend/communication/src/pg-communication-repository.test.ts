@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { isPgCommunicationEnabled } from './create-communication-repository.js';
@@ -18,6 +19,7 @@ describe('PgCommunicationRepository', () => {
     const repo = new PgCommunicationRepository(pool!);
     const tenantId = randomUUID();
     const campaignId = randomUUID();
+    await ensurePgTestTenant(pool!, tenantId);
 
     await repo.createCampaign({
       id: campaignId,
@@ -42,6 +44,7 @@ describe('PgCommunicationRepository', () => {
     const repo = new PgCommunicationRepository(pool!);
     const tenantId = randomUUID();
     const blastId = randomUUID();
+    await ensurePgTestTenant(pool!, tenantId);
 
     await repo.createEmergencyBlast({
       id: blastId,

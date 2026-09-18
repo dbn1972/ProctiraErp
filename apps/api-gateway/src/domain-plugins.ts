@@ -122,11 +122,8 @@ import {
 } from '@proctira/backend-staff';
 import {
   bindAttendanceHeatmapSource,
-  createEnrollmentRepository,
   createStudentImportQueueFromEnv,
   createStudentRepository,
-  EnrollmentService,
-  StudentService,
   studentPlugin,
 } from '@proctira/backend-student';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
@@ -137,6 +134,7 @@ import {
   WorkflowService,
   workflowPlugin,
 } from '@proctira/backend-workflow';
+import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 
@@ -176,26 +174,118 @@ interface DomainRegistrar {
 }
 
 /** Shared admissions offer fee + enrol hooks (staff accept + parent A2 accept). */
-function createOfferFeeInvoiceHook() {
-  return async (input: {
-    tenantId: string;
-    applicationId: string;
-    offerId: string;
-    feeAmount: number;
-    feeCurrency: string;
-    firstName: string;
-    lastName: string;
-  }) => {
-    const fees = new FeesService(createFeesRepository());
-    const amountCents = Math.round(Number(input.feeAmount) * 100);
-    const invoice = await fees.createInvoice(input.tenantId, 'admissions-offer', {
-      studentId: input.applicationId,
-      title: `Admission offer fee — ${input.firstName} ${input.lastName}`,
-      description: `Offer ${input.offerId}`,
-      amountCents: Math.max(amountCents, 0),
-      currency: input.feeCurrency || 'INR',
+type AdmissionsStudentProfileInput = {
+  tenantId: string;
+  applicationId: string;
+  firstName: string;
+  lastName: string;
+  dateOfBirth: string;
+  gender: string;
+  guardianName: string;
+  guardianPhone: string;
+  guardianEmail: string | null;
+};
+
+/**
+ * Materialize the applicant as a student master before creating a fee invoice.
+ * A student record may legitimately predate enrollment; using applicationId as
+ * the stable student id keeps the offer invoice and eventual enrollment bound
+ * to the same person under the strict student foreign key.
+ */
+async function ensureAdmissionsStudentProfile(input: AdmissionsStudentProfileInput) {
+  const repository = createStudentRepository();
+  const existing = await repository.findById(input.applicationId, input.tenantId);
+  if (existing) return existing;
+
+  const guardianParts = input.guardianName.trim().split(/\s+/);
+  const guardianFirst = guardianParts[0] ?? input.guardianName;
+  const guardianLast = guardianParts.slice(1).join(' ') || guardianFirst;
+  try {
+    return await repository.create({
+      id: input.applicationId,
+      tenantId: input.tenantId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      dateOfBirth: input.dateOfBirth,
+      gender: input.gender,
+      nationalId: null,
+      nationality: null,
+      contacts: [],
+      guardians: [
+        {
+          id: input.applicationId,
+          firstName: guardianFirst,
+          lastName: guardianLast,
+          relationship: 'guardian',
+          contactPhone: input.guardianPhone,
+          contactEmail: input.guardianEmail ?? undefined,
+        },
+      ],
+      identityDocuments: [],
+      customData: {
+        admissionsApplicationId: input.applicationId,
+        admissionsStatus: 'offered',
+      },
     });
-    return { invoiceId: invoice.id };
+  } catch (error) {
+    // Concurrent/retried offer sends converge on the application-derived id.
+    const raced = await repository.findById(input.applicationId, input.tenantId);
+    if (raced) return raced;
+    throw error;
+  }
+}
+
+function createOfferFeeInvoiceHook() {
+  return async (
+    input: AdmissionsStudentProfileInput & {
+      offerId: string;
+      feeAmount: number;
+      feeCurrency: string;
+    },
+  ) => {
+    const student = await ensureAdmissionsStudentProfile(input);
+    const fees = new FeesService(createFeesRepository());
+    const createOrFind = async () => {
+      const amountCents = Math.max(Math.round(Number(input.feeAmount) * 100), 0);
+      const currency = input.feeCurrency || 'INR';
+      const existing = (await fees.listInvoicesForStudentIds(input.tenantId, [student.id])).find(
+        (invoice) =>
+          invoice.createdBy === 'admissions-offer' &&
+          invoice.description === `Admission application ${input.applicationId}` &&
+          invoice.status === 'open' &&
+          invoice.amountCents === amountCents &&
+          invoice.currency === currency,
+      );
+      if (existing) return { invoiceId: existing.id };
+
+      const invoice = await fees.createInvoice(input.tenantId, 'admissions-offer', {
+        studentId: student.id,
+        title: `Admission offer fee — ${input.firstName} ${input.lastName}`,
+        description: `Admission application ${input.applicationId}`,
+        amountCents,
+        currency,
+      });
+      return { invoiceId: invoice.id };
+    };
+
+    const pool = getSharedPgPool();
+    if (!pool) return createOrFind();
+    const lockClient = await pool.connect();
+    try {
+      await lockClient.query(`SELECT pg_advisory_lock(hashtext($1), hashtext($2))`, [
+        input.tenantId,
+        `admissions-offer:${input.applicationId}`,
+      ]);
+      return await createOrFind();
+    } finally {
+      await lockClient
+        .query(`SELECT pg_advisory_unlock(hashtext($1), hashtext($2))`, [
+          input.tenantId,
+          `admissions-offer:${input.applicationId}`,
+        ])
+        .catch(() => undefined);
+      lockClient.release();
+    }
   };
 }
 
@@ -215,50 +305,210 @@ function assertOfferFeePaidHook() {
   };
 }
 
-function createAdmissionsEnrolOnAccept() {
-  const studentService = new StudentService(createStudentRepository());
-  const enrollmentService = new EnrollmentService(createEnrollmentRepository());
+function reconcileAdmissionsOfferResourcesHook() {
   return async (input: {
     tenantId: string;
     applicationId: string;
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string;
-    gender: string;
-    guardianName: string;
-    guardianPhone: string;
-    guardianEmail: string | null;
+    invoiceId: string | null;
+    status: 'declined' | 'expired';
+  }) => {
+    if (input.invoiceId) {
+      const fees = new FeesService(createFeesRepository());
+      const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
+      const netCollected = await fees.getNetCollectedCents(input.tenantId, invoice.id);
+      if (netCollected > 0) {
+        throw new BusinessRuleError(
+          `Admission offer has ${netCollected} cents of collected cash to refund before it can be ${input.status}`,
+        );
+      }
+      if (invoice.status !== 'void') {
+        await fees.voidInvoice(input.tenantId, invoice.id);
+      }
+    }
+
+    const repository = createStudentRepository();
+    const student = await repository.findById(input.applicationId, input.tenantId);
+    if (student) {
+      await repository.update(student.id, input.tenantId, {
+        customData: {
+          ...student.customData,
+          admissionsApplicationId: input.applicationId,
+          admissionsStatus: input.status,
+        },
+      });
+    }
+  };
+}
+
+async function createAdmissionsEnrollment(
+  input: AdmissionsStudentProfileInput & {
     institutionId: string;
     gradeId: string;
+    classId?: string | null;
     academicPeriodId: string;
-  }): Promise<{ studentId: string; enrollmentId: string }> => {
-    const parts = input.guardianName.trim().split(/\s+/);
-    const guardianFirst = parts[0] ?? input.guardianName;
-    const guardianLast = parts.slice(1).join(' ') || guardianFirst;
-    const student = await studentService.create(input.tenantId, {
-      firstName: input.firstName,
-      lastName: input.lastName,
-      dateOfBirth: input.dateOfBirth,
-      gender: input.gender,
-      guardians: [
-        {
-          firstName: guardianFirst,
-          lastName: guardianLast,
-          relationship: 'guardian',
-          contactPhone: input.guardianPhone,
-          contactEmail: input.guardianEmail ?? undefined,
-        },
-      ],
+  },
+): Promise<{ studentId: string; enrollmentId: string }> {
+  const student = await ensureAdmissionsStudentProfile(input);
+  const pool = getSharedPgPool();
+  if (!pool) {
+    throw new BusinessRuleError('Admissions enrollment requires PostgreSQL class placement');
+  }
+
+  try {
+    return await withPgTenant(pool, input.tenantId, async (client) => {
+      const classResult = await client.query(
+        `SELECT c.id, c.capacity
+           FROM classes c
+           JOIN institutions i
+             ON i.id = c.institution_id
+            AND i.tenant_id = c.tenant_id
+          WHERE c.tenant_id = $1::uuid
+            AND c.institution_id = $2::uuid
+            AND c.grade_id = $3::uuid
+            AND c.academic_period_id = $4::uuid
+            AND c.deleted_at IS NULL
+            AND i.deleted_at IS NULL
+            AND lower(i.status) = 'active'
+            AND ($5::uuid IS NULL OR c.id = $5::uuid)
+          ORDER BY c.created_at, c.id
+          LIMIT 2
+          FOR UPDATE OF c`,
+        [
+          input.tenantId,
+          input.institutionId,
+          input.gradeId,
+          input.academicPeriodId,
+          input.classId ?? null,
+        ],
+      );
+      const classes = classResult.rows as Array<{ id: string; capacity: number | null }>;
+      if (classes.length === 0) {
+        throw new BusinessRuleError(
+          'Admissions enrollment requires a valid class for the selected institution, grade, and period',
+        );
+      }
+      if (classes.length > 1) {
+        throw new BusinessRuleError(
+          'Admissions enrollment requires classId when multiple placements are available',
+        );
+      }
+      const selected = classes[0]!;
+      const existingEnrollment = await client.query(
+        `SELECT id, institution_id, grade_id, class_id
+           FROM enrollments
+          WHERE tenant_id = $1::uuid
+            AND student_id = $2::uuid
+            AND academic_period_id = $3::uuid
+            AND status = 'ENROLLED'::enrollment_status
+          LIMIT 1`,
+        [input.tenantId, student.id, input.academicPeriodId],
+      );
+      const existing = existingEnrollment.rows[0] as
+        | { id: string; institution_id: string; grade_id: string; class_id: string | null }
+        | undefined;
+      if (existing) {
+        if (
+          existing.institution_id === input.institutionId &&
+          existing.grade_id === input.gradeId &&
+          existing.class_id === selected.id
+        ) {
+          return { studentId: student.id, enrollmentId: String(existing.id) };
+        }
+        throw new ConflictError(
+          'Student already has an active enrollment in a different class for this academic period',
+        );
+      }
+
+      const capacity = await client.query(
+        `SELECT count(*)::int AS enrolled
+           FROM enrollments
+          WHERE tenant_id = $1::uuid
+            AND class_id = $2::uuid
+            AND academic_period_id = $3::uuid
+            AND status = 'ENROLLED'::enrollment_status`,
+        [input.tenantId, selected.id, input.academicPeriodId],
+      );
+      if (
+        selected.capacity != null &&
+        Number((capacity.rows[0] as { enrolled: number }).enrolled) >= Number(selected.capacity)
+      ) {
+        throw new ConflictError('Selected class has no remaining enrollment capacity');
+      }
+
+      const counter = await client.query(
+        `INSERT INTO student_admission_counters (tenant_id, last_value, updated_at)
+         VALUES ($1::uuid, 1, now())
+         ON CONFLICT (tenant_id) DO UPDATE
+           SET last_value = student_admission_counters.last_value + 1,
+               updated_at = now()
+         RETURNING last_value`,
+        [input.tenantId],
+      );
+      const seq = Number((counter.rows[0] as { last_value: number }).last_value);
+      const admissionNo = `ADM-${new Date().getUTCFullYear()}-${String(seq).padStart(4, '0')}`;
+      await client.query(
+        `UPDATE students
+            SET admission_number = $3::text,
+                custom_data = COALESCE(custom_data, '{}'::jsonb) ||
+                  jsonb_build_object(
+                    'admissionNo', $3::text,
+                    'admissionNumber', $3::text,
+                    'admissionsApplicationId', $2::text,
+                    'admissionsStatus', 'enrolled'
+                  ),
+                updated_at = now()
+          WHERE id = $2::uuid AND tenant_id = $1::uuid`,
+        [input.tenantId, student.id, admissionNo],
+      );
+
+      const enrolledAt = new Date().toISOString().slice(0, 10);
+      await client.query(`SELECT set_config('app.enrollment_history_reason', $1, true)`, [
+        'Admission offer accepted',
+      ]);
+      await client.query(`SELECT set_config('app.enrollment_history_effective_date', $1, true)`, [
+        enrolledAt,
+      ]);
+      const enrollment = await client.query(
+        `INSERT INTO enrollments (
+           id, tenant_id, student_id, institution_id, grade_id, class_id,
+           academic_period_id, status, enrolled_at
+         ) VALUES (
+           gen_random_uuid(), $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+           $6::uuid, 'ENROLLED'::enrollment_status, $7::date
+         )
+         RETURNING id`,
+        [
+          input.tenantId,
+          student.id,
+          input.institutionId,
+          input.gradeId,
+          selected.id,
+          input.academicPeriodId,
+          enrolledAt,
+        ],
+      );
+      return {
+        studentId: student.id,
+        enrollmentId: String((enrollment.rows[0] as { id: string }).id),
+      };
     });
-    const enrollment = await enrollmentService.createEnrollment(input.tenantId, {
-      studentId: student.id,
-      institutionId: input.institutionId,
-      gradeId: input.gradeId,
-      academicPeriodId: input.academicPeriodId,
-      enrolledAt: new Date().toISOString().slice(0, 10),
-    });
-    return { studentId: student.id, enrollmentId: enrollment.id };
-  };
+  } catch (error) {
+    if ((error as { code?: string }).code === '23505') {
+      throw new ConflictError('Student already has an active enrollment for this academic period');
+    }
+    throw error;
+  }
+}
+
+function createAdmissionsEnrolOnAccept() {
+  return (
+    input: AdmissionsStudentProfileInput & {
+      institutionId: string;
+      gradeId: string;
+      classId?: string | null;
+      academicPeriodId: string;
+    },
+  ) => createAdmissionsEnrollment(input);
 }
 
 /**
@@ -910,6 +1160,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         createAdmissionsEnrolOnAccept(),
         createOfferFeeInvoiceHook(),
         assertOfferFeePaidHook(),
+        undefined,
+        reconcileAdmissionsOfferResourcesHook(),
       );
       await scope.register(parentPortalPlugin, {
         repository,
@@ -945,6 +1197,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         admissionsPrefix: '/admissions',
         createOfferFeeInvoice: createOfferFeeInvoiceHook(),
         assertOfferFeePaid: assertOfferFeePaidHook(),
+        reconcileOfferResources: reconcileAdmissionsOfferResourcesHook(),
         enrolOnAccept: createAdmissionsEnrolOnAccept(),
       });
     },

@@ -44,9 +44,9 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
     return this.memory.createApiKey(key);
   }
 
-  async getApiKeyById(id: string): Promise<ApiKeyEntity | null> {
-    if (this.apiKeys) return this.apiKeys.getApiKeyById(id);
-    return this.memory.getApiKeyById(id);
+  async getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null> {
+    if (this.apiKeys) return this.apiKeys.getApiKeyById(id, tenantId);
+    return this.memory.getApiKeyById(id, tenantId);
   }
 
   async getApiKeyByHash(keyHash: string): Promise<ApiKeyEntity | null> {
@@ -66,26 +66,20 @@ export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedR
   async updateApiKeyStatus(
     id: string,
     status: ApiKeyEntity['status'],
-    tenantId?: string,
+    tenantId: string,
   ): Promise<ApiKeyEntity | null> {
     if (this.apiKeys) {
-      const existing = await this.apiKeys.getApiKeyById(id);
-      if (!existing) return null;
-      const scopeTenant = tenantId ?? existing.tenantId;
-      return this.apiKeys.updateApiKeyStatus(id, status, scopeTenant);
+      return this.apiKeys.updateApiKeyStatus(id, status, tenantId);
     }
-    return this.memory.updateApiKeyStatus(id, status);
+    return this.memory.updateApiKeyStatus(id, status, tenantId);
   }
 
-  async updateApiKeyLastUsed(id: string, lastUsedAt: Date, tenantId?: string): Promise<void> {
+  async updateApiKeyLastUsed(id: string, lastUsedAt: Date, tenantId: string): Promise<void> {
     if (this.apiKeys) {
-      const existing = await this.apiKeys.getApiKeyById(id);
-      if (!existing) return;
-      const scopeTenant = tenantId ?? existing.tenantId;
-      await this.apiKeys.updateApiKeyLastUsed(id, lastUsedAt, scopeTenant);
+      await this.apiKeys.updateApiKeyLastUsed(id, lastUsedAt, tenantId);
       return;
     }
-    await this.memory.updateApiKeyLastUsed(id, lastUsedAt);
+    await this.memory.updateApiKeyLastUsed(id, lastUsedAt, tenantId);
   }
 
   // ─── Developer Accounts (Postgres when durable store configured) ──────────

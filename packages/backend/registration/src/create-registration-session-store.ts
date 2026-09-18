@@ -89,6 +89,13 @@ function createRedisClientFromUrl(redisUrl: string): RedisLikeForRegistrationSes
   });
 }
 
+function resolveEnvValue(
+  env: RegistrationSessionStoreEnv,
+  key: 'REDIS_URL' | 'NODE_ENV' | 'REQUIRE_DATABASE',
+): string | undefined {
+  return Object.prototype.hasOwnProperty.call(env, key) ? env[key] : process.env[key];
+}
+
 /**
  * Build a registration session store.
  *
@@ -109,7 +116,7 @@ export function createRegistrationSessionStore(
     return new RedisRegistrationSessionStore(env.redis);
   }
 
-  const redisUrl = (env.REDIS_URL ?? process.env['REDIS_URL'])?.trim();
+  const redisUrl = resolveEnvValue(env, 'REDIS_URL')?.trim();
   if (redisUrl) {
     return new RedisRegistrationSessionStore(createRedisClientFromUrl(redisUrl));
   }
@@ -117,10 +124,10 @@ export function createRegistrationSessionStore(
   assertInMemoryFallbackAllowed(
     'registration-session',
     readPersistencePolicyEnv({
-      NODE_ENV: env.NODE_ENV ?? process.env['NODE_ENV'],
+      NODE_ENV: resolveEnvValue(env, 'NODE_ENV'),
       // Intentionally omit DATABASE_URL — see factory note above.
       DATABASE_URL: undefined,
-      REQUIRE_DATABASE: env.REQUIRE_DATABASE ?? process.env['REQUIRE_DATABASE'],
+      REQUIRE_DATABASE: resolveEnvValue(env, 'REQUIRE_DATABASE'),
     }),
   );
   return new InMemorySessionStore();

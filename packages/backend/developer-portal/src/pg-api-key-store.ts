@@ -101,11 +101,12 @@ export class PgApiKeyStore {
     });
   }
 
-  async getApiKeyById(id: string): Promise<ApiKeyEntity | null> {
-    return withPlatformScope(this.pool, async (client) => {
-      const result = await client.query(`SELECT * FROM developer_portal_api_keys WHERE id = $1`, [
-        id,
-      ]);
+  async getApiKeyById(id: string, tenantId: string): Promise<ApiKeyEntity | null> {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM developer_portal_api_keys WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       const row = result.rows[0] as Record<string, unknown> | undefined;
       return row ? mapApiKey(row) : null;
     });

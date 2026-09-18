@@ -1,6 +1,8 @@
 /**
  * G-210 — report-card repository factories enable assessment routes.
  */
+import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 import Fastify from 'fastify';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,6 +21,10 @@ import {
 
 describe('report-card repository factories (G-210)', () => {
   it('wires report-card routes when factories are composed into assessmentPlugin', async () => {
+    const tenantId = uuidv4();
+    const pool = getSharedPgPool();
+    if (pool) await ensurePgTestTenant(pool, tenantId);
+
     const app = Fastify();
     app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
@@ -26,7 +32,7 @@ describe('report-card repository factories (G-210)', () => {
         tenantId?: string;
         user?: { sub: string; roles: string[] };
       };
-      context.tenantId = uuidv4();
+      context.tenantId = tenantId;
       context.user = { sub: 'test-user', roles: ['teacher'] };
     });
 

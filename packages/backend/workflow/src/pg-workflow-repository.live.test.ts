@@ -7,9 +7,10 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
-import { getSharedPgPool, withPgTenant } from '@proctira/database';
+import { getSharedPgPool, withPlatformScope } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import { createWorkflowRepositories } from './create-workflow-repositories.js';
 import { InMemoryWorkflowRepository } from './in-memory-repository.js';
@@ -17,17 +18,17 @@ import { PgCaseRepository, PgWorkflowRepository } from './pg-workflow-repository
 import { workflowPlugin } from './workflow-plugin.js';
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-workflow-repository.live.test' });
 
-
 const pool = getSharedPgPool();
 const live = pool !== null;
+const MIGRATOR_DATABASE_URL = process.env['MIGRATOR_DATABASE_URL']?.trim();
+const ownerPool = MIGRATOR_DATABASE_URL ? getSharedPgPool(MIGRATOR_DATABASE_URL) : null;
+
+afterAll(async () => {
+  await ownerPool?.end();
+});
 
 async function seedTenant(tenantId: string): Promise<void> {
-  await withPgTenant(pool!, tenantId, (client) =>
-    client.query(
-      `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [tenantId, `wf-${tenantId.slice(0, 8)}`, `wf-${tenantId}`],
-    ),
-  );
+  await ensurePgTestTenant(pool!, tenantId);
 }
 
 async function buildApp(tenantId: string): Promise<FastifyInstance> {
@@ -163,68 +164,77 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     await again.close();
   });
 
-  it('isolates tenants under RLS and keeps the transition audit append-only', async () => {
-    const tenantA = randomUUID();
-    const tenantB = randomUUID();
-    await seedTenant(tenantA);
-    await seedTenant(tenantB);
-    const repo = new PgWorkflowRepository(pool!);
+  it.skipIf(!ownerPool)(
+    'isolates tenants under RLS and keeps the transition audit append-only',
+    async () => {
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      await seedTenant(tenantA);
+      await seedTenant(tenantB);
+      const repo = new PgWorkflowRepository(pool!);
 
-    const definition = await repo.createDefinition({
-      id: randomUUID(),
-      tenantId: tenantA,
-      name: 'Leave approval',
-      entityType: 'staff_leave',
-      description: null,
-      states: definitionBody.states as never,
-      transitions: definitionBody.transitions as never,
-      escalationRules: null,
-    });
-    const instance = await repo.createInstance({
-      id: randomUUID(),
-      tenantId: tenantA,
-      workflowDefinitionId: definition.id,
-      entityType: 'staff_leave',
-      entityId: 'staff-1',
-      currentStateId: 'draft',
-      status: 'ACTIVE',
-      metadata: null,
-      approvals: [],
-    });
-    const audit = await repo.createAuditRecord({
-      id: randomUUID(),
-      tenantId: tenantA,
-      instanceId: instance.id,
-      fromStateId: 'draft',
-      toStateId: 'review',
-      action: 'submit',
-      actorId: 'staff-1',
-      comments: null,
-      timestamp: new Date(),
-    });
+      const definition = await repo.createDefinition({
+        id: randomUUID(),
+        tenantId: tenantA,
+        name: 'Leave approval',
+        entityType: 'staff_leave',
+        description: null,
+        states: definitionBody.states as never,
+        transitions: definitionBody.transitions as never,
+        escalationRules: null,
+      });
+      const instance = await repo.createInstance({
+        id: randomUUID(),
+        tenantId: tenantA,
+        workflowDefinitionId: definition.id,
+        entityType: 'staff_leave',
+        entityId: 'staff-1',
+        currentStateId: 'draft',
+        status: 'ACTIVE',
+        metadata: null,
+        approvals: [],
+      });
+      const audit = await repo.createAuditRecord({
+        id: randomUUID(),
+        tenantId: tenantA,
+        instanceId: instance.id,
+        fromStateId: 'draft',
+        toStateId: 'review',
+        action: 'submit',
+        actorId: 'staff-1',
+        comments: null,
+        timestamp: new Date(),
+      });
 
-    expect(await repo.findDefinitionById(definition.id, tenantB)).toBeNull();
-    expect(await repo.findInstanceById(instance.id, tenantB)).toBeNull();
-    expect(await repo.getAuditHistory(instance.id, tenantB)).toEqual([]);
-    expect(
-      (await repo.listDefinitions(tenantB, {}, { page: 1, pageSize: 10 })).meta.totalItems,
-    ).toBe(0);
-    expect(
-      (await repo.listInstances(tenantA, { status: 'ACTIVE' }, { page: 1, pageSize: 10 })).meta
-        .totalItems,
-    ).toBe(1);
+      expect(await repo.findDefinitionById(definition.id, tenantB)).toBeNull();
+      expect(await repo.findInstanceById(instance.id, tenantB)).toBeNull();
+      expect(await repo.getAuditHistory(instance.id, tenantB)).toEqual([]);
+      expect(
+        (await repo.listDefinitions(tenantB, {}, { page: 1, pageSize: 10 })).meta.totalItems,
+      ).toBe(0);
+      expect(
+        (await repo.listInstances(tenantA, { status: 'ACTIVE' }, { page: 1, pageSize: 10 })).meta
+          .totalItems,
+      ).toBe(1);
 
-    await expect(
-      withPgTenant(pool!, tenantA, (client) =>
-        client.query(`UPDATE workflow_transition_audit SET action = 'tampered' WHERE id = $1`, [
-          audit.id,
-        ]),
-      ),
-    ).rejects.toThrow(/append-only/);
-    await expect(
-      withPgTenant(pool!, tenantA, (client) =>
-        client.query(`DELETE FROM workflow_transition_audit WHERE id = $1`, [audit.id]),
-      ),
-    ).rejects.toThrow(/append-only/);
-  });
+      await expect(
+        withPlatformScope(
+          ownerPool!,
+          (client) =>
+            client.query(`UPDATE workflow_transition_audit SET action = 'tampered' WHERE id = $1`, [
+              audit.id,
+            ]),
+          tenantA,
+        ),
+      ).rejects.toThrow(/append-only/);
+      await expect(
+        withPlatformScope(
+          ownerPool!,
+          (client) =>
+            client.query(`DELETE FROM workflow_transition_audit WHERE id = $1`, [audit.id]),
+          tenantA,
+        ),
+      ).rejects.toThrow(/append-only/);
+    },
+  );
 });

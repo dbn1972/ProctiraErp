@@ -775,6 +775,9 @@ jobs:
         env:
           # W1-DATA-01: runtime suites must use the non-owner app role.
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          # Owner-only trigger/maintenance proofs use this explicit test role;
+          # ordinary repository paths continue to use DATABASE_URL above.
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
@@ -786,6 +789,7 @@ jobs:
         run: pnpm test:pg:gate
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           CI: true
           FORBID_TEST_SKIPS: '1'
           PG_TEST_MIN_EXECUTED: '25'
@@ -798,6 +802,7 @@ jobs:
         run: pnpm test:live:gate
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           CI: true
           REQUIRE_LIVE_TESTS: '1'
           LIVE_TEST_MIN_EXECUTED: '10'
