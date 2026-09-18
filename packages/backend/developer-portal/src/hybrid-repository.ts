@@ -26,8 +26,8 @@ import type {
   AnalyticsFilter,
 } from './developer-portal-repository.js';
 import { InMemoryDeveloperPortalRepository } from './in-memory-repository.js';
-import { PgApiKeyStore } from './pg-api-key-store.js';
-import { PgDeveloperPortalDurableStore } from './pg-durable-store.js';
+import type { PgApiKeyStore } from './pg-api-key-store.js';
+import type { PgDeveloperPortalDurableStore } from './pg-durable-store.js';
 
 export class HybridDeveloperPortalRepository implements DeveloperPortalExtendedRepository {
   private readonly memory = new InMemoryDeveloperPortalRepository();

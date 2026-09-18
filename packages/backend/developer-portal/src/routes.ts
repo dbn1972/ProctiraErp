@@ -27,11 +27,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { DeveloperPortalService } from './developer-portal-service.js';
 import {
-  WEBHOOK_SIGNATURE_HEADER,
-  WEBHOOK_TIMESTAMP_HEADER,
-  WEBHOOK_NONCE_HEADER,
-} from './webhook-signature.js';
-import {
   CreateDeveloperAccountSchema,
   UpdateDeveloperAccountSchema,
   DeveloperAccountParamsSchema,
@@ -75,6 +70,11 @@ import type {
   AnalyticsQuery,
   RecordAnalyticsEventInput,
 } from './schemas.js';
+import {
+  WEBHOOK_SIGNATURE_HEADER,
+  WEBHOOK_TIMESTAMP_HEADER,
+  WEBHOOK_NONCE_HEADER,
+} from './webhook-signature.js';
 
 /**
  * Options for registering developer portal routes.

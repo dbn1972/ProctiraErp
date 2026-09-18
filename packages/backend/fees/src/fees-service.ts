@@ -3,6 +3,7 @@
  * recordPayment enforces receipt.amountCents === payment.amountCents === invoice.amountCents.
  */
 import { BusinessRuleError, ConflictError, NotFoundError, pgIntegerCents } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -421,7 +422,7 @@ export class FeesService {
     input: RecordPaymentInput,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         settlement: {
           invoice: FeeInvoiceEntity;
           payment: FeePaymentEntity;
