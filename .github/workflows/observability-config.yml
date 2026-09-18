@@ -73,6 +73,14 @@ jobs:
       - name: promtool check config + rules
         run: |
           set -euo pipefail
+          # W1-SEC-07: the kubernetes-pods job authenticates to /metrics with a
+          # bearer token read from disk. promtool stats credentials_file, and the
+          # real value is mounted from the proctira-metrics Secret at deploy time,
+          # so CI supplies a throwaway file to validate config structure without
+          # putting a credential in the repository.
+          sudo mkdir -p /etc/prometheus/secrets/proctira-metrics
+          printf 'ci-placeholder-not-a-real-token' \
+            | sudo tee /etc/prometheus/secrets/proctira-metrics/token >/dev/null
           /tmp/promtool check config infra/observability/prometheus.yml
           /tmp/promtool check rules infra/observability/alerts/*.yml
 
