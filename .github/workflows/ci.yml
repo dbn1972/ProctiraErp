@@ -109,6 +109,13 @@ jobs:
               - 'tools/**'
               - 'docs/**'
 
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Unit-test event-aware Turbo ranges (W1-OPS-22)
+        run: node --test tools/scripts/resolve-turbo-filter-base.test.mjs
+
   # ---------------------------------------------------------------------------
   # Lint - ESLint + Prettier check
   # ---------------------------------------------------------------------------
@@ -120,11 +127,48 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          # Check out the PR head (not the merge commit). Shallow depth is fine
-          # here — turbo affected filters live in typecheck/unit/build/integration
-          # and resolve merge-base via W1-OPS-22.
+          # Full history is required so lint/format cover the complete PR range,
+          # not only the tip commit.
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 2
+          fetch-depth: 0
+
+      - name: Fetch lint/format comparison refs
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
+            || git fetch --no-tags origin main
+
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            [[ "$PR_BASE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] \
+              || { echo "Invalid pull-request base SHA" >&2; exit 1; }
+            git cat-file -e "${PR_BASE_SHA}^{commit}" 2>/dev/null \
+              || git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] \
+              || { echo "Invalid push before SHA" >&2; exit 1; }
+            if [[ ! "$PUSH_BEFORE_SHA" =~ ^0{40}$ ]]; then
+              git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null \
+                || git fetch --no-tags origin "$PUSH_BEFORE_SHA"
+            fi
+          fi
+
+      - name: Resolve lint/format comparison base
+        id: lint-base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          node tools/scripts/resolve-turbo-filter-base.mjs \
+            --changed-files-base \
+            --event-name "$EVENT_NAME" \
+            --pr-base "$PR_BASE_SHA" \
+            --push-before "$PUSH_BEFORE_SHA" \
+            --github-output
 
       - uses: pnpm/action-setup@v6
         with:
@@ -138,14 +182,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run ESLint (tip-changed sources only)
+      - name: Run ESLint (full change range)
         run: |
-          # Tip-only: lint the TS/JS files touched in HEAD, not entire
-          # packages. Touching a package config (e.g. lighthouserc.cjs) must
-          # not fail the PR on pre-existing debt elsewhere in that package.
           mapfile -t FILES < <(
-            git diff --name-only --diff-filter=ACMR HEAD~1 HEAD -- \
-              '*.ts' '*.tsx' '*.js' '*.jsx' \
+            git diff --name-only --diff-filter=ACMR "${{ steps.lint-base.outputs.base }}" HEAD -- \
+              '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.jsx' '*.mjs' '*.cjs' \
               | grep -vE '(^|/)(dist|\.next|coverage|node_modules)/' \
               || true
           )
@@ -155,7 +196,12 @@ jobs:
           fi
           echo "Linting ${#FILES[@]} tip file(s):"
           printf '  %s\n' "${FILES[@]}"
-          pnpm exec eslint --no-error-on-unmatched-pattern "${FILES[@]}"
+          BATCH_SIZE=32
+          for ((offset = 0; offset < ${#FILES[@]}; offset += BATCH_SIZE)); do
+            batch=("${FILES[@]:offset:BATCH_SIZE}")
+            echo "Running ESLint batch $((offset / BATCH_SIZE + 1)) (${#batch[@]} files)"
+            pnpm exec eslint --no-error-on-unmatched-pattern "${batch[@]}"
+          done
 
       - name: Run accessibility ESLint scan (icon-only buttons)
         run: pnpm run lint:a11y
@@ -169,8 +215,21 @@ jobs:
       - name: Check hardcoded brand strings (non-TypeScript assets)
         run: pnpm run check:brand-strings
 
-      - name: Check formatting (repo-wide, G-733)
-        run: pnpm run format:check
+      - name: Check formatting (full change range; baseline debt isolated)
+        run: |
+          mapfile -t FILES < <(
+            git diff --name-only --diff-filter=ACMR "${{ steps.lint-base.outputs.base }}" HEAD -- \
+              '*.ts' '*.tsx' '*.mts' '*.cts' '*.js' '*.jsx' '*.mjs' '*.cjs' '*.json' '*.md' '*.yaml' '*.yml' \
+              | grep -vE '(^|/)(dist|\.next|coverage|node_modules)/' \
+              || true
+          )
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No changed Prettier-supported files."
+            exit 0
+          fi
+          echo "Checking formatting for ${#FILES[@]} changed file(s):"
+          printf '  %s\n' "${FILES[@]}"
+          pnpm exec prettier --check "${FILES[@]}"
 
   # ---------------------------------------------------------------------------
   # Type Check - TypeScript compilation
@@ -190,18 +249,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -247,18 +321,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -323,18 +412,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -579,18 +683,33 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch turbo filter base refs (W1-OPS-22)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.pull_request.base.sha }}" ]; then
-            git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            if [ -z "$PR_BASE_SHA" ]; then
+              echo "pull_request event is missing github.event.pull_request.base.sha" >&2
+              exit 1
+            fi
+            git fetch --no-tags origin "$PR_BASE_SHA"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            if [[ "$PUSH_BEFORE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && \
+               [ "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+              # The previous pushed commit can be unreachable after a force-push.
+              # Best-effort fetch it; the resolver selects all packages if the
+              # object is still unavailable instead of proving an empty range.
+              git fetch --no-tags origin "$PUSH_BEFORE_SHA" || true
+            fi
           fi
-          git fetch --no-tags origin main:refs/remotes/origin/main 2>/dev/null \
-            || git fetch --no-tags origin main
 
       - name: Resolve turbo filter base (W1-OPS-22)
         id: turbo
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: node tools/scripts/resolve-turbo-filter-base.mjs --github-output
 
       - uses: pnpm/action-setup@v6
@@ -656,6 +775,9 @@ jobs:
         env:
           # W1-DATA-01: runtime suites must use the non-owner app role.
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          # Owner-only trigger/maintenance proofs use this explicit test role;
+          # ordinary repository paths continue to use DATABASE_URL above.
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           REDIS_URL: redis://localhost:6379
           NODE_ENV: test
           CI: true
@@ -667,6 +789,7 @@ jobs:
         run: pnpm test:pg:gate
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           CI: true
           FORBID_TEST_SKIPS: '1'
           PG_TEST_MIN_EXECUTED: '25'
@@ -679,6 +802,7 @@ jobs:
         run: pnpm test:live:gate
         env:
           DATABASE_URL: postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_test
+          MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
           CI: true
           REQUIRE_LIVE_TESTS: '1'
           LIVE_TEST_MIN_EXECUTED: '10'
@@ -1059,6 +1183,15 @@ jobs:
       - name: Install psql client
         run: sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq postgresql-client
 
+      - name: Bootstrap runtime role required by privilege-sync recovery drill
+        env:
+          BOOTSTRAP_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          MIGRATOR_PASSWORD: proctira_test
+          APP_ROLE_PASSWORD: proctira_app_test
+          BOOTSTRAP_DB_NAME: postgres
+          BOOTSTRAP_PIN_MIGRATOR_ATTRIBUTES: '1'
+        run: bash tools/scripts/bootstrap-db-roles.sh
+
       - name: Unit-test migration timeout + DDL hazard + recovery contracts
         run: node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs
         env:
@@ -1170,17 +1303,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
 
-      - name: Unit-test runtime role gate
-        run: |
-          node --test tools/scripts/assert-runtime-database-role.test.mjs
-          node --test tools/scripts/check-runtime-role-gate.test.mjs
+      - name: Install dependencies for AST-backed runtime source inspection
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit-test runtime database role evaluator
+        run: node --test tools/scripts/assert-runtime-database-role.test.mjs
+
+      - name: Unit-test runtime/deploy workflow contracts
+        run: node --test tools/scripts/check-runtime-role-gate.test.mjs
+
+      - name: Unit-test AST-backed runtime DDL gate
+        run: node --test tools/scripts/check-no-runtime-ddl.test.mjs
+
+      - name: Unit-test target migration contract
+        run: node --test tools/scripts/target-database-migration-contract.test.mjs
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
+
+      - name: Fail when application runtimes load migrations or issue DDL
+        run: node tools/scripts/check-no-runtime-ddl.mjs
 
   # ---------------------------------------------------------------------------
   # Security scans — SAST / secrets / IaC / container FS CVE (W1-OPS-11)

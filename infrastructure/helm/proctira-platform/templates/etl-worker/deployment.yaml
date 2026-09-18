@@ -29,15 +29,26 @@ spec:
         checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "proctira.podSecurityContext" . | nindent 8 }}
       terminationGracePeriodSeconds: 60
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: etl-worker
           image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.etlWorker.image "appVersion" .Chart.AppVersion) }}
           imagePullPolicy: {{ .Values.etlWorker.image.pullPolicy }}
+          securityContext:
+            {{- include "proctira.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           ports:
             - name: http
               containerPort: {{ .Values.etlWorker.service.targetPort }}

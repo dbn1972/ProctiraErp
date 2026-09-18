@@ -191,7 +191,7 @@ class ExaminationRepository {
         '/api/v1/examinations/results',
         queryParameters: <String, dynamic>{
           'studentId': studentId,
-          if (examinationId != null) 'examinationId': examinationId,
+          'examinationId': ?examinationId,
         },
       );
 

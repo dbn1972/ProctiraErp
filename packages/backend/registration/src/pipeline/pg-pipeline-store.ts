@@ -1,8 +1,9 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgPoolWithConnect,
+  type PgQueryable,
+} from '@proctira/database';
 
 import { ensureRegistrationSchema, type PgPoolLike } from '../pg-registration-repository.js';
 
@@ -18,35 +19,14 @@ import type {
 } from './pipeline-store.js';
 import type { EnquirySource, EnquiryStage, FollowupStatus, OfferStatus } from './schemas.js';
 
-let pipelineSchemaReady: Promise<void> | null = null;
-
-function pipelineSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../../db/sql/034_admissions_crm_schema.sql'),
-    join(process.cwd(), 'db/sql/034_admissions_crm_schema.sql'),
-    join(process.cwd(), '../../db/sql/034_admissions_crm_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
+const ensureAdmissionsPipelineSchemaReady = createDatabaseSchemaReadinessCheck(
+  'admissions pipeline',
+  'admissionsPipeline',
+);
 
 export async function ensureAdmissionsPipelineSchema(pool: PgPoolLike): Promise<void> {
   await ensureRegistrationSchema(pool);
-  if (!pipelineSchemaReady) {
-    pipelineSchemaReady = (async () => {
-      const sql = readFileSync(pipelineSqlPath(), 'utf8');
-      await pool.query(sql);
-    })();
-  }
-  await pipelineSchemaReady;
+  await ensureAdmissionsPipelineSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {
@@ -206,6 +186,28 @@ function mapOffer(row: Record<string, unknown>): OfferRecord {
 
 export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
   constructor(private readonly pool: PgPoolLike) {}
+
+  async withOfferLock<T>(tenantId: string, offerId: string, work: () => Promise<T>): Promise<T> {
+    await ensureAdmissionsPipelineSchema(this.pool);
+    const connectable = this.pool as unknown as PgPoolWithConnect;
+    if (typeof connectable.connect !== 'function') return work();
+    const client = await connectable.connect();
+    try {
+      await client.query(`SELECT pg_advisory_lock(hashtext($1), hashtext($2))`, [
+        tenantId,
+        `admissions-offer-transition:${offerId}`,
+      ]);
+      return await work();
+    } finally {
+      await client
+        .query(`SELECT pg_advisory_unlock(hashtext($1), hashtext($2))`, [
+          tenantId,
+          `admissions-offer-transition:${offerId}`,
+        ])
+        .catch(() => undefined);
+      client.release();
+    }
+  }
 
   private async withTenant<T>(
     tenantId: string,

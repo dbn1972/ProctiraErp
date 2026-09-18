@@ -83,8 +83,19 @@ describe('DeveloperPortalService', () => {
         name: 'Revoke Key',
         scopes: ['read:all'],
       });
-      const revoked = await service.revokeApiKey(testAccount.id, entity.id);
+      const revoked = await service.revokeApiKey(testAccount.id, TEST_TENANT_ID, entity.id);
       expect(revoked.status).toBe('revoked');
+    });
+
+    it('should deny cross-tenant API key revocation', async () => {
+      const { entity } = await service.createApiKey(testAccount.id, TEST_TENANT_ID, {
+        name: 'Tenant-bound key',
+        scopes: ['read:all'],
+      });
+      await expect(
+        service.revokeApiKey(testAccount.id, '00000000-0000-4000-8000-0000000000bb', entity.id),
+      ).rejects.toThrow(NotFoundError);
+      expect((await repository.getApiKeyById(entity.id, TEST_TENANT_ID))?.status).toBe('active');
     });
 
     it('should enforce max API keys per account', async () => {

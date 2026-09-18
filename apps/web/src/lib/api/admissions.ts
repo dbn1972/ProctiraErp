@@ -404,6 +404,7 @@ export async function setApplicationPlacement(
 
 export async function createAdmissionOffer(input: {
   applicationId: string;
+  classId: string;
   feeAmount?: number;
   expiresAt?: string;
 }): Promise<AdmissionOffer> {

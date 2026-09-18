@@ -12,6 +12,10 @@
     "./client": {
       "types": "./src/client.ts",
       "default": "./src/client.ts"
+    },
+    "./test-fixtures": {
+      "types": "./src/test-fixtures.ts",
+      "default": "./src/test-fixtures.ts"
     }
   },
   "scripts": {

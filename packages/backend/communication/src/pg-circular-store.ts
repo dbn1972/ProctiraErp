@@ -1,11 +1,11 @@
 /**
  * Postgres circular / delivery-log store (db/sql/044_communication_circulars_schema.sql).
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 
 import type {
   CircularAckRecord,
@@ -21,44 +21,13 @@ import type {
 
 export type PgCircularPool = PgQueryable & { connect?: unknown };
 
-let schemaReady: Promise<void> | null = null;
-
-function schemaSqlPaths(): string[] {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const names = ['007_communication_schema.sql', '044_communication_circulars_schema.sql'];
-  const roots = [
-    join(here, '../../../../db/sql'),
-    join(process.cwd(), 'db/sql'),
-    join(process.cwd(), '../../db/sql'),
-  ];
-  const resolved: string[] = [];
-  for (const name of names) {
-    for (const root of roots) {
-      const path = join(root, name);
-      try {
-        readFileSync(path, 'utf8');
-        resolved.push(path);
-        break;
-      } catch {
-        // try next
-      }
-    }
-  }
-  return resolved;
-}
+const ensureCircularSchemaReady = createDatabaseSchemaReadinessCheck(
+  'communication circulars',
+  'communicationCirculars',
+);
 
 export async function ensureCircularSchema(pool: PgCircularPool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      for (const path of schemaSqlPaths()) {
-        await pool.query(readFileSync(path, 'utf8'));
-      }
-    })().catch((err: unknown) => {
-      schemaReady = null;
-      throw err;
-    });
-  }
-  await schemaReady;
+  await ensureCircularSchemaReady(pool);
 }
 
 function toDate(value: unknown): Date {

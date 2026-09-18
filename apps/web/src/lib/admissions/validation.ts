@@ -61,6 +61,7 @@ export const placementScoreFormSchema = z.object({
 
 export const createOfferFormSchema = z.object({
   applicationId: uuid,
+  classId: uuid,
   feeAmount: z.coerce.number().min(0).optional(),
 });
 

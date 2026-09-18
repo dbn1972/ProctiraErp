@@ -72,6 +72,7 @@ async function jsonStatus(
 async function createPeriodAndGrade(request: APIRequestContext): Promise<{
   periodId: string;
   gradeId: string;
+  classId: string;
   periodName: string;
   gradeName: string;
 }> {
@@ -95,9 +96,22 @@ async function createPeriodAndGrade(request: APIRequestContext): Promise<{
   });
   const grade = (await jsonStatus(gradeRes, 201)) as { id: string; name: string };
 
+  const classRes = await request.post(`${GATEWAY_URL}/api/v1/classes`, {
+    headers: headers(),
+    data: {
+      institutionId: INSTITUTION_A,
+      gradeId: grade.id,
+      academicPeriodId: period.id,
+      name: `Admissions Class ${tag}`,
+      capacity: 40,
+    },
+  });
+  const klass = (await jsonStatus(classRes, 201)) as { id: string };
+
   return {
     periodId: period.id,
     gradeId: grade.id,
+    classId: klass.id,
     periodName: period.name,
     gradeName: grade.name,
   };
@@ -162,7 +176,7 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     page,
     request,
   }) => {
-    const { periodId, gradeId } = await createPeriodAndGrade(request);
+    const { periodId, gradeId, classId } = await createPeriodAndGrade(request);
     const tag = stamp();
     const firstName = `Ada${tag}`;
     const lastName = 'Lovelace';
@@ -243,22 +257,51 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     };
     expect(merit.entries.some((row) => row.applicationId === applicationId)).toBe(true);
 
-    const offerRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers`, {
-      headers: headers(),
-      data: { applicationId, feeAmount: 25000 },
+    await page.goto(`/admissions/${applicationId}`, { waitUntil: 'domcontentloaded' });
+    await hydrated(page, 'create-offer-form');
+    await page.getByTestId('offer-class').selectOption(classId);
+    await page.getByTestId('offer-fee').fill('25000');
+    await page.getByTestId('create-offer').click();
+    await expect(page.getByTestId('offer-row').filter({ hasText: /draft/i })).toBeVisible({
+      timeout: 20_000,
     });
-    const offer = (await jsonStatus(offerRes, 201)) as { id: string; status: string };
-    expect(offer.status).toBe('draft');
 
-    const sendRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/send`, {
-      headers: headers(),
-    });
+    const bundleRes = await request.get(
+      `${GATEWAY_URL}/api/v1/admissions/applications/${applicationId}`,
+      { headers: headers() },
+    );
+    const bundle = (await jsonStatus(bundleRes, 200)) as {
+      offers: Array<{ id: string; status: string }>;
+    };
+    const offer = bundle.offers.find((row) => row.status === 'draft');
+    expect(offer).toBeTruthy();
+
+    const [sendRes, sendRetry] = await Promise.all([
+      request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/send`, {
+        headers: headers(),
+      }),
+      request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/send`, {
+        headers: headers(),
+      }),
+    ]);
+    expect([200, 422], await sendRetry.text()).toContain(sendRetry.status());
     expect((await jsonStatus(sendRes, 200)) as { status: string }).toMatchObject({
       status: 'sent',
     });
+    const offerInvoices = await request.get(`${GATEWAY_URL}/api/v1/fees/invoices`, {
+      headers: headers(),
+    });
+    const invoiceRows = (
+      (await jsonStatus(offerInvoices, 200)) as {
+        data: Array<{ description: string }>;
+      }
+    ).data;
+    expect(
+      invoiceRows.filter((row) => row.description === `Admission application ${applicationId}`),
+    ).toHaveLength(1);
 
     const acceptRes = await request.post(
-      `${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/accept`,
+      `${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/accept`,
       { headers: headers(), data: { paymentRef: 'SANDBOX-PAY' } },
     );
     const accepted = (await jsonStatus(acceptRes, 200)) as {
@@ -270,10 +313,13 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     expect(accepted.paymentRef).toBe('SANDBOX-PAY');
     expect(accepted.enrolledStudentId).toBeTruthy();
 
-    const again = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/accept`, {
-      headers: headers(),
-      data: { paymentRef: 'SANDBOX-PAY' },
-    });
+    const again = await request.post(
+      `${GATEWAY_URL}/api/v1/admissions/offers/${offer!.id}/accept`,
+      {
+        headers: headers(),
+        data: { paymentRef: 'SANDBOX-PAY' },
+      },
+    );
     const idempotent = (await jsonStatus(again, 200)) as { enrolledStudentId: string | null };
     expect(idempotent.enrolledStudentId).toBe(accepted.enrolledStudentId);
 
@@ -302,7 +348,7 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
    */
   test('A5 tip: enquiry → merit → seat → offer → parent pay → enrol', async ({ page, request }) => {
     test.slow();
-    const { periodId, gradeId } = await createPeriodAndGrade(request);
+    const { periodId, gradeId, classId } = await createPeriodAndGrade(request);
     const tag = stamp();
     const firstName = `A5${tag}`;
     const lastName = 'Enrol';
@@ -380,7 +426,7 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
 
     const offerRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers`, {
       headers: headers(),
-      data: { applicationId, feeAmount: 15_000 },
+      data: { applicationId, classId, feeAmount: 15_000 },
     });
     const offer = (await jsonStatus(offerRes, 201)) as {
       id: string;

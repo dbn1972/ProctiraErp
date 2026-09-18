@@ -81,6 +81,17 @@ export const GatewayConfigSchema = Type.Object({
 
 export type GatewayConfig = Static<typeof GatewayConfigSchema>;
 
+/**
+ * Resolve the non-secret access-token lifetime. Kubernetes manifests use the
+ * `JWT_ACCESS_TTL` alias so secret scanners do not mistake a duration for key
+ * material; the historical variable remains supported for compatibility.
+ */
+export function resolveAccessTokenExpiresIn(
+  source: Record<string, string | undefined> = process.env,
+): string {
+  return source['JWT_ACCESS_TTL']?.trim() || source['JWT_ACCESS_TOKEN_EXPIRES_IN']?.trim() || '15m';
+}
+
 /** Dev-only fallback; refused outright when NODE_ENV=production (G-703). */
 export const DEV_JWT_SECRET = 'dev-secret-change-in-production';
 
@@ -198,7 +209,7 @@ export function loadConfig(): GatewayConfig {
       previousSecret: process.env['JWT_SECRET_PREVIOUS']?.trim() || undefined,
       issuer: process.env['JWT_ISSUER'] || 'proctira-platform',
       audience: process.env['JWT_AUDIENCE'] || 'proctira-api',
-      accessTokenExpiresIn: process.env['JWT_ACCESS_TOKEN_EXPIRES_IN'] || '15m',
+      accessTokenExpiresIn: resolveAccessTokenExpiresIn(),
     },
     tenant: {
       baseDomain: process.env['TENANT_BASE_DOMAIN'] || 'proctira.org',

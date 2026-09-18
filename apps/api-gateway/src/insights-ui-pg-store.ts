@@ -3,11 +3,12 @@
  * Keeps the redesign App Router API shape while persisting templates, runs,
  * and warehouse import jobs so mutations survive process restart.
  */
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import {
+  createDatabaseSchemaReadinessCheck,
+  getSharedPgPool,
+  withPgTenant,
+  type PgQueryable,
+} from '@proctira/database';
 import type pg from 'pg';
 
 import {
@@ -21,7 +22,7 @@ import {
   type ReportTemplate,
 } from './insights-ui-types.js';
 
-let schemaReady: Promise<void> | null = null;
+const ensureInsightsUiSchemaReady = createDatabaseSchemaReadinessCheck('insights UI', 'insightsUi');
 
 export function isPgInsightsUiEnabled(): boolean {
   return Boolean(process.env.DATABASE_URL?.trim());
@@ -31,31 +32,8 @@ function getPool(): pg.Pool | null {
   return getSharedPgPool();
 }
 
-function schemaSqlPath(): string {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../db/sql/020_insights_ui_schema.sql'),
-    join(process.cwd(), 'db/sql/020_insights_ui_schema.sql'),
-    join(process.cwd(), '../../db/sql/020_insights_ui_schema.sql'),
-  ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
-    }
-  }
-  return candidates[0]!;
-}
-
 async function ensureSchema(pool: pg.Pool): Promise<void> {
-  if (!schemaReady) {
-    schemaReady = (async () => {
-      await pool.query(readFileSync(schemaSqlPath(), 'utf8'));
-    })();
-  }
-  await schemaReady;
+  await ensureInsightsUiSchemaReady(pool);
 }
 
 function parseJson<T>(value: unknown, fallback: T): T {

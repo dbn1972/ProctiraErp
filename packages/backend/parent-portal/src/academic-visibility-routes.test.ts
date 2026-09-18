@@ -1,6 +1,7 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { EmptyAcademicVisibilityStore } from './academic-visibility.js';
 import { InMemoryParentPortalRepository } from './in-memory-repository.js';
 import { parentPortalPlugin } from './parent-portal-plugin.js';
 
@@ -113,7 +114,10 @@ describe('parent/student academic visibility routes', () => {
   beforeEach(async () => {
     repository = new InMemoryParentPortalRepository();
     app = createApp(repository);
-    await app.register(parentPortalPlugin, { repository });
+    await app.register(parentPortalPlugin, {
+      repository,
+      academicStore: new EmptyAcademicVisibilityStore(),
+    });
     await app.ready();
   });
 

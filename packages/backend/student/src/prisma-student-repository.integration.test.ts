@@ -12,51 +12,22 @@
  *   3. A query that does NOT bind the tenant (i.e. skips the helper) is rejected
  *      by RLS rather than leaking — demonstrating the helper is mandatory.
  *
- * Requires a throwaway PostgreSQL with the `students`/`tenants` tables already
- * migrated. Point `TEST_DATABASE_URL` at it; the suite self-skips when unset, so
- * it never breaks CI environments without a database.
- *
- *   TEST_DATABASE_URL=postgres://user:pass@localhost:5432/proctira_test \
- *     pnpm --filter @proctira/backend-student exec vitest run \
- *     prisma-student-repository.integration.test.ts
+ * Uses `TEST_DATABASE_URL` when supplied, otherwise CI's `DATABASE_URL`.
+ * The schema and production RLS policies must already be migrated; this suite
+ * never executes runtime DDL.
  */
 import { randomUUID } from 'node:crypto';
 
-import { createPrismaClient, withTenantTransaction } from '@proctira/database';
+import { createPrismaClient, getSharedPgPool, withTenantTransaction } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PrismaStudentRepository } from './prisma-student-repository.js';
 import type { StudentEntity } from './student-repository.js';
 
-const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL'];
-
-/** Idempotently enable + FORCE RLS and (re)create the production policies. */
-async function applyStudentRls(prisma: PrismaClient): Promise<void> {
-  const stmts = [
-    'ALTER TABLE students ENABLE ROW LEVEL SECURITY',
-    // FORCE makes RLS apply even to the table owner, so the test demonstrates
-    // isolation regardless of which role the test connection uses. Production
-    // relies on the app connecting as a non-owner role without BYPASSRLS.
-    'ALTER TABLE students FORCE ROW LEVEL SECURITY',
-    'DROP POLICY IF EXISTS tenant_isolation_select ON students',
-    `CREATE POLICY tenant_isolation_select ON students FOR SELECT
-       USING (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
-    'DROP POLICY IF EXISTS tenant_isolation_insert ON students',
-    `CREATE POLICY tenant_isolation_insert ON students FOR INSERT
-       WITH CHECK (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
-    'DROP POLICY IF EXISTS tenant_isolation_update ON students',
-    `CREATE POLICY tenant_isolation_update ON students FOR UPDATE
-       USING (tenant_id = current_setting('app.current_tenant_id')::uuid)
-       WITH CHECK (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
-    'DROP POLICY IF EXISTS tenant_isolation_delete ON students',
-    `CREATE POLICY tenant_isolation_delete ON students FOR DELETE
-       USING (tenant_id = current_setting('app.current_tenant_id')::uuid)`,
-  ];
-  for (const sql of stmts) {
-    await prisma.$executeRawUnsafe(sql);
-  }
-}
+const TEST_DATABASE_URL =
+  process.env['TEST_DATABASE_URL']?.trim() || process.env['DATABASE_URL']?.trim();
 
 function sampleStudent(tenantId: string, overrides: Partial<StudentEntity> = {}) {
   return {
@@ -87,18 +58,15 @@ describe.skipIf(!TEST_DATABASE_URL)('PrismaStudentRepository (RLS integration)',
   beforeAll(async () => {
     prisma = createPrismaClient({ datasourceUrl: TEST_DATABASE_URL });
     await prisma.$connect();
-    await applyStudentRls(prisma);
 
-    // `tenants` has no RLS policy, so seed tenants directly.
-    const suffix = randomUUID().slice(0, 8);
-    const a = await prisma.tenant.create({
-      data: { name: 'Tenant A', slug: `rls-test-a-${suffix}` },
-    });
-    const b = await prisma.tenant.create({
-      data: { name: 'Tenant B', slug: `rls-test-b-${suffix}` },
-    });
-    tenantA = a.id;
-    tenantB = b.id;
+    tenantA = randomUUID();
+    tenantB = randomUUID();
+    const fixturePool = getSharedPgPool(TEST_DATABASE_URL!);
+    if (!fixturePool) throw new Error('live student RLS test requires PostgreSQL');
+    await Promise.all([
+      ensurePgTestTenant(fixturePool, tenantA),
+      ensurePgTestTenant(fixturePool, tenantB),
+    ]);
 
     repo = new PrismaStudentRepository(prisma);
     // create() binds the tenant via withTenantTransaction, satisfying the
@@ -117,8 +85,6 @@ describe.skipIf(!TEST_DATABASE_URL)('PrismaStudentRepository (RLS integration)',
         );
       }
     }
-    if (tenantA) await prisma.tenant.delete({ where: { id: tenantA } }).catch(() => {});
-    if (tenantB) await prisma.tenant.delete({ where: { id: tenantB } }).catch(() => {});
     await prisma.$disconnect();
   });
 
@@ -155,10 +121,9 @@ describe.skipIf(!TEST_DATABASE_URL)('PrismaStudentRepository (RLS integration)',
     expect(await repo.findById(victim.id, tenantA)).toBeNull();
   });
 
-  it('a query that does NOT bind the tenant is rejected by RLS (helper is mandatory)', async () => {
-    // No set_config on this connection → the policy's current_setting() lookup
-    // fails, so RLS rejects the query rather than leaking rows. This is the
-    // failure mode the whole withTenantTransaction design exists to prevent.
-    await expect(prisma.student.findMany()).rejects.toThrow();
+  it('a query that does NOT bind the tenant returns no rows (helper is mandatory)', async () => {
+    // No transaction-local tenant GUC: production RLS must fail closed by
+    // returning no tenant rows rather than leaking data from another scope.
+    expect(await prisma.student.findMany()).toEqual([]);
   });
 });

@@ -13,15 +13,16 @@ import { formatDateTime } from '@/lib/utils';
 
 import { PluginDecisionForm } from './decision-form';
 
-export default async function PluginDetailPage({ params }: { params: { id: string } }) {
-  await requireRole('plugins', `/plugins/${params.id}`);
-  const { plugin, source } = await getPlugin(params.id);
+export default async function PluginDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  await requireRole('plugins', `/plugins/${id}`);
+  const { plugin, source } = await getPlugin(id);
   if (!plugin) {
     return (
       <MissingResource
         title="Plugin"
         resourceLabel="Plugin"
-        id={params.id}
+        id={id}
         backHref="/plugins"
         backLabel="Back to marketplace"
       />

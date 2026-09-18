@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
  * Finalize local bootstrap session and engage one-time lock.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  const security = assertInstallSecurity(request);
+  const security = await assertInstallSecurity(request);
   if (!security.ok) {
     return NextResponse.json(
       { success: false, error: security.error },

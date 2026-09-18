@@ -5,8 +5,6 @@
  * Gated (E2E_BACKEND_READY): allocate → clash rejected → double-entry variance
  * → moderator resolve → re-evaluation request → complete; tenant B isolation.
  */
-import { randomUUID } from 'node:crypto';
-
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
@@ -85,6 +83,18 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
     { name: `Ops Grade ${stamp}`, code: `OG${stamp.slice(-4).toUpperCase()}`, order: 10 },
     201,
   );
+  const klass = await postOk(
+    request,
+    '/classes',
+    {
+      institutionId: INSTITUTION_A,
+      gradeId: grade.id,
+      academicPeriodId: period.id,
+      name: `Ops Class ${stamp}`,
+      capacity: 40,
+    },
+    201,
+  );
   const student = await postOk(
     request,
     '/students',
@@ -103,6 +113,7 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
       studentId: student.id,
       institutionId: INSTITUTION_A,
       gradeId: grade.id,
+      classId: klass.id,
       academicPeriodId: period.id,
       enrolledAt: isoDate(-10),
     },
@@ -185,8 +196,21 @@ test.describe('Exam ops — live chain (E2E_BACKEND_READY)', () => {
     request,
   }) => {
     const fx = await buildExam(request);
-    // Run-unique invigilator: the staff clash check is tenant-wide across runs.
-    const staffId = randomUUID();
+    // A real staff parent is required by the strict exam_invigilators FK.
+    const staff = await postOk(
+      request,
+      '/staff',
+      {
+        firstName: 'E2E',
+        lastName: `Invigilator ${Date.now().toString(36)}`,
+        dateOfBirth: '1985-01-01',
+        identityNumber: `INV-${Date.now().toString(36).toUpperCase()}`,
+        contactPhone: '+15551234567',
+        position: 'Teacher',
+      },
+      201,
+    );
+    const staffId = staff.id as string;
     const sessionA = await postOk(
       request,
       `/examinations/${fx.examId}/sessions`,

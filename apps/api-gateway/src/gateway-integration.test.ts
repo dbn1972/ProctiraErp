@@ -908,7 +908,7 @@ describe('API Gateway Integration: Structured Error Responses', () => {
 
       // Add a test route with schema validation to simulate a service endpoint
       gatewayApp.post(
-        '/api/v1/test/validated',
+        '/api/v1/services/test/validated',
         {
           schema: {
             body: Type.Object({
@@ -924,7 +924,8 @@ describe('API Gateway Integration: Structured Error Responses', () => {
       await gatewayApp.ready();
 
       try {
-        // Ad-hoc `/api/v1/test` segment is unmapped → only platform admins pass G-702.
+        // Gateway utility routes still require authentication but intentionally
+        // sit outside the domain mutation inventory.
         const token = gatewayApp.jwt.sign(
           createTestJwtPayload({
             roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
@@ -934,7 +935,7 @@ describe('API Gateway Integration: Structured Error Responses', () => {
         // Send invalid payload
         const response = await gatewayApp.inject({
           method: 'POST',
-          url: '/api/v1/test/validated',
+          url: '/api/v1/services/test/validated',
           headers: {
             authorization: `Bearer ${token}`,
             'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
@@ -962,7 +963,7 @@ describe('API Gateway Integration: Structured Error Responses', () => {
       const gatewayApp = await buildApp({ config: createTestConfig() });
 
       gatewayApp.post(
-        '/api/v1/test/validated',
+        '/api/v1/services/test/validated',
         {
           schema: {
             body: Type.Object({
@@ -977,7 +978,8 @@ describe('API Gateway Integration: Structured Error Responses', () => {
       await gatewayApp.ready();
 
       try {
-        // Ad-hoc `/api/v1/test` segment is unmapped → only platform admins pass G-702.
+        // Gateway utility routes still require authentication but intentionally
+        // sit outside the domain mutation inventory.
         const token = gatewayApp.jwt.sign(
           createTestJwtPayload({
             roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
@@ -986,7 +988,7 @@ describe('API Gateway Integration: Structured Error Responses', () => {
 
         const response = await gatewayApp.inject({
           method: 'POST',
-          url: '/api/v1/test/validated',
+          url: '/api/v1/services/test/validated',
           headers: {
             authorization: `Bearer ${token}`,
             'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',

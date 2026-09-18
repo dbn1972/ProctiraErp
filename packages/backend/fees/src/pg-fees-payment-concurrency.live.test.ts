@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { BusinessRuleError } from '@proctira/common';
+import { ensurePgTestStudent } from '@proctira/database/test-fixtures';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { describe, expect, it } from 'vitest';
 
@@ -25,9 +26,11 @@ describe('PgFeesRepository payment concurrency (live)', () => {
       const repo = new PgFeesRepository(pool!);
       const service = new FeesService(repo, new SandboxPaymentAdapter());
       const tenantId = randomUUID();
+      const studentId = randomUUID();
+      await ensurePgTestStudent(pool!, tenantId, studentId);
 
       const invoice = await service.createInvoice(tenantId, 'staff-1', {
-        studentId: randomUUID(),
+        studentId,
         title: 'Concurrency probe',
         amountCents: 10_000,
       });
