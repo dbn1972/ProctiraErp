@@ -7,32 +7,19 @@
       "notes": "Migrator/control ledgers \u2014 no SELECT or DML for runtime"
     },
     "select_insert": {
-      "privileges": [
-        "SELECT",
-        "INSERT"
-      ],
+      "privileges": ["SELECT", "INSERT"],
       "notes": "Platform-global catalogs \u2014 no UPDATE/DELETE/TRUNCATE/TRIGGER"
     },
     "append_only": {
-      "privileges": [
-        "SELECT",
-        "INSERT"
-      ],
+      "privileges": ["SELECT", "INSERT"],
       "notes": "Application-written immutable ledgers/audits \u2014 SELECT+INSERT only"
     },
     "trigger_owned": {
-      "privileges": [
-        "SELECT"
-      ],
+      "privileges": ["SELECT"],
       "notes": "Trigger-written immutable audits \u2014 runtime reads parent-trigger output but cannot append duplicates"
     },
     "dml": {
-      "privileges": [
-        "SELECT",
-        "INSERT",
-        "UPDATE",
-        "DELETE"
-      ],
+      "privileges": ["SELECT", "INSERT", "UPDATE", "DELETE"],
       "notes": "Normal tenant/domain tables under RLS"
     }
   },

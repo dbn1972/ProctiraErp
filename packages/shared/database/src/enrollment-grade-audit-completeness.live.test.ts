@@ -139,10 +139,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
     await client.query(`SELECT set_config('app.enrollment_history_reason', $1, true)`, [
       enrollmentReason,
     ]);
-    await client.query(
-      `SELECT set_config('app.enrollment_history_effective_date', $1, true)`,
-      [enrollmentEffectiveDate],
-    );
+    await client.query(`SELECT set_config('app.enrollment_history_effective_date', $1, true)`, [
+      enrollmentEffectiveDate,
+    ]);
     await client.query(
       `INSERT INTO enrollments (
          id, tenant_id, student_id, institution_id, grade_id, class_id,
@@ -161,9 +160,7 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
     );
 
     await client.query(`SELECT set_config('app.grade_change_action', $1, true)`, [gradeAction]);
-    await client.query(`SELECT set_config('app.grade_change_actor_id', $1, true)`, [
-      gradeActorId,
-    ]);
+    await client.query(`SELECT set_config('app.grade_change_actor_id', $1, true)`, [gradeActorId]);
     await client.query(
       `INSERT INTO grade_entries (
          id, tenant_id, student_id, numeric_score, letter_grade, metadata
@@ -325,7 +322,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-14 enrollment / grade audit completeness
       const insertActorId = randomUUID();
       const updateActorId = randomUUID();
       const fx = await seedTenantGraph(client, { gradeActorId: insertActorId });
-      await client.query(`SELECT set_config('app.grade_change_action', 'grade.score_change', true)`);
+      await client.query(
+        `SELECT set_config('app.grade_change_action', 'grade.score_change', true)`,
+      );
       await client.query(`SELECT set_config('app.grade_change_actor_id', $1, true)`, [
         updateActorId,
       ]);

@@ -84,9 +84,7 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
     expect(sql).toMatch(
       /FOREIGN KEY \(grade_entry_id\) REFERENCES grade_entries\(id\)\s+ON DELETE RESTRICT/i,
     );
-    expect(sql).not.toMatch(
-      /FOREIGN KEY \([^)]+\) REFERENCES \w+\(id\)\s+ON DELETE CASCADE/i,
-    );
+    expect(sql).not.toMatch(/FOREIGN KEY \([^)]+\) REFERENCES \w+\(id\)\s+ON DELETE CASCADE/i);
     expect(sql).toMatch(
       /CREATE OR REPLACE FUNCTION enrollments_write_history\(\)[\s\S]*SECURITY DEFINER[\s\S]*SET search_path = public/i,
     );
@@ -103,9 +101,7 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
     expect(sql).toMatch(
       /CREATE TRIGGER trg_grade_change_audit_orphan_quarantine_append_only[\s\S]*BEFORE UPDATE OR DELETE/i,
     );
-    expect(sql).toMatch(
-      /REVOKE ALL ON grade_change_audit_orphan_quarantine FROM proctira_app/i,
-    );
+    expect(sql).toMatch(/REVOKE ALL ON grade_change_audit_orphan_quarantine FROM proctira_app/i);
   });
 
   it('092 uses NOT VALID then requires validated canonical RESTRICT FKs', () => {
@@ -126,12 +122,8 @@ describe('W1-DATA-14 enrollment / grade audit completeness (071 + 080 + 092)', (
 
   it('092 removes direct application INSERT while retaining trigger-generated reads', () => {
     const sql = loadSql(MIGRATION_096);
-    expect(sql).toMatch(
-      /REVOKE ALL ON enrollment_history, grade_change_audit FROM proctira_app/i,
-    );
-    expect(sql).toMatch(
-      /GRANT SELECT ON enrollment_history, grade_change_audit TO proctira_app/i,
-    );
+    expect(sql).toMatch(/REVOKE ALL ON enrollment_history, grade_change_audit FROM proctira_app/i);
+    expect(sql).toMatch(/GRANT SELECT ON enrollment_history, grade_change_audit TO proctira_app/i);
     expect(sql).not.toMatch(/GRANT SELECT, INSERT ON enrollment_history/i);
     expect(sql).not.toMatch(/GRANT SELECT, INSERT ON grade_change_audit/i);
   });

@@ -16,7 +16,7 @@
 
 CREATE TABLE IF NOT EXISTS grade_change_audit_orphan_quarantine (
   source_audit_id UUID PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
   grade_entry_id UUID NOT NULL,
   source_row JSONB NOT NULL,
   quarantine_reason TEXT NOT NULL,
@@ -28,6 +28,44 @@ CREATE TABLE IF NOT EXISTS grade_change_audit_orphan_quarantine (
     AND source_row->>'grade_entry_id' = grade_entry_id::text
   )
 );
+
+-- W1-DATA-06 requires every uuid tenant_id table to reference tenants(id), and
+-- W1-DATA-16 requires a leading tenant_id index. The primary key here is
+-- source_audit_id, so neither is satisfied implicitly. Both are added
+-- idempotently so a database that already created the table still converges.
+-- Quarantined rows are copied from grade_change_audit, which already carries a
+-- validated tenants FK, so the constraint validates without a repair pass.
+DO $quarantine_tenant_fk$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conrelid = 'public.grade_change_audit_orphan_quarantine'::regclass
+       AND conname = 'grade_change_audit_orphan_quarantine_tenant_fk'
+       AND contype = 'f'
+  ) AND NOT EXISTS (
+    SELECT 1
+      FROM pg_constraint
+     WHERE conrelid = 'public.grade_change_audit_orphan_quarantine'::regclass
+       AND contype = 'f'
+       AND confrelid = 'public.tenants'::regclass
+       AND conkey = ARRAY[
+             (SELECT attnum
+                FROM pg_attribute
+               WHERE attrelid = 'public.grade_change_audit_orphan_quarantine'::regclass
+                 AND attname = 'tenant_id')
+           ]::smallint[]
+  ) THEN
+    ALTER TABLE public.grade_change_audit_orphan_quarantine
+      ADD CONSTRAINT grade_change_audit_orphan_quarantine_tenant_fk
+      FOREIGN KEY (tenant_id)
+      REFERENCES public.tenants(id);
+  END IF;
+END
+$quarantine_tenant_fk$;
+
+CREATE INDEX IF NOT EXISTS grade_change_audit_orphan_quarantine_tenant_idx
+  ON grade_change_audit_orphan_quarantine (tenant_id, quarantined_at DESC);
 
 ALTER TABLE grade_change_audit_orphan_quarantine ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON grade_change_audit_orphan_quarantine;

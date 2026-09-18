@@ -41,9 +41,9 @@ const DENIED = [
 
 function loadCatalogClasses(): Record<string, string> {
   const root = join(dirname(fileURLToPath(import.meta.url)), '../../../../');
-  const raw = JSON.parse(
-    readFileSync(join(root, 'db/runtime-table-privileges.json'), 'utf8'),
-  ) as { tables: Record<string, string> };
+  const raw = JSON.parse(readFileSync(join(root, 'db/runtime-table-privileges.json'), 'utf8')) as {
+    tables: Record<string, string>;
+  };
   return raw.tables;
 }
 
@@ -73,16 +73,14 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
       /permission denied/i,
     );
     await expect(
-      pool.query(
-        `INSERT INTO schema_migrations (filename) VALUES ('w1-data-11-should-fail.sql')`,
-      ),
+      pool.query(`INSERT INTO schema_migrations (filename) VALUES ('w1-data-11-should-fail.sql')`),
     ).rejects.toThrow(/permission denied/i);
     await expect(
       pool.query(`UPDATE schema_migrations SET checksum = 'forged' WHERE false`),
     ).rejects.toThrow(/permission denied/i);
-    await expect(
-      pool.query(`DELETE FROM schema_migrations WHERE false`),
-    ).rejects.toThrow(/permission denied/i);
+    await expect(pool.query(`DELETE FROM schema_migrations WHERE false`)).rejects.toThrow(
+      /permission denied/i,
+    );
   });
 
   it('runtime cannot SELECT _prisma_migrations when the table exists', async () => {
@@ -109,9 +107,9 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-11 runtime global privileges (live)', ()
 
       await expect(pool.query(`SELECT 1 FROM ${table} LIMIT 1`)).resolves.toBeTruthy();
 
-      await expect(
-        pool.query(`UPDATE ${table} SET name = name WHERE false`),
-      ).rejects.toThrow(/permission denied/i);
+      await expect(pool.query(`UPDATE ${table} SET name = name WHERE false`)).rejects.toThrow(
+        /permission denied/i,
+      );
       await expect(pool.query(`DELETE FROM ${table} WHERE false`)).rejects.toThrow(
         /permission denied/i,
       );
