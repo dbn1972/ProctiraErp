@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -193,6 +194,10 @@ describe.skipIf(!DATABASE_URL)('Live Postgres RLS release gate', () => {
       { table: 'lms_modules', id: moduleId },
       { table: 'lms_module_items', id: moduleItemId },
     ] as const;
+
+    // Strict tenant FKs reject these child rows unless the tenant parent exists.
+    // tenantB stays uncreated on purpose: it is only ever a read context.
+    await ensurePgTestTenant(pool, tenantA);
 
     try {
       await withPgTenant(pool, tenantA, async (client) => {
