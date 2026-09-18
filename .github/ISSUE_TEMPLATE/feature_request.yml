@@ -1,0 +1,80 @@
+name: Feature request
+description: Propose a user outcome and testable acceptance criteria.
+title: '[Feature]: '
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the outcome without secrets or real student, child, guardian, staff, school, tenant, health, academic, or financial data. Security concerns belong in [private vulnerability reporting](https://github.com/dbn1972/ProctiraErp/security/advisories/new).
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data-safety confirmation
+      options:
+        - label: I used only synthetic, non-identifying examples and checked attachments for sensitive metadata.
+          required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User problem and desired outcome
+      description: What problem exists, for whom, and what measurable result is needed?
+    validations:
+      required: true
+  - type: textarea
+    id: actors
+    attributes:
+      label: Actors and scope
+      description: Identify roles, tenant/institution/area scope, and affected modules using generic examples.
+      placeholder: Tenant administrator across two synthetic institutions.
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow and exception paths
+      description: Describe the primary lifecycle, approvals, state changes, errors, concurrency, and recovery cases.
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Security, privacy, and data lifecycle
+      description: Cover permissions, tenant isolation, sensitive fields, purpose, minimum data, audit, retention, export, and deletion.
+    validations:
+      required: true
+  - type: textarea
+    id: experience
+    attributes:
+      label: Experience requirements
+      description: Note accessibility, localization/RTL, responsive/mobile, shared-device, low-bandwidth, and offline needs or explain why they do not apply.
+    validations:
+      required: true
+  - type: textarea
+    id: integrations
+    attributes:
+      label: Integrations and compatibility
+      description: Identify API, event, import/export, standards, provider, or backward-compatibility needs.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable, testable outcomes including important negative or failure behavior.
+      placeholder: |
+        - Given ..., when ..., then ...
+        - Given ..., when ..., then ...
+    validations:
+      required: true
+  - type: textarea
+    id: rollout
+    attributes:
+      label: Rollout, migration, and operations
+      description: Describe migration/backfill, feature flags, telemetry, support/runbook, rollout, rollback, and reconciliation needs.
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals and alternatives
+      description: State what is deliberately excluded and any workaround or alternative considered.
+    validations:
+      required: true

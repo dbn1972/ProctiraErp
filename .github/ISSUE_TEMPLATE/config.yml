@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security vulnerability report
+    url: https://github.com/dbn1972/ProctiraErp/security/advisories/new
+    about: Report vulnerabilities and suspected privacy incidents privately; never include secrets or real child or personal data in a public issue.
