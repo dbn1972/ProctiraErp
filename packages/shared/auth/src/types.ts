@@ -187,3 +187,19 @@ export interface RefreshRequest {
   /** The refresh token to use */
   refreshToken: string;
 }
+
+/**
+ * Authenticated logout request shared by local and Keycloak modes.
+ * The refresh token is optional for local mode and enables Keycloak
+ * back-channel session termination when present.
+ */
+export interface LogoutRequest {
+  refreshToken?: string;
+}
+
+/** Successful logout response returned by every auth mode. */
+export interface LogoutResponse {
+  success: true;
+  /** Trusted post-logout destination; clients must not accept caller-provided URLs. */
+  redirectTo: string;
+}

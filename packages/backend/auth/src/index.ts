@@ -55,6 +55,7 @@ export {
   createAccessTokenRevocationStore,
   decideAccessTokenRevocationStore,
   defaultAccessTokenRevocationTtlSeconds,
+  isSharedAccessTokenRevocationStore,
   MemoryAccessTokenRevocationStore,
   RedisAccessTokenRevocationStore,
   revokeAccessTokenIdentifiers,

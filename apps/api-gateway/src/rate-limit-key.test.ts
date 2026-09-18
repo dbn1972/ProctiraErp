@@ -2,6 +2,7 @@
  * G-731 — rate-limit bucket keys never trust `x-tenant-id`; MFA_EXPOSE_OTP is
  * refused in production.
  */
+import { MemoryAccessTokenRevocationStore } from '@proctira/backend-auth';
 import type { FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -60,8 +61,6 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
     process.env['JWT_SECRET'] = 'a-very-long-production-grade-secret-value-1234567890';
     delete process.env['DATABASE_URL'];
     process.env['REQUIRE_DATABASE'] = '0';
-    // W1-SEC-09: isolate this test to the later MFA production guard.
-    process.env['ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION'] = '1';
     process.env['ALLOW_IN_MEMORY_FALLBACK'] = '1';
     // W1-ARCH-02: production refuses in-memory rate limits without explicit opt-in.
     process.env['ALLOW_IN_MEMORY_RATE_LIMIT'] = '1';
@@ -85,6 +84,11 @@ describe('MFA_EXPOSE_OTP production guard (G-731)', () => {
       },
     };
 
-    await expect(buildApp({ config })).rejects.toThrow(/MFA_EXPOSE_OTP/);
+    // W1-SEC-09: production now has no env opt-out for a process-local
+    // revocation denylist, so that guard would throw before the MFA one is
+    // reached. Inject a store to keep this test on the guard it is about.
+    await expect(
+      buildApp({ config, accessTokenRevocationStore: new MemoryAccessTokenRevocationStore() }),
+    ).rejects.toThrow(/MFA_EXPOSE_OTP/);
   });
 });

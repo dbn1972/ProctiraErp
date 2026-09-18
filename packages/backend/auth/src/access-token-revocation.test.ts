@@ -95,27 +95,39 @@ describe('decideAccessTokenRevocationStore / createAccessTokenRevocationStore (W
     expect(() => decideAccessTokenRevocationStore({ NODE_ENV: 'production' })).toThrow(
       /Shared access-token revocation store \(REDIS_URL \/ redis\) is required in production \(W1-SEC-09\)/,
     );
-    expect(() => createAccessTokenRevocationStore({ NODE_ENV: 'production' })).toThrow(
-      /W1-SEC-09/,
-    );
+    expect(() => createAccessTokenRevocationStore({ NODE_ENV: 'production' })).toThrow(/W1-SEC-09/);
   });
 
-  it('allows explicit single-replica emergency memory in production', () => {
-    expect(
-      decideAccessTokenRevocationStore({
-        NODE_ENV: 'production',
-        ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION: '1',
-      }),
-    ).toEqual({
-      mode: 'memory',
-      reason: 'ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION=1 (single-replica emergency)',
-    });
-    expect(
-      createAccessTokenRevocationStore({
-        NODE_ENV: 'production',
-        ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION: 'true',
-      }),
-    ).toBeInstanceOf(MemoryAccessTokenRevocationStore);
+  it('no longer honours an env escape hatch for in-memory production revocation', () => {
+    // ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION previously downgraded production to
+    // a process-local denylist. On multi-replica deployments that silently broke
+    // logout: revoking on one replica left the stolen access token valid on the
+    // others until TTL. Sharedness is now a store capability, not an env opt-out.
+    for (const value of ['1', 'true', 'yes', 'on']) {
+      expect(() =>
+        decideAccessTokenRevocationStore({
+          NODE_ENV: 'production',
+          ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION: value,
+        } as Parameters<typeof decideAccessTokenRevocationStore>[0]),
+      ).toThrow(/W1-SEC-09/);
+      expect(() =>
+        createAccessTokenRevocationStore({
+          NODE_ENV: 'production',
+          ALLOW_IN_MEMORY_ACCESS_TOKEN_REVOCATION: value,
+        } as Parameters<typeof createAccessTokenRevocationStore>[0]),
+      ).toThrow(/W1-SEC-09/);
+    }
+  });
+
+  it('marks only cluster-visible stores as shared', () => {
+    const redis: RedisLikeForAccessTokenRevocation = {
+      set: async () => 'OK',
+      exists: async () => 0,
+    };
+    expect(new MemoryAccessTokenRevocationStore().shared).toBe(false);
+    expect(new RedisAccessTokenRevocationStore(redis).shared).toBe(true);
+    expect(createAccessTokenRevocationStore({ redis, NODE_ENV: 'production' }).shared).toBe(true);
+    expect(createAccessTokenRevocationStore({ NODE_ENV: 'test' }).shared).toBe(false);
   });
 });
 
@@ -169,10 +181,7 @@ describe('RedisAccessTokenRevocationStore (shared mock)', () => {
     const store = new RedisAccessTokenRevocationStore(broken);
     await expect(store.revoke('jti', 'x', 10)).rejects.toThrow(/redis down/);
     await expect(store.isRevoked('jti', 'x')).rejects.toThrow(/redis down/);
-    const check = await assertAccessTokenNotRevoked(
-      { jti: 'x' },
-      { store, nodeEnv: 'production' },
-    );
+    const check = await assertAccessTokenNotRevoked({ jti: 'x' }, { store, nodeEnv: 'production' });
     expect(check).toEqual({ ok: false, reason: 'store_unavailable' });
   });
 });
@@ -184,7 +193,9 @@ describe('multi-replica logout with shared revocation store (W1-SEC-09 COMPLETE)
     await Promise.all(apps.splice(0).map((app) => app.close()));
   });
 
-  async function mountReplica(store: MemoryAccessTokenRevocationStore | RedisAccessTokenRevocationStore) {
+  async function mountReplica(
+    store: MemoryAccessTokenRevocationStore | RedisAccessTokenRevocationStore,
+  ) {
     const config = createAuthConfig({
       jwt: {
         secret: 'test-secret-at-least-32-characters-long!!',
