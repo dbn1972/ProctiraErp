@@ -29,24 +29,52 @@ Existing assets this prompt orchestrates rather than replaces:
 > M=<MODULE>
 > git rev-parse HEAD
 > ls packages/backend/$M/src 2>/dev/null || echo "NO SOURCE — module is a stub"
+>
+> # RECURSE. A top-level glob understates modules that use subdirectories.
+> # `auth` looks like 3 files at the top level and is actually 40 across
+> # keycloak/, invite/ and external-providers/.
+> find packages/backend/$M/src -name '*.ts' | grep -v test | sort
+>
 > # Is it actually served?
 > grep -n -A12 "package: '$M'" apps/api-gateway/src/mount-matrix.ts
 > grep -n "$M" apps/api-gateway/src/domain-plugins.ts | head
+>
 > # Which persistence is selected at runtime, not which files exist?
-> ls packages/backend/$M/src | grep -E '^create-|^pg-|^prisma-|in-memory|hybrid'
-> grep -rn "new Pg|PrismaClient|InMemory" packages/backend/$M/src/create-*.ts
+> find packages/backend/$M/src -name 'create-*.ts' -o -name 'pg-*.ts' -o -name '*prisma*.ts' | grep -v test
+> grep -rn "new Pg\|PrismaClient\|InMemory\|PgDocumentCollection" packages/backend/$M/src --include='*.ts' | grep -v test
+>
 > # Backing migrations and RLS
 > ls db/sql | grep -iE "$M"
 > grep -rln "$M" db/sql | head
+>
 > # Tests, split by kind
 > find packages/backend/$M/src -name '*.test.ts' | grep -v '\.live\.' | wc -l
 > find packages/backend/$M/src -name '*.live.test.ts'
+>
 > # Client surfaces
 > grep -rln "$M" apps/web/src/app apps/web/e2e apps/mobile/lib 2>/dev/null | head
 > ```
 >
 > The `mount-matrix.ts` `persistence` field is known to go stale. Verify it
 > against the runtime factory and report any contradiction as a finding.
+>
+> **Prove that every persistence target is a real relation.** A store naming
+> `'auth.otp_challenges'` may be passing a logical `collection` key to
+> `PgDocumentCollection`, not addressing a table. Resolve each name against the
+> live catalogue before describing it as a table:
+>
+> ```bash
+> # For every name the module's stores reference:
+> docker exec <pg> psql -U postgres -d <db> -tAc \
+>   "SELECT CASE WHEN to_regclass('<name>') IS NULL THEN 'MISSING — logical key, not a table' ELSE 'real relation' END"
+> # And list the schemas that actually exist:
+> docker exec <pg> psql -U postgres -d <db> -tAc \
+>   "SELECT nspname FROM pg_namespace WHERE nspname NOT LIKE 'pg_%' AND nspname <> 'information_schema'"
+> ```
+>
+> When the target is a shared document table, the module inherits that table's
+> constraints and isolation, not its own. Evaluate the shared table's `tenant_id`
+> type, nullability, foreign keys and RLS policy as part of this module.
 >
 > ### Step 2 — Trace the vertical chain
 >
@@ -109,17 +137,21 @@ Existing assets this prompt orchestrates rather than replaces:
 
 Derived from failures actually observed in this repository:
 
-| Do not conclude                                  | Because                                                                                             |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| "Production ready" from passing tests            | Tests can pass against in-memory stores and sandbox adapters                                        |
-| "Secure" from unit tests                         | Cross-tenant denial needs a live database with the non-superuser app role and FORCE RLS             |
-| "Complete" from `*_COMPLETE.md` or a merged PR   | 247 audit docs exist; several describe superseded states                                            |
-| Persistence kind from `mount-matrix.ts` alone    | It currently mislabels `developer-portal`, `billing` and `auth`                                     |
-| "UX reviewed" without opening the screens        | Route files existing is not a reviewed experience                                                   |
-| "Mobile ready" from web screenshots              | `apps/mobile` has 28 Flutter screens; confirm the module has one                                    |
-| A module exists because a package directory does | `alumni`, `canteen`, `finance`, `inventory`, `payroll` contain only `node_modules`                  |
-| Payments or messaging work                       | `payment-adapter.ts` is a sandbox stub; SMS/email/push live adapters are explicitly not implemented |
-| A skipped CI job counts as passing               | Path filters skip jobs; run the equivalent locally or mark `unverified`                             |
+| Do not conclude                                  | Because                                                                                                                                                          |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "Production ready" from passing tests            | Tests can pass against in-memory stores and sandbox adapters                                                                                                     |
+| "Secure" from unit tests                         | Cross-tenant denial needs a live database with the non-superuser app role and FORCE RLS                                                                          |
+| "Complete" from `*_COMPLETE.md` or a merged PR   | 247 audit docs exist; several describe superseded states                                                                                                         |
+| Persistence kind from `mount-matrix.ts` alone    | It currently mislabels `developer-portal`, `billing` and `auth`                                                                                                  |
+| "UX reviewed" without opening the screens        | Route files existing is not a reviewed experience                                                                                                                |
+| "Mobile ready" from web screenshots              | `apps/mobile` has 28 Flutter screens; confirm the module has one                                                                                                 |
+| A module exists because a package directory does | `alumni`, `canteen`, `finance`, `inventory`, `payroll` contain only `node_modules`                                                                               |
+| Payments or messaging work                       | `payment-adapter.ts` is a sandbox stub; SMS/email/push live adapters are explicitly not implemented                                                              |
+| A skipped CI job counts as passing               | Path filters skip jobs; run the equivalent locally or mark `unverified`                                                                                          |
+| A module's size from a top-level file listing    | `auth` reads as 3 files and is actually 40; always recurse into subdirectories                                                                                   |
+| A store name is a table                          | `auth.otp_challenges` and four siblings resolve to NULL via `to_regclass` — they are `collection` keys in `control_plane_documents`, and no `auth` schema exists |
+| RLS enabled means isolation enforced             | `PgDocumentCollection` binds `app.platform_admin='1'` on every call and the policy accepts that as a full escape; verified live, tenant B read tenant A's row    |
+| A green W1-DATA-06 covers every tenant table     | `check-strict-tenant-fks.mjs:77` filters `data_type='uuid'`, so `text` tenant_id columns never enter the check                                                   |
 
 ## Sweep order
 
