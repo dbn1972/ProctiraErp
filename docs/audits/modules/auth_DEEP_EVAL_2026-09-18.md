@@ -157,8 +157,9 @@ production now refuses to start without a cluster-visible revocation store, so
 multi-replica logout is consistent.
 
 Remaining: sessions and lockout are in-memory unless Redis is wired; SMS OTP
-delivery is sandbox-only; no SLOs, alerts or runbook located for auth; no load
-evidence for token verification.
+delivery is sandbox-only; no load evidence for token verification. `docs/runbooks/auth.md` exists
+(an earlier revision of this report wrongly said no runbook was located); alert
+coverage for auth signals is limited to `critical_journeys.yml`.
 
 ## Step 5 — Gap matrix
 
