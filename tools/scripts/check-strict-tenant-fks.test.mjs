@@ -8,6 +8,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   REPAIR_MIGRATION_HINT,
@@ -18,7 +19,9 @@ import {
   evaluateStrictTenantFks,
   findApplySqlSteps,
   hasTenantFkValidateMigration,
+  loadTextTenantAllowlist,
   parseLiveCatalogRows,
+  reconcileTextTenantTables,
   repairMigrationFailClosed,
 } from './check-strict-tenant-fks.mjs';
 
@@ -118,20 +121,32 @@ ${envBlock}
 }
 
 test('hasTenantFkValidateMigration requires VALIDATE + tenant signal', () => {
-  assert.equal(hasTenantFkValidateMigration(['ALTER TABLE t VALIDATE CONSTRAINT t_tenant_fk;']), true);
-  assert.equal(hasTenantFkValidateMigration(['ALTER TABLE t VALIDATE CONSTRAINT other_fk;']), false);
+  assert.equal(
+    hasTenantFkValidateMigration(['ALTER TABLE t VALIDATE CONSTRAINT t_tenant_fk;']),
+    true,
+  );
+  assert.equal(
+    hasTenantFkValidateMigration(['ALTER TABLE t VALIDATE CONSTRAINT other_fk;']),
+    false,
+  );
   assert.equal(hasTenantFkValidateMigration(['-- no validate']), false);
 });
 
 test('applySqlGatesStrictFks requires 021b + 068 + 076 gate', () => {
   assert.equal(applySqlGatesStrictFks(APPLY_OK), true);
-  assert.equal(applySqlGatesStrictFks('APPLY_STRICT_FKS=1\nis_strict_fk_file\n021b_tenant_fk_constraints.sql'), false);
+  assert.equal(
+    applySqlGatesStrictFks('APPLY_STRICT_FKS=1\nis_strict_fk_file\n021b_tenant_fk_constraints.sql'),
+    false,
+  );
   assert.equal(applySqlGatesStrictFks('echo hi'), false);
 });
 
 test('applySqlDefaultsStrictFksOnInProd detects CI/production default', () => {
   assert.equal(applySqlDefaultsStrictFksOnInProd(APPLY_OK), true);
-  assert.equal(applySqlDefaultsStrictFksOnInProd('APPLY_STRICT_FKS="${APPLY_STRICT_FKS:-0}"'), false);
+  assert.equal(
+    applySqlDefaultsStrictFksOnInProd('APPLY_STRICT_FKS="${APPLY_STRICT_FKS:-0}"'),
+    false,
+  );
 });
 
 test('repairMigrationFailClosed requires VALIDATE + RAISE EXCEPTION', () => {
@@ -291,4 +306,59 @@ test('evaluateStrictTenantFks requireLive without URL fails closed', () => {
 
 test('VALIDATE_MIGRATION_HINT constant matches expected file', () => {
   assert.equal(VALIDATE_MIGRATION_HINT, '068_validate_tenant_fk_constraints.sql');
+});
+
+test('parseLiveCatalogRows extracts the text_tenant_no_fk kind', () => {
+  const out = [
+    'missing|some_uuid_table',
+    'text_tenant_no_fk|health_allergies',
+    'text_tenant_no_fk|audit_log_entries',
+    'unvalidated|x.x_tenant_fk',
+  ].join('\n');
+  const parsed = parseLiveCatalogRows(out);
+  assert.deepEqual(parsed.textTenantNoFk, ['health_allergies', 'audit_log_entries']);
+  assert.deepEqual(parsed.missing, ['some_uuid_table']);
+  assert.deepEqual(parsed.unvalidated, ['x.x_tenant_fk']);
+});
+
+test('reconcileTextTenantTables separates tracked debt from new violations', () => {
+  const allow = new Set(['health_allergies', 'audit_log_entries', 'gone_table']);
+  const r = reconcileTextTenantTables(
+    ['health_allergies', 'audit_log_entries', 'brand_new_table'],
+    allow,
+  );
+  assert.deepEqual(r.unlisted, ['brand_new_table'], 'unlisted table must be reported');
+  assert.deepEqual(r.tracked, ['audit_log_entries', 'health_allergies']);
+  assert.deepEqual(r.stale, ['gone_table'], 'allowlist entries no longer present are stale');
+});
+
+test('reconcileTextTenantTables treats an empty allowlist as permitting nothing', () => {
+  // A missing or unreadable allowlist must not silently allow every table.
+  const r = reconcileTextTenantTables(['a', 'b'], new Set());
+  assert.deepEqual(r.unlisted, ['a', 'b']);
+  assert.deepEqual(r.tracked, []);
+});
+
+test('loadTextTenantAllowlist flattens the shipped allowlist and covers the known debt', () => {
+  const root = join(fileURLToPath(new URL('.', import.meta.url)), '../..');
+  const allow = loadTextTenantAllowlist(root);
+  // The 23 tables observed on a fully migrated database at the time of writing.
+  for (const t of [
+    'control_plane_documents',
+    'health_allergies',
+    'health_phi_break_glass',
+    'audit_log_entries',
+    'audit_chain_heads',
+    'counselling_sessions',
+    'workflow_ui_instances',
+    'insights_ui_runs',
+  ]) {
+    assert.ok(allow.has(t), `${t} must be tracked in the allowlist`);
+  }
+  assert.equal(allow.size, 23, 'allowlist size should match the recorded debt');
+});
+
+test('loadTextTenantAllowlist returns an empty set when the file is absent', () => {
+  const allow = loadTextTenantAllowlist('/nonexistent-root-for-test');
+  assert.equal(allow.size, 0);
 });
