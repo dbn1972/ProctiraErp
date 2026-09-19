@@ -242,14 +242,62 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
         }
       }
 
-      if (await relationExists(client, 'parent_fee_payments')) {
-        summary.feesCollectedCents = await safeNumber(
-          client,
-          `SELECT COALESCE(SUM(amount_cents), 0)::bigint AS value
-           FROM parent_fee_payments
-           WHERE status = 'succeeded'`,
-          [],
-        );
+      // G-809 fee scope. parent_fee_payments has no institution_id, so a payment is
+      // attributed to a school through its invoice. Without this predicate the sum
+      // is tenant-wide: because boards.tenant_id permits several boards per tenant,
+      // every board was shown every other board's collections, while each sibling
+      // metric here is board-scoped.
+      //
+      // Attribution, in preference order:
+      //   1. invoice.class_id -> classes.institution_id. Unambiguous, since a class
+      //      belongs to exactly one institution.
+      //   2. the enrolment that was active when the payment was taken. Temporal,
+      //      because a student may transfer between schools mid-year.
+      //
+      // When neither path resolves the payment is excluded, so the figure can
+      // understate. That is deliberate: an understated total is recoverable, whereas
+      // surfacing another board's revenue is not.
+      if (
+        (await relationExists(client, 'parent_fee_payments')) &&
+        (await relationExists(client, 'parent_fee_invoices'))
+      ) {
+        const hasClassPath =
+          (await relationExists(client, 'classes')) &&
+          (await columnExists(client, 'parent_fee_invoices', 'class_id')) &&
+          (await columnExists(client, 'classes', 'institution_id'));
+        const hasEnrolmentPath =
+          (await relationExists(client, 'enrollments')) &&
+          (await columnExists(client, 'parent_fee_invoices', 'student_id')) &&
+          (await columnExists(client, 'enrollments', 'institution_id'));
+
+        if (hasClassPath || hasEnrolmentPath) {
+          const classJoin = hasClassPath
+            ? 'LEFT JOIN classes c ON c.id = i.class_id'
+            : 'LEFT JOIN (SELECT NULL::uuid AS id, NULL::uuid AS institution_id) c ON FALSE';
+          const enrolmentJoin = hasEnrolmentPath
+            ? `LEFT JOIN LATERAL (
+                 SELECT e.institution_id
+                   FROM enrollments e
+                  WHERE e.student_id = i.student_id
+                    AND (p.paid_at IS NULL OR e.enrolled_at IS NULL OR e.enrolled_at <= p.paid_at)
+                    AND (e.exited_at IS NULL OR p.paid_at IS NULL OR e.exited_at >= p.paid_at)
+                  ORDER BY e.enrolled_at DESC NULLS LAST
+                  LIMIT 1
+               ) en ON TRUE`
+            : 'LEFT JOIN (SELECT NULL::uuid AS institution_id) en ON FALSE';
+
+          summary.feesCollectedCents = await safeNumber(
+            client,
+            `SELECT COALESCE(SUM(p.amount_cents), 0)::bigint AS value
+               FROM parent_fee_payments p
+               JOIN parent_fee_invoices i ON i.id = p.invoice_id
+               ${classJoin}
+               ${enrolmentJoin}
+              WHERE p.status = 'succeeded'
+                AND COALESCE(c.institution_id, en.institution_id)::text = ANY($1::text[])`,
+            [institutionIds],
+          );
+        }
       }
 
       if (await relationExists(client, 'lms_skill_mastery')) {
