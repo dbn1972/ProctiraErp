@@ -116,7 +116,8 @@ recommendation.
 
 Runs with `DATABASE_URL` set. `destructiveDeleteGuard` correctly wires
 `PrivacyService` so a tenant under legal hold cannot be destructively deleted
-(W1-SEC-06). No SLOs, alerts or runbook located. 0 live tests.
+(W1-SEC-06). `docs/runbooks/tenant.md` exists (an earlier revision of this report wrongly
+said no runbook was located); no tenant-specific alert rule. 0 live tests.
 
 ## Step 5 — Gap matrix
 
