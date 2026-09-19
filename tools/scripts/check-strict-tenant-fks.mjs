@@ -84,10 +84,30 @@ missing AS (
   WHERE NOT EXISTS (
     SELECT 1 FROM tenant_fks f WHERE f.table_name = t.table_name
   )
+),
+-- W1-DATA-06 residual: a non-uuid tenant_id cannot carry an FK to tenants(id),
+-- so these tables were invisible to the gate and reported clean while holding no
+-- referential integrity. Emitted as a distinct kind and reconciled against
+-- tenant-fk-text-column-allowlist.json by the caller.
+text_tenant_tables AS (
+  SELECT col.table_name AS id
+  FROM information_schema.columns col
+  JOIN information_schema.tables tb
+    ON tb.table_schema = col.table_schema AND tb.table_name = col.table_name
+  WHERE col.table_schema = 'public'
+    AND col.column_name = 'tenant_id'
+    AND col.data_type <> 'uuid'
+    AND tb.table_type = 'BASE TABLE'
+    AND col.table_name <> 'tenants'
+    AND NOT EXISTS (
+      SELECT 1 FROM tenant_fks f WHERE f.table_name = col.table_name
+    )
 )
 SELECT 'unvalidated' AS kind, id FROM unvalidated
 UNION ALL
 SELECT 'missing' AS kind, id FROM missing
+UNION ALL
+SELECT 'text_tenant_no_fk' AS kind, id FROM text_tenant_tables
 ORDER BY 1, 2;
 `.trim();
 
@@ -277,6 +297,8 @@ export function parseLiveCatalogRows(stdout) {
   const unvalidated = [];
   /** @type {string[]} */
   const missing = [];
+  /** @type {string[]} */
+  const textTenantNoFk = [];
   for (const line of stdout.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -285,8 +307,37 @@ export function parseLiveCatalogRows(stdout) {
     const id = pipe >= 0 ? trimmed.slice(pipe + 1) : '';
     if (kind === 'unvalidated' && id) unvalidated.push(id);
     else if (kind === 'missing' && id) missing.push(id);
+    else if (kind === 'text_tenant_no_fk' && id) textTenantNoFk.push(id);
   }
-  return { unvalidated, missing };
+  return { unvalidated, missing, textTenantNoFk };
+}
+
+/**
+ * Flatten the text-tenant allowlist into a Set of table names.
+ * @param {string} root
+ */
+export function loadTextTenantAllowlist(root) {
+  const path = join(root, 'tools/scripts/tenant-fk-text-column-allowlist.json');
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    const categories = parsed.categories ?? {};
+    return new Set(Object.values(categories).flat());
+  } catch {
+    // Missing or unreadable allowlist must not silently permit everything.
+    return new Set();
+  }
+}
+
+/**
+ * Split observed text tenant_id tables into tracked debt and new violations.
+ * @param {string[]} observed
+ * @param {Set<string>} allowlist
+ */
+export function reconcileTextTenantTables(observed, allowlist) {
+  const unlisted = observed.filter((t) => !allowlist.has(t)).sort();
+  const tracked = observed.filter((t) => allowlist.has(t)).sort();
+  const stale = [...allowlist].filter((t) => !observed.includes(t)).sort();
+  return { unlisted, tracked, stale };
 }
 
 /**
@@ -352,13 +403,13 @@ export function evaluateStrictTenantFks({
   }
 
   if (!sqlNames.includes(VALIDATE_MIGRATION_HINT)) {
-    failures.push(
-      `missing tenant FK VALIDATE migration ${VALIDATE_MIGRATION_HINT}`,
-    );
-  } else if (!hasTenantFkValidateMigration([readFileSync(join(paths.sqlDir, VALIDATE_MIGRATION_HINT), 'utf8')])) {
-    failures.push(
-      `${VALIDATE_MIGRATION_HINT} must VALIDATE tenant_id / tenant_fk constraints`,
-    );
+    failures.push(`missing tenant FK VALIDATE migration ${VALIDATE_MIGRATION_HINT}`);
+  } else if (
+    !hasTenantFkValidateMigration([
+      readFileSync(join(paths.sqlDir, VALIDATE_MIGRATION_HINT), 'utf8'),
+    ])
+  ) {
+    failures.push(`${VALIDATE_MIGRATION_HINT} must VALIDATE tenant_id / tenant_fk constraints`);
   }
 
   if (!sqlNames.includes(REPAIR_MIGRATION_HINT)) {
@@ -458,6 +509,34 @@ export function evaluateStrictTenantFks({
         if (liveCatalog.missing.length) {
           failures.push(
             `live catalog: uuid tenant_id tables missing tenants(id) FK: ${liveCatalog.missing.join(', ')}`,
+          );
+        }
+        // W1-DATA-06 residual. A non-uuid tenant_id cannot carry an FK to
+        // tenants(id), so these tables used to pass invisibly. Existing debt is
+        // tracked in the allowlist; anything unlisted is a new violation.
+        const textReconciled = reconcileTextTenantTables(
+          liveCatalog.textTenantNoFk,
+          loadTextTenantAllowlist(root),
+        );
+        liveCatalog.textTenant = textReconciled;
+        if (textReconciled.unlisted.length) {
+          failures.push(
+            `live catalog: text tenant_id tables with no tenants(id) FK and not allowlisted: ` +
+              `${textReconciled.unlisted.join(', ')} ` +
+              `(migrate tenant_id to uuid with a validated FK, or add to ` +
+              `tools/scripts/tenant-fk-text-column-allowlist.json with a reason)`,
+          );
+        }
+        if (textReconciled.tracked.length) {
+          notes.push(
+            `live catalog: ${textReconciled.tracked.length} allowlisted text tenant_id table(s) ` +
+              `still lack a tenants(id) FK (RLS-enforced but no referential integrity)`,
+          );
+        }
+        if (textReconciled.stale.length) {
+          notes.push(
+            `live catalog: allowlist entries no longer observed, safe to delete: ` +
+              `${textReconciled.stale.join(', ')}`,
           );
         }
         if (!liveCatalog.unvalidated.length && !liveCatalog.missing.length) {

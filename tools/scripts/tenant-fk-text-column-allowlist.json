@@ -1,0 +1,50 @@
+{
+  "_doc": [
+    "W1-DATA-06 originally checked only uuid tenant_id columns, so tables whose",
+    "tenant_id is text never entered the gate and reported clean while carrying no",
+    "foreign key to tenants(id).",
+    "",
+    "Every table listed here has RLS ENABLED and FORCED, so tenant isolation is",
+    "enforced by the database. What they lack is referential integrity: a row can",
+    "reference a tenant id that does not exist or has been deleted.",
+    "",
+    "This file records that debt so it is visible and tracked instead of silent.",
+    "The gate now fails for any text tenant_id table that is NOT listed here, so no",
+    "new occurrences can be added without an explicit decision.",
+    "",
+    "To clear an entry: migrate tenant_id to uuid, add FOREIGN KEY (tenant_id)",
+    "REFERENCES tenants(id), VALIDATE it, then delete the line. Run",
+    "`node tools/scripts/check-strict-tenant-fks.mjs` to confirm."
+  ],
+  "categories": {
+    "phi-health-records": [
+      "counselling_sessions",
+      "health_accommodation_plans",
+      "health_allergies",
+      "health_conditions",
+      "health_diagnoses",
+      "health_insurance",
+      "health_measurements",
+      "health_phi_access_log",
+      "health_phi_break_glass",
+      "health_referrals",
+      "health_screening_programs",
+      "health_special_needs_assessments",
+      "health_vaccinations"
+    ],
+    "audit-trail": [
+      "audit_chain_heads",
+      "audit_log_archive",
+      "audit_log_entries",
+      "audit_retention_configs"
+    ],
+    "control-plane-document-store": ["control_plane_documents"],
+    "ui-projection-tables": [
+      "insights_ui_import_jobs",
+      "insights_ui_runs",
+      "workflow_ui_approvals",
+      "workflow_ui_definitions",
+      "workflow_ui_instances"
+    ]
+  }
+}
