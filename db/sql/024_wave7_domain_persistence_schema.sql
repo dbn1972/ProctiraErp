@@ -129,6 +129,14 @@ CREATE INDEX IF NOT EXISTS hr_certifications_expiry_idx
 
 -- ---------------------------------------------------------------------------
 -- 2. Assessment report cards
+--
+-- OWNERSHIP: the report_card_* prefix does not match the owning service. These
+-- four tables are written and read only by @proctira/backend-assessment
+-- (packages/backend/assessment/src/pg-report-card-repository.ts), not
+-- @proctira/backend-report. Confirmed by grep at the time this note was added:
+-- no other backend package references report_card_templates,
+-- report_card_teacher_comments, report_card_institution_branding or
+-- report_card_jobs. Do not add a second writer without updating this note.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS report_card_templates (
   id                    UUID PRIMARY KEY,
