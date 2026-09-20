@@ -103,11 +103,52 @@ Verified live in the same session, for comparison:
 So the pattern is sound elsewhere; the defect is specific to this shared table and
 the helper that always escapes it.
 
+## The methods have no tenant predicate — this is worse than the policy alone
+
+Re-examined 2026-09-20 after the first draft of this document. The exposure is not
+only that the policy can be escaped; it is that most `PgDocumentCollection` methods
+**never filter by tenant in SQL at all**:
+
+| Method                       | Tenant predicate in SQL             |
+| ---------------------------- | ----------------------------------- |
+| `get(id)`                    | **none** — `collection` + `id` only |
+| `delete(id)`                 | **none**                            |
+| `all()`                      | **none**                            |
+| `count()`                    | **none**                            |
+| `byTenant(tenantId)`         | yes                                 |
+| `where(criteria, tenantId?)` | only when `tenantId` is passed      |
+
+So those four methods delegate isolation entirely to RLS, and then the helper
+defeats RLS on the same connection. Verified live through the exact query `get()`
+issues, as `proctira_app` scoped to tenant B:
+
+```
+row_owner                              | leaked
+aaaaaaaa-0000-4000-8000-0000000000aa   | TENANT_A     <-- tenant B called get()
+
+rows_visible_without_escape = 0                        <-- same query, escape removed
+```
+
+Two consequences:
+
+1. **The exposure is reachable through the normal API**, not just raw SQL. Any caller
+   holding a document id reads that document regardless of which tenant owns it.
+   Collection + id is effectively a global key.
+2. **Removing the escape alone is not a fix — it is an outage.** With no tenant
+   predicate to fall back on, `get()` would start returning `null` for every
+   tenant-owned document. The second line above shows exactly that: 0 rows.
+
 ## Remediation options
 
 Not applied here. This needs a decision from a tenancy/security owner, because
 some control-plane reads are legitimately cross-tenant (platform admin listing
 tenants, for instance) and a naive tightening would break them.
+
+**Correction to an earlier recommendation.** Option 2 below was initially proposed as
+"the smallest fail-closed step". That was wrong on its own: making the escape
+explicit without also adding tenant predicates to `get`/`delete`/`all`/`count` would
+break every tenant-scoped read. Option 2 is necessary but not sufficient — it must
+be paired with Option 1 or 3.
 
 1. **Split the predicate by intent.** Keep the escape for a genuinely
    platform-scoped collection set, and require a tenant match for tenant-owned
@@ -120,8 +161,24 @@ tenants, for instance) and a naive tightening would break them.
    `control_plane_documents` for genuinely platform-level documents. Largest change,
    best end state, and it would also make the data visible to table-oriented audits.
 
-Option 2 is the smallest step that closes the hole without reclassifying data, and
-it fails closed: any call site that needs platform scope must now say so.
+**Recommended: Option 2 paired with Option 1.** Option 2 stops every call escaping by
+default and forces intent to be declared; Option 1 gives the tenant-scoped methods a
+real `tenant_id = $n` predicate so they still work once the escape is gone. Neither
+alone is safe: Option 2 by itself is an outage, Option 1 by itself leaves the escape
+available to any future call site.
+
+Sequencing that avoids a broken intermediate state:
+
+1. Add the tenant predicate to `get`/`delete`/`all`/`count` (they gain a required
+   `tenantId`, or an explicit platform-scoped variant). Behaviour is unchanged while
+   the escape is still bound, so this ships safely on its own.
+2. Classify each collection as tenant-owned or platform-owned, and route call sites
+   to the matching method. `auth.*` and `billing.*` are tenant-owned.
+3. Only then make the escape explicit in `withPlatformScope`. By this point nothing
+   tenant-scoped depends on it, so the change is inert for correct callers and
+   fail-closed for any that were missed.
+
+Step 1 is the useful first commit and carries no behavioural risk.
 
 ## Acceptance criteria
 
