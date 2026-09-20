@@ -89,8 +89,6 @@ BEGIN
 END
 $staff_assignment_fks$;
 
-ALTER TABLE staff_assignments VALIDATE CONSTRAINT staff_assignments_staff_fk;
-ALTER TABLE staff_assignments VALIDATE CONSTRAINT staff_assignments_institution_fk;
 
 -- An end_date before start_date would silently grant or deny access for a window
 -- that cannot be reasoned about. Reject it.
@@ -108,7 +106,50 @@ BEGIN
 END
 $staff_assignment_dates$;
 
-ALTER TABLE staff_assignments VALIDATE CONSTRAINT staff_assignments_date_order_check;
+-- ---------------------------------------------------------------------------
+-- Validate the three new constraints with FORCE RLS briefly lifted
+-- ---------------------------------------------------------------------------
+-- FORCE ROW LEVEL SECURITY applies the tenant policies to the table owner too,
+-- and those policies read app.current_tenant_id with missing_ok, which is NULL
+-- in a migration session. Postgres runs the constraint validation scan under
+-- those policies, so the scan sees zero rows and marks the constraint validated
+-- without checking anything.
+--
+-- That is not theoretical: planting a single orphan staff_assignments row and
+-- running VALIDATE as the owner returned success, leaving convalidated = true
+-- with the orphan still present. A constraint the planner trusts but the data
+-- violates is worse than no constraint.
+--
+-- So the scan runs with FORCE lifted, and FORCE is restored in the same
+-- transaction. A DO block is one statement, so the no-transaction phase ledger
+-- runs this atomically: if VALIDATE fails the NO FORCE rolls back with it and
+-- the table can never be left unforced. FORCE is restored only if it was set,
+-- so this does not silently tighten a table that was deliberately unforced.
+--
+-- If a real deployment has orphan rows, this now fails loudly instead of
+-- pretending to validate. That is the intended behaviour: fix the data.
+DO $validate_staff_assignment_constraints$
+DECLARE
+  was_forced boolean;
+BEGIN
+  SELECT relforcerowsecurity
+    INTO was_forced
+    FROM pg_class
+   WHERE oid = 'public.staff_assignments'::regclass;
+
+  IF was_forced THEN
+    ALTER TABLE staff_assignments NO FORCE ROW LEVEL SECURITY;
+  END IF;
+
+  ALTER TABLE staff_assignments VALIDATE CONSTRAINT staff_assignments_staff_fk;
+  ALTER TABLE staff_assignments VALIDATE CONSTRAINT staff_assignments_institution_fk;
+  ALTER TABLE staff_assignments VALIDATE CONSTRAINT staff_assignments_date_order_check;
+
+  IF was_forced THEN
+    ALTER TABLE staff_assignments FORCE ROW LEVEL SECURITY;
+  END IF;
+END
+$validate_staff_assignment_constraints$;
 
 -- ---------------------------------------------------------------------------
 -- 3. Administrative assignments have no subject or class
