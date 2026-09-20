@@ -139,6 +139,7 @@ describe('database schema readiness', () => {
       '095_w1_data_02_rls_safe_deny.sql',
       '096_w1_data_14_audit_fk_integrity.sql',
       '097_admissions_public_context.sql',
+      '099_w1_data_02_legacy_guc_safe_deny.sql',
       '097_future_schema.sql',
     ]);
   });
