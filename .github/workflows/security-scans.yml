@@ -81,9 +81,18 @@ jobs:
         continue-on-error: false
         run: |
           set -euo pipefail
+          # .gitleaks.toml extends the upstream defaults (useDefault = true) and only
+          # narrows them, with a documented allowlist of verified test-only fixtures
+          # that survive in historical commits. Fail-closed is intact: --exit-code 1
+          # and continue-on-error: false are unchanged.
+          test -f .gitleaks.toml || {
+            echo "error: .gitleaks.toml missing — refusing to scan with implicit defaults" >&2
+            exit 1
+          }
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             gitleaks detect \
               --source . \
+              --config .gitleaks.toml \
               --log-opts "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}" \
               --redact \
               --verbose \
@@ -91,6 +100,7 @@ jobs:
           else
             gitleaks detect \
               --source . \
+              --config .gitleaks.toml \
               --redact \
               --verbose \
               --exit-code 1
