@@ -306,6 +306,13 @@ CREATE TABLE IF NOT EXISTS gpa_snapshots (
 CREATE INDEX IF NOT EXISTS gpa_snapshots_tenant_student_idx
   ON gpa_snapshots (tenant_id, student_id);
 
+-- OWNERSHIP: transcript_issuances lives in this timetable/schedule schema file
+-- for historical reasons only. It is written and read only by
+-- @proctira/backend-gradebook
+-- (packages/backend/gradebook/src/pg-transcript-repository.ts), not by
+-- @proctira/backend-timetable. Confirmed by grep at the time this note was
+-- added: no other backend package references this table. Do not add a second
+-- writer without updating this note.
 CREATE TABLE IF NOT EXISTS transcript_issuances (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   tenant_id       UUID NOT NULL REFERENCES tenants(id),
