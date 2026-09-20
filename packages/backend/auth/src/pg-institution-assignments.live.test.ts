@@ -36,15 +36,19 @@ const PRINCIPAL = randomUUID(); // the auth.users id stored on staff.user_id
 const STAFF = randomUUID();
 
 /**
- * Discovered at runtime rather than created. `institutions` has seven NOT NULL
- * columns including an FK to geographic_areas, so fabricating schools here would be
- * more fixture than test. The evaluation database already contains tenants owning
- * several schools, which is the shape this feature is about.
+ * Provisioned by this suite, not discovered. An earlier version looked for any
+ * tenant already owning three schools, which passed on a populated evaluation
+ * database and failed in CI against a freshly seeded one ("no tenant with >=3
+ * institutions to test against"). A live test that depends on ambient seed data is
+ * testing the fixture, not the behaviour, so the suite now creates its own tenant,
+ * geographic area and three schools. That also removes this suite's use of the
+ * `app.platform_admin` policy escape, which is under review as a separate finding.
  */
-let TENANT = '';
-let SCHOOL_A = '';
-let SCHOOL_B = '';
-let SCHOOL_C = ''; // a third school in the same tenant, never assigned
+const TENANT = randomUUID();
+const AREA = randomUUID();
+const SCHOOL_A = randomUUID();
+const SCHOOL_B = randomUUID();
+const SCHOOL_C = randomUUID(); // a third school in the same tenant, never assigned
 
 function iso(daysFromNow: number): string {
   const d = new Date();
@@ -106,29 +110,34 @@ async function assign(opts: {
 beforeAll(async () => {
   if (!live) return;
   await ensurePgTestTenant(ownerPool!, OTHER_TENANT);
+  await ensurePgTestTenant(ownerPool!, TENANT);
 
-  // institutions is under FORCE RLS, so the owner sees nothing without a scope —
-  // and which tenant to bind is exactly what we are trying to discover. The policy
-  // carries a platform branch for control-plane reads; this fixture lookup is a
-  // legitimate use of it, and it is confined to discovery.
-  const discovery = await ownerPool!.connect();
-  let rows: Array<{ tenant_id: string; ids: string[] }>;
-  try {
-    await discovery.query(`SELECT set_config('app.platform_admin', '1', false)`);
-    const res = await discovery.query<{ tenant_id: string; ids: string[] }>(
-      `SELECT tenant_id::text AS tenant_id, array_agg(id::text ORDER BY id) AS ids
-         FROM institutions
-        GROUP BY tenant_id
-       HAVING count(*) >= 3
-        LIMIT 1`,
+  // geographic_areas and institutions are both tenant-scoped and under FORCE RLS,
+  // so these inserts go through asTenant with the GUC bound. institutions.area_id
+  // is a real FK, hence the area row first.
+  await asTenant(TENANT, async (client) => {
+    await client.query(
+      `INSERT INTO geographic_areas
+         (id, tenant_id, name, code, level, path, lft, rgt, created_at, updated_at)
+       VALUES ($1,$2,'Test District',$3,0,'/test',1,2, now(), now())
+       ON CONFLICT (id) DO NOTHING`,
+      [AREA, TENANT, `AREA-${AREA.slice(0, 8)}`],
     );
-    rows = res.rows;
-  } finally {
-    discovery.release();
-  }
-  if (rows.length === 0) throw new Error('no tenant with >=3 institutions to test against');
-  TENANT = rows[0]!.tenant_id;
-  [SCHOOL_A, SCHOOL_B, SCHOOL_C] = rows[0]!.ids as [string, string, string];
+    for (const [id, name] of [
+      [SCHOOL_A, 'Primary School A'],
+      [SCHOOL_B, 'Primary School B'],
+      [SCHOOL_C, 'Primary School C'],
+    ] as const) {
+      await client.query(
+        `INSERT INTO institutions
+           (id, tenant_id, name, code, area_id, type, sector, ownership,
+            created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,'SCHOOL','PUBLIC','GOVERNMENT', now(), now())
+         ON CONFLICT (id) DO NOTHING`,
+        [id, TENANT, name, `SCH-${id.slice(0, 8)}`, AREA],
+      );
+    }
+  });
 
   await asTenant(TENANT, (client) =>
     client.query(
@@ -143,10 +152,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (live && TENANT) {
+  if (live) {
     await asTenant(TENANT, async (client) => {
       await client.query(`DELETE FROM staff_assignments WHERE staff_id = $1`, [STAFF]);
       await client.query(`DELETE FROM staff WHERE id = $1`, [STAFF]);
+      // Order matters: institutions.area_id references the area.
+      await client.query(`DELETE FROM institutions WHERE id = ANY($1::uuid[])`, [
+        [SCHOOL_A, SCHOOL_B, SCHOOL_C],
+      ]);
+      await client.query(`DELETE FROM geographic_areas WHERE id = $1`, [AREA]);
     });
   }
   await runtimePool?.end();
