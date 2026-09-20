@@ -17,11 +17,13 @@ test.describe('Registration Portal — public surfaces', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('apply personal-info step renders for primary', async ({ page }) => {
+  test('apply step requires a selected school before rendering a form', async ({ page }) => {
+    // ADM-CFG-01: a published form loads only for a concrete institution UUID.
+    // Visiting an institution *type* alone must guide the applicant to pick a
+    // school rather than render an empty/mock form.
     await page.goto('/apply/primary');
-    await expect(
-      page.getByRole('heading', { name: /personal information|student registration/i }).first(),
-    ).toBeVisible();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('link', { name: /choose a school/i })).toBeVisible();
   });
 
   test('apply documents and review routes render', async ({ page }) => {

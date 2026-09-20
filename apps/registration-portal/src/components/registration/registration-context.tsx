@@ -13,7 +13,11 @@ import {
 import { useSearchParams } from 'next/navigation';
 import type { DocumentUploadMetadata } from '@/lib/api';
 import { isValidInstitutionId } from '@/lib/validation';
-import { stripDocumentContent, toPersistedDraft } from '@/lib/registration-draft';
+import {
+  createSubmissionKey,
+  stripDocumentContent,
+  toPersistedDraft,
+} from '@/lib/registration-draft';
 
 export { stripDocumentContent, toPersistedDraft } from '@/lib/registration-draft';
 
@@ -30,6 +34,11 @@ export interface RegistrationDraft {
   institutionType: string;
   /** Selected target institution UUID */
   institutionId: string;
+  /** Immutable published configuration rendered for this application. */
+  formConfigurationId: string;
+  formConfigurationVersion: number | null;
+  /** Client-owned durable retry key for this logical submission. */
+  submissionKey: string;
   firstName: string;
   lastName: string;
   /** YYYY-MM-DD */
@@ -49,6 +58,9 @@ export interface RegistrationDraft {
 const initialDraft = (institutionType: string): RegistrationDraft => ({
   institutionType,
   institutionId: '',
+  formConfigurationId: '',
+  formConfigurationVersion: null,
+  submissionKey: '',
   firstName: '',
   lastName: '',
   dateOfBirth: '',
@@ -101,19 +113,38 @@ export function RegistrationProvider({
       const raw = window.sessionStorage.getItem(storageKey(institutionType));
       if (raw) {
         const parsed = JSON.parse(raw) as RegistrationDraft;
+        const institutionChanged = Boolean(
+          queryId && parsed.institutionId && queryId !== parsed.institutionId,
+        );
         setDraft({
           ...initialDraft(institutionType),
           ...parsed,
           institutionType,
           institutionId: queryId || parsed.institutionId || '',
+          formConfigurationId: institutionChanged ? '' : parsed.formConfigurationId || '',
+          formConfigurationVersion: institutionChanged
+            ? null
+            : (parsed.formConfigurationVersion ?? null),
+          submissionKey:
+            institutionChanged || !parsed.submissionKey
+              ? createSubmissionKey()
+              : parsed.submissionKey,
           // Drop any legacy base64 content from older drafts.
           documents: stripDocumentContent(parsed.documents ?? []),
         });
-      } else if (queryId) {
-        setDraft({ ...initialDraft(institutionType), institutionId: queryId });
+      } else {
+        setDraft({
+          ...initialDraft(institutionType),
+          institutionId: queryId,
+          submissionKey: createSubmissionKey(),
+        });
       }
     } catch {
-      setDraft({ ...initialDraft(institutionType), institutionId: queryId });
+      setDraft({
+        ...initialDraft(institutionType),
+        institutionId: queryId,
+        submissionKey: createSubmissionKey(),
+      });
     }
   }, [institutionType, searchParams]);
 
@@ -168,7 +199,7 @@ export function RegistrationProvider({
 
   const reset = useCallback(() => {
     fileMapRef.current.clear();
-    setDraft(initialDraft(institutionType));
+    setDraft({ ...initialDraft(institutionType), submissionKey: createSubmissionKey() });
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem(storageKey(institutionType));
     }

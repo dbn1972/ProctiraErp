@@ -142,7 +142,13 @@ export const DATABASE_SCHEMA_CONTRACTS = {
     'public.privacy_anonymization_jobs',
     'public.privacy_tenant_offboard_jobs',
   ],
-  registration: ['public.admission_applications'],
+  registration: [
+    'public.admission_applications',
+    'public.admission_form_configurations',
+    'public.institutions',
+    'public.geographic_areas',
+    'public.classes',
+  ],
   admissionsPipeline: [
     'public.admission_enquiries',
     'public.enquiry_followups',

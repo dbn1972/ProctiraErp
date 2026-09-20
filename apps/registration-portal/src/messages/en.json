@@ -80,7 +80,15 @@
     "institutionRequired": "Select a school before submitting. Use Find Schools to choose one.",
     "invalidDateOfBirth": "Enter a valid student date of birth (YYYY-MM-DD).",
     "invalidPhone": "Enter a valid guardian phone number.",
-    "invalidEmail": "Enter a valid guardian email address."
+    "invalidEmail": "Enter a valid guardian email address.",
+    "configUnavailableTitle": "Application form unavailable",
+    "configUnavailableMessage": "We couldn't load this school's application form. Please try again shortly.",
+    "configMissingTitle": "Application form not published",
+    "configMissingMessage": "This school hasn't published an application form yet. Please choose another school.",
+    "institutionRequiredTitle": "Select a school first",
+    "retryConfiguration": "Try again",
+    "chooseInstitution": "Choose a school",
+    "fixFieldErrors": "Please fix the highlighted fields before submitting."
   },
   "documents": {
     "title": "Upload Documents",
@@ -98,7 +106,8 @@
     "invalidType": "File type not allowed. Allowed: {types}",
     "remove": "Remove",
     "reuploadHint": "re-upload required",
-    "reuploadRequired": "{fileName} must be re-uploaded before submit"
+    "reuploadRequired": "{fileName} must be re-uploaded before submit",
+    "noneRequired": "No documents are required for this application."
   },
   "institutions": {
     "title": "Find Schools",
@@ -113,7 +122,10 @@
     "noResults": "No schools found matching your criteria",
     "viewDetails": "View Details",
     "selectForRegistration": "Select for Registration",
-    "resultsCount": "{count} schools found"
+    "resultsCount": "{count} schools found",
+    "serviceUnavailableTitle": "Service temporarily unavailable",
+    "serviceUnavailableMessage": "We couldn't load schools right now. Please try again in a moment.",
+    "retry": "Try again"
   },
   "tracking": {
     "title": "Track Your Application",
@@ -145,5 +157,6 @@
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "contact": "Contact Us"
-  }
+  },
+  "submissionFailed": "We couldn't submit your application. Please try again."
 }

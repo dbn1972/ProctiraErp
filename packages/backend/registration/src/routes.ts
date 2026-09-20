@@ -16,6 +16,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { isPublicRegistrationPath } from './registration-access.js';
+import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
 import type { RegistrationService } from './registration-service.js';
 import {
   SubmitRegistrationSchema,
@@ -36,8 +38,6 @@ import {
   type BookInterviewInput,
 } from './schemas.js';
 
-import { enforceRegistrationRouteAccess } from './registration-http-guard.js';
-
 /**
  * Options for registering registration routes.
  */
@@ -45,7 +45,12 @@ export interface RegistrationRoutesOptions {
   registrationService: RegistrationService;
   /** Route prefix (default: '/registrations') */
   prefix?: string;
-  /** Default tenant ID for public routes (resolved from subdomain in production) */
+  /** Trusted hostname-to-canonical-tenant resolver for anonymous routes. */
+  publicTenantResolver?: PublicTenantResolver;
+  /**
+   * Explicit non-production fallback used by isolated tests only. Production
+   * refuses this option and requires publicTenantResolver.
+   */
   defaultTenantId?: string;
   /**
    * W1-SEC-05: shared session store (Redis/DB in multi-replica). Defaults to
@@ -54,6 +59,11 @@ export interface RegistrationRoutesOptions {
   sessionStore?: RegistrationSessionStore;
   /** Session TTL ms (default 8h). */
   sessionTtlMs?: number;
+}
+
+/** Trusted public host lookup injected by gateway composition. */
+export interface PublicTenantResolver {
+  resolveHostname(hostHeader: string | undefined): Promise<string | null>;
 }
 
 /** W1-SEC-05 session record with binding + expiry. */
@@ -114,24 +124,48 @@ export function hashClientBinding(raw: string): string {
 function clientBindingFromRequest(request: FastifyRequest): string {
   const ua = typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : '';
   const explicit =
-    typeof request.headers['x-client-binding'] === 'string' ? request.headers['x-client-binding'] : '';
+    typeof request.headers['x-client-binding'] === 'string'
+      ? request.headers['x-client-binding']
+      : '';
   return hashClientBinding(`${explicit}|${ua}`);
 }
 
-/**
- * Resolves tenant ID from request context.
- * In production, this comes from subdomain/header. For public routes, uses a default.
- */
-function resolveTenantId(request: FastifyRequest, defaultTenantId?: string): string {
-  const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-  if (tenantId) return tenantId;
+/** Public tenant context resolved only from the raw Host header. */
+declare module 'fastify' {
+  interface FastifyRequest {
+    publicRegistrationTenantId?: string;
+  }
+}
 
-  // Check header
-  const headerTenant = request.headers['x-tenant-id'];
-  if (typeof headerTenant === 'string' && headerTenant.length > 0) return headerTenant;
+const SUBMISSION_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 
-  // Use default for public routes
-  return defaultTenantId ?? 'default';
+function publicTenantId(request: FastifyRequest): string {
+  const tenantId = request.publicRegistrationTenantId;
+  if (!tenantId) {
+    throw new AppError(
+      'Registration portal is unavailable for this request',
+      'PUBLIC_REGISTRATION_CONTEXT_NOT_FOUND',
+      404,
+    );
+  }
+  return tenantId;
+}
+
+function authenticatedTenantId(request: FastifyRequest): string {
+  const scopedRequest = request as FastifyRequest & {
+    tenantId?: string;
+    user?: { tenantId?: string };
+  };
+  const tenantId = scopedRequest.tenantId ?? scopedRequest.user?.tenantId;
+  if (!tenantId) {
+    throw new AppError('Authenticated tenant context is required', 'TENANT_CONTEXT_REQUIRED', 401);
+  }
+  return tenantId;
+}
+
+function submissionKeyFromRequest(request: FastifyRequest): string | null {
+  const value = request.headers['idempotency-key'];
+  return typeof value === 'string' && SUBMISSION_KEY_PATTERN.test(value) ? value : null;
 }
 
 const DEFAULT_SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -162,11 +196,32 @@ export async function registerRegistrationRoutes(
   fastify: FastifyInstance,
   options: RegistrationRoutesOptions,
 ): Promise<void> {
-  const { registrationService, prefix = '/registrations', defaultTenantId } = options;
+  const {
+    registrationService,
+    prefix = '/registrations',
+    publicTenantResolver,
+    defaultTenantId,
+  } = options;
   const sessionTtlMs = options.sessionTtlMs ?? DEFAULT_SESSION_TTL_MS;
+  if (process.env.NODE_ENV === 'production' && defaultTenantId) {
+    throw new AppError(
+      'Production public registration cannot use defaultTenantId; inject publicTenantResolver',
+      'REGISTRATION_CONFIGURATION_ERROR',
+      500,
+    );
+  }
+  if (process.env.NODE_ENV === 'production' && !publicTenantResolver) {
+    throw new AppError(
+      'Production public registration requires an injected publicTenantResolver',
+      'REGISTRATION_CONFIGURATION_ERROR',
+      500,
+    );
+  }
   if (process.env.NODE_ENV === 'production' && !options.sessionStore) {
-    throw new Error(
-      'W1-SEC-05: production registration routes require an injected shared sessionStore (Redis/DB); in-memory is refuse.',
+    throw new AppError(
+      'Production registration routes require an injected shared session store',
+      'REGISTRATION_CONFIGURATION_ERROR',
+      500,
     );
   }
   const sessionStore = options.sessionStore ?? new InMemorySessionStore();
@@ -177,10 +232,38 @@ export async function registerRegistrationRoutes(
    * Requirement 16.1, 16.2, 16.3
    */
 
-  // W1-SEC-02: package RBAC — public apply/tracking ungated; staff CRM fail-closed.
+  if (!fastify.hasRequestDecorator('publicRegistrationTenantId')) {
+    fastify.decorateRequest('publicRegistrationTenantId', undefined);
+  }
+
+  // Public routes resolve tenant exclusively from raw Host through trusted DI.
+  // Caller tenant and forwarding headers are deliberately ignored. Staff paths
+  // retain the authenticated gateway tenant/RBAC path.
   fastify.addHook('preHandler', async (request, reply) => {
-    if (!enforceRegistrationRouteAccess(request, reply)) {
-      return reply;
+    if (!isPublicRegistrationPath(request.url)) {
+      if (!enforceRegistrationRouteAccess(request, reply)) return reply;
+      return;
+    }
+
+    try {
+      const resolved = await publicTenantResolver?.resolveHostname(request.headers.host);
+      const explicitTestFallback =
+        process.env.NODE_ENV !== 'production' && defaultTenantId ? defaultTenantId : undefined;
+      const tenantId = resolved ?? explicitTestFallback;
+      if (!tenantId) {
+        return reply.status(404).send({
+          code: 'PUBLIC_REGISTRATION_CONTEXT_NOT_FOUND',
+          message: 'Registration portal is unavailable for this request',
+          statusCode: 404,
+        });
+      }
+      request.publicRegistrationTenantId = tenantId;
+    } catch {
+      return reply.status(503).send({
+        code: 'PUBLIC_REGISTRATION_CONTEXT_UNAVAILABLE',
+        message: 'Registration portal is temporarily unavailable',
+        statusCode: 503,
+      });
     }
   });
 
@@ -201,11 +284,31 @@ export async function registerRegistrationRoutes(
         });
       }
 
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = publicTenantId(request);
+      const submissionKey = submissionKeyFromRequest(request);
+      if (!submissionKey) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'A valid Idempotency-Key header is required',
+          statusCode: 400,
+          errors: [
+            {
+              field: 'idempotencyKey',
+              rule: 'required',
+              message: 'Provide an 8-128 character Idempotency-Key header',
+            },
+          ],
+        });
+      }
 
       try {
-        const response = await registrationService.submitRegistration(tenantId, result.data);
-        return reply.status(201).send(response);
+        const { replayed, ...response } = await registrationService.submitRegistration(
+          tenantId,
+          result.data,
+          submissionKey,
+        );
+        if (replayed) reply.header('x-idempotency-replay', 'true');
+        return reply.status(replayed ? 200 : 201).send(response);
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -245,7 +348,7 @@ export async function registerRegistrationRoutes(
         const status = await registrationService.checkStatus(
           paramsResult.data.trackingNumber,
           dob,
-          resolveTenantId(request, defaultTenantId),
+          publicTenantId(request),
         );
         return reply.status(200).send(status);
       } catch (error: unknown) {
@@ -268,7 +371,7 @@ export async function registerRegistrationRoutes(
       request: FastifyRequest<{ Querystring: InstitutionMapQuery }>,
       reply: FastifyReply,
     ) {
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = publicTenantId(request);
       const query = request.query;
 
       const page = Number(query.page) || 1;
@@ -310,7 +413,7 @@ export async function registerRegistrationRoutes(
       request: FastifyRequest<{ Querystring: Record<string, string | string[]> }>,
       reply: FastifyReply,
     ) {
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = publicTenantId(request);
       const raw = request.query;
 
       const parseList = (value: string | string[] | undefined): string[] | undefined => {
@@ -369,8 +472,7 @@ export async function registerRegistrationRoutes(
 
   /**
    * GET /registrations/form-config/:institutionId
-   * Get form configuration for an institution.
-   * Requirement 16.1: Configurable fields per institution type.
+   * Get the latest published configuration for a tenant-owned institution UUID.
    */
   fastify.get(
     `${prefix}/form-config/:institutionId`,
@@ -379,13 +481,38 @@ export async function registerRegistrationRoutes(
       reply: FastifyReply,
     ) {
       const { institutionId } = request.params;
-
-      const config = await registrationService.getFormConfiguration(institutionId);
-      if (!config) {
-        return reply.status(200).send({ institutionTypeId: '', fields: [] });
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          institutionId,
+        )
+      ) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'A valid institution UUID is required',
+          statusCode: 400,
+          errors: [{ field: 'institutionId', rule: 'uuid', message: 'Select a valid institution' }],
+        });
       }
 
-      return reply.status(200).send(config);
+      try {
+        const config = await registrationService.getFormConfiguration(
+          publicTenantId(request),
+          institutionId,
+        );
+        if (!config) {
+          return reply.status(404).send({
+            code: 'FORM_CONFIGURATION_NOT_FOUND',
+            message: 'No published registration form is available for the selected institution',
+            statusCode: 404,
+          });
+        }
+        return reply.status(200).send(config);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -459,7 +586,7 @@ export async function registerRegistrationRoutes(
   fastify.get(
     `${prefix}/applications`,
     async function listApplicationsHandler(request: FastifyRequest, reply: FastifyReply) {
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = authenticatedTenantId(request);
       const applications = await registrationService.listApplications(tenantId);
       return reply.status(200).send({
         data: applications.map((row) => ({
@@ -504,7 +631,7 @@ export async function registerRegistrationRoutes(
         });
       }
 
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = authenticatedTenantId(request);
       try {
         const result = await registrationService.updateApplicationStatus(
           tenantId,
@@ -539,7 +666,7 @@ export async function registerRegistrationRoutes(
   fastify.get(
     `${prefix}/waitlist`,
     async function listWaitlistHandler(request: FastifyRequest, reply: FastifyReply) {
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = authenticatedTenantId(request);
       const institutionId =
         typeof (request.query as { institutionId?: string }).institutionId === 'string'
           ? (request.query as { institutionId?: string }).institutionId
@@ -561,7 +688,7 @@ export async function registerRegistrationRoutes(
   fastify.get(
     `${prefix}/interview-slots`,
     async function listSlotsHandler(request: FastifyRequest, reply: FastifyReply) {
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = authenticatedTenantId(request);
       const institutionId =
         typeof (request.query as { institutionId?: string }).institutionId === 'string'
           ? (request.query as { institutionId?: string }).institutionId
@@ -596,7 +723,7 @@ export async function registerRegistrationRoutes(
           errors: result.errors,
         });
       }
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = authenticatedTenantId(request);
       try {
         const slot = await registrationService.createInterviewSlot(tenantId, result.data);
         return reply.status(201).send({
@@ -632,7 +759,7 @@ export async function registerRegistrationRoutes(
           errors: result.errors,
         });
       }
-      const tenantId = resolveTenantId(request, defaultTenantId);
+      const tenantId = authenticatedTenantId(request);
       try {
         const booking = await registrationService.bookInterview(tenantId, result.data);
         return reply.status(201).send({

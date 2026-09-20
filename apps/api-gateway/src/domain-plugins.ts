@@ -112,6 +112,7 @@ import {
   createRegistrationRepository,
   createRegistrationSessionStore,
   registrationPlugin,
+  type PublicTenantResolver,
 } from '@proctira/backend-registration';
 import { reportCataloguePlugin } from '@proctira/backend-report';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
@@ -163,6 +164,11 @@ function workflowRepositories(): ReturnType<typeof createWorkflowRepositories> {
   return workflowRepositoriesCache;
 }
 
+/** Trusted dependencies composed once by the gateway root. */
+export interface DomainPluginDependencies {
+  publicTenantResolver: PublicTenantResolver;
+}
+
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
   /** Logical name (for logging). */
@@ -170,7 +176,11 @@ interface DomainRegistrar {
   /** Proxy prefix(es) this domain serves in-process — excluded from the router. */
   proxyPrefixes: string[];
   /** Mounts the domain plugin onto an `/api/v1`-scoped instance. */
-  register: (scope: FastifyInstance, config: GatewayConfig) => Promise<void>;
+  register: (
+    scope: FastifyInstance,
+    config: GatewayConfig,
+    dependencies: DomainPluginDependencies,
+  ) => Promise<void>;
 }
 
 /** Shared admissions offer fee + enrol hooks (staff accept + parent A2 accept). */
@@ -1180,7 +1190,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'registration',
     proxyPrefixes: ['/registrations', '/admissions'],
-    register: async (scope) => {
+    register: async (scope, _config, dependencies) => {
       // Pg when DATABASE_URL (014 waitlist/interview + 034 enquiry/merit/offer); else in-memory.
       const repository = createRegistrationRepository();
       const crmStore = createAdmissionsCrmStore();
@@ -1195,6 +1205,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         pipelineStore,
         prefix: '/registrations',
         admissionsPrefix: '/admissions',
+        publicTenantResolver: dependencies.publicTenantResolver,
         createOfferFeeInvoice: createOfferFeeInvoiceHook(),
         assertOfferFeePaid: assertOfferFeePaidHook(),
         reconcileOfferResources: reconcileAdmissionsOfferResourcesHook(),
@@ -1300,6 +1311,7 @@ export async function registerDomainPlugins(
   app: FastifyInstance,
   config: GatewayConfig,
   versionPrefix = '/api/v1',
+  dependencies: DomainPluginDependencies,
 ): Promise<string[]> {
   const handled: string[] = [];
 
@@ -1308,7 +1320,7 @@ export async function registerDomainPlugins(
     // `/api/v1<prefix>` while inheriting the root auth + tenant hooks.
     await app.register(
       async (scope) => {
-        await domain.register(scope, config);
+        await domain.register(scope, config, dependencies);
       },
       { prefix: versionPrefix },
     );

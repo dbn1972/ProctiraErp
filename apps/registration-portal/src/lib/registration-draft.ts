@@ -7,6 +7,9 @@ import type { DocumentUploadMetadata } from './api';
 export interface PersistedRegistrationDraft {
   institutionType: string;
   institutionId: string;
+  formConfigurationId: string;
+  formConfigurationVersion: number | null;
+  submissionKey: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -17,6 +20,14 @@ export interface PersistedRegistrationDraft {
   customFields: Record<string, string>;
   documents: DocumentUploadMetadata[];
   trackingNumber?: string;
+}
+
+/** Create the browser-owned key used to converge uncertain/retried submits. */
+export function createSubmissionKey(): string {
+  if (typeof globalThis.crypto?.randomUUID !== 'function') {
+    throw new Error('Secure submission key generation is unavailable');
+  }
+  return globalThis.crypto.randomUUID();
 }
 
 /** Strip base64 `content` so sessionStorage never holds document bytes. */

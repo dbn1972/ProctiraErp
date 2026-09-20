@@ -1,28 +1,34 @@
-/**
- * Server-side helpers for the Registration Portal.
- *
- * These wrap the API client with safe fallbacks so that Server Components can
- * render even if the backend Registration Service is temporarily unreachable
- * during build/runtime.
- */
-import { getFormConfiguration, type FormConfiguration } from './api';
+/** Server-side fail-closed loaders for the public registration wizard. */
+import { getFormConfiguration, RegistrationApiError, type FormConfiguration } from './api';
+import { isValidInstitutionId } from './validation';
+
+export type FormConfigurationLoadResult =
+  | { status: 'ready'; configuration: FormConfiguration }
+  | { status: 'selection_required' }
+  | { status: 'not_found' }
+  | { status: 'unavailable' };
 
 /**
- * Loads the form configuration for an institution type.
- *
- * The backend's `/registrations/form-config/:institutionId` route resolves
- * configuration by **institution UUID**. For the public flow we accept a
- * symbolic institution-type slug (e.g. "primary"), and the backend returns an
- * empty configuration when the slug doesn't resolve to anything — that's the
- * signal to render the default field set.
+ * Load a published form only by concrete institution UUID. Missing config and
+ * service outage are deliberately distinct and neither becomes an empty form.
  */
 export async function loadFormConfiguration(
-  institutionTypeOrId: string,
-): Promise<FormConfiguration> {
+  institutionId: string | undefined,
+): Promise<FormConfigurationLoadResult> {
+  if (!institutionId || !isValidInstitutionId(institutionId)) {
+    return { status: 'selection_required' };
+  }
+
   try {
-    return await getFormConfiguration(institutionTypeOrId);
-  } catch {
-    // Backend unreachable or 404 — fall back to an empty config.
-    return { institutionTypeId: institutionTypeOrId, fields: [] };
+    const configuration = await getFormConfiguration(institutionId);
+    if (configuration.institutionId !== institutionId || configuration.version < 1) {
+      return { status: 'unavailable' };
+    }
+    return { status: 'ready', configuration };
+  } catch (error) {
+    if (error instanceof RegistrationApiError && error.statusCode === 404) {
+      return { status: 'not_found' };
+    }
+    return { status: 'unavailable' };
   }
 }

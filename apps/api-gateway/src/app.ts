@@ -45,7 +45,15 @@ import {
 import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
 import { asTenantScopedResolver, createAreaHierarchyResolver } from '@proctira/backend-institution';
 import { createPrivacyRepository, PrivacyService } from '@proctira/backend-privacy';
-import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
+import {
+  isPublicRegistrationPath,
+  type PublicTenantResolver,
+} from '@proctira/backend-registration';
+import {
+  createPublicTenantResolver,
+  createTenantRepository,
+  tenantLifecyclePlugin,
+} from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -102,6 +110,8 @@ const sharedPrivacyRepository = createPrivacyRepository();
 
 export interface BuildAppOptions {
   config: GatewayConfig;
+  /** Optional trusted public tenant resolver override for composition tests. */
+  publicTenantResolver?: PublicTenantResolver;
   /** Optional access-token revocation store override (tests / DI). */
   accessTokenRevocationStore?: AccessTokenRevocationStore;
 }
@@ -128,6 +138,19 @@ export function rateLimitKeyFor(request: FastifyRequest): string {
 
 export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
   const { config } = options;
+  // Lazily construct the tenant repository so the persistence-policy guard
+  // (W1-SEC-12) fires at its original point in the boot sequence (tenant
+  // lifecycle registration), not before the earlier production guards such as
+  // the MFA_EXPOSE_OTP check (G-731). A single instance is shared between the
+  // public tenant resolver and the tenant lifecycle plugin.
+  let tenantRepositoryInstance: ReturnType<typeof createTenantRepository>['repository'] | undefined;
+  const getTenantRepository = () => {
+    tenantRepositoryInstance ??= createTenantRepository().repository;
+    return tenantRepositoryInstance;
+  };
+  // The trusted public tenant resolver is composed after the early production
+  // guards run (see the MFA guard below), so it does not trigger persistence
+  // construction prematurely. It is used later by registerDomainPlugins.
 
   const app = Fastify({
     logger:
@@ -408,13 +431,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/auth/mfa/verify',
     '/api/v1/storage/health',
   ];
+  const authMiddlewareExcludePaths = [
+    ...authExcludePaths,
+    // Auth plugins accept exact/prefix exclusions. The later gateway hook
+    // selectively re-enforces JWT for every non-public registration route.
+    '/api/v1/registrations',
+    '/api/v1/registrations/*',
+  ];
 
   if (keycloak) {
     // G-704: identities persist in Postgres when DATABASE_URL is set.
     const identityStore = createKeycloakIdentityStore();
     await app.register(keycloakAuthPlugin, {
       config: keycloak,
-      excludePaths: authExcludePaths,
+      excludePaths: authMiddlewareExcludePaths,
       identityStore,
       revocationStore: accessTokenRevocationStore,
     });
@@ -451,7 +481,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           durationSeconds: 900,
         },
       },
-      excludePaths: authExcludePaths,
+      excludePaths: authMiddlewareExcludePaths,
       revocationStore: accessTokenRevocationStore,
     });
   }
@@ -464,6 +494,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   if (exposeOtp && process.env['NODE_ENV'] === 'production') {
     throw new Error('MFA_EXPOSE_OTP=true is not allowed when NODE_ENV=production');
   }
+
+  // Compose the trusted public tenant resolver now that the early production
+  // guards (above) have run. In tests a resolver may be injected directly.
+  const publicTenantResolver =
+    options.publicTenantResolver ??
+    createPublicTenantResolver({
+      repository: getTenantRepository(),
+      baseDomain: config.tenant.baseDomain,
+    });
+
   const otpService = new OtpService({
     store: createOtpChallengeStore(),
     sms: createSmsProviderFromEnv(),
@@ -492,12 +532,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // This ensures JWT is verified before tenant resolution can read JWT claims
   app.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0]!;
-    const isExcluded = authExcludePaths.some((excluded) => {
-      if (excluded.endsWith('/*')) {
-        return url.startsWith(excluded.slice(0, -2));
-      }
-      return url === excluded;
-    });
+    const isExcluded =
+      isPublicRegistrationPath(url) ||
+      authExcludePaths.some((excluded) => {
+        if (excluded.endsWith('/*')) {
+          return url.startsWith(excluded.slice(0, -2));
+        }
+        return url === excluded;
+      });
 
     const authHeader = request.headers.authorization;
     const bearer =
@@ -621,6 +663,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     baseDomain: config.tenant.baseDomain,
     headerName: config.tenant.headerName,
     excludePaths: [...authExcludePaths, '/api/v1/services'],
+    excludeRequest: (request) => isPublicRegistrationPath(request.url),
     resolveSlugToId: false,
     requireJwtTenantWhenAuthenticated: true,
   });
@@ -633,6 +676,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
 
     const tenantId = request.tenantId ?? request.user?.tenantId;
@@ -650,6 +694,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
     const tenantId = request.tenantId ?? request.user?.tenantId;
     const user = request.user as FeaturesUser | undefined;
@@ -668,6 +713,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   app.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
     const user = request.user as InstitutionScopeUser | undefined;
     if (!user) return;
@@ -708,7 +754,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     redis: idempotencyStore.redis,
     ttlSeconds: parseInt(process.env['IDEMPOTENCY_TTL_SECONDS'] || '86400', 10),
     lockTtlSeconds: parseInt(process.env['IDEMPOTENCY_LOCK_TTL_SECONDS'] || '60', 10),
-    excludePaths: [...authExcludePaths, '/api/v1/services'],
+    excludePaths: [
+      ...authExcludePaths,
+      '/api/v1/services',
+      // Public submit owns database-atomic idempotency on admission_applications.
+      '/api/v1/registrations',
+    ],
   });
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
@@ -751,7 +802,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     prefix: '/api/v1/billing',
   });
   await app.register(tenantLifecyclePlugin, {
-    repository: createTenantRepository().repository,
+    repository: getTenantRepository(),
     prefix: '/api/v1/tenant-lifecycle',
     branding: { disabled: false },
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
@@ -818,6 +869,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
+    if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
 
     const user = request.user;
@@ -909,7 +961,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
   // 9. Register in-process domain plugins (monolith mode). These serve their
   // routes directly (Prisma-backed, RLS-safe) rather than being proxied.
-  const inProcessPrefixes = await registerDomainPlugins(app, config, '/api/v1');
+  const inProcessPrefixes = await registerDomainPlugins(app, config, '/api/v1', {
+    publicTenantResolver,
+  });
 
   // 10. Register service router for the remaining domains (proxies to
   // standalone services via SERVICE_ROUTES). In-process prefixes are excluded

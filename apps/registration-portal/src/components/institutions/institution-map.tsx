@@ -32,6 +32,9 @@ interface InstitutionMapProps {
   initialAreas?: FilterOption[];
   initialTypes?: FilterOption[];
   initialGrades?: FilterOption[];
+  initialFilters?: InstitutionFilters;
+  /** Initial server request failed (distinct from a successful empty result). */
+  initialError?: boolean;
 }
 
 /**
@@ -45,12 +48,16 @@ export function InstitutionMap({
   initialAreas = [],
   initialTypes = [],
   initialGrades = [],
+  initialFilters = {},
+  initialError = false,
 }: InstitutionMapProps) {
   const t = useTranslations('institutions');
   const [institutions, setInstitutions] = useState<InstitutionLocation[]>(initialInstitutions);
-  const [filters, setFilters] = useState<InstitutionFilters>({});
+  const [filters, setFilters] = useState<InstitutionFilters>(initialFilters);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(initialError);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   // Re-fetch when filters change
   useEffect(() => {
@@ -59,9 +66,12 @@ export function InstitutionMap({
       setLoading(true);
       try {
         const result = await getInstitutions({ ...filters, pageSize: 200 });
-        if (!cancelled) setInstitutions(result.data);
+        if (!cancelled) {
+          setInstitutions(result.data);
+          setLoadError(false);
+        }
       } catch {
-        if (!cancelled) setInstitutions([]);
+        if (!cancelled) setLoadError(true);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -70,7 +80,7 @@ export function InstitutionMap({
     return () => {
       cancelled = true;
     };
-  }, [filters]);
+  }, [filters, retryNonce]);
 
   // Client-side search filter
   const filteredInstitutions = useMemo(() => {
@@ -142,11 +152,29 @@ export function InstitutionMap({
         </p>
       </div>
 
+      {loadError ? (
+        <div
+          className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          role="alert"
+        >
+          <p className="font-semibold">{t('serviceUnavailableTitle')}</p>
+          <p className="mt-1">{t('serviceUnavailableMessage')}</p>
+          <button
+            type="button"
+            className="btn-secondary mt-3"
+            onClick={() => setRetryNonce((value) => value + 1)}
+            disabled={loading}
+          >
+            {t('retry')}
+          </button>
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
         <MapView institutions={filteredInstitutions} loading={loading} />
       </div>
 
-      {filteredInstitutions.length === 0 && !loading && (
+      {filteredInstitutions.length === 0 && !loading && !loadError && (
         <div className="card text-center text-sm text-gray-500">{t('noResults')}</div>
       )}
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { DocumentUpload } from './document-upload';
@@ -8,7 +9,10 @@ import type { FormFieldDefinition } from '@/lib/api';
 
 interface DocumentsStepProps {
   institutionType: string;
-  /** File-typed configurable fields per institution type */
+  institutionId: string;
+  formConfigurationId: string;
+  formConfigurationVersion: number;
+  /** File fields from the selected institution's published configuration. */
   fileFields: FormFieldDefinition[];
 }
 
@@ -20,36 +24,33 @@ interface DocumentsStepProps {
  * If the configuration has no file fields we fall back to a sensible default
  * (passport photo + birth certificate + ID document).
  */
-export function DocumentsStep({ institutionType, fileFields }: DocumentsStepProps) {
+export function DocumentsStep({
+  institutionType,
+  institutionId,
+  formConfigurationId,
+  formConfigurationVersion,
+  fileFields,
+}: DocumentsStepProps) {
   const t = useTranslations();
   const router = useRouter();
-  const { draft } = useRegistration();
+  const { draft, update } = useRegistration();
 
-  const docFields: FormFieldDefinition[] =
-    fileFields.length > 0
-      ? fileFields
-      : [
-          { id: 'photo', label: t('documents.photo'), type: 'file', required: true },
-          {
-            id: 'birthCertificate',
-            label: t('documents.birthCertificate'),
-            type: 'file',
-            required: true,
-          },
-          {
-            id: 'identityDocument',
-            label: t('documents.identityDocument'),
-            type: 'file',
-            required: false,
-          },
-        ];
+  useEffect(() => {
+    update({ institutionId, formConfigurationId, formConfigurationVersion });
+  }, [formConfigurationId, formConfigurationVersion, institutionId, update]);
+
+  const docFields = fileFields;
 
   function handleNext() {
-    router.push(`/apply/${encodeURIComponent(institutionType)}/review`);
+    router.push(
+      `/apply/${encodeURIComponent(institutionType)}/review?institutionId=${encodeURIComponent(institutionId)}`,
+    );
   }
 
   function handleBack() {
-    router.push(`/apply/${encodeURIComponent(institutionType)}`);
+    router.push(
+      `/apply/${encodeURIComponent(institutionType)}?institutionId=${encodeURIComponent(institutionId)}`,
+    );
   }
 
   // Block forward navigation if any required document is missing
@@ -65,6 +66,9 @@ export function DocumentsStep({ institutionType, fileFields }: DocumentsStepProp
       </div>
 
       <div className="card space-y-6">
+        {docFields.length === 0 ? (
+          <p className="text-sm text-gray-600">{t('documents.noneRequired')}</p>
+        ) : null}
         {docFields.map((field) => (
           <DocumentUpload
             key={field.id}

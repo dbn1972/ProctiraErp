@@ -80,7 +80,15 @@
     "institutionRequired": "اختر مدرسة قبل الإرسال. استخدم البحث عن المدارس.",
     "invalidDateOfBirth": "أدخل تاريخ ميلاد صالحًا (YYYY-MM-DD).",
     "invalidPhone": "أدخل رقم هاتف ولي أمر صالحًا.",
-    "invalidEmail": "أدخل بريدًا إلكترونيًا صالحًا لولي الأمر."
+    "invalidEmail": "أدخل بريدًا إلكترونيًا صالحًا لولي الأمر.",
+    "configUnavailableTitle": "نموذج الطلب غير متاح",
+    "configUnavailableMessage": "تعذّر تحميل نموذج طلب هذه المدرسة. يُرجى المحاولة مرة أخرى قريبًا.",
+    "configMissingTitle": "لم يُنشر نموذج الطلب",
+    "configMissingMessage": "لم تنشر هذه المدرسة نموذج طلب بعد. يُرجى اختيار مدرسة أخرى.",
+    "institutionRequiredTitle": "اختر مدرسة أولًا",
+    "retryConfiguration": "إعادة المحاولة",
+    "chooseInstitution": "اختيار مدرسة",
+    "fixFieldErrors": "يُرجى تصحيح الحقول المميّزة قبل الإرسال."
   },
   "documents": {
     "title": "رفع المستندات",
@@ -98,7 +106,8 @@
     "invalidType": "نوع غير مسموح. المسموح: {types}",
     "remove": "إزالة",
     "reuploadHint": "يلزم إعادة الرفع",
-    "reuploadRequired": "يجب إعادة رفع {fileName} قبل الإرسال"
+    "reuploadRequired": "يجب إعادة رفع {fileName} قبل الإرسال",
+    "noneRequired": "لا توجد مستندات مطلوبة لهذا الطلب."
   },
   "institutions": {
     "title": "البحث عن المدارس",
@@ -113,7 +122,10 @@
     "noResults": "لم يتم العثور على مدارس",
     "viewDetails": "عرض التفاصيل",
     "selectForRegistration": "اختيار للتسجيل",
-    "resultsCount": "{count} مدرسة"
+    "resultsCount": "{count} مدرسة",
+    "serviceUnavailableTitle": "الخدمة غير متاحة مؤقتًا",
+    "serviceUnavailableMessage": "تعذّر تحميل المدارس الآن. يُرجى المحاولة مرة أخرى بعد قليل.",
+    "retry": "إعادة المحاولة"
   },
   "tracking": {
     "title": "تتبع طلبك",
@@ -145,5 +157,6 @@
     "privacy": "سياسة الخصوصية",
     "terms": "شروط الخدمة",
     "contact": "اتصل بنا"
-  }
+  },
+  "submissionFailed": "تعذّر إرسال طلبك. يُرجى المحاولة مرة أخرى."
 }

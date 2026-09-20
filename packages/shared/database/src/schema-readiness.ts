@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '096_w1_data_14_audit_fk_integrity.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '097_admissions_public_context.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
@@ -28,6 +28,9 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   // the trigger-owned audit tables. Stays required so a later marker bump cannot
   // let a database with unvalidated audit FKs pass readiness.
   '096_w1_data_14_audit_fk_integrity.sql',
+  // Admissions public submissions require durable context snapshots and the
+  // tenant-scoped submission-key unique index even after later marker bumps.
+  '097_admissions_public_context.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {

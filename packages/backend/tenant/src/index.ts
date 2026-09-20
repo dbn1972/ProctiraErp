@@ -39,6 +39,13 @@ export { PgTenantRepository } from './pg-tenant-repository.js';
 export { createTenantRepository } from './create-tenant-repository.js';
 export type { TenantPersistence } from './create-tenant-repository.js';
 
+// Trusted anonymous-host resolution (public registration composition)
+export { createPublicTenantResolver, normalizePublicHostname } from './public-tenant-resolver.js';
+export type {
+  PublicTenantResolver,
+  PublicTenantResolverOptions,
+} from './public-tenant-resolver.js';
+
 // Schemas
 export {
   TenantStatusEnum,

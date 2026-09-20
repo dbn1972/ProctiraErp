@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { FormFieldDefinition } from '@/lib/api';
 import {
@@ -14,7 +14,10 @@ import { useRegistration } from './registration-context';
 
 interface PersonalInfoFormProps {
   institutionType: string;
-  /** Configurable fields per institution type (loaded server-side and passed in) */
+  institutionId: string;
+  formConfigurationId: string;
+  formConfigurationVersion: number;
+  /** Configurable fields from the selected institution's published form. */
   customFields: FormFieldDefinition[];
 }
 
@@ -26,11 +29,25 @@ interface PersonalInfoFormProps {
  * institution type. Validates client-side and persists to the registration
  * draft before navigating to /apply/{type}/documents.
  */
-export function PersonalInfoForm({ institutionType, customFields }: PersonalInfoFormProps) {
+export function PersonalInfoForm({
+  institutionType,
+  institutionId,
+  formConfigurationId,
+  formConfigurationVersion,
+  customFields,
+}: PersonalInfoFormProps) {
   const t = useTranslations();
   const router = useRouter();
   const { draft, update, setCustomField } = useRegistration();
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    update({
+      institutionId,
+      formConfigurationId,
+      formConfigurationVersion,
+    });
+  }, [formConfigurationId, formConfigurationVersion, institutionId, update]);
 
   function validate(): boolean {
     const fieldErrors = validateRequiredFields(
@@ -73,7 +90,9 @@ export function PersonalInfoForm({ institutionType, customFields }: PersonalInfo
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (validate()) {
-      router.push(`/apply/${encodeURIComponent(institutionType)}/documents`);
+      router.push(
+        `/apply/${encodeURIComponent(institutionType)}/documents?institutionId=${encodeURIComponent(institutionId)}`,
+      );
     }
   }
 

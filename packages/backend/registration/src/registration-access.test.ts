@@ -21,9 +21,7 @@ describe('registration-access (W1-SEC-02)', () => {
 
   it('allows admissions staff to write', () => {
     expect(hasRegistrationAccess(['registrar'], 'registration.staff.write')).toBe(true);
-    expect(hasRegistrationAccess(['admissions_officer'], 'admissions.staff.write')).toBe(
-      true,
-    );
+    expect(hasRegistrationAccess(['admissions_officer'], 'admissions.staff.write')).toBe(true);
     expect(hasRegistrationAccess(['admin'], 'admissions.staff.read')).toBe(true);
   });
 
@@ -31,9 +29,9 @@ describe('registration-access (W1-SEC-02)', () => {
     expect(hasRegistrationAccess(['teacher'], 'registration.staff.write')).toBe(false);
     expect(hasRegistrationAccess(['parent'], 'admissions.staff.write')).toBe(false);
     expect(hasRegistrationAccess([], 'registration.staff.read')).toBe(false);
-    expect(() =>
-      assertRegistrationAccess(['viewer'], 'registration.staff.write'),
-    ).toThrow(/Forbidden/);
+    expect(() => assertRegistrationAccess(['viewer'], 'registration.staff.write')).toThrow(
+      /Forbidden/,
+    );
   });
 
   it('classifies public registration paths', () => {
@@ -44,6 +42,8 @@ describe('registration-access (W1-SEC-02)', () => {
     expect(isPublicRegistrationPath('/registrations/form-config/inst-1')).toBe(true);
     expect(isPublicRegistrationPath('/registrations/language')).toBe(true);
     expect(isPublicRegistrationPath('/api/v1/registrations')).toBe(true);
+    expect(isPublicRegistrationPath('/api/v1/institutions')).toBe(false);
+    expect(isPublicRegistrationPath('/api/v1/language')).toBe(false);
     expect(isPublicRegistrationPath('/registrations/applications')).toBe(false);
     expect(isPublicRegistrationPath('/registrations/interview-slots')).toBe(false);
   });

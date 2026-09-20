@@ -45,6 +45,9 @@ describe('toPersistedDraft', () => {
     const draft = {
       institutionType: 'primary',
       institutionId: '11111111-1111-4111-8111-111111111111',
+      formConfigurationId: '22222222-2222-4222-8222-222222222222',
+      formConfigurationVersion: 1,
+      submissionKey: '33333333-3333-4333-8333-333333333333',
       firstName: 'Ada',
       lastName: 'Lovelace',
       dateOfBirth: '2010-01-01',

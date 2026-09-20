@@ -14,11 +14,10 @@
  * tenant identity for authenticated principals when lookup is disabled/unavailable.
  */
 
+import { bindTenantGucPrisma } from '@proctira/database';
 import { createLogger } from '@proctira/logging';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-
-import { bindTenantGucPrisma } from '@proctira/database';
 
 import {
   isAuthenticatedRequest,
@@ -40,6 +39,9 @@ export interface TenantPluginOptions extends TenantResolutionOptions {
    * Example: ['/health', '/api/v1/public/*']
    */
   excludePaths?: string[];
+
+  /** Additional narrow exclusion predicate supplied by trusted composition. */
+  excludeRequest?: (request: FastifyRequest) => boolean;
 
   /**
    * Custom function to get a database client for setting the session variable.
@@ -79,9 +81,7 @@ type TenantFindUnique = {
   findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
 };
 
-function getTenantFinder(
-  db: unknown,
-): TenantFindUnique | undefined {
+function getTenantFinder(db: unknown): TenantFindUnique | undefined {
   if (db && typeof db === 'object' && 'tenant' in db) {
     const tenant = (db as { tenant?: TenantFindUnique }).tenant;
     if (tenant && typeof tenant.findUnique === 'function') {
@@ -147,6 +147,7 @@ export const tenantPlugin = fp(
   async function tenantPluginImpl(fastify: FastifyInstance, options: TenantPluginOptions) {
     const {
       excludePaths = ['/health', '/healthz', '/ready', '/metrics'],
+      excludeRequest,
       getDbClient,
       resolveSlugToId = true,
       ...resolutionOptions
@@ -163,8 +164,8 @@ export const tenantPlugin = fp(
     fastify.addHook(
       'onRequest',
       async function tenantResolutionHook(request: FastifyRequest, reply: FastifyReply) {
-        // Skip excluded paths
-        if (isExcludedPath(request.url, excludePaths)) {
+        // Skip explicitly public paths selected by trusted gateway composition.
+        if (excludeRequest?.(request) || isExcludedPath(request.url, excludePaths)) {
           return;
         }
 
@@ -206,9 +207,7 @@ export const tenantPlugin = fp(
             const host = request.hostname || request.headers['host'];
             if (host && typeof host === 'string') {
               const baseDomain =
-                resolutionOptions.baseDomain ??
-                process.env['TENANT_BASE_DOMAIN'] ??
-                'proctira.org';
+                resolutionOptions.baseDomain ?? process.env['TENANT_BASE_DOMAIN'] ?? 'proctira.org';
               const hostname = host.split(':')[0]!;
               if (hostname.endsWith(`.${baseDomain}`)) {
                 const slug = hostname.slice(0, -(baseDomain.length + 1));
