@@ -13,6 +13,10 @@
 -- allocation_percentage and start/end dates. What was missing is a link from the
 -- authenticated principal to the staff row.
 --
+-- CREATE INDEX CONCURRENTLY keeps `staff` and `staff_assignments` online, so this
+-- file cannot run in a single transaction (W1-DATA-17). apply-sql.sh detects that
+-- and executes it through its resumable phase ledger, as it does for 097.
+--
 -- Industry pattern followed (Ed-Fi staff/education-organization assignment,
 -- OneRoster user-to-org association, and effective-dated HR assignment records in
 -- general): keep identity and person as separate records joined by one link, put
@@ -43,12 +47,12 @@ COMMENT ON COLUMN staff.user_id IS
 -- NULL rows do not collide. Per-tenant rather than global because the identity
 -- invariant already guarantees a principal never spans tenants; scoping the index
 -- to tenant_id keeps it consistent with every other constraint on this table.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_staff_user_id_per_tenant
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_staff_user_id_per_tenant
   ON staff (tenant_id, user_id)
   WHERE user_id IS NOT NULL;
 
 -- Lookup path for request-time resolution: principal -> staff -> assignments.
-CREATE INDEX IF NOT EXISTS staff_user_id_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS staff_user_id_idx
   ON staff (user_id)
   WHERE user_id IS NOT NULL;
 
@@ -138,7 +142,7 @@ COMMENT ON COLUMN staff_assignments.class_id IS
 
 -- Resolution reads "assignments active for this staff member now", so index the
 -- path it actually takes.
-CREATE INDEX IF NOT EXISTS staff_assignments_active_lookup_idx
+CREATE INDEX CONCURRENTLY IF NOT EXISTS staff_assignments_active_lookup_idx
   ON staff_assignments (tenant_id, staff_id, status, start_date, end_date);
 
 INSERT INTO schema_migrations (filename)
