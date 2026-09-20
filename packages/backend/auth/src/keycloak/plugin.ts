@@ -7,6 +7,10 @@ import {
   createAccessTokenRevocationStore,
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
+import {
+  resolveActiveInstitutionIds,
+  type AssignmentQueryable,
+} from '../institution-assignments.js';
 
 import {
   identityInputFromClaims,
@@ -33,6 +37,16 @@ export interface KeycloakAuthPluginOptions {
    * IdP end-session redirect (same store as authenticate checks).
    */
   revocationStore?: AccessTokenRevocationStore;
+  /**
+   * Database handle used to resolve the principal's `institutions[]` claim from
+   * staff assignments active at request time (G-805 institution scope).
+   *
+   * Omit it and `institutions` stays empty, which is fail-closed: a principal with
+   * no resolved institutions is school-bound to nothing rather than unscoped. See
+   * `../institution-assignments.ts` for why this is resolved per request instead of
+   * being carried in the token.
+   */
+  assignmentDb?: AssignmentQueryable;
 }
 
 function isExcludedPath(path: string, excludePaths: string[]): boolean {
@@ -160,6 +174,27 @@ async function hydrateKeycloakUser(
       );
     }
   }
+  // G-805: resolve the institutions this principal may act for from staff
+  // assignments active right now. Runs after identity linking because it needs the
+  // resolved local userId and tenantId, not the raw Keycloak subject.
+  //
+  // A failure here leaves `institutions` empty rather than throwing. That is
+  // fail-closed: `decideInstitutionScope` treats a principal with no institutions as
+  // school-bound to nothing, so a database blip denies access instead of widening it.
+  if (options.assignmentDb && payload.tenantId && payload.sub) {
+    try {
+      payload.institutions = await resolveActiveInstitutionIds(options.assignmentDb, {
+        tenantId: payload.tenantId,
+        userId: payload.sub,
+      });
+    } catch (error) {
+      request.log.warn(
+        { err: error, tenantId: payload.tenantId },
+        'Failed to resolve institution assignments; principal left with no institution scope',
+      );
+    }
+  }
+
   if (payload.tenantId) {
     (request as FastifyRequest & { tenantId?: string }).tenantId = payload.tenantId;
   }
