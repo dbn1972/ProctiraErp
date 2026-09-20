@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocale } from 'next-intl';
+
 import { useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -23,8 +25,8 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { bulkInvoiceAction, createFeeStructureAction } from '@/lib/fees/actions';
 import type { FeeStructure } from '@/lib/api/fees';
 
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-IN', {
+function formatAmount(cents: number, currency: string, locale: string): string {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
     maximumFractionDigits: 2,
@@ -39,6 +41,7 @@ export function StructuresWorkspace({
   /** Server-rendered page heading (h1 + description) so the page owns its h1. */
   header: ReactNode;
 }) {
+  const locale = useLocale();
   const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
@@ -267,7 +270,7 @@ export function StructuresWorkspace({
                     <span className="font-normal text-muted-foreground">({row.code})</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(row.amountCents, row.currency)} · {row.category}
+                    {formatAmount(row.amountCents, row.currency, locale)} · {row.category}
                     {row.term ? ` · ${row.term}` : ''}
                   </p>
                 </li>

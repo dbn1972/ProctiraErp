@@ -6,18 +6,15 @@ import { requireSession } from '@/lib/auth/server';
 import { listFeePlans } from '@/lib/api/fees';
 import { NewFeePlanForm } from '../_components/new-fee-plan-form';
 
-export const dynamic = 'force-dynamic';
+import { getLocale } from 'next-intl/server';
 
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatAmount } from '../_components/format-amount';
+
+export const dynamic = 'force-dynamic';
 
 export default async function FeesPlansPage() {
   await requireSession();
+  const locale = await getLocale();
   const plans = await listFeePlans();
 
   return (
@@ -52,7 +49,7 @@ export default async function FeesPlansPage() {
                     <span className="font-normal text-muted-foreground">({plan.code})</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(plan.amountCents, plan.currency)} · {plan.frequency} ·{' '}
+                    {formatAmount(plan.amountCents, plan.currency, locale)} · {plan.frequency} ·{' '}
                     {plan.status}
                   </p>
                 </li>

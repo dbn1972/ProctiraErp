@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocale } from 'next-intl';
+
 import type { ReactNode } from 'react';
 
 import {
@@ -13,8 +15,8 @@ import {
 import { useHydrated } from '@/hooks/useHydrated';
 import type { DuesReport } from '@/lib/api/fees';
 
-function formatAmount(cents: number): string {
-  return new Intl.NumberFormat('en-IN', {
+function formatAmount(cents: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 2,
@@ -22,6 +24,7 @@ function formatAmount(cents: number): string {
 }
 
 export function FeesReportsPanel({ report, header }: { report: DuesReport; header: ReactNode }) {
+  const locale = useLocale();
   const hydrated = useHydrated();
 
   return (
@@ -51,8 +54,8 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
                     Class {row.classId.slice(0, 8)}…
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Open {row.openCount} ({formatAmount(row.openCents)}) · Overdue{' '}
-                    {row.overdueCount} ({formatAmount(row.overdueCents)})
+                    Open {row.openCount} ({formatAmount(row.openCents, locale)}) · Overdue{' '}
+                    {row.overdueCount} ({formatAmount(row.overdueCents, locale)})
                   </p>
                 </li>
               ))}
@@ -75,7 +78,7 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
               {report.byStatus.map((row) => (
                 <li key={row.status} className="py-2" data-testid="dues-status-row">
                   <p className="text-sm text-foreground">
-                    {row.status}: {row.count} · {formatAmount(row.amountCents)}
+                    {row.status}: {row.count} · {formatAmount(row.amountCents, locale)}
                   </p>
                 </li>
               ))}
