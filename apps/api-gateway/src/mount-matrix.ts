@@ -351,10 +351,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'developer-portal',
     mounted: true,
     prefixes: ['/developer'],
-    persistence: 'in-memory',
+    persistence: 'raw-pg',
     rbacWired: true,
     notes:
-      'G-607: mounted with in-memory API keys/docs; AuthZ via rbacPlugin; gateway rate-limit applies. Live IdP key mint residual.',
+      'G-607: AuthZ via rbacPlugin; gateway rate-limit applies. Live IdP key mint residual. Postgres when DATABASE_URL is set — createDeveloperPortalRepository returns HybridDeveloperPortalRepository over four dedicated developer_portal_* tables (055/089/093/094); in-memory only via assertInMemoryFallbackAllowed, which throws in production.',
     registrarName: 'developer',
   },
 
@@ -363,10 +363,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'auth',
     mounted: true,
     prefixes: ['/auth'],
-    persistence: 'in-memory',
+    persistence: 'mixed',
     rbacWired: true,
     notes:
-      'Registered directly in `app.ts` (not DOMAIN_REGISTRARS). JWT + sessions; `rbacPlugin` registered (G-101).',
+      "Registered directly in `app.ts` (not DOMAIN_REGISTRARS). JWT + sessions; `rbacPlugin` registered (G-101). Postgres when DATABASE_URL is set, but via PgDocumentCollection logical keys in the shared `control_plane_documents` table (auth.keycloak_identities / auth.users / auth.tenants / auth.otp_challenges / auth.invites) — these are NOT real relations, `to_regclass` returns NULL and no `auth` schema exists. That table's RLS policy accepts `app.platform_admin=1`, which the document store binds on every call, so it does not isolate tenants: see docs/audits/SEC_CONTROL_PLANE_DOCUMENT_ISOLATION.md (P0, open).",
   },
   {
     package: 'audit',
@@ -381,10 +381,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'billing',
     mounted: true,
     prefixes: ['/billing'],
-    persistence: 'in-memory',
+    persistence: 'mixed',
     rbacWired: true,
     notes:
-      'billingPlugin mounted in `app.ts` (G-106); RBAC resource `platform` via PATH_RESOURCE_MAP + onRequest. Suspend gate also checks JWT/in-memory store.',
+      'billingPlugin mounted in `app.ts` (G-106); RBAC resource `platform` via PATH_RESOURCE_MAP + onRequest. Suspend gate also checks JWT store. Postgres when DATABASE_URL is set (createBillingRepository returns PgBillingRepository), but via PgDocumentCollection logical keys in the shared `control_plane_documents` table (billing.plans / subscriptions / entitlements / usage) — not dedicated tables. That table does not isolate tenants: see docs/audits/SEC_CONTROL_PLANE_DOCUMENT_ISOLATION.md (P0, open).',
   },
   {
     package: 'providers',
