@@ -7,7 +7,7 @@ When the user asks for full / E2E / production-ready / enterprise testing of a r
 - `.cursor/skills/enterprise-module-production-ready/SKILL.md`
 - Checklist: `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`
 
-Project hooks (`.cursor/hooks.json`) arm an enterprise-test session and follow up on `stop` until evidence exists.
+No project hooks are configured. The enterprise-test bar is enforced by reviewer judgement and CI, not by an automated session hook.
 
 ## Laptop CPU (local Cursor Desktop)
 

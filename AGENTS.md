@@ -59,4 +59,4 @@ Checklist: `docs/audits/templates/ENTERPRISE_RELEASE_OPS_CHECKLIST.md`
 
 **False claims cannot be entertained:** Do not claim Wave‑N / finding “COMPLETE”, “fully closed”, “N/N done”, or “all remediations closed” from `*_COMPLETE.md`, old ledgers, or merged PRs alone. Tip Done‑when evidence + allowed dispositions (`FULLY_CLOSED` / `PARTIAL` / `OPEN` / `REGRESSED` / `EXTERNALLY_UNVERIFIED`) only. Independent tip re-audits outrank self-score — if an auditor finds a fault, accept PARTIAL/OPEN until tip is re-proven. QA gate: `.cursor/skills/enterprise-module-production-ready/SKILL.md` § False claims.
 
-Hooks in `.cursor/hooks.json` enforce follow-ups for enterprise-test sessions until the test checklist evidence pack is complete.
+No automated agent hooks are configured. The gates above are enforced by reviewer judgement and CI, not by session hooks.
