@@ -27,6 +27,46 @@ function toDate(v: unknown): Date {
 }
 
 /**
+ * Which rows a document operation is allowed to address.
+ *
+ * `control_plane_documents` holds both tenant-owned rows (`auth.*`, `billing.*`)
+ * and genuinely platform-owned rows with a NULL `tenant_id`. Historically
+ * `get`/`delete`/`all`/`count` carried **no** `tenant_id` predicate and relied
+ * entirely on RLS for separation — while {@link withPlatformScope} bound
+ * `app.platform_admin='1'`, which that table's policy accepts as a full escape.
+ * The net effect was that `(collection, id)` behaved as a global key: a caller
+ * holding an id read that row whichever tenant owned it. Verified live; see
+ * `docs/audits/SEC_CONTROL_PLANE_DOCUMENT_ISOLATION.md`.
+ *
+ * Passing a scope adds the missing predicate in SQL, so the operation is correct
+ * independently of whether RLS is escaped:
+ *
+ * - `{ tenantId }` — only that tenant's rows
+ * - `{ platform: true }` — only rows with no owning tenant
+ *
+ * Omitting it preserves the previous unscoped behaviour, so this is additive and
+ * no existing caller changes meaning. Omission is the thing being removed: once
+ * call sites are classified, the parameter becomes required and the
+ * `app.platform_admin` bind can stop being unconditional.
+ */
+export type DocumentScope =
+  | { tenantId: string; platform?: never }
+  | { platform: true; tenantId?: never };
+
+/**
+ * Renders `scope` as an additional SQL predicate plus its parameters.
+ * `nextParam` is the 1-based index of the next free placeholder.
+ */
+function scopeClause(
+  scope: DocumentScope | undefined,
+  nextParam: number,
+): { sql: string; params: unknown[] } {
+  if (!scope) return { sql: '', params: [] };
+  if (scope.platform === true) return { sql: ' AND tenant_id IS NULL', params: [] };
+  return { sql: ` AND tenant_id = $${nextParam}`, params: [scope.tenantId] };
+}
+
+/**
  * Runs `fn` on a dedicated client with `app.platform_admin = '1'` bound
  * (transaction-local), so RLS policies that allow the control plane pass.
  * When `tenantId` is given, the canonical tenant GUC is bound (W1-DATA-12).
@@ -107,11 +147,12 @@ export class PgDocumentCollection<T extends object> {
     };
   }
 
-  async get(id: string): Promise<T | null> {
+  async get(id: string, scope?: DocumentScope): Promise<T | null> {
+    const s = scopeClause(scope, 3);
     return withPlatformScope(this.pool, async (client) => {
       const res = await client.query(
-        `SELECT * FROM control_plane_documents WHERE collection = $1 AND id = $2 LIMIT 1`,
-        [this.collection, id],
+        `SELECT * FROM control_plane_documents WHERE collection = $1 AND id = $2${s.sql} LIMIT 1`,
+        [this.collection, id, ...s.params],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
       return row ? this.map(row).data : null;
@@ -132,21 +173,23 @@ export class PgDocumentCollection<T extends object> {
     });
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: string, scope?: DocumentScope): Promise<boolean> {
+    const s = scopeClause(scope, 3);
     return withPlatformScope(this.pool, async (client) => {
       const res = await client.query(
-        `DELETE FROM control_plane_documents WHERE collection = $1 AND id = $2`,
-        [this.collection, id],
+        `DELETE FROM control_plane_documents WHERE collection = $1 AND id = $2${s.sql}`,
+        [this.collection, id, ...s.params],
       );
       return Number(res.rowCount ?? 0) > 0;
     });
   }
 
-  async all(): Promise<T[]> {
+  async all(scope?: DocumentScope): Promise<T[]> {
+    const s = scopeClause(scope, 2);
     return withPlatformScope(this.pool, async (client) => {
       const res = await client.query(
-        `SELECT * FROM control_plane_documents WHERE collection = $1 ORDER BY created_at ASC`,
-        [this.collection],
+        `SELECT * FROM control_plane_documents WHERE collection = $1${s.sql} ORDER BY created_at ASC`,
+        [this.collection, ...s.params],
       );
       return res.rows.map((r) => this.map(r as Record<string, unknown>).data);
     });
@@ -183,11 +226,12 @@ export class PgDocumentCollection<T extends object> {
     return rows[0] ?? null;
   }
 
-  async count(): Promise<number> {
+  async count(scope?: DocumentScope): Promise<number> {
+    const s = scopeClause(scope, 2);
     return withPlatformScope(this.pool, async (client) => {
       const res = await client.query(
-        `SELECT COUNT(*)::int AS c FROM control_plane_documents WHERE collection = $1`,
-        [this.collection],
+        `SELECT COUNT(*)::int AS c FROM control_plane_documents WHERE collection = $1${s.sql}`,
+        [this.collection, ...s.params],
       );
       return Number((res.rows[0] as { c: number }).c);
     });
