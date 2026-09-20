@@ -1,0 +1,53 @@
+# gitleaks configuration (W1-OPS-11 secret scan)
+#
+# Extends the upstream default rules — this file narrows, it never disables a
+# rule. Every allowlist entry below is a specific test fixture that the
+# `generic-api-key` heuristic flags on entropy alone.
+#
+# Why an allowlist and not an edit:
+#
+# The `Secret scan (gitleaks)` job scans the **full commit history** on pushes to
+# `main` (no `--log-opts`). All three values below still exist in historical
+# commits, so editing or deleting the current source cannot clear them. The only
+# alternatives would be rewriting 742 commits of shared history, which is not
+# acceptable, or leaving a required security gate permanently red — which hides
+# any genuine future leak in a known-failing check.
+#
+# Each entry was verified before being added:
+#   - referenced by ZERO non-test files (`grep -rl <value> | grep -v '\.test\.ts$'`)
+#   - not present in any deployment manifest, Helm values file, or `.env` template
+#   - not a credential for any real system
+#
+# Adding an entry here requires the same evidence. If a value appears in
+# non-test code, fix the code — do not allowlist it.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Verified test-only fixtures present in historical commits"
+
+regexes = [
+  # packages/backend/health/src/phi-crypto-scoped.test.ts
+  # Symmetric passphrase for an enc:v1 encrypt/decrypt round-trip assertion.
+  # Any string satisfies the test; the value carries no meaning.
+  '''legacy-global-key-for-v1-test''',
+
+  # packages/backend/developer-portal/src/crypto-keys.test.ts
+  # Input to hashApiKey(); the test asserts only determinism and the
+  # /^sha256:[0-9a-f]{64}$/ output shape. Sibling fixtures oem_aaaa… and
+  # oem_bbbb… are not flagged because they are lower entropy — same role.
+  '''oem_0123456789abcdef0123456789abcdef''',
+
+  # apps/api-gateway/src/audit-mount.test.ts (historical)
+  # A JWT signing secret long enough to satisfy the production length guard so
+  # the gateway boots under test. Already absent from current source; retained
+  # here only because history is scanned.
+  '''test-jwt-secret-at-least-32-characters-long''',
+]
+
+paths = [
+  # Next.js build output. Not tracked in git (.gitignore), but a developer with a
+  # local build present would otherwise see findings from generated manifests.
+  '''apps/web/\.next/''',
+]
