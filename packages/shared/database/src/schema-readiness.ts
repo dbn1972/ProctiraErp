@@ -31,6 +31,7 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   // Admissions public submissions require durable context snapshots and the
   // tenant-scoped submission-key unique index even after later marker bumps.
   '097_admissions_public_context.sql',
+  '098_staff_identity_link.sql',
   '099_w1_data_02_legacy_guc_safe_deny.sql',
 ] as const;
 
