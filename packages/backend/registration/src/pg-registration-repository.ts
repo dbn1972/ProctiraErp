@@ -304,7 +304,12 @@ export class PgRegistrationRepository implements RegistrationRepository {
     trackingNumber: string,
     tenantId?: string,
   ): Promise<RegistrationEntity | null> {
-    const scopedTenantId = this.requireTenant(tenantId, 'findByTrackingNumber');
+    // W1-DATA-13: explicit fail-closed guard kept inline (not behind a helper)
+    // so the static tenant-isolation gate can audit it in source.
+    if (typeof tenantId !== 'string' || tenantId.trim().length === 0) {
+      throw new Error('findByTrackingNumber: tenantId is required');
+    }
+    const scopedTenantId = tenantId;
     await this.ensureSchema();
     const result = await this.withTenant(scopedTenantId, (client) =>
       client.query(
@@ -318,7 +323,12 @@ export class PgRegistrationRepository implements RegistrationRepository {
   }
 
   async findById(id: string, tenantId?: string): Promise<RegistrationEntity | null> {
-    const scopedTenantId = this.requireTenant(tenantId, 'findById');
+    // W1-DATA-13: explicit fail-closed guard kept inline (not behind a helper)
+    // so the static tenant-isolation gate can audit it in source.
+    if (typeof tenantId !== 'string' || tenantId.trim().length === 0) {
+      throw new Error('findById: tenantId is required');
+    }
+    const scopedTenantId = tenantId;
     await this.ensureSchema();
     const result = await this.withTenant(scopedTenantId, (client) =>
       client.query(
