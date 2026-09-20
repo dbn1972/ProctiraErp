@@ -5,18 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proc
 import { requireSession } from '@/lib/auth/server';
 import { listReceipts } from '@/lib/api/fees';
 
-export const dynamic = 'force-dynamic';
+import { getLocale } from 'next-intl/server';
 
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatAmount } from '../_components/format-amount';
+
+export const dynamic = 'force-dynamic';
 
 export default async function FeesReceiptsPage() {
   await requireSession();
+  const locale = await getLocale();
   const receipts = await listReceipts('staff');
 
   return (
@@ -50,7 +47,7 @@ export default async function FeesReceiptsPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{receipt.receiptNumber}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(receipt.amountCents, receipt.currency)} · invoice{' '}
+                    {formatAmount(receipt.amountCents, receipt.currency, locale)} · invoice{' '}
                     {receipt.invoiceId.slice(0, 8)}… · {new Date(receipt.issuedAt).toLocaleString()}
                   </p>
                 </li>

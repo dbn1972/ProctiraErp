@@ -9,18 +9,15 @@ import { ConcessionDialog } from '../_components/concession-dialog';
 import { PayInvoiceStaffButton } from '../_components/pay-invoice-staff-button';
 import { RefundDialog } from '../_components/refund-dialog';
 
-export const dynamic = 'force-dynamic';
+import { getLocale } from 'next-intl/server';
 
-function formatAmount(cents: number, currency: string): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency,
-    maximumFractionDigits: 2,
-  }).format(cents / 100);
-}
+import { formatAmount } from '../_components/format-amount';
+
+export const dynamic = 'force-dynamic';
 
 export default async function FeesInvoicesPage() {
   await requireSession();
+  const locale = await getLocale();
   const [plans, invoices] = await Promise.all([listFeePlans(), listInvoices('staff')]);
 
   return (
@@ -56,7 +53,7 @@ export default async function FeesInvoicesPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{invoice.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(invoice.amountCents, invoice.currency)} · Student{' '}
+                    {formatAmount(invoice.amountCents, invoice.currency, locale)} · Student{' '}
                     {invoice.studentId.slice(0, 8)}… · {invoice.status}
                     {invoice.invoiceNumber ? ` · ${invoice.invoiceNumber}` : ''}
                     {invoice.planId ? ` · plan ${invoice.planId.slice(0, 8)}…` : ''}

@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocale } from 'next-intl';
+
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -18,8 +20,8 @@ import { useHydrated } from '@/hooks/useHydrated';
 import { importReconciliationAction, resolveReconExceptionAction } from '@/lib/fees/actions';
 import type { FeeReconciliationBatch, FeeReconciliationRow } from '@/lib/api/fees';
 
-function formatAmount(cents: number): string {
-  return new Intl.NumberFormat('en-IN', {
+function formatAmount(cents: number, locale: string): string {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 2,
@@ -35,6 +37,7 @@ export function ReconciliationWorkspace({
   initialBatchId: string | null;
   initialRows: FeeReconciliationRow[];
 }) {
+  const locale = useLocale();
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -235,7 +238,7 @@ export function ReconciliationWorkspace({
                     <li key={row.id} className="py-2" data-testid="recon-match-row">
                       <p className="text-sm font-medium text-foreground">{row.invoiceNumber}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatAmount(row.amountCents)}
+                        {formatAmount(row.amountCents, locale)}
                         {row.invoiceId ? ` · invoice ${row.invoiceId.slice(0, 8)}…` : ''}
                       </p>
                     </li>
@@ -278,7 +281,7 @@ export function ReconciliationWorkspace({
                     >
                       <p className="text-sm font-medium text-foreground">{row.invoiceNumber}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {formatAmount(row.amountCents)}
+                        {formatAmount(row.amountCents, locale)}
                         {row.note ? ` · ${row.note}` : ''} · {row.exceptionStatus}
                       </p>
                       {row.exceptionStatus === 'open' ? (
