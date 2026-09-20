@@ -7,15 +7,23 @@
  * store, because the claim is specifically about someone with database-level
  * privileges defeating the trigger.
  *
- * These tests therefore use two connections:
- *   - the runtime pool (`DATABASE_URL`, `proctira_app`) to write and verify
- *   - an owner pool (`MIGRATOR_DATABASE_URL`) to play the hostile DBA
+ * Two connections are used:
+ *   - the runtime pool (`DATABASE_URL`, e.g. `proctira_app`) writes and verifies
+ *   - an owner pool (`MIGRATOR_DATABASE_URL`) plays the hostile DBA
  *
- * Skipped unless both are set.
+ * `audit_log_entries` has FORCE ROW LEVEL SECURITY, which applies to the table
+ * owner as well. A non-superuser DBA therefore sees **no rows at all** until it
+ * binds `app.tenant_id` — asserted directly below, because it is a real defence
+ * layer independent of the append-only trigger. Every tampering statement here
+ * binds the GUC first and asserts `rowCount`, so a silent zero-row no-op can
+ * never be mistaken for a passing tamper test.
+ *
+ * Skipped unless both connection strings are set. Only ever run this against a
+ * disposable database: the trigger is briefly disabled and restored.
  */
 import { randomUUID } from 'node:crypto';
-import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
+import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { CreateAuditLogInput } from './audit-repository.js';
@@ -64,6 +72,28 @@ async function seedChain(length: number): Promise<{ tenantId: string; repo: PgAu
   return { tenantId, repo };
 }
 
+/**
+ * Run `fn` on the owner connection as a DBA scoped to `tenantId`, with the
+ * append-only trigger disabled. Binding `app.tenant_id` is required because
+ * FORCE RLS applies to the owner too. The trigger is always restored.
+ */
+async function asHostileDba<T>(
+  tenantId: string,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await ownerPool!.connect();
+  try {
+    await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', tenantId]);
+    await client.query('ALTER TABLE audit_log_entries DISABLE TRIGGER trg_audit_log_append_only');
+    return await fn(client);
+  } finally {
+    await client
+      .query('ALTER TABLE audit_log_entries ENABLE TRIGGER trg_audit_log_append_only')
+      .catch(() => undefined);
+    client.release();
+  }
+}
+
 describe('audit hash chain tamper-evidence (live Postgres)', () => {
   it.skipIf(!live)('an untampered chain verifies clean', async () => {
     const { tenantId, repo } = await seedChain(4);
@@ -78,20 +108,59 @@ describe('audit hash chain tamper-evidence (live Postgres)', () => {
   });
 
   it.skipIf(!live)(
+    'FORCE RLS hides audit rows from the owner until a tenant GUC is bound',
+    async () => {
+      const { tenantId } = await seedChain(2);
+      const client = await ownerPool!.connect();
+      try {
+        // A superuser (or BYPASSRLS) connection is exempt from FORCE RLS, so this
+        // property is only observable for a normal owner/migrator role. CI uses
+        // such a role; a developer pointing MIGRATOR_DATABASE_URL at `postgres`
+        // would not, and must not get a false failure.
+        const { rows } = await client.query<{ exempt: boolean }>(
+          `SELECT (rolsuper OR rolbypassrls) AS exempt FROM pg_roles WHERE rolname = current_user`,
+        );
+        const rlsExempt = rows[0]?.exempt === true;
+
+        const blind = await client.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM audit_log_entries WHERE tenant_id = $1',
+          [tenantId],
+        );
+        expect(blind.rows[0]!.n).toBe(rlsExempt ? 2 : 0);
+
+        // Same connection, same query, once the tenant is bound.
+        await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', tenantId]);
+        const scoped = await client.query<{ n: number }>(
+          'SELECT count(*)::int AS n FROM audit_log_entries WHERE tenant_id = $1',
+          [tenantId],
+        );
+        expect(scoped.rows[0]!.n).toBe(2);
+      } finally {
+        client.release();
+      }
+    },
+  );
+
+  it.skipIf(!live)(
     'the append-only trigger blocks UPDATE and DELETE even for the table owner',
     async () => {
       const { tenantId } = await seedChain(2);
+      const client = await ownerPool!.connect();
+      try {
+        await client.query('SELECT set_config($1, $2, false)', ['app.tenant_id', tenantId]);
 
-      await expect(
-        ownerPool!.query(
-          `UPDATE audit_log_entries SET user_name = 'tampered' WHERE tenant_id = $1`,
-          [tenantId],
-        ),
-      ).rejects.toThrow();
+        await expect(
+          client.query(`UPDATE audit_log_entries SET user_name = 'tampered' WHERE tenant_id = $1`, [
+            tenantId,
+          ]),
+        ).rejects.toThrow();
 
-      await expect(
-        ownerPool!.query(`DELETE FROM audit_log_entries WHERE tenant_id = $1`, [tenantId]),
-      ).rejects.toThrow();
+        await expect(
+          client.query(`DELETE FROM audit_log_entries WHERE tenant_id = $1`, [tenantId]),
+        ).rejects.toThrow();
+      } finally {
+        client.release();
+      }
     },
   );
 
@@ -101,24 +170,15 @@ describe('audit hash chain tamper-evidence (live Postgres)', () => {
       const { tenantId, repo } = await seedChain(3);
       expect((await repo.verifyChain(tenantId)).valid).toBe(true);
 
-      // Play the DBA: defeat the trigger, mutate a hashed field, restore it.
-      const client = await ownerPool!.connect();
-      try {
-        await client.query(
-          'ALTER TABLE audit_log_entries DISABLE TRIGGER trg_audit_log_append_only',
-        );
+      await asHostileDba(tenantId, async (client) => {
         const updated = await client.query(
           `UPDATE audit_log_entries SET user_name = 'tampered-by-dba'
             WHERE tenant_id = $1 AND chain_seq = 2`,
           [tenantId],
         );
+        // Guard: a zero-row no-op must never look like a successful tamper test.
         expect(updated.rowCount).toBe(1);
-      } finally {
-        await client
-          .query('ALTER TABLE audit_log_entries ENABLE TRIGGER trg_audit_log_append_only')
-          .catch(() => undefined);
-        client.release();
-      }
+      });
 
       const result = await repo.verifyChain(tenantId);
 
@@ -134,20 +194,13 @@ describe('audit hash chain tamper-evidence (live Postgres)', () => {
   it.skipIf(!live)('a deleted middle entry is detected as a sequence gap', async () => {
     const { tenantId, repo } = await seedChain(3);
 
-    const client = await ownerPool!.connect();
-    try {
-      await client.query('ALTER TABLE audit_log_entries DISABLE TRIGGER trg_audit_log_append_only');
+    await asHostileDba(tenantId, async (client) => {
       const deleted = await client.query(
         `DELETE FROM audit_log_entries WHERE tenant_id = $1 AND chain_seq = 2`,
         [tenantId],
       );
       expect(deleted.rowCount).toBe(1);
-    } finally {
-      await client
-        .query('ALTER TABLE audit_log_entries ENABLE TRIGGER trg_audit_log_append_only')
-        .catch(() => undefined);
-      client.release();
-    }
+    });
 
     const result = await repo.verifyChain(tenantId);
 
@@ -160,19 +213,14 @@ describe('audit hash chain tamper-evidence (live Postgres)', () => {
     const a = await seedChain(2);
     const b = await seedChain(2);
 
-    const client = await ownerPool!.connect();
-    try {
-      await client.query('ALTER TABLE audit_log_entries DISABLE TRIGGER trg_audit_log_append_only');
-      await client.query(
-        `UPDATE audit_log_entries SET user_name = 'tampered' WHERE tenant_id = $1 AND chain_seq = 1`,
+    await asHostileDba(a.tenantId, async (client) => {
+      const updated = await client.query(
+        `UPDATE audit_log_entries SET user_name = 'tampered'
+          WHERE tenant_id = $1 AND chain_seq = 1`,
         [a.tenantId],
       );
-    } finally {
-      await client
-        .query('ALTER TABLE audit_log_entries ENABLE TRIGGER trg_audit_log_append_only')
-        .catch(() => undefined);
-      client.release();
-    }
+      expect(updated.rowCount).toBe(1);
+    });
 
     // Tenant A is broken; tenant B must be unaffected.
     expect((await a.repo.verifyChain(a.tenantId)).valid).toBe(false);
