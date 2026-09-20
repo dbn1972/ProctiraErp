@@ -82,7 +82,6 @@ export async function registerAdmissionsPipelineRoutes(
     }
   });
 
-
   const requireTenant = (request: FastifyRequest, reply: FastifyReply): string | null => {
     const tenantId = tenantOf(request);
     if (!tenantId) {

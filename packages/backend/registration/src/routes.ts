@@ -124,7 +124,9 @@ export function hashClientBinding(raw: string): string {
 function clientBindingFromRequest(request: FastifyRequest): string {
   const ua = typeof request.headers['user-agent'] === 'string' ? request.headers['user-agent'] : '';
   const explicit =
-    typeof request.headers['x-client-binding'] === 'string' ? request.headers['x-client-binding'] : '';
+    typeof request.headers['x-client-binding'] === 'string'
+      ? request.headers['x-client-binding']
+      : '';
   return hashClientBinding(`${explicit}|${ua}`);
 }
 
@@ -479,14 +481,16 @@ export async function registerRegistrationRoutes(
       reply: FastifyReply,
     ) {
       const { institutionId } = request.params;
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(institutionId)) {
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          institutionId,
+        )
+      ) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'A valid institution UUID is required',
           statusCode: 400,
-          errors: [
-            { field: 'institutionId', rule: 'uuid', message: 'Select a valid institution' },
-          ],
+          errors: [{ field: 'institutionId', rule: 'uuid', message: 'Select a valid institution' }],
         });
       }
 

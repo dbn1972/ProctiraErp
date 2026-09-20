@@ -161,9 +161,7 @@ describe('RegistrationService', () => {
     it('should throw BusinessRuleError for inactive institution', async () => {
       const input = { ...validInput, institutionId: '22345678-1234-4123-8123-123456789abc' };
 
-      await expect(submit(input)).rejects.toThrow(
-        BusinessRuleError,
-      );
+      await expect(submit(input)).rejects.toThrow(BusinessRuleError);
     });
 
     it('should validate documents and reject invalid file types', async () => {
@@ -179,9 +177,7 @@ describe('RegistrationService', () => {
         ],
       };
 
-      await expect(submit(input)).rejects.toThrow(
-        ValidationError,
-      );
+      await expect(submit(input)).rejects.toThrow(ValidationError);
     });
 
     it('should validate documents and reject oversized files', async () => {
@@ -197,9 +193,7 @@ describe('RegistrationService', () => {
         ],
       };
 
-      await expect(submit(input)).rejects.toThrow(
-        ValidationError,
-      );
+      await expect(submit(input)).rejects.toThrow(ValidationError);
     });
 
     it('should accept valid documents', async () => {
@@ -250,9 +244,7 @@ describe('RegistrationService', () => {
         customFields: [{ fieldId: 'previous_school', value: null }],
       };
 
-      await expect(submit(input)).rejects.toThrow(
-        ValidationError,
-      );
+      await expect(submit(input)).rejects.toThrow(ValidationError);
     });
 
     it('should accept valid custom fields', async () => {

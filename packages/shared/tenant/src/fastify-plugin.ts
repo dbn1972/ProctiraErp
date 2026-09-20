@@ -81,9 +81,7 @@ type TenantFindUnique = {
   findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
 };
 
-function getTenantFinder(
-  db: unknown,
-): TenantFindUnique | undefined {
+function getTenantFinder(db: unknown): TenantFindUnique | undefined {
   if (db && typeof db === 'object' && 'tenant' in db) {
     const tenant = (db as { tenant?: TenantFindUnique }).tenant;
     if (tenant && typeof tenant.findUnique === 'function') {
@@ -209,9 +207,7 @@ export const tenantPlugin = fp(
             const host = request.hostname || request.headers['host'];
             if (host && typeof host === 'string') {
               const baseDomain =
-                resolutionOptions.baseDomain ??
-                process.env['TENANT_BASE_DOMAIN'] ??
-                'proctira.org';
+                resolutionOptions.baseDomain ?? process.env['TENANT_BASE_DOMAIN'] ?? 'proctira.org';
               const hostname = host.split(':')[0]!;
               if (hostname.endsWith(`.${baseDomain}`)) {
                 const slug = hostname.slice(0, -(baseDomain.length + 1));

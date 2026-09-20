@@ -23,11 +23,7 @@ export interface PublicTenantResolverOptions {
 export function normalizePublicHostname(raw: string | undefined): string | null {
   if (!raw) return null;
   const candidate = raw.trim();
-  if (
-    candidate.length === 0 ||
-    candidate.length > 300 ||
-    /[\s,/@?#\\]/.test(candidate)
-  ) {
+  if (candidate.length === 0 || candidate.length > 300 || /[\s,/@?#\\]/.test(candidate)) {
     return null;
   }
 

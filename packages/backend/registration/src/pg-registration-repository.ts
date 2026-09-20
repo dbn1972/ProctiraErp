@@ -389,9 +389,7 @@ export class PgRegistrationRepository implements RegistrationRepository {
         [tenantId, institutionId, configurationId ?? null],
       ),
     );
-    return result.rows[0]
-      ? mapFormConfiguration(result.rows[0] as Record<string, unknown>)
-      : null;
+    return result.rows[0] ? mapFormConfiguration(result.rows[0] as Record<string, unknown>) : null;
   }
 
   async findInstitution(
@@ -552,7 +550,9 @@ export class PgRegistrationRepository implements RegistrationRepository {
     const totalPages = Math.max(1, Math.ceil(totalItems / pagination.pageSize));
     const start = (pagination.page - 1) * pagination.pageSize;
     return {
-      data: rows.slice(start, start + pagination.pageSize).map(({ tenantId: _tenantId, status: _status, ...row }) => row),
+      data: rows
+        .slice(start, start + pagination.pageSize)
+        .map(({ tenantId: _tenantId, status: _status, ...row }) => row),
       meta: { page: pagination.page, pageSize: pagination.pageSize, totalItems, totalPages },
     };
   }

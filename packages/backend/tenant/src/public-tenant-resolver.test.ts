@@ -3,10 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { InMemoryTenantRepository } from './in-memory-repository.js';
-import {
-  createPublicTenantResolver,
-  normalizePublicHostname,
-} from './public-tenant-resolver.js';
+import { createPublicTenantResolver, normalizePublicHostname } from './public-tenant-resolver.js';
 import type { TenantEntity } from './tenant-repository.js';
 
 function tenant(id: string, slug: string, status: TenantEntity['status'] = 'active') {
@@ -38,7 +35,9 @@ describe('trusted public tenant resolver', () => {
     await repository.createTenant(tenant(id, 'north-district'));
     const resolver = createPublicTenantResolver({ repository, baseDomain: 'apply.example.edu' });
 
-    await expect(resolver.resolveHostname('NORTH-DISTRICT.apply.example.edu:443')).resolves.toBe(id);
+    await expect(resolver.resolveHostname('NORTH-DISTRICT.apply.example.edu:443')).resolves.toBe(
+      id,
+    );
   });
 
   it('returns the canonical UUID only for a verified custom domain', async () => {

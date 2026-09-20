@@ -60,20 +60,14 @@ export function normalizeRegistrationRoles(roles: unknown): string[] {
     .filter(Boolean);
 }
 
-export function hasRegistrationAccess(
-  roles: unknown,
-  action: RegistrationAction,
-): boolean {
+export function hasRegistrationAccess(roles: unknown, action: RegistrationAction): boolean {
   const normalized = normalizeRegistrationRoles(roles);
   if (normalized.length === 0) return false;
   const allowed = ACTION_ROLES[action];
   return normalized.some((role) => allowed.includes(role));
 }
 
-export function assertRegistrationAccess(
-  roles: unknown,
-  action: RegistrationAction,
-): void {
+export function assertRegistrationAccess(roles: unknown, action: RegistrationAction): void {
   if (!hasRegistrationAccess(roles, action)) {
     throw new AppError(
       `Forbidden: role cannot perform registration action ${action}`,

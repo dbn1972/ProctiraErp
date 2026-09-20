@@ -153,7 +153,10 @@ export function InstitutionMap({
       </div>
 
       {loadError ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+        <div
+          className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"
+          role="alert"
+        >
           <p className="font-semibold">{t('serviceUnavailableTitle')}</p>
           <p className="mt-1">{t('serviceUnavailableMessage')}</p>
           <button

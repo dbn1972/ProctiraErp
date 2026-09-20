@@ -124,7 +124,7 @@ export function RegistrationProvider({
           formConfigurationId: institutionChanged ? '' : parsed.formConfigurationId || '',
           formConfigurationVersion: institutionChanged
             ? null
-            : parsed.formConfigurationVersion ?? null,
+            : (parsed.formConfigurationVersion ?? null),
           submissionKey:
             institutionChanged || !parsed.submissionKey
               ? createSubmissionKey()

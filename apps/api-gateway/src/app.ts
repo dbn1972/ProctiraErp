@@ -535,11 +535,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     const isExcluded =
       isPublicRegistrationPath(url) ||
       authExcludePaths.some((excluded) => {
-      if (excluded.endsWith('/*')) {
-        return url.startsWith(excluded.slice(0, -2));
-      }
-      return url === excluded;
-    });
+        if (excluded.endsWith('/*')) {
+          return url.startsWith(excluded.slice(0, -2));
+        }
+        return url === excluded;
+      });
 
     const authHeader = request.headers.authorization;
     const bearer =

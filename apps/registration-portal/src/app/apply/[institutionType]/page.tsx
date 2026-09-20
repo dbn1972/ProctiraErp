@@ -13,8 +13,7 @@ interface PageProps {
 export default async function ApplyPersonalPage({ params, searchParams }: PageProps) {
   const { institutionType } = await params;
   const query = await searchParams;
-  const institutionId =
-    typeof query.institutionId === 'string' ? query.institutionId : undefined;
+  const institutionId = typeof query.institutionId === 'string' ? query.institutionId : undefined;
   const result = await loadFormConfiguration(institutionId);
   const retryHref = `/apply/${encodeURIComponent(institutionType)}${
     institutionId ? `?institutionId=${encodeURIComponent(institutionId)}` : ''
