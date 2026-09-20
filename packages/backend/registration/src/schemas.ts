@@ -76,6 +76,16 @@ export const SubmitRegistrationSchema = Type.Object({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Target institution UUID',
   }),
+  /** Published form configuration selected for this application */
+  formConfigurationId: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    description: 'Published registration form configuration UUID',
+  }),
+  /** Exact immutable configuration version rendered to the applicant */
+  formConfigurationVersion: Type.Integer({
+    minimum: 1,
+    description: 'Published registration form configuration version',
+  }),
   /** Student/applicant first name */
   firstName: Type.String({ minLength: 1, maxLength: 100, description: 'Applicant first name' }),
   /** Student/applicant last name */
@@ -331,10 +341,19 @@ export const FormFieldDefinitionSchema = Type.Object({
 export type FormFieldDefinition = Static<typeof FormFieldDefinitionSchema>;
 
 /**
- * Schema for form configuration per institution type.
+ * Published, immutable form configuration for one institution UUID.
  */
 export const FormConfigurationSchema = Type.Object({
-  institutionTypeId: Type.String({ description: 'Institution type this config applies to' }),
+  id: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    description: 'Published configuration UUID',
+  }),
+  institutionId: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    description: 'Institution UUID this configuration belongs to',
+  }),
+  version: Type.Integer({ minimum: 1, description: 'Immutable version number' }),
+  publishedAt: Type.String({ description: 'Publish timestamp (ISO 8601)' }),
   fields: Type.Array(FormFieldDefinitionSchema, { description: 'Configurable form fields' }),
 });
 

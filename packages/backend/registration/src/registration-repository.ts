@@ -1,16 +1,13 @@
 /**
  * Registration Repository Interface
  *
- * Defines the data access contract for registration applications.
- * Implementations can be in-memory (testing) or database-backed (production).
+ * Public admissions persistence must bind every institution, configuration,
+ * application, and idempotency query to one trusted tenant UUID.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
-/**
- * Registration application status values.
- */
 export type RegistrationStatus =
   | 'pending'
   | 'under_review'
@@ -18,9 +15,6 @@ export type RegistrationStatus =
   | 'rejected'
   | 'waitlisted';
 
-/**
- * Stored registration application entity.
- */
 export interface RegistrationEntity {
   id: string;
   tenantId: string;
@@ -45,13 +39,64 @@ export interface RegistrationEntity {
   }>;
   preferredLanguage: string | null;
   remarks: string | null;
+  /** Null only on applications created before migration 097. */
+  formConfigurationId: string | null;
+  /** Null only on applications created before migration 097. */
+  formConfigurationVersion: number | null;
+  /** Immutable submit-time evidence; null only on legacy applications. */
+  formConfigurationSnapshot: FormConfiguration | null;
+  /** Null only on legacy/non-public applications. */
+  submissionKey: string | null;
+  /** SHA-256 of the canonical material submission payload. */
+  submissionPayloadHash: string | null;
   submittedAt: Date;
   updatedAt: Date;
 }
 
-/**
- * Filter options for institution location queries.
- */
+export type LegacyRegistrationCreate = Omit<
+  RegistrationEntity,
+  | 'submittedAt'
+  | 'updatedAt'
+  | 'formConfigurationId'
+  | 'formConfigurationVersion'
+  | 'formConfigurationSnapshot'
+  | 'submissionKey'
+  | 'submissionPayloadHash'
+>;
+
+export type NewRegistrationEntity = Omit<
+  RegistrationEntity,
+  | 'institutionName'
+  | 'formConfigurationSnapshot'
+  | 'submittedAt'
+  | 'updatedAt'
+  | 'formConfigurationId'
+  | 'formConfigurationVersion'
+  | 'submissionKey'
+  | 'submissionPayloadHash'
+> & {
+  formConfigurationId: string;
+  formConfigurationVersion: number;
+  submissionKey: string;
+  submissionPayloadHash: string;
+};
+
+export type IdempotentRegistrationCreateResult =
+  | { outcome: 'created'; registration: RegistrationEntity }
+  | { outcome: 'replayed'; registration: RegistrationEntity }
+  | { outcome: 'payload_conflict' }
+  | { outcome: 'context_unavailable' };
+
+export interface RegistrationInstitution extends InstitutionLocation {
+  tenantId: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+/** Test/dev seed shape. Production configurations come only from PostgreSQL. */
+export interface TenantFormConfiguration extends FormConfiguration {
+  tenantId: string;
+}
+
 export interface InstitutionLocationFilter {
   areaId?: string;
   typeId?: string;
@@ -59,14 +104,6 @@ export interface InstitutionLocationFilter {
   search?: string;
 }
 
-/**
- * Filter options for the School Finder query.
- *
- * Requirement 16.9: search by geolocation (lat/lon + radius) plus
- * area / type / grade filters. The geolocation block is optional;
- * when present, results are filtered by Haversine distance ≤ radius
- * and sorted by distance ascending.
- */
 export interface SchoolFinderFilter {
   origin?: { latitude: number; longitude: number; radiusKm: number };
   areaIds?: string[];
@@ -75,10 +112,6 @@ export interface SchoolFinderFilter {
   search?: string;
 }
 
-/**
- * Result row for the School Finder. `distanceKm` is only populated
- * when the query carried a geolocation block.
- */
 export interface SchoolFinderResultRow {
   id: string;
   name: string;
@@ -91,35 +124,29 @@ export interface SchoolFinderResultRow {
   longitude: number | null;
   address?: string | null;
   availableGrades?: string[];
-  /** Distance from query origin in kilometres, only when origin provided. */
   distanceKm?: number;
 }
 
-/**
- * Repository interface for registration data access.
- */
 export interface RegistrationRepository {
-  /** Create a new registration application */
-  create(
-    entity: Omit<RegistrationEntity, 'submittedAt' | 'updatedAt'>,
-  ): Promise<RegistrationEntity>;
+  /** Authenticated staff enquiry conversion; public callers use createIdempotent. */
+  create(entity: LegacyRegistrationCreate): Promise<RegistrationEntity>;
 
   /**
-   * Find a registration by tracking number. `tenantId` is required for the
-   * Postgres store (W1-DATA-13 — binds RLS via withPgTenant).
+   * Atomically validate tenant/institution/configuration context, create the
+   * application, and reserve `(tenantId, submissionKey)`. Concurrent retries
+   * converge on the same row; a material payload change reports a conflict.
    */
+  createIdempotent(entity: NewRegistrationEntity): Promise<IdempotentRegistrationCreateResult>;
+
   findByTrackingNumber(
     trackingNumber: string,
     tenantId?: string,
   ): Promise<RegistrationEntity | null>;
 
-  /** Find a registration by ID (`tenantId` required on Postgres — W1-DATA-13). */
   findById(id: string, tenantId?: string): Promise<RegistrationEntity | null>;
 
-  /** List registrations for a tenant (staff CRM) */
   listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
 
-  /** Update registration status (`tenantId` required on Postgres — W1-DATA-13). */
   updateStatus(
     id: string,
     status: RegistrationStatus,
@@ -127,35 +154,25 @@ export interface RegistrationRepository {
     tenantId?: string,
   ): Promise<RegistrationEntity | null>;
 
-  /** Get form configuration for an institution type */
-  getFormConfiguration(institutionTypeId: string): Promise<FormConfiguration | null>;
+  /** Latest or explicitly selected published configuration for this institution. */
+  getFormConfiguration(
+    tenantId: string,
+    institutionId: string,
+    configurationId?: string,
+  ): Promise<FormConfiguration | null>;
 
-  /** Get institution locations with filtering for map display */
+  /** Tenant-scoped authoritative institution lookup (active or inactive). */
+  findInstitution(tenantId: string, institutionId: string): Promise<RegistrationInstitution | null>;
+
   getInstitutionLocations(
     tenantId: string,
     filter: InstitutionLocationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<InstitutionLocation>>;
 
-  /**
-   * Search institutions for the public School Finder. Differs from
-   * `getInstitutionLocations` by accepting a geolocation block and
-   * returning per-row `distanceKm` when present.
-   *
-   * Requirement 16.9 / Design §F (`SchoolFinderQuery`).
-   */
   searchSchools(
     tenantId: string,
     filter: SchoolFinderFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<SchoolFinderResultRow>>;
-
-  /** Get institution name by ID (for response enrichment) */
-  getInstitutionName(institutionId: string): Promise<string | null>;
-
-  /** Check if an institution exists and is active */
-  isInstitutionActive(institutionId: string): Promise<boolean>;
-
-  /** Get institution type ID for an institution */
-  getInstitutionTypeId(institutionId: string): Promise<string | null>;
 }

@@ -91,10 +91,8 @@ export function isPublicRegistrationPath(path: string): boolean {
   const bare = path.split('?')[0] ?? path;
   // Strip optional /api/v1 prefix and trailing slash noise.
   const normalized = bare.replace(/^\/api\/v1/, '').replace(/\/+$/, '') || '/';
-  const under =
-    normalized.startsWith('/registrations')
-      ? normalized.slice('/registrations'.length) || '/'
-      : normalized;
+  if (!normalized.startsWith('/registrations')) return false;
+  const under = normalized.slice('/registrations'.length) || '/';
 
   if (under === '/' || under === '') return true;
   if (/^\/[A-Za-z0-9-]+\/status$/.test(under)) return true;

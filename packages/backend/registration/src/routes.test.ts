@@ -21,6 +21,7 @@ describe('Registration Routes', () => {
 
   const testTenantId = 'tenant-001';
   const testInstitutionId = '12345678-1234-4123-8123-123456789abc';
+  const testFormConfigurationId = '22345678-1234-4123-8123-123456789abc';
 
   beforeEach(async () => {
     repository = new InMemoryRegistrationRepository();
@@ -44,6 +45,19 @@ describe('Registration Routes', () => {
         availableGrades: ['grade-1', 'grade-2'],
       },
     ]);
+    repository.seedFormConfigurations([
+      {
+        id: testFormConfigurationId,
+        tenantId: testTenantId,
+        institutionId: testInstitutionId,
+        version: 1,
+        publishedAt: '2026-09-19T00:00:00.000Z',
+        fields: [
+          { id: 'photo', label: 'Photo', type: 'file', required: false },
+          { id: 'other', label: 'Other', type: 'file', required: false },
+        ],
+      },
+    ]);
 
     app = Fastify();
     await registerRegistrationRoutes(app, {
@@ -56,6 +70,8 @@ describe('Registration Routes', () => {
   describe('POST /registrations', () => {
     const validBody = {
       institutionId: testInstitutionId,
+      formConfigurationId: testFormConfigurationId,
+      formConfigurationVersion: 1,
       firstName: 'Alice',
       lastName: 'Smith',
       dateOfBirth: '2012-03-15',
@@ -68,6 +84,7 @@ describe('Registration Routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/registrations',
+        headers: { 'idempotency-key': 'submit-one' },
         payload: validBody,
       });
 
@@ -94,6 +111,7 @@ describe('Registration Routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/registrations',
+        headers: { 'idempotency-key': 'invalid-two' },
         payload: {
           ...validBody,
           institutionId: '99999999-9999-4999-9999-999999999999',
@@ -107,6 +125,7 @@ describe('Registration Routes', () => {
       const response = await app.inject({
         method: 'POST',
         url: '/registrations',
+        headers: { 'idempotency-key': 'invalid-two' },
         payload: {
           ...validBody,
           documents: [
@@ -132,8 +151,11 @@ describe('Registration Routes', () => {
       const submitResponse = await app.inject({
         method: 'POST',
         url: '/registrations',
+        headers: { 'idempotency-key': 'status-three' },
         payload: {
           institutionId: testInstitutionId,
+          formConfigurationId: testFormConfigurationId,
+          formConfigurationVersion: 1,
           firstName: 'Charlie',
           lastName: 'Brown',
           dateOfBirth: '2011-10-02',
@@ -334,7 +356,11 @@ describe('Registration Routes', () => {
     it('should return form configuration for an institution', async () => {
       repository.seedFormConfigurations([
         {
-          institutionTypeId: 'type-001',
+          id: testFormConfigurationId,
+          tenantId: testTenantId,
+          institutionId: testInstitutionId,
+          version: 2,
+          publishedAt: '2026-09-19T00:00:00.000Z',
           fields: [{ id: 'field1', label: 'Test Field', type: 'text', required: true }],
         },
       ]);
@@ -346,19 +372,23 @@ describe('Registration Routes', () => {
 
       expect(response.statusCode).toBe(200);
       const body = JSON.parse(response.body);
+      expect(body.id).toBe(testFormConfigurationId);
+      expect(body.institutionId).toBe(testInstitutionId);
+      expect(body.version).toBe(2);
       expect(body.fields).toHaveLength(1);
       expect(body.fields[0].id).toBe('field1');
     });
 
-    it('should return empty fields for institution without config', async () => {
+    it('fails closed for an institution without a published config', async () => {
+      repository.seedFormConfigurations([]);
       const response = await app.inject({
         method: 'GET',
         url: `/registrations/form-config/${testInstitutionId}`,
       });
 
-      expect(response.statusCode).toBe(200);
+      expect(response.statusCode).toBe(404);
       const body = JSON.parse(response.body);
-      expect(body.fields).toHaveLength(0);
+      expect(body.code).toBe('FORM_CONFIGURATION_NOT_FOUND');
     });
   });
 });

@@ -23,11 +23,11 @@ test.describe('Registration Portal — a11y axe (ungated)', () => {
     expect(pageErrors.join('\n')).not.toContain('Map container is already initialized');
   });
 
-  test('apply personal-info is WCAG 2.1 AA clean', async ({ page }) => {
+  test('apply school-selection guidance is WCAG 2.1 AA clean', async ({ page }) => {
+    // ADM-CFG-01: without a selected school the wizard renders an accessible
+    // alert guiding the applicant to pick a school (not an empty mock form).
     await page.goto('/apply/primary');
-    await expect(
-      page.getByRole('heading', { name: /personal information|student registration/i }).first(),
-    ).toBeVisible();
+    await expect(page.getByRole('alert')).toBeVisible();
     await runAxe(page, { checkpointLabel: '/apply/primary' });
   });
 

@@ -44,6 +44,8 @@ describe('registration-access (W1-SEC-02)', () => {
     expect(isPublicRegistrationPath('/registrations/form-config/inst-1')).toBe(true);
     expect(isPublicRegistrationPath('/registrations/language')).toBe(true);
     expect(isPublicRegistrationPath('/api/v1/registrations')).toBe(true);
+    expect(isPublicRegistrationPath('/api/v1/institutions')).toBe(false);
+    expect(isPublicRegistrationPath('/api/v1/language')).toBe(false);
     expect(isPublicRegistrationPath('/registrations/applications')).toBe(false);
     expect(isPublicRegistrationPath('/registrations/interview-slots')).toBe(false);
   });

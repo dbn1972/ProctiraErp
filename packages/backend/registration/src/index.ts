@@ -21,11 +21,18 @@ export {
   generateTrackingNumber,
   validateDocuments,
   validateCustomFields,
+  validateConfiguredDocuments,
+  computeSubmissionPayloadHash,
 } from './registration-service.js';
 
 // Repository
 export type {
   RegistrationEntity,
+  LegacyRegistrationCreate,
+  NewRegistrationEntity,
+  IdempotentRegistrationCreateResult,
+  RegistrationInstitution,
+  TenantFormConfiguration,
   RegistrationRepository,
   RegistrationStatus,
   InstitutionLocationFilter,
@@ -124,6 +131,7 @@ export {
 } from './routes.js';
 export type {
   RegistrationRoutesOptions,
+  PublicTenantResolver,
   RegistrationSessionStore,
   RegistrationSessionRecord,
   SessionStore,

@@ -80,7 +80,15 @@
     "institutionRequired": "Sélectionnez une école avant d’envoyer. Utilisez Trouver des écoles.",
     "invalidDateOfBirth": "Saisissez une date de naissance valide (AAAA-MM-JJ).",
     "invalidPhone": "Saisissez un numéro de téléphone du tuteur valide.",
-    "invalidEmail": "Saisissez une adresse e-mail du tuteur valide."
+    "invalidEmail": "Saisissez une adresse e-mail du tuteur valide.",
+    "configUnavailableTitle": "Formulaire de candidature indisponible",
+    "configUnavailableMessage": "Nous n'avons pas pu charger le formulaire de candidature de cette école. Veuillez réessayer sous peu.",
+    "configMissingTitle": "Formulaire de candidature non publié",
+    "configMissingMessage": "Cette école n'a pas encore publié de formulaire de candidature. Veuillez choisir une autre école.",
+    "institutionRequiredTitle": "Sélectionnez d'abord une école",
+    "retryConfiguration": "Réessayer",
+    "chooseInstitution": "Choisir une école",
+    "fixFieldErrors": "Veuillez corriger les champs en surbrillance avant de soumettre."
   },
   "documents": {
     "title": "Téléverser des documents",
@@ -98,7 +106,8 @@
     "invalidType": "Type non autorisé. Autorisés : {types}",
     "remove": "Supprimer",
     "reuploadHint": "re-téléversement requis",
-    "reuploadRequired": "{fileName} doit être re-téléversé avant l'envoi"
+    "reuploadRequired": "{fileName} doit être re-téléversé avant l'envoi",
+    "noneRequired": "Aucun document n'est requis pour cette candidature."
   },
   "institutions": {
     "title": "Trouver une école",
@@ -113,7 +122,10 @@
     "noResults": "Aucune école ne correspond à vos critères",
     "viewDetails": "Voir les détails",
     "selectForRegistration": "Sélectionner pour s'inscrire",
-    "resultsCount": "{count} écoles trouvées"
+    "resultsCount": "{count} écoles trouvées",
+    "serviceUnavailableTitle": "Service temporairement indisponible",
+    "serviceUnavailableMessage": "Nous n'avons pas pu charger les écoles pour le moment. Veuillez réessayer dans un instant.",
+    "retry": "Réessayer"
   },
   "tracking": {
     "title": "Suivre votre demande",
@@ -145,5 +157,6 @@
     "privacy": "Confidentialité",
     "terms": "Conditions",
     "contact": "Contact"
-  }
+  },
+  "submissionFailed": "Nous n'avons pas pu soumettre votre candidature. Veuillez réessayer."
 }

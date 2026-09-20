@@ -1,39 +1,36 @@
 import { getTranslations } from 'next-intl/server';
-import { Header } from '@/components/layout/header';
-import { Footer } from '@/components/layout/footer';
-import { InstitutionMap } from '@/components/institutions/institution-map';
-import { getInstitutions, type InstitutionLocation } from '@/lib/api';
 
-/**
- * Public school finder page.
- *
- * Server-side fetches an initial page of institutions and derives filter
- * options (areas / types / grades) from that page; the client component
- * (`<InstitutionMap>`) refines via further requests as the user changes
- * filters. Falls back to an empty list if the backend is unavailable.
- */
-export default async function SchoolsPage() {
+import { InstitutionMap } from '@/components/institutions/institution-map';
+import { Footer } from '@/components/layout/footer';
+import { Header } from '@/components/layout/header';
+import { getInstitutions, type InstitutionFilters, type InstitutionLocation } from '@/lib/api';
+
+export default async function SchoolsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ typeId?: string | string[] }>;
+}) {
   const t = await getTranslations('institutions');
+  const query = await searchParams;
+  const typeId = typeof query.typeId === 'string' ? query.typeId : undefined;
+  const initialFilters: InstitutionFilters = typeId ? { typeId } : {};
   let institutions: InstitutionLocation[] = [];
+  let initialError = false;
   try {
-    const response = await getInstitutions({ pageSize: 200 });
+    const response = await getInstitutions({ ...initialFilters, pageSize: 200 });
     institutions = response.data;
   } catch {
-    institutions = [];
+    initialError = true;
   }
 
-  // Derive distinct filter options from the initial result set
   const areasMap = new Map<string, string>();
   const typesMap = new Map<string, string>();
   const gradesSet = new Set<string>();
-  for (const inst of institutions) {
-    if (inst.areaName) areasMap.set(inst.areaId, inst.areaName);
-    if (inst.typeName) typesMap.set(inst.typeId, inst.typeName);
-    inst.availableGrades?.forEach((g) => gradesSet.add(g));
+  for (const institution of institutions) {
+    if (institution.areaName) areasMap.set(institution.areaId, institution.areaName);
+    if (institution.typeName) typesMap.set(institution.typeId, institution.typeName);
+    institution.availableGrades?.forEach((grade) => gradesSet.add(grade));
   }
-  const areas = Array.from(areasMap.entries()).map(([id, name]) => ({ id, name }));
-  const types = Array.from(typesMap.entries()).map(([id, name]) => ({ id, name }));
-  const grades = Array.from(gradesSet).map((id) => ({ id, name: id }));
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
@@ -47,9 +44,11 @@ export default async function SchoolsPage() {
           <div className="mt-6">
             <InstitutionMap
               initialInstitutions={institutions}
-              initialAreas={areas}
-              initialTypes={types}
-              initialGrades={grades}
+              initialAreas={Array.from(areasMap, ([id, name]) => ({ id, name }))}
+              initialTypes={Array.from(typesMap, ([id, name]) => ({ id, name }))}
+              initialGrades={Array.from(gradesSet, (id) => ({ id, name: id }))}
+              initialFilters={initialFilters}
+              initialError={initialError}
             />
           </div>
         </div>

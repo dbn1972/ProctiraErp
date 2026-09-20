@@ -2,6 +2,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
+
 import type { AdmissionsPipelineService } from './pipeline-service.js';
 import {
   AcceptOfferSchema,
@@ -24,19 +26,17 @@ import {
   type UpsertSeatMatrixDto,
 } from './schemas.js';
 
-import { enforceAdmissionsRouteAccess } from '../registration-http-guard.js';
-
 export interface AdmissionsPipelineRoutesOptions {
   service: AdmissionsPipelineService;
   prefix?: string;
 }
 
-function tenantOf(request: FastifyRequest, fallback?: string): string | null {
-  const fromReq = (request as FastifyRequest & { tenantId?: string }).tenantId;
-  if (fromReq) return fromReq;
-  const header = request.headers['x-tenant-id'];
-  if (typeof header === 'string' && header.length > 0) return header;
-  return fallback ?? null;
+function tenantOf(request: FastifyRequest): string | null {
+  const scoped = request as FastifyRequest & {
+    tenantId?: string;
+    user?: { tenantId?: string };
+  };
+  return scoped.tenantId ?? scoped.user?.tenantId ?? null;
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -72,7 +72,11 @@ export async function registerAdmissionsPipelineRoutes(
   const { service, prefix = '/admissions' } = options;
 
   // W1-SEC-02: admissions CRM requires registrar/admissions/admin (fail closed).
+  // This hook shares the plugin scope with public registration routes, so it
+  // must only act on the admissions prefix.
   fastify.addHook('preHandler', async (request, reply) => {
+    const path = (request.url.split('?')[0] ?? request.url).replace(/^\/api\/v1/, '');
+    if (!(path === prefix || path.startsWith(`${prefix}/`))) return;
     if (!enforceAdmissionsRouteAccess(request, reply)) {
       return reply;
     }

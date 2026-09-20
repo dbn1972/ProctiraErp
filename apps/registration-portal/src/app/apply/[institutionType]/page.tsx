@@ -1,28 +1,40 @@
 import { useTranslations } from 'next-intl';
+
+import { ConfigurationState } from '@/components/registration/configuration-state';
 import { PersonalInfoForm } from '@/components/registration/personal-info-form';
 import { loadFormConfiguration } from '@/lib/server';
 
 interface PageProps {
   params: Promise<{ institutionType: string }>;
+  searchParams: Promise<{ institutionId?: string | string[] }>;
 }
 
-/**
- * Step 1 — Personal information page.
- *
- * Loads the form configuration for the requested institution type as a
- * Server Component, then renders the multi-page form. Configurable fields
- * (text/select/etc.) are placed alongside the standard applicant fields;
- * file fields are reserved for the next step.
- */
-export default async function ApplyPersonalPage({ params }: PageProps) {
+/** Step 1 — load a published form only after a concrete school is selected. */
+export default async function ApplyPersonalPage({ params, searchParams }: PageProps) {
   const { institutionType } = await params;
-  const config = await loadFormConfiguration(institutionType);
-  const customFields = config.fields.filter((f) => f.type !== 'file');
+  const query = await searchParams;
+  const institutionId =
+    typeof query.institutionId === 'string' ? query.institutionId : undefined;
+  const result = await loadFormConfiguration(institutionId);
+  const retryHref = `/apply/${encodeURIComponent(institutionType)}${
+    institutionId ? `?institutionId=${encodeURIComponent(institutionId)}` : ''
+  }`;
 
+  if (result.status !== 'ready') {
+    return <ConfigurationState status={result.status} retryHref={retryHref} />;
+  }
+
+  const customFields = result.configuration.fields.filter((field) => field.type !== 'file');
   return (
     <div className="space-y-6">
       <ApplyHeader institutionType={institutionType} />
-      <PersonalInfoForm institutionType={institutionType} customFields={customFields} />
+      <PersonalInfoForm
+        institutionType={institutionType}
+        institutionId={result.configuration.institutionId}
+        formConfigurationId={result.configuration.id}
+        formConfigurationVersion={result.configuration.version}
+        customFields={customFields}
+      />
     </div>
   );
 }

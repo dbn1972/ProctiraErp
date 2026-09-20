@@ -1,36 +1,15 @@
-/**
- * API client for the registration portal.
- *
- * Communicates with the backend Registration Service.
- * The base URL is sourced (in priority order) from:
- *   1. NEXT_PUBLIC_REGISTRATION_SERVICE_URL — for client-side fetches
- *   2. REGISTRATION_SERVICE_URL — for Server Components / Server Actions
- *   3. '/api' — same-origin fallback when fronted by an API gateway
- *
- * Endpoints (defined in @proctira/backend-registration):
- *   POST   /registrations
- *   GET    /registrations/:trackingNumber/status
- *   GET    /registrations/institutions
- *   GET    /registrations/form-config/:institutionId
- *   POST   /registrations/language
- *   GET    /registrations/language
- */
-
+/** API client for the public registration portal. */
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_REGISTRATION_SERVICE_URL ||
   process.env.REGISTRATION_SERVICE_URL ||
   '/api';
 
-// --- Shared error handling -----------------------------------------------
-
-/** Field-level validation error returned by the backend */
 export interface FieldError {
   field: string;
   message: string;
   rule?: string;
 }
 
-/** Backend error response */
 export interface ApiError {
   code?: string;
   message: string;
@@ -38,23 +17,38 @@ export interface ApiError {
   errors?: FieldError[];
 }
 
-async function parseError(response: Response): Promise<ApiError> {
-  try {
-    const body = (await response.json()) as Partial<ApiError>;
-    return {
-      code: body.code,
-      message: body.message ?? 'Request failed',
-      statusCode: body.statusCode ?? response.status,
-      errors: body.errors,
-    };
-  } catch {
-    return { message: response.statusText, statusCode: response.status };
+/** Typed backend failure so callers can distinguish absent data from outages. */
+export class RegistrationApiError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+    readonly code?: string,
+    readonly fieldErrors: FieldError[] = [],
+  ) {
+    super(message);
+    this.name = 'RegistrationApiError';
   }
 }
 
-// --- Form configuration ---------------------------------------------------
+async function parseError(response: Response): Promise<RegistrationApiError> {
+  try {
+    const body = (await response.json()) as Partial<ApiError>;
+    return new RegistrationApiError(
+      body.message ?? 'Request failed',
+      body.statusCode ?? response.status,
+      body.code,
+      body.errors ?? [],
+    );
+  } catch {
+    return new RegistrationApiError(
+      response.statusText || 'Request failed',
+      response.status,
+      undefined,
+      [],
+    );
+  }
+}
 
-/** A configurable field definition for the registration form */
 export interface FormFieldDefinition {
   id: string;
   label: string;
@@ -70,30 +64,24 @@ export interface FormFieldDefinition {
   };
 }
 
-/** Form configuration for an institution / institution type */
+/** One immutable published form version for a concrete institution UUID. */
 export interface FormConfiguration {
-  institutionTypeId: string;
+  id: string;
+  institutionId: string;
+  version: number;
+  publishedAt: string;
   fields: FormFieldDefinition[];
 }
 
-/**
- * Fetches the form configuration for a given institution.
- * Returns an empty configuration if none is defined for the institution.
- */
 export async function getFormConfiguration(institutionId: string): Promise<FormConfiguration> {
   const response = await fetch(
     `${API_BASE_URL}/registrations/form-config/${encodeURIComponent(institutionId)}`,
     { cache: 'no-store' },
   );
-  if (!response.ok) {
-    throw new Error((await parseError(response)).message);
-  }
+  if (!response.ok) throw await parseError(response);
   return (await response.json()) as FormConfiguration;
 }
 
-// --- Institution map ------------------------------------------------------
-
-/** Filter options for the institution list / map */
 export interface InstitutionFilters {
   areaId?: string;
   typeId?: string;
@@ -103,7 +91,6 @@ export interface InstitutionFilters {
   pageSize?: number;
 }
 
-/** Institution location entry (matches backend InstitutionLocation schema) */
 export interface InstitutionLocation {
   id: string;
   name: string;
@@ -118,7 +105,6 @@ export interface InstitutionLocation {
   availableGrades?: string[];
 }
 
-/** Paginated institution map response */
 export interface InstitutionMapResponse {
   data: InstitutionLocation[];
   meta: {
@@ -129,9 +115,6 @@ export interface InstitutionMapResponse {
   };
 }
 
-/**
- * Fetches institutions for the school finder map, with optional filtering.
- */
 export async function getInstitutions(
   filters: InstitutionFilters = {},
 ): Promise<InstitutionMapResponse> {
@@ -146,40 +129,29 @@ export async function getInstitutions(
   const response = await fetch(`${API_BASE_URL}/registrations/institutions?${params.toString()}`, {
     cache: 'no-store',
   });
-  if (!response.ok) {
-    throw new Error((await parseError(response)).message);
-  }
+  if (!response.ok) throw await parseError(response);
   return (await response.json()) as InstitutionMapResponse;
 }
 
-// --- Submission -----------------------------------------------------------
-
-/** Configurable field value sent on submission */
 export interface RegistrationFieldValue {
   fieldId: string;
   value: string | number | boolean | null;
 }
 
-/**
- * Document metadata for the registration draft / submit payload.
- * Draft + sessionStorage keep metadata only; `content` is attached at submit
- * from the in-memory File map (never persisted to sessionStorage).
- */
 export interface DocumentUploadMetadata {
   fileName: string;
   fileType: string;
   fileSize: number;
   documentType: string;
-  /** Base64-encoded content attached at submit time only — never sessionStorage */
   content?: string;
 }
 
-/** Registration submission payload (matches backend SubmitRegistrationSchema) */
 export interface RegistrationSubmissionInput {
   institutionId: string;
+  formConfigurationId: string;
+  formConfigurationVersion: number;
   firstName: string;
   lastName: string;
-  /** YYYY-MM-DD */
   dateOfBirth: string;
   gender: 'male' | 'female' | 'other';
   guardianName: string;
@@ -190,7 +162,6 @@ export interface RegistrationSubmissionInput {
   preferredLanguage?: string;
 }
 
-/** Submission response with tracking number */
 export interface RegistrationSubmissionResponse {
   id: string;
   trackingNumber: string;
@@ -200,27 +171,22 @@ export interface RegistrationSubmissionResponse {
   message: string;
 }
 
-/**
- * Submits a new registration application.
- * On success the response includes the tracking number used to look up status.
- */
 export async function submitRegistration(
   payload: RegistrationSubmissionInput,
+  submissionKey: string,
 ): Promise<RegistrationSubmissionResponse> {
   const response = await fetch(`${API_BASE_URL}/registrations`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Idempotency-Key': submissionKey,
+    },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) {
-    throw new Error((await parseError(response)).message);
-  }
+  if (!response.ok) throw await parseError(response);
   return (await response.json()) as RegistrationSubmissionResponse;
 }
 
-// --- Status check --------------------------------------------------------
-
-/** Application status (matches backend RegistrationStatusResponse) */
 export interface RegistrationStatus {
   trackingNumber: string;
   status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
@@ -231,10 +197,6 @@ export interface RegistrationStatus {
   remarks?: string;
 }
 
-/**
- * Looks up an application status by tracking number.
- * Returns `null` if no application is found.
- */
 export async function checkApplicationStatus(
   trackingNumber: string,
   dateOfBirth: string,
@@ -244,21 +206,11 @@ export async function checkApplicationStatus(
     `${API_BASE_URL}/registrations/${encodeURIComponent(trackingNumber)}/status?${params.toString()}`,
     { cache: 'no-store' },
   );
-
   if (response.status === 404) return null;
-  if (!response.ok) {
-    throw new Error((await parseError(response)).message);
-  }
-
+  if (!response.ok) throw await parseError(response);
   return (await response.json()) as RegistrationStatus;
 }
 
-// --- Language -------------------------------------------------------------
-
-/**
- * Persists the selected language in the backend session.
- * Returns the session id (also set in the `x-session-id` response header).
- */
 export async function setSessionLanguage(language: string): Promise<{
   language: string;
   sessionId: string;
@@ -268,8 +220,6 @@ export async function setSessionLanguage(language: string): Promise<{
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ language }),
   });
-  if (!response.ok) {
-    throw new Error((await parseError(response)).message);
-  }
+  if (!response.ok) throw await parseError(response);
   return (await response.json()) as { language: string; sessionId: string };
 }

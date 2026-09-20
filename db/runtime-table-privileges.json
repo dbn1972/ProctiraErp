@@ -30,6 +30,7 @@
     "academic_rollover_runs": "dml",
     "admission_applications": "dml",
     "admission_enquiries": "dml",
+    "admission_form_configurations": "append_only",
     "admission_interview_bookings": "dml",
     "admission_interview_slots": "dml",
     "admission_offers": "dml",

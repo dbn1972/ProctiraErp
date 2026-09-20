@@ -23,7 +23,7 @@ import {
   validateCustomFields,
 } from './registration-service.js';
 import { InMemoryRegistrationRepository } from './in-memory-repository.js';
-import type { FormConfiguration } from './schemas.js';
+import type { FormConfiguration, SubmitRegistrationInput } from './schemas.js';
 import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES, TRACKING_NUMBER_PREFIX } from './schemas.js';
 
 describe('RegistrationService', () => {
@@ -33,8 +33,28 @@ describe('RegistrationService', () => {
   const testTenantId = 'tenant-001';
   const testInstitutionId = '12345678-1234-4123-8123-123456789abc';
   const testInstitutionTypeId = 'type-primary-001';
+  const testFormConfigurationId = '32345678-1234-4123-8123-123456789abc';
+  let submissionSequence = 0;
+
+  type SubmissionFixture = Omit<
+    SubmitRegistrationInput,
+    'formConfigurationId' | 'formConfigurationVersion'
+  > &
+    Partial<Pick<SubmitRegistrationInput, 'formConfigurationId' | 'formConfigurationVersion'>>;
+
+  const submit = (input: SubmissionFixture, key?: string) =>
+    service.submitRegistration(
+      testTenantId,
+      {
+        formConfigurationId: testFormConfigurationId,
+        formConfigurationVersion: 1,
+        ...input,
+      },
+      key ?? `unit-submit-${++submissionSequence}`,
+    );
 
   beforeEach(() => {
+    submissionSequence = 0;
     repository = new InMemoryRegistrationRepository();
     service = new RegistrationService(repository);
 
@@ -71,11 +91,37 @@ describe('RegistrationService', () => {
         availableGrades: ['grade-9', 'grade-10'],
       },
     ]);
+    repository.seedFormConfigurations([
+      {
+        id: testFormConfigurationId,
+        tenantId: testTenantId,
+        institutionId: testInstitutionId,
+        version: 1,
+        publishedAt: '2026-09-19T00:00:00.000Z',
+        fields: [
+          { id: 'photo', label: 'Photo', type: 'file', required: false },
+          {
+            id: 'birth_certificate',
+            label: 'Birth certificate',
+            type: 'file',
+            required: false,
+          },
+          {
+            id: 'identity_document',
+            label: 'Identity document',
+            type: 'file',
+            required: false,
+          },
+        ],
+      },
+    ]);
   });
 
   describe('submitRegistration', () => {
     const validInput = {
       institutionId: testInstitutionId,
+      formConfigurationId: testFormConfigurationId,
+      formConfigurationVersion: 1,
       firstName: 'Bart',
       lastName: 'Simpson',
       dateOfBirth: '2010-04-01',
@@ -86,7 +132,7 @@ describe('RegistrationService', () => {
     };
 
     it('should submit a registration and return a tracking number', async () => {
-      const result = await service.submitRegistration(testTenantId, validInput);
+      const result = await submit(validInput);
 
       expect(result.id).toBeDefined();
       expect(result.trackingNumber).toMatch(/^REG-[A-Z0-9]{8}$/);
@@ -97,7 +143,7 @@ describe('RegistrationService', () => {
     });
 
     it('should store the registration in the repository', async () => {
-      await service.submitRegistration(testTenantId, validInput);
+      await submit(validInput);
 
       const all = repository.getAll();
       expect(all).toHaveLength(1);
@@ -109,13 +155,13 @@ describe('RegistrationService', () => {
     it('should throw NotFoundError for non-existent institution', async () => {
       const input = { ...validInput, institutionId: '99999999-9999-4999-9999-999999999999' };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(NotFoundError);
+      await expect(submit(input)).rejects.toThrow(NotFoundError);
     });
 
     it('should throw BusinessRuleError for inactive institution', async () => {
       const input = { ...validInput, institutionId: '22345678-1234-4123-8123-123456789abc' };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+      await expect(submit(input)).rejects.toThrow(
         BusinessRuleError,
       );
     });
@@ -133,7 +179,7 @@ describe('RegistrationService', () => {
         ],
       };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+      await expect(submit(input)).rejects.toThrow(
         ValidationError,
       );
     });
@@ -151,7 +197,7 @@ describe('RegistrationService', () => {
         ],
       };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+      await expect(submit(input)).rejects.toThrow(
         ValidationError,
       );
     });
@@ -175,7 +221,7 @@ describe('RegistrationService', () => {
         ],
       };
 
-      const result = await service.submitRegistration(testTenantId, input);
+      const result = await submit(input);
       expect(result.trackingNumber).toMatch(/^REG-[A-Z0-9]{8}$/);
     });
 
@@ -183,7 +229,11 @@ describe('RegistrationService', () => {
       // Seed form configuration with a required field
       repository.seedFormConfigurations([
         {
-          institutionTypeId: testInstitutionTypeId,
+          id: testFormConfigurationId,
+          tenantId: testTenantId,
+          institutionId: testInstitutionId,
+          version: 1,
+          publishedAt: '2026-09-19T00:00:00.000Z',
           fields: [
             {
               id: 'previous_school',
@@ -200,7 +250,7 @@ describe('RegistrationService', () => {
         customFields: [{ fieldId: 'previous_school', value: null }],
       };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+      await expect(submit(input)).rejects.toThrow(
         ValidationError,
       );
     });
@@ -208,7 +258,11 @@ describe('RegistrationService', () => {
     it('should accept valid custom fields', async () => {
       repository.seedFormConfigurations([
         {
-          institutionTypeId: testInstitutionTypeId,
+          id: testFormConfigurationId,
+          tenantId: testTenantId,
+          institutionId: testInstitutionId,
+          version: 1,
+          publishedAt: '2026-09-19T00:00:00.000Z',
           fields: [
             {
               id: 'previous_school',
@@ -225,15 +279,102 @@ describe('RegistrationService', () => {
         customFields: [{ fieldId: 'previous_school', value: 'Old School Elementary' }],
       };
 
-      const result = await service.submitRegistration(testTenantId, input);
+      const result = await submit(input);
       expect(result.status).toBe('pending');
+    });
+
+    it('persists the exact published configuration version and snapshot', async () => {
+      await submit(validInput);
+      const stored = repository.getAll()[0]!;
+      expect(stored.formConfigurationId).toBe(testFormConfigurationId);
+      expect(stored.formConfigurationVersion).toBe(1);
+      expect(stored.formConfigurationSnapshot).toMatchObject({
+        id: testFormConfigurationId,
+        institutionId: testInstitutionId,
+        version: 1,
+      });
+    });
+
+    it('returns the same application for a repeated submission key', async () => {
+      const first = await submit(validInput, 'same-submit-key');
+      const retry = await submit(validInput, 'same-submit-key');
+
+      expect(first.replayed).toBe(false);
+      expect(retry.replayed).toBe(true);
+      expect(retry.id).toBe(first.id);
+      expect(retry.trackingNumber).toBe(first.trackingNumber);
+      expect(repository.getAll()).toHaveLength(1);
+    });
+
+    it('rejects reuse of a submission key with a materially different payload', async () => {
+      await submit(validInput, 'changed-submit-key');
+      await expect(
+        submit({ ...validInput, guardianPhone: '+1-555-9999' }, 'changed-submit-key'),
+      ).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED', statusCode: 409 });
+      expect(repository.getAll()).toHaveLength(1);
+    });
+
+    it('converges concurrent retries on one application', async () => {
+      const results = await Promise.all(
+        Array.from({ length: 8 }, () => submit(validInput, 'concurrent-submit-key')),
+      );
+      expect(new Set(results.map((result) => result.id)).size).toBe(1);
+      expect(new Set(results.map((result) => result.trackingNumber)).size).toBe(1);
+      expect(results.filter((result) => !result.replayed)).toHaveLength(1);
+      expect(repository.getAll()).toHaveLength(1);
+    });
+
+    it('fails closed when no published configuration exists', async () => {
+      repository.seedFormConfigurations([]);
+      await expect(submit(validInput)).rejects.toMatchObject({
+        code: 'FORM_CONFIGURATION_NOT_FOUND',
+        statusCode: 409,
+      });
+      expect(repository.getAll()).toHaveLength(0);
+    });
+
+    it('rejects an institution owned by another tenant', async () => {
+      const otherInstitutionId = '62345678-1234-4123-8123-123456789abc';
+      repository.seedInstitutions([
+        {
+          id: otherInstitutionId,
+          name: 'Other tenant school',
+          code: 'OTHER',
+          typeId: 'primary',
+          areaId: 'other-area',
+          tenantId: 'tenant-002',
+          status: 'ACTIVE',
+          latitude: null,
+          longitude: null,
+          address: null,
+        },
+      ]);
+      await expect(
+        submit({ ...validInput, institutionId: otherInstitutionId }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('enforces required document fields from the published configuration', async () => {
+      repository.seedFormConfigurations([
+        {
+          id: testFormConfigurationId,
+          tenantId: testTenantId,
+          institutionId: testInstitutionId,
+          version: 1,
+          publishedAt: '2026-09-19T00:00:00.000Z',
+          fields: [
+            { id: 'birth_certificate', label: 'Birth certificate', type: 'file', required: true },
+          ],
+        },
+      ]);
+      await expect(submit(validInput)).rejects.toBeInstanceOf(ValidationError);
     });
   });
 
   describe('checkStatus', () => {
     it('should return status for a valid tracking number', async () => {
       // Submit a registration first
-      const submission = await service.submitRegistration(testTenantId, {
+      const submission = await submit({
         institutionId: testInstitutionId,
         firstName: 'Lisa',
         lastName: 'Simpson',
@@ -260,7 +401,7 @@ describe('RegistrationService', () => {
     });
 
     it('should throw NotFoundError for mismatched date of birth', async () => {
-      const submission = await service.submitRegistration(testTenantId, {
+      const submission = await submit({
         institutionId: testInstitutionId,
         firstName: 'Lisa',
         lastName: 'Simpson',
@@ -348,7 +489,11 @@ describe('RegistrationService', () => {
     it('should return form configuration for an institution', async () => {
       repository.seedFormConfigurations([
         {
-          institutionTypeId: testInstitutionTypeId,
+          id: testFormConfigurationId,
+          tenantId: testTenantId,
+          institutionId: testInstitutionId,
+          version: 1,
+          publishedAt: '2026-09-19T00:00:00.000Z',
           fields: [
             { id: 'field1', label: 'Field 1', type: 'text', required: true },
             {
@@ -362,7 +507,7 @@ describe('RegistrationService', () => {
         },
       ]);
 
-      const config = await service.getFormConfiguration(testInstitutionId);
+      const config = await service.getFormConfiguration(testTenantId, testInstitutionId);
 
       expect(config).not.toBeNull();
       expect(config!.fields).toHaveLength(2);
@@ -370,7 +515,8 @@ describe('RegistrationService', () => {
     });
 
     it('should return null for institution with no form config', async () => {
-      const config = await service.getFormConfiguration(testInstitutionId);
+      repository.seedFormConfigurations([]);
+      const config = await service.getFormConfiguration(testTenantId, testInstitutionId);
       expect(config).toBeNull();
     });
   });
@@ -396,7 +542,7 @@ describe('generateTrackingNumber', () => {
       join(dirname(fileURLToPath(import.meta.url)), 'registration-service.ts'),
       'utf8',
     );
-    expect(src).toMatch(/import\s*\{\s*randomInt\s*\}\s*from\s*['"]node:crypto['"]/);
+    expect(src).toMatch(/randomInt\s*[,}]/);
     expect(src).toMatch(/randomInt\s*\(\s*chars\.length\s*\)/);
     expect(src).not.toMatch(/Math\.random\s*\(/);
   });
@@ -452,7 +598,10 @@ describe('validateDocuments', () => {
 
 describe('validateCustomFields', () => {
   const formConfig: FormConfiguration = {
-    institutionTypeId: 'type-001',
+    id: '42345678-1234-4123-8123-123456789abc',
+    institutionId: '52345678-1234-4123-8123-123456789abc',
+    version: 1,
+    publishedAt: '2026-09-19T00:00:00.000Z',
     fields: [
       {
         id: 'name',

@@ -80,7 +80,15 @@
     "institutionRequired": "Seleccione una escuela antes de enviar. Use Buscar escuelas.",
     "invalidDateOfBirth": "Ingrese una fecha de nacimiento válida (AAAA-MM-DD).",
     "invalidPhone": "Ingrese un teléfono de tutor válido.",
-    "invalidEmail": "Ingrese un correo de tutor válido."
+    "invalidEmail": "Ingrese un correo de tutor válido.",
+    "configUnavailableTitle": "Formulario de solicitud no disponible",
+    "configUnavailableMessage": "No pudimos cargar el formulario de solicitud de esta escuela. Vuelve a intentarlo en breve.",
+    "configMissingTitle": "Formulario de solicitud no publicado",
+    "configMissingMessage": "Esta escuela aún no ha publicado un formulario de solicitud. Elige otra escuela.",
+    "institutionRequiredTitle": "Selecciona primero una escuela",
+    "retryConfiguration": "Reintentar",
+    "chooseInstitution": "Elegir una escuela",
+    "fixFieldErrors": "Corrige los campos resaltados antes de enviar."
   },
   "documents": {
     "title": "Subir documentos",
@@ -98,7 +106,8 @@
     "invalidType": "Tipo no permitido. Permitidos: {types}",
     "remove": "Eliminar",
     "reuploadHint": "vuelva a cargar",
-    "reuploadRequired": "Debe volver a cargar {fileName} antes de enviar"
+    "reuploadRequired": "Debe volver a cargar {fileName} antes de enviar",
+    "noneRequired": "No se requieren documentos para esta solicitud."
   },
   "institutions": {
     "title": "Buscar escuelas",
@@ -113,7 +122,10 @@
     "noResults": "No se encontraron escuelas con esos criterios",
     "viewDetails": "Ver detalles",
     "selectForRegistration": "Seleccionar para inscribirse",
-    "resultsCount": "{count} escuelas encontradas"
+    "resultsCount": "{count} escuelas encontradas",
+    "serviceUnavailableTitle": "Servicio no disponible temporalmente",
+    "serviceUnavailableMessage": "No pudimos cargar las escuelas en este momento. Vuelve a intentarlo en unos instantes.",
+    "retry": "Reintentar"
   },
   "tracking": {
     "title": "Consulte su solicitud",
@@ -145,5 +157,6 @@
     "privacy": "Privacidad",
     "terms": "Términos",
     "contact": "Contacto"
-  }
+  },
+  "submissionFailed": "No pudimos enviar tu solicitud. Vuelve a intentarlo."
 }

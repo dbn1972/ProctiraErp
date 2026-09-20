@@ -1,9 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { submitRegistration, type RegistrationSubmissionInput } from '@/lib/api';
+import {
+  RegistrationApiError,
+  submitRegistration,
+  type FieldError,
+  type FormConfiguration,
+  type RegistrationSubmissionInput,
+} from '@/lib/api';
+import { createSubmissionKey } from '@/lib/registration-draft';
 import {
   isValidDateOfBirth,
   isValidEmail,
@@ -21,18 +28,36 @@ import { useRegistration } from './registration-context';
  * On success the tracking number is stored in `sessionStorage` and the user is
  * sent to `/apply/success`.
  */
-export function ReviewStep({ institutionType }: { institutionType: string }) {
+export function ReviewStep({
+  institutionType,
+  configuration,
+}: {
+  institutionType: string;
+  configuration: FormConfiguration;
+}) {
   const t = useTranslations();
   const router = useRouter();
   const locale = useLocale();
   const { draft, update, getDocumentFile } = useRegistration();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldError[]>([]);
+
+  useEffect(() => {
+    update({
+      institutionId: configuration.institutionId,
+      formConfigurationId: configuration.id,
+      formConfigurationVersion: configuration.version,
+    });
+  }, [configuration.id, configuration.institutionId, configuration.version, update]);
 
   async function handleSubmit() {
     if (!draft.gender) return; // type-narrowed below
 
-    if (!isValidInstitutionId(draft.institutionId)) {
+    if (
+      !isValidInstitutionId(draft.institutionId) ||
+      draft.institutionId !== configuration.institutionId
+    ) {
       setError(t('registration.institutionRequired'));
       return;
     }
@@ -49,8 +74,29 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
       return;
     }
 
+    const missingConfiguredFields: FieldError[] = [];
+    for (const field of configuration.fields) {
+      const present =
+        field.type === 'file'
+          ? draft.documents.some((document) => document.documentType === field.id)
+          : Boolean(draft.customFields[field.id]?.trim());
+      if (field.required && !present) {
+        missingConfiguredFields.push({
+          field: field.type === 'file' ? `documents.${field.id}` : `customFields.${field.id}`,
+          rule: 'required',
+          message: `${field.label}: ${t('common.required')}`,
+        });
+      }
+    }
+    if (missingConfiguredFields.length > 0) {
+      setFieldErrors(missingConfiguredFields);
+      setError(t('registration.fixFieldErrors'));
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+    setFieldErrors([]);
 
     try {
       const documents = await Promise.all(
@@ -66,7 +112,9 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
       );
 
       const payload: RegistrationSubmissionInput = {
-        institutionId: draft.institutionId,
+        institutionId: configuration.institutionId,
+        formConfigurationId: configuration.id,
+        formConfigurationVersion: configuration.version,
         firstName: draft.firstName,
         lastName: draft.lastName,
         dateOfBirth: draft.dateOfBirth,
@@ -82,7 +130,9 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
         preferredLanguage: locale,
       };
 
-      const result = await submitRegistration(payload);
+      const submissionKey = draft.submissionKey || createSubmissionKey();
+      if (!draft.submissionKey) update({ submissionKey });
+      const result = await submitRegistration(payload, submissionKey);
       update({ trackingNumber: result.trackingNumber });
       // Persist tracking number for the success page (sessionStorage scoped to this draft)
       if (typeof window !== 'undefined') {
@@ -90,14 +140,19 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
       }
       router.push('/apply/success');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Submission failed');
+      if (err instanceof RegistrationApiError) {
+        setFieldErrors(err.fieldErrors);
+      }
+      setError(err instanceof Error ? err.message : t('submissionFailed'));
     } finally {
       setSubmitting(false);
     }
   }
 
   function handleBack() {
-    router.push(`/apply/${encodeURIComponent(institutionType)}/documents`);
+    router.push(
+      `/apply/${encodeURIComponent(institutionType)}/documents?institutionId=${encodeURIComponent(configuration.institutionId)}`,
+    );
   }
 
   return (
@@ -113,11 +168,16 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
           <Row label={t('registration.gender')} value={draft.gender} />
           <Row label={t('registration.guardianName')} value={draft.guardianName} />
           <Row label={t('registration.guardianPhone')} value={draft.guardianPhone} />
+          <Row label={t('registration.institution')} value={configuration.institutionId} />
           {draft.guardianEmail && (
             <Row label={t('registration.guardianEmail')} value={draft.guardianEmail} />
           )}
           {Object.entries(draft.customFields).map(([fieldId, value]) => (
-            <Row key={fieldId} label={fieldId} value={value} />
+            <Row
+              key={fieldId}
+              label={configuration.fields.find((field) => field.id === fieldId)?.label ?? fieldId}
+              value={value}
+            />
           ))}
         </dl>
 
@@ -145,7 +205,14 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
           className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700"
           role="alert"
         >
-          {error}
+          <p>{error}</p>
+          {fieldErrors.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 ps-5">
+              {fieldErrors.map((fieldError, index) => (
+                <li key={`${fieldError.field}-${index}`}>{fieldError.message}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       )}
 

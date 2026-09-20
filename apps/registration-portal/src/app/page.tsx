@@ -215,7 +215,7 @@ function InstitutionTypePicker() {
           {types.map((type) => (
             <Link
               key={type.id}
-              href={`/apply/${type.id}`}
+              href={`/schools?typeId=${encodeURIComponent(type.id)}`}
               className="group flex flex-col items-center rounded-lg border border-gray-200 bg-white p-6 text-center shadow-sm transition-all hover:border-primary-300 hover:shadow-md"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50 text-primary-600 transition-colors group-hover:bg-primary-100">

@@ -14,11 +14,10 @@
  * tenant identity for authenticated principals when lookup is disabled/unavailable.
  */
 
+import { bindTenantGucPrisma } from '@proctira/database';
 import { createLogger } from '@proctira/logging';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-
-import { bindTenantGucPrisma } from '@proctira/database';
 
 import {
   isAuthenticatedRequest,
@@ -40,6 +39,9 @@ export interface TenantPluginOptions extends TenantResolutionOptions {
    * Example: ['/health', '/api/v1/public/*']
    */
   excludePaths?: string[];
+
+  /** Additional narrow exclusion predicate supplied by trusted composition. */
+  excludeRequest?: (request: FastifyRequest) => boolean;
 
   /**
    * Custom function to get a database client for setting the session variable.
@@ -147,6 +149,7 @@ export const tenantPlugin = fp(
   async function tenantPluginImpl(fastify: FastifyInstance, options: TenantPluginOptions) {
     const {
       excludePaths = ['/health', '/healthz', '/ready', '/metrics'],
+      excludeRequest,
       getDbClient,
       resolveSlugToId = true,
       ...resolutionOptions
@@ -163,8 +166,8 @@ export const tenantPlugin = fp(
     fastify.addHook(
       'onRequest',
       async function tenantResolutionHook(request: FastifyRequest, reply: FastifyReply) {
-        // Skip excluded paths
-        if (isExcludedPath(request.url, excludePaths)) {
+        // Skip explicitly public paths selected by trusted gateway composition.
+        if (excludeRequest?.(request) || isExcludedPath(request.url, excludePaths)) {
           return;
         }
 

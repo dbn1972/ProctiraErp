@@ -23,7 +23,11 @@ import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
 import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
 import type { RegistrationRepository } from './registration-repository.js';
 import { RegistrationService } from './registration-service.js';
-import { registerRegistrationRoutes, type RegistrationSessionStore } from './routes.js';
+import {
+  registerRegistrationRoutes,
+  type PublicTenantResolver,
+  type RegistrationSessionStore,
+} from './routes.js';
 
 /**
  * Options for the registration plugin.
@@ -56,7 +60,9 @@ export interface RegistrationPluginOptions {
   prefix?: string;
   /** Staff admissions CRM prefix (default: '/admissions') */
   admissionsPrefix?: string;
-  /** Default tenant ID for public routes */
+  /** Trusted hostname resolver for all anonymous registration routes. */
+  publicTenantResolver?: PublicTenantResolver;
+  /** Explicit non-production/test fallback tenant; refused in production. */
   defaultTenantId?: string;
 }
 
@@ -89,6 +95,7 @@ export const registrationPlugin = fp(
       reconcileOfferResources,
       prefix = '/registrations',
       admissionsPrefix = '/admissions',
+      publicTenantResolver,
       defaultTenantId,
     } = options;
 
@@ -103,6 +110,7 @@ export const registrationPlugin = fp(
     await registerRegistrationRoutes(fastify, {
       registrationService,
       prefix,
+      publicTenantResolver,
       defaultTenantId,
       sessionStore,
     });

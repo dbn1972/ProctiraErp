@@ -11,9 +11,15 @@
  * - 16.5: Multi-language interface with session-persisted language selection
  * - 16.6: Check application status by tracking number without authentication
  */
-import { randomInt } from 'node:crypto';
+import { createHash, randomInt } from 'node:crypto';
 
-import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import {
+  AppError,
+  BusinessRuleError,
+  ConflictError,
+  NotFoundError,
+  ValidationError,
+} from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -25,6 +31,7 @@ import {
 import type {
   RegistrationRepository,
   InstitutionLocationFilter,
+  NewRegistrationEntity,
   SchoolFinderFilter,
   SchoolFinderResultRow,
   RegistrationStatus,
@@ -104,9 +111,22 @@ export function validateCustomFields(
   formConfig: FormConfiguration,
 ): FieldError[] {
   const errors: FieldError[] = [];
+  const seenFieldIds = new Set<string>();
+  for (const field of customFields) {
+    if (seenFieldIds.has(field.fieldId)) {
+      errors.push({
+        field: `customFields.${field.fieldId}`,
+        rule: 'duplicateField',
+        message: `Field '${field.fieldId}' must be provided only once`,
+      });
+    }
+    seenFieldIds.add(field.fieldId);
+  }
 
-  // Check required fields are present
+  // Check required non-file fields are present. File requirements are matched
+  // against documentType by validateConfiguredDocuments().
   for (const fieldDef of formConfig.fields) {
+    if (fieldDef.type === 'file') continue;
     if (fieldDef.required) {
       const provided = customFields.find((f) => f.fieldId === fieldDef.id);
       if (!provided || provided.value === null || provided.value === '') {
@@ -121,7 +141,9 @@ export function validateCustomFields(
 
   // Validate provided field values
   for (const field of customFields) {
-    const fieldDef = formConfig.fields.find((f) => f.id === field.fieldId);
+    const fieldDef = formConfig.fields.find(
+      (definition) => definition.id === field.fieldId && definition.type !== 'file',
+    );
     if (!fieldDef) {
       errors.push({
         field: `customFields.${field.fieldId}`,
@@ -185,6 +207,84 @@ export function validateCustomFields(
   return errors;
 }
 
+/** Match configured file fields to submitted documentType values. */
+export function validateConfiguredDocuments(
+  documents: DocumentUpload[],
+  formConfig: FormConfiguration,
+): FieldError[] {
+  const errors: FieldError[] = [];
+  const configuredFiles = formConfig.fields.filter((field) => field.type === 'file');
+  const configuredIds = new Set(configuredFiles.map((field) => field.id));
+  const seen = new Set<string>();
+
+  for (const document of documents) {
+    if (seen.has(document.documentType)) {
+      errors.push({
+        field: `documents.${document.documentType}`,
+        rule: 'duplicateDocument',
+        message: `Document '${document.documentType}' must be provided only once`,
+      });
+    }
+    seen.add(document.documentType);
+    if (!configuredIds.has(document.documentType)) {
+      errors.push({
+        field: `documents.${document.documentType}`,
+        rule: 'unknownDocument',
+        message: `Document '${document.documentType}' is not requested by this application form`,
+      });
+    }
+  }
+
+  for (const field of configuredFiles) {
+    if (field.required && !seen.has(field.id)) {
+      errors.push({
+        field: `documents.${field.id}`,
+        rule: 'required',
+        message: `Document '${field.label}' is required`,
+      });
+    }
+  }
+  return errors;
+}
+
+/** Stable material-payload digest used by durable idempotency conflict checks. */
+export function computeSubmissionPayloadHash(input: SubmitRegistrationInput): string {
+  const customFields = [...(input.customFields ?? [])]
+    .map((field) => ({ fieldId: field.fieldId, value: field.value }))
+    .sort((a, b) => a.fieldId.localeCompare(b.fieldId));
+  const documents = [...(input.documents ?? [])]
+    .map((document) => ({
+      fileName: document.fileName,
+      fileType: document.fileType,
+      fileSize: document.fileSize,
+      documentType: document.documentType,
+      contentSha256:
+        document.content === undefined
+          ? null
+          : createHash('sha256').update(document.content).digest('hex'),
+    }))
+    .sort((a, b) =>
+      `${a.documentType}\u0000${a.fileName}`.localeCompare(`${b.documentType}\u0000${b.fileName}`),
+    );
+
+  const canonical = {
+    institutionId: input.institutionId,
+    formConfigurationId: input.formConfigurationId,
+    formConfigurationVersion: input.formConfigurationVersion,
+    firstName: input.firstName,
+    lastName: input.lastName,
+    dateOfBirth: input.dateOfBirth,
+    gender: input.gender,
+    guardianName: input.guardianName,
+    guardianPhone: input.guardianPhone,
+    guardianEmail: input.guardianEmail ?? null,
+    customFields,
+    documents,
+    preferredLanguage: input.preferredLanguage ?? null,
+  };
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
 /**
  * Registration service handling public registration portal operations.
  */
@@ -216,53 +316,60 @@ export class RegistrationService {
   async submitRegistration(
     tenantId: string,
     input: SubmitRegistrationInput,
-  ): Promise<RegistrationSubmissionResponse> {
-    // Validate institution exists and is active
-    const isActive = await this.repository.isInstitutionActive(input.institutionId);
-    if (!isActive) {
-      const name = await this.repository.getInstitutionName(input.institutionId);
-      if (!name) {
-        throw new NotFoundError(`Institution with id '${input.institutionId}' not found`);
-      }
+    submissionKey: string,
+  ): Promise<RegistrationSubmissionResponse & { replayed: boolean }> {
+    const institution = await this.repository.findInstitution(tenantId, input.institutionId);
+    if (!institution) {
+      throw new NotFoundError('Selected institution is unavailable');
+    }
+    if (institution.status !== 'ACTIVE') {
       throw new BusinessRuleError('Cannot submit registration to an inactive institution');
     }
 
-    // Validate documents if provided
-    if (input.documents && input.documents.length > 0) {
-      const docErrors = validateDocuments(input.documents);
-      if (docErrors.length > 0) {
-        throw new ValidationError('Document validation failed', docErrors);
-      }
+    let formConfig: FormConfiguration | null;
+    try {
+      formConfig = await this.repository.getFormConfiguration(
+        tenantId,
+        input.institutionId,
+        input.formConfigurationId,
+      );
+    } catch {
+      throw new AppError(
+        'Registration form configuration is temporarily unavailable',
+        'FORM_CONFIGURATION_UNAVAILABLE',
+        503,
+      );
+    }
+    if (!formConfig) {
+      throw new AppError(
+        'The selected registration form is no longer available. Reload the application before submitting.',
+        'FORM_CONFIGURATION_NOT_FOUND',
+        409,
+      );
+    }
+    if (formConfig.version !== input.formConfigurationVersion) {
+      throw new AppError(
+        'The registration form version changed. Reload the application before submitting.',
+        'FORM_CONFIGURATION_VERSION_CONFLICT',
+        409,
+      );
     }
 
-    // Validate custom fields against form configuration if provided
-    if (input.customFields && input.customFields.length > 0) {
-      const institutionTypeId = await this.repository.getInstitutionTypeId(input.institutionId);
-      if (institutionTypeId) {
-        const formConfig = await this.repository.getFormConfiguration(institutionTypeId);
-        if (formConfig) {
-          const fieldErrors = validateCustomFields(input.customFields, formConfig);
-          if (fieldErrors.length > 0) {
-            throw new ValidationError('Custom field validation failed', fieldErrors);
-          }
-        }
-      }
+    const documents = input.documents ?? [];
+    const fieldErrors = [
+      ...validateDocuments(documents),
+      ...validateConfiguredDocuments(documents, formConfig),
+      ...validateCustomFields(input.customFields ?? [], formConfig),
+    ];
+    if (fieldErrors.length > 0) {
+      throw new ValidationError('Registration form validation failed', fieldErrors);
     }
 
-    // Generate tracking number
-    const trackingNumber = generateTrackingNumber();
-
-    // Get institution name for the response
-    const institutionName =
-      (await this.repository.getInstitutionName(input.institutionId)) ?? 'Unknown';
-
-    // Create registration entity
-    const entity = await this.repository.create({
+    const entity: NewRegistrationEntity = {
       id: uuidv4(),
       tenantId,
-      trackingNumber,
+      trackingNumber: generateTrackingNumber(),
       institutionId: input.institutionId,
-      institutionName,
       status: 'pending',
       firstName: input.firstName,
       lastName: input.lastName,
@@ -272,23 +379,43 @@ export class RegistrationService {
       guardianPhone: input.guardianPhone,
       guardianEmail: input.guardianEmail ?? null,
       customFields: input.customFields ?? [],
-      documents: (input.documents ?? []).map((doc) => ({
-        fileName: doc.fileName,
-        fileType: doc.fileType,
-        fileSize: doc.fileSize,
-        documentType: doc.documentType,
+      documents: documents.map((document) => ({
+        fileName: document.fileName,
+        fileType: document.fileType,
+        fileSize: document.fileSize,
+        documentType: document.documentType,
       })),
       preferredLanguage: input.preferredLanguage ?? null,
       remarks: null,
-    });
+      formConfigurationId: formConfig.id,
+      formConfigurationVersion: formConfig.version,
+      submissionKey,
+      submissionPayloadHash: computeSubmissionPayloadHash(input),
+    };
 
+    const created = await this.repository.createIdempotent(entity);
+    if (created.outcome === 'payload_conflict') {
+      throw new AppError(
+        'This submission key was already used for a different application payload.',
+        'IDEMPOTENCY_KEY_REUSED',
+        409,
+      );
+    }
+    if (created.outcome === 'context_unavailable') {
+      throw new ConflictError(
+        'The selected institution or registration form is no longer available. Reload before submitting.',
+      );
+    }
+
+    const registration = created.registration;
     return {
-      id: entity.id,
-      trackingNumber: entity.trackingNumber,
-      status: entity.status,
-      institutionId: entity.institutionId,
-      submittedAt: entity.submittedAt.toISOString(),
-      message: `Registration submitted successfully. Your tracking number is ${entity.trackingNumber}`,
+      id: registration.id,
+      trackingNumber: registration.trackingNumber,
+      status: registration.status,
+      institutionId: registration.institutionId,
+      submittedAt: registration.submittedAt.toISOString(),
+      message: `Registration submitted successfully. Your tracking number is ${registration.trackingNumber}`,
+      replayed: created.outcome === 'replayed',
     };
   }
 
@@ -352,13 +479,24 @@ export class RegistrationService {
   }
 
   /**
-   * Get form configuration for an institution type.
-   * Requirement 16.1: Configurable fields per institution type.
+   * Get the latest published form configuration for an institution UUID.
+   * Repository/configuration outages fail closed instead of becoming an empty form.
    */
-  async getFormConfiguration(institutionId: string): Promise<FormConfiguration | null> {
-    const typeId = await this.repository.getInstitutionTypeId(institutionId);
-    if (!typeId) return null;
-    return this.repository.getFormConfiguration(typeId);
+  async getFormConfiguration(
+    tenantId: string,
+    institutionId: string,
+  ): Promise<FormConfiguration | null> {
+    try {
+      const institution = await this.repository.findInstitution(tenantId, institutionId);
+      if (!institution || institution.status !== 'ACTIVE') return null;
+      return await this.repository.getFormConfiguration(tenantId, institutionId);
+    } catch {
+      throw new AppError(
+        'Registration form configuration is temporarily unavailable',
+        'FORM_CONFIGURATION_UNAVAILABLE',
+        503,
+      );
+    }
   }
 
   /**
