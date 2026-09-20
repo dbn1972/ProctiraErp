@@ -21,7 +21,6 @@ import Link from 'next/link';
 import {
   Building2,
   CheckCircle2,
-  Download,
   Eye,
   GraduationCap,
   Map,
@@ -318,10 +317,13 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="outline" size="sm">
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export UDISE
-          </Button>
+          {/*
+            An "Export UDISE" button used to sit here with no onClick, no asChild
+            and no handler — a dead control advertising a capability that does not
+            exist. `packages/backend` and `apps/api-gateway/src` contain zero UDISE
+            references: there is no export route, service or return format. Restore
+            this button in the same change that lands the backend export, not before.
+          */}
           <Button asChild size="sm">
             <Link href="/institutions/new">
               <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
