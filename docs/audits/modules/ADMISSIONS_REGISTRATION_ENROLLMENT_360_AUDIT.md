@@ -33,34 +33,34 @@ However, the journey is not yet a dependable production admissions service. The 
 
 ### Provisional scorecard
 
-| Dimension | Score / 10 | Evidence-led assessment |
-|---|---:|---|
-| Applicant journey completeness | 5.5 | Apply and track exist; lifecycle after submit is shallow |
-| Staff workflow completeness | 6.5 | CRM, seat, merit, offer and enrollment functions exist |
-| Functional/data integrity | 6.0 | Durable core application/pipeline, but document/config and atomicity gaps |
-| Usability and information architecture | 5.5 | Clear basic routes; staff hub is dense and weak for volume |
-| Accessibility | 6.0 | Labels/axe coverage exist; WCAG 2.2/manual AT evidence absent |
-| Responsive/mobile/offline | 4.0 | Responsive CSS and session draft; no native/offline/durable cross-device flow |
-| Localization/RTL | 5.5 | Four portal locales including Arabic; staff CRM is English-only |
-| Security/privacy | 4.0 | DOB tracking check and RLS are strengths; public tenant and file handling are high risk |
-| Reliability/operations | 4.0 | Production factories exist; silent fallbacks and skipped live checks weaken confidence |
-| **Overall** | **5.2** | **PARTIAL** |
+| Dimension                              | Score / 10 | Evidence-led assessment                                                                 |
+| -------------------------------------- | ---------: | --------------------------------------------------------------------------------------- |
+| Applicant journey completeness         |        5.5 | Apply and track exist; lifecycle after submit is shallow                                |
+| Staff workflow completeness            |        6.5 | CRM, seat, merit, offer and enrollment functions exist                                  |
+| Functional/data integrity              |        6.0 | Durable core application/pipeline, but document/config and atomicity gaps               |
+| Usability and information architecture |        5.5 | Clear basic routes; staff hub is dense and weak for volume                              |
+| Accessibility                          |        6.0 | Labels/axe coverage exist; WCAG 2.2/manual AT evidence absent                           |
+| Responsive/mobile/offline              |        4.0 | Responsive CSS and session draft; no native/offline/durable cross-device flow           |
+| Localization/RTL                       |        5.5 | Four portal locales including Arabic; staff CRM is English-only                         |
+| Security/privacy                       |        4.0 | DOB tracking check and RLS are strengths; public tenant and file handling are high risk |
+| Reliability/operations                 |        4.0 | Production factories exist; silent fallbacks and skipped live checks weaken confidence  |
+| **Overall**                            |    **5.2** | **PARTIAL**                                                                             |
 
 Scores are not production certification and must be revalidated with rendered captures, assistive technology, live PostgreSQL/Redis/object storage, provider integrations and representative users.
 
 ## 2. Actors, jobs and context
 
-| Actor | Primary job | Frequency/volume | Failure cost |
-|---|---|---:|---|
-| Applicant/guardian | Find a school, apply, upload evidence, track progress, respond to offer | Seasonal; potentially very high | Missed placement, duplicate travel, privacy exposure |
-| Assisted-service clerk | Enter an application for a low-literacy/offline family | High during intake windows | Exclusion, duplicate/inaccurate records |
-| Admissions officer | Triage, request evidence, schedule interview, decide status | Daily/high volume | Delay, unfair decision, missed SLA |
-| Registrar | Convert accepted applicant into authoritative student/enrollment | Daily during intake | Duplicate student, wrong class/period |
-| Interviewer | See schedule and record outcome/score | Seasonal | Incorrect merit result |
-| Finance officer | Issue/reconcile admission fee and payment | Per offer | Incorrect balance or enrollment before payment |
-| Principal/admissions manager | Configure seats, weights, quotas and approve lists | Periodic/high risk | Over-enrollment, inequitable selection |
-| Guardian/parent portal user | Review, accept/decline and pay an offer | Per offer | Lost seat, disputed consent/payment |
-| Auditor/support | Reconstruct who changed decisions and why | Exception-driven | Unresolved complaint or regulatory failure |
+| Actor                        | Primary job                                                             |                Frequency/volume | Failure cost                                         |
+| ---------------------------- | ----------------------------------------------------------------------- | ------------------------------: | ---------------------------------------------------- |
+| Applicant/guardian           | Find a school, apply, upload evidence, track progress, respond to offer | Seasonal; potentially very high | Missed placement, duplicate travel, privacy exposure |
+| Assisted-service clerk       | Enter an application for a low-literacy/offline family                  |      High during intake windows | Exclusion, duplicate/inaccurate records              |
+| Admissions officer           | Triage, request evidence, schedule interview, decide status             |               Daily/high volume | Delay, unfair decision, missed SLA                   |
+| Registrar                    | Convert accepted applicant into authoritative student/enrollment        |             Daily during intake | Duplicate student, wrong class/period                |
+| Interviewer                  | See schedule and record outcome/score                                   |                        Seasonal | Incorrect merit result                               |
+| Finance officer              | Issue/reconcile admission fee and payment                               |                       Per offer | Incorrect balance or enrollment before payment       |
+| Principal/admissions manager | Configure seats, weights, quotas and approve lists                      |              Periodic/high risk | Over-enrollment, inequitable selection               |
+| Guardian/parent portal user  | Review, accept/decline and pay an offer                                 |                       Per offer | Lost seat, disputed consent/payment                  |
+| Auditor/support              | Reconstruct who changed decisions and why                               |                Exception-driven | Unresolved complaint or regulatory failure           |
 
 ### Context that must drive the design
 
@@ -76,29 +76,29 @@ Scores are not production certification and must be revalidated with rendered ca
 
 ### Applicant-facing routes
 
-| Route/screen | Evidence | Status |
-|---|---|---|
-| `/` landing | Hero, fixed statistics, process explanation, apply/track CTAs | Active |
-| `/schools` | Server-loaded map/list and derived filters | Active, silently empty on failure |
-| `/apply/[institutionType]` | Personal/guardian/configurable-field step | Active |
-| `/apply/[institutionType]/documents` | Configured file slots and in-memory file selection | Active, not durable upload |
-| `/apply/[institutionType]/review` | Review, base64 conversion, submit | Active |
-| `/apply/success` | Tracking-number confirmation | Active |
-| `/track` | Tracking number + DOB form | Active |
-| `/track/[trackingNumber]` | Status details/not-found fallback | Active |
+| Route/screen                         | Evidence                                                      | Status                            |
+| ------------------------------------ | ------------------------------------------------------------- | --------------------------------- |
+| `/` landing                          | Hero, fixed statistics, process explanation, apply/track CTAs | Active                            |
+| `/schools`                           | Server-loaded map/list and derived filters                    | Active, silently empty on failure |
+| `/apply/[institutionType]`           | Personal/guardian/configurable-field step                     | Active                            |
+| `/apply/[institutionType]/documents` | Configured file slots and in-memory file selection            | Active, not durable upload        |
+| `/apply/[institutionType]/review`    | Review, base64 conversion, submit                             | Active                            |
+| `/apply/success`                     | Tracking-number confirmation                                  | Active                            |
+| `/track`                             | Tracking number + DOB form                                    | Active                            |
+| `/track/[trackingNumber]`            | Status details/not-found fallback                             | Active                            |
 
 Evidence: `apps/registration-portal/src/app/**`; route inventory in `apps/registration-portal/e2e/01-registration-portal-smoke.spec.ts:8-47`.
 
 ### Staff-facing routes
 
-| Route/screen | Evidence | Status |
-|---|---|---|
-| `/admissions` | Application, waitlist, interview hub and status actions | Active |
-| `/admissions/[id]` | Placement, offer, class and enrollment state | Active |
-| `/admissions/enquiries` | Enquiries, stage, follow-up and conversion | Active |
-| `/admissions/seat-matrix` | Seat capacity by institution/period/grade/quota | Active |
-| `/admissions/merit` | Score entry, weighted ranking and merit list | Active |
-| Staff status/interview forms | Components embedded in hub | Active |
+| Route/screen                 | Evidence                                                | Status |
+| ---------------------------- | ------------------------------------------------------- | ------ |
+| `/admissions`                | Application, waitlist, interview hub and status actions | Active |
+| `/admissions/[id]`           | Placement, offer, class and enrollment state            | Active |
+| `/admissions/enquiries`      | Enquiries, stage, follow-up and conversion              | Active |
+| `/admissions/seat-matrix`    | Seat capacity by institution/period/grade/quota         | Active |
+| `/admissions/merit`          | Score entry, weighted ranking and merit list            | Active |
+| Staff status/interview forms | Components embedded in hub                              | Active |
 
 Evidence: `apps/web/src/app/(dashboard)/admissions/**`; actions in `apps/web/src/app/(dashboard)/admissions-actions.ts:1-259`.
 
@@ -331,16 +331,16 @@ Evidence: `packages/backend/student/src/enrollment/enrollment-service.ts:45-181`
 
 ## 5. Security, privacy and data findings
 
-| ID | Severity | Finding | Required closure |
-|---|---|---|---|
-| ADM-SEC-01 | **P0** | Public route tenant is accepted from `x-tenant-id` or defaults to `default`; caller context can control PII partition | Resolve tenant only from trusted hostname/institution directory; reject missing/unknown tenant and ignore client tenant header |
-| ADM-DOC-01 | **P0** | Document bytes are submitted as base64 but not durably stored or scanned | Object-storage upload, malware scan, encryption, checksum, RLS metadata, retention and controlled retrieval |
-| ADM-CFG-01 | **P1** | Institution-type slug is sent to UUID form-config route; failures silently become empty config | Published institution-specific form version and visible fail-closed loading/error state |
-| ADM-DATA-01 | **P1** | PG school and form-config sources remain in-memory overlays | Durable institution/form config queries using authoritative tenant-scoped tables |
-| ADM-SUBMIT-01 | **P1** | Public submit has no idempotency/retry key | Durable idempotency record keyed to tenant/applicant/client request |
-| ADM-PRIV-01 | **P1** | No consent/guardian-authority/versioned privacy evidence in applicant flow | Versioned declarations, guardian relationship/authority, purpose, retention and withdrawal record |
-| ADM-AUDIT-01 | **P1** | Staff does not see decision/change audit history | Atomic audit/outbox and role-limited timeline with reason/evidence |
-| ADM-OPS-01 | **P1** | Silent fallbacks convert backend failure into empty/default/not-found UI | Explicit dependency unavailable, retry, incident/support and stale-data states |
+| ID            | Severity | Finding                                                                                                               | Required closure                                                                                                               |
+| ------------- | -------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| ADM-SEC-01    | **P0**   | Public route tenant is accepted from `x-tenant-id` or defaults to `default`; caller context can control PII partition | Resolve tenant only from trusted hostname/institution directory; reject missing/unknown tenant and ignore client tenant header |
+| ADM-DOC-01    | **P0**   | Document bytes are submitted as base64 but not durably stored or scanned                                              | Object-storage upload, malware scan, encryption, checksum, RLS metadata, retention and controlled retrieval                    |
+| ADM-CFG-01    | **P1**   | Institution-type slug is sent to UUID form-config route; failures silently become empty config                        | Published institution-specific form version and visible fail-closed loading/error state                                        |
+| ADM-DATA-01   | **P1**   | PG school and form-config sources remain in-memory overlays                                                           | Durable institution/form config queries using authoritative tenant-scoped tables                                               |
+| ADM-SUBMIT-01 | **P1**   | Public submit has no idempotency/retry key                                                                            | Durable idempotency record keyed to tenant/applicant/client request                                                            |
+| ADM-PRIV-01   | **P1**   | No consent/guardian-authority/versioned privacy evidence in applicant flow                                            | Versioned declarations, guardian relationship/authority, purpose, retention and withdrawal record                              |
+| ADM-AUDIT-01  | **P1**   | Staff does not see decision/change audit history                                                                      | Atomic audit/outbox and role-limited timeline with reason/evidence                                                             |
+| ADM-OPS-01    | **P1**   | Silent fallbacks convert backend failure into empty/default/not-found UI                                              | Explicit dependency unavailable, retry, incident/support and stale-data states                                                 |
 
 Primary evidence for public tenant fallback: `packages/backend/registration/src/routes.ts:99-125`.
 
