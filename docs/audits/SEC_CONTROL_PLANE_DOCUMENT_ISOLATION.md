@@ -138,11 +138,35 @@ Two consequences:
    predicate to fall back on, `get()` would start returning `null` for every
    tenant-owned document. The second line above shows exactly that: 0 rows.
 
+## Classification resolved (2026-09-20)
+
+Step 2 was blocked on deciding which collections are tenant-owned. The repository
+owner has settled the underlying invariant — see
+`docs/audits/TENANCY_IDENTITY_INVARIANT.md`:
+
+> A board is the tenant. One person cannot belong to two boards, therefore **one
+> identity belongs to exactly one tenant, always.**
+
+Consequently **no user-facing code path requires a cross-tenant escape**, and every
+affected collection is tenant-owned:
+
+| Collection                                                                        | Scope for step 2     |
+| --------------------------------------------------------------------------------- | -------------------- |
+| `auth.keycloak_identities`, `auth.users`, `auth.otp_challenges`, `auth.invites`   | `{ tenantId }`       |
+| `auth.tenants` (personal directory for the signed-in user; one row per identity)  | `{ tenantId }`       |
+| `billing.plans`, `billing.subscriptions`, `billing.entitlements`, `billing.usage` | `{ tenantId }`       |
+| platform-admin console state, tenant-lifecycle records                            | `{ platform: true }` |
+
+Multi-school access — a headmaster with additional charge of a second school — is
+served **inside** one tenant by the existing `institutions[]` claim and
+`decideInstitutionScope`. It is not a reason to relax tenant isolation, so it does
+not constrain this fix.
+
 ## Remediation options
 
-Not applied here. This needs a decision from a tenancy/security owner, because
-some control-plane reads are legitimately cross-tenant (platform admin listing
-tenants, for instance) and a naive tightening would break them.
+The escape's only defensible use is platform operations by the ProctiraERP
+operator, a distinct actor tier from any board or school user, and that use must be
+explicit rather than ambient.
 
 **Correction to an earlier recommendation.** Option 2 below was initially proposed as
 "the smallest fail-closed step". That was wrong on its own: making the escape
