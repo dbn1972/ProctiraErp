@@ -66,6 +66,18 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
     await this.tenants.put(tenant.id, tenant);
   }
 
+  /**
+   * Deliberately unscoped, and it cannot be otherwise.
+   *
+   * This resolves a Keycloak subject to the tenant that owns it, so the tenant id
+   * is the *result* of the call, not an input -- it runs before any tenant context
+   * exists. The safety property here is that `externalId` is a Keycloak `sub`,
+   * which is opaque and unguessable; it is not RLS, and it is not a tenant
+   * predicate. Adding one would break authentication.
+   *
+   * Recorded rather than fixed so it is not mistaken for an oversight when the
+   * scope parameter becomes mandatory.
+   */
   async findIdentity(externalId: string) {
     const row = await this.identities.get(externalId);
     return row
@@ -82,7 +94,12 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
   async findUserByEmail(email: string, tenantId?: string) {
     const normalized = email.trim().toLowerCase();
     if (tenantId) {
-      const user = await this.users.get(`${tenantId}:${normalized}`);
+      // The key is already tenant-prefixed, so this was scoped in practice --
+      // but only by string convention, enforced nowhere. Passing the scope makes
+      // it a real SQL predicate, so a malformed or spoofed key cannot reach
+      // another tenant's row. Verified the invariant holds in existing data: every
+      // auth.keycloak_users id begins with its own tenant_id.
+      const user = await this.users.get(`${tenantId}:${normalized}`, { tenantId });
       return user ? this.publicUser(user) : null;
     }
     const user = await this.users.first({ email: normalized } as Partial<UserDoc>);
@@ -90,7 +107,12 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
   }
 
   async findTenantById(id: string): Promise<{ id: string } | null> {
-    const seeded = await this.tenants.get(id);
+    // auth.keycloak_tenants is platform-owned: every row has a NULL tenant_id
+    // (verified on the evaluation database -- 6 rows, 0 with a tenant_id). Scoping
+    // to `platform` adds the predicate this lookup should always have had, so a
+    // tenant-owned row can never be returned here even though `(collection, id)`
+    // is otherwise a global key. See SEC_CONTROL_PLANE_DOCUMENT_ISOLATION.md.
+    const seeded = await this.tenants.get(id, { platform: true });
     if (seeded) return { id: seeded.id };
     return this.options.strictTenants ? null : { id };
   }
