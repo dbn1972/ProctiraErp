@@ -26,16 +26,6 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
   const [result, setResult] = useState<ValidationResult | null>(null);
   const [fieldErrors, setFieldErrors] = useState<DatabaseFieldErrors>({});
 
-  const handleProviderChange = (provider: 'postgresql' | 'mysql') => {
-    setConfig((prev) => ({
-      ...prev,
-      provider,
-      port: provider === 'postgresql' ? 5432 : 3306,
-    }));
-    setResult(null);
-    setFieldErrors({});
-  };
-
   const handleTest = async () => {
     const errors = validateDatabaseConfig(config);
     setFieldErrors(errors ?? {});
@@ -78,38 +68,28 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
       description="Select your database provider and configure the connection. The wizard will test connectivity before proceeding."
     >
       <div className="space-y-4" data-testid="database-step">
-        <fieldset>
-          <legend className="label">Database Provider</legend>
-          <div className="mt-2 flex gap-4">
-            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-3 transition-colors has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50">
-              <input
-                type="radio"
-                name="provider"
-                value="postgresql"
-                checked={config.provider === 'postgresql'}
-                onChange={() => handleProviderChange('postgresql')}
-                className="text-primary-700 focus:ring-primary-500"
-              />
-              <span className="text-sm font-medium">PostgreSQL</span>
-            </label>
-            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-gray-300 px-4 py-3 transition-colors has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50">
-              <input
-                type="radio"
-                name="provider"
-                value="mysql"
-                checked={config.provider === 'mysql'}
-                onChange={() => handleProviderChange('mysql')}
-                className="text-primary-700 focus:ring-primary-500"
-              />
-              <span className="text-sm font-medium">MySQL</span>
-            </label>
-          </div>
-          {fieldErrors.provider ? (
-            <p className="error-text" data-testid="db-error-provider">
-              {fieldErrors.provider}
-            </p>
-          ) : null}
-        </fieldset>
+        {/*
+          PostgreSQL only. The MySQL option was removed because the platform cannot
+          run on it: tenant isolation is enforced by ROW LEVEL SECURITY, used by 57
+          files under db/sql, which MySQL has no equivalent for. Offering the choice
+          let an operator pass validation and then fail during migration, which is
+          worse than not offering it.
+        */}
+        <div>
+          <span className="label">Database Provider</span>
+          <p className="mt-2 rounded-md border border-gray-300 px-4 py-3 text-sm font-medium">
+            PostgreSQL
+          </p>
+          <p className="mt-1 text-xs text-gray-600">
+            PostgreSQL is required. Tenant isolation is enforced with row-level security, which has
+            no MySQL equivalent.
+          </p>
+        </div>
+        {fieldErrors.provider ? (
+          <p className="error-text" data-testid="db-error-provider">
+            {fieldErrors.provider}
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

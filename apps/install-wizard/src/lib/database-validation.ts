@@ -54,8 +54,11 @@ export function validateDatabaseConfig(input: DatabaseConfigInput): DatabaseFiel
 
   const errors: DatabaseFieldErrors = {};
 
-  if (provider !== 'postgresql' && provider !== 'mysql') {
-    errors.provider = 'Provider must be postgresql or mysql';
+  // PostgreSQL only. Tenant isolation is enforced with ROW LEVEL SECURITY, used by
+  // 57 files under db/sql, and MySQL has no equivalent. Accepting 'mysql' here let an
+  // operator pass validation and then fail during migration.
+  if (provider !== 'postgresql') {
+    errors.provider = 'Provider must be postgresql (MySQL is not supported)';
   }
 
   if (!host) errors.host = 'Host is required';

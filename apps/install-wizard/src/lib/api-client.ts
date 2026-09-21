@@ -33,7 +33,8 @@ export interface BootstrapResult {
 }
 
 export interface DatabaseConfig {
-  provider: 'postgresql' | 'mysql';
+  /** PostgreSQL only — tenant isolation requires row-level security. */
+  provider: 'postgresql';
   host: string;
   port: number;
   database: string;

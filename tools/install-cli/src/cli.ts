@@ -52,7 +52,7 @@ Examples:
 Environment Variables:
   OPENEMIS_CDN_ADAPTER          CDN adapter type (cloudfront/nginx/custom)
   OPENEMIS_CDN_BASE_URL         CDN base URL
-  OPENEMIS_DB_PROVIDER          Database provider (postgresql/mysql)
+  OPENEMIS_DB_PROVIDER          Database provider (postgresql)
   OPENEMIS_DB_HOST              Database host
   OPENEMIS_DB_PORT              Database port
   OPENEMIS_DB_NAME              Database name

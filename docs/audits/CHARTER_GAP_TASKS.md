@@ -29,7 +29,7 @@ Ordered by leverage, not by size.
 | --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | -------- |
 | V10 | 6 API domains absent as governed surfaces           | V4 §5, Table 2              | `OPEN`         | —                                    | —        |
 | V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —        |
-| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `OPEN`         | —                                    | —        |
+| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363     |
 | V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —        |
 | V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —        |
 | V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —        |

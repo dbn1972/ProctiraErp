@@ -112,7 +112,7 @@ export class DatabaseValidator implements AdapterValidator<DatabaseConfigInput> 
       }
 
       // Build connection URL for validation
-      const protocol = config.provider === 'postgresql' ? 'postgresql' : 'mysql';
+      const protocol = 'postgresql';
       const sslParam = config.ssl ? '?sslmode=require' : '';
       const _connectionUrl = `${protocol}://${config.username}:${config.password}@${config.host}:${config.port}/${config.database}${sslParam}`;
 

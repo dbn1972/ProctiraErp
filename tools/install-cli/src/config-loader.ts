@@ -182,7 +182,7 @@ export async function loadConfigInteractive(rl?: readline.Interface): Promise<In
     // Database Configuration
     console.log('\n── Database Configuration ─────────────────────────');
     const dbProvider = (await ask(
-      'Database provider (postgresql/mysql)',
+      'Database provider (postgresql)',
       'postgresql',
     )) as DatabaseConfigInput['provider'];
     const dbHost = await ask('Database host', 'localhost');
