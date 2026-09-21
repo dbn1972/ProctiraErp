@@ -46,7 +46,7 @@ const uuidArb: fc.Arbitrary<string> = fc
 
 /** Generates a date string in YYYY-MM-DD format within a given range. */
 function dateStrArb(min: Date, max: Date): fc.Arbitrary<string> {
-  return fc.date({ min, max }).map((d) => d.toISOString().split('T')[0]!);
+  return fc.date({ noInvalidDate: true, min, max }).map((d) => d.toISOString().split('T')[0]!);
 }
 
 /** Generates a student name. */

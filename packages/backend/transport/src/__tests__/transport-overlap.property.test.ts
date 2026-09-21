@@ -33,10 +33,7 @@ describe('Transport Service - No Overlapping Student Assignments (Property)', ()
           fc.string({ minLength: 1, maxLength: 20 }),
         ),
         // Generate start dates (ISO date strings)
-        fc.date({
-          min: new Date('2024-01-01'),
-          max: new Date('2025-12-31'),
-        }),
+        fc.date({ noInvalidDate: true, min: new Date('2024-01-01'), max: new Date('2025-12-31') }),
         async (studentId, [routeName1, routeName2], startDate) => {
           // Setup: Create two active routes
           const route1 = await service.createRoute(tenantId, {

@@ -40,7 +40,7 @@ const attendanceStatusArb: fc.Arbitrary<AttendanceStatus> = fc.constantFrom(
 
 /** Generates a date string in YYYY-MM-DD format within a fixed range. */
 const dateStrArb: fc.Arbitrary<string> = fc
-  .date({ min: new Date('2024-01-01'), max: new Date('2024-12-31') })
+  .date({ noInvalidDate: true, min: new Date('2024-01-01'), max: new Date('2024-12-31') })
   .map((d) => d.toISOString().split('T')[0]!);
 
 /** Generates a unique ID for records. */

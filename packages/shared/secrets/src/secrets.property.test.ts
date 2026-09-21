@@ -53,7 +53,7 @@ describe('Secret Management Properties', () => {
     // Generate keys that contain dots, dashes, and slashes
     const keyArb = fc.string({
       unit: fc.oneof(
-        fc.char().filter((c) => /[a-z0-9]/.test(c)),
+        fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
         fc.constantFrom('.', '-', '/', '_'),
       ),
       minLength: 1,
@@ -119,7 +119,7 @@ describe('Secret Management Properties', () => {
   it('EnvSecretAdapter round-trips secrets correctly', async () => {
     // Use simple alphanumeric keys to avoid env var naming issues
     const keyArb = fc.string({
-      unit: fc.char().filter((c) => /[a-z]/.test(c)),
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
       minLength: 1,
       maxLength: 20,
     });

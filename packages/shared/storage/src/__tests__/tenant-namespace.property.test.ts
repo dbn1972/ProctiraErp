@@ -15,7 +15,9 @@ import {
 /**
  * Arbitrary for alphanumeric characters.
  */
-const alphanumericChar = fc.char().filter((c) => /^[a-zA-Z0-9]$/.test(c));
+const alphanumericChar = fc.constantFrom(
+  ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'.split(''),
+);
 
 /**
  * Arbitrary for valid tenant IDs (non-empty, no slashes, no whitespace-only).

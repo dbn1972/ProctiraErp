@@ -39,7 +39,7 @@ const uuidArb: fc.Arbitrary<string> = fc.uuid().map((u) => u.toLowerCase());
  * Generates a valid ISO date string (YYYY-MM-DD) within a reasonable range.
  */
 const isoDateArb: fc.Arbitrary<string> = fc
-  .date({ min: new Date('2020-01-01'), max: new Date('2030-12-31') })
+  .date({ noInvalidDate: true, min: new Date('2020-01-01'), max: new Date('2030-12-31') })
   .map((d) => d.toISOString().slice(0, 10));
 
 /**
