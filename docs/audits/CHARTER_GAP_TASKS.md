@@ -27,7 +27,6 @@ Ordered by leverage, not by size.
 
 | ID  | Gap                                                 | Spec                        | Status | Branch | PR  |
 | --- | --------------------------------------------------- | --------------------------- | ------ | ------ | --- |
-| T11 | `db/sql` cannot be applied to an empty database     | V1 §16 §43; V3 §11          | `OPEN` | —      | —   |
 | V10 | 6 API domains absent as governed surfaces           | V4 §5, Table 2              | `OPEN` | —      | —   |
 | V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN` | —      | —   |
 | V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `OPEN` | —      | —   |
