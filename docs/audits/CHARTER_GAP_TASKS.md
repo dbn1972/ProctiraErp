@@ -126,8 +126,8 @@ worse than the current state.
 
 | ID  | Area                                                                          | Blocked by                     |
 | --- | ----------------------------------------------------------------------------- | ------------------------------ |
-| V11 | V5 §7 resilience — backups, restore tests, DR drills, SLOs                    | T1, T11                        |
-| V11 | V5 §4 tenant boundaries in cache, search, queues, analytics, backups, exports | T11                            |
+| V11 | V5 §7 resilience — backups, restore tests, DR drills, SLOs                    | T1                             |
+| V11 | V5 §4 tenant boundaries in cache, search, queues, analytics, backups, exports | not tested                     |
 | —   | V1 §28 performance and availability NFRs                                      | T1                             |
 | —   | V1 §38 SLO/SLI/runbook coverage                                               | T1                             |
 | —   | V1 §35 threat model and abuse case catalog                                    | document review                |
