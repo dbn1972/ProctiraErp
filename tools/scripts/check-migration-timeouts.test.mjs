@@ -403,3 +403,69 @@ test('repo root passes the live gate', () => {
   const report = evaluateMigrationTimeouts(repoRoot);
   assert.equal(report.ok, true, report.issues.join('; '));
 });
+
+test('findDdlHazards flags VALIDATE CONSTRAINT that does not lift FORCE RLS', () => {
+  const hazards = findDdlHazards(
+    'ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;',
+  );
+  const kinds = hazards.map((h) => h.kind);
+  assert.ok(
+    kinds.includes('validate_under_force_rls'),
+    'validating under FORCE RLS scans zero rows and validates nothing',
+  );
+});
+
+test('findDdlHazards accepts VALIDATE CONSTRAINT that lifts and restores FORCE RLS', () => {
+  // The shape db/sql/100 uses: lift, validate, restore, all in one transaction so a
+  // failed validation cannot leave the table unforced.
+  const hazards = findDdlHazards(`
+    DO $p$
+    DECLARE was_forced boolean;
+    BEGIN
+      SELECT relforcerowsecurity INTO was_forced FROM pg_class WHERE oid='public.students'::regclass;
+      IF was_forced THEN ALTER TABLE students NO FORCE ROW LEVEL SECURITY; END IF;
+      ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;
+      IF was_forced THEN ALTER TABLE students FORCE ROW LEVEL SECURITY; END IF;
+    END
+    $p$;
+  `);
+  assert.equal(
+    hazards.filter((h) => h.kind === 'validate_under_force_rls').length,
+    0,
+    'lifting and restoring FORCE is the approved pattern',
+  );
+});
+
+test('findDdlHazards flags a lift that is never restored', () => {
+  const hazards = findDdlHazards(`
+    ALTER TABLE students NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;
+  `);
+  const h = hazards.find((x) => x.kind === 'validate_under_force_rls');
+  assert.ok(h, 'lifting without restoring leaves the table unforced');
+  assert.match(h.detail, /never restores/i);
+});
+
+test('findDdlHazards detects VALIDATE CONSTRAINT built dynamically', () => {
+  // Regression guard. The first version of this rule required a literal
+  // `ALTER TABLE <name> VALIDATE CONSTRAINT` and so missed every dynamic form.
+  // db/sql/082 and 086 use `ALTER TABLE %s VALIDATE CONSTRAINT` through format(),
+  // and 093 builds it inside EXECUTE — and 093's target tables were confirmed
+  // relforcerowsecurity = true, so the precise rule passed the one file known to be
+  // unsafe. Matching the statement in any form is the weaker signal but the stronger
+  // gate.
+  const hazards = findDdlHazards(`
+    DO $d$
+    DECLARE t text;
+    BEGIN
+      FOREACH t IN ARRAY ARRAY['a','b'] LOOP
+        EXECUTE format('ALTER TABLE %s VALIDATE CONSTRAINT %s_tenant_fk', t, t);
+      END LOOP;
+    END
+    $d$;
+  `);
+  assert.ok(
+    hazards.map((h) => h.kind).includes('validate_under_force_rls'),
+    'dynamic VALIDATE CONSTRAINT must not escape the gate',
+  );
+});

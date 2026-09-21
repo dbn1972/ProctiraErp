@@ -43,7 +43,7 @@ export const LOCK_DRILL_REL = 'tools/scripts/migration-lock-recovery-drill.mjs';
 export const SQL_DIR_REL = 'db/sql';
 export const PRISMA_MIGRATIONS_REL = 'packages/shared/database/prisma/migrations';
 
-/** @typedef {'blocking_index'|'validating_constraint'|'blocking_unique_or_pk'|'set_not_null'|'column_type_rewrite'} HazardKind */
+/** @typedef {'blocking_index'|'validating_constraint'|'blocking_unique_or_pk'|'set_not_null'|'column_type_rewrite'|'validate_under_force_rls'} HazardKind */
 
 /**
  * @param {string} root
@@ -362,6 +362,53 @@ export function findDdlHazards(sql) {
       kind: 'set_not_null',
       table,
       detail: `SET NOT NULL on existing table "${table}" (expand: backfill then separate not-null; or maintenance-window waiver)`,
+    });
+  }
+
+  // ALTER TABLE … VALIDATE CONSTRAINT without lifting FORCE ROW LEVEL SECURITY.
+  //
+  // FORCE ROW LEVEL SECURITY applies the tenant policy to the table owner, and
+  // Postgres runs the constraint validation scan under it. A migration session has
+  // no app.tenant_id bound, so the policy denies, the scan sees zero rows, and
+  // VALIDATE CONSTRAINT reports success without comparing anything — leaving
+  // convalidated = true over data it never read.
+  //
+  // Demonstrated while fixing 098: one planted orphan row in staff_assignments and
+  // VALIDATE returned success. The constraint is then trusted by the planner and
+  // violated by the data, which is worse than having no constraint.
+  //
+  // 051_force_rls_invariant.sql FORCEs RLS on every RLS-enabled public table via a
+  // catch-all loop, so essentially any tenant-owned table is affected. The file
+  // therefore has to lift FORCE for the scan and restore it — the pattern 096, 098
+  // and 100 use, inside one transaction so a failure cannot leave a table unforced.
+  //
+  // Static check, so it cannot know a table's runtime RLS posture. It asserts the
+  // safe shape instead: a file that validates must also lift. A file validating only
+  // non-RLS tables is a legitimate waiver, not a reason to weaken the rule.
+  // Deliberately matched on the file, not per named table. An earlier version of
+  // this rule required a literal `ALTER TABLE <name> VALIDATE CONSTRAINT` and so
+  // missed every dynamic form — 082 and 086 use `ALTER TABLE %s VALIDATE CONSTRAINT`
+  // through format(), and 093 and 097 build it inside EXECUTE. 093 is the file whose
+  // target tables were *confirmed* relforcerowsecurity = true, so the precise rule
+  // would have passed the one case known to be unsafe. Detecting the statement in any
+  // form and requiring the safe shape is the weaker signal but the stronger gate.
+  const validatesConstraint = /\bVALIDATE\s+CONSTRAINT\b/i.test(cleaned);
+  const liftsForce = /\bNO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY\b/i.test(cleaned);
+  // A bare "FORCE ROW LEVEL SECURITY" that is not the "NO FORCE" form is a restore.
+  const restoresForce = /(^|[^O]\s|\bTABLE\s+\S+\s+)FORCE\s+ROW\s+LEVEL\s+SECURITY\b/i.test(
+    cleaned.replace(/\bNO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY\b/gi, ''),
+  );
+  if (validatesConstraint && !(liftsForce && restoresForce)) {
+    const named = /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?public"?\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s+VALIDATE\s+CONSTRAINT\b/i.exec(
+      cleaned,
+    );
+    const table = named ? named[1].toLowerCase() : '(dynamic)';
+    hazards.push({
+      kind: 'validate_under_force_rls',
+      table,
+      detail: liftsForce
+        ? `VALIDATE CONSTRAINT lifts FORCE ROW LEVEL SECURITY but never restores it (restore in the same transaction so a failure cannot leave the table unforced)`
+        : `VALIDATE CONSTRAINT without lifting FORCE ROW LEVEL SECURITY (the scan runs under the tenant policy, sees zero rows, and validates nothing — see db/sql/100 for the pattern)`,
     });
   }
 
