@@ -4,12 +4,26 @@
 import { randomUUID } from 'node:crypto';
 
 import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { PgTenantRepository } from './pg-tenant-repository.js';
 import type { TenantConfig, ThemeTokens } from './schemas.js';
 
 const pool = getSharedPgPool();
+
+/**
+ * db/sql/100 gave control_plane_documents a real uuid tenant_id FK to tenants(id),
+ * so a control-plane document can no longer name a tenant that was never created.
+ * Real provisioning inserts the tenants row first (provisioning.ts) and writes
+ * documents afterwards; these suites skipped that step and relied on the table
+ * accepting any string, which is the gap 100 closed.
+ */
+async function newTenantId(): Promise<string> {
+  const id = randomUUID();
+  await ensurePgTestTenant(pool!, id);
+  return id;
+}
 
 const config = {
   branding: {},
@@ -21,7 +35,7 @@ const config = {
 describe('PgTenantRepository (live)', () => {
   it.skipIf(!pool)('persists tenants, domains, usage, theme versions and drafts', async () => {
     const repo = new PgTenantRepository(pool!);
-    const id = randomUUID();
+    const id = await newTenantId();
     const slug = `t-${id.slice(0, 8)}`;
 
     const created = await repo.createTenant({

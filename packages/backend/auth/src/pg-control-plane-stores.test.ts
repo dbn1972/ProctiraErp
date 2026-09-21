@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { PgUserInviteRepository } from './invite/pg-invite-repository.js';
@@ -15,10 +16,23 @@ import { PgOtpChallengeStore } from './pg-otp-store.js';
 
 const pool = getSharedPgPool();
 
+/**
+ * db/sql/100 gave control_plane_documents a real uuid tenant_id FK to tenants(id),
+ * so a control-plane document can no longer name a tenant that was never created.
+ * Real provisioning inserts the tenants row first (provisioning.ts) and writes
+ * documents afterwards; these suites skipped that step and relied on the table
+ * accepting any string, which is the gap 100 closed.
+ */
+async function newTenantId(): Promise<string> {
+  const id = randomUUID();
+  await ensurePgTestTenant(pool!, id);
+  return id;
+}
+
 describe('auth control-plane Postgres stores (live)', () => {
   it.skipIf(!pool)('invites are tenant-scoped and token lookups stay in-tenant', async () => {
     const repo = new PgUserInviteRepository(pool!);
-    const tenantId = randomUUID();
+    const tenantId = await newTenantId();
     const token = randomUUID();
     await repo.create({
       id: randomUUID(),
@@ -39,7 +53,7 @@ describe('auth control-plane Postgres stores (live)', () => {
   });
 
   it.skipIf(!pool)('OTP challenges survive across store instances', async () => {
-    const tenantId = randomUUID();
+    const tenantId = await newTenantId();
     const mfaToken = randomUUID();
     const id = randomUUID();
     await new PgOtpChallengeStore(pool!).create({
@@ -66,7 +80,7 @@ describe('auth control-plane Postgres stores (live)', () => {
 
   it.skipIf(!pool)('Keycloak identities link once and are found on re-login', async () => {
     const store = new PgKeycloakIdentityStore(pool!);
-    const tenantId = randomUUID();
+    const tenantId = await newTenantId();
     await store.seedTenant({ id: tenantId, slug: `kc-${tenantId.slice(0, 8)}` });
     const externalId = `kc-sub-${randomUUID()}`;
 

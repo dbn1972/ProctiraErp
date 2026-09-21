@@ -339,23 +339,17 @@ test('reconcileTextTenantTables treats an empty allowlist as permitting nothing'
   assert.deepEqual(r.tracked, []);
 });
 
-test('loadTextTenantAllowlist flattens the shipped allowlist and covers the known debt', () => {
+test('the shipped allowlist is empty now that the text tenant_id debt is cleared', () => {
   const root = join(fileURLToPath(new URL('.', import.meta.url)), '../..');
   const allow = loadTextTenantAllowlist(root);
-  // The 23 tables observed on a fully migrated database at the time of writing.
-  for (const t of [
-    'control_plane_documents',
-    'health_allergies',
-    'health_phi_break_glass',
-    'audit_log_entries',
-    'audit_chain_heads',
-    'counselling_sessions',
-    'workflow_ui_instances',
-    'insights_ui_runs',
-  ]) {
-    assert.ok(allow.has(t), `${t} must be tracked in the allowlist`);
-  }
-  assert.equal(allow.size, 23, 'allowlist size should match the recorded debt');
+  // This asserted the 23 recorded exceptions were all still tracked. They are gone:
+  // db/sql/100_tenant_id_uuid_fks.sql migrated every one to uuid with a validated
+  // FK to tenants(id), which is the exit route the allowlist itself described.
+  //
+  // Inverted rather than deleted, so the cleared state is held in place. A
+  // reappearing entry means a tenant-owned table was added without referential
+  // integrity, and that should fail here and be an explicit decision.
+  assert.equal(allow.size, 0, 'allowlist should stay empty; see db/sql/100_tenant_id_uuid_fks.sql');
 });
 
 test('loadTextTenantAllowlist returns an empty set when the file is absent', () => {
