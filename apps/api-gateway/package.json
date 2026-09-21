@@ -62,7 +62,7 @@
     "@sinclair/typebox": "^0.34.52",
     "fastify": "^5.7.2",
     "fastify-plugin": "^4.5.0",
-    "ioredis": "^5.4.0",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.0"
   },
   "devDependencies": {
