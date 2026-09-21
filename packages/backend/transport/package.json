@@ -20,7 +20,7 @@
     "@proctira/database": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/validation": "workspace:*",
-    "@prisma/client": "^5.22.0",
+    "@prisma/client": "^7.10.0",
     "@sinclair/typebox": "^0.34.52",
     "fastify-plugin": "^4.5.0",
     "pg": "^8.23.0",
