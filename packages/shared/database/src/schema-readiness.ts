@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '099_w1_data_02_legacy_guc_safe_deny.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '100_tenant_id_uuid_fks.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
@@ -33,6 +33,7 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   '097_admissions_public_context.sql',
   '098_staff_identity_link.sql',
   '099_w1_data_02_legacy_guc_safe_deny.sql',
+  '100_tenant_id_uuid_fks.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {

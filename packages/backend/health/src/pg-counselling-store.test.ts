@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -12,6 +13,16 @@ import {
   isPgCounsellingEnabled,
 } from './pg-counselling-store.js';
 import { isPhiCiphertext } from './phi-crypto.js';
+
+/**
+ * counselling_sessions.tenant_id became a uuid FK to tenants(id) in db/sql/100, so
+ * the tenant has to exist first. The table accepted any string before that.
+ */
+async function newTenantId(): Promise<string> {
+  const id = randomUUID();
+  await ensurePgTestTenant(getSharedCounsellingPool()!, id);
+  return id;
+}
 
 describe('PgCounsellingStore', () => {
   const previousKey = process.env.PHI_ENCRYPTION_KEY;
@@ -24,7 +35,7 @@ describe('PgCounsellingStore', () => {
   it.skipIf(!isPgCounsellingEnabled())('encrypts reason/case notes/outcome at rest', async () => {
     process.env.PHI_ENCRYPTION_KEY = 'd'.repeat(64);
     const store = createPgCounsellingStore()!;
-    const tenantId = randomUUID();
+    const tenantId = await newTenantId();
     const id = randomUUID();
     await store.create({
       id,
@@ -59,7 +70,7 @@ describe('PgCounsellingStore', () => {
   it.skipIf(!isPgCounsellingEnabled())('creates and lists a counselling session', async () => {
     const store = createPgCounsellingStore();
     expect(store).not.toBeNull();
-    const tenantId = randomUUID();
+    const tenantId = await newTenantId();
     const studentId = randomUUID();
     const id = randomUUID();
     const created = await store!.create({

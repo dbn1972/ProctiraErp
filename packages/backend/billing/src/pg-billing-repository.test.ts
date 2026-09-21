@@ -4,16 +4,30 @@
 import { randomUUID } from 'node:crypto';
 
 import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import { describe, expect, it } from 'vitest';
 
 import { PgBillingRepository } from './pg-billing-repository.js';
 
 const pool = getSharedPgPool();
 
+/**
+ * db/sql/100 gave control_plane_documents a real uuid tenant_id FK to tenants(id),
+ * so a control-plane document can no longer name a tenant that was never created.
+ * Real provisioning inserts the tenants row first (provisioning.ts) and writes
+ * documents afterwards; these suites skipped that step and relied on the table
+ * accepting any string, which is the gap 100 closed.
+ */
+async function newTenantId(): Promise<string> {
+  const id = randomUUID();
+  await ensurePgTestTenant(pool!, id);
+  return id;
+}
+
 describe('PgBillingRepository (live)', () => {
   it.skipIf(!pool)('persists plans, subscriptions, entitlements and usage', async () => {
     const repo = new PgBillingRepository(pool!);
-    const tenantId = randomUUID();
+    const tenantId = await newTenantId();
     const planId = randomUUID();
 
     const plan = await repo.createPlan({

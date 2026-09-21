@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
 import { withPgTenant } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import pg from 'pg';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -33,6 +34,10 @@ describe('PgWorkflowUiStore (live)', () => {
       expect(storeA).toBeInstanceOf(PgWorkflowUiStore);
       const tenantA = randomUUID();
       const tenantB = randomUUID();
+      // workflow_ui_* tenant_id became a uuid FK to tenants in db/sql/100, so both
+      // ids must exist. The table previously took any string.
+      await ensurePgTestTenant(pool!, tenantA);
+      await ensurePgTestTenant(pool!, tenantB);
 
       const def = await storeA.createDefinition({
         id: randomUUID(),
@@ -65,6 +70,8 @@ describe('PgWorkflowUiStore (live)', () => {
       const store = new PgWorkflowUiStore(pool!);
       const tenantA = randomUUID();
       const tenantB = randomUUID();
+      await ensurePgTestTenant(pool!, tenantA);
+      await ensurePgTestTenant(pool!, tenantB);
       const definitionId = randomUUID();
       const instanceId = randomUUID();
       const approvalId = randomUUID();

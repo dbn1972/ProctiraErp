@@ -4,6 +4,8 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { getSharedPgPool } from '@proctira/database';
+import { ensurePgTestTenant } from '@proctira/database/test-fixtures';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -209,6 +211,9 @@ describe('PgInsightsUiStore restart-safe smoke (G-209)', () => {
       expect(storeA).toBeInstanceOf(PgInsightsUiStore);
 
       const tenantId = '00000000-0000-4000-8000-000000000209';
+      // insights_ui_runs.tenant_id became a uuid FK to tenants(id) in db/sql/100,
+      // so this fixed id has to exist as a row now.
+      await ensurePgTestTenant(getSharedPgPool()!, tenantId);
       const runId = randomUUID();
       await storeA.createRun(tenantId, {
         id: runId,
