@@ -9,7 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 
-import { ensurePgTestStudent } from './test-fixtures.js';
+import { ensurePgTestStudent, ensurePgTestTenant } from './test-fixtures.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 
@@ -111,6 +111,11 @@ describe.skipIf(!DATABASE_URL)('W1-DATA-08 immutability privileges (live)', () =
     const client = await pool.connect();
 
     try {
+      // audit_log_archive.tenant_id became a uuid FK to tenants in db/sql/100, so
+      // the tenant has to exist before the archive row can reference it. The table
+      // took any string before that, which is the gap 100 closed.
+      await ensurePgTestTenant(pool, tenantId);
+
       await client.query('BEGIN');
       await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [tenantId]);
       await client.query(

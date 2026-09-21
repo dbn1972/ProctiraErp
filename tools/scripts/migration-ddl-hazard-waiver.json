@@ -1,5 +1,5 @@
 {
-  "$schema_comment": "W1-DATA-17 — expand/contract DDL hazard gate. Files at or below baseline cutoffs are grandfathered. Newer migrations must be online-safe or listed under waivers with an approved maintenance window. Do not rewrite checksum-locked db/sql files already applied in environments — waive + follow-up expand/contract migrations instead.",
+  "$schema_comment": "W1-DATA-17 \u2014 expand/contract DDL hazard gate. Files at or below baseline cutoffs are grandfathered. Newer migrations must be online-safe or listed under waivers with an approved maintenance window. Do not rewrite checksum-locked db/sql files already applied in environments \u2014 waive + follow-up expand/contract migrations instead.",
   "baseline": {
     "dbSqlMaxFilename": "075_runtime_global_table_privileges.sql",
     "prismaMigrationMaxDir": "20260914_w1_data_12_tenant_guc_canonical",
@@ -30,7 +30,7 @@
     {
       "path": "db/sql/080_enrollment_grade_audit_harden.sql",
       "hazards": ["validating_constraint"],
-      "reason": "W1-DATA-14 enrollment_history FK RESTRICT without NOT VALID (grade_change_audit path already NOT VALID). Applied during audit-harden maintenance; checksum-locked. Future FK swaps must ADD … NOT VALID then VALIDATE.",
+      "reason": "W1-DATA-14 enrollment_history FK RESTRICT without NOT VALID (grade_change_audit path already NOT VALID). Applied during audit-harden maintenance; checksum-locked. Future FK swaps must ADD \u2026 NOT VALID then VALIDATE.",
       "maintenanceWindow": "2026-09-14 Wave-1 DATA-14 audit harden",
       "approvedBy": "wave1-reaudit-controller"
     },
@@ -54,6 +54,13 @@
       "reason": "W1-PRIV-01 consent lifecycle: indexes, FKs, and SET NOT NULL on parent_consents / student_consents after backfill. Applied in privacy remediation window; checksum-locked.",
       "maintenanceWindow": "2026-09-14 Wave-1 PRIV-01 consent lifecycle",
       "approvedBy": "wave1-reaudit-controller"
+    },
+    {
+      "path": "db/sql/100_tenant_id_uuid_fks.sql",
+      "hazards": ["column_type_rewrite", "validating_constraint"],
+      "reason": "W1-DATA-06 residual: 23 tenant-owned tables carried tenant_id as text and so could not hold a foreign key to tenants(id) at all -- Postgres rejects the constraint outright with 'Key columns tenant_id and id are of incompatible types: text and uuid'. There is no expression-based FK, so migrating the column to uuid is the only route to referential integrity, and ALTER COLUMN TYPE always rewrites the table under ACCESS EXCLUSIVE. No online variant exists; the alternative is leaving 23 tables permanently without a tenant FK. The 23 FKs are added NOT VALID and validated in a separate step so the scan is outside the rewrite's lock window. Validation runs with FORCE ROW LEVEL SECURITY lifted on both the child table and tenants, restored in the same transaction -- without that, VALIDATE either passes without reading any rows or fails claiming every tenant is absent. The file refuses to run at all if any table holds a non-uuid or orphan tenant_id, so it cannot destroy data or validate vacuously.",
+      "maintenanceWindow": "2026-09-21 W1-DATA-06 tenant_id uuid + FK cutover (23 tables; largest is audit_log_entries)",
+      "approvedBy": "repository owner (explicit approval to migrate the columns to uuid)"
     }
   ]
 }

@@ -141,6 +141,7 @@ describe('database schema readiness', () => {
       '097_admissions_public_context.sql',
       '098_staff_identity_link.sql',
       '099_w1_data_02_legacy_guc_safe_deny.sql',
+      '100_tenant_id_uuid_fks.sql',
       '097_future_schema.sql',
     ]);
   });

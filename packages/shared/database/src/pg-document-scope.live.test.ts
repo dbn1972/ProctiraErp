@@ -25,6 +25,7 @@ import { requireLiveDatabaseUrl } from '@proctira/testing/live-database';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PgDocumentCollection } from './pg-document-store';
+import { ensurePgTestTenant } from './test-fixtures';
 
 const DATABASE_URL = requireLiveDatabaseUrl({ suite: 'pg-document-scope.live.test' });
 const pool = DATABASE_URL ? new pg.Pool({ connectionString: DATABASE_URL, max: 2 }) : null;
@@ -43,6 +44,11 @@ let docs: PgDocumentCollection<Doc>;
 
 beforeAll(async () => {
   if (!live) return;
+  // control_plane_documents.tenant_id became a real uuid FK to tenants in
+  // db/sql/100, so these two ids have to exist. Until then the table accepted any
+  // string, which is the integrity gap 100 closed -- this fixture was relying on it.
+  await ensurePgTestTenant(pool!, TENANT_A);
+  await ensurePgTestTenant(pool!, TENANT_B);
   docs = new PgDocumentCollection<Doc>(pool!, COLLECTION);
   // One row per tenant, plus a platform-owned row with no tenant.
   await docs.put(SHARED_ID, { owner: 'TENANT_A' }, TENANT_A);
