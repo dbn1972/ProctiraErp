@@ -176,7 +176,11 @@ test('prismaWrapperContract requires URL injection + migrate deploy', () => {
 test('databasePackageMigrateContract rejects bare prisma migrate deploy', () => {
   assert.equal(
     databasePackageMigrateContract(
-      JSON.stringify({ scripts: { 'prisma:migrate:deploy': 'bash ../../../tools/scripts/prisma-migrate-deploy.sh' } }),
+      JSON.stringify({
+        scripts: {
+          'prisma:migrate:deploy': 'bash ../../../tools/scripts/prisma-migrate-deploy.sh',
+        },
+      }),
     ).length,
     0,
   );
@@ -332,7 +336,9 @@ test('loadDdlHazardWaiver requires maintenanceWindow', () => {
       waivers: [{ path: 'db/sql/x.sql', hazards: ['blocking_index'], reason: 'x' }],
     },
   });
-  assert.throws(() => loadDdlHazardWaiver(join(root, 'tools/scripts/migration-ddl-hazard-waiver.json')));
+  assert.throws(() =>
+    loadDdlHazardWaiver(join(root, 'tools/scripts/migration-ddl-hazard-waiver.json')),
+  );
 });
 
 test('packageJsonDuplicateScriptKeys rejects duplicate scripts keys', () => {
@@ -344,7 +350,10 @@ test('packageJsonDuplicateScriptKeys rejects duplicate scripts keys', () => {
   }
 }`;
   const issues = packageJsonDuplicateScriptKeys(dup);
-  assert.ok(issues.some((i) => /declared 2 times/.test(i)), issues.join('; '));
+  assert.ok(
+    issues.some((i) => /declared 2 times/.test(i)),
+    issues.join('; '),
+  );
   assert.ok(
     issues.some((i) => /migration-lock-recovery-drill\.test\.mjs/.test(i)),
     issues.join('; '),
@@ -369,7 +378,8 @@ test('evaluateMigrationTimeouts passes a complete fixture', () => {
 
 test('evaluateMigrationTimeouts fails when apply-sql omits SET', () => {
   const root = writeFixture({
-    apply: '# W1-DATA-17\nsource migration-timeouts.sh\nAPPLY_SQL_LOCK_TIMEOUT=1\nAPPLY_SQL_STATEMENT_TIMEOUT=1\n',
+    apply:
+      '# W1-DATA-17\nsource migration-timeouts.sh\nAPPLY_SQL_LOCK_TIMEOUT=1\nAPPLY_SQL_STATEMENT_TIMEOUT=1\n',
   });
   const report = evaluateMigrationTimeouts(root);
   assert.equal(report.ok, false);
@@ -405,9 +415,7 @@ test('repo root passes the live gate', () => {
 });
 
 test('findDdlHazards flags VALIDATE CONSTRAINT that does not lift FORCE RLS', () => {
-  const hazards = findDdlHazards(
-    'ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;',
-  );
+  const hazards = findDdlHazards('ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;');
   const kinds = hazards.map((h) => h.kind);
   assert.ok(
     kinds.includes('validate_under_force_rls'),

@@ -141,7 +141,9 @@ export function applySqlLockRecoveryContract(text) {
     issues.push('apply-sql.sh must document lock_timeout / lock_not_available recovery guidance');
   }
   if (!/--single-transaction/.test(text)) {
-    issues.push('apply-sql.sh must use per-file --single-transaction so lock failure does not ledger-write');
+    issues.push(
+      'apply-sql.sh must use per-file --single-transaction so lock failure does not ledger-write',
+    );
   }
   if (!/schema_migrations/.test(text)) {
     issues.push('apply-sql.sh must record schema_migrations only after successful apply');
@@ -243,7 +245,10 @@ export function policyDocContract(auditText, readmeText, completeText = '') {
     issues.push(`${DB_README_REL} missing`);
   } else if (!/W1-DATA-17/.test(readmeText)) {
     issues.push('db/README.md must document W1-DATA-17 migration timeouts');
-  } else if (!/lock_timeout/i.test(readmeText) || !/online-safe|online safe|CONCURRENTLY/i.test(readmeText)) {
+  } else if (
+    !/lock_timeout/i.test(readmeText) ||
+    !/online-safe|online safe|CONCURRENTLY/i.test(readmeText)
+  ) {
     issues.push('db/README.md W1-DATA-17 section must cover timeouts and online-safe patterns');
   } else if (!/DDL hazard|hazard waiver|expand.?contract/i.test(readmeText)) {
     issues.push('db/README.md W1-DATA-17 section must cover DDL hazard gate / waiver');
@@ -281,9 +286,7 @@ export function lockRecoveryDrillContract(text) {
  * @param {string} sql
  */
 export function stripSqlComments(sql) {
-  return sql
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .replace(/--[^\n]*/g, ' ');
+  return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--[^\n]*/g, ' ');
 }
 
 /**
@@ -399,9 +402,10 @@ export function findDdlHazards(sql) {
     cleaned.replace(/\bNO\s+FORCE\s+ROW\s+LEVEL\s+SECURITY\b/gi, ''),
   );
   if (validatesConstraint && !(liftsForce && restoresForce)) {
-    const named = /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?public"?\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s+VALIDATE\s+CONSTRAINT\b/i.exec(
-      cleaned,
-    );
+    const named =
+      /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?public"?\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s+VALIDATE\s+CONSTRAINT\b/i.exec(
+        cleaned,
+      );
     const table = named ? named[1].toLowerCase() : '(dynamic)';
     hazards.push({
       kind: 'validate_under_force_rls',
@@ -459,9 +463,7 @@ export function loadDdlHazardWaiver(waiverPath) {
       .replace(/\\/g, '/');
     const reason = String(entry.reason ?? '').trim();
     const maintenanceWindow = String(entry.maintenanceWindow ?? '').trim();
-    const hazards = Array.isArray(entry.hazards)
-      ? entry.hazards.map((h) => String(h))
-      : [];
+    const hazards = Array.isArray(entry.hazards) ? entry.hazards.map((h) => String(h)) : [];
     if (!path) throw new Error('waiver entry missing path');
     if (!reason) throw new Error(`waiver entry for ${path} missing reason`);
     if (!maintenanceWindow) {
@@ -658,7 +660,9 @@ export function packageJsonDuplicateScriptKeys(packageJsonText) {
     }
   }
   // W1-DATA-17: the retained test script must include both suites.
-  const testLine = [...scriptsMatch[1].matchAll(/"check:migration-timeouts:test"\s*:\s*"([^"]*)"/g)].pop();
+  const testLine = [
+    ...scriptsMatch[1].matchAll(/"check:migration-timeouts:test"\s*:\s*"([^"]*)"/g),
+  ].pop();
   if (!testLine) {
     issues.push('package.json missing check:migration-timeouts:test');
   } else {
