@@ -15,11 +15,13 @@ export const uuidArb: fc.Arbitrary<string> = fc.uuid();
  */
 export const emailArb: fc.Arbitrary<string> = fc
   .tuple(
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), {
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
       minLength: 1,
       maxLength: 20,
     }),
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
       minLength: 2,
       maxLength: 10,
     }),
@@ -30,10 +32,11 @@ export const emailArb: fc.Arbitrary<string> = fc
 /**
  * Generates realistic person names (first or last).
  */
-export const nameArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')),
-  { minLength: 2, maxLength: 50 },
-);
+export const nameArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')),
+  minLength: 2,
+  maxLength: 50,
+});
 
 /**
  * Generates valid ISO date strings (YYYY-MM-DD).
@@ -86,7 +89,11 @@ export const paginationWithSortArb: fc.Arbitrary<{
 export const phoneArb: fc.Arbitrary<string> = fc
   .tuple(
     fc.constantFrom('+1', '+44', '+91', '+61', '+33'),
-    fc.stringOf(fc.constantFrom(...'0123456789'.split('')), { minLength: 9, maxLength: 10 }),
+    fc.string({
+      unit: fc.constantFrom(...'0123456789'.split('')),
+      minLength: 9,
+      maxLength: 10,
+    }),
   )
   .map(([prefix, number]) => `${prefix}${number}`);
 
@@ -94,7 +101,8 @@ export const phoneArb: fc.Arbitrary<string> = fc
  * Generates valid tenant slugs.
  */
 export const tenantSlugArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
     minLength: 3,
     maxLength: 30,
   })
