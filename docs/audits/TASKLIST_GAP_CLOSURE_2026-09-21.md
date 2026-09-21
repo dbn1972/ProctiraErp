@@ -2,10 +2,48 @@
 
 Tip audited: `main` = `4d4706cd`. Open pull requests at time of writing: 0.
 
-Produced by re-running `docs/audits/templates/MODULE_DEEP_EVALUATION_PROMPT.md` and
-`docs/audits/templates/UAT_READINESS_VERIFICATION_PROMPT.md` against the tip, then
-merging the result with the items already recorded in
-`PENDING_WORK_LEDGER_2026-09-21.md`.
+## What produced this, stated precisely
+
+An earlier draft of this file claimed it came from "re-running"
+`MODULE_DEEP_EVALUATION_PROMPT.md` and `UAT_READINESS_VERIFICATION_PROMPT.md`. That
+was false and is corrected here.
+
+**What was actually executed against this tip:**
+
+- the Part B statutory sweep — word-boundary counts for ten standards, repo-wide
+  versus `packages/backend` + `apps/api-gateway/src`, then locating where the LTI
+  and SCORM hits resolve to
+- the Part A fee step — a PSP adapter search across seven providers
+- the Part A staff step — backend package listing, then tracked-versus-untracked
+- a live check that all 23 formerly-text tables carry validated tenant FKs
+- Part C only shallowly: file-existence checks for tenant provisioning, invites,
+  role assignment and student import
+
+**What was carried forward from earlier work the same day, not re-verified at this
+tip:** the P0 call-site counts, the ten-migration validate list and its
+zero-violation scan, branch protection state, `Build & Push` being path-gated, and
+the registry secrets.
+
+**What was not run at all:** `MODULE_DEEP_EVALUATION_PROMPT.md`. It is a per-module
+sweep whose own stated expectation is "hours, not minutes" per module across roughly
+45 modules in 8 groups. Zero modules have been evaluated under it.
+
+**Also not done from the UAT prompt:** 9 of the 11 Part A lifecycles are untraced —
+admission, attendance, assessment, examination, timetable, transport,
+library/hostel/health/discipline, guardian communication, transfer out. Part B's
+central question is unanswered: whether a school is a tenant or a row, which that
+prompt says decides the entire isolation model. Part C questions 5 and 6
+(diagnosability, child-data safety beyond FKs) were not addressed.
+
+**The mandated method was not followed.** Both prompts require a fresh bootstrap
+with all `db/sql` applied at `APPLY_STRICT_FKS=1`. The checks above ran against an
+evaluation database that had been mutated repeatedly during the day. A later attempt
+to follow the method properly failed — see the note at the end of this file.
+
+So this file is a **targeted re-verification of a few high-signal checks, merged
+with `PENDING_WORK_LEDGER_2026-09-21.md`**. It is not the output of either prompt.
+Items below are evidenced where they say they are and carried forward where they say
+they are; treat the distinction as load-bearing.
 
 Findings are classified `implemented` / `partial` / `absent` / `unverified`;
 remediations `FULLY_CLOSED` / `PARTIAL` / `OPEN` / `REGRESSED` /
@@ -65,7 +103,14 @@ transaction proved end to end, including refund and reconciliation.
 
 ## T3 — Five backend capabilities exist only as untracked local stubs
 
-`absent` / `OPEN` · **breaks on missing code** · newly surfaced by this pass
+`absent` / `OPEN` · **breaks on missing code** · **not a new finding**
+
+An earlier draft called this "newly surfaced by this pass". It was not.
+`MODULE_DEEP_EVALUATION_PROMPT.md` already lists it among the claims that are not
+permitted: _"A module exists because a package directory does — `alumni`, `canteen`,
+`finance`, `inventory`, `payroll` contain only `node_modules`."_ What this pass added
+is narrower: that they are also absent from git and from the mount matrix, with the
+entry counts below.
 
 These directories exist on the working machine but are **not in git**:
 
@@ -325,6 +370,9 @@ Per Part D of the prompt, and stated rather than glossed:
 
 ## Suggested order
 
+0. **T11** — the clean-database blocker. It gates the prompts' mandated method, so
+   every integrity, security and production finding stays `unverified` until a fresh
+   database can be migrated at all.
 1. **T1** — secrets. Cheapest, unblocks every deployment claim and T8.
 2. **T7** — branch protection. Stops the merge-while-red pattern recurring.
 3. **T5** — the P0. Highest security value; needs a populated environment to classify
@@ -333,3 +381,66 @@ Per Part D of the prompt, and stated rather than glossed:
 5. **T3** — decide the five stubs: build them or delete them.
 6. **T2**, **T4** — the two genuine product absences, each a project.
 7. **T9**, **T10** — as capacity allows.
+
+---
+
+## T11 — `db/sql` cannot be applied to an empty database
+
+`absent` / `OPEN` · **breaks on a migration defect** · found by attempting the
+prompts' mandated bootstrap, and it is what stopped that attempt
+
+Both prompts require standing up a fresh migrated PostgreSQL with
+`APPLY_STRICT_FKS=1` before anything in integrity, security or production can be
+asserted. Doing that on a clean database, as the non-superuser migrator, halts after
+71 files:
+
+```
+==> Applying db/sql/065_tenant_timezone_foundation.sql
+psql:065_tenant_timezone_foundation.sql:22: ERROR:
+  column "timezone" of relation "tenants" contains null values
+```
+
+The migration is not missing a backfill. It adds the column, backfills
+`WHERE timezone IS NULL`, then sets `NOT NULL` — in that order. The backfill simply
+updates nothing:
+
+| Check                                        | Result                |
+| -------------------------------------------- | --------------------- |
+| `tenants` RLS                                | `rls=true force=true` |
+| Rows visible to superuser                    | 1                     |
+| Rows visible to the migrator role            | **0**                 |
+| `UPDATE tenants SET name = name` as migrator | `UPDATE 0`            |
+| Same with `app.tenant_id` bound              | `UPDATE 1`            |
+
+The policy on `tenants` is
+
+```sql
+id::text = NULLIF(current_setting('app.tenant_id', true), '')
+  OR current_setting('app.platform_admin', true) = '1'
+```
+
+`apply-sql.sh` binds neither GUC, and `tenants` is `FORCE ROW LEVEL SECURITY`, so
+the migrator is subject to the policy and sees zero rows. The row it needs to
+backfill comes from `021a_strict_fk_prerequisite_tenants.sql`, which inserts
+`00000000-0000-4000-8000-000000000001` with `(id, name, slug, config, status)` and
+no timezone. Backfill touches 0 rows, `SET NOT NULL` then correctly refuses, and the
+chain stops.
+
+**This generalises T6.** That task scoped the FORCE-RLS blindness to
+`VALIDATE CONSTRAINT`. It applies to **any data-touching statement in a migration**,
+backfills included. Same mechanism as the vacuous FK validation proved in 098;
+opposite symptom — there it passed when it should have failed, here it fails loudly.
+
+**Consequences:** no environment can be provisioned from `db/sql`, which touches
+UAT, disaster recovery and the restore drill. It also means every "live-verified"
+claim made to date was measured on a database built up incrementally, never one
+built from scratch.
+
+**Open question, deliberately not answered:** CI applies `db/sql` and passes, so
+either it never applies from truly empty, or something in its path differs. That
+should be established before this is called fully characterised — do not assume the
+finding is CI-invisible.
+
+**Done when** a clean database completes the full chain as the non-superuser
+migrator with `APPLY_STRICT_FKS=1`, and a CI job proves it from empty so the path
+cannot rot again.
