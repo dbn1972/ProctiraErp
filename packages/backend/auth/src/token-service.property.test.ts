@@ -52,14 +52,16 @@ const authUserArb: fc.Arbitrary<AuthUser> = fc.record({
   userId: fc.uuid(),
   tenantId: fc.uuid(),
   email: fc.emailAddress(),
-  displayName: fc.stringOf(
-    fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')),
-    { minLength: 2, maxLength: 30 },
-  ),
+  displayName: fc.string({
+    unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')),
+    minLength: 2,
+    maxLength: 30,
+  }),
   roles: fc.array(
     fc.record({
       roleId: fc.uuid(),
-      roleName: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz_'.split('')), {
+      roleName: fc.string({
+        unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz_'.split('')),
         minLength: 3,
         maxLength: 15,
       }),

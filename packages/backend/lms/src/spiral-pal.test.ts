@@ -24,10 +24,16 @@ const masteryStateArb: fc.Arbitrary<MasteryState> = fc.record({
   correct: fc.nat({ max: 500 }),
   streak: fc.nat({ max: 20 }),
   intervalDays: fc.constantFrom(0, ...SPIRAL_INTERVALS_DAYS),
-  dueAt: fc.option(fc.date({ min: new Date(0), max: new Date('2100-01-01') }), { nil: null }),
-  lastReviewedAt: fc.option(fc.date({ min: new Date(0), max: new Date('2100-01-01') }), {
-    nil: null,
-  }),
+  dueAt: fc.option(
+    fc.date({ noInvalidDate: true, min: new Date(0), max: new Date('2100-01-01') }),
+    { nil: null },
+  ),
+  lastReviewedAt: fc.option(
+    fc.date({ noInvalidDate: true, min: new Date(0), max: new Date('2100-01-01') }),
+    {
+      nil: null,
+    },
+  ),
 });
 
 describe('applyAttempt', () => {

@@ -26,7 +26,8 @@ import type { AuditableRecord } from './diff.js';
  * Generates a valid user ID string.
  */
 const userIdArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
     minLength: 3,
     maxLength: 30,
   })
@@ -36,7 +37,8 @@ const userIdArb: fc.Arbitrary<string> = fc
  * Generates a valid tenant ID string.
  */
 const tenantIdArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
     minLength: 3,
     maxLength: 20,
   })
@@ -78,7 +80,8 @@ const entityTypeArb: fc.Arbitrary<string> = fc.constantFrom(
  * Generates a valid entity ID string.
  */
 const entityIdArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
     minLength: 3,
     maxLength: 20,
   })
@@ -87,10 +90,11 @@ const entityIdArb: fc.Arbitrary<string> = fc
 /**
  * Generates a field name (alphanumeric, camelCase-like).
  */
-const fieldNameArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
-  { minLength: 2, maxLength: 15 },
-);
+const fieldNameArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
+  minLength: 2,
+  maxLength: 15,
+});
 
 /**
  * Generates a primitive value suitable for audit fields.

@@ -56,8 +56,8 @@ importers:
         specifier: workspace:*
         version: link:packages/eslint-plugin-openemis
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       prettier:
         specifier: ^3.9.8
         version: 3.9.8
@@ -331,8 +331,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       pino-pretty:
         specifier: 11.3.0
         version: 11.3.0
@@ -401,8 +401,8 @@ importers:
         specifier: 14.2.35
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       postcss:
         specifier: '>=8.5.18'
         version: 8.5.28
@@ -453,8 +453,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -693,8 +693,8 @@ importers:
         specifier: 14.2.35
         version: 14.2.35(eslint@8.57.1)(typescript@5.9.3)
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       postcss:
         specifier: '>=8.5.18'
         version: 8.5.28
@@ -886,8 +886,8 @@ importers:
         specifier: 6.2.5
         version: 6.2.5
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       jsdom:
         specifier: ^24.0.0
         version: 24.1.3
@@ -987,8 +987,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1039,8 +1039,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1085,8 +1085,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1149,8 +1149,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1198,8 +1198,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1318,8 +1318,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1355,8 +1355,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1392,8 +1392,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1441,8 +1441,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1481,8 +1481,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1542,8 +1542,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1603,8 +1603,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1716,8 +1716,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1808,8 +1808,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1872,8 +1872,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -1964,8 +1964,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2019,8 +2019,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2105,8 +2105,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2151,8 +2151,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2271,8 +2271,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2323,8 +2323,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2378,8 +2378,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2436,8 +2436,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2512,8 +2512,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2555,8 +2555,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2598,8 +2598,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2635,8 +2635,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2687,8 +2687,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2739,8 +2739,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2794,8 +2794,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       fastify:
         specifier: ^5.7.2
         version: 5.12.3
@@ -2850,8 +2850,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -2928,8 +2928,8 @@ importers:
         specifier: workspace:*
         version: link:../testing
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3048,8 +3048,8 @@ importers:
         specifier: ^0.10.5
         version: 0.10.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3063,8 +3063,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3085,8 +3085,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.15.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3110,8 +3110,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3153,8 +3153,8 @@ importers:
         specifier: ^10.5.0
         version: 10.6.0
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
     devDependencies:
       '@proctira/common':
         specifier: workspace:*
@@ -3179,8 +3179,8 @@ importers:
         version: 0.34.52
     devDependencies:
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3643,8 +3643,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3662,8 +3662,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3684,8 +3684,8 @@ importers:
         specifier: ^20.12.0
         version: 20.19.41
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3725,8 +3725,8 @@ importers:
         specifier: ^9.0.8
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       tsx:
         specifier: ^4.23.13
         version: 4.23.13
@@ -3771,8 +3771,8 @@ importers:
         specifier: ^9.0.0
         version: 9.0.8
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -3814,8 +3814,8 @@ importers:
         specifier: ^8.23.1
         version: 8.23.1
       fast-check:
-        specifier: ^3.17.0
-        version: 3.23.2
+        specifier: ^4.10.1
+        version: 4.10.1
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -7198,9 +7198,9 @@ packages:
     resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
     engines: {node: '>=18'}
 
-  fast-check@3.23.2:
-    resolution: {integrity: sha512-h5+1OzzfCC3Ef7VbtKdcv7zsstUQwUDlYpUTvjeUsJAssPgLn7QzbboPtL5ro04Mq0rPOsMzl7q5hIbRs2wD1A==}
-    engines: {node: '>=8.0.0'}
+  fast-check@4.10.1:
+    resolution: {integrity: sha512-sB5Vghiu8MyCyToHoBVGsT0baZg3sZWNIY+a6Ct2EDrQJlT4YdH6MC1BSLNe3kX1k5i5g0q1O52XFgcKK/rGHg==}
+    engines: {node: '>=12.17.0'}
 
   fast-copy@3.0.2:
     resolution: {integrity: sha512-dl0O9Vhju8IrcLndv2eU4ldt1ftXMqqfgN4H1cpmGV7P6jeB9FwpN9a2c8DPGE1Ys88rNUJVYDHq73CGAGOPfQ==}
@@ -8739,8 +8739,8 @@ packages:
     resolution: {integrity: sha512-T5ScUMAsmhdNbgDR41AGESYeS6V9MSgetkSnVhhW+gXvzC42VesKCn5ld87gAZDJ6vLHL9GkRvY9WtQWSnwFbw==}
     engines: {node: '>=18'}
 
-  pure-rand@6.1.0:
-    resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+  pure-rand@8.4.2:
+    resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
   qrcode.react@4.2.0:
     resolution: {integrity: sha512-QpgqWi8rD9DsS9EP3z7BT+5lY5SFhsqGjpgW5DY/i3mK4M9DTBNz3ErMi8BWYEfI3L0d8GIbGmcdFAS1uIRGjA==}
@@ -13490,9 +13490,9 @@ snapshots:
 
   fake-indexeddb@6.2.5: {}
 
-  fast-check@3.23.2:
+  fast-check@4.10.1:
     dependencies:
-      pure-rand: 6.1.0
+      pure-rand: 8.4.2
 
   fast-copy@3.0.2: {}
 
@@ -15094,7 +15094,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  pure-rand@6.1.0: {}
+  pure-rand@8.4.2: {}
 
   qrcode.react@4.2.0(react@18.3.1):
     dependencies:

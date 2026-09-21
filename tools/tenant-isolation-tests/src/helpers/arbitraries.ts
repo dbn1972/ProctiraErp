@@ -9,17 +9,15 @@
 
 import * as fc from 'fast-check';
 
-/** Generates a valid UUID v4 string. */
-export const uuidV4Arb: fc.Arbitrary<string> = fc
-  .tuple(
-    fc.hexaString({ minLength: 8, maxLength: 8 }),
-    fc.hexaString({ minLength: 4, maxLength: 4 }),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
-    fc.constantFrom('8', '9', 'a', 'b'),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
-    fc.hexaString({ minLength: 12, maxLength: 12 }),
-  )
-  .map(([p1, p2, p3, variant, p4, p5]) => `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`);
+/**
+ * Generates a valid UUID v4 string.
+ *
+ * This used to assemble one by hand from fc.hexaString() segments. fast-check 4
+ * removed hexaString along with every character arbitrary (hexa, char), and it
+ * ships fc.uuid({ version: 4 }), which is what the hand-rolled version was
+ * approximating -- including the version and variant nibbles.
+ */
+export const uuidV4Arb: fc.Arbitrary<string> = fc.uuid({ version: 4 });
 
 /** Generates two distinct UUID v4 tenant IDs. */
 export const distinctTenantPairArb: fc.Arbitrary<{ tenantA: string; tenantB: string }> = fc
@@ -35,17 +33,19 @@ export const distinctTenantSetArb: fc.Arbitrary<string[]> = fc.uniqueArray(uuidV
 
 /** A non-empty entity name made of letters and spaces. */
 export const entityNameArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')), {
+  .string({
+    unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')),
     minLength: 2,
     maxLength: 40,
   })
   .filter((s) => s.trim().length >= 2);
 
 /** A short uppercase alphanumeric code. */
-export const entityCodeArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
-  { minLength: 3, maxLength: 10 },
-);
+export const entityCodeArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
+  minLength: 3,
+  maxLength: 10,
+});
 
 /** A normalized record shape used across categories. */
 export interface IsolationRecord {
@@ -84,7 +84,8 @@ export const taskTypeArb: fc.Arbitrary<string> = fc.constantFrom(
 
 /** Cache key prefixes that map onto real product features. */
 export const cacheKeyArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')),
     minLength: 5,
     maxLength: 50,
   })

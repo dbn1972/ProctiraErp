@@ -51,13 +51,14 @@ describe('Secret Management Properties', () => {
    */
   it('EnvSecretAdapter key-to-env mapping is deterministic and reversible', () => {
     // Generate keys that contain dots, dashes, and slashes
-    const keyArb = fc.stringOf(
-      fc.oneof(
-        fc.char().filter((c) => /[a-z0-9]/.test(c)),
+    const keyArb = fc.string({
+      unit: fc.oneof(
+        fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
         fc.constantFrom('.', '-', '/', '_'),
       ),
-      { minLength: 1, maxLength: 50 },
-    );
+      minLength: 1,
+      maxLength: 50,
+    });
 
     fc.assert(
       fc.property(keyArb, fc.string({ minLength: 1, maxLength: 100 }), (key, value) => {
@@ -117,13 +118,11 @@ describe('Secret Management Properties', () => {
    */
   it('EnvSecretAdapter round-trips secrets correctly', async () => {
     // Use simple alphanumeric keys to avoid env var naming issues
-    const keyArb = fc.stringOf(
-      fc.char().filter((c) => /[a-z]/.test(c)),
-      {
-        minLength: 1,
-        maxLength: 20,
-      },
-    );
+    const keyArb = fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
+      minLength: 1,
+      maxLength: 20,
+    });
     const valueArb = fc.string({ minLength: 0, maxLength: 200 });
 
     await fc.assert(

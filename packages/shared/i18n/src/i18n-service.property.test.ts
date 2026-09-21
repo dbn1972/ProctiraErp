@@ -18,7 +18,8 @@ import type { I18nConfig, TranslationMap } from './types';
 /** Generates a valid translation key (dot-separated segments). */
 const translationKeyArb: fc.Arbitrary<string> = fc
   .array(
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
       minLength: 1,
       maxLength: 10,
     }),
@@ -27,10 +28,13 @@ const translationKeyArb: fc.Arbitrary<string> = fc
   .map((parts) => parts.join('.'));
 
 /** Generates a simple translation value string. */
-const translationValueArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 0123456789'.split('')),
-  { minLength: 1, maxLength: 50 },
-);
+const translationValueArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(
+    ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz 0123456789'.split(''),
+  ),
+  minLength: 1,
+  maxLength: 50,
+});
 
 /** Supported locale codes for testing. */
 const SUPPORTED_LOCALES = ['en', 'ar', 'fr', 'es', 'de', 'he', 'ur', 'ja', 'zh'] as const;

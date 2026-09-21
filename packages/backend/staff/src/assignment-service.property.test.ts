@@ -23,10 +23,7 @@ const arbUuid = fc.uuid().map((u) => u.toLowerCase());
 
 /** Generate a valid ISO date string (YYYY-MM-DD) within a reasonable range */
 const arbDate = fc
-  .date({
-    min: new Date('2020-01-01'),
-    max: new Date('2030-12-31'),
-  })
+  .date({ noInvalidDate: true, min: new Date('2020-01-01'), max: new Date('2030-12-31') })
   .map((d) => d.toISOString().slice(0, 10));
 
 /** Generate a date range where endDate > startDate (or endDate is undefined for ongoing) */
@@ -50,7 +47,8 @@ const arbDateRange = fc.tuple(arbDate, arbDate, fc.boolean()).map(([d1, d2, hasE
 const arbAllocation = fc.integer({ min: 1, max: 100 });
 
 /** Generate a role string */
-const arbRole = fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd', 'e'), {
+const arbRole = fc.string({
+  unit: fc.constantFrom('a', 'b', 'c', 'd', 'e'),
   minLength: 1,
   maxLength: 10,
 });

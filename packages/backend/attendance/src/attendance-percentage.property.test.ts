@@ -40,12 +40,12 @@ const attendanceStatusArb: fc.Arbitrary<AttendanceStatus> = fc.constantFrom(
 
 /** Generates a date string in YYYY-MM-DD format within a fixed range. */
 const dateStrArb: fc.Arbitrary<string> = fc
-  .date({ min: new Date('2024-01-01'), max: new Date('2024-12-31') })
+  .date({ noInvalidDate: true, min: new Date('2024-01-01'), max: new Date('2024-12-31') })
   .map((d) => d.toISOString().split('T')[0]!);
 
 /** Generates a unique ID for records. */
 const idArb: fc.Arbitrary<string> = fc
-  .tuple(fc.hexaString({ minLength: 8, maxLength: 8 }), fc.nat())
+  .tuple(fc.stringMatching(/^[0-9a-f]{8}$/), fc.nat())
   .map(([hex, n]) => `rec-${hex}-${n}`);
 
 /**
@@ -74,7 +74,7 @@ function classRecordsArb(): fc.Arbitrary<
     .array(
       fc.tuple(
         idArb,
-        fc.hexaString({ minLength: 6, maxLength: 6 }).map((h) => `student-${h}`),
+        fc.stringMatching(/^[0-9a-f]{6}$/).map((h) => `student-${h}`),
         dateStrArb,
         attendanceStatusArb,
       ),

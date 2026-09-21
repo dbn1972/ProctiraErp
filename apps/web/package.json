@@ -77,7 +77,7 @@
     "eslint-plugin-proctira": "workspace:*",
     "exceljs": "^4.4.0",
     "fake-indexeddb": "6.2.5",
-    "fast-check": "^3.17.0",
+    "fast-check": "^4.10.1",
     "jsdom": "^24.0.0",
     "postcss": "^8.4.0",
     "rollup-plugin-visualizer": "5.12.0",

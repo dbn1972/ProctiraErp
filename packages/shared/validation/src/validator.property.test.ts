@@ -21,10 +21,13 @@ import { validate } from './validator';
 
 /** Generates a valid string value satisfying minLength/maxLength constraints. */
 function validStringArb(minLength = 1, maxLength = 50): fc.Arbitrary<string> {
-  return fc.stringOf(
-    fc.constantFrom(...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
-    { minLength, maxLength },
-  );
+  return fc.string({
+    unit: fc.constantFrom(
+      ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split(''),
+    ),
+    minLength,
+    maxLength,
+  });
 }
 
 /** Generates a valid number within a range. */
@@ -35,11 +38,13 @@ function validNumberArb(min = 0, max = 1000): fc.Arbitrary<number> {
 /** Generates a valid email-like string. */
 const validEmailArb: fc.Arbitrary<string> = fc
   .tuple(
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
       minLength: 1,
       maxLength: 10,
     }),
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+    fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
       minLength: 1,
       maxLength: 8,
     }),

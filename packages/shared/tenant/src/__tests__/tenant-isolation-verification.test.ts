@@ -42,12 +42,12 @@ function buildTenantRoutingKey(tenantId: string, routingKey: string): string {
 /** Generates a valid UUID v4 string */
 const uuidV4Arb: fc.Arbitrary<string> = fc
   .tuple(
-    fc.hexaString({ minLength: 8, maxLength: 8 }),
-    fc.hexaString({ minLength: 4, maxLength: 4 }),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
+    fc.stringMatching(/^[0-9a-f]{8}$/),
+    fc.stringMatching(/^[0-9a-f]{4}$/),
+    fc.stringMatching(/^[0-9a-f]{3}$/),
     fc.constantFrom('8', '9', 'a', 'b'),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
-    fc.hexaString({ minLength: 12, maxLength: 12 }),
+    fc.stringMatching(/^[0-9a-f]{3}$/),
+    fc.stringMatching(/^[0-9a-f]{12}$/),
   )
   .map(([p1, p2, p3, variant, p4, p5]) => `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`);
 
@@ -59,23 +59,26 @@ const distinctTenantPairArb: fc.Arbitrary<{ tenantA: string; tenantB: string }> 
 
 /** Generates a valid tenant slug */
 const tenantSlugArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
     minLength: 3,
     maxLength: 20,
   })
   .filter((s) => /^[a-z]/.test(s));
 
 /** Generates a non-empty entity name */
-const entityNameArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')),
-  { minLength: 2, maxLength: 40 },
-);
+const entityNameArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')),
+  minLength: 2,
+  maxLength: 40,
+});
 
 /** Generates a non-empty entity code */
-const entityCodeArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
-  { minLength: 3, maxLength: 10 },
-);
+const entityCodeArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
+  minLength: 3,
+  maxLength: 10,
+});
 
 /** Generates a record with name and code */
 const entityRecordArb: fc.Arbitrary<{ id: string; name: string; code: string; tenantId: string }> =
@@ -96,7 +99,8 @@ const eventTypeArb: fc.Arbitrary<string> = fc.constantFrom(
 
 /** Generates a cache key suffix */
 const cacheKeyArb: fc.Arbitrary<string> = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')),
     minLength: 5,
     maxLength: 50,
   })

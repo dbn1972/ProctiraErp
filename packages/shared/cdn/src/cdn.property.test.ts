@@ -19,17 +19,19 @@ const assetCategoryArb: fc.Arbitrary<AssetCategory> = fc.constantFrom(
   'document',
 );
 
-const safePathSegmentArb = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
-  { minLength: 1, maxLength: 20 },
-);
+const safePathSegmentArb = fc.string({
+  unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
+  minLength: 1,
+  maxLength: 20,
+});
 
 const assetPathArb = fc
   .array(safePathSegmentArb, { minLength: 1, maxLength: 4 })
   .map((segments) => segments.join('/'));
 
 const tenantIdArb = fc
-  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+  .string({
+    unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
     minLength: 3,
     maxLength: 30,
   })
@@ -37,7 +39,11 @@ const tenantIdArb = fc
 
 const versionArb = fc.oneof(
   fc.constant(undefined),
-  fc.stringOf(fc.constantFrom(...'abcdef0123456789.'.split('')), { minLength: 1, maxLength: 10 }),
+  fc.string({
+    unit: fc.constantFrom(...'abcdef0123456789.'.split('')),
+    minLength: 1,
+    maxLength: 10,
+  }),
 );
 
 const baseUrlArb = fc.constantFrom(
