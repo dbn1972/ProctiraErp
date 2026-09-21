@@ -50,7 +50,8 @@ const arbDateRange = fc.tuple(arbDate, arbDate, fc.boolean()).map(([d1, d2, hasE
 const arbAllocation = fc.integer({ min: 1, max: 100 });
 
 /** Generate a role string */
-const arbRole = fc.stringOf(fc.constantFrom('a', 'b', 'c', 'd', 'e'), {
+const arbRole = fc.string({
+  unit: fc.constantFrom('a', 'b', 'c', 'd', 'e'),
   minLength: 1,
   maxLength: 10,
 });

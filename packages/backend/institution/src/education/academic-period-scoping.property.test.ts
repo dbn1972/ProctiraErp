@@ -20,12 +20,12 @@ import { BusinessRuleError, NotFoundError } from '@proctira/common';
 /** Generates a valid UUID v4 string. */
 const uuidArb: fc.Arbitrary<string> = fc
   .tuple(
-    fc.hexaString({ minLength: 8, maxLength: 8 }),
-    fc.hexaString({ minLength: 4, maxLength: 4 }),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
+    fc.stringMatching(/^[0-9a-f]{8}$/),
+    fc.stringMatching(/^[0-9a-f]{4}$/),
+    fc.stringMatching(/^[0-9a-f]{3}$/),
     fc.constantFrom('8', '9', 'a', 'b'),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
-    fc.hexaString({ minLength: 12, maxLength: 12 }),
+    fc.stringMatching(/^[0-9a-f]{3}$/),
+    fc.stringMatching(/^[0-9a-f]{12}$/),
   )
   .map(([p1, p2, p3, variant, p4, p5]) => `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`);
 
@@ -61,7 +61,8 @@ const academicPeriodArb = (statusArb: fc.Arbitrary<string>) =>
     id: uuidArb,
     tenantId: uuidArb,
     name: periodNameArb,
-    code: fc.stringOf(fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')), {
+    code: fc.string({
+      unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('')),
       minLength: 3,
       maxLength: 10,
     }),

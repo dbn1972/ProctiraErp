@@ -22,30 +22,34 @@ import type { CreateInstitutionInput } from './schemas.js';
  */
 const uuidV4Arb: fc.Arbitrary<string> = fc
   .tuple(
-    fc.hexaString({ minLength: 8, maxLength: 8 }),
-    fc.hexaString({ minLength: 4, maxLength: 4 }),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
+    fc.stringMatching(/^[0-9a-f]{8}$/),
+    fc.stringMatching(/^[0-9a-f]{4}$/),
+    fc.stringMatching(/^[0-9a-f]{3}$/),
     fc.constantFrom('8', '9', 'a', 'b'),
-    fc.hexaString({ minLength: 3, maxLength: 3 }),
-    fc.hexaString({ minLength: 12, maxLength: 12 }),
+    fc.stringMatching(/^[0-9a-f]{3}$/),
+    fc.stringMatching(/^[0-9a-f]{12}$/),
   )
   .map(([p1, p2, p3, variant, p4, p5]) => `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`);
 
 /**
  * Generates a valid institution name (non-empty, max 255 chars).
  */
-const institutionNameArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -'.split('')),
-  { minLength: 1, maxLength: 50 },
-);
+const institutionNameArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(
+    ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 -'.split(''),
+  ),
+  minLength: 1,
+  maxLength: 50,
+});
 
 /**
  * Generates a valid institution code (non-empty, max 50 chars).
  */
-const institutionCodeArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'.split('')),
-  { minLength: 1, maxLength: 20 },
-);
+const institutionCodeArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'.split('')),
+  minLength: 1,
+  maxLength: 20,
+});
 
 /**
  * Generates a valid CreateInstitutionInput with all required fields.
@@ -67,10 +71,13 @@ const tenantIdArb: fc.Arbitrary<string> = uuidV4Arb;
 /**
  * Generates a deactivation reason string.
  */
-const deactivationReasonArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,'.split('')),
-  { minLength: 1, maxLength: 100 },
-);
+const deactivationReasonArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(
+    ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,'.split(''),
+  ),
+  minLength: 1,
+  maxLength: 100,
+});
 
 // --- Property 8: Institution Validation Without Persistence ---
 

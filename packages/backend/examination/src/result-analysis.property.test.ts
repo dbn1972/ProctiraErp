@@ -29,9 +29,7 @@ function hasAtMostTwoDecimalPlaces(num: number): boolean {
 }
 
 // Arbitrary for generating a valid UUID-like string
-const arbId = fc
-  .hexaString({ minLength: 8, maxLength: 8 })
-  .map((s) => `${s}-0000-4000-8000-000000000000`);
+const arbId = fc.stringMatching(/^[0-9a-f]{8}$/).map((s) => `${s}-0000-4000-8000-000000000000`);
 
 // Arbitrary for gender
 const arbGender: fc.Arbitrary<CandidateGender> = fc.constantFrom('male', 'female', 'other');

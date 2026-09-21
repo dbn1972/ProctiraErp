@@ -45,7 +45,7 @@ const dateStrArb: fc.Arbitrary<string> = fc
 
 /** Generates a unique ID for records. */
 const idArb: fc.Arbitrary<string> = fc
-  .tuple(fc.hexaString({ minLength: 8, maxLength: 8 }), fc.nat())
+  .tuple(fc.stringMatching(/^[0-9a-f]{8}$/), fc.nat())
   .map(([hex, n]) => `rec-${hex}-${n}`);
 
 /**
@@ -74,7 +74,7 @@ function classRecordsArb(): fc.Arbitrary<
     .array(
       fc.tuple(
         idArb,
-        fc.hexaString({ minLength: 6, maxLength: 6 }).map((h) => `student-${h}`),
+        fc.stringMatching(/^[0-9a-f]{6}$/).map((h) => `student-${h}`),
         dateStrArb,
         attendanceStatusArb,
       ),

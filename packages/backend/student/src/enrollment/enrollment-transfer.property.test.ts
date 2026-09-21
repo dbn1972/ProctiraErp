@@ -45,10 +45,13 @@ const isoDateArb: fc.Arbitrary<string> = fc
 /**
  * Generates a non-empty reason string (1–500 chars).
  */
-const reasonArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 '.split('')),
-  { minLength: 1, maxLength: 100 },
-);
+const reasonArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(
+    ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 '.split(''),
+  ),
+  minLength: 1,
+  maxLength: 100,
+});
 
 /**
  * Generates a valid institution status that is NOT active (for rejection tests).

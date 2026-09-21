@@ -45,10 +45,11 @@ const validDateArb: fc.Arbitrary<string> = fc
 /**
  * Generates a non-empty name string (letters and spaces only).
  */
-const nameArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')),
-  { minLength: 1, maxLength: 30 },
-);
+const nameArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'.split('')),
+  minLength: 1,
+  maxLength: 30,
+});
 
 /**
  * Generates a valid gender value.
@@ -73,11 +74,13 @@ const validGenderArb: fc.Arbitrary<string> = fc.constantFrom(
  */
 const validEmailArb: fc.Arbitrary<string> = fc
   .record({
-    local: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), {
+    local: fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
       minLength: 1,
       maxLength: 10,
     }),
-    domain: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), {
+    domain: fc.string({
+      unit: fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')),
       minLength: 2,
       maxLength: 10,
     }),
@@ -87,10 +90,11 @@ const validEmailArb: fc.Arbitrary<string> = fc
 /**
  * Generates a national ID string.
  */
-const nationalIdArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'.split('')),
-  { minLength: 3, maxLength: 20 },
-);
+const nationalIdArb: fc.Arbitrary<string> = fc.string({
+  unit: fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'.split('')),
+  minLength: 3,
+  maxLength: 20,
+});
 
 /**
  * Generates a valid import row (all mandatory fields present and correctly formatted).
