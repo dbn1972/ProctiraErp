@@ -44,7 +44,7 @@ dependencies:
   uuid: ^4.4.0
 
   # Device capabilities for mobile features
-  geolocator: ^13.0.0 # GPS for attendance geofence validation
+  geolocator: ^14.0.3 # GPS for attendance geofence validation
   image_picker: ^1.1.0 # Camera + gallery for document capture
   permission_handler: ^13.0.2 # Runtime permissions (location, camera)
 
