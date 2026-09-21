@@ -40,7 +40,7 @@ dependencies:
   flutter_local_notifications: ^17.0.0
 
   # Offline-first sync
-  connectivity_plus: ^6.0.0
+  connectivity_plus: ^7.3.1
   uuid: ^4.4.0
 
   # Device capabilities for mobile features
