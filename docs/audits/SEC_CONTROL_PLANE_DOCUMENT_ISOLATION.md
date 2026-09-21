@@ -215,3 +215,95 @@ Step 1 is the useful first commit and carries no behavioural risk.
    and the list of such call sites is enumerated in review.
 4. `auth` and `billing` entries in `mount-matrix.ts` continue to state their real
    persistence so the exposure is not re-hidden.
+
+---
+
+## Step 2 progress — call-site classification (2026-09-21)
+
+### The structural cause, stated precisely
+
+The earlier write-up says these methods "carry no `tenant_id` predicate". The
+reason they can leak is narrower and worth naming, because it bounds what scoping
+can achieve:
+
+```
+control_plane_documents_pkey  PRIMARY KEY (collection, id)
+```
+
+`tenant_id` is **not part of the key**. Document ids are therefore a single global
+namespace: exactly one row can exist per `(collection, id)`, so an unscoped
+`get(id)` returns it whichever tenant owns it, and `withPlatformScope` binds
+`app.platform_admin='1'` which the policy accepts as a full escape.
+
+Two consequences:
+
+- Scoping fixes **reads** — the predicate is enforced in SQL regardless of RLS.
+- Scoping does **not** fix the namespace. Two tenants still cannot hold the same
+  logical id; the second write upserts over the first. Confirmed by attempting it:
+  a platform row and a tenant row written under one id collapsed to a single row.
+  Putting `tenant_id` in the key is a separate migration and is not in this step.
+
+### Classification, from live data where available
+
+Collection contents on the evaluation database:
+
+| Collection                 | Rows | NULL tenant_id | Verdict                           |
+| -------------------------- | ---- | -------------- | --------------------------------- |
+| `auth.keycloak_tenants`    | 6    | 6              | platform-owned                    |
+| `auth.keycloak_identities` | 4    | 0              | tenant-owned                      |
+| `auth.keycloak_users`      | 4    | 0              | tenant-owned, ids tenant-prefixed |
+| `auth.invites`             | 4    | 0              | tenant-owned                      |
+| `auth.otp_challenges`      | 4    | 0              | tenant-owned                      |
+| `billing.subscriptions`    | 4    | 0              | tenant-owned                      |
+| `billing.usage`            | 4    | 0              | tenant-owned                      |
+| `tenant.theme_versions`    | 8    | 0              | tenant-owned                      |
+
+Empty in the evaluation database, so **not classifiable from data** and left for
+step 3 rather than guessed: `billing.plans`, `billing.entitlements`,
+`tenant.tenants`, `tenant.domains`, `tenant.usage`, `tenant.roles`,
+`tenant.users`, `tenant.settings`, `tenant.branding_drafts`.
+
+`billing.plans` and `tenant.tenants` in particular look platform-owned by name,
+but guessing either way would break a feature or leave a hole, so they need to be
+read off a populated environment or settled from the write paths.
+
+### Two call sites that cannot be scoped, by design
+
+Recorded so they are not read as oversights when the parameter becomes mandatory:
+
+- `PgKeycloakIdentityStore.findIdentity(externalId)` — resolves a Keycloak `sub`
+  to its owning tenant. The tenant id is the _result_; the call runs before any
+  tenant context exists. Safety rests on `sub` being opaque, not on a predicate.
+- `PgOtpChallengeStore.findByToken(mfaToken)` — `mfaToken` is the bearer secret
+  for an in-flight MFA login and the tenant id is read from the record found.
+  Requiring a tenant would mean already knowing the answer.
+
+Both are genuine capability-style lookups. Scoping them would break
+authentication, so the control is token unguessability plus single use.
+
+### Applied in this change
+
+| Call site                          | Scope                |
+| ---------------------------------- | -------------------- |
+| `findTenantById`                   | `{ platform: true }` |
+| `findUserByEmail(email, tenantId)` | `{ tenantId }`       |
+
+The second was already scoped in practice, because the key is
+`${tenantId}:${email}` — but only by string convention, enforced nowhere. It is
+now a SQL predicate.
+
+Proven in `pg-identity-store-scope.live.test.ts` against live Postgres as
+`proctira_app`: the leak is reproduced (an unscoped read of tenant A's key returns
+A's row), the scoped read of the same key as tenant B returns null, the platform
+read ignores a tenant-owned row in the same collection, and the primary-key shape
+is pinned so a future change to it cannot silently remove the only line of
+defence.
+
+### Still open for step 3
+
+1. Classify the nine unclassifiable collections above.
+2. Scope the remaining `get`/`delete`/`all`/`count` call sites — `billing` (7),
+   `tenant` (14), `platform-admin-store` (4).
+3. Only then make `scope` required and the `app.platform_admin` bind conditional.
+   Acceptance criterion 2 is **not yet met**: the bind is still unconditional at
+   `pg-document-store.ts:80`.

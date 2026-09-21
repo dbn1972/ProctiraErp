@@ -30,6 +30,17 @@ export class PgOtpChallengeStore implements OtpChallengeStore {
     return this.challenges.put(record.mfaToken, { ...record }, record.tenantId);
   }
 
+  /**
+   * Deliberately unscoped, and it cannot be otherwise.
+   *
+   * `mfaToken` is the bearer secret for an in-flight MFA login: the caller holds
+   * the token and nothing else, and the tenant id is read *from* the record that
+   * is found. Requiring a tenant predicate would mean already knowing the answer.
+   * Safety rests on the token being opaque and single-use, not on RLS.
+   *
+   * Recorded rather than fixed so it is not mistaken for an oversight when the
+   * scope parameter becomes mandatory.
+   */
   findByToken(mfaToken: string): Promise<OtpChallengeRecord | null> {
     return this.challenges.get(mfaToken);
   }
