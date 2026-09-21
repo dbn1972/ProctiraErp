@@ -1,8 +1,6 @@
 {
   "extends": "next/core-web-vitals",
-  "plugins": [
-    "@typescript-eslint"
-  ],
+  "plugins": ["@typescript-eslint"],
   "rules": {
     "@next/next/no-html-link-for-pages": "off",
     "import/order": "off",
