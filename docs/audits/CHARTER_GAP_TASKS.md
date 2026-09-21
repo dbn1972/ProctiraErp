@@ -27,7 +27,6 @@ Ordered by leverage, not by size.
 
 | ID  | Gap                                                 | Spec                        | Status | Branch | PR  |
 | --- | --------------------------------------------------- | --------------------------- | ------ | ------ | --- |
-| T11 | `db/sql` cannot be applied to an empty database     | V1 §16 §43; V3 §11          | `OPEN` | —      | —   |
 | V10 | 6 API domains absent as governed surfaces           | V4 §5, Table 2              | `OPEN` | —      | —   |
 | V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN` | —      | —   |
 | V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `OPEN` | —      | —   |
@@ -127,8 +126,8 @@ worse than the current state.
 
 | ID  | Area                                                                          | Blocked by                     |
 | --- | ----------------------------------------------------------------------------- | ------------------------------ |
-| V11 | V5 §7 resilience — backups, restore tests, DR drills, SLOs                    | T1, T11                        |
-| V11 | V5 §4 tenant boundaries in cache, search, queues, analytics, backups, exports | T11                            |
+| V11 | V5 §7 resilience — backups, restore tests, DR drills, SLOs                    | T1                             |
+| V11 | V5 §4 tenant boundaries in cache, search, queues, analytics, backups, exports | not tested                     |
 | —   | V1 §28 performance and availability NFRs                                      | T1                             |
 | —   | V1 §38 SLO/SLI/runbook coverage                                               | T1                             |
 | —   | V1 §35 threat model and abuse case catalog                                    | document review                |
