@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@proctira/backend-theme": "workspace:*",
-    "@sinclair/typebox": "^0.32.0"
+    "@sinclair/typebox": "^0.34.52"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

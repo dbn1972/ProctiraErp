@@ -19,14 +19,14 @@
   "dependencies": {
     "@proctira/backend-install": "workspace:*",
     "@proctira/common": "workspace:*",
-    "@sinclair/typebox": "^0.32.0",
+    "@sinclair/typebox": "^0.34.52",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
     "@types/uuid": "^9.0.8",
     "fast-check": "^3.17.0",
-    "tsx": "^4.7.0",
+    "tsx": "^4.23.13",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   }

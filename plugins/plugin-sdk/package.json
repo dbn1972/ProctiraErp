@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@proctira/backend-plugin": "workspace:*",
-    "@sinclair/typebox": "^0.32.0",
+    "@sinclair/typebox": "^0.34.52",
     "chokidar": "^3.6.0",
     "ajv": "^8.12.0"
   },
