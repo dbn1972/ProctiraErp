@@ -156,8 +156,9 @@ is proved live. The other six layers were not tested and Volume 1 §39.2 require
 each of them independently. Unverified, and it is a large surface.
 
 **Cannot be assessed at all:** §7 operational resilience — backups, restore tests,
-DR drills, SLOs — because no environment is deployed and `db/sql` cannot migrate an
-empty database (T1 and T11). Volume 5 §7 also requires published upgrade, rollback
+DR drills, SLOs — because no environment is deployed (T1). The
+earlier claim that `db/sql` could not migrate an empty database is withdrawn; see the
+T11 entry in `CHARTER_GAP_TASKS.md`. Volume 5 §7 also requires published upgrade, rollback
 and compatibility boundaries for self-hosted editions, which depends on the same
 blockers.
 

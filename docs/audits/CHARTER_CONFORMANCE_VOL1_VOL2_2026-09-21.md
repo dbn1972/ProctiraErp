@@ -26,10 +26,13 @@ pass did not perform. They are `unverified`, not compliant.
 
 **A structural limit on everything below.** Volume 1 §16 and §43 make installation
 and upgrade first-class surfaces, and Volume 2 §22 requires post-install
-verification. Neither can be assessed at present: no container image has ever been
-published (registry credentials absent), and `db/sql` cannot be applied to an empty
-database — it halts at `065_tenant_timezone_foundation.sql`. Both are recorded as
-T1 and T11 in `TASKLIST_GAP_CLOSURE_2026-09-21.md`.
+verification. Assessment is limited by T1: no container image has ever been published, because
+registry credentials are absent.
+
+**Correction.** An earlier version of this paragraph also cited T11, claiming `db/sql`
+could not be applied to an empty database. That was wrong and is withdrawn — the
+chain completes (111 files, 0 errors) when the documented order in `db/README.md:28`
+is followed, Prisma then apply-sql. See the T11 entry in `CHARTER_GAP_TASKS.md`.
 
 ---
 

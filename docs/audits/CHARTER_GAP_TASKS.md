@@ -37,28 +37,43 @@ Ordered by leverage, not by size.
 | T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `OPEN` | —      | —   |
 | T4  | Zero statutory/interop implementation               | —                           | `OPEN` | —      | —   |
 
-### T11 — start here
+### T11 — WITHDRAWN, not a defect
 
-Highest leverage of anything on this list. Every integrity, security and resilience
-finding in V11 is `unverified` **because** no database can be migrated from empty, so
-this unblocks measurement of a large part of Volume 5.
+**Status:** `NOT_A_DEFECT`. This was my error and is retracted.
 
-Cause is proven, not suspected: `tenants` is `FORCE ROW LEVEL SECURITY`,
-`apply-sql.sh` binds neither `app.tenant_id` nor `app.platform_admin`, so the
-migrator sees 0 of 1 rows. `065_tenant_timezone_foundation.sql` backfills nothing and
-its `SET NOT NULL` then correctly fails. Measured: `UPDATE 0` as migrator,
-`UPDATE 1` with the GUC bound.
+I reported that `db/sql` could not be applied to an empty database, having seen the
+chain halt at `065_tenant_timezone_foundation.sql`. The cause was that I skipped
+`prisma migrate deploy`. `db/README.md:28` mandates the order **Prisma →
+apply-sql.sh**, and CI performs exactly that.
 
-Generalises T6 — the blindness affects any data-touching migration statement, not
-only `VALIDATE CONSTRAINT`.
+Tested on a clean database following the documented order:
 
-**Done when** a clean database completes the whole chain as the non-superuser
-migrator at `APPLY_STRICT_FKS=1`, **and** CI proves it from empty so the path cannot
-rot again.
+```
+prisma migrate deploy   -> All migrations have been successfully applied
+apply-sql.sh            -> Domain SQL apply complete (applied=111) , 0 errors
+```
 
-**Open question to settle first, not to assume:** CI applies `db/sql` and passes, so
-either it never applies from truly empty or its path differs. Establish which before
-designing the fix.
+`065` is a no-op on the supported path. Prisma creates `tenants.timezone` as
+`is_nullable=NO DEFAULT 'UTC'`, so its `ADD COLUMN IF NOT EXISTS` skips, no row can
+be NULL, and the `SET NOT NULL` is already satisfied. The backfill never needs to see
+rows, so the FORCE RLS blindness does not arise here at all.
+
+Confirmed with the fix **disabled**, so the pass is not an artefact of a change.
+
+**What this invalidates.** Anything previously described as "blocked by T11" was not
+blocked. The isolation, integrity and resilience items under "cannot be measured yet"
+are gated only by T1, and `db/sql` can be applied from empty via the documented path.
+
+**What survives.** The underlying mechanism is still real and independently proved:
+a migrator subject to FORCE RLS sees zero rows (`UPDATE 0` versus `UPDATE 1` with a
+tenant GUC bound), and a constraint validation scan under it marks a constraint valid
+over data it never read — demonstrated with a planted orphan row while fixing 098.
+That is T6, which stands on its own evidence and is narrower than T11 claimed.
+
+**Lesson recorded deliberately:** I asserted a migration-chain defect without first
+following the repository's own documented apply order, then proposed rewriting the
+migration framework to fix it. The check that would have caught this was reading
+`db/README.md` before running the chain.
 
 ### V10 — do `service-accounts` first
 
