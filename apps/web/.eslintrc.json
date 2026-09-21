@@ -1,6 +1,6 @@
 {
   "extends": "next/core-web-vitals",
-  "plugins": ["proctira"],
+  "plugins": ["@typescript-eslint", "proctira"],
   "rules": {
     "@next/next/no-html-link-for-pages": "off",
     "import/order": "off",
@@ -13,9 +13,19 @@
     "@typescript-eslint/await-thenable": "off",
     "@typescript-eslint/require-await": "off",
     "@typescript-eslint/restrict-template-expressions": "off",
-    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_"
+      }
+    ],
     "proctira/no-physical-margin-padding": "warn",
-    "proctira/img-requires-dimensions": ["warn", { "allowAriaHiddenDecorative": true }],
+    "proctira/img-requires-dimensions": [
+      "warn",
+      {
+        "allowAriaHiddenDecorative": true
+      }
+    ],
     "proctira/icon-only-button-requires-aria-label": "error",
     "proctira/no-hardcoded-brand-strings": "warn"
   }
