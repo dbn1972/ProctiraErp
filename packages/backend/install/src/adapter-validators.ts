@@ -250,7 +250,7 @@ export class CacheValidator implements AdapterValidator<CacheConfigInput> {
       return {
         success: true,
         step: 'cache',
-        message: `Cache adapter "${config.adapter}" at ${config.host}:${config.port ?? 6379} configured`,
+        message: `Cache adapter "${config.adapter ?? 'redis'}" at ${config.host ?? 'localhost'}:${config.port ?? 6379} configured`,
         latencyMs,
       };
     } catch (err) {
