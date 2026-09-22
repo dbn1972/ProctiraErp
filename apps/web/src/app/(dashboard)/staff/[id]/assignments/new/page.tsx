@@ -31,6 +31,7 @@ import {
 import type { ClassSection } from '@/lib/institutions/types';
 
 import { AssignmentForm } from '../../../_components/assignment-form';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -165,7 +166,7 @@ export default async function NewAssignmentPage(props: PageProps) {
   const [staff, assignments, institutions, subjects, classes] = await Promise.all([
     getStaff(params.id),
     listStaffAssignments(params.id),
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listSubjects().catch(() => [] as SubjectSummary[]),
     institutionId
       ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])

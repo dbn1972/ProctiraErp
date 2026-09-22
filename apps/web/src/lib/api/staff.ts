@@ -11,6 +11,7 @@
  * All calls are tenant-scoped via `gatewayFetch`.
  */
 import { gatewayFetch } from './gateway';
+import { clampPageSize } from './pagination';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -156,7 +157,10 @@ export interface TrainingCertification {
 function buildQuery(filters: StaffListFilters): string {
   const params = new URLSearchParams();
   if (filters.page) params.set('page', String(filters.page));
-  if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
+  // Clamped: the gateway's pagination preHandler rejects pageSize > 100 and this
+  // client turns a non-ok response into an empty list, so an over-sized value
+  // would render as 'no results' rather than as an error.
+  if (filters.pageSize) params.set('pageSize', String(clampPageSize(filters.pageSize)));
   if (filters.search) params.set('search', filters.search);
   if (filters.position) params.set('position', filters.position);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);

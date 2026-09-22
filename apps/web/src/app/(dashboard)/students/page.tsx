@@ -33,6 +33,7 @@ import { StudentListFilters as Filters } from './_components/student-list-filter
 import { StudentListPagination } from './_components/student-list-pagination';
 import { StudentStatusTabs } from './_components/student-status-tabs';
 import { StudentsBulkGraduateBar } from './_components/students-bulk-graduate-bar';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,15 +107,6 @@ function readNumberParam(
   return Number.isFinite(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
-function unique<T extends { id: string }>(items: T[]): T[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.id)) return false;
-    seen.add(item.id);
-    return true;
-  });
-}
-
 /* ------------------------------------------------------------------ page */
 
 interface PageProps {
@@ -144,16 +136,25 @@ export default async function StudentListPage(props: PageProps) {
 
   const [studentsResponse, institutions] = await Promise.all([
     listStudents(filters),
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
   ]);
 
-  const grades = unique(
-    institutions
-      .flatMap(
-        (inst) => (inst as unknown as { grades?: { id: string; name: string }[] }).grades ?? [],
-      )
-      .map((g) => ({ id: g.id, name: g.name })),
-  );
+  // Grade filter options.
+  //
+  // This previously read `inst.grades` through an `as unknown as { grades?: … }`
+  // cast. `GET /api/v1/institutions` does not return a `grades` key — its objects
+  // carry only id/name/code/status/area/contact/type fields — so the expression was
+  // always `[]` and the cast is what stopped the compiler from saying so. Removing
+  // the cast keeps the behaviour identical and makes the gap visible in the types.
+  //
+  // Grades are exposed per institution at `/institutions/{id}/grades`
+  // (`listInstitutionGrades`). Deriving options from it is deliberately NOT done
+  // here: it is one request per institution, and against the current data every one
+  // returns zero rows, so an N+1 would buy nothing. Wire it up together with a
+  // tenant-wide grades endpoint, or once the seed actually populates grades —
+  // the demo tenant currently has 1 grade for 3,000 students, which is why the
+  // Grade/Section columns render "—".
+  const grades: { id: string; name: string }[] = [];
 
   const totalAll = studentsResponse.meta.totalItems;
 

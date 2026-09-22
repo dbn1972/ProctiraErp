@@ -19,11 +19,12 @@ import {
 import { listInstitutions } from '@/lib/api/institutions';
 
 import { AttendanceReportFilters } from '../_components/attendance-report-filters';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AttendanceReportsPage() {
-  const institutions = await listInstitutions({ pageSize: 200 });
+  const institutions = await listInstitutions({ pageSize: MAX_API_PAGE_SIZE });
 
   return (
     <section aria-labelledby="reports-heading" className="space-y-6">

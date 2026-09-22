@@ -5,6 +5,7 @@
  * FR-LMS-001…015, FR-PAL-001…015.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { MAX_API_PAGE_SIZE } from './pagination';
 
 export type LmsScope = 'board' | 'school';
 export type AssignmentKind = 'assignment' | 'homework' | 'quiz';
@@ -268,7 +269,7 @@ export async function listSkills(
   filter: { scope?: LmsScope; institutionId?: string; boardId?: string; subject?: string } = {},
 ): Promise<LmsSkill[]> {
   const result = await gatewayFetch<{ data: LmsSkill[] }>(
-    `/lms/skills${toQuery({ ...filter, pageSize: 200 })}`,
+    `/lms/skills${toQuery({ ...filter, pageSize: MAX_API_PAGE_SIZE })}`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];

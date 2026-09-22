@@ -16,6 +16,7 @@ import { KpiCard } from '../_components/kpi-card';
 import { ScopePill } from '../_components/badges';
 import { NewSkillForm } from '../_components/new-skill-form';
 import { PalLookup } from '../_components/pal-lookup';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export default async function SpiralPalPage() {
       data: [],
       meta: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
     })),
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listGradebookBoards(),
   ]);
 
