@@ -151,6 +151,10 @@ operational risk beyond conformance: a stuck DLQ has no recovery path today, and
   `/api/v1/billing/{plans,subscriptions/*,entitlements/check,usage/*}`.
 - **Revision 3 graded only half of Configuration.** Table 2's other example is
   `/api/v1/install/*`, and `install` is parked with no `install_*` tables. Now defect 9.
+- Revision 2's "`roles` (34 files, no prefix)" was also wrong — `/tenant/roles`,
+  `/tenant/permissions`, `/tenant/users` and `/tenant/users/:userId/roles` exist in
+  `roles-routes.ts`, alongside `/scim/v2/{Users,Groups}`. Superseded by the
+  "Users, groups, roles" row rather than silently dropped.
 - **Revision 3's V7a flag, withdrawn.** I claimed V7's 22-table count came from the same
   name-matching method that got `org-units` wrong. It did not: V7 resolved each name
   individually with `to_regclass`, and its body already separates capability-exists from
