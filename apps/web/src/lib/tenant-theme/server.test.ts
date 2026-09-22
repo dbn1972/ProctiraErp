@@ -191,7 +191,15 @@ describe('PUBLISHED_THEME_PATH — endpoint contract', () => {
   });
 });
 
-describe('fetchPublishedThemeFromGateway — published tokens → Brand', () => {
+/**
+ * These cases stub `fetch`, so they prove the mapping, not that SSR branding works.
+ * It does not: no backend package serves `PUBLISHED_THEME_PATH`, so the real fetcher
+ * gets a 404 and the SSR head renders DEFAULT_BRAND on every request. See the doc
+ * comment on `PUBLISHED_THEME_PATH`. The mapping is asserted here anyway because this
+ * module keeps its own copy of `normalizeBrandResponse`, and an untested copy is how
+ * the two drift apart.
+ */
+describe('fetchPublishedThemeFromGateway — published tokens → Brand (mapping only)', () => {
   beforeEach(() => {
     clearSSRThemeCache();
     vi.unstubAllGlobals();

@@ -434,6 +434,12 @@ export async function defaultBrandFetcher(): Promise<Brand> {
       headers: { Accept: 'application/json' },
     });
     if (!response.ok) return DEFAULT_BRAND;
+    // 204 is the route's answer for an anonymous visitor: no tenant context, so no
+    // branding to resolve. It satisfies `response.ok`, so without this branch the
+    // empty body reaches `response.json()`, throws, and lands in the catch below —
+    // the right brand for the wrong reason, and a parse error on every public page if
+    // anyone ever narrows that catch.
+    if (response.status === 204) return DEFAULT_BRAND;
     const payload = (await response.json()) as unknown;
     return normalizeBrandResponse(payload);
   } catch {

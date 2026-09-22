@@ -138,7 +138,22 @@ function normalizeBrandResponse(payload: unknown): Brand {
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-/** The Theme Service published-theme endpoint (relative to the gateway). */
+/**
+ * The Theme Service published-theme endpoint (relative to the gateway).
+ *
+ * **No backend package currently serves this path.** The tenant service registers
+ * `/tenant/branding` (and `/tenant/branding/active`), not `/tenant/theme/published`, so
+ * `fetchPublishedThemeFromGateway` gets a 404 and `getPublishedTenantTheme` returns
+ * `DEFAULT_BRAND` on every request — the SSR `<style data-tenant-theme>` block is
+ * always the platform baseline today, whatever a tenant has published.
+ *
+ * Repointing it at `/tenant/branding` is not a one-line change: that endpoint resolves
+ * the tenant from a verified JWT, and this fetcher runs before authentication with a
+ * slug in `X-Tenant-ID` and no Authorization header. Closing it needs either a public
+ * slug-addressed branding endpoint or a server-side credential. Tracked separately;
+ * the client-side path (`/api/v1/tenant/branding` via BrandConfigProvider) does work,
+ * so branding applies after hydration rather than on first paint.
+ */
 export const PUBLISHED_THEME_PATH = '/api/v1/tenant/theme/published';
 
 /** TTL for the SSR-side tenant-theme cache (60 seconds). */

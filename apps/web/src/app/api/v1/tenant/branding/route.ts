@@ -22,10 +22,11 @@
  * provider runs on public pages where no bearer token exists. Proxying here keeps the
  * cookie-based contract and lets the server exchange it for the gateway call.
  *
- * Unauthenticated requests get 204 rather than 401: the provider treats any non-ok
- * status as "use the default", and a 401 on every public page would be misleading
- * noise in logs and in the browser console. 204 says "no tenant branding applies
- * here", which is the truth for an anonymous visitor.
+ * Unauthenticated requests get 204 rather than 401: a 401 on every public page would
+ * be misleading noise in logs and in the browser console, and 204 says "no tenant
+ * branding applies here", which is the truth for an anonymous visitor. Note that 204
+ * satisfies `response.ok`, so it is *not* handled by the provider's non-ok fallback —
+ * `defaultBrandFetcher` has an explicit 204 branch for it.
  *
  * ## Tenant resolution
  *
@@ -87,6 +88,10 @@ export async function GET(): Promise<Response> {
     // the difference between "the gateway is down" and "branding is misconfigured"
     // and nothing else in the request will say which.
     const cause = error instanceof Error ? (error.cause as Error | undefined) : undefined;
+    // console rather than a logger: this is a server-side route handler, apps/web has
+    // no logger of its own, and pulling @proctira/logging into a Next app for one line
+    // is heavier than the line is worth. stdout is what the pod collects.
+    // eslint-disable-next-line no-console
     console.error(
       `[api/v1/tenant/branding] upstream request to ${GATEWAY_BASE_URL} failed:`,
       error instanceof Error ? error.message : error,

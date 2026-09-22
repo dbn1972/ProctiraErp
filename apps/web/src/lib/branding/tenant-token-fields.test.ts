@@ -1,16 +1,22 @@
 /**
- * @vitest-environment node
- *
  * Published tenant tokens → brand fields, and the two bugs that mapping fixes.
  *
  * Both normalizers (`BrandConfigProvider.normalizeBrandResponse` and the server-side
  * copy in `lib/tenant-theme/server.ts`) are asserted here against the payload the
  * gateway really sends, because the gap between "the request succeeded" and "the brand
  * changed" is exactly where this defect lived.
+ *
+ * Runs in the project default jsdom environment rather than node: `defaultBrandFetcher`
+ * short-circuits to DEFAULT_BRAND unless `window` and `document` exist, so a node
+ * environment would make its cases pass without reaching the fetch at all.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { normalizeBrandResponse, DEFAULT_BRAND } from '@/providers/BrandConfigProvider';
+import {
+  DEFAULT_BRAND,
+  defaultBrandFetcher,
+  normalizeBrandResponse,
+} from '@/providers/BrandConfigProvider';
 
 import { extractPublishedTokens, tenantTokensToBrandFields } from './tenant-token-fields';
 
@@ -129,5 +135,42 @@ describe('normalizeBrandResponse with a published-theme payload', () => {
   it('returns the default brand for an empty payload', () => {
     expect(normalizeBrandResponse({})).toEqual(DEFAULT_BRAND);
     expect(normalizeBrandResponse(null)).toEqual(DEFAULT_BRAND);
+  });
+});
+
+describe('defaultBrandFetcher', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('treats the route’s 204 for an anonymous visitor as the default brand', async () => {
+    // 204 satisfies `response.ok`, so it is not covered by the non-ok fallback. Without
+    // an explicit branch the empty body reaches `response.json()` and throws into the
+    // catch-all — the right answer by accident, and the one path with no test.
+    const response = new Response(null, { status: 204 });
+    const jsonSpy = vi.spyOn(response, 'json');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
+
+    await expect(defaultBrandFetcher()).resolves.toEqual(DEFAULT_BRAND);
+    // Asserting the brand alone would pass either way, since a thrown parse error also
+    // lands on DEFAULT_BRAND. What distinguishes the explicit branch from the accident
+    // is that the empty body is never parsed at all.
+    expect(jsonSpy).not.toHaveBeenCalled();
+  });
+
+  it('applies published tokens from a 200', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(GATEWAY_PAYLOAD), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+
+    const brand = await defaultBrandFetcher();
+    expect(brand.primary_color).toBe('hsl(12, 76%, 41%)');
+    expect(brand.shortName).toBe('eduzo');
   });
 });
