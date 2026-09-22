@@ -23,6 +23,7 @@ import { listClassesByInstitution } from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
 
 import { AttendanceMarkingForm } from './_components/attendance-marking-form';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +50,7 @@ export default async function AttendancePage(props: PageProps) {
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
   const [institutions, classes, academicPeriods, roster, publishedPeriods] = await Promise.all([
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     institutionId
       ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
       : Promise.resolve<ClassSection[]>([]),

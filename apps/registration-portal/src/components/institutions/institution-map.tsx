@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Search, School, MapPin, Layers } from 'lucide-react';
 import { getInstitutions, type InstitutionFilters, type InstitutionLocation } from '@/lib/api';
 import { institutionTypeToApplySlug } from '@/lib/validation';
+import { MAX_PUBLIC_PAGE_SIZE } from '@/lib/pagination';
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import('./map-view').then((mod) => mod.MapView), {
@@ -65,7 +66,7 @@ export function InstitutionMap({
     async function load() {
       setLoading(true);
       try {
-        const result = await getInstitutions({ ...filters, pageSize: 200 });
+        const result = await getInstitutions({ ...filters, pageSize: MAX_PUBLIC_PAGE_SIZE });
         if (!cancelled) {
           setInstitutions(result.data);
           setLoadError(false);

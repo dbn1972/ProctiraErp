@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils';
 import { StaffListFilters as Filters } from './_components/staff-list-filters';
 import { StaffListPagination } from './_components/staff-list-pagination';
 import { StaffTypeTabs } from './_components/staff-type-tabs';
+import { clampPageSize, MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -284,14 +285,13 @@ export default async function StaffListPage(props: PageProps) {
   const position = readStr(searchParams, 'position');
   const status = readStr(searchParams, 'status', 'ALL');
   const type = (readStr(searchParams, 'type', 'ALL') || 'ALL') as
-    | 'ALL'
-    | 'TEACHING'
-    | 'NON_TEACHING'
-    | 'ON_LEAVE';
+    'ALL' | 'TEACHING' | 'NON_TEACHING' | 'ON_LEAVE';
 
   const filters: StaffListFilters = {
     page: readNum(searchParams, 'page', 1),
-    pageSize: readNum(searchParams, 'pageSize', 20),
+    // Clamped: this is URL-driven, so /staff?pageSize=500 would otherwise reach the
+    // gateway, earn a 400, and render as an empty table claiming zero staff.
+    pageSize: clampPageSize(readNum(searchParams, 'pageSize', 20)),
     sortBy: 'lastName',
     sortOrder: 'asc',
   };
@@ -302,7 +302,7 @@ export default async function StaffListPage(props: PageProps) {
 
   const [staffResponse, institutions] = await Promise.all([
     listStaff(filters),
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
   ]);
 
   const totalAll = staffResponse.meta.totalItems;

@@ -20,6 +20,7 @@ import { listAreas, listInstitutions } from '@/lib/api/institutions';
 import { getStudent, getStudentEnrollments } from '@/lib/api/students';
 
 import { EnrollForm } from './_components/enroll-form';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export default async function StudentEnrollPage(props: PageProps) {
   const [student, enrollments, institutions, areas] = await Promise.all([
     getStudent(studentId),
     getStudentEnrollments(studentId),
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listAreas(),
   ]);
 

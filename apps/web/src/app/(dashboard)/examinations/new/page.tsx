@@ -10,12 +10,13 @@ import { listInstitutions } from '@/lib/api/institutions';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 
 import { NewExaminationForm } from './new-examination-form';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewExaminationPage() {
   const [institutions, periods] = await Promise.all([
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listAcademicPeriods().catch(() => []),
   ]);
 

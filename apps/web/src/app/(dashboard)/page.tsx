@@ -17,7 +17,7 @@ import {
 import { DocumentTitle } from '@/components/DocumentTitle';
 import { RoleDashboardPanel } from '@/app/(dashboard)/reports/_components/role-dashboard-panel';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
-import { listInstitutions } from '@/lib/api/institutions';
+import { listInstitutionsPage } from '@/lib/api/institutions';
 import { getRoleDashboard } from '@/lib/api/reports';
 import { listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
@@ -43,7 +43,7 @@ export default async function DashboardPage() {
 
   const [institutions, students, staff, periods, approvals, roleDashboardResult] =
     await Promise.all([
-      listInstitutions({ pageSize: 200 }).catch(() => null),
+      listInstitutionsPage({ pageSize: 1 }).catch(() => null),
       listStudents({ pageSize: 1 }).catch(() => null),
       listStaff({ pageSize: 1 }).catch(() => null),
       listAcademicPeriods().catch(() => null as AcademicPeriod[] | null),
@@ -84,7 +84,7 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Institutions"
-          value={institutions ? formatCount(institutions.length) : null}
+          value={institutions ? formatCount(institutions.totalItems) : null}
           icon={<School className="h-4 w-4" aria-hidden="true" />}
           iconClass="bg-[var(--color-primary-50)] text-[var(--color-primary-600)]"
           href="/institutions"

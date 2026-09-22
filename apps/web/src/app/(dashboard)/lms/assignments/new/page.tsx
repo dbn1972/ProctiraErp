@@ -12,6 +12,7 @@ import { listInstitutions } from '@/lib/api/institutions';
 import { listBankQuestions, listSkills } from '@/lib/api/lms';
 
 import { NewAssignmentForm } from '../../_components/new-assignment-form';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ export default async function NewAssignmentPage({
 
   const [t, institutions, boardsResult, skills, bankItems] = await Promise.all([
     getTranslations('lms'),
-    listInstitutions({ pageSize: 200 }),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
     listGradebookBoards(),
     listSkills(),
     listBankQuestions(),

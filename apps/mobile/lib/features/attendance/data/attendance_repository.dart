@@ -4,6 +4,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/api/pagination.dart';
 import '../../../core/storage/cache_crypto.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/sync/sync_engine.dart';
@@ -83,9 +84,16 @@ class AttendanceRepository {
 
     if (rows.isEmpty && _studentApi != null) {
       try {
+        // pageSize must not exceed the gateway ceiling. A root-level preHandler in
+        // apps/api-gateway/src/plugins/pagination-cap.ts validates page/pageSize on
+        // every GET against PAGINATION_DEFAULTS.MAX_PAGE_SIZE (100) and rejects
+        // anything larger with 400 VALIDATION_ERROR. This asked for 200, so the
+        // request always failed — and because the `on ApiException` below swallows
+        // it, the offline roster cache never seeded and the attendance screen showed
+        // an empty roster it attributed to an empty cache.
         final List<Student> remote = await _studentApi.listStudents(
           institutionId: institutionId,
-          pageSize: 200,
+          pageSize: kMaxApiPageSize,
         );
         if (remote.isNotEmpty) {
           await db.transaction((Transaction txn) async {
