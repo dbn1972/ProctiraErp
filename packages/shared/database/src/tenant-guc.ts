@@ -14,14 +14,14 @@
  */
 
 /** Canonical Postgres GUC used by raw-SQL RLS policies. */
-export const APP_TENANT_ID_GUC = 'app.tenant_id' as const;
+export const APP_TENANT_ID_GUC = 'app.tenant_id';
 
 /**
  * Legacy Prisma-era GUC. Kept in sync by {@link bindTenantGuc} so historical
  * policies that still read this name continue to work. New policies must use
  * `app.tenant_id` or `app_tenant_id()`.
  */
-export const APP_TENANT_ID_LEGACY_GUC = 'app.current_tenant_id' as const;
+export const APP_TENANT_ID_LEGACY_GUC = 'app.current_tenant_id';
 
 /**
  * Single-statement bind used by every sanctioned helper.

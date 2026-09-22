@@ -4,10 +4,10 @@
  * based on install-time configuration.
  */
 
-import type { QueueAdapter, QueueAdapterConfig } from './types';
 import { KafkaAdapter } from './adapters/kafka-adapter';
 import { RabbitMQAdapter } from './adapters/rabbitmq-adapter';
 import { SQSAdapter } from './adapters/sqs-adapter';
+import type { QueueAdapter, QueueAdapterConfig } from './types';
 
 /**
  * Creates a QueueAdapter instance based on the provided configuration.
@@ -65,8 +65,11 @@ export function createQueueAdapter(config: QueueAdapterConfig): QueueAdapter {
     }
 
     default: {
+      // Compile-time exhaustiveness guard. `String(...)` because a `never` cannot
+      // be interpolated directly, yet at runtime this holds whatever unexpected
+      // value actually arrived and that value is what makes the error useful.
       const exhaustiveCheck: never = config.backend;
-      throw new Error(`Unsupported queue backend: "${exhaustiveCheck}"`);
+      throw new Error(`Unsupported queue backend: "${String(exhaustiveCheck)}"`);
     }
   }
 }
@@ -194,6 +197,6 @@ export function createQueueAdapterFromEnv(): QueueAdapter {
     }
 
     default:
-      throw new Error(`Unsupported QUEUE_BACKEND value: "${backend}"`);
+      throw new Error(`Unsupported QUEUE_BACKEND value: "${String(backend)}"`);
   }
 }

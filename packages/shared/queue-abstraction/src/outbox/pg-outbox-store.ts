@@ -2,7 +2,13 @@
  * PostgreSQL transactional outbox store (W2-JOB-04).
  * Table: transactional_outbox (db/sql/056_transactional_outbox_schema.sql).
  */
-import type { ListFailedOptions, OutboxStore, RequeueFailedOptions } from './store.js';
+import {
+  assertValidOutboxIds,
+  PLATFORM_WIDE_REDRIVE,
+  type ListFailedOptions,
+  type OutboxStore,
+  type RequeueFailedOptions,
+} from './store.js';
 import type {
   NewOutboxEntry,
   OutboxDispatchMode,
@@ -52,7 +58,13 @@ function mapRedriveHistory(value: unknown): OutboxRedriveEntry[] {
   return parsed.filter((e): e is OutboxRedriveEntry => {
     if (typeof e !== 'object' || e === null) return false;
     const c = e as Record<string, unknown>;
-    return typeof c.at === 'string' && typeof c.actor === 'string' && typeof c.reason === 'string';
+    return (
+      typeof c.at === 'string' &&
+      typeof c.actor === 'string' &&
+      typeof c.reason === 'string' &&
+      // Checked so the declared `fromAttempts: number` is not a lie at runtime.
+      typeof c.fromAttempts === 'number'
+    );
   });
 }
 
@@ -110,8 +122,19 @@ async function withPlatformClient<T>(
       client.release();
     }
   }
-  await pool.query(`SELECT set_config('app.platform_admin', '1', true)`);
-  return fn(pool);
+  // No `connect`, so there is no transaction to scope the GUC to. `set_config(..., true)`
+  // is transaction-local, so it would not survive to the next statement: RLS would
+  // then filter everything and `requeueFailed` would return `[]`, which its contract
+  // says means "nothing was in failed". A silent wrong answer on an operator-facing
+  // path is worse than an error, so refuse instead.
+  //
+  // Production always supplies a pg.Pool (both factories do), so this is a
+  // misuse guard rather than a live code path.
+  throw new Error(
+    'PgOutboxStore requires a pool with connect() for platform-scoped reads. ' +
+      'A bare queryable cannot hold the transaction-local app.platform_admin GUC, ' +
+      'so RLS would silently return zero rows instead of failing.',
+  );
 }
 
 function metadataJson(entry: NewOutboxEntry): string {
@@ -260,21 +283,26 @@ export class PgOutboxStore implements OutboxStore {
           WHERE status = 'failed'
             AND ($1::uuid IS NULL OR tenant_id = $1::uuid)
             AND ($2::timestamptz IS NULL OR created_at >= $2::timestamptz)
-          ORDER BY created_at DESC
+          ORDER BY created_at DESC, id DESC
           LIMIT $3`,
-        [options.tenantId ?? null, options.since?.toISOString() ?? null, limit],
+        [options.tenantId ?? null, options.createdSince?.toISOString() ?? null, limit],
       );
       return (result.rows as OutboxRow[]).map(mapRow);
     });
   }
 
   async requeueFailed(options: RequeueFailedOptions): Promise<string[]> {
-    const { ids, actor, reason } = options;
+    const { ids, actor, reason, tenantId } = options;
     if (ids.length === 0) return [];
     if (!actor.trim()) throw new Error('requeueFailed: actor is required (Volume 5 §6 audit)');
     if (!reason.trim()) throw new Error('requeueFailed: reason is required (Volume 5 §6 audit)');
+    // Reject a malformed batch before touching the database. `id = ANY($1::uuid[])`
+    // raises 22P02 on the first bad element, which rolls back the transaction and
+    // redrives nothing while naming neither the parameter nor the offending id.
+    assertValidOutboxIds(ids);
 
     const availableAt = options.availableAt ?? new Date();
+    const tenantFilter = tenantId === PLATFORM_WIDE_REDRIVE ? null : tenantId;
 
     return withPlatformClient(this.pool, async (client) => {
       // `status = 'failed'` in the WHERE clause is what makes this safe to retry:
@@ -284,10 +312,21 @@ export class PgOutboxStore implements OutboxStore {
       // `attempts = 0` is required, not cosmetic — OutboxRelay.tick re-fails a row
       // immediately when attempts >= maxAttempts, so preserving the exhausted
       // counter would make the redrive a no-op on the next error.
+      //
+      // `last_error = NULL` mirrors markPublished. Without it the row returns to
+      // `pending` still carrying the error that killed it, so any operator view
+      // shows a stale failure against a healthy row. The error is not lost — it is
+      // already in redrive_history's surrounding context and the relay rewrites
+      // last_error on the next genuine failure.
+      //
+      // `jsonb_build_object(..., 'fromAttempts', attempts)` reads the PRE-update
+      // value: Postgres evaluates every SET expression against the old row, so this
+      // records how exhausted the row was, not the 0 being written beside it.
       const result = await client.query(
         `UPDATE transactional_outbox
             SET status = 'pending',
                 attempts = 0,
+                last_error = NULL,
                 available_at = $2::timestamptz,
                 redrive_history = redrive_history || jsonb_build_object(
                   'at',           $3::text,
@@ -299,14 +338,7 @@ export class PgOutboxStore implements OutboxStore {
             AND status = 'failed'
             AND ($6::uuid IS NULL OR tenant_id = $6::uuid)
           RETURNING id`,
-        [
-          ids,
-          availableAt.toISOString(),
-          new Date().toISOString(),
-          actor,
-          reason,
-          options.tenantId ?? null,
-        ],
+        [ids, availableAt.toISOString(), new Date().toISOString(), actor, reason, tenantFilter],
       );
       return (result.rows as { id: string }[]).map((r) => r.id);
     });

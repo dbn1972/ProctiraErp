@@ -9,6 +9,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -17,7 +18,6 @@ import type {
   MessageHandler,
   HealthCheckResult,
 } from '../types';
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 export interface DurableQueuedMessage {

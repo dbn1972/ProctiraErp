@@ -27,7 +27,7 @@ Ordered by leverage, not by size.
 
 | ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
 | --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V10 | 9 defects behind Table 2; 1a closed, 8 open         | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
+| V10 | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
 | V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
 | V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
 | V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
@@ -103,26 +103,33 @@ gateway.'` The queue operator surface is zero, not partial.
 
 ### What V10 now tracks
 
-| #   | Defect                                                                       | Kind              | Spec           | Fixable by an agent?                                        |
-| --- | ---------------------------------------------------------------------------- | ----------------- | -------------- | ----------------------------------------------------------- |
-| 1a  | Outbox `failed` was terminal — rows permanently unrecoverable                | absent capability | V5 §6          | **`FULLY_CLOSED`** — fix/V10-outbox-failed-requeue          |
-| 1b  | Broker DLQ (RabbitMQ DLX / SQS / Kafka) has no read or redrive               | absent capability | V5 §6          | Blocked — needs live brokers and an operator surface (V10d) |
-| 2   | Queue operator surface unreachable — `admin-dashboard` parked                | unmounted         | V3 §12, V5 §6  | Needs V10d: unpark, or rebuild under a live package         |
-| 3   | `slo_queue_lag_messages` never `.set()`; no Kafka/RabbitMQ exporter deployed | declared, unwired | V3 §12         | Yes                                                         |
-| 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path   | unenforced        | V4 §4, V5 §3   | Yes, but it is a security surface — needs review            |
-| 5   | `/areas` routes unmounted though `geographic_areas` is RBAC-consumed         | unmounted         | V4 Table 2     | Yes. `institutionPlugin` needs `areaHierarchyDb`.           |
-| 6   | Webhook deliveries have no producer; no event catalog or replay contract     | no producer       | V4 §8          | Partly — the catalog is a design decision                   |
-| 7   | Sandbox provisioning is a shell; no non-production credential issued         | shell             | V4 §11         | No — the repo already waived live key mint                  |
-| 8   | Plugins is a scaffold: no tables, no importers, parked, `/plugins` ui-seed   | shell             | V4 Table 2, V7 | No — marketplace runtime is deliberately deferred           |
-| 9   | `install` parked with no `install_*` tables — Configuration half-served      | parked            | V4 Table 2     | No — parked for a stated security reason; needs a ruling    |
+| #   | Defect                                                                       | Kind              | Spec           | Fixable by an agent?                                                |
+| --- | ---------------------------------------------------------------------------- | ----------------- | -------------- | ------------------------------------------------------------------- |
+| 1a  | Outbox `failed` was terminal — rows permanently unrecoverable                | absent capability | V5 §6          | **`PARTIAL`** (#365) — capability proved; no caller, no audit write |
+| 1b  | Broker DLQ (RabbitMQ DLX / SQS / Kafka) has no read or redrive               | absent capability | V5 §6          | Blocked — needs live brokers and an operator surface (V10d)         |
+| 2   | Queue operator surface unreachable — `admin-dashboard` parked                | unmounted         | V3 §12, V5 §6  | Needs V10d: unpark, or rebuild under a live package                 |
+| 3   | `slo_queue_lag_messages` never `.set()`; no Kafka/RabbitMQ exporter deployed | declared, unwired | V3 §12         | Yes                                                                 |
+| 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path   | unenforced        | V4 §4, V5 §3   | Yes, but it is a security surface — needs review                    |
+| 5   | `/areas` routes unmounted though `geographic_areas` is RBAC-consumed         | unmounted         | V4 Table 2     | Yes. `institutionPlugin` needs `areaHierarchyDb`.                   |
+| 6   | Webhook deliveries have no producer; no event catalog or replay contract     | no producer       | V4 §8          | Partly — the catalog is a design decision                           |
+| 7   | Sandbox provisioning is a shell; no non-production credential issued         | shell             | V4 §11         | No — the repo already waived live key mint                          |
+| 8   | Plugins is a scaffold: no tables, no importers, parked, `/plugins` ui-seed   | shell             | V4 Table 2, V7 | No — marketplace runtime is deliberately deferred                   |
+| 9   | `install` parked with no `install_*` tables — Configuration half-served      | parked            | V4 Table 2     | No — parked for a stated security reason; needs a ruling            |
 
 **Item 1 split into 1a and 1b after implementation.** The original entry conflated two
-sinks with different fix costs. 1a — the transactional outbox — was entirely in-repo and
-is closed. 1b — the brokers' own dead-letter queues — needs a live RabbitMQ/SQS/Kafka to
-verify against and somewhere to mount the operator action, so it stays blocked on V10d.
-Splitting rather than claiming item 1 closed, because "DLQ redrive exists" would be false.
+sinks with different fix costs. 1a — the transactional outbox — was entirely in-repo. 1b —
+the brokers' own dead-letter queues — needs a live RabbitMQ/SQS/Kafka to verify against
+and somewhere to mount the operator action, so it stays blocked on V10d. Splitting rather
+than claiming item 1 closed, because "DLQ redrive exists" would be false.
 
-**1a, what was wrong and what closed it.** `OutboxRelay.tick` calls
+**1a is `PARTIAL`, not closed.** The recovery capability exists and is proved live, but
+nothing calls it: `requeueFailed` and `listFailed` have zero callers repo-wide, there is
+no operator route (blocked on V10d), and the hash-chained audit entry is not written. An
+unreachable capability does not close a V5 §6 requirement that an operation be _audited_.
+An earlier version of this entry said `FULLY_CLOSED` while the conformance report in the
+same commit said "partly met" — caught in review, and `PARTIAL` is the consistent reading.
+
+**What was wrong and what the branch delivers.** `OutboxRelay.tick` calls
 `markFailed(id, err)` with no `availableAt` once `attempts >= maxAttempts`, which sets
 `status='failed'`; `claimPending` reads only `status='pending'`. Nothing moved a row
 back, so a permanently failed row was both invisible and unrecoverable while the domain

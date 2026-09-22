@@ -7,6 +7,7 @@
 import type { ChannelModel, Channel, ConsumeMessage, Options } from 'amqplib';
 import amqplib from 'amqplib';
 
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -16,7 +17,6 @@ import type {
   HealthCheckResult,
   RabbitMQAdapterConfig,
 } from '../types';
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 const DEFAULT_CONFIG: Partial<RabbitMQAdapterConfig> = {

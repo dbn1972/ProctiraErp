@@ -308,6 +308,14 @@ Split into two files because `CREATE INDEX CONCURRENTLY` cannot run inside a
 transaction. The first draft put a plain `CREATE INDEX` in `101` and **W1-DATA-17
 rejected it**, which is the gate working as intended.
 
+**Trap worth knowing.** `apply-sql.sh` `file_needs_no_tx()` greps the whole file text
+for the `CONCURRENTLY` keyword, **comments included**. An early version of `101`
+mentioned it in a prose comment, which silently stripped that file's per-file
+transaction and split it into three phases. The outcome happened to be correct because
+all three statements are idempotent, but the file's own header claimed it was
+transactional. If a migration must be transactional, do not name the keyword anywhere in
+it — not even in a comment.
+
 `102` is a non-txn file, so every statement is idempotent compensating-forward DDL. It
 opens by dropping a leftover **INVALID** index before rebuilding: an interrupted
 `CONCURRENTLY` build leaves an invalid index that `IF NOT EXISTS` would then skip

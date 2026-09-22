@@ -7,15 +7,31 @@ import type { NewOutboxEntry, OutboxQueryable, OutboxRecord } from './types.js';
 export interface ListFailedOptions {
   /**
    * Restrict to one tenant. Omitting it lists across tenants, which is a
-   * platform-operator action — callers exposing this must gate accordingly.
+   * platform-operator action — callers exposing this must gate accordingly. Note
+   * that `transactional_outbox` rows carry domain payloads, so an unscoped list is
+   * a cross-tenant payload read.
    */
   tenantId?: string;
   limit?: number;
-  /** Only rows created at or after this instant. */
-  since?: Date;
+  /**
+   * Only rows **created** at or after this instant.
+   *
+   * Deliberately not "failed since": the table has no failure timestamp, so that
+   * question cannot be answered today. Named `createdSince` to stop it being read
+   * as a failure-time filter.
+   */
+  createdSince?: Date;
 }
 
-/** Input for {@link OutboxStore.requeueFailed}. */
+/**
+ * Input for {@link OutboxStore.requeueFailed}.
+ *
+ * `tenantId` is **required**, and `PLATFORM_WIDE_REDRIVE` is the explicit opt-out.
+ * An optional field would have made the cross-tenant call the shorter one: the store
+ * runs redrive under `app.platform_admin='1'`, which fully bypasses the
+ * `tenant_isolation` policy on `transactional_outbox`, so a caller threading an
+ * `undefined` from a request context would silently get platform-wide write access.
+ */
 export interface RequeueFailedOptions {
   /** Rows to redrive. Only rows currently in `failed` are affected. */
   ids: string[];
@@ -24,13 +40,49 @@ export interface RequeueFailedOptions {
   /** Why. Recorded in `redrive_history`. */
   reason: string;
   /**
-   * Restrict the redrive to one tenant. A cross-tenant id list is silently
-   * narrowed rather than partially applied, so an operator scoped to one tenant
-   * cannot redrive another's rows by passing their ids.
+   * Tenant whose rows may be redriven, or {@link PLATFORM_WIDE_REDRIVE} to act
+   * across every tenant. A cross-tenant id list is narrowed rather than partially
+   * applied, so an operator scoped to one tenant cannot redrive another's rows by
+   * passing their ids.
    */
-  tenantId?: string;
+  tenantId: string | typeof PLATFORM_WIDE_REDRIVE;
   /** When the requeued rows become claimable. Default: now. */
   availableAt?: Date;
+}
+
+/**
+ * Explicit opt-in to a cross-tenant redrive. Spelled out so it is visible in a
+ * call site and in review, rather than being the consequence of an omitted field.
+ */
+export const PLATFORM_WIDE_REDRIVE = Symbol.for('proctira.outbox.platformWideRedrive');
+
+/** Thrown when an id in a redrive batch is not a UUID. */
+export class InvalidOutboxIdError extends Error {
+  constructor(readonly invalidIds: string[]) {
+    super(
+      `requeueFailed: not valid UUIDs: ${invalidIds.join(', ')}. ` +
+        'No rows were redriven. Postgres would abort the whole batch on the first ' +
+        'malformed id, so the batch is rejected up front with the ids named.',
+    );
+    this.name = 'InvalidOutboxIdError';
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Reject a batch containing a non-UUID id.
+ *
+ * Shared by both stores so they cannot diverge. Without this, `PgOutboxStore` raises
+ * a bare `22P02 invalid input syntax for type uuid` from `id = ANY($1::uuid[])`,
+ * rolls back, and redrives *nothing* — naming neither the parameter nor which id was
+ * bad — while `InMemoryOutboxStore` skipped unknown ids and reported partial success.
+ * Two different contracts for the same interface, with the tests exercising the
+ * lenient one.
+ */
+export function assertValidOutboxIds(ids: readonly string[]): void {
+  const invalid = ids.filter((id) => !UUID_RE.test(id));
+  if (invalid.length > 0) throw new InvalidOutboxIdError(invalid);
 }
 
 export interface OutboxStore {

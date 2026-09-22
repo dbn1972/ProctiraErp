@@ -367,7 +367,7 @@ Revision 2 attributed `packages/backend/tenant/src/tenant-settings.ts` to
 
 | #   | Defect                                                                     | Kind              | Spec               |
 | --- | -------------------------------------------------------------------------- | ----------------- | ------------------ |
-| 1a  | Outbox `failed` was terminal — rows unrecoverable (**closed**, #365)       | absent capability | V5 §6              |
+| 1a  | Outbox `failed` was terminal (**capability added #365, no caller yet**)    | absent capability | V5 §6              |
 | 1b  | Broker DLQ (RabbitMQ DLX / SQS / Kafka) has no read or redrive             | absent capability | V5 §6              |
 | 2   | Queue operator surface unreachable (`admin-dashboard` parked)              | unmounted         | V3 §12, V5 §6      |
 | 3   | `slo_queue_lag_messages` never set; no Kafka/RabbitMQ exporter deployed    | declared, unwired | V3 §12             |
@@ -379,7 +379,9 @@ Revision 2 attributed `packages/backend/tenant/src/tenant-settings.ts` to
 | 9   | `install` parked with no `install_*` tables — Configuration half-served    | parked            | V4 Table 2, V5 §6  |
 
 Item 1 was the only true absence and was split in two on implementation. **1a, the
-transactional outbox, is closed** — `OutboxStore.listFailed` / `requeueFailed` plus
+transactional outbox, is `PARTIAL`** — the recovery capability exists and is proved, but
+it has no caller, no operator route, and no hash-chained audit write, so V5 §6 is not met
+end to end. Built from `OutboxStore.listFailed` / `requeueFailed` plus
 `db/sql/101_outbox_redrive.sql` and `102_outbox_failed_index.sql`, proved live against
 PostgreSQL and with the reverse direction proved by dropping the column. **1b, the
 brokers' own dead-letter queues, remains open**: it needs a live RabbitMQ/SQS/Kafka to

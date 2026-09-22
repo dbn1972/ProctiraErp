@@ -7,6 +7,7 @@
 import type { Producer, Consumer, EachMessagePayload, SASLOptions } from 'kafkajs';
 import { Kafka } from 'kafkajs';
 
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -16,7 +17,6 @@ import type {
   HealthCheckResult,
   KafkaAdapterConfig,
 } from '../types';
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 const DEFAULT_CONFIG: Partial<KafkaAdapterConfig> = {

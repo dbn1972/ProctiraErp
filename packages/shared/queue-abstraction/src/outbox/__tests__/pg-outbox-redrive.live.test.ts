@@ -12,7 +12,8 @@ import { Pool } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PgOutboxStore } from '../pg-outbox-store.js';
-import type { NewOutboxEntry } from '../types.js';
+import { InvalidOutboxIdError, PLATFORM_WIDE_REDRIVE } from '../store.js';
+import type { NewOutboxEntry, OutboxRecord } from '../types.js';
 
 const CONNECTION = process.env['OUTBOX_LIVE_DATABASE_URL'] ?? process.env['DATABASE_URL'] ?? '';
 const describeLive = CONNECTION ? describe : describe.skip;
@@ -75,6 +76,49 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     await pool.end();
   });
 
+  /**
+   * Read one row by id under platform scope.
+   *
+   * Deliberately NOT `claimPending(50)`. That is platform-scoped and unfiltered, so it
+   * increments `attempts` on up to 50 arbitrary rows belonging to other tenants and
+   * other suites without ever publishing them, and it flakes the moment the database
+   * holds 50 other due pending rows — the probe row is newest by `created_at` while
+   * the claim order is ASC. An earlier version of this file used it and was both
+   * destructive and order-dependent.
+   */
+  async function readRow(id: string): Promise<OutboxRecord | undefined> {
+    const client = await pool.connect();
+    try {
+      await client.query(`SELECT set_config('app.platform_admin', '1', false)`);
+      const res = await client.query(
+        `SELECT status, attempts, last_error, redrive_history
+           FROM transactional_outbox WHERE id = $1`,
+        [id],
+      );
+      const row = res.rows[0] as
+        | {
+            status: string;
+            attempts: number;
+            last_error: string | null;
+            redrive_history: unknown;
+          }
+        | undefined;
+      if (!row) return undefined;
+      const history =
+        typeof row.redrive_history === 'string'
+          ? JSON.parse(row.redrive_history)
+          : row.redrive_history;
+      return {
+        status: row.status,
+        attempts: row.attempts,
+        lastError: row.last_error ?? undefined,
+        redriveHistory: history,
+      } as unknown as OutboxRecord;
+    } finally {
+      client.release();
+    }
+  }
+
   async function seedFailed(id: string, tenantId = TENANT_A, attempts = 7): Promise<void> {
     createdIds.push(id);
     await store.enqueue(entry(id, tenantId));
@@ -95,10 +139,10 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     const id = '44444444-4444-4444-8444-000000000001';
     await seedFailed(id);
 
-    // This is the defect: claimPending filters status='pending', so the row is
-    // permanently unreachable by the relay.
-    const claimed = await store.claimPending(50);
-    expect(claimed.map((r) => r.id)).not.toContain(id);
+    // This is the defect: claimPending filters status='pending', so the row stays
+    // out of reach of the relay. Asserted on the row itself rather than by claiming a
+    // batch, so this test does not mutate other suites' rows.
+    expect((await readRow(id))?.status).toBe('failed');
 
     const failed = await store.listFailed({ tenantId: TENANT_A });
     expect(failed.map((r) => r.id)).toContain(id);
@@ -116,15 +160,17 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     });
     expect(requeued).toEqual([id]);
 
-    const pending = await store.claimPending(50);
-    const row = pending.find((r) => r.id === id);
-    expect(row).toBeDefined();
-    // claimPending increments, so 0 -> 1 proves the reset happened in SQL.
-    expect(row?.attempts).toBe(1);
+    const row = await readRow(id);
+    expect(row?.status).toBe('pending');
+    expect(row?.attempts).toBe(0);
+    // Mirrors markPublished: the error that killed the row must not survive.
+    expect(row?.lastError).toBeUndefined();
     expect(row?.redriveHistory).toHaveLength(1);
     expect(row?.redriveHistory[0]?.actor).toBe('ops@example.test');
     expect(row?.redriveHistory[0]?.reason).toBe('INC-101 broker recovered');
-    // fromAttempts is captured from the pre-update value by the UPDATE itself.
+    // The load-bearing assertion. Postgres evaluates SET expressions against the OLD
+    // row, so `jsonb_build_object(..., 'fromAttempts', attempts)` alongside
+    // `attempts = 0` records 9, not 0. This reads 0 if that ever stops being true.
     expect(row?.redriveHistory[0]?.fromAttempts).toBe(9);
   });
 
@@ -132,13 +178,12 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     const id = '44444444-4444-4444-8444-000000000003';
     await seedFailed(id, TENANT_A, 3);
 
-    await store.requeueFailed({ ids: [id], actor: 'first', reason: 'one' });
+    await store.requeueFailed({ ids: [id], actor: 'first', reason: 'one', tenantId: TENANT_A });
     // Put it back into failed to redrive a second time.
     await store.markFailed(id, 'failed again');
-    await store.requeueFailed({ ids: [id], actor: 'second', reason: 'two' });
+    await store.requeueFailed({ ids: [id], actor: 'second', reason: 'two', tenantId: TENANT_A });
 
-    const rows = await store.claimPending(50);
-    const row = rows.find((r) => r.id === id);
+    const row = await readRow(id);
     expect(row?.redriveHistory).toHaveLength(2);
     expect(row?.redriveHistory.map((h) => h.actor)).toEqual(['first', 'second']);
   });
@@ -165,8 +210,12 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     const id = '44444444-4444-4444-8444-000000000004';
     await seedFailed(id);
 
-    const first = await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r' });
-    const second = await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r' });
+    const first = await store.requeueFailed({
+      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+    });
+    const second = await store.requeueFailed({
+      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+    });
     expect(first).toEqual([id]);
     expect(second).toEqual([]);
   });
@@ -178,8 +227,79 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     expect(await store.listFailed({ tenantId: TENANT_A, limit: 1 })).toHaveLength(1);
     const future = await store.listFailed({
       tenantId: TENANT_A,
-      since: new Date(Date.now() + 3_600_000),
+      createdSince: new Date(Date.now() + 3_600_000),
     });
     expect(future).toHaveLength(0);
+  });
+
+  it('rejects a non-UUID id before touching the database', async () => {
+    // Without the up-front check, `id = ANY($1::uuid[])` raises 22P02, the
+    // withPlatformClient transaction rolls back, and NOTHING is redriven — with an
+    // error naming neither the parameter nor the offending id.
+    const id = '44444444-4444-4444-8444-000000000006';
+    await seedFailed(id);
+
+    await expect(
+      store.requeueFailed({
+        ids: [id, 'not-a-uuid'],
+        actor: 'ops',
+        reason: 'typo',
+        tenantId: TENANT_A,
+      }),
+    ).rejects.toThrow(InvalidOutboxIdError);
+
+    // The valid row is untouched, which is what Postgres would have done anyway —
+    // the point is that the caller now learns which id was wrong.
+    expect((await readRow(id))?.status).toBe('failed');
+  });
+
+  it('honours the explicit cross-tenant opt-in', async () => {
+    const idA = '44444444-4444-4444-8444-00000000000c';
+    const idB = '44444444-4444-4444-8444-00000000000d';
+    await seedFailed(idA, TENANT_A);
+    await seedFailed(idB, TENANT_B);
+
+    const requeued = await store.requeueFailed({
+      ids: [idA, idB],
+      actor: 'platform-ops',
+      reason: 'global outage',
+      tenantId: PLATFORM_WIDE_REDRIVE,
+    });
+    expect(requeued.sort()).toEqual([idA, idB].sort());
+  });
+
+  it('can serve a tenant-scoped failed list from the partial index', async () => {
+    // 102 exists to serve listFailed; without a check, a future change could drop it
+    // and nothing would notice.
+    //
+    // `enable_seqscan = off` is deliberate. On a small table the planner correctly
+    // prefers a sequential scan, so asserting the index appears in the default plan
+    // would fail for a reason that says nothing about the index — the first version
+    // of this test did exactly that. Forcing the choice tests what actually matters:
+    // that the partial index is *applicable* to this query shape, i.e. its predicate
+    // and column order match. If the index were dropped or its definition drifted,
+    // the planner would fall back to a different index or a seq scan even with
+    // seqscan disabled, and this fails.
+    const client = await pool.connect();
+    try {
+      // BEGIN is required, not decoration: `SET LOCAL` outside a transaction is a
+      // no-op for subsequent statements, so the first version of this test silently
+      // kept seqscan enabled and failed for the wrong reason. ROLLBACK also stops the
+      // setting leaking to the next borrower of this pooled connection.
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.platform_admin', '1', true)`);
+      await client.query('SET LOCAL enable_seqscan = off');
+      const res = await client.query(
+        `EXPLAIN (FORMAT JSON)
+         SELECT * FROM transactional_outbox
+          WHERE status = 'failed' AND tenant_id = $1::uuid
+          ORDER BY created_at DESC, id DESC LIMIT 100`,
+        [TENANT_A],
+      );
+      expect(JSON.stringify(res.rows[0])).toContain('transactional_outbox_failed_idx');
+      await client.query('ROLLBACK');
+    } finally {
+      client.release();
+    }
   });
 });

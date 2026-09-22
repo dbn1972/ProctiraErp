@@ -27,11 +27,17 @@
 -- ACCESS EXCLUSIVE only briefly. No index build, no constraint validation, no
 -- SET NOT NULL on an existing column.
 --
--- The supporting index lives in `102_outbox_failed_index.sql` because it must be
--- built CONCURRENTLY, which cannot run inside a transaction. Keeping this file
--- transactional and the index in its own non-txn file follows db/README.md
--- ("Prefer keeping CONCURRENTLY work in small dedicated files"). The first draft
--- of this migration had a plain CREATE INDEX here and W1-DATA-17 rejected it.
+-- The supporting index lives in `102_outbox_failed_index.sql`, which must build it
+-- without a wrapping transaction. Keeping this file transactional and the index in
+-- its own non-txn file follows db/README.md's guidance to keep such work in small
+-- dedicated files. The first draft of this migration built the index here and
+-- W1-DATA-17 rejected it.
+--
+-- Deliberately avoiding the C-word below: apply-sql.sh `file_needs_no_tx()` greps
+-- the whole file text, comments included, and an earlier version of this header
+-- mentioned it in prose. That silently dropped this file's per-file transaction and
+-- split it into three phases. Correct only by luck, since all three statements here
+-- happen to be idempotent. Do not reintroduce the keyword in a comment.
 
 ALTER TABLE transactional_outbox
   ADD COLUMN IF NOT EXISTS redrive_history JSONB NOT NULL DEFAULT '[]'::jsonb;

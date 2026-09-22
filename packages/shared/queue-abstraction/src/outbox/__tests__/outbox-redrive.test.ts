@@ -14,10 +14,13 @@ import { describe, expect, it, vi } from 'vitest';
 import type { QueueAdapter, QueueMessage } from '../../types.js';
 import { InMemoryOutboxStore } from '../in-memory-outbox-store.js';
 import { OutboxRelay } from '../relay.js';
+import { InvalidOutboxIdError, PLATFORM_WIDE_REDRIVE } from '../store.js';
 import type { NewOutboxEntry } from '../types.js';
 
 const TENANT_A = '11111111-1111-4111-8111-111111111111';
 const TENANT_B = '22222222-2222-4222-8222-222222222222';
+/** Well-formed uuid for tests that must fail validation on actor/reason, not on the id. */
+const VALID_ID = '00000000-0000-4000-8000-0000000000e1';
 
 function entry(overrides: Partial<NewOutboxEntry> = {}): NewOutboxEntry {
   return {
@@ -100,6 +103,7 @@ describe('outbox redrive (V10 defect 1)', () => {
       ids: [id],
       actor: 'ops@example.test',
       reason: 'broker outage resolved, incident INC-42',
+      tenantId: TENANT_A,
     });
     expect(requeued).toEqual([id]);
 
@@ -127,7 +131,7 @@ describe('outbox redrive (V10 defect 1)', () => {
     const exhausted = (await store.listFailed())[0];
     expect(exhausted?.attempts).toBeGreaterThanOrEqual(2);
 
-    await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'retry' });
+    await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'retry', tenantId: TENANT_A });
 
     const pending = (await store.listPending())[0];
     expect(pending?.attempts).toBe(0);
@@ -149,9 +153,9 @@ describe('outbox redrive (V10 defect 1)', () => {
     await store.enqueue(entry({ id }));
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
-    await store.requeueFailed({ ids: [id], actor: 'alice', reason: 'first attempt' });
+    await store.requeueFailed({ ids: [id], actor: 'alice', reason: 'first attempt', tenantId: TENANT_A });
     for (let i = 0; i < 3; i += 1) await relay.tick();
-    await store.requeueFailed({ ids: [id], actor: 'bob', reason: 'second attempt' });
+    await store.requeueFailed({ ids: [id], actor: 'bob', reason: 'second attempt', tenantId: TENANT_A });
 
     const history = (await store.listPending())[0]?.redriveHistory ?? [];
     expect(history).toHaveLength(2);
@@ -166,10 +170,10 @@ describe('outbox redrive (V10 defect 1)', () => {
   it('refuses an anonymous or unexplained redrive', async () => {
     const store = new InMemoryOutboxStore();
     await expect(
-      store.requeueFailed({ ids: ['x'], actor: '  ', reason: 'why' }),
+      store.requeueFailed({ ids: [VALID_ID], actor: '  ', reason: 'why', tenantId: TENANT_A }),
     ).rejects.toThrow(/actor is required/);
     await expect(
-      store.requeueFailed({ ids: ['x'], actor: 'ops', reason: '' }),
+      store.requeueFailed({ ids: [VALID_ID], actor: 'ops', reason: '', tenantId: TENANT_A }),
     ).rejects.toThrow(/reason is required/);
   });
 
@@ -207,9 +211,13 @@ describe('outbox redrive (V10 defect 1)', () => {
     await store.enqueue(entry({ id }));
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
-    const first = await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r' });
+    const first = await store.requeueFailed({
+      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+    });
     // Second call hits a row that is no longer `failed`, so it reports nothing moved.
-    const second = await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r' });
+    const second = await store.requeueFailed({
+      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+    });
     expect(first).toEqual([id]);
     expect(second).toEqual([]);
 
@@ -217,24 +225,112 @@ describe('outbox redrive (V10 defect 1)', () => {
     expect(queue.published).toHaveLength(1);
   });
 
-  it('reports a partial redrive instead of claiming success', async () => {
+  it('reports a partial redrive for unknown but well-formed ids', async () => {
     const store = new InMemoryOutboxStore();
     const queue = flakyQueue(Number.POSITIVE_INFINITY);
     const relay = new OutboxRelay({ store, queue, maxAttempts: 1, retryBackoffMs: 0 });
 
     const real = '00000000-0000-4000-8000-000000000006';
+    const absent = '00000000-0000-4000-8000-0000000000ff';
     await store.enqueue(entry({ id: real }));
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
     const requeued = await store.requeueFailed({
-      ids: [real, 'does-not-exist'],
+      ids: [real, absent],
       actor: 'ops',
       reason: 'mixed batch',
+      tenantId: TENANT_A,
     });
     expect(requeued).toEqual([real]);
   });
 
-  it('filters listFailed by tenant and time', async () => {
+  it('rejects a batch containing a non-UUID id, and redrives nothing', async () => {
+    // Regression guard for a real divergence. `PgOutboxStore` uses
+    // `id = ANY($1::uuid[])`, so one malformed element raises 22P02, rolls the
+    // transaction back and redrives NOTHING — while this store used to skip the bad
+    // id and report partial success. An earlier version of this suite asserted the
+    // lenient behaviour and so certified a contract Postgres does not honour.
+    // Both stores now reject the batch up front, naming the offending ids.
+    const store = new InMemoryOutboxStore();
+    const queue = flakyQueue(Number.POSITIVE_INFINITY);
+    const relay = new OutboxRelay({ store, queue, maxAttempts: 1, retryBackoffMs: 0 });
+
+    const real = '00000000-0000-4000-8000-00000000006a';
+    await store.enqueue(entry({ id: real }));
+    for (let i = 0; i < 3; i += 1) await relay.tick();
+
+    await expect(
+      store.requeueFailed({
+        ids: [real, 'does-not-exist'],
+        actor: 'ops',
+        reason: 'typo in batch',
+        tenantId: TENANT_A,
+      }),
+    ).rejects.toThrow(InvalidOutboxIdError);
+
+    // Crucially: the valid row was NOT redriven, matching Postgres's all-or-nothing
+    // behaviour rather than silently half-applying.
+    expect((await store.listFailed()).map((r) => r.id)).toContain(real);
+  });
+
+  it('requires an explicit opt-in for a cross-tenant redrive', async () => {
+    const store = new InMemoryOutboxStore();
+    const queue = flakyQueue(Number.POSITIVE_INFINITY);
+    const relay = new OutboxRelay({ store, queue, maxAttempts: 1, retryBackoffMs: 0 });
+
+    const idA = '00000000-0000-4000-8000-00000000007a';
+    const idB = '00000000-0000-4000-8000-00000000007b';
+    await store.enqueue(entry({ id: idA, tenantId: TENANT_A }));
+    await store.enqueue(entry({ id: idB, tenantId: TENANT_B }));
+    for (let i = 0; i < 3; i += 1) await relay.tick();
+
+    // PLATFORM_WIDE_REDRIVE is a symbol, so a caller cannot reach cross-tenant
+    // behaviour by omitting a field or threading through an `undefined`.
+    const requeued = await store.requeueFailed({
+      ids: [idA, idB],
+      actor: 'platform-ops',
+      reason: 'global broker outage',
+      tenantId: PLATFORM_WIDE_REDRIVE,
+    });
+    expect(requeued.sort()).toEqual([idA, idB].sort());
+  });
+
+  it('clears last_error so a requeued row does not show a stale failure', async () => {
+    const store = new InMemoryOutboxStore();
+    const queue = flakyQueue(Number.POSITIVE_INFINITY);
+    const relay = new OutboxRelay({ store, queue, maxAttempts: 1, retryBackoffMs: 0 });
+
+    const id = '00000000-0000-4000-8000-00000000008a';
+    await store.enqueue(entry({ id }));
+    for (let i = 0; i < 3; i += 1) await relay.tick();
+    expect((await store.listFailed())[0]?.lastError).toBeDefined();
+
+    await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A });
+    expect((await store.listPending())[0]?.lastError).toBeUndefined();
+  });
+
+  it('does not let a caller mutate stored state through a returned record', async () => {
+    // PgOutboxStore materialises redriveHistory fresh from jsonb on every read, so
+    // the in-memory store must not hand back the live array or the two would diverge
+    // in a way these tests could not see.
+    const store = new InMemoryOutboxStore();
+    const queue = flakyQueue(Number.POSITIVE_INFINITY);
+    const relay = new OutboxRelay({ store, queue, maxAttempts: 1, retryBackoffMs: 0 });
+
+    const id = '00000000-0000-4000-8000-00000000009a';
+    await store.enqueue(entry({ id }));
+    for (let i = 0; i < 3; i += 1) await relay.tick();
+    await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A });
+
+    const record = (await store.listPending())[0];
+    record?.redriveHistory.push({ at: 'x', actor: 'forged', reason: 'x', fromAttempts: 0 });
+
+    const reread = (await store.listPending())[0];
+    expect(reread?.redriveHistory).toHaveLength(1);
+    expect(reread?.redriveHistory[0]?.actor).toBe('ops');
+  });
+
+  it('filters listFailed by tenant and creation time', async () => {
     const store = new InMemoryOutboxStore();
     const queue = flakyQueue(Number.POSITIVE_INFINITY);
     const relay = new OutboxRelay({ store, queue, maxAttempts: 1, retryBackoffMs: 0 });
@@ -245,7 +341,7 @@ describe('outbox redrive (V10 defect 1)', () => {
 
     expect(await store.listFailed({ tenantId: TENANT_A })).toHaveLength(1);
     expect(await store.listFailed({ tenantId: TENANT_B })).toHaveLength(1);
-    expect(await store.listFailed({ since: new Date(Date.now() + 60_000) })).toHaveLength(0);
+    expect(await store.listFailed({ createdSince: new Date(Date.now() + 60_000) })).toHaveLength(0);
     expect(await store.listFailed({ limit: 1 })).toHaveLength(1);
   });
 
@@ -259,7 +355,9 @@ describe('outbox redrive (V10 defect 1)', () => {
     await store.markFailed(id, 'transient', new Date(Date.now() + 10_000));
 
     expect(await store.listFailed()).toHaveLength(0);
-    expect(await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r' })).toEqual([]);
+    expect(
+      await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A }),
+    ).toEqual([]);
   });
 
   it('a redriven row is still delivered with its original payload and event type', async () => {
@@ -278,7 +376,7 @@ describe('outbox redrive (V10 defect 1)', () => {
       }),
     );
     for (let i = 0; i < 3; i += 1) await relay.tick();
-    await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r' });
+    await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A });
     await relay.tick();
 
     const msg = queue.published[0];
@@ -294,7 +392,9 @@ describe('outbox redrive (V10 defect 1)', () => {
 
   it('does nothing for an empty id list', async () => {
     const store = new InMemoryOutboxStore();
-    expect(await store.requeueFailed({ ids: [], actor: 'ops', reason: 'r' })).toEqual([]);
+    expect(
+      await store.requeueFailed({ ids: [], actor: 'ops', reason: 'r', tenantId: TENANT_A }),
+    ).toEqual([]);
   });
 
   it('surfaces the redrive to a logger-style hook via the returned ids', async () => {
@@ -310,7 +410,9 @@ describe('outbox redrive (V10 defect 1)', () => {
     await store.enqueue(entry({ id }));
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
-    const ids = await store.requeueFailed({ ids: [id], actor: 'ops', reason: 'INC-7' });
+    const ids = await store.requeueFailed({
+      ids: [id], actor: 'ops', reason: 'INC-7', tenantId: TENANT_A,
+    });
     if (ids.length > 0) auditSink({ action: 'outbox.redrive', ids, actor: 'ops' });
 
     expect(auditSink).toHaveBeenCalledWith({

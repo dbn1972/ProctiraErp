@@ -1,4 +1,9 @@
 export type { ListFailedOptions, OutboxStore, RequeueFailedOptions } from './store.js';
+export {
+  assertValidOutboxIds,
+  InvalidOutboxIdError,
+  PLATFORM_WIDE_REDRIVE,
+} from './store.js';
 export type {
   NewOutboxEntry,
   OutboxDispatchMode,
