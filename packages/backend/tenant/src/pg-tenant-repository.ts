@@ -14,6 +14,7 @@ import {
   type PgPoolWithConnect,
   type PgQueryable,
 } from '@proctira/database';
+import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -50,6 +51,29 @@ function asDate(value: Date | string): Date {
  */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * The lifecycle states a `tenants.status` value is allowed to be.
+ *
+ * `@proctira/tenant` exports an `isValidUuid`/status helper set, but this package does
+ * not depend on it and adding that edge for a regex and a tuple is not worth a new
+ * cycle risk. The assertion below keeps this list from drifting from the union
+ * instead: it stops compiling if a state is added to `TenantEntity['status']` and not
+ * here.
+ */
+const TENANT_STATUSES = [
+  'provisioning',
+  'active',
+  'suspended',
+  'decommissioned',
+] as const satisfies readonly TenantEntity['status'][];
+
+type StatusesAreExhaustive =
+  Exclude<TenantEntity['status'], (typeof TENANT_STATUSES)[number]> extends never ? true : never;
+const _statusesAreExhaustive: StatusesAreExhaustive = true;
+void _statusesAreExhaustive;
+
+const logger = createLogger({ name: 'tenant-repository' });
+
 export class PgTenantRepository implements TenantRepository {
   private readonly tenants: PgDocumentCollection<TenantEntity>;
   private readonly domains: PgDocumentCollection<DomainEntity>;
@@ -83,8 +107,23 @@ export class PgTenantRepository implements TenantRepository {
     return this.tenants.put(entity.id, entity);
   }
 
+  /**
+   * Update a tenant, materialising a control-plane document for one that so far only
+   * existed as a `tenants` row.
+   *
+   * The table fallback in {@link findTenantById} forced this. A read-only fallback
+   * makes every mutator in `TenantService` pass its existence check and then get
+   * `null` back from the write — `setLegalHold` returning 500 while not recording the
+   * hold. Reading a wider set of tenants than you can write is worse than reading a
+   * narrower one.
+   *
+   * So the first write to a table-only tenant creates its document, seeded from the
+   * table row. That is a convergence, not a workaround: from then on the document is
+   * authoritative for this tenant, `listTenants` and `findTenantBySlug` can see it,
+   * and the lifecycle fields the table cannot hold have somewhere to live.
+   */
   async updateTenant(id: string, data: Partial<TenantEntity>): Promise<TenantEntity | null> {
-    const existing = await this.tenants.get(id);
+    const existing = (await this.tenants.get(id)) ?? (await this.findTenantInTable(id));
     if (!existing) return null;
     const updated: TenantEntity = {
       id: existing.id,
@@ -174,9 +213,17 @@ export class PgTenantRepository implements TenantRepository {
     // Binds `app.tenant_id` to the id being read rather than taking platform scope:
     // we are resolving precisely that tenant, so this satisfies the policy while
     // granting no visibility of any other tenant's row.
-    const result = await withPgTenant(this.pool, id, (client) =>
+    //
+    // `created_at`/`updated_at` are `timestamp without time zone`. Read raw, node-pg
+    // builds a Date by interpreting them in the *process* timezone, so the same row
+    // would resolve to a different instant under TZ=Asia/Kolkata than under UTC —
+    // and disagree with the document path, which stores ISO-8601 with `Z`.
+    // `AT TIME ZONE 'UTC'` makes the driver hand back an unambiguous instant.
+    const result = await withPgTenant(this.assertPool(), id, (client) =>
       client.query(
-        `SELECT id, name, slug, status, config, legal_hold, created_at, updated_at
+        `SELECT id, name, slug, status, config, legal_hold,
+                created_at AT TIME ZONE 'UTC' AS created_at,
+                updated_at AT TIME ZONE 'UTC' AS updated_at
            FROM tenants
           WHERE id = $1::uuid AND deleted_at IS NULL`,
         [id],
@@ -184,11 +231,29 @@ export class PgTenantRepository implements TenantRepository {
     );
     const row = (result.rows as TenantTableRow[])[0];
     if (!row) return null;
+
+    // `tenants.status` is varchar(20) with no CHECK constraint, so the column can
+    // hold anything. Casting an unrecognised value into the union would make every
+    // lifecycle gate read it as "not decommissioned, not suspended" — a tenant that
+    // is not describable as any known state must not be reported as a safe one.
+    const status = TENANT_STATUSES.find((candidate) => candidate === row.status);
+    if (!status) {
+      logger.error(
+        { tenantId: id, status: row.status },
+        'tenants row has a status outside the tenant lifecycle union; refusing to resolve it',
+      );
+      return null;
+    }
+
+    // The one signal that says how much of the estate still depends on this fallback,
+    // and therefore when the document/table split has actually been closed.
+    logger.debug({ tenantId: id }, 'Tenant resolved from the tenants table, not the control plane');
+
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
-      status: row.status as TenantEntity['status'],
+      status,
       config: (row.config ?? {}) as TenantEntity['config'],
       legalHold: row.legal_hold,
       createdAt: asDate(row.created_at),
@@ -201,6 +266,30 @@ export class PgTenantRepository implements TenantRepository {
       decommissionedAt: null,
       dataRetentionUntil: null,
     };
+  }
+
+  /**
+   * Narrow the constructor's `PgPoolWithConnect | PgQueryable` to something
+   * `withPgTenant` can actually bind a GUC on.
+   *
+   * `withPgTenant` only opens a transaction when `pool.connect` exists. Without one,
+   * it calls `set_config(..., true)` — transaction-local — outside any transaction, so
+   * the binding is discarded before the next statement runs. Under `FORCE ROW LEVEL
+   * SECURITY` that does not error; it returns zero rows. A checked-out client or a
+   * thin wrapper passed to this repository would therefore give `findTenantById` a
+   * silent null for every tenant, which is precisely the failure this fallback exists
+   * to end. Fail loudly instead.
+   */
+  private assertPool(): PgPoolWithConnect {
+    const pool = this.pool as PgPoolWithConnect;
+    if (typeof pool.connect !== 'function') {
+      throw new Error(
+        'PgTenantRepository: the tenants-table fallback needs a pool that can check out a ' +
+          'client (withPgTenant cannot hold a transaction-local GUC without one). ' +
+          'Construct it with a pg.Pool, not a client or a query-only wrapper.',
+      );
+    }
+    return pool;
   }
 
   async findTenantBySlug(slug: string): Promise<TenantEntity | null> {
@@ -259,19 +348,35 @@ export class PgTenantRepository implements TenantRepository {
    * and a subsequent GET would return 200. The fallback filters `deleted_at IS NULL`,
    * so marking the row closes that hole.
    *
-   * Soft, not hard: `control_plane_documents.tenant_id` is a real uuid FK to
-   * `tenants(id)` (db/sql/100), and other tenant-owned tables reference it too, so
-   * the row has to stay. The service layer already gates this path on status
-   * `decommissioned`, an elapsed retention deadline, no legal hold, and the
-   * destructive-delete guard.
+   * Soft, not hard: roughly a hundred tenant-owned tables carry a validated
+   * `tenant_id` FK to `tenants(id)` (db/sql/100), so the row has to stay. (The
+   * `tenant.tenants` document being removed here is not one of them — `createTenant`
+   * writes it with a null `tenant_id` — but every domain row for the tenant is.)
+   *
+   * **Order matters.** These are separate transactions; there is no single unit of
+   * work spanning the document store and the table. The row is marked first, so a
+   * failure in between leaves the document present and the row marked, which reads
+   * exactly as it did before this change: the document wins and the tenant resolves
+   * with its full lifecycle state. The opposite order would leave the document gone
+   * and the row live, resurrecting the tenant through the fallback with every
+   * lifecycle field null — strictly worse than not having tried.
+   *
+   * The service layer gates this path on status `decommissioned`, a recorded and
+   * elapsed retention deadline, no legal hold, and the destructive-delete guard.
+   *
+   * Scope of the guarantee: `findTenantById` will not return a permanently deleted
+   * tenant. `findTenantBySlug`, `listTenants` and the tenant plugin's subdomain
+   * lookup are unchanged document-only reads that do not consult `deleted_at`, so a
+   * deleted tenant's slug stays reserved and can still resolve by subdomain. That is
+   * pre-existing and tracked separately; it is not closed here.
    *
    * Returns true when either store had something to remove, so a tenant that only
    * ever existed as a table row (the common case — 940 rows, 0 documents in the
    * evaluation database) is not silently skipped.
    */
   async deleteTenant(id: string): Promise<boolean> {
-    const removedDocument = await this.tenants.delete(id);
     const removedRow = await this.softDeleteTenantRow(id);
+    const removedDocument = await this.tenants.delete(id);
     if (!removedDocument && !removedRow) return false;
     const domains = await this.domains.where({ tenantId: id } as Partial<DomainEntity>);
     for (const d of domains) await this.domains.delete(d.id);
@@ -284,7 +389,7 @@ export class PgTenantRepository implements TenantRepository {
     if (!UUID_RE.test(id)) return false;
     // RETURNING rather than rowCount: `PgQueryable.query` only types `rows`, so
     // reading rowCount off the index signature needs a cast.
-    const result = await withPgTenant(this.pool, id, (client) =>
+    const result = await withPgTenant(this.assertPool(), id, (client) =>
       client.query(
         `UPDATE tenants
             SET deleted_at = now(), updated_at = now()

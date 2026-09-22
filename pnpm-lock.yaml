@@ -111,7 +111,7 @@ importers:
         version: 1.16.0(react@18.3.1)
       next:
         specifier: ^15.5.21
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -365,7 +365,7 @@ importers:
         version: link:../../packages/ui/components
       next:
         specifier: ^15.5.21
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-intl:
         specifier: ^3.15.0
         version: 3.26.5(next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
@@ -478,7 +478,7 @@ importers:
         version: link:../../packages/ui/components
       next:
         specifier: ^15.5.21
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -548,7 +548,7 @@ importers:
         version: 0.453.0(react@18.3.1)
       next:
         specifier: ^15.5.21
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -642,7 +642,7 @@ importers:
         version: 1.16.0(react@18.3.1)
       next:
         specifier: ^15.5.21
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-intl:
         specifier: ^3.15.0
         version: 3.26.5(next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
@@ -811,7 +811,7 @@ importers:
         version: 1.16.0(react@18.3.1)
       next:
         specifier: ^15.5.21
-        version: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       next-intl:
         specifier: ^3.15.0
         version: 3.26.5(next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
@@ -14630,7 +14630,7 @@ snapshots:
     dependencies:
       '@formatjs/intl-localematcher': 0.5.10
       negotiator: 1.0.0
-      next: 15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      next: 15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react: 18.3.1
       use-intl: 3.26.5(react@18.3.1)
 
@@ -14639,7 +14639,7 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
-  next@15.5.25(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  next@15.5.25(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(@types/node@20.19.41)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@next/env': 15.5.25
       '@swc/helpers': 0.5.15
@@ -14647,7 +14647,7 @@ snapshots:
       postcss: 8.5.28
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
-      styled-jsx: 5.1.6(react@18.3.1)
+      styled-jsx: 5.1.6(@babel/core@7.29.0)(react@18.3.1)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.25
       '@next/swc-darwin-x64': 15.5.25
@@ -15838,10 +15838,12 @@ snapshots:
     dependencies:
       js-tokens: 9.0.1
 
-  styled-jsx@5.1.6(react@18.3.1):
+  styled-jsx@5.1.6(@babel/core@7.29.0)(react@18.3.1):
     dependencies:
       client-only: 0.0.1
       react: 18.3.1
+    optionalDependencies:
+      '@babel/core': 7.29.0
 
   sucrase@3.35.1:
     dependencies:

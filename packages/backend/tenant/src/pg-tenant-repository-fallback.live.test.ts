@@ -13,7 +13,22 @@
  * `404 "Tenant with id '…' not found"` on 159 of 193 pages. The evaluation database
  * has 940 rows in `tenants` and 0 documents in collection `tenant.tenants`.
  *
- * Skipped unless MIGRATOR_DATABASE_URL (or DATABASE_URL) is set, matching the other
+ * ## Two pools, on purpose
+ *
+ * The subject pool runs as `DATABASE_URL` — `proctira_app` in CI, the non-owner
+ * runtime role — because the RLS behaviour being relied on is the runtime role's.
+ * Fixtures run on a *separate* pool so their `app.platform_admin` escape can never
+ * reach the repository's connections.
+ *
+ * The first version of this suite got that wrong and was worthless as a result: it
+ * set `app.platform_admin` session-level on a client checked out of the same pool
+ * the repository used, then released it. The setting rode back into the pool and
+ * satisfied the policy for the rest of the run, so every case passed with the tenant
+ * binding pointed at an unrelated uuid and with `withPgTenant` deleted outright. The
+ * fixtures here bind transaction-locally on their own pool, and
+ * `the tenant binding is load-bearing` asserts the RLS behaviour directly.
+ *
+ * Skipped unless DATABASE_URL (or MIGRATOR_DATABASE_URL) is set, matching the other
  * *.live.test.ts files here.
  */
 // Default import, not `{ Pool }`: pg is CJS and Vite cannot reliably
@@ -23,80 +38,167 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { PgTenantRepository } from './pg-tenant-repository.js';
+import { TenantService } from './tenant-service.js';
 
-const CONNECTION = process.env['MIGRATOR_DATABASE_URL'] ?? process.env['DATABASE_URL'] ?? '';
-const describeLive = CONNECTION ? describe : describe.skip;
+/** The role the runtime actually uses. In CI this is `proctira_app`. */
+const SUBJECT_CONNECTION =
+  process.env['DATABASE_URL'] ?? process.env['MIGRATOR_DATABASE_URL'] ?? '';
+/** Fixture writes; prefers the owner so setup is not itself under test. */
+const FIXTURE_CONNECTION =
+  process.env['MIGRATOR_DATABASE_URL'] ?? process.env['DATABASE_URL'] ?? '';
+const describeLive = SUBJECT_CONNECTION ? describe : describe.skip;
 
 // Fixed ids so a failed run cleans up on the next one.
 const TABLE_ONLY_TENANT = '5a5a5a5a-0000-4000-8000-00000000f001';
 const DOC_TENANT = '5a5a5a5a-0000-4000-8000-00000000f002';
 const DELETE_TENANT = '5a5a5a5a-0000-4000-8000-00000000f003';
+const UPDATE_TENANT = '5a5a5a5a-0000-4000-8000-00000000f004';
+const NEIGHBOUR_TENANT = '5a5a5a5a-0000-4000-8000-00000000f005';
+const ALL_PROBE_IDS = [
+  TABLE_ONLY_TENANT,
+  DOC_TENANT,
+  DELETE_TENANT,
+  UPDATE_TENANT,
+  NEIGHBOUR_TENANT,
+];
+
+/** A timestamp fixed in UTC, so a timezone-dependent read produces a wrong instant. */
+const FIXED_CREATED_AT = '2026-03-04 05:06:07.000000';
+const FIXED_CREATED_AT_UTC = '2026-03-04T05:06:07.000Z';
 
 describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () => {
-  let pool: pg.Pool;
+  let subjectPool: pg.Pool;
+  let fixturePool: pg.Pool;
   let repo: PgTenantRepository;
 
-  beforeAll(async () => {
-    pool = new pg.Pool({ connectionString: CONNECTION, max: 3 });
-    repo = new PgTenantRepository(pool);
-    const c = await pool.connect();
+  /**
+   * Run fixture SQL with platform scope, transaction-locally, on the fixture pool.
+   * `set_config(..., true)` inside an explicit transaction cannot outlive it, so
+   * nothing leaks into a pooled connection the repository might later borrow.
+   */
+  async function asPlatformAdmin<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+    const client = await fixturePool.connect();
     try {
-      await c.query(`SELECT set_config('app.platform_admin', '1', false)`);
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.platform_admin', '1', true)`);
+      const result = await fn(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  beforeAll(async () => {
+    subjectPool = new pg.Pool({ connectionString: SUBJECT_CONNECTION, max: 3 });
+    fixturePool = new pg.Pool({ connectionString: FIXTURE_CONNECTION, max: 2 });
+    repo = new PgTenantRepository(subjectPool);
+
+    await asPlatformAdmin(async (c) => {
       await c.query(
-        `INSERT INTO tenants (id, name, slug, status, config, legal_hold)
+        `INSERT INTO tenants (id, name, slug, status, config, legal_hold, created_at, updated_at)
          VALUES ($1, 'Fallback Probe', 'fallback-probe-f001', 'active',
-                 '{"locale":"en-IN"}'::jsonb, false)
-         ON CONFLICT (id) DO NOTHING`,
-        [TABLE_ONLY_TENANT],
+                 '{"locale":"en-IN"}'::jsonb, false, $2::timestamp, $2::timestamp)
+         ON CONFLICT (id) DO UPDATE
+            SET deleted_at = NULL, created_at = $2::timestamp, updated_at = $2::timestamp`,
+        [TABLE_ONLY_TENANT, FIXED_CREATED_AT],
       );
       await c.query(
         `INSERT INTO tenants (id, name, slug, status, config, legal_hold)
          VALUES ($1, 'Doc Probe Table Row', 'doc-probe-f002', 'active', '{}'::jsonb, false)
-         ON CONFLICT (id) DO NOTHING`,
+         ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`,
         [DOC_TENANT],
       );
       await c.query(
-        `INSERT INTO tenants (id, name, slug, status, config, legal_hold, deleted_at)
-         VALUES ($1, 'Delete Probe', 'delete-probe-f003', 'decommissioned', '{}'::jsonb, false, NULL)
-         ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`,
+        `INSERT INTO tenants (id, name, slug, status, config, legal_hold)
+         VALUES ($1, 'Delete Probe', 'delete-probe-f003', 'decommissioned', '{}'::jsonb, false)
+         ON CONFLICT (id) DO UPDATE SET deleted_at = NULL, status = 'decommissioned'`,
         [DELETE_TENANT],
       );
-    } finally {
-      c.release();
-    }
+      await c.query(
+        `INSERT INTO tenants (id, name, slug, status, config, legal_hold)
+         VALUES ($1, 'Update Probe', 'update-probe-f004', 'active',
+                 '{"locale":"en-IN"}'::jsonb, false)
+         ON CONFLICT (id) DO UPDATE SET deleted_at = NULL, legal_hold = false`,
+        [UPDATE_TENANT],
+      );
+      await c.query(
+        `INSERT INTO tenants (id, name, slug, status, config, legal_hold)
+         VALUES ($1, 'Neighbour Probe', 'neighbour-probe-f005', 'active', '{}'::jsonb, false)
+         ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`,
+        [NEIGHBOUR_TENANT],
+      );
+      // A document left behind by an earlier failed run would invalidate the premise
+      // assertions below, so clear the collection for every probe id.
+      await c.query(
+        `DELETE FROM control_plane_documents
+          WHERE collection = 'tenant.tenants' AND id = ANY($1)`,
+        [ALL_PROBE_IDS],
+      );
+    });
   });
 
   afterAll(async () => {
-    if (!pool) return;
-    const c = await pool.connect();
-    try {
-      await c.query(`SELECT set_config('app.platform_admin', '1', false)`);
-      await c.query(
-        `DELETE FROM control_plane_documents WHERE collection = 'tenant.tenants' AND id = ANY($1)`,
-        [[TABLE_ONLY_TENANT, DOC_TENANT, DELETE_TENANT]],
-      );
-      await c.query(`DELETE FROM tenants WHERE id = ANY($1::uuid[])`, [
-        [TABLE_ONLY_TENANT, DOC_TENANT, DELETE_TENANT],
-      ]);
-    } finally {
-      c.release();
+    if (fixturePool) {
+      await asPlatformAdmin(async (c) => {
+        await c.query(
+          `DELETE FROM control_plane_documents
+            WHERE collection = 'tenant.tenants' AND id = ANY($1)`,
+          [ALL_PROBE_IDS],
+        );
+        await c.query(`DELETE FROM tenants WHERE id = ANY($1::uuid[])`, [ALL_PROBE_IDS]);
+      });
+      await fixturePool.end();
     }
-    await pool.end();
+    if (subjectPool) await subjectPool.end();
   });
 
   it('reproduces the bug: no control-plane document exists for a table-created tenant', async () => {
-    const c = await pool.connect();
-    try {
-      await c.query(`SELECT set_config('app.platform_admin', '1', false)`);
-      const docs = await c.query(
+    const docs = await asPlatformAdmin((c) =>
+      c.query(
         `SELECT 1 FROM control_plane_documents
           WHERE collection = 'tenant.tenants' AND id = $1`,
         [TABLE_ONLY_TENANT],
-      );
-      // If this ever returns a row the premise has changed and the rest is moot.
-      expect(docs.rows).toHaveLength(0);
+      ),
+    );
+    // If this ever returns a row the premise has changed and the rest is moot.
+    expect(docs.rows).toHaveLength(0);
+  });
+
+  it('the tenant binding is load-bearing, and scoped to the one tenant being read', async () => {
+    // Asserted against the subject pool directly, because the repository binds
+    // internally and a test cannot inject a wrong binding. Without this, the suite
+    // would pass with the bind removed — which is how the first version of it failed.
+    const client = await subjectPool.connect();
+    try {
+      const unbound = await client.query(`SELECT id FROM tenants WHERE id = $1::uuid`, [
+        TABLE_ONLY_TENANT,
+      ]);
+      expect(unbound.rows).toHaveLength(0);
+
+      // Bound to a *different* tenant: still invisible. This is the evidence for
+      // "grants no visibility of any other tenant's row".
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [NEIGHBOUR_TENANT]);
+      const wrongTenant = await client.query(`SELECT id FROM tenants WHERE id = $1::uuid`, [
+        TABLE_ONLY_TENANT,
+      ]);
+      expect(wrongTenant.rows).toHaveLength(0);
+      await client.query('COMMIT');
+
+      // Bound to the id being read: visible. Exactly what the fallback does.
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.tenant_id', $1, true)`, [TABLE_ONLY_TENANT]);
+      const rightTenant = await client.query(`SELECT id FROM tenants WHERE id = $1::uuid`, [
+        TABLE_ONLY_TENANT,
+      ]);
+      expect(rightTenant.rows).toHaveLength(1);
+      await client.query('COMMIT');
     } finally {
-      c.release();
+      client.release();
     }
   });
 
@@ -110,8 +212,17 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(tenant?.legalHold).toBe(false);
     // Mapped from the real jsonb column, not invented.
     expect(tenant?.config).toEqual({ locale: 'en-IN' });
-    expect(tenant?.createdAt).toBeInstanceOf(Date);
-    expect(tenant?.updatedAt).toBeInstanceOf(Date);
+  });
+
+  it('reads timestamps as UTC instants, not as the process timezone', async () => {
+    const tenant = await repo.findTenantById(TABLE_ONLY_TENANT);
+    // created_at/updated_at are `timestamp without time zone`. Selected raw, node-pg
+    // interprets them in the process timezone, so this same row would come back as
+    // 2026-03-03T23:36:07Z under TZ=Asia/Kolkata and disagree with the document path,
+    // which stores ISO-8601 with Z. Asserting the instant catches that; asserting
+    // `instanceof Date` (as the first version did) does not.
+    expect(tenant?.createdAt.toISOString()).toBe(FIXED_CREATED_AT_UTC);
+    expect(tenant?.updatedAt.toISOString()).toBe(FIXED_CREATED_AT_UTC);
   });
 
   it('reports the lifecycle fields the table does not track as null, not as defaults', async () => {
@@ -162,6 +273,63 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(await repo.findTenantById('')).toBeNull();
   });
 
+  it('refuses to resolve a tenants row whose status is outside the lifecycle union', async () => {
+    // tenants.status is varchar(20) with no CHECK constraint. Casting an unknown
+    // value into the union would make every gate read it as "not decommissioned,
+    // not suspended" — reporting an undescribable tenant as a safe one.
+    await asPlatformAdmin((c) =>
+      c.query(`UPDATE tenants SET status = 'zombie' WHERE id = $1`, [NEIGHBOUR_TENANT]),
+    );
+    expect(await repo.findTenantById(NEIGHBOUR_TENANT)).toBeNull();
+    await asPlatformAdmin((c) =>
+      c.query(`UPDATE tenants SET status = 'active' WHERE id = $1`, [NEIGHBOUR_TENANT]),
+    );
+    expect(await repo.findTenantById(NEIGHBOUR_TENANT)).not.toBeNull();
+  });
+
+  it('writes to a table-only tenant instead of silently doing nothing', async () => {
+    // The read fallback without a write fallback is the worse bug: every mutator in
+    // TenantService does find → gate → update, so the update returned null for a
+    // tenant the read had just resolved, and the route layer dereferenced it into a
+    // 500 while the legal hold went unrecorded.
+    const updated = await repo.updateTenant(UPDATE_TENANT, { legalHold: true });
+    expect(updated).not.toBeNull();
+    expect(updated?.legalHold).toBe(true);
+    // Seeded from the table row, not from thin air.
+    expect(updated?.name).toBe('Update Probe');
+    expect(updated?.slug).toBe('update-probe-f004');
+    expect(updated?.config).toEqual({ locale: 'en-IN' });
+
+    // The write materialised a control-plane document, so the two stores now agree
+    // for this tenant and the document is authoritative from here on.
+    const docs = await asPlatformAdmin((c) =>
+      c.query(
+        `SELECT 1 FROM control_plane_documents
+          WHERE collection = 'tenant.tenants' AND id = $1`,
+        [UPDATE_TENANT],
+      ),
+    );
+    expect(docs.rows).toHaveLength(1);
+    expect((await repo.findTenantById(UPDATE_TENANT))?.legalHold).toBe(true);
+  });
+
+  it('refuses a permanent delete when no retention deadline is recorded', async () => {
+    // A table-only tenant reports dataRetentionUntil: null. The old gate
+    // (`if (deadline && deadline > now) throw`) read that as "retention elapsed", so
+    // a decommissioned row was permanently deletable on the spot. Missing must fail
+    // closed, not open.
+    const service = new TenantService(repo);
+    await expect(service.deleteTenant(DELETE_TENANT)).rejects.toThrow(
+      /no data-retention deadline is recorded/,
+    );
+
+    // And the row is still there.
+    const rows = await asPlatformAdmin((c) =>
+      c.query(`SELECT deleted_at FROM tenants WHERE id = $1`, [DELETE_TENANT]),
+    );
+    expect(rows.rows[0]?.deleted_at).toBeNull();
+  });
+
   it('deleteTenant marks the table row so the fallback cannot resurrect the tenant', async () => {
     // Without the row soft-delete, deleteTenant would remove only the control-plane
     // document and the next findTenantById would read the still-present row — a
@@ -173,41 +341,43 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(await repo.deleteTenant(DELETE_TENANT)).toBe(true);
     expect(await repo.findTenantById(DELETE_TENANT)).toBeNull();
 
-    const c = await pool.connect();
-    try {
-      await c.query(`SELECT set_config('app.platform_admin', '1', false)`);
-      const row = await c.query<{ deleted_at: Date | null }>(
-        `SELECT deleted_at FROM tenants WHERE id = $1`,
-        [DELETE_TENANT],
-      );
-      // Soft, not hard: control_plane_documents.tenant_id and other tenant-owned
-      // tables carry a real FK to tenants(id), so the row has to survive.
-      expect(row.rows).toHaveLength(1);
-      expect(row.rows[0]?.deleted_at).not.toBeNull();
-    } finally {
-      c.release();
-    }
+    const rows = await asPlatformAdmin((c) =>
+      c.query<{ deleted_at: Date | null }>(`SELECT deleted_at FROM tenants WHERE id = $1`, [
+        DELETE_TENANT,
+      ]),
+    );
+    // Soft, not hard: tenant-owned tables carry a real FK to tenants(id), so the row
+    // has to survive.
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0]?.deleted_at).not.toBeNull();
 
     // Idempotent: nothing left to remove in either store.
     expect(await repo.deleteTenant(DELETE_TENANT)).toBe(false);
   });
 
   it('does not resolve a soft-deleted tenant', async () => {
-    const c = await pool.connect();
-    try {
-      await c.query(`SELECT set_config('app.platform_admin', '1', false)`);
-      await c.query(`UPDATE tenants SET deleted_at = now() WHERE id = $1`, [TABLE_ONLY_TENANT]);
-    } finally {
-      c.release();
-    }
+    await asPlatformAdmin((c) =>
+      c.query(`UPDATE tenants SET deleted_at = now() WHERE id = $1`, [TABLE_ONLY_TENANT]),
+    );
     expect(await repo.findTenantById(TABLE_ONLY_TENANT)).toBeNull();
 
-    const c2 = await pool.connect();
-    try {
-      await c2.query(`SELECT set_config('app.platform_admin', '1', false)`);
-      await c2.query(`UPDATE tenants SET deleted_at = NULL WHERE id = $1`, [TABLE_ONLY_TENANT]);
-    } finally {
-      c2.release();
-    }
+    await asPlatformAdmin((c) =>
+      c.query(`UPDATE tenants SET deleted_at = NULL WHERE id = $1`, [TABLE_ONLY_TENANT]),
+    );
+    expect(await repo.findTenantById(TABLE_ONLY_TENANT)).not.toBeNull();
+  });
+
+  it('fails loudly when constructed with a queryable that cannot hold a transaction', async () => {
+    // withPgTenant can only bind a transaction-local GUC when it can check out a
+    // client. Given a query-only wrapper it binds nothing, and under FORCE RLS that
+    // does not error — it returns zero rows. A silent null for every tenant is the
+    // failure this fallback exists to end, so refuse the construction instead.
+    const queryOnly = {
+      query: (text: string, values?: unknown[]) => subjectPool.query(text, values),
+    };
+    const brokenRepo = new PgTenantRepository(queryOnly);
+    await expect(brokenRepo.findTenantById(TABLE_ONLY_TENANT)).rejects.toThrow(
+      /needs a pool that can check out a client/,
+    );
   });
 });

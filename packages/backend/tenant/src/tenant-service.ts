@@ -228,7 +228,7 @@ export class TenantService {
       );
     }
 
-    const updated = await this.repository.updateTenant(id, {
+    const updated = await this.applyUpdate(id, {
       status: 'suspended',
       suspendedAt: new Date(),
       suspendedReason: input.reason,
@@ -236,7 +236,7 @@ export class TenantService {
 
     logger.info({ tenantId: id, reason: input.reason }, 'Tenant suspended');
 
-    return updated!;
+    return updated;
   }
 
   /**
@@ -257,14 +257,14 @@ export class TenantService {
       );
     }
 
-    const updated = await this.repository.updateTenant(id, {
+    const updated = await this.applyUpdate(id, {
       status: 'active',
       suspendedAt: null,
       suspendedReason: null,
     });
 
     logger.info({ tenantId: id }, 'Tenant reactivated');
-    return updated!;
+    return updated;
   }
 
   /**
@@ -292,7 +292,7 @@ export class TenantService {
     const retentionDeadline = new Date();
     retentionDeadline.setDate(retentionDeadline.getDate() + retainDays);
 
-    const updated = await this.repository.updateTenant(id, {
+    const updated = await this.applyUpdate(id, {
       status: 'decommissioned',
       decommissionedAt: new Date(),
       dataRetentionUntil: retentionDeadline,
@@ -303,14 +303,15 @@ export class TenantService {
       'Tenant decommissioned',
     );
 
-    return updated!;
+    return updated;
   }
 
   /**
    * Permanently delete a decommissioned tenant past its retention period.
    *
    * @throws NotFoundError if tenant not found
-   * @throws BusinessRuleError if tenant is not decommissioned or retention period has not passed
+   * @throws BusinessRuleError if tenant is not decommissioned, has no recorded
+   *   retention deadline, or its retention period has not passed
    */
   async deleteTenant(id: string): Promise<void> {
     const tenant = await this.repository.findTenantById(id);
@@ -322,16 +323,30 @@ export class TenantService {
       throw new BusinessRuleError('Only decommissioned tenants can be permanently deleted');
     }
 
-    if (tenant.dataRetentionUntil && tenant.dataRetentionUntil > new Date()) {
+    // Fail closed on a missing deadline. This check used to be
+    // `if (dataRetentionUntil && dataRetentionUntil > now)`, which read "no deadline
+    // recorded" as "retention already elapsed" and let the delete through. That was
+    // unreachable while every decommissioned tenant necessarily came from
+    // `decommissionTenant`, which always sets the deadline. It stopped being
+    // unreachable once a tenant could be resolved from a store that does not carry
+    // lifecycle fields at all: such a tenant reports `dataRetentionUntil: null`, and
+    // an absent retention record is the one state in which permanent deletion must
+    // never proceed.
+    if (!tenant.dataRetentionUntil) {
+      throw new BusinessRuleError(
+        `Cannot permanently delete tenant '${id}': no data-retention deadline is recorded. ` +
+          'Decommission the tenant through the tenant lifecycle first.',
+      );
+    }
+
+    if (tenant.dataRetentionUntil > new Date()) {
       throw new BusinessRuleError(
         `Data retention period has not passed. Retention until: ${tenant.dataRetentionUntil.toISOString()}`,
       );
     }
 
     if (tenant.legalHold) {
-      throw new BusinessRuleError(
-        `Cannot permanently delete tenant '${id}': legal hold is active`,
-      );
+      throw new BusinessRuleError(`Cannot permanently delete tenant '${id}': legal hold is active`);
     }
     if (this.destructiveDeleteGuard) {
       await this.destructiveDeleteGuard.assertDestructiveDeleteAllowed(id);
@@ -341,14 +356,37 @@ export class TenantService {
     logger.info({ tenantId: id }, 'Tenant permanently deleted');
   }
 
+  /**
+   * Apply a repository update that a preceding `findTenantById` has already proven
+   * possible, and refuse to pretend it happened when it did not.
+   *
+   * Every mutator here follows "find, gate, update, return". The update used to be
+   * returned through a `!` assertion, which laundered a `null` into a `TenantEntity`
+   * for the route layer to dereference — a `TypeError`, which is not an `AppError`,
+   * so Fastify answered 500 with no explanation. That went unnoticed while reads and
+   * writes consulted exactly the same store; the moment they did not, a `setLegalHold`
+   * could return 500 *and* silently fail to record the hold.
+   *
+   * A null here means the record disappeared between the two calls, or a repository
+   * reads a wider store than it writes. Both are "gone as far as this write is
+   * concerned", so NotFoundError is the honest answer and the caller gets a 404.
+   */
+  private async applyUpdate(id: string, patch: Partial<TenantEntity>): Promise<TenantEntity> {
+    const updated = await this.repository.updateTenant(id, patch);
+    if (!updated) {
+      throw new NotFoundError(`Tenant with id '${id}' not found`);
+    }
+    return updated;
+  }
+
   async setLegalHold(id: string, legalHold: boolean): Promise<TenantEntity> {
     const tenant = await this.repository.findTenantById(id);
     if (!tenant) {
       throw new NotFoundError(`Tenant with id '${id}' not found`);
     }
-    const updated = await this.repository.updateTenant(id, { legalHold });
+    const updated = await this.applyUpdate(id, { legalHold });
     logger.info({ tenantId: id, legalHold }, 'Tenant legal hold flag updated');
-    return updated!;
+    return updated;
   }
 
   // ─── Configuration Management ────────────────────────────────────────────
@@ -371,12 +409,12 @@ export class TenantService {
 
     const updatedConfig = this.mergeConfig(tenant.config, input);
 
-    const updated = await this.repository.updateTenant(id, {
+    const updated = await this.applyUpdate(id, {
       config: updatedConfig,
     });
 
     logger.info({ tenantId: id }, 'Tenant configuration updated');
-    return updated!;
+    return updated;
   }
 
   /**
