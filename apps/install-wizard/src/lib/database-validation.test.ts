@@ -30,7 +30,7 @@ describe('validateDatabaseConfig', () => {
 
   it('rejects unknown providers and bad database names', () => {
     expect(validateDatabaseConfig({ ...valid, provider: 'sqlite' })?.provider).toMatch(
-      /postgresql or mysql/i,
+      /must be postgresql/i,
     );
     expect(validateDatabaseConfig({ ...valid, database: 'bad name!' })?.database).toMatch(
       /alphanumeric/i,

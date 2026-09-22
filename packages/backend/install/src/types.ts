@@ -5,7 +5,7 @@
  * adapter validation, and health check aggregation.
  */
 
-import { Type, Static } from '@sinclair/typebox';
+import { Type, type Static } from '@sinclair/typebox';
 
 // ─── Bootstrap Steps ─────────────────────────────────────────────────────────
 
@@ -44,7 +44,8 @@ export const CdnConfigSchema = Type.Object({
 });
 
 export const DatabaseConfigSchema = Type.Object({
-  provider: Type.Union([Type.Literal('postgresql'), Type.Literal('mysql')]),
+  /** PostgreSQL only — ROW LEVEL SECURITY has no MySQL equivalent. */
+  provider: Type.Literal('postgresql'),
   host: Type.String({ minLength: 1 }),
   port: Type.Number({ minimum: 1, maximum: 65535 }),
   database: Type.String({ minLength: 1 }),
