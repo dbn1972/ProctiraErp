@@ -13,7 +13,7 @@ export interface SchemaReadinessQueryable {
 }
 
 /** Latest non-seed domain migration required by this application build. */
-export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '100_tenant_id_uuid_fks.sql';
+export const CURRENT_RUNTIME_SCHEMA_MIGRATION = '102_outbox_failed_index.sql';
 
 /** Integrity migrations whose live contracts remain required after newer releases. */
 export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
@@ -34,6 +34,11 @@ export const PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS = [
   '098_staff_identity_link.sql',
   '099_w1_data_02_legacy_guc_safe_deny.sql',
   '100_tenant_id_uuid_fks.sql',
+  // V10 defect 1: failed outbox rows are only recoverable once `redrive_history`
+  // exists. Without it `OutboxStore.requeueFailed` raises instead of redriving, so
+  // the outbox silently returns to being a one-way sink. Kept permanently required
+  // so a later marker bump cannot stop verifying it.
+  '101_outbox_redrive.sql',
 ] as const;
 
 export function requiredRuntimeMigrationsFor(currentMigration: string): readonly string[] {

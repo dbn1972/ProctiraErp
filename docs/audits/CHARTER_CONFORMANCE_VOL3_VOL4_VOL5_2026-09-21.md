@@ -367,7 +367,8 @@ Revision 2 attributed `packages/backend/tenant/src/tenant-settings.ts` to
 
 | #   | Defect                                                                     | Kind              | Spec               |
 | --- | -------------------------------------------------------------------------- | ----------------- | ------------------ |
-| 1   | No DLQ redrive or replay anywhere; outbox `failed` is terminal             | absent capability | V5 §6              |
+| 1a  | Outbox `failed` was terminal — rows unrecoverable (**closed**, #365)       | absent capability | V5 §6              |
+| 1b  | Broker DLQ (RabbitMQ DLX / SQS / Kafka) has no read or redrive             | absent capability | V5 §6              |
 | 2   | Queue operator surface unreachable (`admin-dashboard` parked)              | unmounted         | V3 §12, V5 §6      |
 | 3   | `slo_queue_lag_messages` never set; no Kafka/RabbitMQ exporter deployed    | declared, unwired | V3 §12             |
 | 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path | unenforced        | V4 §4, V5 §3       |
@@ -377,11 +378,23 @@ Revision 2 attributed `packages/backend/tenant/src/tenant-settings.ts` to
 | 8   | Plugins is a scaffold: no tables, no importers, parked, `/plugins` ui-seed | shell             | V4 Table 2, V7     |
 | 9   | `install` parked with no `install_*` tables — Configuration half-served    | parked            | V4 Table 2, V5 §6  |
 
-Item 1 is the only true absence, and it carries operational risk beyond conformance: a
-stuck DLQ has no recovery path today. Items 2, 5 and 9 are mount or configuration
-sized, and 9 may be a deliberate boundary rather than a defect. Items 4, 6, 7 and 8 are
-real functional gaps behind surfaces that look complete — 4 is the one with security
-consequence.
+Item 1 was the only true absence and was split in two on implementation. **1a, the
+transactional outbox, is closed** — `OutboxStore.listFailed` / `requeueFailed` plus
+`db/sql/101_outbox_redrive.sql` and `102_outbox_failed_index.sql`, proved live against
+PostgreSQL and with the reverse direction proved by dropping the column. **1b, the
+brokers' own dead-letter queues, remains open**: it needs a live RabbitMQ/SQS/Kafka to
+verify against and somewhere to mount the operator action (V10d), so it was not folded
+into the same claim.
+
+Items 2, 5 and 9 are mount or configuration sized, and 9 may be a deliberate boundary
+rather than a defect. Items 4, 6, 7 and 8 are real functional gaps behind surfaces that
+look complete — 4 is the one with security consequence.
+
+On 1a and V5 §6's "audited": `redrive_history` gives every redrive a durable,
+append-only record with a required actor and reason, but the hash-chained audit entry is
+not written, because a shared package cannot depend on `@proctira/backend-audit` and no
+mounted operator surface exists to call it from. V5 §6 is therefore **partly** met for
+the outbox, not fully.
 
 On item 3, two precision notes. `prometheus.yml`'s `kubernetes-pods` job is
 annotation-based pod discovery, so the accurate statement is that no Kafka or RabbitMQ

@@ -2,12 +2,13 @@
  * PostgreSQL transactional outbox store (W2-JOB-04).
  * Table: transactional_outbox (db/sql/056_transactional_outbox_schema.sql).
  */
-import type { OutboxStore } from './store.js';
+import type { ListFailedOptions, OutboxStore, RequeueFailedOptions } from './store.js';
 import type {
   NewOutboxEntry,
   OutboxDispatchMode,
   OutboxQueryable,
   OutboxRecord,
+  OutboxRedriveEntry,
   OutboxStatus,
 } from './types.js';
 
@@ -25,6 +26,7 @@ interface OutboxRow {
   available_at: Date | string;
   created_at: Date | string;
   published_at: Date | string | null;
+  redrive_history?: unknown;
 }
 
 function asDate(v: Date | string | null | undefined): Date | undefined {
@@ -32,11 +34,34 @@ function asDate(v: Date | string | null | undefined): Date | undefined {
   return v instanceof Date ? v : new Date(String(v));
 }
 
+/**
+ * `redrive_history` is jsonb. Tolerate a string (some drivers hand back raw json)
+ * and anything unexpected, because a malformed audit column must not break the
+ * read path for the row it annotates.
+ */
+function mapRedriveHistory(value: unknown): OutboxRedriveEntry[] {
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((e): e is OutboxRedriveEntry => {
+    if (typeof e !== 'object' || e === null) return false;
+    const c = e as Record<string, unknown>;
+    return typeof c.at === 'string' && typeof c.actor === 'string' && typeof c.reason === 'string';
+  });
+}
+
 function mapRow(row: OutboxRow): OutboxRecord {
   const metadata = (row.metadata ?? {}) as OutboxRecord['metadata'];
   const dispatchMode =
     (metadata as { dispatchMode?: OutboxDispatchMode } | undefined)?.dispatchMode ?? 'dispatch';
   return {
+    redriveHistory: mapRedriveHistory(row.redrive_history),
     id: row.id,
     tenantId: row.tenant_id,
     aggregateType: row.aggregate_type,
@@ -104,7 +129,6 @@ export class PgOutboxStore implements OutboxStore {
     const now = new Date();
     const availableAt = entry.availableAt ?? now;
     const dispatchMode = entry.dispatchMode ?? 'dispatch';
-    const q = client ?? this.pool;
 
     const run = async (exec: OutboxQueryable) => {
       if (!client) {
@@ -165,6 +189,7 @@ export class PgOutboxStore implements OutboxStore {
       createdAt: now,
       availableAt,
       dispatchMode,
+      redriveHistory: [],
     };
   }
 
@@ -224,6 +249,66 @@ export class PgOutboxStore implements OutboxStore {
         `SELECT * FROM transactional_outbox WHERE status = 'pending' ORDER BY created_at ASC`,
       );
       return (result.rows as OutboxRow[]).map(mapRow);
+    });
+  }
+
+  async listFailed(options: ListFailedOptions = {}): Promise<OutboxRecord[]> {
+    const limit = options.limit ?? 100;
+    return withPlatformClient(this.pool, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM transactional_outbox
+          WHERE status = 'failed'
+            AND ($1::uuid IS NULL OR tenant_id = $1::uuid)
+            AND ($2::timestamptz IS NULL OR created_at >= $2::timestamptz)
+          ORDER BY created_at DESC
+          LIMIT $3`,
+        [options.tenantId ?? null, options.since?.toISOString() ?? null, limit],
+      );
+      return (result.rows as OutboxRow[]).map(mapRow);
+    });
+  }
+
+  async requeueFailed(options: RequeueFailedOptions): Promise<string[]> {
+    const { ids, actor, reason } = options;
+    if (ids.length === 0) return [];
+    if (!actor.trim()) throw new Error('requeueFailed: actor is required (Volume 5 §6 audit)');
+    if (!reason.trim()) throw new Error('requeueFailed: reason is required (Volume 5 §6 audit)');
+
+    const availableAt = options.availableAt ?? new Date();
+
+    return withPlatformClient(this.pool, async (client) => {
+      // `status = 'failed'` in the WHERE clause is what makes this safe to retry:
+      // a redrive applied twice affects nothing the second time, because the first
+      // already moved the row out of `failed`.
+      //
+      // `attempts = 0` is required, not cosmetic — OutboxRelay.tick re-fails a row
+      // immediately when attempts >= maxAttempts, so preserving the exhausted
+      // counter would make the redrive a no-op on the next error.
+      const result = await client.query(
+        `UPDATE transactional_outbox
+            SET status = 'pending',
+                attempts = 0,
+                available_at = $2::timestamptz,
+                redrive_history = redrive_history || jsonb_build_object(
+                  'at',           $3::text,
+                  'actor',        $4::text,
+                  'reason',       $5::text,
+                  'fromAttempts', attempts
+                )
+          WHERE id = ANY($1::uuid[])
+            AND status = 'failed'
+            AND ($6::uuid IS NULL OR tenant_id = $6::uuid)
+          RETURNING id`,
+        [
+          ids,
+          availableAt.toISOString(),
+          new Date().toISOString(),
+          actor,
+          reason,
+          options.tenantId ?? null,
+        ],
+      );
+      return (result.rows as { id: string }[]).map((r) => r.id);
     });
   }
 }

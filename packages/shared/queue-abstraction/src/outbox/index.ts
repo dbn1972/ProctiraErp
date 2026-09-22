@@ -1,9 +1,10 @@
-export type { OutboxStore } from './store.js';
+export type { ListFailedOptions, OutboxStore, RequeueFailedOptions } from './store.js';
 export type {
   NewOutboxEntry,
   OutboxDispatchMode,
   OutboxQueryable,
   OutboxRecord,
+  OutboxRedriveEntry,
   OutboxStatus,
 } from './types.js';
 export { InMemoryOutboxStore } from './in-memory-outbox-store.js';
