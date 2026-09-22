@@ -75,6 +75,9 @@ export {
   InMemoryOutboxStore,
   PgOutboxStore,
   OutboxRelay,
+  PLATFORM_WIDE_REDRIVE,
+  InvalidOutboxIdError,
+  assertValidOutboxIds,
   buildExamDocumentOutboxEntry,
   buildMutationAuditOutboxEntry,
   buildWorkflowEscalationOutboxEntry,
@@ -86,7 +89,10 @@ export type {
   OutboxStatus,
   OutboxDispatchMode,
   OutboxQueryable,
+  OutboxRedriveEntry,
   OutboxRelayOptions,
+  ListFailedOptions,
+  RequeueFailedOptions,
   PgOutboxPool,
   ExamDocumentOutboxInput,
   MutationAuditOutboxInput,
@@ -103,4 +109,3 @@ export {
   isUnscopedTenantNamespaceAllowed,
   shouldRequireTenantScopedQueueTopics,
 } from './tenant-scope';
-

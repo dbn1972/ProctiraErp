@@ -291,6 +291,48 @@ bash tools/scripts/apply-sql.sh
 CI Integration Tests run step (2) immediately after `prisma:migrate:deploy`
 (which itself goes through `prisma-migrate-deploy.sh` for the same timeouts).
 
+## Outbox redrive (V10 defect 1a) — `101` / `102`
+
+`transactional_outbox` was a one-way sink. `OutboxRelay.tick` calls
+`markFailed(id, err)` without `availableAt` once `attempts >= maxAttempts`, which sets
+`status='failed'`, and `claimPending` reads only `status='pending'`. No code path moved a
+row back, so a permanently failed row was unrecoverable even though the domain write it
+accompanied had committed.
+
+| File                          | Contents                                                   | Transactional?        |
+| ----------------------------- | ---------------------------------------------------------- | --------------------- |
+| `101_outbox_redrive.sql`      | `redrive_history JSONB NOT NULL DEFAULT '[]'` + assertions | Yes                   |
+| `102_outbox_failed_index.sql` | `transactional_outbox_failed_idx` built `CONCURRENTLY`     | **No** — CONCURRENTLY |
+
+Split into two files because `CREATE INDEX CONCURRENTLY` cannot run inside a
+transaction. The first draft put a plain `CREATE INDEX` in `101` and **W1-DATA-17
+rejected it**, which is the gate working as intended.
+
+**Trap worth knowing.** `apply-sql.sh` `file_needs_no_tx()` greps the whole file text
+for the `CONCURRENTLY` keyword, **comments included**. An early version of `101`
+mentioned it in a prose comment, which silently stripped that file's per-file
+transaction and split it into three phases. The outcome happened to be correct because
+all three statements are idempotent, but the file's own header claimed it was
+transactional. If a migration must be transactional, do not name the keyword anywhere in
+it — not even in a comment.
+
+`102` is a non-txn file, so every statement is idempotent compensating-forward DDL. It
+opens by dropping a leftover **INVALID** index before rebuilding: an interrupted
+`CONCURRENTLY` build leaves an invalid index that `IF NOT EXISTS` would then skip
+forever, so the index would never become usable. That drop is deliberately **not**
+`CONCURRENTLY` — Postgres rejects `DROP INDEX CONCURRENTLY` inside a `DO` block, which
+the first version did and which failed on first live test. The closing assertion checks
+`pg_index.indisvalid`, not just presence, because a present-but-invalid index is ignored
+by the planner and a presence-only check would pass on a broken build.
+
+No RLS change: `transactional_outbox`'s existing `tenant_isolation` policy already
+admits the platform scope the store's redrive path runs under.
+
+State transitions need no migration — `pending` and `failed` are both already in the
+status CHECK, so requeue is an `UPDATE` inside the existing domain. `101` asserts that
+remains true, so a future narrowing of the CHECK fails loudly instead of silently making
+redrive impossible again.
+
 ## Seeds (`db/seeds/`) — separate, not auto-applied
 
 Files under `db/seeds/` are **demo / certification data** (large enrollments, board scales, schedule demos). They are **not** applied by `apply-sql.sh` because they can be destructive or environment-specific.

@@ -142,6 +142,7 @@ describe('database schema readiness', () => {
       '098_staff_identity_link.sql',
       '099_w1_data_02_legacy_guc_safe_deny.sql',
       '100_tenant_id_uuid_fks.sql',
+      '101_outbox_redrive.sql',
       '097_future_schema.sql',
     ]);
   });

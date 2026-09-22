@@ -14,6 +14,7 @@ import {
   GetQueueAttributesCommand,
 } from '@aws-sdk/client-sqs';
 
+import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import type {
   QueueAdapter,
   QueueMessage,
@@ -23,7 +24,6 @@ import type {
   HealthCheckResult,
   SQSAdapterConfig,
 } from '../types';
-import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
 import { buildTenantName } from '../types';
 
 const DEFAULT_CONFIG: Partial<SQSAdapterConfig> = {
@@ -233,7 +233,7 @@ export class SQSAdapter implements QueueAdapter {
         attributes['ContentBasedDeduplication'] = 'true';
       }
 
-      const createResult = await this.client!.send(
+      const createResult = await this.client.send(
         new CreateQueueCommand({
           QueueName: sqsQueueName,
           Attributes: attributes,
