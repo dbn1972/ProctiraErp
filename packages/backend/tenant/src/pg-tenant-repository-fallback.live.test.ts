@@ -54,12 +54,14 @@ const DOC_TENANT = '5a5a5a5a-0000-4000-8000-00000000f002';
 const DELETE_TENANT = '5a5a5a5a-0000-4000-8000-00000000f003';
 const UPDATE_TENANT = '5a5a5a5a-0000-4000-8000-00000000f004';
 const NEIGHBOUR_TENANT = '5a5a5a5a-0000-4000-8000-00000000f005';
+const ORDER_TENANT = '5a5a5a5a-0000-4000-8000-00000000f006';
 const ALL_PROBE_IDS = [
   TABLE_ONLY_TENANT,
   DOC_TENANT,
   DELETE_TENANT,
   UPDATE_TENANT,
   NEIGHBOUR_TENANT,
+  ORDER_TENANT,
 ];
 
 /** A timestamp fixed in UTC, so a timezone-dependent read produces a wrong instant. */
@@ -215,14 +217,26 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
   });
 
   it('reads timestamps as UTC instants, not as the process timezone', async () => {
-    const tenant = await repo.findTenantById(TABLE_ONLY_TENANT);
     // created_at/updated_at are `timestamp without time zone`. Selected raw, node-pg
-    // interprets them in the process timezone, so this same row would come back as
-    // 2026-03-03T23:36:07Z under TZ=Asia/Kolkata and disagree with the document path,
-    // which stores ISO-8601 with Z. Asserting the instant catches that; asserting
-    // `instanceof Date` (as the first version did) does not.
-    expect(tenant?.createdAt.toISOString()).toBe(FIXED_CREATED_AT_UTC);
-    expect(tenant?.updatedAt.toISOString()).toBe(FIXED_CREATED_AT_UTC);
+    // builds the Date in the *process* timezone, so the same row resolves to a
+    // different instant depending on where the service runs — and disagrees with the
+    // document path, which stores ISO-8601 with Z.
+    //
+    // The process timezone is moved for the duration of this case, because that is the
+    // only way the defect is observable: a naive column and a UTC process agree, and
+    // CI runs UTC, so asserting the instant under the ambient timezone would pass with
+    // `AT TIME ZONE 'UTC'` deleted. Under Asia/Kolkata the unfixed read returns
+    // 2026-03-03T23:36:07Z instead.
+    const originalTz = process.env['TZ'];
+    process.env['TZ'] = 'Asia/Kolkata';
+    try {
+      const tenant = await repo.findTenantById(TABLE_ONLY_TENANT);
+      expect(tenant?.createdAt.toISOString()).toBe(FIXED_CREATED_AT_UTC);
+      expect(tenant?.updatedAt.toISOString()).toBe(FIXED_CREATED_AT_UTC);
+    } finally {
+      if (originalTz === undefined) delete process.env['TZ'];
+      else process.env['TZ'] = originalTz;
+    }
   });
 
   it('reports the lifecycle fields the table does not track as null, not as defaults', async () => {
@@ -300,8 +314,8 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     expect(updated?.slug).toBe('update-probe-f004');
     expect(updated?.config).toEqual({ locale: 'en-IN' });
 
-    // The write materialised a control-plane document, so the two stores now agree
-    // for this tenant and the document is authoritative from here on.
+    // The write materialised a control-plane document, so the document is
+    // authoritative from here on.
     const docs = await asPlatformAdmin((c) =>
       c.query(
         `SELECT 1 FROM control_plane_documents
@@ -311,6 +325,32 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
     );
     expect(docs.rows).toHaveLength(1);
     expect((await repo.findTenantById(UPDATE_TENANT))?.legalHold).toBe(true);
+  });
+
+  it('mirrors the columns the tenants table owns back to the row', async () => {
+    // Materialising a document and stopping there would fork the record: the document
+    // would win every read and the row would keep `legal_hold = false` and
+    // `status = 'active'` for good. db/sql/067 designates `tenants.legal_hold` as the
+    // flag a permanent delete fails closed on, so a hold recorded only in the control
+    // plane is not the flag that file describes.
+    const row = await asPlatformAdmin((c) =>
+      c.query<{ legal_hold: boolean; status: string; name: string; config: unknown }>(
+        `SELECT legal_hold, status, name, config FROM tenants WHERE id = $1`,
+        [UPDATE_TENANT],
+      ),
+    );
+    expect(row.rows[0]?.legal_hold).toBe(true);
+
+    // And a later change to a table-owned column lands in both stores.
+    await repo.updateTenant(UPDATE_TENANT, { status: 'suspended', name: 'Update Probe Renamed' });
+    const after = await asPlatformAdmin((c) =>
+      c.query<{ status: string; name: string }>(`SELECT status, name FROM tenants WHERE id = $1`, [
+        UPDATE_TENANT,
+      ]),
+    );
+    expect(after.rows[0]?.status).toBe('suspended');
+    expect(after.rows[0]?.name).toBe('Update Probe Renamed');
+    expect((await repo.findTenantById(UPDATE_TENANT))?.status).toBe('suspended');
   });
 
   it('refuses a permanent delete when no retention deadline is recorded', async () => {
@@ -353,6 +393,52 @@ describeLive('PgTenantRepository.findTenantById — tenants-table fallback', () 
 
     // Idempotent: nothing left to remove in either store.
     expect(await repo.deleteTenant(DELETE_TENANT)).toBe(false);
+  });
+
+  it('marks the tenants row before removing the document, not after', async () => {
+    // Two separate transactions, so the order is the whole guarantee. Row first means a
+    // failure in between leaves the document present and winning — reads keep their
+    // full lifecycle state, exactly as before this fallback existed. Document first
+    // would leave the row live and resurrect the tenant through the fallback with every
+    // lifecycle field null, which is worse than not having tried.
+    //
+    // Asserted on the SQL the repository actually issues, because the property is about
+    // crash safety and cannot be observed from the end state of a successful run.
+    const statements: string[] = [];
+    const recordingPool = {
+      query: (text: string, values?: unknown[]) => subjectPool.query(text, values),
+      connect: async () => {
+        const client = await subjectPool.connect();
+        const originalQuery = client.query.bind(client);
+        return {
+          query: (text: string, values?: unknown[]) => {
+            statements.push(String(text).replace(/\s+/g, ' ').trim());
+            return originalQuery(text, values as never[]);
+          },
+          release: () => client.release(),
+        };
+      },
+    };
+
+    await asPlatformAdmin((c) =>
+      c.query(
+        `INSERT INTO tenants (id, name, slug, status, config, legal_hold)
+         VALUES ($1, 'Order Probe', 'order-probe-f006', 'active', '{}'::jsonb, false)
+         ON CONFLICT (id) DO UPDATE SET deleted_at = NULL`,
+        [ORDER_TENANT],
+      ),
+    );
+
+    const orderRepo = new PgTenantRepository(recordingPool);
+    expect(await orderRepo.deleteTenant(ORDER_TENANT)).toBe(true);
+
+    const rowUpdate = statements.findIndex((sql) => /UPDATE tenants SET deleted_at/i.test(sql));
+    const documentDelete = statements.findIndex((sql) =>
+      /DELETE FROM control_plane_documents/i.test(sql),
+    );
+    expect(rowUpdate).toBeGreaterThanOrEqual(0);
+    expect(documentDelete).toBeGreaterThanOrEqual(0);
+    expect(rowUpdate).toBeLessThan(documentDelete);
   });
 
   it('does not resolve a soft-deleted tenant', async () => {

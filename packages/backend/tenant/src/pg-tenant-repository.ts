@@ -84,6 +84,12 @@ export class PgTenantRepository implements TenantRepository {
   /** Retained for the `tenants`-table fallback in {@link findTenantById}. */
   private readonly pool: PgPoolWithConnect | PgQueryable;
 
+  /**
+   * Tenant ids already reported as fallback resolutions, so the signal is emitted once
+   * per tenant per process rather than on every page load.
+   */
+  private readonly loggedFallbackTenants = new Set<string>();
+
   constructor(pool: PgPoolWithConnect | PgQueryable) {
     this.pool = pool;
     this.tenants = new PgDocumentCollection<TenantEntity>(pool, 'tenant.tenants');
@@ -118,9 +124,27 @@ export class PgTenantRepository implements TenantRepository {
    * narrower one.
    *
    * So the first write to a table-only tenant creates its document, seeded from the
-   * table row. That is a convergence, not a workaround: from then on the document is
-   * authoritative for this tenant, `listTenants` and `findTenantBySlug` can see it,
-   * and the lifecycle fields the table cannot hold have somewhere to live.
+   * table row. From then on the document is authoritative for this tenant,
+   * `listTenants` and `findTenantBySlug` can see it, and the lifecycle fields the
+   * table cannot hold have somewhere to live.
+   *
+   * ## Why the write also goes back to the table
+   *
+   * Materialising a document alone would fork the record: the document would win every
+   * read and nothing would ever write `tenants.name`, `status`, `config` or
+   * `legal_hold` again, so a suspended tenant would keep `tenants.status = 'active'`
+   * for good. That matters for one column in particular — `db/sql/067` designates
+   * `tenants.legal_hold` as the flag a permanent delete must fail closed on, and a
+   * hold recorded only in the control plane is not the flag that file describes.
+   *
+   * {@link mirrorToTenantRow} therefore writes the four columns the table owns back to
+   * the row on every update. The document stays the source of truth for the lifecycle
+   * fields the table has no columns for; the table stays correct for the ones it does.
+   *
+   * Still open, deliberately: `listTenants`, `countTenants` and `findTenantBySlug` are
+   * document-only reads, so a tenant that has never been written to is not listable
+   * even though it exists as a row. That is the same V2/V7 ownership question and is
+   * not closed here — this makes the stores agree where both hold the same field.
    */
   async updateTenant(id: string, data: Partial<TenantEntity>): Promise<TenantEntity | null> {
     const existing = (await this.tenants.get(id)) ?? (await this.findTenantInTable(id));
@@ -146,7 +170,40 @@ export class PgTenantRepository implements TenantRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    return this.tenants.put(id, updated);
+    const stored = await this.tenants.put(id, updated);
+    await this.mirrorToTenantRow(stored);
+    return stored;
+  }
+
+  /**
+   * Write the four columns the `tenants` table owns back to its row.
+   *
+   * Only `name`, `status`, `config` and `legal_hold` — those are the fields both
+   * stores hold, so those are the ones that can disagree. `slug` is never changed by
+   * `updateTenant`, and the six lifecycle fields have no columns here.
+   *
+   * A no-op when the row does not exist (a tenant created through `createTenant` with
+   * no corresponding row), and it deliberately does not touch a soft-deleted row: a
+   * permanently deleted tenant must not be un-deleted by a later write.
+   */
+  private async mirrorToTenantRow(tenant: TenantEntity): Promise<void> {
+    if (!UUID_RE.test(tenant.id)) return;
+    await withPgTenant(this.assertPool(), tenant.id, (client) =>
+      client.query(
+        `UPDATE tenants
+            SET name = $2, status = $3, config = $4::jsonb, legal_hold = $5,
+                updated_at = $6
+          WHERE id = $1::uuid AND deleted_at IS NULL`,
+        [
+          tenant.id,
+          tenant.name,
+          tenant.status,
+          JSON.stringify(tenant.config ?? {}),
+          tenant.legalHold ?? false,
+          tenant.updatedAt,
+        ],
+      ),
+    );
   }
 
   /**
@@ -169,9 +226,11 @@ export class PgTenantRepository implements TenantRepository {
    *
    *   404 "Tenant with id '…' not found"
    *
-   * on 159 of 193 pages. Confirmed live: the evaluation database holds 940 rows in
-   * `tenants` and 0 documents in collection `tenant.tenants`, so before this fallback
-   * `findTenantById` resolved none of them.
+   * on 159 of 193 pages. Confirmed live: when this was written the evaluation database
+   * held 940 rows in `tenants` and 0 documents in collection `tenant.tenants`, so
+   * `findTenantById` resolved none of them. (Those counts move as soon as anything is
+   * written, since a write materialises a document — treat them as the point-in-time
+   * measurement that motivated the fallback, not as a current invariant.)
    *
    * ## What the fallback does and does not do
    *
@@ -193,7 +252,23 @@ export class PgTenantRepository implements TenantRepository {
   async findTenantById(id: string): Promise<TenantEntity | null> {
     const doc = await this.tenants.get(id);
     if (doc) return doc;
-    return this.findTenantInTable(id);
+
+    // A programming error — the wrong kind of pool — must not be mistaken for
+    // "no such tenant", so it is raised before the containment below.
+    this.assertPool();
+    try {
+      return await this.findTenantInTable(id);
+    } catch (error) {
+      // Contained on purpose. This is a secondary lookup behind a healthy document
+      // store, and it sits on the every-page branding call: a table-specific failure
+      // (a policy change, a lock, a privilege revocation) turning a 404 into a 500 on
+      // every page is a worse outcome than answering "not found" loudly in the log.
+      logger.error(
+        { tenantId: id, err: error },
+        'tenants-table fallback failed; treating the tenant as unresolved',
+      );
+      return null;
+    }
   }
 
   /**
@@ -245,15 +320,33 @@ export class PgTenantRepository implements TenantRepository {
       return null;
     }
 
-    // The one signal that says how much of the estate still depends on this fallback,
-    // and therefore when the document/table split has actually been closed.
-    logger.debug({ tenantId: id }, 'Tenant resolved from the tenants table, not the control plane');
+    // How much of the estate still depends on this fallback, and therefore when the
+    // document/table split has actually been closed.
+    //
+    // `warn`, not `debug` or `info`: the production overlay sets LOG_LEVEL=warn
+    // (infrastructure/k8s/overlays/production), so anything quieter would make this
+    // signal invisible exactly where it is worth having. Once per tenant per process
+    // keeps that affordable — this runs on every page load, and the interesting fact
+    // is "which tenants have no control-plane record", not how often each is read.
+    if (!this.loggedFallbackTenants.has(id)) {
+      this.loggedFallbackTenants.add(id);
+      logger.warn(
+        { tenantId: id },
+        'Tenant resolved from the tenants table; no control-plane record exists for it',
+      );
+    }
 
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       status,
+      // Cast, not validated, unlike `status` above. `tenants.config` is unconstrained
+      // jsonb and the seeded rows do not match `TenantConfigSchema` (002 stores
+      // `locale` as the string "en-IN" where the schema declares an object), so
+      // validating here would reject real tenants and substituting `{}` would drop
+      // their locale and timezone. The response serializer is lossy for such a value
+      // rather than loud. Tracked separately as a seed/schema conformance defect.
       config: (row.config ?? {}) as TenantEntity['config'],
       legalHold: row.legal_hold,
       createdAt: asDate(row.created_at),
@@ -371,8 +464,10 @@ export class PgTenantRepository implements TenantRepository {
    * pre-existing and tracked separately; it is not closed here.
    *
    * Returns true when either store had something to remove, so a tenant that only
-   * ever existed as a table row (the common case — 940 rows, 0 documents in the
-   * evaluation database) is not silently skipped.
+   * ever existed as a table row is not reported as a no-op. `TenantService` cannot
+   * currently reach that case — its permanent-delete gate needs a recorded retention
+   * deadline, which only a document carries — but a direct repository caller can, and
+   * silently answering false for a real deletion would be wrong either way.
    */
   async deleteTenant(id: string): Promise<boolean> {
     const removedRow = await this.softDeleteTenantRow(id);

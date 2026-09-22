@@ -134,16 +134,14 @@ export class TenantService {
     // Transition to active after provisioning steps complete
     // In a real system, this would involve seeding defaults, creating admin user, etc.
     // For now, we transition immediately.
-    const activeTenant = await this.repository.updateTenant(tenant.id, {
-      status: 'active',
-    });
+    const activeTenant = await this.applyUpdate(tenant.id, { status: 'active' });
 
     logger.info(
       { tenantId: tenant.id, slug: tenant.slug },
       'Tenant provisioning completed, status set to active',
     );
 
-    return activeTenant!;
+    return activeTenant;
   }
 
   /**
