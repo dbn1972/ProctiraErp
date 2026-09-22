@@ -27,7 +27,8 @@ Ordered by leverage, not by size.
 
 | ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
 | --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V10 | Queue redrive + backlog depth have no surface       | V5 §6; V3 §12               | `OPEN`         | —                                    | —    |
+| V10 | 7 defects behind Table 2; DLQ redrive absent is #1  | V5 §6; V3 §12; V4 §4 §8     | `OPEN`         | —                                    | —    |
+| V7a | Re-audit V7's 22-table count — method now in doubt  | V3 §7                       | `OPEN`         | —                                    | —    |
 | V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
 | V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
 | V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
@@ -74,60 +75,120 @@ following the repository's own documented apply order, then proposed rewriting t
 migration framework to fix it. The check that would have caught this was reading
 `db/README.md` before running the chain.
 
-### V10 — CORRECTED and rescoped
+### V10 — CORRECTED TWICE. Rescoped.
 
-**Previously recorded as "6 API domains absent". That was wrong. At most two are.**
+**Revision 1 said "6 API domains absent". Revision 2 said "4 of 6 exist, 2 absent".
+Both were wrong. Graded correctly, zero of the nine Table 2 domains are absent.**
 
-I graded the six Volume 4 Table 2 domains by whether a matching route prefix was
-registered. A missing prefix is not a missing capability. Verified per domain:
+The reading error underneath both: Volume 4 Table 2's columns are `Domain | Examples`.
+It lists **nine domains** and the `/api/v1/...` paths are examples inside them. Grading
+the example paths as a route contract produced both errors. This also answers **V10b**
+below — Table 2 is a capability list, not a binding route contract, and the header
+wording says so.
 
-| Table 2 domain               | Verified reality                                                                                                                                                                                                                                         |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/api/v1/service-accounts/*` | **Exists** as `developer-portal` API keys: `developer_portal_api_keys` (`key_hash`, `key_prefix`, `scopes jsonb`, `status`, `expires_at`, `tenant_id`) behind `/developer/accounts/:accountId/keys` and `/developer/validate-key`. Scoped and revocable. |
-| `/api/v1/events/*`           | **Exists** as `developer-portal` webhooks: subscriptions, delivery log, signature verification.                                                                                                                                                          |
-| `/api/v1/settings/*`         | **Exists** as `packages/backend/tenant/src/tenant-settings.ts` behind `/tenants/:id/config`.                                                                                                                                                             |
-| `/api/v1/queue/*`            | **Partial** — `GET /api/v1/admin/scalability/queue` returns liveness only. No depth, no replay, no redrive.                                                                                                                                              |
-| `/api/v1/compliance/*`       | **Absent** — 0 files.                                                                                                                                                                                                                                    |
-| `/api/v1/org-units/*`        | **Absent** — 0 tables, 0 routes, 0 types.                                                                                                                                                                                                                |
+Revision 2's worst error, found by independent review and confirmed: it declared
+`/api/v1/org-units/*` "absent — 0 tables, 0 routes, 0 types" while
+`GeographicArea` / `geographic_areas` is a tenant-scoped nested-set hierarchy
+(`parentId`, `level`, materialized `path`, `lft`/`rgt`, `institutions`) with a full
+`/areas` route module, four test files, and a resolver that
+`apps/api-gateway/src/app.ts:767` wires into `rbacPlugin` as `areaResolver`. The org
+hierarchy is a live authorization input on every permission check. Revision 2 stated a
+lesson about searching for behaviour instead of names, then failed to apply it one
+paragraph later.
 
-Work **not** done, deliberately: `feat/V10-service-accounts-api` was opened then
-abandoned with nothing committed. Building `/api/v1/service-accounts/*` would have
-duplicated a working tenant-scoped capability behind a second route surface. Same
-reasoning for `events` and `settings`.
+Revision 2 also **understated** the queue gap by crediting
+`GET /api/v1/admin/scalability/queue` as partial. `mount-matrix.ts` records
+`admin-dashboard` as `mounted: false, parked: true, 'Plugin exists; not registered on
+gateway.'` The queue operator surface is zero, not partial.
 
-**What V10 now tracks:** queue redrive and backlog depth. V5 §6 requires replay and
-redrive to be _audited_, and there is no replay or redrive to audit — `redrive`
-appears once, in an SQS adapter comment, and dead-lettering exists only as RabbitMQ
-exchange configuration. Messages can enter a DLQ and nothing can take them out. V3
-§12's backlog observability is also unmet: 0 non-test matches for `backlog`,
-`queueDepth`, `messageCount` or `getQueueDepth`.
+### What V10 now tracks
 
-An intermediate note in this session claimed "DLQ/redrive/lag code" existed in
-`queue-abstraction`. It does not. Retracted.
+| #   | Defect                                                                      | Kind              | Spec          | Fixable by an agent?                                    |
+| --- | --------------------------------------------------------------------------- | ----------------- | ------------- | ------------------------------------------------------- |
+| 1   | No DLQ redrive or replay anywhere; outbox `failed` is terminal              | absent capability | V5 §6         | Yes. The only true absence.                             |
+| 2   | Queue operator surface unreachable — `admin-dashboard` parked               | unmounted         | V3 §12, V5 §6 | Needs a ruling: unpark, or rebuild under a live package |
+| 3   | `slo_queue_lag_messages` never `.set()`; no Kafka/RabbitMQ exporter scraped | declared, unwired | V3 §12        | Yes                                                     |
+| 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path  | unenforced        | V4 §4, V5 §3  | Yes, but it is a security surface — needs review        |
+| 5   | `/areas` routes unmounted though `geographic_areas` is RBAC-consumed        | unmounted         | V4 Table 2    | Yes. `institutionPlugin` needs `areaHierarchyDb`.       |
+| 6   | Webhook deliveries have no producer; no event catalog or replay contract    | no producer       | V4 §8         | Partly — the catalog is a design decision               |
+| 7   | Sandbox provisioning is a shell; no non-production credential issued        | shell             | V4 §11        | No — the repo already waived live key mint              |
 
-**Split out as separate items:**
+**Item 1 first.** It is the only confirmed absent capability and the only one with
+operational risk beyond conformance: a stuck DLQ has no recovery path today, and
+`outbox/store.ts` has the same shape — `markFailed` without `availableAt` is terminal
+`failed`, and `claimPending` reads only `pending`.
 
-- `org-units` and `compliance` — genuine absences, but scope questions before
-  engineering ones. Neither has a partial implementation to extend.
-- `service-accounts`, `events`, `settings` — naming divergence from Table 2, not
-  capability gaps. Either alias the routes or amend Table 2. Charter-owner call, and
-  it is listed under "Needs a decision" below as V10b.
+### Claims retracted
 
-**Lesson recorded:** twice now I have reported a capability absent because I searched
-for the specification's name for it rather than for the behaviour. The check that
-catches this is to look for the table and column that would have to exist, not the
-route string.
+- "6 API domains absent" — wrong, zero are.
+- "4 of 6 exist, `compliance` and `org-units` absent" — wrong, `org-units` is
+  implemented and RBAC-consumed; `compliance` behaviour is mounted under `/privacy`
+  and Table 2's row is "Audit and compliance", with `audit` registered.
+- "`service-accounts` … Volume 4 §4 and Volume 5 §3 met in substance" — too strong.
+  Scopes are stored and echoed, never read for an authorization decision;
+  `POST /developer/validate-key` has no consumer anywhere; the gateway has no API-key
+  credential path; `schemas.ts:43` types scopes as unconstrained strings.
+- "Volume 4 §11's sandbox … served by `.../sandboxes`" — a shell. `createSandbox`
+  mints a UUID it calls `tenantId` without creating a tenant, discards `seedData`, and
+  `hybrid-repository.ts:180` routes all sandbox calls to in-memory storage.
+- "`settings` … behind `/tenants/:id/config`" — wrong path. `tenant-settings.ts` serves
+  `/tenant/settings`; `:id/config` is a different module over a different store at
+  `/api/v1/tenant-lifecycle/:id/config`.
+- "`events` exists" — half right. Subscription by event type does exist, with signing,
+  retry and a durable delivery log. But `createDelivery` has no caller outside the
+  package and its tests, so nothing produces an event.
+- "DLQ/redrive/lag code in `queue-abstraction`" — retracted in revision 2, still
+  retracted. Configuration only.
+- "queue backlog unmet, 0 grep matches" — conclusion right, evidence too narrow. It
+  missed `queueLag` in `slo-catalog.ts`, `slo_queue_lag_messages` in `slo.ts`,
+  `infra/observability/alerts/queue_lag.yml`, and `ApproximateNumberOfMessages` in
+  `sqs-adapter.ts`. Restated as declared-but-unwired.
+
+### One suspected defect tested and refuted
+
+Review flagged that `db/sql/055`'s `tenant_isolation` policy has no
+`app.platform_admin` disjunct while `getApiKeyByHash` runs under `withPlatformScope`
+with no tenant GUC, which would make `validate-key` return zero rows under FORCE RLS.
+It does not. `db/sql/094_developer_portal_api_key_lookup.sql` adds a second permissive
+policy `platform_api_key_lookup FOR SELECT USING (app.platform_admin = '1')` that
+OR-combines. Proved live as the runtime role `proctira_app`:
+
+```
+A  platform_admin=1, no tenant GUC  (the getApiKeyByHash path) -> rows_visible = 1
+B  platform_admin cleared, no tenant GUC  (control)            -> rows_visible = 0
+```
+
+B confirms A's visibility comes from that policy, not from inactive RLS. Recorded
+because reading `055` alone would have produced a fourth false claim — in the opposite
+direction this time.
+
+### Knock-on: V7 needs re-auditing
+
+V7 ("none of the 22 named tables exist") was produced by the same name-matching method
+that got `org-units` wrong. Its count should not be trusted until each of the 22 is
+checked for a differently-named equivalent. Flagged rather than silently corrected,
+because checking 22 tables is its own task.
+
+### Method note
+
+Three revisions, two wrong in opposite directions. What works, in order: read the
+specification table's structure before grading rows against it; search for the
+_behaviour_ — a nested-set hierarchy, a hashed credential — not the noun; then check
+**gateway mount state**, because in this repository a package having routes does not
+mean the routes are reachable. `apps/api-gateway/src/mount-matrix.ts` is the authority
+and it parks several packages outright.
 
 ## Needs a decision before work can start
 
-| ID     | Question                                                           | Why it cannot be an engineering call                                                                                                                                                                                                                   | Status           |
-| ------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| **V4** | Do cross-service FKs stay, or does W1-DATA-06 go?                  | V3 §7 and V1 §19.6 forbid shared FK coupling; W1-DATA-06 requires a validated `tenant_id` FK on every tenant table. #342 added 23 at explicit request, live-proved.                                                                                    | `NEEDS DECISION` |
-| V1     | Table naming and ownership — 5 of 8 prefixes have zero tables      | Remediation direction depends entirely on V4                                                                                                                                                                                                           | `BLOCKED` by V4  |
-| V7     | 0 of 22 named tables exist                                         | Same as V1 — same underlying model                                                                                                                                                                                                                     | `BLOCKED` by V4  |
-| V2     | `control_plane_documents` owned by three services                  | The P0 fix is partly independent and can proceed; full ownership split depends on V4                                                                                                                                                                   | `PARTIAL`        |
-| V10b   | Is Volume 4 Table 2 a binding route contract or a capability list? | If binding, `service-accounts`, `events` and `settings` need aliasing to names the platform already serves under `/developer` and `/tenants`. If a capability list, they are already conformant. Renaming a public route surface is not an agent call. | `NEEDS DECISION` |
-| V10c   | Are `org-units` and `compliance` in scope for this product?        | Both are genuinely unimplemented — no table, no route, no type. Building either is new product scope, not gap closure.                                                                                                                                 | `NEEDS DECISION` |
+| ID     | Question                                                              | Why it cannot be an engineering call                                                                                                                                                                                                                   | Status            |
+| ------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| **V4** | Do cross-service FKs stay, or does W1-DATA-06 go?                     | V3 §7 and V1 §19.6 forbid shared FK coupling; W1-DATA-06 requires a validated `tenant_id` FK on every tenant table. #342 added 23 at explicit request, live-proved.                                                                                    | `NEEDS DECISION`  |
+| V1     | Table naming and ownership — 5 of 8 prefixes have zero tables         | Remediation direction depends entirely on V4                                                                                                                                                                                                           | `BLOCKED` by V4   |
+| V7     | 0 of 22 named tables exist — **count now in doubt**                   | Remediation is blocked by V4 either way. But the count came from the same name-matching that wrongly declared `org-units` absent, so re-audit it as V7a before acting on it.                                                                           | `BLOCKED` by V4   |
+| V2     | `control_plane_documents` owned by three services                     | The P0 fix is partly independent and can proceed; full ownership split depends on V4                                                                                                                                                                   | `PARTIAL`         |
+| V10b   | Is Volume 4 Table 2 a binding route contract or a capability list?    | **Largely answered by the table itself** — its columns are `Domain \| Examples`, so the paths are illustrative and all nine domains are served. Retained only so the charter owner can confirm that reading before V10's route-name items are dropped. | `LIKELY RESOLVED` |
+| V10c   | WITHDRAWN — `org-units` and `compliance` are not absent               | `org-units` is `geographic_areas`, implemented and wired into gateway RBAC; its `/areas` routes are merely unmounted, which is V10 item 5. `compliance` behaviour is mounted under `/privacy`. Neither is a scope question.                            | `NOT_A_DEFECT`    |
+| V10d   | Unpark `admin-dashboard`, or rebuild the queue ops surface elsewhere? | `mount-matrix.ts` parks the package as superseded by the platform-admin UI. Reviving a deliberately parked package is a product-ownership call, not an agent call. Blocks V10 item 2.                                                                  | `NEEDS DECISION`  |
 
 **Recommendation on V4:** exempt the tenant reference in §19.6 and record the
 exemption. Tenant identity is platform infrastructure rather than a peer service, so

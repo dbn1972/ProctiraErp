@@ -93,81 +93,221 @@ route. That distinction matters for remediation and was not established.
 
 ---
 
-## V10 — Endpoint domains missing from the governed API surface
+## V10 — Volume 4 Table 2 API domains
 
-**Violates:** Volume 4 §5 and Table 2
-**Status:** `partial` · **Severity:** low for the naming divergence, medium for the
-two real gaps
+**Relates to:** Volume 4 §5 and Table 2
+**Status:** `partial` · **Severity:** medium, but for entirely different reasons than
+the first two revisions gave
 
-### Correction, second revision
+### Third revision. The first two were both wrong.
 
-This finding was wrong twice. It is restated here from route-level and schema-level
-evidence rather than from prefix names.
+Revision 1 grepped for literal `/api/v1/<domain>` and called six paths absent.
+Revision 2 used the registered prefix list and still called six absent. Revision 3,
+below, reads Table 2 correctly and grades each domain against schema, routes, and
+gateway mount state.
 
-The first pass grepped for literal `/api/v1/<domain>` and understated the surface,
-because domain plugins register a prefix and declare relative paths. The second pass
-used the registered prefix list, and still called six domains "absent" — but a
-missing prefix is not a missing capability. Four of the six exist under a different
-route name. Only two are genuinely unimplemented.
+**The reading error underneath both.** Table 2's columns are `Domain | Examples`.
+It lists **nine domains**, and the paths are illustrative examples inside them:
 
-Registered and matching Table 2: `auth`, `tenants`, `themes`, `plugins`, `audit`,
-`health`, plus `billing`, `plans`, `platform`, `scim`, `developer`, `break-glass`.
+```
+| Domain                   | Examples                                           |
+| Auth and identity        | /api/v1/auth/*, /api/v1/service-accounts/*         |
+| Tenant and org           | /api/v1/tenants/*, /api/v1/org-units/*             |
+...
+```
 
-#### Capability exists, route name diverges from Table 2
+Grading the example paths as if they were a route contract produced both earlier
+errors. Graded per domain, **zero of nine are absent.** The real defects are of a
+different kind, and one of them is worse than anything V10 previously alleged.
 
-| Table 2 domain               | What implements it                                                                                                                                                                                                                                                                                                                         |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/api/v1/service-accounts/*` | `developer-portal`. `db/sql/055_developer_portal_api_keys_schema.sql` stores `key_hash`, `key_prefix`, `scopes jsonb`, `status`, `expires_at`, `last_used_at`, `tenant_id`. Routes: `POST/GET/DELETE /developer/accounts/:accountId/keys`, `POST /developer/validate-key`, `POST /developer/accounts/:accountId/suspend`, `.../sandboxes`. |
-| `/api/v1/events/*`           | `developer-portal` webhook subscriptions and delivery log: `POST/GET/PATCH/DELETE /developer/accounts/:accountId/webhooks`, `GET .../webhooks/:webhookId/deliveries`, `POST /developer/webhooks/verify`.                                                                                                                                   |
-| `/api/v1/settings/*`         | `packages/backend/tenant/src/tenant-settings.ts`, surfaced as `GET/PUT /tenants/:id/config`.                                                                                                                                                                                                                                               |
-| `/api/v1/queue/*`            | Partially. `GET /api/v1/admin/scalability/queue` in `packages/backend/admin-dashboard/src/scalability-routes.ts` returns `connected`, `healthy`, `backend`, `latencyMs`. What it does not return is below.                                                                                                                                 |
+### Per-domain grading
 
-For the first three the conformance question is whether Table 2 is a binding route
-contract or a capability list. If binding, the fix is an alias or a rename, not new
-functionality. Volume 4 §4's scoped machine identities and Volume 5 §3's governed
-service-account scopes are met in substance by `developer_portal_api_keys`:
-tenant-scoped, hashed, scope-bearing, expirable, revocable. Volume 4 §11's sandbox
-and non-production credential path is served by `.../sandboxes`.
+| Table 2 domain               | Where it is served                                                                     | Verdict                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Auth and identity**        | `/api/v1/auth`; machine identity via `/developer/accounts/:accountId/keys`             | Present, but **scopes are stored and never enforced** — see below                        |
+| **Tenant and org**           | `/api/v1/tenant-lifecycle`, `/tenant`; org hierarchy is `geographic_areas`             | Capability present, **`/areas` route surface unmounted**                                 |
+| **Users, groups, roles**     | `/tenant/{roles,permissions,users}`, `/scim/v2/{Users,Groups}` (`mount-matrix.ts:406`) | Present                                                                                  |
+| **Billing and entitlements** | `/api/v1/billing`, `plans`                                                             | Present                                                                                  |
+| **Configuration**            | `/tenant/settings` (`tenant-settings.ts`); `/api/v1/tenant-lifecycle/:id/config`       | Present, across two distinct stores with different field sets                            |
+| **Themes and plugins**       | `themes`, `plugins` registered                                                         | Present                                                                                  |
+| **Audit and compliance**     | `/api/v1/audit-logs`; compliance behaviour under `/privacy`                            | Present; no route domain _named_ `compliance`, capability is distributed                 |
+| **Webhooks and events**      | `/developer/accounts/:accountId/webhooks` + delivery log                               | Subscription and delivery plumbing present, **no event producer**                        |
+| **Queue/ops surfaces**       | `/health` mounted; `/admin/scalability` **parked and unmounted**                       | **Operator surface is zero**, not partial. No redrive. Backlog declared, never populated |
 
-The earlier claim that `service-accounts` was "the most significant" gap was wrong.
-The `feat/V10-service-accounts-api` branch was abandoned without a commit rather than
-build a second route surface over a working one.
+### The defect revision 2 got backwards: `org-units`
 
-#### Genuinely absent
+Revision 2 recorded "`/api/v1/org-units/*` — Absent, 0 tables, 0 routes, 0 types".
+The grep behind that is reproducible, and it is the wrong grep. The capability exists
+under a different name, which is precisely the failure mode revision 2 claimed to have
+learned from.
 
-| Table 2 domain         | Evidence                                                                                                                                                              |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/api/v1/compliance/*` | No prefix, and **0** occurrences of an `/api/v1/compliance` path. The only `compliance` routes are `scholarship`'s unrelated `/scholarships/compliance` sub-resource. |
-| `/api/v1/org-units/*`  | **0** matches for `org_unit`, `orgUnit` or `org-unit` across `packages`, `db`, `prisma`, `apps`. No table, no route, no type.                                         |
+`packages/shared/database/prisma/schema.prisma:191` `model GeographicArea` →
+`geographic_areas`, documented as "Country → State → District → Sub-District → Block →
+Village": `tenantId`, `name`, `code`, `level`, self-relation `parentId`
+(`"AreaHierarchy"`), materialized `path`, nested-set `lft`/`rgt`, and
+`institutions Institution[]`. Listed as a contract table in
+`packages/shared/database/src/schema-contracts.ts`.
 
-#### Queue: the gap is real, and narrower than first stated
+`packages/backend/institution/src/area-hierarchy/` carries the service, schemas,
+routes (`POST /areas`, `PUT /areas/:areaId`, `POST /areas/:areaId/move`,
+`GET /areas/tree`, `GET /areas/:areaId{,/descendants,/institutions}`), a resolver, and
+four test files including a depth property test.
 
-`GET /api/v1/admin/scalability/queue` reports liveness, not depth. Searching
-`packages/shared/queue-abstraction/src` and `packages/backend/admin-dashboard/src`
-for `backlog`, `queueDepth`, `messageCount` or `getQueueDepth` returns **0**
-non-test matches, so Volume 3 §12's backlog observability is unmet.
+It is live in authorization: `apps/api-gateway/src/app.ts:767` passes
+`createAreaHierarchyResolver()` into `rbacPlugin` as `areaResolver`, and
+`evaluatePermission` consumes it (`app.ts:951`). The org hierarchy is already an
+authorization input on every permission check.
 
-Volume 5 §6 requires queue replay and redrive to be **audited**. There is no replay
-or redrive operation to audit. `redrive` appears once, in a comment in
-`adapters/sqs-adapter.ts`, and dead-lettering exists only as RabbitMQ
-`deadLetterExchange` / `x-dead-letter-exchange` configuration in
-`adapters/rabbitmq-adapter.ts`. Messages can land in a DLQ; nothing can take them out.
-An intermediate note claiming "DLQ/redrive/lag code" exists was wrong and is retracted.
+**The accurate defect is narrower and different.** The `/areas` routes are unmounted.
+`institution-plugin.ts:113` registers them only `if (areaHierarchyDb)`, and the
+gateway's registration (`domain-plugins.ts:615`) passes `academics: true` without
+`areaHierarchyDb`. So the hierarchy can be read for RBAC but cannot be administered
+over the API.
 
-**Present but not as their own domain:** `roles` (34 files, no prefix),
-`entitlements` (5 files), `webhooks` (1 file), `subscriptions` (served under
-`billing`). Capability exists; the governed resource domain does not.
+### The gap that got understated: queue
 
-#### Revised remediation order
+Revision 2 credited `GET /api/v1/admin/scalability/queue` as a partial surface. That
+route is not reachable. `apps/api-gateway/src/mount-matrix.ts` records:
 
-1. `queue` redrive and backlog depth — a real capability gap with two spec clauses
-   behind it, and an operational one: a stuck DLQ has no recovery path.
-2. `org-units` and `compliance` — decide whether they are in scope before building.
-   Neither has any partial implementation to extend.
-3. `service-accounts`, `events`, `settings` — naming reconciliation only. Either
-   alias the routes to the Table 2 names or amend Table 2. No new capability.
+```ts
+package: 'admin-dashboard', mounted: false, prefixes: ['/admin/scalability'],
+parked: true,
+parkedReason: 'G-924 PARKED (superseded) — platform-admin UI + insights own every
+               dashboard surface; package kept only for its aggregation helpers.',
+notes: 'Plugin exists; not registered on gateway.',
+```
 
----
+`registerScalabilityRoutes` has no caller outside its own package plugin. **The queue
+operator surface is zero, not partial.** Note also that the file's own header comment
+advertises "Queue depth, lag, and DLQ count", which matches nothing in the
+implementation — a trap for the next auditor who greps comments.
+
+**No redrive exists, and that stands.** `redrive` appears once, in a comment at
+`adapters/sqs-adapter.ts:287`. Dead-lettering is configuration only:
+`deadLetterExchange` / `x-dead-letter-exchange` in `adapters/rabbitmq-adapter.ts`,
+`RABBITMQ_DLX` in `factory.ts`, `deadLetterExchange` in `types.ts`. No DLQ read, list
+or replay operation, and no `dead_letter`/`dlq`/`redrive` artefact in `db/sql`.
+Messages can enter a DLQ and nothing can take them out, so Volume 5 §6's requirement
+that replay and redrive be _audited_ has no operation to audit.
+
+The transactional outbox is a second one-way sink: `outbox/store.ts` `markFailed`
+without `availableAt` is terminal `failed`, and `claimPending` reads only `pending`.
+Failed outbox rows are unrecoverable by any code path.
+
+**Backlog observability is declared but never populated.** A previous revision claimed
+zero matches for `backlog`/`queueDepth`/`messageCount`/`getQueueDepth` in two
+directories and concluded the requirement was unmet. The count is right and the method
+was again too narrow — it misses `queueLag: { maxLag, unit: 'messages' }` in
+`slo-catalog.ts` for four services, `slo_queue_lag_messages` at `slo.ts:184`,
+`infra/observability/alerts/queue_lag.yml` (alerting on `kafka_consumergroup_lag`,
+`rabbitmq_queue_messages_ready`, and DLQ growth on `.*\.dlx`), and
+`GetQueueAttributesCommand ... ApproximateNumberOfMessages` at `sqs-adapter.ts:180`.
+
+The conclusion survives for a better reason: `slo_queue_lag_messages` is **never
+`.set()`** — only the `slo_queue_lag_max` target is — and `prometheus.yml` scrapes 11
+application jobs plus `prometheus` and `kubernetes-pods`, with **no Kafka or RabbitMQ
+exporter**. Every alert expression above evaluates against a metric nothing produces.
+Volume 3 §12 is unmet because the pipeline is unwired, not because nobody declared it.
+
+### Machine identity: storage without enforcement
+
+Revision 2 claimed Volume 4 §4 and Volume 5 §3 were "met in substance". Too strong.
+
+The storage layer does support the description. `db/sql/055` gives
+`developer_portal_api_keys` a hashed key with a global unique index, `key_prefix`,
+`scopes jsonb`, a `status` CHECK over `active|revoked|expired`, `expires_at`,
+`tenant_id`, and `ENABLE` + `FORCE ROW LEVEL SECURITY`.
+
+Enforcement is absent. There is no `requireScope`/`hasScope` equivalent, nothing reads
+`scopes` for an authorization decision, `POST /developer/validate-key` has **no
+consumer anywhere** in `packages` or `apps`, and the gateway has no API-key credential
+path. The scope vocabulary is unconstrained — `schemas.ts:43` types it as
+`Type.Array(Type.String({ minLength: 1, maxLength: 128 }))`, so any string is a scope.
+V4 §4 requires least privilege with explicit scopes; a store no decision point reads
+cannot satisfy that. **Accurate verdict: a scoped credential store exists; scope
+enforcement does not.**
+
+**One suspected defect here was tested and refuted.** `db/sql/055`'s `tenant_isolation`
+policy has no `app.platform_admin` disjunct, while `pg-api-key-store.ts:114`
+`getApiKeyByHash` runs under `withPlatformScope`, which sets `app.platform_admin='1'`
+and binds no tenant GUC. That looks like it must return zero rows under FORCE RLS. It
+does not: `db/sql/094_developer_portal_api_key_lookup.sql` adds a second permissive
+policy `platform_api_key_lookup` `FOR SELECT USING (app.platform_admin = '1')`, which
+OR-combines with `tenant_isolation`. Proved live as the runtime role `proctira_app`:
+
+```
+A  platform_admin=1, no tenant GUC  (the getApiKeyByHash path) -> rows_visible = 1
+B  platform_admin cleared, no tenant GUC  (control)            -> rows_visible = 0
+```
+
+B confirms the visibility in A comes from that policy rather than from RLS being
+inactive. Recording this because reading `055` alone would have produced a fourth
+false claim.
+
+### Webhooks and events: plumbing without producers
+
+Subscription by event type genuinely exists — a webhook carries an `events[]` list and
+`developer-portal-service.ts:490` rejects delivery for unsubscribed events — alongside
+signing, retry, and a durable delivery log.
+
+What is missing is any producer. `createDelivery` has **no caller outside the
+developer-portal package and its own tests**: the only references are the repository
+interface, the service method, the hybrid/in-memory implementations, and two test
+files. No route triggers a delivery; the only webhook delivery route is the read-side
+`GET .../deliveries`. Event names are free-form strings with no catalog, trigger
+registry, payload schema, ordering guarantee or replay contract of the kind V4 §8
+describes.
+
+### Sandbox: a shell, not a credential path
+
+Revision 2 claimed V4 §11's sandbox and non-production credential path was "served by
+`.../sandboxes`". `developer-portal-service.ts:647` `createSandbox` mints a `uuidv4()`
+and calls it `tenantId` without creating any tenant, string-formats
+`${sandboxBaseUrl}/tenants/<uuid>` as the endpoint, sets `status: 'active'` directly
+rather than provisioning, and silently discards the `seedData` the request schema
+accepts (`SandboxEntity` has no such field). `hybrid-repository.ts:180` routes every
+sandbox call to `this.memory` — "in-memory residual" — so sandboxes do not survive a
+restart even with `DATABASE_URL` set. Nothing is provisioned and no credential is
+issued. Consistent with the repo's own `DEV_DEVPORTAL_CRYPTO_KEYS.md`, which lists
+live key mint as an explicit non-goal.
+
+### Configuration: the cited path was wrong
+
+Revision 2 attributed `packages/backend/tenant/src/tenant-settings.ts` to
+`/tenants/:id/config`. It registers `GET/PUT ${prefix}/settings`, mounted by
+`tenantAdminPlugin` at `/tenant/settings`. The `:id/config` pair is a different module
+(`routes.ts:372,404`, over the tenant entity's `config`), mounted at
+`/api/v1/tenant-lifecycle/:id/config` because the platform-admin UI owns
+`/api/v1/tenants`. Two stores with different field sets, not one.
+
+### What V10 should actually track
+
+| #   | Defect                                                                     | Kind              | Spec               |
+| --- | -------------------------------------------------------------------------- | ----------------- | ------------------ |
+| 1   | No DLQ redrive or replay anywhere; outbox `failed` is terminal             | absent capability | V5 §6              |
+| 2   | Queue operator surface unreachable (`admin-dashboard` parked)              | unmounted         | V3 §12, V5 §6      |
+| 3   | `slo_queue_lag_messages` never set; no Kafka/RabbitMQ exporter scraped     | declared, unwired | V3 §12             |
+| 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path | unenforced        | V4 §4, V5 §3       |
+| 5   | `/areas` routes unmounted though `geographic_areas` is RBAC-consumed       | unmounted         | V4 Table 2, V1 §19 |
+| 6   | Webhook deliveries have no producer; no event catalog or replay contract   | no producer       | V4 §8              |
+| 7   | Sandbox provisioning is a shell; no non-production credential issued       | shell             | V4 §11             |
+
+Item 1 is the only true absence, and it carries operational risk beyond conformance: a
+stuck DLQ has no recovery path today. Items 2 and 5 are configuration-sized. Items 4,
+6 and 7 are real functional gaps behind surfaces that look complete.
+
+### Method note, recorded deliberately
+
+Three revisions, two of them wrong in opposite directions. Revision 1 and 2 searched
+for the specification's _name_ for a capability. Revision 2's own stated lesson was to
+"look for the table and column that would have to exist" — and it then failed to apply
+that to `org-units`, where `geographic_areas` was one grep away.
+
+What actually works, in order: read the specification's table structure before
+grading rows against it; search for the _behaviour_ (a nested-set hierarchy, a hashed
+credential) not the noun; then check the **gateway mount state**, because in this
+repository a package having routes does not mean the routes are reachable —
+`mount-matrix.ts` is the authority and it parks several packages outright.
 
 ## V11 — Security control matrix: largely unverified, with two confirmed gaps
 
@@ -181,9 +321,10 @@ Recording it as `unverified` rather than compliant.
 **Confirmed gaps:**
 
 _§6 audit coverage._ Volume 5 §6 requires audit records for install/bootstrap
-actions and for queue replays or redrive. Neither has persistence (V7:
-`install_*` and `queue_*` tables absent) nor an operation to audit (V10: no replay or
-redrive exists in any queue adapter), so these two audit classes cannot be recorded.
+actions and for queue replays or redrive. For the queue half this is settled: no
+replay or redrive operation exists in any adapter (V10 item 1), so there is nothing to
+audit. For the install half, `install_*` persistence was reported absent by V7, whose
+method is itself now in doubt — see the note in the priority list.
 The hash-chained audit trail itself is real and was proved tamper-evident live
 (#331), so this is a coverage gap rather than an absent capability.
 
@@ -225,16 +366,22 @@ test and failure-behaviour requirements.
 
 ## Consolidated priority across all five volumes
 
-1. **V2 / V7** — service table ownership. One piece of work closes the shared-table
-   violation, the naming violation, the 22 missing tables, and the open P0, because
-   they are all consequences of the same design.
-2. **V4** — the cross-service FK contradiction. Needs the charter owner. Blocks
+1. **V10 item 1** — DLQ redrive. Promoted to the top because it is the only confirmed
+   absent capability in V10 and it carries operational risk, not just conformance
+   risk: a stuck DLQ has no recovery path, and the transactional outbox has the same
+   shape. Everything else in V10 is unmounted, unenforced or unwired rather than
+   missing.
+2. **V2 / V7** — service table ownership, **pending a re-audit of V7's method.** One
+   piece of work closes the shared-table violation, the naming violation and the open
+   P0. But V7's "none of the 22 named tables exist" was produced by the same
+   name-matching method that wrongly declared `org-units` absent when
+   `geographic_areas` implements it. V7's count should not be trusted until each of
+   the 22 is checked for a differently-named equivalent.
+3. **V4** — the cross-service FK contradiction. Needs the charter owner. Blocks
    knowing whether V7's remediation direction is correct.
-3. **V3** — remove the MySQL option or implement it. Closed PostgreSQL-only in #363.
-4. **V10** — queue redrive and backlog depth. Revised down from `service-accounts`,
-   which turned out to exist under `/developer`; see the V10 correction above.
+4. **V3** — remove the MySQL option or implement it. Closed PostgreSQL-only in #363.
 5. **V8**, **V9** — SDK and error envelope.
-6. **V11** — requires T1 and T11 resolved before most of it can even be measured.
+6. **V11** — requires T1 before most of it can be measured. T11 is withdrawn.
 
 ## Honest limits of this report
 
