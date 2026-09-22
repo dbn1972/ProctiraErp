@@ -96,39 +96,76 @@ route. That distinction matters for remediation and was not established.
 ## V10 — Endpoint domains missing from the governed API surface
 
 **Violates:** Volume 4 §5 and Table 2
-**Status:** `partial` · **Severity: medium**
+**Status:** `partial` · **Severity:** low for the naming divergence, medium for the
+two real gaps
 
-Method note: an initial grep for literal `/api/v1/<domain>` understated the surface,
-because domain plugins register a prefix and declare relative paths. The finding
-below uses the actual registered prefix list instead. This correction is recorded
-because the first result would have overstated the gap.
+### Correction, second revision
+
+This finding was wrong twice. It is restated here from route-level and schema-level
+evidence rather than from prefix names.
+
+The first pass grepped for literal `/api/v1/<domain>` and understated the surface,
+because domain plugins register a prefix and declare relative paths. The second pass
+used the registered prefix list, and still called six domains "absent" — but a
+missing prefix is not a missing capability. Four of the six exist under a different
+route name. Only two are genuinely unimplemented.
 
 Registered and matching Table 2: `auth`, `tenants`, `themes`, `plugins`, `audit`,
 `health`, plus `billing`, `plans`, `platform`, `scim`, `developer`, `break-glass`.
 
-**Absent as governed domains:**
+#### Capability exists, route name diverges from Table 2
 
-| Table 2 domain               | Evidence                                                          |
-| ---------------------------- | ----------------------------------------------------------------- |
-| `/api/v1/service-accounts/*` | no prefix; **0** gateway files mention it                         |
-| `/api/v1/org-units/*`        | no prefix; **0** gateway files mention it                         |
-| `/api/v1/compliance/*`       | no prefix registered                                              |
-| `/api/v1/events/*`           | no prefix registered                                              |
-| `/api/v1/queue/*`            | no prefix; 5 files mention queue, none expose an operator surface |
-| `/api/v1/settings/*`         | no prefix registered                                              |
+| Table 2 domain               | What implements it                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/api/v1/service-accounts/*` | `developer-portal`. `db/sql/055_developer_portal_api_keys_schema.sql` stores `key_hash`, `key_prefix`, `scopes jsonb`, `status`, `expires_at`, `last_used_at`, `tenant_id`. Routes: `POST/GET/DELETE /developer/accounts/:accountId/keys`, `POST /developer/validate-key`, `POST /developer/accounts/:accountId/suspend`, `.../sandboxes`. |
+| `/api/v1/events/*`           | `developer-portal` webhook subscriptions and delivery log: `POST/GET/PATCH/DELETE /developer/accounts/:accountId/webhooks`, `GET .../webhooks/:webhookId/deliveries`, `POST /developer/webhooks/verify`.                                                                                                                                   |
+| `/api/v1/settings/*`         | `packages/backend/tenant/src/tenant-settings.ts`, surfaced as `GET/PUT /tenants/:id/config`.                                                                                                                                                                                                                                               |
+| `/api/v1/queue/*`            | Partially. `GET /api/v1/admin/scalability/queue` in `packages/backend/admin-dashboard/src/scalability-routes.ts` returns `connected`, `healthy`, `backend`, `latencyMs`. What it does not return is below.                                                                                                                                 |
+
+For the first three the conformance question is whether Table 2 is a binding route
+contract or a capability list. If binding, the fix is an alias or a rename, not new
+functionality. Volume 4 §4's scoped machine identities and Volume 5 §3's governed
+service-account scopes are met in substance by `developer_portal_api_keys`:
+tenant-scoped, hashed, scope-bearing, expirable, revocable. Volume 4 §11's sandbox
+and non-production credential path is served by `.../sandboxes`.
+
+The earlier claim that `service-accounts` was "the most significant" gap was wrong.
+The `feat/V10-service-accounts-api` branch was abandoned without a commit rather than
+build a second route surface over a working one.
+
+#### Genuinely absent
+
+| Table 2 domain         | Evidence                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/compliance/*` | No prefix, and **0** occurrences of an `/api/v1/compliance` path. The only `compliance` routes are `scholarship`'s unrelated `/scholarships/compliance` sub-resource. |
+| `/api/v1/org-units/*`  | **0** matches for `org_unit`, `orgUnit` or `org-unit` across `packages`, `db`, `prisma`, `apps`. No table, no route, no type.                                         |
+
+#### Queue: the gap is real, and narrower than first stated
+
+`GET /api/v1/admin/scalability/queue` reports liveness, not depth. Searching
+`packages/shared/queue-abstraction/src` and `packages/backend/admin-dashboard/src`
+for `backlog`, `queueDepth`, `messageCount` or `getQueueDepth` returns **0**
+non-test matches, so Volume 3 §12's backlog observability is unmet.
+
+Volume 5 §6 requires queue replay and redrive to be **audited**. There is no replay
+or redrive operation to audit. `redrive` appears once, in a comment in
+`adapters/sqs-adapter.ts`, and dead-lettering exists only as RabbitMQ
+`deadLetterExchange` / `x-dead-letter-exchange` configuration in
+`adapters/rabbitmq-adapter.ts`. Messages can land in a DLQ; nothing can take them out.
+An intermediate note claiming "DLQ/redrive/lag code" exists was wrong and is retracted.
 
 **Present but not as their own domain:** `roles` (34 files, no prefix),
 `entitlements` (5 files), `webhooks` (1 file), `subscriptions` (served under
 `billing`). Capability exists; the governed resource domain does not.
 
-`service-accounts` is the most significant. Volume 4 §4 requires service account and
-plugin identities with explicit scopes, and Volume 5 §3 requires service account
-scopes be "supported and governed". Without the domain there is no surface to create
-or scope a machine identity, which also undercuts Volume 4 §11's sandbox and
-non-production credential requirement.
+#### Revised remediation order
 
-`/api/v1/queue/*` matters for Volume 5 §6, which requires queue replay and redrive
-to be audited, and Volume 3 §12, which requires queue backlog observability.
+1. `queue` redrive and backlog depth — a real capability gap with two spec clauses
+   behind it, and an operational one: a stuck DLQ has no recovery path.
+2. `org-units` and `compliance` — decide whether they are in scope before building.
+   Neither has any partial implementation to extend.
+3. `service-accounts`, `events`, `settings` — naming reconciliation only. Either
+   alias the routes to the Table 2 names or amend Table 2. No new capability.
 
 ---
 
@@ -145,8 +182,8 @@ Recording it as `unverified` rather than compliant.
 
 _§6 audit coverage._ Volume 5 §6 requires audit records for install/bootstrap
 actions and for queue replays or redrive. Neither has persistence (V7:
-`install_*` and `queue_*` tables absent) nor an API surface (V10:
-`/api/v1/queue/*` absent), so these two audit classes cannot currently be recorded.
+`install_*` and `queue_*` tables absent) nor an operation to audit (V10: no replay or
+redrive exists in any queue adapter), so these two audit classes cannot be recorded.
 The hash-chained audit trail itself is real and was proved tamper-evident live
 (#331), so this is a coverage gap rather than an absent capability.
 
@@ -193,9 +230,9 @@ test and failure-behaviour requirements.
    they are all consequences of the same design.
 2. **V4** — the cross-service FK contradiction. Needs the charter owner. Blocks
    knowing whether V7's remediation direction is correct.
-3. **V3** — remove the MySQL option or implement it.
-4. **V10** — `service-accounts` first; it gates machine identity, scoping and the
-   sandbox path.
+3. **V3** — remove the MySQL option or implement it. Closed PostgreSQL-only in #363.
+4. **V10** — queue redrive and backlog depth. Revised down from `service-accounts`,
+   which turned out to exist under `/developer`; see the V10 correction above.
 5. **V8**, **V9** — SDK and error envelope.
 6. **V11** — requires T1 and T11 resolved before most of it can even be measured.
 

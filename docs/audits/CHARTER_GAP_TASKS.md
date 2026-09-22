@@ -25,16 +25,16 @@ test, or an observed runtime behaviour. Not "looks right".
 
 Ordered by leverage, not by size.
 
-| ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR       |
-| --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | -------- |
-| V10 | 6 API domains absent as governed surfaces           | V4 §5, Table 2              | `OPEN`         | —                                    | —        |
-| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —        |
-| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363     |
-| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —        |
-| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —        |
-| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —        |
-| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #pending |
-| T4  | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —        |
+| ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
+| --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
+| V10 | Queue redrive + backlog depth have no surface       | V5 §6; V3 §12               | `OPEN`         | —                                    | —    |
+| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
+| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
+| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
+| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
+| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
+| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
+| T4  | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
 
 ### T11 — WITHDRAWN, not a defect
 
@@ -74,23 +74,60 @@ following the repository's own documented apply order, then proposed rewriting t
 migration framework to fix it. The check that would have caught this was reading
 `db/README.md` before running the chain.
 
-### V10 — do `service-accounts` first
+### V10 — CORRECTED and rescoped
 
-`service-accounts` and `org-units` have zero gateway references. Take
-`service-accounts` first: V4 §4 and V5 §3 both require scoped machine identities, and
-V4 §11's sandbox and non-production credential path depends on it.
+**Previously recorded as "6 API domains absent". That was wrong. At most two are.**
 
-`/api/v1/queue/*` is second in value — V5 §6 requires queue replay and redrive to be
-audited and V3 §12 requires backlog observability, neither of which has a surface.
+I graded the six Volume 4 Table 2 domains by whether a matching route prefix was
+registered. A missing prefix is not a missing capability. Verified per domain:
+
+| Table 2 domain               | Verified reality                                                                                                                                                                                                                                         |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/api/v1/service-accounts/*` | **Exists** as `developer-portal` API keys: `developer_portal_api_keys` (`key_hash`, `key_prefix`, `scopes jsonb`, `status`, `expires_at`, `tenant_id`) behind `/developer/accounts/:accountId/keys` and `/developer/validate-key`. Scoped and revocable. |
+| `/api/v1/events/*`           | **Exists** as `developer-portal` webhooks: subscriptions, delivery log, signature verification.                                                                                                                                                          |
+| `/api/v1/settings/*`         | **Exists** as `packages/backend/tenant/src/tenant-settings.ts` behind `/tenants/:id/config`.                                                                                                                                                             |
+| `/api/v1/queue/*`            | **Partial** — `GET /api/v1/admin/scalability/queue` returns liveness only. No depth, no replay, no redrive.                                                                                                                                              |
+| `/api/v1/compliance/*`       | **Absent** — 0 files.                                                                                                                                                                                                                                    |
+| `/api/v1/org-units/*`        | **Absent** — 0 tables, 0 routes, 0 types.                                                                                                                                                                                                                |
+
+Work **not** done, deliberately: `feat/V10-service-accounts-api` was opened then
+abandoned with nothing committed. Building `/api/v1/service-accounts/*` would have
+duplicated a working tenant-scoped capability behind a second route surface. Same
+reasoning for `events` and `settings`.
+
+**What V10 now tracks:** queue redrive and backlog depth. V5 §6 requires replay and
+redrive to be _audited_, and there is no replay or redrive to audit — `redrive`
+appears once, in an SQS adapter comment, and dead-lettering exists only as RabbitMQ
+exchange configuration. Messages can enter a DLQ and nothing can take them out. V3
+§12's backlog observability is also unmet: 0 non-test matches for `backlog`,
+`queueDepth`, `messageCount` or `getQueueDepth`.
+
+An intermediate note in this session claimed "DLQ/redrive/lag code" existed in
+`queue-abstraction`. It does not. Retracted.
+
+**Split out as separate items:**
+
+- `org-units` and `compliance` — genuine absences, but scope questions before
+  engineering ones. Neither has a partial implementation to extend.
+- `service-accounts`, `events`, `settings` — naming divergence from Table 2, not
+  capability gaps. Either alias the routes or amend Table 2. Charter-owner call, and
+  it is listed under "Needs a decision" below as V10b.
+
+**Lesson recorded:** twice now I have reported a capability absent because I searched
+for the specification's name for it rather than for the behaviour. The check that
+catches this is to look for the table and column that would have to exist, not the
+route string.
 
 ## Needs a decision before work can start
 
-| ID     | Question                                                      | Why it cannot be an engineering call                                                                                                                                | Status           |
-| ------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| **V4** | Do cross-service FKs stay, or does W1-DATA-06 go?             | V3 §7 and V1 §19.6 forbid shared FK coupling; W1-DATA-06 requires a validated `tenant_id` FK on every tenant table. #342 added 23 at explicit request, live-proved. | `NEEDS DECISION` |
-| V1     | Table naming and ownership — 5 of 8 prefixes have zero tables | Remediation direction depends entirely on V4                                                                                                                        | `BLOCKED` by V4  |
-| V7     | 0 of 22 named tables exist                                    | Same as V1 — same underlying model                                                                                                                                  | `BLOCKED` by V4  |
-| V2     | `control_plane_documents` owned by three services             | The P0 fix is partly independent and can proceed; full ownership split depends on V4                                                                                | `PARTIAL`        |
+| ID     | Question                                                           | Why it cannot be an engineering call                                                                                                                                                                                                                   | Status           |
+| ------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| **V4** | Do cross-service FKs stay, or does W1-DATA-06 go?                  | V3 §7 and V1 §19.6 forbid shared FK coupling; W1-DATA-06 requires a validated `tenant_id` FK on every tenant table. #342 added 23 at explicit request, live-proved.                                                                                    | `NEEDS DECISION` |
+| V1     | Table naming and ownership — 5 of 8 prefixes have zero tables      | Remediation direction depends entirely on V4                                                                                                                                                                                                           | `BLOCKED` by V4  |
+| V7     | 0 of 22 named tables exist                                         | Same as V1 — same underlying model                                                                                                                                                                                                                     | `BLOCKED` by V4  |
+| V2     | `control_plane_documents` owned by three services                  | The P0 fix is partly independent and can proceed; full ownership split depends on V4                                                                                                                                                                   | `PARTIAL`        |
+| V10b   | Is Volume 4 Table 2 a binding route contract or a capability list? | If binding, `service-accounts`, `events` and `settings` need aliasing to names the platform already serves under `/developer` and `/tenants`. If a capability list, they are already conformant. Renaming a public route surface is not an agent call. | `NEEDS DECISION` |
+| V10c   | Are `org-units` and `compliance` in scope for this product?        | Both are genuinely unimplemented — no table, no route, no type. Building either is new product scope, not gap closure.                                                                                                                                 | `NEEDS DECISION` |
 
 **Recommendation on V4:** exempt the tenant reference in §19.6 and record the
 exemption. Tenant identity is platform infrastructure rather than a peer service, so
