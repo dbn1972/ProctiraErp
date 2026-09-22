@@ -27,8 +27,7 @@ Ordered by leverage, not by size.
 
 | ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
 | --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V10 | 7 defects behind Table 2; DLQ redrive absent is #1  | V5 §6; V3 §12; V4 §4 §8     | `OPEN`         | —                                    | —    |
-| V7a | Re-audit V7's 22-table count — method now in doubt  | V3 §7                       | `OPEN`         | —                                    | —    |
+| V10 | 9 defects behind Table 2; DLQ redrive absent is #1  | V5 §6; V3 §12; V4 §4 §8 §11 | `OPEN`         | —                                    | —    |
 | V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
 | V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
 | V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
@@ -75,10 +74,11 @@ following the repository's own documented apply order, then proposed rewriting t
 migration framework to fix it. The check that would have caught this was reading
 `db/README.md` before running the chain.
 
-### V10 — CORRECTED TWICE. Rescoped.
+### V10 — CORRECTED THREE TIMES. Rescoped.
 
-**Revision 1 said "6 API domains absent". Revision 2 said "4 of 6 exist, 2 absent".
-Both were wrong. Graded correctly, zero of the nine Table 2 domains are absent.**
+**Revision 1: "6 API domains absent". Revision 2: "4 of 6 exist, 2 absent". Revision
+3: "zero of nine domains absent". All three were wrong. Revision 4: no domain is
+wholly absent, but two are half-served and nine distinct defects sit behind them.**
 
 The reading error underneath both: Volume 4 Table 2's columns are `Domain | Examples`.
 It lists **nine domains** and the `/api/v1/...` paths are examples inside them. Grading
@@ -103,15 +103,17 @@ gateway.'` The queue operator surface is zero, not partial.
 
 ### What V10 now tracks
 
-| #   | Defect                                                                      | Kind              | Spec          | Fixable by an agent?                                    |
-| --- | --------------------------------------------------------------------------- | ----------------- | ------------- | ------------------------------------------------------- |
-| 1   | No DLQ redrive or replay anywhere; outbox `failed` is terminal              | absent capability | V5 §6         | Yes. The only true absence.                             |
-| 2   | Queue operator surface unreachable — `admin-dashboard` parked               | unmounted         | V3 §12, V5 §6 | Needs a ruling: unpark, or rebuild under a live package |
-| 3   | `slo_queue_lag_messages` never `.set()`; no Kafka/RabbitMQ exporter scraped | declared, unwired | V3 §12        | Yes                                                     |
-| 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path  | unenforced        | V4 §4, V5 §3  | Yes, but it is a security surface — needs review        |
-| 5   | `/areas` routes unmounted though `geographic_areas` is RBAC-consumed        | unmounted         | V4 Table 2    | Yes. `institutionPlugin` needs `areaHierarchyDb`.       |
-| 6   | Webhook deliveries have no producer; no event catalog or replay contract    | no producer       | V4 §8         | Partly — the catalog is a design decision               |
-| 7   | Sandbox provisioning is a shell; no non-production credential issued        | shell             | V4 §11        | No — the repo already waived live key mint              |
+| #   | Defect                                                                       | Kind              | Spec           | Fixable by an agent?                                     |
+| --- | ---------------------------------------------------------------------------- | ----------------- | -------------- | -------------------------------------------------------- |
+| 1   | No DLQ redrive or replay anywhere; outbox `failed` is terminal               | absent capability | V5 §6          | Yes. The only true absence.                              |
+| 2   | Queue operator surface unreachable — `admin-dashboard` parked                | unmounted         | V3 §12, V5 §6  | Needs V10d: unpark, or rebuild under a live package      |
+| 3   | `slo_queue_lag_messages` never `.set()`; no Kafka/RabbitMQ exporter deployed | declared, unwired | V3 §12         | Yes                                                      |
+| 4   | API-key `scopes` stored but enforced nowhere; no gateway API-key auth path   | unenforced        | V4 §4, V5 §3   | Yes, but it is a security surface — needs review         |
+| 5   | `/areas` routes unmounted though `geographic_areas` is RBAC-consumed         | unmounted         | V4 Table 2     | Yes. `institutionPlugin` needs `areaHierarchyDb`.        |
+| 6   | Webhook deliveries have no producer; no event catalog or replay contract     | no producer       | V4 §8          | Partly — the catalog is a design decision                |
+| 7   | Sandbox provisioning is a shell; no non-production credential issued         | shell             | V4 §11         | No — the repo already waived live key mint               |
+| 8   | Plugins is a scaffold: no tables, no importers, parked, `/plugins` ui-seed   | shell             | V4 Table 2, V7 | No — marketplace runtime is deliberately deferred        |
+| 9   | `install` parked with no `install_*` tables — Configuration half-served      | parked            | V4 Table 2     | No — parked for a stated security reason; needs a ruling |
 
 **Item 1 first.** It is the only confirmed absent capability and the only one with
 operational risk beyond conformance: a stuck DLQ has no recovery path today, and
@@ -139,6 +141,24 @@ operational risk beyond conformance: a stuck DLQ has no recovery path today, and
   package and its tests, so nothing produces an event.
 - "DLQ/redrive/lag code in `queue-abstraction`" — retracted in revision 2, still
   retracted. Configuration only.
+- **Revision 3's own errors, retracted here.** "Themes and plugins — Present": plugins
+  is a scaffold (0 tables, 0 external importers, package parked, mounted `/plugins` is
+  `persistence: 'ui-seed'` / `'stub/scaffold APIs'`). Now defect 8. The `themes`
+  citation was also wrong — it resolved to a hardcoded one-item literal at
+  `platform-admin-ui-plugin.ts:394`; the real surface is `/tenant/branding` with
+  draft/publish/versions/preview at `tenant-admin-plugin.ts:102`. Same for the `plans`
+  citation under "Billing and entitlements", a two-item literal; the real evidence is
+  `/api/v1/billing/{plans,subscriptions/*,entitlements/check,usage/*}`.
+- **Revision 3 graded only half of Configuration.** Table 2's other example is
+  `/api/v1/install/*`, and `install` is parked with no `install_*` tables. Now defect 9.
+- **Revision 3's V7a flag, withdrawn.** I claimed V7's 22-table count came from the same
+  name-matching method that got `org-units` wrong. It did not: V7 resolved each name
+  individually with `to_regclass`, and its body already separates capability-exists from
+  ownership-conformance. The `org-units` finding actually **supports** V7 — Volume 3
+  Table 2 assigns `tenant_org_units` to the **tenant** service while `geographic_areas`
+  is `institution`-owned, which is exactly V7's and V1's point about ownership. V7a is
+  removed from the task table. I also corrected V7's body, which wrongly listed
+  `plugins` among the capabilities with working implementations.
 - "queue backlog unmet, 0 grep matches" — conclusion right, evidence too narrow. It
   missed `queueLag` in `slo-catalog.ts`, `slo_queue_lag_messages` in `slo.ts`,
   `infra/observability/alerts/queue_lag.yml`, and `ApproximateNumberOfMessages` in
@@ -154,20 +174,35 @@ policy `platform_api_key_lookup FOR SELECT USING (app.platform_admin = '1')` tha
 OR-combines. Proved live as the runtime role `proctira_app`:
 
 ```
-A  platform_admin=1, no tenant GUC  (the getApiKeyByHash path) -> rows_visible = 1
-B  platform_admin cleared, no tenant GUC  (control)            -> rows_visible = 0
+A  platform_admin=1, no tenant GUC, policy present   -> rows_visible = 1
+B  platform_admin cleared, no tenant GUC  (control)  -> rows_visible = 0
+C  platform_admin=1, no tenant GUC, policy DROPPED   -> rows_visible = 0
 ```
 
-B confirms A's visibility comes from that policy, not from inactive RLS. Recorded
-because reading `055` alone would have produced a fourth false claim — in the opposite
-direction this time.
+B rules out inactive RLS. **C is the attribution arm** — same GUCs as A with the policy
+dropped inside the transaction, and the row disappears. Rolled back; policy confirmed
+present afterwards.
 
-### Knock-on: V7 needs re-auditing
+Two follow-on concerns checked and retired: a database stopped at `055` fails readiness
+loudly rather than breaking silently, because `094` is in `schema-readiness.ts`
+`PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS`; and the `FOR SELECT` scope breaks no
+management path, because every mutating method in `pg-api-key-store.ts` uses
+`withPgTenant`.
 
-V7 ("none of the 22 named tables exist") was produced by the same name-matching method
-that got `org-units` wrong. Its count should not be trusted until each of the 22 is
-checked for a differently-named equivalent. Flagged rather than silently corrected,
-because checking 22 tables is its own task.
+Worth stating since this is a refutation: `094` does grant tenant-unscoped `SELECT` on a
+credential table to any caller setting `app.platform_admin='1'`. That is the minimum for
+hash-first authentication, but it widens the blast radius of a mistaken
+`withPlatformScope` on this table. Not logged as a defect — it is a documented trade-off
+with a stated reason — but a reviewer of defect 4 should know it.
+
+### Knock-on: V7's body corrected, its count upheld
+
+Revision 3 flagged V7 for re-audit. That flag is withdrawn — see the retraction list
+above. V7's count stands.
+
+One sentence inside V7 was wrong and is fixed in the conformance report: it listed
+`plugins` among the capabilities that "have working implementations". Defect 8 shows it
+does not. Everything else in V7 is unchanged.
 
 ### Method note
 
@@ -180,15 +215,15 @@ and it parks several packages outright.
 
 ## Needs a decision before work can start
 
-| ID     | Question                                                              | Why it cannot be an engineering call                                                                                                                                                                                                                   | Status            |
-| ------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
-| **V4** | Do cross-service FKs stay, or does W1-DATA-06 go?                     | V3 §7 and V1 §19.6 forbid shared FK coupling; W1-DATA-06 requires a validated `tenant_id` FK on every tenant table. #342 added 23 at explicit request, live-proved.                                                                                    | `NEEDS DECISION`  |
-| V1     | Table naming and ownership — 5 of 8 prefixes have zero tables         | Remediation direction depends entirely on V4                                                                                                                                                                                                           | `BLOCKED` by V4   |
-| V7     | 0 of 22 named tables exist — **count now in doubt**                   | Remediation is blocked by V4 either way. But the count came from the same name-matching that wrongly declared `org-units` absent, so re-audit it as V7a before acting on it.                                                                           | `BLOCKED` by V4   |
-| V2     | `control_plane_documents` owned by three services                     | The P0 fix is partly independent and can proceed; full ownership split depends on V4                                                                                                                                                                   | `PARTIAL`         |
-| V10b   | Is Volume 4 Table 2 a binding route contract or a capability list?    | **Largely answered by the table itself** — its columns are `Domain \| Examples`, so the paths are illustrative and all nine domains are served. Retained only so the charter owner can confirm that reading before V10's route-name items are dropped. | `LIKELY RESOLVED` |
-| V10c   | WITHDRAWN — `org-units` and `compliance` are not absent               | `org-units` is `geographic_areas`, implemented and wired into gateway RBAC; its `/areas` routes are merely unmounted, which is V10 item 5. `compliance` behaviour is mounted under `/privacy`. Neither is a scope question.                            | `NOT_A_DEFECT`    |
-| V10d   | Unpark `admin-dashboard`, or rebuild the queue ops surface elsewhere? | `mount-matrix.ts` parks the package as superseded by the platform-admin UI. Reviving a deliberately parked package is a product-ownership call, not an agent call. Blocks V10 item 2.                                                                  | `NEEDS DECISION`  |
+| ID     | Question                                                              | Why it cannot be an engineering call                                                                                                                                                                                                              | Status            |
+| ------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **V4** | Do cross-service FKs stay, or does W1-DATA-06 go?                     | V3 §7 and V1 §19.6 forbid shared FK coupling; W1-DATA-06 requires a validated `tenant_id` FK on every tenant table. #342 added 23 at explicit request, live-proved.                                                                               | `NEEDS DECISION`  |
+| V1     | Table naming and ownership — 5 of 8 prefixes have zero tables         | Remediation direction depends entirely on V4                                                                                                                                                                                                      | `BLOCKED` by V4   |
+| V7     | 0 of 22 named tables exist                                            | Same as V1 — same underlying model. The count is sound: resolved per table with `to_regclass`. A revision-3 claim that it needed re-auditing is withdrawn.                                                                                        | `BLOCKED` by V4   |
+| V2     | `control_plane_documents` owned by three services                     | The P0 fix is partly independent and can proceed; full ownership split depends on V4                                                                                                                                                              | `PARTIAL`         |
+| V10b   | Is Volume 4 Table 2 a binding route contract or a capability list?    | **Largely answered by the table itself** — its columns are `Domain \| Examples`, so the paths are illustrative. Retained only so the charter owner can confirm that reading before V10's route-name items are dropped.                            | `LIKELY RESOLVED` |
+| V10c   | Does `geographic_areas` satisfy `org-units`, or must it move?         | The capability exists and is RBAC-wired, so it is not a build question. But Volume 3 Table 2 assigns `tenant_org_units` to the **tenant** service while `geographic_areas` is `institution`-owned, so whether it counts as served rides on V4/V7. | `BLOCKED` by V4   |
+| V10d   | Unpark `admin-dashboard`, or rebuild the queue ops surface elsewhere? | `mount-matrix.ts` parks the package as superseded by the platform-admin UI. Reviving a deliberately parked package is a product-ownership call, not an agent call. Blocks V10 item 2.                                                             | `NEEDS DECISION`  |
 
 **Recommendation on V4:** exempt the tenant reference in §19.6 and record the
 exemption. Tenant identity is platform infrastructure rather than a peer service, so
