@@ -176,7 +176,11 @@ test('prismaWrapperContract requires URL injection + migrate deploy', () => {
 test('databasePackageMigrateContract rejects bare prisma migrate deploy', () => {
   assert.equal(
     databasePackageMigrateContract(
-      JSON.stringify({ scripts: { 'prisma:migrate:deploy': 'bash ../../../tools/scripts/prisma-migrate-deploy.sh' } }),
+      JSON.stringify({
+        scripts: {
+          'prisma:migrate:deploy': 'bash ../../../tools/scripts/prisma-migrate-deploy.sh',
+        },
+      }),
     ).length,
     0,
   );
@@ -332,7 +336,9 @@ test('loadDdlHazardWaiver requires maintenanceWindow', () => {
       waivers: [{ path: 'db/sql/x.sql', hazards: ['blocking_index'], reason: 'x' }],
     },
   });
-  assert.throws(() => loadDdlHazardWaiver(join(root, 'tools/scripts/migration-ddl-hazard-waiver.json')));
+  assert.throws(() =>
+    loadDdlHazardWaiver(join(root, 'tools/scripts/migration-ddl-hazard-waiver.json')),
+  );
 });
 
 test('packageJsonDuplicateScriptKeys rejects duplicate scripts keys', () => {
@@ -344,7 +350,10 @@ test('packageJsonDuplicateScriptKeys rejects duplicate scripts keys', () => {
   }
 }`;
   const issues = packageJsonDuplicateScriptKeys(dup);
-  assert.ok(issues.some((i) => /declared 2 times/.test(i)), issues.join('; '));
+  assert.ok(
+    issues.some((i) => /declared 2 times/.test(i)),
+    issues.join('; '),
+  );
   assert.ok(
     issues.some((i) => /migration-lock-recovery-drill\.test\.mjs/.test(i)),
     issues.join('; '),
@@ -369,7 +378,8 @@ test('evaluateMigrationTimeouts passes a complete fixture', () => {
 
 test('evaluateMigrationTimeouts fails when apply-sql omits SET', () => {
   const root = writeFixture({
-    apply: '# W1-DATA-17\nsource migration-timeouts.sh\nAPPLY_SQL_LOCK_TIMEOUT=1\nAPPLY_SQL_STATEMENT_TIMEOUT=1\n',
+    apply:
+      '# W1-DATA-17\nsource migration-timeouts.sh\nAPPLY_SQL_LOCK_TIMEOUT=1\nAPPLY_SQL_STATEMENT_TIMEOUT=1\n',
   });
   const report = evaluateMigrationTimeouts(root);
   assert.equal(report.ok, false);
@@ -402,4 +412,68 @@ test('repo root passes the live gate', () => {
   const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
   const report = evaluateMigrationTimeouts(repoRoot);
   assert.equal(report.ok, true, report.issues.join('; '));
+});
+
+test('findDdlHazards flags VALIDATE CONSTRAINT that does not lift FORCE RLS', () => {
+  const hazards = findDdlHazards('ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;');
+  const kinds = hazards.map((h) => h.kind);
+  assert.ok(
+    kinds.includes('validate_under_force_rls'),
+    'validating under FORCE RLS scans zero rows and validates nothing',
+  );
+});
+
+test('findDdlHazards accepts VALIDATE CONSTRAINT that lifts and restores FORCE RLS', () => {
+  // The shape db/sql/100 uses: lift, validate, restore, all in one transaction so a
+  // failed validation cannot leave the table unforced.
+  const hazards = findDdlHazards(`
+    DO $p$
+    DECLARE was_forced boolean;
+    BEGIN
+      SELECT relforcerowsecurity INTO was_forced FROM pg_class WHERE oid='public.students'::regclass;
+      IF was_forced THEN ALTER TABLE students NO FORCE ROW LEVEL SECURITY; END IF;
+      ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;
+      IF was_forced THEN ALTER TABLE students FORCE ROW LEVEL SECURITY; END IF;
+    END
+    $p$;
+  `);
+  assert.equal(
+    hazards.filter((h) => h.kind === 'validate_under_force_rls').length,
+    0,
+    'lifting and restoring FORCE is the approved pattern',
+  );
+});
+
+test('findDdlHazards flags a lift that is never restored', () => {
+  const hazards = findDdlHazards(`
+    ALTER TABLE students NO FORCE ROW LEVEL SECURITY;
+    ALTER TABLE students VALIDATE CONSTRAINT students_tenant_fk;
+  `);
+  const h = hazards.find((x) => x.kind === 'validate_under_force_rls');
+  assert.ok(h, 'lifting without restoring leaves the table unforced');
+  assert.match(h.detail, /never restores/i);
+});
+
+test('findDdlHazards detects VALIDATE CONSTRAINT built dynamically', () => {
+  // Regression guard. The first version of this rule required a literal
+  // `ALTER TABLE <name> VALIDATE CONSTRAINT` and so missed every dynamic form.
+  // db/sql/082 and 086 use `ALTER TABLE %s VALIDATE CONSTRAINT` through format(),
+  // and 093 builds it inside EXECUTE — and 093's target tables were confirmed
+  // relforcerowsecurity = true, so the precise rule passed the one file known to be
+  // unsafe. Matching the statement in any form is the weaker signal but the stronger
+  // gate.
+  const hazards = findDdlHazards(`
+    DO $d$
+    DECLARE t text;
+    BEGIN
+      FOREACH t IN ARRAY ARRAY['a','b'] LOOP
+        EXECUTE format('ALTER TABLE %s VALIDATE CONSTRAINT %s_tenant_fk', t, t);
+      END LOOP;
+    END
+    $d$;
+  `);
+  assert.ok(
+    hazards.map((h) => h.kind).includes('validate_under_force_rls'),
+    'dynamic VALIDATE CONSTRAINT must not escape the gate',
+  );
 });

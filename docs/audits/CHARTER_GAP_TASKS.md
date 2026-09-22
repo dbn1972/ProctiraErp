@@ -25,16 +25,16 @@ test, or an observed runtime behaviour. Not "looks right".
 
 Ordered by leverage, not by size.
 
-| ID  | Gap                                                 | Spec                        | Status | Branch | PR  |
-| --- | --------------------------------------------------- | --------------------------- | ------ | ------ | --- |
-| V10 | 6 API domains absent as governed surfaces           | V4 §5, Table 2              | `OPEN` | —      | —   |
-| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN` | —      | —   |
-| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `OPEN` | —      | —   |
-| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN` | —      | —   |
-| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN` | —      | —   |
-| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN` | —      | —   |
-| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `OPEN` | —      | —   |
-| T4  | Zero statutory/interop implementation               | —                           | `OPEN` | —      | —   |
+| ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR       |
+| --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | -------- |
+| V10 | 6 API domains absent as governed surfaces           | V4 §5, Table 2              | `OPEN`         | —                                    | —        |
+| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —        |
+| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `OPEN`         | —                                    | —        |
+| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —        |
+| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —        |
+| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —        |
+| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #pending |
+| T4  | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —        |
 
 ### T11 — WITHDRAWN, not a defect
 
