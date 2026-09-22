@@ -109,4 +109,3 @@ export {
   isUnscopedTenantNamespaceAllowed,
   shouldRequireTenantScopedQueueTopics,
 } from './tenant-scope';
-

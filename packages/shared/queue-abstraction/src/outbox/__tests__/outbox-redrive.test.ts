@@ -153,9 +153,19 @@ describe('outbox redrive (V10 defect 1)', () => {
     await store.enqueue(entry({ id }));
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
-    await store.requeueFailed({ ids: [id], actor: 'alice', reason: 'first attempt', tenantId: TENANT_A });
+    await store.requeueFailed({
+      ids: [id],
+      actor: 'alice',
+      reason: 'first attempt',
+      tenantId: TENANT_A,
+    });
     for (let i = 0; i < 3; i += 1) await relay.tick();
-    await store.requeueFailed({ ids: [id], actor: 'bob', reason: 'second attempt', tenantId: TENANT_A });
+    await store.requeueFailed({
+      ids: [id],
+      actor: 'bob',
+      reason: 'second attempt',
+      tenantId: TENANT_A,
+    });
 
     const history = (await store.listPending())[0]?.redriveHistory ?? [];
     expect(history).toHaveLength(2);
@@ -212,11 +222,17 @@ describe('outbox redrive (V10 defect 1)', () => {
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
     const first = await store.requeueFailed({
-      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+      ids: [id],
+      actor: 'ops',
+      reason: 'r',
+      tenantId: TENANT_A,
     });
     // Second call hits a row that is no longer `failed`, so it reports nothing moved.
     const second = await store.requeueFailed({
-      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+      ids: [id],
+      actor: 'ops',
+      reason: 'r',
+      tenantId: TENANT_A,
     });
     expect(first).toEqual([id]);
     expect(second).toEqual([]);
@@ -411,7 +427,10 @@ describe('outbox redrive (V10 defect 1)', () => {
     for (let i = 0; i < 3; i += 1) await relay.tick();
 
     const ids = await store.requeueFailed({
-      ids: [id], actor: 'ops', reason: 'INC-7', tenantId: TENANT_A,
+      ids: [id],
+      actor: 'ops',
+      reason: 'INC-7',
+      tenantId: TENANT_A,
     });
     if (ids.length > 0) auditSink({ action: 'outbox.redrive', ids, actor: 'ops' });
 

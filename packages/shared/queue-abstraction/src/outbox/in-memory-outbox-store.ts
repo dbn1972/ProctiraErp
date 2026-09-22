@@ -87,15 +87,19 @@ export class InMemoryOutboxStore implements OutboxStore {
   async listFailed(options: ListFailedOptions = {}): Promise<OutboxRecord[]> {
     const limit = options.limit ?? 100;
     const createdSince = options.createdSince;
-    return Array.from(this.rows.values())
-      .filter((r) => r.status === 'failed')
-      .filter((r) => options.tenantId === undefined || r.tenantId === options.tenantId)
-      .filter((r) => createdSince === undefined || r.createdAt.getTime() >= createdSince.getTime())
-      // `id` breaks the tie so `limit` is deterministic for rows enqueued in the
-      // same millisecond, matching the PG store's `ORDER BY created_at DESC, id DESC`.
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
-      .slice(0, limit)
-      .map(detach);
+    return (
+      Array.from(this.rows.values())
+        .filter((r) => r.status === 'failed')
+        .filter((r) => options.tenantId === undefined || r.tenantId === options.tenantId)
+        .filter(
+          (r) => createdSince === undefined || r.createdAt.getTime() >= createdSince.getTime(),
+        )
+        // `id` breaks the tie so `limit` is deterministic for rows enqueued in the
+        // same millisecond, matching the PG store's `ORDER BY created_at DESC, id DESC`.
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id))
+        .slice(0, limit)
+        .map(detach)
+    );
   }
 
   async requeueFailed(options: RequeueFailedOptions): Promise<string[]> {

@@ -27,8 +27,7 @@ export const APP_TENANT_ID_LEGACY_GUC = 'app.current_tenant_id';
  * Single-statement bind used by every sanctioned helper.
  * Parameter `$1` is the tenant id (never string-interpolated).
  */
-export const BIND_TENANT_GUC_SQL =
-  `SELECT set_config('${APP_TENANT_ID_GUC}', $1, true), set_config('${APP_TENANT_ID_LEGACY_GUC}', $1, true)`;
+export const BIND_TENANT_GUC_SQL = `SELECT set_config('${APP_TENANT_ID_GUC}', $1, true), set_config('${APP_TENANT_ID_LEGACY_GUC}', $1, true)`;
 
 /** Prefer the SQL helper when `071_tenant_guc_canonical.sql` is applied. */
 export const SET_APP_TENANT_ID_SQL = 'SELECT set_app_tenant_id($1)';

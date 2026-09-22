@@ -211,10 +211,16 @@ describeLive('PgOutboxStore redrive, live (V10 defect 1)', () => {
     await seedFailed(id);
 
     const first = await store.requeueFailed({
-      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+      ids: [id],
+      actor: 'ops',
+      reason: 'r',
+      tenantId: TENANT_A,
     });
     const second = await store.requeueFailed({
-      ids: [id], actor: 'ops', reason: 'r', tenantId: TENANT_A,
+      ids: [id],
+      actor: 'ops',
+      reason: 'r',
+      tenantId: TENANT_A,
     });
     expect(first).toEqual([id]);
     expect(second).toEqual([]);
