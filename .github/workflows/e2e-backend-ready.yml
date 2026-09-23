@@ -61,6 +61,7 @@ env:
   # PR gate: HS256-cookie live smokes that need only Postgres + gateway.
   # G-722: PR gate includes authenticated axe matrix (a11y-axe) + 17c smoke.
   PR_SPECS: >-
+    e2e/08b-legal-pages.spec.ts
     e2e/17b-health-counselling-write-smoke.spec.ts
     e2e/17c-module-a11y-smoke.spec.ts
     e2e/a11y-axe.spec.ts
@@ -95,6 +96,7 @@ env:
     e2e/54-transport-ops-write-smoke.spec.ts
   # Nightly: PR set + the remaining live write smokes.
   NIGHTLY_SPECS: >-
+    e2e/08b-legal-pages.spec.ts
     e2e/17b-health-counselling-write-smoke.spec.ts
     e2e/17c-module-a11y-smoke.spec.ts
     e2e/a11y-axe.spec.ts

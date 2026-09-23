@@ -14,16 +14,27 @@
  * adding the keys to the catalogues.
  */
 
+import { LegalDocumentChrome } from '@/components/layout/LegalDocumentChrome';
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
 import { useLanguage } from '@/providers/LanguageProvider';
 
 const LAST_UPDATED = 'June 1, 2024';
 
-export default function PrivacyPolicy() {
+/**
+ * @param chrome `'marketing'` keeps the original `<MarketingLayout>` wrapper, which the
+ *   marketing-page suite asserts. `'minimal'` is what the routed `/legal/*` pages use:
+ *   `<MarketingLayout>`'s header and footer carry 45 links with no route in this app, and
+ *   exposing them on a consent document is worse than a plain page. See
+ *   `LegalDocumentChrome`.
+ */
+export default function PrivacyPolicy({
+  chrome = 'marketing',
+}: { chrome?: 'marketing' | 'minimal' } = {}) {
   const { t } = useLanguage();
+  const Chrome = chrome === 'minimal' ? LegalDocumentChrome : MarketingLayout;
 
   return (
-    <MarketingLayout pageTitle={t('marketing.pages.legal.privacyTitle')}>
+    <Chrome pageTitle={t('marketing.pages.legal.privacyTitle')}>
       <main
         data-testid="legal-privacy-page"
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-16 lg:px-8 lg:py-20"
@@ -107,11 +118,11 @@ export default function PrivacyPolicy() {
             >
               privacy@proctira.org
             </a>
-            . Updates to this notice are versioned in the public source repository and the "Last
-            updated" date above always reflects the most recent change.
+            . Updates to this notice are versioned in the public source repository and the
+            &quot;Last updated&quot; date above always reflects the most recent change.
           </p>
         </section>
       </main>
-    </MarketingLayout>
+    </Chrome>
   );
 }

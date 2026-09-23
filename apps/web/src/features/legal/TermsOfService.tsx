@@ -13,16 +13,27 @@
  * to the catalogues.
  */
 
+import { LegalDocumentChrome } from '@/components/layout/LegalDocumentChrome';
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
 import { useLanguage } from '@/providers/LanguageProvider';
 
 const LAST_UPDATED = 'June 1, 2024';
 
-export default function TermsOfService() {
+/**
+ * @param chrome `'marketing'` keeps the original `<MarketingLayout>` wrapper, which the
+ *   marketing-page suite asserts. `'minimal'` is what the routed `/legal/*` pages use:
+ *   `<MarketingLayout>`'s header and footer carry 45 links with no route in this app, and
+ *   exposing them on a consent document is worse than a plain page. See
+ *   `LegalDocumentChrome`.
+ */
+export default function TermsOfService({
+  chrome = 'marketing',
+}: { chrome?: 'marketing' | 'minimal' } = {}) {
   const { t } = useLanguage();
+  const Chrome = chrome === 'minimal' ? LegalDocumentChrome : MarketingLayout;
 
   return (
-    <MarketingLayout pageTitle={t('marketing.pages.legal.termsTitle')}>
+    <Chrome pageTitle={t('marketing.pages.legal.termsTitle')}>
       <main
         data-testid="legal-terms-page"
         className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 py-16 lg:px-8 lg:py-20"
@@ -69,10 +80,10 @@ export default function TermsOfService() {
         <section className="space-y-3">
           <h2 className="text-xl font-semibold text-foreground">4. Disclaimer of warranties</h2>
           <p className="text-base leading-relaxed text-foreground">
-            The marketing site and the public demo are provided on an "as is" and "as available"
-            basis without warranties of any kind, whether express or implied. The ProctiraERP
-            project does not warrant that the site will be uninterrupted, error-free, or that demo
-            data will be preserved between releases.
+            The marketing site and the public demo are provided on an &quot;as is&quot; and &quot;as
+            available&quot; basis without warranties of any kind, whether express or implied. The
+            ProctiraERP project does not warrant that the site will be uninterrupted, error-free, or
+            that demo data will be preserved between releases.
           </p>
         </section>
 
@@ -90,8 +101,9 @@ export default function TermsOfService() {
           <h2 className="text-xl font-semibold text-foreground">6. Changes</h2>
           <p className="text-base leading-relaxed text-foreground">
             We may update these terms from time to time. Material changes are announced in the
-            public source repository and the "Last updated" date above is revised accordingly.
-            Continued use of the site after an update constitutes acceptance of the revised terms.
+            public source repository and the &quot;Last updated&quot; date above is revised
+            accordingly. Continued use of the site after an update constitutes acceptance of the
+            revised terms.
           </p>
         </section>
 
@@ -109,6 +121,6 @@ export default function TermsOfService() {
           </p>
         </section>
       </main>
-    </MarketingLayout>
+    </Chrome>
   );
 }
