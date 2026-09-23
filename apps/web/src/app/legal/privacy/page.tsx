@@ -15,11 +15,17 @@
  * to a route, which is the check that would have caught it.
  *
  * Deliberately *not* under the `(marketing)` route group: that group's layout already
- * wraps children in `<MarketingLayout>`, and `PrivacyPolicy` renders its own, so placing
- * it there would duplicate the header and footer.
+ * wraps children in `<MarketingLayout>`, and these components render their own, so placing
+ * them there would duplicate the header and footer.
+ *
+ * `chrome="minimal"` for the same reason routing them is safe at all:
+ * `<MarketingLayout>`'s header and footer carry 45 link targets with no route in this app,
+ * and `app/(marketing)/` has no `page.tsx`, so that chrome was unreachable until these
+ * routes existed. Rendering it here would have published 45 dead links on the one page
+ * where a dead link matters most. See `LegalDocumentChrome`.
  */
 import PrivacyPolicy from '@/features/legal/PrivacyPolicy';
 
 export default function PrivacyPolicyPage(): JSX.Element {
-  return <PrivacyPolicy />;
+  return <PrivacyPolicy chrome="minimal" />;
 }

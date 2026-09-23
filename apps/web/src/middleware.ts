@@ -30,6 +30,11 @@ const PUBLIC_PATHS = [
   // applicants must be able to look up their submission status with the
   // tracking number alone — no auth, no tenant subdomain required.
   '/track',
+  // Privacy policy and terms of service. The signup consent copy links to both,
+  // so they are read by definition *before* a session exists — gating them
+  // behind auth means asking someone to accept terms they cannot open. Prefix
+  // match, so it covers `/legal/*`.
+  '/legal',
 ];
 
 /** Cookie name for the access token. */

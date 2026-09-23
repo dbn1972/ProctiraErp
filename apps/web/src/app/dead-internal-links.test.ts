@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  *
- * Every internal link must resolve to a route this app serves.
+ * Every internal link must point at a route this app defines.
+ *
+ * "Defines", not "serves": this checks that a `page.tsx` exists for the path. Whether the
+ * middleware, a role guard or a route handler then lets a given visitor through is a
+ * different property — and that gap bit immediately. `/legal/privacy` was added as a route
+ * to fix the signup consent links and still 307'd anonymous visitors to `/login`, because
+ * `/legal` was missing from `PUBLIC_PATHS`. `middleware.public-paths.test.ts` covers
+ * reachability; this file covers existence.
  *
  * ## Why this is not covered by anything else
  *
@@ -22,6 +29,12 @@
  * the route patterns derived from `app/**` `page.tsx` — including dynamic (`[id]`) and
  * catch-all (`[...slug]`) segments, with route groups (`(dashboard)`) stripped.
  *
+ * Known blind spots, measured against the current tree and each with zero live violations:
+ * imperative navigation (`router.push`, `redirect()`), template-literal and
+ * `href={CONST}` targets, and a static dead child under a dynamic parent — `[id]` compiles
+ * to `[^/]+`, so `/students/not-a-page` resolves. Optional catch-alls (`[[...slug]]`) fall
+ * into the single-segment branch.
+ *
  * Cross-app destinations are the one legitimate exception and are listed explicitly, so
  * adding one is a deliberate act rather than an accident.
  */
@@ -34,14 +47,24 @@ const WEB_SRC = join(__dirname, '..');
 const APP_DIR = __dirname;
 
 /**
- * Link targets that intentionally leave this app.
+ * Files whose links are not reachable, because nothing in this app routes them.
  *
- * `apps/public-website` owns the marketing surface — `/about`, `/contact`, `/product`,
- * `/privacy`, `/terms` and friends are its routes, not this app's. `apps/web` still
- * carries unrouted SPA-era marketing components (`features/marketing/*`) whose internal
- * links point at those paths; whether this app should host marketing at all is an open
- * product question, so those components are excluded here by file rather than having
- * their links silently "fixed" to somewhere they do not belong.
+ * `app/(marketing)/` contains a layout and **no `page.tsx`**, and nothing renders
+ * `LandingPage`, `FeaturesPage`, `PricingPage`, `AboutPage`, `ContactPage`, `DemoPage`,
+ * `MarketingHeader` or `MarketingFooter`. They are SPA-era components whose routing
+ * mechanism (`featureRegistry.ts`) the App Router does not read.
+ *
+ * Between them the header and footer hold 45 targets with no route here — `/features`,
+ * `/pricing`, `/docs/api`, `/solutions/ministries`, `/legal/dpa` and so on.
+ * `apps/public-website` owns that surface but has only 12 pages and different paths
+ * (`/privacy`, not `/legal/privacy`), so most of the 45 have no destination anywhere.
+ * They are broken links, not cross-app destinations — which is why they are excluded as
+ * *unreachable* rather than as *intentional*.
+ *
+ * This exclusion is only honest while the components stay unrouted. Routing a page that
+ * renders `<MarketingLayout>` would publish all 45, which is exactly why the `/legal/*`
+ * pages added alongside this file use `LegalDocumentChrome` instead. The assertion below
+ * pins that: if any route starts rendering this chrome, the guard fails.
  */
 const UNROUTED_MARKETING_COMPONENTS = [
   'features/marketing/',
@@ -85,6 +108,12 @@ export function routePatterns(): RegExp[] {
 /** True when a path is served by some route. */
 export function resolves(path: string, patterns = routePatterns()): boolean {
   return patterns.some((pattern) => pattern.test(path));
+}
+
+/** True for a comment-only line, so documenting a component is not rendering it. */
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*');
 }
 
 function normalise(href: string): string {
@@ -149,6 +178,38 @@ describe('internal links resolve to a route', () => {
     const patterns = routePatterns();
     expect(resolves('/legal/terms', patterns)).toBe(true);
     expect(resolves('/legal/privacy', patterns)).toBe(true);
+  });
+
+  it('keeps the marketing chrome unrouted, so excluding it stays honest', () => {
+    // The exclusion above is justified by unreachability. If a page ever renders
+    // MarketingLayout — or the header/footer directly — those 45 dead targets become
+    // live and the exclusion becomes a way of hiding them.
+    const renderers: string[] = [];
+    for (const file of walk(APP_DIR)) {
+      if (!/\.tsx$/.test(file)) continue;
+      const rendersChrome = readFileSync(file, 'utf8')
+        .split('\n')
+        // Skip comments: this very file's own docstrings name the components.
+        .filter((line) => !isCommentLine(line))
+        .some((line) => /<MarketingLayout|<MarketingHeader|<MarketingFooter/.test(line));
+      if (rendersChrome) renderers.push(file.slice(APP_DIR.length + 1));
+    }
+
+    expect(
+      renderers.sort(),
+      `Routed file(s) render the marketing chrome, which carries 45 dead links: ` +
+        `${renderers.join(', ')}. Use LegalDocumentChrome (or fix the links) rather than ` +
+        `relying on the exclusion list.`,
+    ).toEqual([
+      // Has no `page.tsx` beneath it, so it renders for no route. Removing the group or
+      // adding a page is what would make its chrome live.
+      '(marketing)/layout.tsx',
+      // Pre-existing and reachable: `/track` is routed under this group, so the marketing
+      // *header*'s dead links (5 nav targets) are already published to anonymous
+      // applicants. Not introduced here and not fixed here — recorded so it is a known
+      // entry rather than an unnoticed one.
+      '(public)/layout.tsx',
+    ]);
   });
 
   it('has no dead internal link targets', () => {

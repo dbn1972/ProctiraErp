@@ -11,5 +11,5 @@
 import TermsOfService from '@/features/legal/TermsOfService';
 
 export default function TermsOfServicePage(): JSX.Element {
-  return <TermsOfService />;
+  return <TermsOfService chrome="minimal" />;
 }

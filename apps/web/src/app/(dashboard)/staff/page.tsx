@@ -7,7 +7,6 @@
  *
  * v2.0 changes:
  * - text-3xl font-extrabold heading
- * - "New assignment" + "Add staff" in page-head actions
  * - StaffTypeTabs (All / Teaching / Non-teaching / On leave)
  * - Inline filter bar (no Card wrapper)
  * - Table: person-cell (avatar + name + meta), Employee ID, Designation,
