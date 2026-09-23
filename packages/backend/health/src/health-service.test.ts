@@ -11,7 +11,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 
-import { HealthService, hasHealthAccess } from './health-service.js';
+import {
+  HealthService,
+  hasHealthAccess,
+  isSchoolBoundHealthActor,
+  isTenantWideHealthActor,
+} from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 
@@ -762,17 +767,39 @@ describe('HealthService', () => {
       }
     });
 
-    it('accepts the privileged role names case-insensitively', async () => {
-      // The web guard accepts HEALTH_ADMIN / SYSTEM_ADMIN uppercase while this service
-      // only accepted lowercase, so a cleared user passed the UI gate and was then
-      // refused here — which the list clients render as "no data" rather than a denial.
-      for (const roleName of ['HEALTH_ADMIN', 'Health_Officer', 'SYSTEM_ADMIN']) {
+    it('keeps PHI access-log clearance a strict subset of health-record clearance', async () => {
+      // The invariant both role lists document: anyone who may audit PHI access may also
+      // read health records. It broke once already — `listPhiAccessLogs` normalised case
+      // while `HEALTH_AUTHORIZED_ROLES` did not, so `HEALTH_ADMIN` passed the audit gate
+      // and failed every record gate. That is the same "stricter gate is the looser one"
+      // defect as the substring matching, on a different axis, which is why all four
+      // role lists now share one comparison.
+      for (const roleName of [
+        'health_admin',
+        'HEALTH_ADMIN',
+        'Health_Admin',
+        'health_officer',
+        'HEALTH_OFFICER',
+        'system_admin',
+        'SYSTEM_ADMIN',
+      ]) {
         const context: HealthAccessContext = {
           userId: 'user-probe',
           roles: [roleName],
           guardianOfStudentIds: [],
         };
-        await expect(service.listPhiAccessLogs(tenantId, context)).resolves.toBeInstanceOf(Array);
+        // Cleared for the audit log …
+        await expect(
+          service.listPhiAccessLogs(tenantId, context),
+          roleName,
+        ).resolves.toBeInstanceOf(Array);
+        // … therefore also recognised as health personnel for the records it audits
+        // access to. (Not `hasHealthAccess(ctx, '')`: that surface additionally requires
+        // tenant-wide scope, which a health_officer legitimately lacks.)
+        expect(
+          isTenantWideHealthActor(context) || isSchoolBoundHealthActor(context),
+          roleName,
+        ).toBe(true);
       }
     });
 

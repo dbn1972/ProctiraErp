@@ -8,6 +8,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_ROLES } from '@proctira/auth';
+
 import { canAccessHealthRecords, canAccessPhiAccessLogs } from '@/lib/api/health';
 
 const HEALTH_APP_DIR = join(__dirname, '../../app/(dashboard)/health');
@@ -92,17 +94,31 @@ describe('W1-SEC-02 (D2) health route guards', () => {
     });
 
     it('no role shipped in DEFAULT_ROLES can read the PHI access log', () => {
-      // Every roleName in @proctira/auth DEFAULT_ROLES. None of them is health
-      // personnel, so none may audit PHI access. Before this change, two could.
-      for (const roleName of [
-        'Super Administrator',
-        'Administrator',
-        'Principal',
-        'Teacher',
-        'Staff',
-        'Guardian',
-      ]) {
+      // Derived from the catalogue rather than copied out of it, so a seventh role that
+      // happens to contain a privileged substring cannot slip past this. Before the fix
+      // two of these — Administrator and Super Administrator — could read the register
+      // of who viewed a child's health data.
+      expect(DEFAULT_ROLES.length).toBeGreaterThan(0);
+      for (const { roleName } of DEFAULT_ROLES) {
         expect(canAccessPhiAccessLogs(role(roleName)), roleName).toBe(false);
+      }
+    });
+
+    it('accepts super_admin, because the gateway canonicalises SUPER_ADMIN to it', () => {
+      // apps/api-gateway/src/health-ui-plugin.ts maps a SUPER_ADMIN JWT role to
+      // system_admin before the health service sees it, so the API serves that user.
+      // Dropping super_admin here would deny the page to someone the API answers.
+      expect(canAccessPhiAccessLogs(role('super_admin'))).toBe(true);
+      expect(canAccessPhiAccessLogs(role('SUPER_ADMIN'))).toBe(true);
+      // The display-name spelling is not a canonical role and stays denied.
+      expect(canAccessPhiAccessLogs(role('Super Administrator'))).toBe(false);
+    });
+
+    it('matches health-record roles case-insensitively, as the service now does', () => {
+      // The service compares lowercase after the gateway canonicalises; the guard used
+      // to enumerate both casings by hand and missed variants like School_Nurse.
+      for (const roleName of ['Nurse', 'SCHOOL_NURSE', 'School_Nurse', 'Counsellor']) {
+        expect(canAccessHealthRecords(role(roleName)), roleName).toBe(true);
       }
     });
   });

@@ -105,8 +105,19 @@ const HEALTH_RECORD_ROLES = new Set([
  * Roles cleared to read the PHI *access log* — the register of who looked at a
  * child's health data. Deliberately a strict subset of {@link HEALTH_RECORD_ROLES}:
  * a nurse or counsellor may treat a student without being able to audit colleagues.
+ *
+ * `super_admin` is here because the gateway's health plugin canonicalises a
+ * `SUPER_ADMIN` JWT role to `system_admin` before the health service sees it
+ * (`apps/api-gateway/src/health-ui-plugin.ts`), so the API serves that user. Dropping it
+ * from this set would deny the page to someone the API answers — a silent disagreement
+ * between the two gates, which is the class of bug this file is being fixed for.
  */
-const PHI_ACCESS_LOG_ROLES = new Set(['health_admin', 'health_officer', 'system_admin']);
+const PHI_ACCESS_LOG_ROLES = new Set([
+  'health_admin',
+  'health_officer',
+  'system_admin',
+  'super_admin',
+]);
 
 /**
  * Returns true when the user has the role required to access health records.
@@ -122,10 +133,15 @@ export function canAccessHealthRecords(roles: Array<{ roleName: string }>): bool
  * This used `roleName.includes('administrator')` and `includes('health_officer')`,
  * which inverted the intended hierarchy: the *stricter* gate was the looser one.
  * `Administrator` and `Super Administrator` — two roles shipped in `DEFAULT_ROLES`,
- * and both explicitly denied health records — matched `includes('administrator')` and
- * could read the PHI access log. So could `library_administrator`,
- * `canteen_administrator`, `former_health_officer` and `trainee_health_officer`.
- * Whole-value matching only.
+ * neither of which appears in the health-records allow-list — matched
+ * `includes('administrator')` and could read the PHI access log. So could
+ * `library_administrator`, `canteen_administrator`, `former_health_officer` and
+ * `trainee_health_officer`. Whole-value matching only.
+ *
+ * (`Super Administrator` does hold `{ resource: '*', action: 'manage' }` in coarse RBAC,
+ * so it is denied here by omission from the health allow-list rather than by an explicit
+ * rule. The inversion stands either way: the audit trail was reachable while the records
+ * it audits were not.)
  */
 export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): boolean {
   return roles.some((role) => PHI_ACCESS_LOG_ROLES.has(role.roleName.toLowerCase()));
