@@ -35,6 +35,34 @@ describe('ListLoadFailure', () => {
     expect(screen.getByText(/HTTP 403/)).toBeInTheDocument();
   });
 
+  it('renders at h2 so it does not skip a level under the page h1', () => {
+    // An h3 directly under the page h1 is an axe heading-order violation, and nothing in
+    // CI catches it: lint:a11y only checks icon-only buttons.
+    render(<ListLoadFailure kind="denied" />);
+    expect(screen.getByRole('heading', { level: 2 })).toBeInTheDocument();
+  });
+
+  it('ships a way to sign in for the one kind whose copy asks the user to', () => {
+    render(<ListLoadFailure kind="unauthenticated" returnTo="/health" />);
+    const link = screen.getByRole('link', { name: /sign in/i });
+    expect(link).toHaveAttribute('href', '/login?next=%2Fhealth');
+  });
+
+  it('does not offer a sign-in control for the other kinds', () => {
+    for (const kind of ['denied', 'missing', 'unavailable'] as ListFailureKind[]) {
+      const { unmount } = render(<ListLoadFailure kind={kind} />);
+      expect(screen.queryByRole('link', { name: /sign in/i })).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('still quotes a network failure, whose status is 0', () => {
+    // A truthiness check would hide the reference line for exactly the case
+    // classifyListFailure documents 0 for.
+    render(<ListLoadFailure kind="unavailable" status={0} />);
+    expect(screen.getByText(/HTTP 0/)).toBeInTheDocument();
+  });
+
   it('uses a polite live region, not an assertive one', () => {
     // This renders during ordinary page load; role="alert" would interrupt a
     // screen-reader user mid-navigation.

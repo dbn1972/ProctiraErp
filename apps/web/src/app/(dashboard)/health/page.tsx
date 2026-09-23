@@ -100,7 +100,7 @@ export default async function HealthRecordsPage() {
         <h1 id="health-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
           {t('title')}
         </h1>
-        <ListLoadFailure kind={result.kind} status={result.status} />
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health" />
       </section>
     );
   }

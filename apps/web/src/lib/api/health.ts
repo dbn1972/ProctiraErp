@@ -8,7 +8,7 @@
  * call requireSession() and pass the access token through gatewayFetch.
  */
 import { GatewayError, gatewayFetch } from './gateway';
-import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
+import { fetchList, type ListResult } from './list-result';
 
 export interface HealthRecord {
   id: string;
@@ -158,11 +158,6 @@ export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): bool
  */
 export async function listHealthRecordsResult(): Promise<ListResult<HealthRecord>> {
   return fetchList<HealthRecord>('/health/records', { next: { revalidate: 0 } });
-}
-
-/** @deprecated Prefer {@link listHealthRecordsResult}; this renders a denial as empty. */
-export async function listHealthRecords(): Promise<HealthRecord[]> {
-  return itemsOrEmpty(await listHealthRecordsResult());
 }
 
 export async function getHealthRecord(studentId: string): Promise<HealthRecord | null> {
