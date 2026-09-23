@@ -734,6 +734,48 @@ describe('HealthService', () => {
       expect(Array.isArray(rows)).toBe(true);
     });
 
+    it('matches PHI access log roles as whole values, never as substrings', async () => {
+      // This check used `role.includes('administrator')` / `includes('health_officer')`,
+      // so anything merely *containing* a privileged name could read the register of who
+      // viewed a child's health data. `Administrator` and `Super Administrator` are
+      // shipped in @proctira/auth DEFAULT_ROLES, so the over-grant was reachable — and it
+      // inverted the hierarchy, since neither role passes HEALTH_AUTHORIZED_ROLES for
+      // ordinary health records.
+      for (const roleName of [
+        'Administrator',
+        'Super Administrator',
+        'library_administrator',
+        'canteen_administrator',
+        'deputy_administrator',
+        'former_health_officer',
+        'trainee_health_officer',
+        'health_admin_trainee',
+      ]) {
+        const context: HealthAccessContext = {
+          userId: 'user-probe',
+          roles: [roleName],
+          guardianOfStudentIds: [],
+        };
+        await expect(service.listPhiAccessLogs(tenantId, context), roleName).rejects.toThrow(
+          ForbiddenError,
+        );
+      }
+    });
+
+    it('accepts the privileged role names case-insensitively', async () => {
+      // The web guard accepts HEALTH_ADMIN / SYSTEM_ADMIN uppercase while this service
+      // only accepted lowercase, so a cleared user passed the UI gate and was then
+      // refused here — which the list clients render as "no data" rather than a denial.
+      for (const roleName of ['HEALTH_ADMIN', 'Health_Officer', 'SYSTEM_ADMIN']) {
+        const context: HealthAccessContext = {
+          userId: 'user-probe',
+          roles: [roleName],
+          guardianOfStudentIds: [],
+        };
+        await expect(service.listPhiAccessLogs(tenantId, context)).resolves.toBeInstanceOf(Array);
+      }
+    });
+
     it('creates and lists nurse incidents', async () => {
       const created = await service.createNurseIncident(
         tenantId,

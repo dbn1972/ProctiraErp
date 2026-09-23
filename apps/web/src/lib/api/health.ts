@@ -84,40 +84,50 @@ export interface ScreeningProgram {
 }
 
 /**
+ * Health personnel cleared to read health records.
+ *
+ * Compared case-insensitively against the whole `roleName`, never as a substring:
+ * `canAccessPhiAccessLogs` used substring matching and that is the bug this file's
+ * tests now pin. Listed lowercase; callers normalise.
+ */
+const HEALTH_RECORD_ROLES = new Set([
+  'health_officer',
+  'nurse',
+  'school_nurse',
+  'health_admin',
+  'super_admin',
+  'system_admin',
+  'counsellor',
+]);
+
+/**
+ * Roles cleared to read the PHI *access log* — the register of who looked at a
+ * child's health data. Deliberately a strict subset of {@link HEALTH_RECORD_ROLES}:
+ * a nurse or counsellor may treat a student without being able to audit colleagues.
+ */
+const PHI_ACCESS_LOG_ROLES = new Set(['health_admin', 'health_officer', 'system_admin']);
+
+/**
  * Returns true when the user has the role required to access health records.
  * Accepts UI enum names and backend snake_case roles.
  */
 export function canAccessHealthRecords(roles: Array<{ roleName: string }>): boolean {
-  const allowed = new Set([
-    'HEALTH_OFFICER',
-    'NURSE',
-    'HEALTH_ADMIN',
-    'SUPER_ADMIN',
-    'SYSTEM_ADMIN',
-    'COUNSELLOR',
-    'health_officer',
-    'school_nurse',
-    'health_admin',
-    'system_admin',
-    'counsellor',
-  ]);
-  return roles.some((role) => allowed.has(role.roleName));
+  return roles.some((role) => HEALTH_RECORD_ROLES.has(role.roleName.toLowerCase()));
 }
 
-/** PHI access log viewer — matches HealthService.listPhiAccessLogs privileged roles. */
+/**
+ * PHI access log viewer — mirrors `HealthService.listPhiAccessLogs`.
+ *
+ * This used `roleName.includes('administrator')` and `includes('health_officer')`,
+ * which inverted the intended hierarchy: the *stricter* gate was the looser one.
+ * `Administrator` and `Super Administrator` — two roles shipped in `DEFAULT_ROLES`,
+ * and both explicitly denied health records — matched `includes('administrator')` and
+ * could read the PHI access log. So could `library_administrator`,
+ * `canteen_administrator`, `former_health_officer` and `trainee_health_officer`.
+ * Whole-value matching only.
+ */
 export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): boolean {
-  return roles.some((role) => {
-    const n = role.roleName.toLowerCase();
-    return (
-      n.includes('health_admin') ||
-      n.includes('health_officer') ||
-      n.includes('system_admin') ||
-      n.includes('administrator') ||
-      n === 'super_admin' ||
-      n === 'health_admin' ||
-      n === 'health_officer'
-    );
-  });
+  return roles.some((role) => PHI_ACCESS_LOG_ROLES.has(role.roleName.toLowerCase()));
 }
 
 export async function listHealthRecords(): Promise<HealthRecord[]> {

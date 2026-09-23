@@ -14,6 +14,7 @@
  */
 import { NotFoundError, BusinessRuleError, ForbiddenError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -32,7 +33,6 @@ import type {
   NurseIncidentEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
-import { recordPhiReadAudit } from './phi-read-audit.js';
 import {
   PHI_FIELD_COUNSELLING_CASE_NOTES,
   HEALTH_BREAK_GLASS_DEFAULT_MINUTES,
@@ -43,6 +43,7 @@ import {
   type HealthBreakGlassGrant,
   type HealthPhiFieldPath,
 } from './phi-field-acl.js';
+import { recordPhiReadAudit } from './phi-read-audit.js';
 import type {
   CreateMeasurementInput,
   UpdateMeasurementInput,
@@ -95,10 +96,7 @@ type PhiAccessCapableRepository = HealthRepository & {
       durationMinutes: number;
     },
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthBreakGlassGrant,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
     },
   ) => Promise<HealthBreakGlassGrant>;
   findBreakGlassGrantById?: (id: string, tenantId: string) => Promise<HealthBreakGlassGrant | null>;
@@ -154,12 +152,7 @@ export interface HealthAccessContext {
 }
 
 export type HealthPhiAccessPurpose =
-  | 'treatment'
-  | 'care_coordination'
-  | 'breakglass'
-  | 'admin'
-  | 'dsar'
-  | 'audit';
+  'treatment' | 'care_coordination' | 'breakglass' | 'admin' | 'dsar' | 'audit';
 
 export interface HealthAccessOptions {
   /** Active enrollment institution for the student (from enrollments lookup). */
@@ -176,6 +169,21 @@ const HEALTH_AUTHORIZED_ROLES = [
 ];
 
 const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
+
+/**
+ * Roles cleared to read the PHI *access log* — the register of who looked at a child's
+ * health data. A strict subset of {@link HEALTH_AUTHORIZED_ROLES}: a nurse or counsellor
+ * may treat a student without being able to audit colleagues.
+ *
+ * Matched against the whole role name, case-insensitively. `listPhiAccessLogs` used
+ * `roleName.includes('administrator')`, which inverted the hierarchy this list
+ * describes — the stricter gate became the looser one. `Administrator` and
+ * `Super Administrator`, both shipped in `DEFAULT_ROLES` and both denied ordinary
+ * health records, matched it; so did `library_administrator`, `canteen_administrator`,
+ * `former_health_officer` and `trainee_health_officer`. Every other check in this file
+ * already matched whole values; this one was the exception.
+ */
+const PHI_ACCESS_LOG_ROLES = ['health_admin', 'health_officer', 'system_admin'] as const;
 
 const CASE_NOTES_PURPOSES: readonly HealthPhiAccessPurpose[] = [
   'treatment',
@@ -292,9 +300,7 @@ export class HealthService {
         ? await this.resolveAuthoritativeInstitutions(tenantId, accessContext)
         : accessContext;
     const studentInstitutionId =
-      studentId && tenantId
-        ? await this.resolveStudentInstitutionId(tenantId, studentId)
-        : null;
+      studentId && tenantId ? await this.resolveStudentInstitutionId(tenantId, studentId) : null;
     if (!hasHealthAccess(effective, studentId, { studentInstitutionId })) {
       throw new ForbiddenError(
         "Access denied: not authorized to access this student's health records",
@@ -314,9 +320,7 @@ export class HealthService {
     const repo = this.repository as PhiAccessCapableRepository;
     await recordPhiReadAudit({
       logPhiAccess:
-        typeof repo.logPhiAccess === 'function'
-          ? (entry) => repo.logPhiAccess!(entry)
-          : null,
+        typeof repo.logPhiAccess === 'function' ? (entry) => repo.logPhiAccess!(entry) : null,
       entry: {
         ...input,
         actorUserId: accessContext.userId,
@@ -380,10 +384,7 @@ export class HealthService {
     input: CreateMeasurementInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthMeasurementEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -471,10 +472,7 @@ export class HealthService {
     input: CreateAllergyInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AllergyEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -530,10 +528,7 @@ export class HealthService {
     input: CreateConditionInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthConditionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -590,10 +585,7 @@ export class HealthService {
     input: CreateVaccinationInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: VaccinationEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -663,10 +655,7 @@ export class HealthService {
     input: CreateInsuranceInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: InsuranceEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -723,7 +712,7 @@ export class HealthService {
     accessContext: HealthAccessContext,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         entity: SpecialNeedsAssessmentEntity,
       ) => Promise<void>;
     },
@@ -767,10 +756,7 @@ export class HealthService {
     input: CreateDiagnosisInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: DiagnosisEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: DiagnosisEntity) => Promise<void>;
     },
   ): Promise<DiagnosisEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -813,10 +799,7 @@ export class HealthService {
     input: CreateReferralInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ReferralEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
     },
   ): Promise<ReferralEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -874,10 +857,7 @@ export class HealthService {
     input: CreateAccommodationPlanInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AccommodationPlanEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
     },
   ): Promise<AccommodationPlanEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -939,10 +919,7 @@ export class HealthService {
     input: CreateCounsellingSessionInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: CounsellingSessionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -1019,10 +996,7 @@ export class HealthService {
     tenantId: string,
     input: CreateScreeningProgramInput,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ScreeningProgramEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
     const entity = {
@@ -1149,15 +1123,9 @@ export class HealthService {
     access: HealthAccessContext,
     options: { studentId?: string; limit?: number } = {},
   ) {
-    const privileged = access.roles.some((r) => {
-      const n = r.toLowerCase();
-      return (
-        n.includes('health_admin') ||
-        n.includes('system_admin') ||
-        n.includes('administrator') ||
-        n.includes('health_officer')
-      );
-    });
+    const privileged = access.roles.some((role) =>
+      (PHI_ACCESS_LOG_ROLES as readonly string[]).includes(role.toLowerCase()),
+    );
     if (!privileged) {
       throw new ForbiddenError('Access denied: PHI access log requires a health admin role');
     }
@@ -1173,10 +1141,7 @@ export class HealthService {
     input: CreateHealthBreakGlassRequestInput,
     accessContext: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthBreakGlassGrant,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
     },
   ): Promise<HealthBreakGlassGrant> {
     await this.assertHealthAccess(accessContext, input.studentId, tenantId);
@@ -1196,14 +1161,17 @@ export class HealthService {
     if (typeof repo.createBreakGlassGrant !== 'function') {
       throw new BusinessRuleError('Break-glass grants are not available on this repository');
     }
-    return repo.createBreakGlassGrant({
-      tenantId,
-      requesterUserId: accessContext.userId,
-      studentId: input.studentId,
-      fieldPath: input.fieldPath,
-      justification: input.justification,
-      durationMinutes,
-    }, options);
+    return repo.createBreakGlassGrant(
+      {
+        tenantId,
+        requesterUserId: accessContext.userId,
+        studentId: input.studentId,
+        fieldPath: input.fieldPath,
+        justification: input.justification,
+        durationMinutes,
+      },
+      options,
+    );
   }
 
   async approveBreakGlass(
@@ -1293,10 +1261,7 @@ export class HealthService {
     },
     access: HealthAccessContext,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: NurseIncidentEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: NurseIncidentEntity) => Promise<void>;
     },
   ) {
     await this.assertHealthAccess(access, input.studentId, tenantId);
