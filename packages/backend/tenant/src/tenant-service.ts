@@ -20,15 +20,6 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { validateBrandingTokens } from './branding-validation.js';
 import type {
-  TenantEntity,
-  DomainEntity,
-  TenantUsageEntity,
-  TenantThemeVersionEntity,
-  TenantBrandingDraftEntity,
-  TenantFilter,
-  TenantRepository,
-} from './tenant-repository.js';
-import type {
   CreateTenantInput,
   UpdateTenantInput,
   SuspendTenantInput,
@@ -47,6 +38,14 @@ import type {
   ThemeTokens,
   DomainResponse,
 } from './schemas.js';
+import type {
+  TenantEntity,
+  DomainEntity,
+  TenantThemeVersionEntity,
+  TenantBrandingDraftEntity,
+  TenantFilter,
+  TenantRepository,
+} from './tenant-repository.js';
 
 const logger = createLogger({ name: 'tenant-service' });
 
