@@ -146,7 +146,23 @@ export const keycloakAuthPlugin = fp(
       },
     );
   },
-  { name: 'proctira-keycloak-auth', fastify: '5.x' },
+  {
+    // Same capability name as `authPlugin` on purpose. These two are alternative
+    // implementations of one contract — authenticate the request and decorate
+    // `request.user` — and exactly one of them is registered (`app.ts` branches on
+    // whether KEYCLOAK_* is configured). A Fastify plugin name denotes the capability a
+    // dependent can rely on, so naming them differently made `rbacPlugin`'s
+    // `dependencies: ['@proctira/backend-auth']` unsatisfiable in Keycloak mode and the
+    // gateway refused to boot with
+    //
+    //   FST_ERR_PLUGIN_DEPENDENCY_NOT_REGISTERED: The dependency
+    //   '@proctira/backend-auth' of plugin '@proctira/rbac' is not registered
+    //
+    // which meant the gateway only started in its documented *fallback* mode. Keycloak is
+    // the platform IdP (ADR-001). `keycloak-boot.test.ts` in the gateway pins both modes.
+    name: '@proctira/backend-auth',
+    fastify: '5.x',
+  },
 );
 
 async function hydrateKeycloakUser(
