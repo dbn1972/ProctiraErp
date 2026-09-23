@@ -11,7 +11,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
 
-import { HealthService, hasHealthAccess } from './health-service.js';
+import {
+  HealthService,
+  hasHealthAccess,
+  isSchoolBoundHealthActor,
+  isTenantWideHealthActor,
+} from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 
@@ -732,6 +737,70 @@ describe('HealthService', () => {
     it('allows PHI access log for health_admin', async () => {
       const rows = await service.listPhiAccessLogs(tenantId, healthAdminContext);
       expect(Array.isArray(rows)).toBe(true);
+    });
+
+    it('matches PHI access log roles as whole values, never as substrings', async () => {
+      // This check used `role.includes('administrator')` / `includes('health_officer')`,
+      // so anything merely *containing* a privileged name could read the register of who
+      // viewed a child's health data. `Administrator` and `Super Administrator` are
+      // shipped in @proctira/auth DEFAULT_ROLES, so the over-grant was reachable — and it
+      // inverted the hierarchy, since neither role passes HEALTH_AUTHORIZED_ROLES for
+      // ordinary health records.
+      for (const roleName of [
+        'Administrator',
+        'Super Administrator',
+        'library_administrator',
+        'canteen_administrator',
+        'deputy_administrator',
+        'former_health_officer',
+        'trainee_health_officer',
+        'health_admin_trainee',
+      ]) {
+        const context: HealthAccessContext = {
+          userId: 'user-probe',
+          roles: [roleName],
+          guardianOfStudentIds: [],
+        };
+        await expect(service.listPhiAccessLogs(tenantId, context), roleName).rejects.toThrow(
+          ForbiddenError,
+        );
+      }
+    });
+
+    it('keeps PHI access-log clearance a strict subset of health-record clearance', async () => {
+      // The invariant both role lists document: anyone who may audit PHI access may also
+      // read health records. It broke once already — `listPhiAccessLogs` normalised case
+      // while `HEALTH_AUTHORIZED_ROLES` did not, so `HEALTH_ADMIN` passed the audit gate
+      // and failed every record gate. That is the same "stricter gate is the looser one"
+      // defect as the substring matching, on a different axis, which is why all four
+      // role lists now share one comparison.
+      for (const roleName of [
+        'health_admin',
+        'HEALTH_ADMIN',
+        'Health_Admin',
+        'health_officer',
+        'HEALTH_OFFICER',
+        'system_admin',
+        'SYSTEM_ADMIN',
+      ]) {
+        const context: HealthAccessContext = {
+          userId: 'user-probe',
+          roles: [roleName],
+          guardianOfStudentIds: [],
+        };
+        // Cleared for the audit log …
+        await expect(
+          service.listPhiAccessLogs(tenantId, context),
+          roleName,
+        ).resolves.toBeInstanceOf(Array);
+        // … therefore also recognised as health personnel for the records it audits
+        // access to. (Not `hasHealthAccess(ctx, '')`: that surface additionally requires
+        // tenant-wide scope, which a health_officer legitimately lacks.)
+        expect(
+          isTenantWideHealthActor(context) || isSchoolBoundHealthActor(context),
+          roleName,
+        ).toBe(true);
+      }
     });
 
     it('creates and lists nurse incidents', async () => {
