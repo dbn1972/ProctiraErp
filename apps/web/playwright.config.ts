@@ -93,7 +93,36 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: `pnpm --filter @proctira/web exec next dev --port ${PORT}`,
+        // `next start` in CI, `next dev` locally.
+        //
+        // CI already builds before this runs — the Integration Tests job invokes
+        // `pnpm turbo run test:e2e`, and `test:e2e` declares `dependsOn: ["build"]`
+        // (turbo.json). Under `next dev` that build is thrown away and every route is
+        // recompiled on first visit, so the first browser project to reach a route pays
+        // the compile cost inside a 90s navigation timeout. That is the mechanism behind
+        // the intermittent `page.goto: Test timeout of 90000ms exceeded` failures on
+        // routes that have nothing to do with the change under test, and behind
+        // `logout-oauth-redirect.spec.ts`'s fixed `waitForTimeout(500)` running out.
+        // `next start` serves the build that was already paid for.
+        // `e2e-next-start-precondition.test.ts` pins the `dependsOn` this relies on.
+        //
+        // Next warns that `next start` "does not work with output: standalone". It does
+        // serve correctly — `next build` still emits the normal `.next/` server next to
+        // `.next/standalone/`. The sanctioned `node .next/standalone/server.js` was
+        // rejected because Next does not copy `.next/static` or `public/` into the
+        // standalone directory, so it needs a per-app copy step whose failure mode is an
+        // unstyled page that still returns 200 — tests would pass against a broken
+        // render. If a future Next makes `next start` a hard error, switch to the
+        // standalone server *and* add the static/public copy.
+        //
+        // Not applied to the five secondary Next apps: `tools/scripts/run-secondary-apps-e2e.sh`
+        // calls `playwright test` directly rather than through turbo, so no build runs
+        // and `next start` would fail outright there.
+        //
+        // Locally `next dev` is kept, so running a single spec needs no build first.
+        command: process.env.CI
+          ? `pnpm --filter @proctira/web exec next start --port ${PORT}`
+          : `pnpm --filter @proctira/web exec next dev --port ${PORT}`,
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
