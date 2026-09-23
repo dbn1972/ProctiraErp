@@ -43,7 +43,12 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, listHealthRecords, type HealthRecord } from '@/lib/api/health';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import {
+  canAccessHealthRecords,
+  listHealthRecordsResult,
+  type HealthRecord,
+} from '@/lib/api/health';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -85,7 +90,21 @@ export default async function HealthRecordsPage() {
     return <AccessDeniedCard t={t} />;
   }
 
-  const records = await listHealthRecords();
+  const result = await listHealthRecordsResult();
+  if (!result.ok) {
+    // This used to fall through to the table's own "no records" empty state, so a 403
+    // from the health service — or the service being down — was indistinguishable from
+    // a school with no health records on file.
+    return (
+      <section aria-labelledby="health-heading" className="space-y-6">
+        <h1 id="health-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
+          {t('title')}
+        </h1>
+        <ListLoadFailure kind={result.kind} status={result.status} />
+      </section>
+    );
+  }
+  const records = result.items;
 
   const total = records.length;
   const withAllergies = records.filter((r) => (r.allergies?.length ?? 0) > 0).length;

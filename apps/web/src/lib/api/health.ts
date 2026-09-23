@@ -8,6 +8,7 @@
  * call requireSession() and pass the access token through gatewayFetch.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
 
 export interface HealthRecord {
   id: string;
@@ -130,12 +131,22 @@ export function canAccessPhiAccessLogs(roles: Array<{ roleName: string }>): bool
   return roles.some((role) => PHI_ACCESS_LOG_ROLES.has(role.roleName.toLowerCase()));
 }
 
+/**
+ * Read the health-records list, preserving *why* it is empty.
+ *
+ * Reference conversion for the `throwOnError: false` + `?? []` pattern (see
+ * `lib/api/list-result.ts`). Health is where the collapse did the most damage: the web
+ * guard and the health service disagreed about which role names are cleared, so a
+ * genuinely authorized user was refused by the service and the page said "no records"
+ * instead of reporting the denial.
+ */
+export async function listHealthRecordsResult(): Promise<ListResult<HealthRecord>> {
+  return fetchList<HealthRecord>('/health/records', { next: { revalidate: 0 } });
+}
+
+/** @deprecated Prefer {@link listHealthRecordsResult}; this renders a denial as empty. */
 export async function listHealthRecords(): Promise<HealthRecord[]> {
-  const result = await gatewayFetch<{ data: HealthRecord[] }>('/health/records', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listHealthRecordsResult());
 }
 
 export async function getHealthRecord(studentId: string): Promise<HealthRecord | null> {
