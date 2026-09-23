@@ -89,6 +89,32 @@ describe('gateway boot in Keycloak mode', () => {
     await app.ready();
 
     expect(app.hasRequestDecorator('user')).toBe(true);
+    // Discriminate the branch. `hasRequestDecorator('user')` is true in both modes, so on
+    // its own it cannot tell which one ran: if `loadKeycloakAuthConfig` ever required a
+    // further env var, this test would silently exercise the HS-JWT fallback and still
+    // pass — the failure class it exists to prevent. The OIDC callback route exists only
+    // in Keycloak mode; `app.jwt` exists only in the fallback, because only `authPlugin`
+    // registers @fastify/jwt.
+    expect(app.hasRoute({ method: 'GET', url: '/api/v1/auth/callback' })).toBe(true);
+    expect((app as unknown as { jwt?: unknown }).jwt).toBeUndefined();
+  });
+
+  it('enforces the auth boundary in Keycloak mode', async () => {
+    withKeycloakEnv();
+    app = await buildApp({ config: config() });
+    await app.ready();
+
+    // Booting was the bug; this is the reason booting matters. The gateway's global
+    // onRequest hook does its own path exclusion and calls request.jwtVerify() in this
+    // mode, a branch that was unreachable in production until now.
+    expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+    expect((await app.inject({ method: 'GET', url: '/api/v1/services' })).statusCode).toBe(401);
+    const junk = await app.inject({
+      method: 'GET',
+      url: '/api/v1/services',
+      headers: { authorization: 'Bearer not-a-token' },
+    });
+    expect(junk.statusCode).toBe(401);
   });
 
   it('still builds without KEYCLOAK_*, on the local HS-JWT fallback', async () => {
@@ -101,5 +127,9 @@ describe('gateway boot in Keycloak mode', () => {
     await app.ready();
 
     expect(app.hasRequestDecorator('user')).toBe(true);
+    // The inverse of the discriminators above, so neither test can pass by accident in
+    // the other mode.
+    expect(app.hasRoute({ method: 'GET', url: '/api/v1/auth/callback' })).toBe(false);
+    expect((app as unknown as { jwt?: unknown }).jwt).toBeDefined();
   });
 });

@@ -159,7 +159,18 @@ export const keycloakAuthPlugin = fp(
     //   '@proctira/backend-auth' of plugin '@proctira/rbac' is not registered
     //
     // which meant the gateway only started in its documented *fallback* mode. Keycloak is
-    // the platform IdP (ADR-001). `keycloak-boot.test.ts` in the gateway pins both modes.
+    // the platform IdP (ADR-001). `keycloak-boot.test.ts` in the gateway pins both modes,
+    // discriminating them by the OIDC callback route and by `app.jwt`, which only
+    // `authPlugin` creates.
+    //
+    // The shared name promises a *narrow* contract: authenticate the request and decorate
+    // `request.user`. It is not full parity — `authPlugin` also registers @fastify/jwt
+    // (`app.jwt`, `reply.jwtSign`) and decorates `authenticateLogout`, neither of which
+    // exists here, and this plugin accepts an `excludePaths` option its `authenticate`
+    // never reads (the gateway does its own exclusion in a global onRequest hook). Nothing
+    // depends on those today, but a future dependent declaring
+    // `dependencies: ['@proctira/backend-auth']` would typecheck and boot and then find
+    // them undefined in Keycloak mode. Closing that delta is tracked separately.
     name: '@proctira/backend-auth',
     fastify: '5.x',
   },
