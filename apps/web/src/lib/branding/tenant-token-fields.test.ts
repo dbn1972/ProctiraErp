@@ -23,12 +23,12 @@ import { extractPublishedTokens, tenantTokensToBrandFields } from './tenant-toke
 /** What `GET /tenant/branding` returns: `getActiveBranding`'s result, verbatim. */
 const GATEWAY_PAYLOAD = {
   tokens: {
-    '--tenant-name': "'EduZo Public School'",
-    '--tenant-shortName': "'eduzo'",
+    '--tenant-name': "'Northbridge Academy'",
+    '--tenant-shortName': "'northbridge'",
     '--tenant-primary': 'hsl(12, 76%, 41%)',
     '--tenant-accent': 'hsl(190, 80%, 35%)',
-    '--tenant-logo': 'url("/cdn/eduzo/logo.svg")',
-    '--tenant-favicon': 'url("/cdn/eduzo/favicon.ico")',
+    '--tenant-logo': 'url("/cdn/northbridge/logo.svg")',
+    '--tenant-favicon': 'url("/cdn/northbridge/favicon.ico")',
     '--tenant-login-bg': 'linear-gradient(135deg, hsl(12, 76%, 22%), hsl(12, 76%, 45%))',
   },
   revision: 7,
@@ -41,7 +41,7 @@ describe('extractPublishedTokens', () => {
 
   it('ignores anything that is not a token record', () => {
     // A flat brand payload must keep taking the original code path.
-    expect(extractPublishedTokens({ name: 'EduZo' })).toBeUndefined();
+    expect(extractPublishedTokens({ name: 'Northbridge Academy' })).toBeUndefined();
     expect(extractPublishedTokens({ tokens: null })).toBeUndefined();
     expect(extractPublishedTokens({ tokens: [] })).toBeUndefined();
     expect(extractPublishedTokens(null)).toBeUndefined();
@@ -52,12 +52,12 @@ describe('extractPublishedTokens', () => {
 describe('tenantTokensToBrandFields', () => {
   it('maps the canonical --tenant-* tokens onto brand field names', () => {
     expect(tenantTokensToBrandFields(GATEWAY_PAYLOAD.tokens)).toEqual({
-      name: 'EduZo Public School',
-      shortName: 'eduzo',
+      name: 'Northbridge Academy',
+      shortName: 'northbridge',
       primaryColor: 'hsl(12, 76%, 41%)',
       accentColor: 'hsl(190, 80%, 35%)',
-      logoUrl: '/cdn/eduzo/logo.svg',
-      favicon: '/cdn/eduzo/favicon.ico',
+      logoUrl: '/cdn/northbridge/logo.svg',
+      favicon: '/cdn/northbridge/favicon.ico',
       loginBackground: 'linear-gradient(135deg, hsl(12, 76%, 22%), hsl(12, 76%, 45%))',
     });
   });
@@ -95,13 +95,13 @@ describe('normalizeBrandResponse with a published-theme payload', () => {
     // back as DEFAULT_BRAND, so a tenant could publish a theme, get a 200, and see
     // no change at all.
     const brand = normalizeBrandResponse(GATEWAY_PAYLOAD);
-    expect(brand.name).toBe('EduZo Public School');
+    expect(brand.name).toBe('Northbridge Academy');
     expect(brand.primary_color).toBe('hsl(12, 76%, 41%)');
     expect(brand.accent_color).toBe('hsl(190, 80%, 35%)');
-    expect(brand.logo.url).toBe('/cdn/eduzo/logo.svg');
-    expect(brand.favicon).toBe('/cdn/eduzo/favicon.ico');
+    expect(brand.logo.url).toBe('/cdn/northbridge/logo.svg');
+    expect(brand.favicon).toBe('/cdn/northbridge/favicon.ico');
     expect(brand.login_background).toContain('hsl(12, 76%, 22%)');
-    expect(brand.shortName).toBe('eduzo');
+    expect(brand.shortName).toBe('northbridge');
   });
 
   it('keeps the default storage key when the payload carries no name', () => {
@@ -119,8 +119,8 @@ describe('normalizeBrandResponse with a published-theme payload', () => {
   });
 
   it('still derives a shortName from a name the payload actually supplied', () => {
-    expect(normalizeBrandResponse({ name: 'EduZo Public School' }).shortName).toBe(
-      'eduzo-public-school',
+    expect(normalizeBrandResponse({ name: 'Northbridge Academy' }).shortName).toBe(
+      'northbridge-academy',
     );
   });
 
@@ -171,6 +171,6 @@ describe('defaultBrandFetcher', () => {
 
     const brand = await defaultBrandFetcher();
     expect(brand.primary_color).toBe('hsl(12, 76%, 41%)');
-    expect(brand.shortName).toBe('eduzo');
+    expect(brand.shortName).toBe('northbridge');
   });
 });
