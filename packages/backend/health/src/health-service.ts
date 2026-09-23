@@ -178,12 +178,34 @@ const TENANT_WIDE_HEALTH_ROLES = ['health_admin', 'system_admin'] as const;
  * Matched against the whole role name, case-insensitively. `listPhiAccessLogs` used
  * `roleName.includes('administrator')`, which inverted the hierarchy this list
  * describes — the stricter gate became the looser one. `Administrator` and
- * `Super Administrator`, both shipped in `DEFAULT_ROLES` and both denied ordinary
- * health records, matched it; so did `library_administrator`, `canteen_administrator`,
- * `former_health_officer` and `trainee_health_officer`. Every other check in this file
- * already matched whole values; this one was the exception.
+ * `Super Administrator`, both shipped in `DEFAULT_ROLES` and neither present in
+ * `HEALTH_AUTHORIZED_ROLES`, matched it; so did `library_administrator`,
+ * `canteen_administrator`, `former_health_officer` and `trainee_health_officer`. Every
+ * other check in this file already matched whole values; this one was the exception.
  */
 const PHI_ACCESS_LOG_ROLES = ['health_admin', 'health_officer', 'system_admin'] as const;
+
+/**
+ * Whole-value, case-insensitive membership — the single comparison every health role
+ * list in this file uses.
+ *
+ * Three reasons it is one function rather than four inline `.includes(role)` calls:
+ *
+ *   • Substring matching is how `listPhiAccessLogs` came to grant `Administrator`
+ *     access to the PHI audit trail. There is now one place that could regress.
+ *   • The lists must agree on case or the subset relationship between them breaks.
+ *     With `PHI_ACCESS_LOG_ROLES` normalising and `HEALTH_AUTHORIZED_ROLES` not,
+ *     `HEALTH_ADMIN` passed the PHI audit gate and failed every record gate — the
+ *     stricter gate being the looser one again, moved from the substring axis to the
+ *     case axis.
+ *   • On the HTTP path `health-ui-plugin` canonicalises JWT roles to lowercase
+ *     snake_case before the service sees them, so normalising here is a no-op in
+ *     production. It matters for callers that build a `HealthAccessContext` directly:
+ *     jobs, other services, tests.
+ */
+function hasHealthRole(roles: readonly string[], allowed: readonly string[]): boolean {
+  return roles.some((role) => allowed.includes(role.toLowerCase()));
+}
 
 const CASE_NOTES_PURPOSES: readonly HealthPhiAccessPurpose[] = [
   'treatment',
@@ -194,9 +216,7 @@ const CASE_NOTES_PURPOSES: readonly HealthPhiAccessPurpose[] = [
 
 /** Tenant-wide health admins may omit institution scope. */
 export function isTenantWideHealthActor(context: HealthAccessContext): boolean {
-  return context.roles.some((role) =>
-    (TENANT_WIDE_HEALTH_ROLES as readonly string[]).includes(role),
-  );
+  return hasHealthRole(context.roles, TENANT_WIDE_HEALTH_ROLES);
 }
 
 /**
@@ -215,7 +235,7 @@ export function effectiveInstitutionIds(context: HealthAccessContext): string[] 
  */
 export function isSchoolBoundHealthActor(context: HealthAccessContext): boolean {
   if (isTenantWideHealthActor(context)) return false;
-  return context.roles.some((role) => HEALTH_AUTHORIZED_ROLES.includes(role));
+  return hasHealthRole(context.roles, HEALTH_AUTHORIZED_ROLES);
 }
 
 /** Purpose gate for counselling case-notes field ACL (W1-SEC-04). */
@@ -242,7 +262,7 @@ export function hasHealthAccess(
   studentId: string,
   options: HealthAccessOptions = {},
 ): boolean {
-  const hasAuthorizedRole = context.roles.some((role) => HEALTH_AUTHORIZED_ROLES.includes(role));
+  const hasAuthorizedRole = hasHealthRole(context.roles, HEALTH_AUTHORIZED_ROLES);
 
   if (!studentId) {
     // Tenant-wide list surfaces (immunisation register, nurse incidents).
@@ -1123,9 +1143,7 @@ export class HealthService {
     access: HealthAccessContext,
     options: { studentId?: string; limit?: number } = {},
   ) {
-    const privileged = access.roles.some((role) =>
-      (PHI_ACCESS_LOG_ROLES as readonly string[]).includes(role.toLowerCase()),
-    );
+    const privileged = hasHealthRole(access.roles, PHI_ACCESS_LOG_ROLES);
     if (!privileged) {
       throw new ForbiddenError('Access denied: PHI access log requires a health admin role');
     }
