@@ -123,10 +123,16 @@ describe('apply-sql.sh', () => {
       '021b_tenant_fk_constraints.sql',
       '068_validate_tenant_fk_constraints.sql',
       '082_repair_strict_tenant_fk_validate.sql',
+      // 100 finishes the text→uuid migration for the last 23 tables and closes
+      // with a repo-wide assertion over FKs that 021b creates and 068/082
+      // validate. Ungated it asserted a state this very configuration skips
+      // producing, so a bare apply on a clean database failed after 100+ files.
+      '100_tenant_id_uuid_fks.sql',
     ]);
     const expectedApplied = expected.filter((n) => {
       if (/^[0-9]+b_.*_seed\.sql$/.test(n) && process.env.APPLY_SEEDS !== '1') return false;
-      // W1-DATA-06 COMPLETE: create + VALIDATE + repair are gated together.
+      // W1-DATA-06 COMPLETE: create + VALIDATE + repair + uuid completion are
+      // gated together.
       if (strictFkFiles.has(n)) return false;
       return true;
     });
@@ -144,6 +150,32 @@ describe('apply-sql.sh', () => {
     expect(applySection).toContain('021b_tenant_fk_constraints.sql');
     expect(applySection).toContain('068_validate_tenant_fk_constraints.sql');
     expect(applySection).toContain('082_repair_strict_tenant_fk_validate.sql');
+    expect(applySection).toContain('100_tenant_id_uuid_fks.sql');
+  });
+  it('W1-DATA-06: the developer default skips 100 rather than failing on it', () => {
+    // The configuration a developer gets from a bare `bash apply-sql.sh`. 100
+    // must be on the skip side of the ledger, not the apply side: its closing
+    // assertion covers FKs that 021b/068/082 create and validate, and those are
+    // skipped here too, so applying 100 alone fails on a clean database.
+    const { status, stdout, stderr } = dryRun({
+      CI: undefined,
+      NODE_ENV: undefined,
+      APPLY_STRICT_FKS: undefined,
+    });
+    expect(status, stderr).toBe(0);
+    const [applySection, skippedSection = ''] = stdout.split('==> Skipped');
+    expect(applySection).not.toContain('100_tenant_id_uuid_fks.sql');
+    expect(skippedSection).toContain('100_tenant_id_uuid_fks.sql');
+    // The rest of the family travels with it — otherwise 100 would be gated
+    // while its prerequisites applied, which is a different broken state.
+    for (const name of [
+      '021a_strict_fk_prerequisite_tenants.sql',
+      '021b_tenant_fk_constraints.sql',
+      '068_validate_tenant_fk_constraints.sql',
+      '082_repair_strict_tenant_fk_validate.sql',
+    ]) {
+      expect(skippedSection, name).toContain(name);
+    }
   });
 
   it('W1-DATA-06 COMPLETE static contract: default ON + gated validate/repair', () => {
@@ -283,10 +315,7 @@ describe.skipIf(!LIVE_URL)('apply-sql.sh W1-DATA-05 ledger (live Postgres)', () 
         `CREATE TABLE w1_data05_probe (id int PRIMARY KEY);
 INSERT INTO w1_data05_probe (id) VALUES (1);`,
       );
-      writeFixture(
-        '002_probe.sql',
-        `INSERT INTO w1_data05_probe (id) VALUES (2);`,
-      );
+      writeFixture('002_probe.sql', `INSERT INTO w1_data05_probe (id) VALUES (2);`);
 
       const env = {
         DATABASE_URL: LIVE_URL,
@@ -446,7 +475,9 @@ INSERT INTO w1_data05_phase_probe (id, v) VALUES (2, 'b')
         APPLY_SQL_FAIL_AFTER_PHASE: '1',
       });
       expect(injected.status).not.toBe(0);
-      expect(`${injected.stderr}${injected.stdout}`).toMatch(/fail-inject APPLY_SQL_FAIL_AFTER_PHASE=1/);
+      expect(`${injected.stderr}${injected.stdout}`).toMatch(
+        /fail-inject APPLY_SQL_FAIL_AFTER_PHASE=1/,
+      );
       expect(injected.stdout).toMatch(/Phase ledger/);
       expect(injected.stdout).toMatch(/Applying phase 0/);
       expect(injected.stdout).toMatch(/Applying phase 1/);
@@ -457,12 +488,8 @@ INSERT INTO w1_data05_phase_probe (id, v) VALUES (2, 'b')
          WHERE filename = '001_phases_concurrent.sql' ORDER BY phase_idx`,
       );
       expect(midPhases.stdout).toBe('0\n1');
-      expect(
-        psql(LIVE_URL, `SELECT count(*) FROM schema_migrations`).stdout,
-      ).toBe('0');
-      expect(
-        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
-      ).toBe('1');
+      expect(psql(LIVE_URL, `SELECT count(*) FROM schema_migrations`).stdout).toBe('0');
+      expect(psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout).toBe('1');
 
       // Resume: skip phases 0–1, apply 2–3, record file ledger.
       const resumed = runApply(envBase);
@@ -480,9 +507,7 @@ INSERT INTO w1_data05_phase_probe (id, v) VALUES (2, 'b')
            WHERE filename = '001_phases_concurrent.sql'`,
         ).stdout,
       ).toBe('t');
-      expect(
-        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
-      ).toBe('2');
+      expect(psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout).toBe('2');
       expect(
         psql(
           LIVE_URL,
@@ -541,9 +566,7 @@ INSERT INTO w1_data05_phase_probe (id) VALUES (20) ON CONFLICT DO NOTHING;
            WHERE filename = '001_idempotent_phases.sql' ORDER BY phase_idx`,
         ).stdout,
       ).toBe('0');
-      expect(
-        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
-      ).toBe('1');
+      expect(psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout).toBe('1');
 
       const resumed = runApply({
         DATABASE_URL: LIVE_URL,
@@ -555,9 +578,7 @@ INSERT INTO w1_data05_phase_probe (id) VALUES (20) ON CONFLICT DO NOTHING;
       expect(resumed.stdout).toMatch(/Skip phase 0/);
       expect(resumed.stdout).toMatch(/Applying phase 1/);
       expect(resumed.stdout).toMatch(/Applying phase 2/);
-      expect(
-        psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout,
-      ).toBe('2');
+      expect(psql(LIVE_URL, `SELECT count(*) FROM w1_data05_phase_probe`).stdout).toBe('2');
       expect(
         psql(
           LIVE_URL,

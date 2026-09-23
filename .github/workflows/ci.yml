@@ -780,6 +780,42 @@ jobs:
         env:
           MIGRATOR_DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 
+      # Every apply-sql.sh invocation in CI sets APPLY_STRICT_FKS=1, so CI only
+      # ever exercised one of the script's two configurations. The other one --
+      # the default a developer gets from a bare `bash tools/scripts/apply-sql.sh`
+      # -- was broken on a clean database. 100_tenant_id_uuid_fks closes with a
+      # repo-wide assertion that every uuid tenant_id column has a validated FK
+      # to tenants, but those FKs are created by 021b and validated by 068/082,
+      # all of which that default skips. So the apply ran 100+ files and then
+      # failed, naming 38 tables 100 does not touch. 100 is now gated with the
+      # rest of the strict-FK family; nothing caught this because no job ran the
+      # path.
+      #
+      # This provisions a throwaway database and applies with the developer
+      # default, which is the only way that configuration gets tested at all.
+      # GitHub sets CI=true globally and apply-sql.sh reads it to pick the
+      # default, so it is cleared for this step alone. ~15s on a clean database.
+      - name: Apply domain SQL with the developer default (APPLY_STRICT_FKS unset)
+        # STRICT_FK_SKIP_JUSTIFIED: the point of this step is to exercise the
+        # configuration where APPLY_STRICT_FKS is *not* set. It runs against a
+        # throwaway database (proctira_devdefault) that nothing else touches, and
+        # the strict-FK posture is proved on proctira_test by the step above plus
+        # `check-strict-tenant-fks.mjs --live --require-live`. Setting
+        # APPLY_STRICT_FKS=1 here would make the step assert nothing.
+        run: |
+          BOOTSTRAP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+          MIGRATOR_PASSWORD=proctira_test \
+          APP_ROLE_PASSWORD=proctira_app_test \
+          BOOTSTRAP_DB_NAME=proctira_devdefault \
+          BOOTSTRAP_EXTENSIONS=1 \
+            bash tools/scripts/bootstrap-db-roles.sh
+          DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/proctira_devdefault \
+            pnpm --filter @proctira/database run prisma:migrate:deploy
+          env -u CI -u APPLY_STRICT_FKS -u APPLY_SEEDS \
+            MIGRATOR_DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/proctira_devdefault \
+            DATABASE_URL=postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_devdefault \
+            bash tools/scripts/apply-sql.sh
+
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently
       # skipped in CI (they self-skip without DATABASE_URL). Run the backend

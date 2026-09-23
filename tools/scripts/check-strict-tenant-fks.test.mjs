@@ -18,6 +18,7 @@ import {
   applySqlGatesStrictFks,
   evaluateStrictTenantFks,
   findApplySqlSteps,
+  strictFkGatedFiles,
   hasTenantFkValidateMigration,
   loadTextTenantAllowlist,
   parseLiveCatalogRows,
@@ -41,7 +42,8 @@ is_strict_fk_file() {
     021a_strict_fk_prerequisite_tenants.sql|\\
     021b_tenant_fk_constraints.sql|\\
     068_validate_tenant_fk_constraints.sql|\\
-    082_repair_strict_tenant_fk_validate.sql)
+    082_repair_strict_tenant_fk_validate.sql|\\
+    100_tenant_id_uuid_fks.sql)
       return 0
       ;;
     *)
@@ -132,13 +134,42 @@ test('hasTenantFkValidateMigration requires VALIDATE + tenant signal', () => {
   assert.equal(hasTenantFkValidateMigration(['-- no validate']), false);
 });
 
-test('applySqlGatesStrictFks requires 021b + 068 + 076 gate', () => {
+test('applySqlGatesStrictFks requires 021a + 021b + 068 + 082 + 100 in the case block', () => {
   assert.equal(applySqlGatesStrictFks(APPLY_OK), true);
   assert.equal(
     applySqlGatesStrictFks('APPLY_STRICT_FKS=1\nis_strict_fk_file\n021b_tenant_fk_constraints.sql'),
     false,
   );
   assert.equal(applySqlGatesStrictFks('echo hi'), false);
+  // 100 completes the text→uuid migration and carries the repo-wide FK
+  // assertion; ungated it asserted a state the same gate had skipped producing.
+  assert.equal(
+    applySqlGatesStrictFks(APPLY_OK.replace('100_tenant_id_uuid_fks.sql', '')),
+    false,
+    '100 must be required',
+  );
+});
+test('strictFkGatedFiles reads the case block, not comments elsewhere in the script', () => {
+  // Presence-in-file was the old test. A comment naming a migration is not a gate.
+  const discussedOnly = `
+# is_strict_fk_file() used to cover 100_tenant_id_uuid_fks.sql
+is_strict_fk_file() {
+  local base
+  base="$(basename "$1")"
+  case "$base" in
+    021b_tenant_fk_constraints.sql)
+      return 0
+      ;;
+  esac
+}
+`;
+  const gated = strictFkGatedFiles(discussedOnly);
+  assert.equal(gated.has('021b_tenant_fk_constraints.sql'), true);
+  assert.equal(gated.has('100_tenant_id_uuid_fks.sql'), false, 'comment must not count as gated');
+});
+test('strictFkGatedFiles returns nothing when is_strict_fk_file is absent', () => {
+  assert.deepEqual([...strictFkGatedFiles('echo hi')], []);
+  assert.deepEqual([...strictFkGatedFiles('is_strict_fk_file() { :; }')], []);
 });
 
 test('applySqlDefaultsStrictFksOnInProd detects CI/production default', () => {
@@ -203,6 +234,55 @@ test('findApplySqlSteps ignores comments that merely mention apply-sql.sh', () =
   assert.equal(steps.length, 1);
   assert.equal(steps[0].stepName, 'Apply domain SQL schemas');
   assert.equal(steps[0].hasStrictFks, true);
+});
+test('findApplySqlSteps sees apply-sql.sh anywhere in a block scalar, not only on the first line', () => {
+  // The previous detector read only the first non-comment line of a `run: |`
+  // block, so a step that provisioned a database or exported env vars before
+  // invoking the script was invisible — a non-strict CI apply could hide there.
+  const yaml = `
+  integration-test:
+    steps:
+      - name: Apply with the developer default
+        run: |
+          BOOTSTRAP_DB_NAME=scratch bash tools/scripts/bootstrap-db-roles.sh
+          pnpm --filter @proctira/database run prisma:migrate:deploy
+          env -u CI -u APPLY_STRICT_FKS bash tools/scripts/apply-sql.sh
+`;
+  const steps = findApplySqlSteps(yaml, 'wf.yml');
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].stepName, 'Apply with the developer default');
+  assert.equal(steps[0].hasStrictFks, false);
+  assert.equal(steps[0].justifiedSkip, false);
+});
+test('findApplySqlSteps stops a block scalar at the next key rather than running on', () => {
+  const yaml = `
+  integration-test:
+    steps:
+      - name: Something else entirely
+        run: |
+          echo hello
+        env:
+          NOTE: bash tools/scripts/apply-sql.sh
+`;
+  // The script name appears only under a later key, not inside the block.
+  assert.deepEqual(findApplySqlSteps(yaml, 'wf.yml'), []);
+});
+test('findApplySqlSteps does not read the strict-FK posture out of a comment', () => {
+  // A step explaining *why* it deliberately does not set APPLY_STRICT_FKS=1 was
+  // reported as setting it — the one misreading of this gate that fails open.
+  const yaml = `
+  integration-test:
+    steps:
+      - name: Apply with the developer default
+        # STRICT_FK_SKIP_JUSTIFIED: setting APPLY_STRICT_FKS=1 here would make
+        # the step assert nothing; it runs against a throwaway database.
+        run: |
+          env -u CI -u APPLY_STRICT_FKS bash tools/scripts/apply-sql.sh
+`;
+  const steps = findApplySqlSteps(yaml, 'wf.yml');
+  assert.equal(steps.length, 1);
+  assert.equal(steps[0].hasStrictFks, false, 'comment must not establish the posture');
+  assert.equal(steps[0].justifiedSkip, true, 'marker is read from the comment on purpose');
 });
 
 test('evaluateStrictTenantFks passes a complete fixture', () => {

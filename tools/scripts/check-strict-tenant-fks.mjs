@@ -171,17 +171,59 @@ export function repairMigrationFailClosed(repairText) {
 }
 
 /**
- * True when apply-sql.sh gates strict FK files (create + validate + repair).
+ * Filenames `is_strict_fk_file` matches, read out of its `case` block rather
+ * than from the file at large.
+ *
+ * The previous check asked only whether each filename appeared *somewhere* in
+ * apply-sql.sh, which a comment mentioning the file satisfies just as well as
+ * the gate itself. So it could not tell "gated" from "discussed".
+ *
+ * @param {string} applySqlText
+ * @returns {Set<string>}
+ */
+export function strictFkGatedFiles(applySqlText) {
+  const fnStart = applySqlText.indexOf('is_strict_fk_file()');
+  if (fnStart === -1) return new Set();
+  const caseStart = applySqlText.indexOf('case "$base" in', fnStart);
+  if (caseStart === -1) return new Set();
+  const caseEnd = applySqlText.indexOf('esac', caseStart);
+  if (caseEnd === -1) return new Set();
+
+  const body = applySqlText.slice(caseStart, caseEnd);
+  return new Set(
+    body
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .flatMap((line) => line.match(/[0-9]+[a-z]?_[A-Za-z0-9_]+\.sql/g) ?? []),
+  );
+}
+
+/**
+ * Every db/sql file that must sit behind APPLY_STRICT_FKS.
+ *
+ * 100 is here because it completes the text→uuid migration for the last 23
+ * tables *and* closes with a repo-wide assertion that every uuid tenant_id
+ * column has a validated FK — FKs that 021b creates and 068/082 validate. With
+ * 100 ungated, a default `bash tools/scripts/apply-sql.sh` skipped the files
+ * that produce that state and then failed asserting it.
+ */
+export const STRICT_FK_UUID_COMPLETION_FILE = '100_tenant_id_uuid_fks.sql';
+
+/**
+ * True when apply-sql.sh gates every strict FK file (create, validate, repair,
+ * uuid completion) inside `is_strict_fk_file`.
  * @param {string} applySqlText
  */
 export function applySqlGatesStrictFks(applySqlText) {
-  return (
-    /APPLY_STRICT_FKS/.test(applySqlText) &&
-    /021b_tenant_fk_constraints\.sql/.test(applySqlText) &&
-    /068_validate_tenant_fk_constraints\.sql/.test(applySqlText) &&
-    /082_repair_strict_tenant_fk_validate\.sql/.test(applySqlText) &&
-    /is_strict_fk_file/.test(applySqlText)
-  );
+  if (!/APPLY_STRICT_FKS/.test(applySqlText)) return false;
+  if (!/is_strict_fk_file/.test(applySqlText)) return false;
+  const gated = strictFkGatedFiles(applySqlText);
+  return [
+    STRICT_FK_ADD_FILE,
+    VALIDATE_MIGRATION_HINT,
+    REPAIR_MIGRATION_HINT,
+    STRICT_FK_UUID_COMPLETION_FILE,
+  ].every((file) => gated.has(file));
 }
 
 /**
@@ -217,17 +259,21 @@ export function findApplySqlSteps(yamlText, relPath) {
     const line = lines[idx];
     if (/^\s*#/.test(line)) return false;
     if (/^\s*(?:-\s+)?run:\s*.*apply-sql\.sh/.test(line)) return true;
-    // Multi-line `run: |` / `run: >` with script on a following non-comment line.
-    if (/^\s*(?:-\s+)?run:\s*[|>]\s*$/.test(line)) {
-      for (let k = idx + 1; k < Math.min(lines.length, idx + 8); k++) {
+    // Multi-line `run: |` / `run: >`. Scan the whole block scalar, not just its
+    // first body line: a step that sets env vars, provisions a database or runs
+    // migrations before invoking the script would otherwise be invisible to this
+    // gate, which is exactly the hole a non-strict CI apply would hide in.
+    const blockMatch = line.match(/^(\s*)(?:-\s+)?run:\s*[|>][-+]?\s*$/);
+    if (blockMatch) {
+      const keyIndent = blockMatch[1].length;
+      for (let k = idx + 1; k < lines.length; k++) {
         const body = lines[k];
         if (!body.trim()) continue;
-        if (/^\s*#/.test(body)) continue;
-        // Stop at next YAML key at step body indent.
-        if (/^\s{0,8}[a-zA-Z0-9_-]+:/.test(body) && !/apply-sql\.sh/.test(body)) {
-          return false;
-        }
-        return /apply-sql\.sh/.test(body);
+        const bodyIndent = (body.match(/^(\s*)/)?.[1] ?? '').length;
+        // Block scalar content must be more indented than its key. Anything at
+        // or below that indent ends the block.
+        if (bodyIndent <= keyIndent) return false;
+        if (/apply-sql\.sh/.test(body) && !/^\s*#/.test(body)) return true;
       }
     }
     return false;
@@ -270,9 +316,18 @@ export function findApplySqlSteps(yamlText, relPath) {
     }
 
     const snippet = lines.slice(stepStart, Math.max(stepEnd, i + 1)).join('\n');
+    // Executable lines only. A step whose *comment* happens to contain
+    // `APPLY_STRICT_FKS=1` -- including one explaining why it deliberately does
+    // not set it -- would otherwise be reported as strict, which is the one
+    // reading of this gate that fails open. The justification marker below is
+    // read from the comments on purpose; the posture is not.
+    const executable = snippet
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line))
+      .join('\n');
     const hasStrictFks =
-      /APPLY_STRICT_FKS\s*:\s*['"]?1['"]?/.test(snippet) ||
-      /APPLY_STRICT_FKS\s*=\s*1\b/.test(snippet);
+      /APPLY_STRICT_FKS\s*:\s*['"]?1['"]?/.test(executable) ||
+      /APPLY_STRICT_FKS\s*=\s*1\b/.test(executable);
     const justifiedSkip = snippet.includes(SKIP_JUSTIFICATION_MARKER);
 
     steps.push({
@@ -431,7 +486,7 @@ export function evaluateStrictTenantFks({
     const applyText = readFileSync(paths.applySqlScript, 'utf8');
     if (!applySqlGatesStrictFks(applyText)) {
       failures.push(
-        'apply-sql.sh must gate 021a/021b/068/076 behind APPLY_STRICT_FKS via is_strict_fk_file',
+        'apply-sql.sh must gate 021a/021b/068/082/100 behind APPLY_STRICT_FKS via is_strict_fk_file',
       );
     }
     if (!applySqlDefaultsStrictFksOnInProd(applyText)) {
@@ -439,14 +494,19 @@ export function evaluateStrictTenantFks({
         'apply-sql.sh must default APPLY_STRICT_FKS=1 when CI=true or NODE_ENV=production',
       );
     }
-    if (!applyText.includes(STRICT_FK_PREREQ_FILE)) {
-      failures.push(`apply-sql.sh must treat ${STRICT_FK_PREREQ_FILE} as a strict-FK file`);
-    }
-    if (!applyText.includes(VALIDATE_MIGRATION_HINT)) {
-      failures.push(`apply-sql.sh must treat ${VALIDATE_MIGRATION_HINT} as a strict-FK file`);
-    }
-    if (!applyText.includes(REPAIR_MIGRATION_HINT)) {
-      failures.push(`apply-sql.sh must treat ${REPAIR_MIGRATION_HINT} as a strict-FK file`);
+    // Membership in the `case` block, not mere presence in the file: a comment
+    // naming the migration is not a gate.
+    const gatedFiles = strictFkGatedFiles(applyText);
+    for (const required of [
+      STRICT_FK_PREREQ_FILE,
+      STRICT_FK_ADD_FILE,
+      VALIDATE_MIGRATION_HINT,
+      REPAIR_MIGRATION_HINT,
+      STRICT_FK_UUID_COMPLETION_FILE,
+    ]) {
+      if (!gatedFiles.has(required)) {
+        failures.push(`apply-sql.sh must treat ${required} as a strict-FK file`);
+      }
     }
   }
 

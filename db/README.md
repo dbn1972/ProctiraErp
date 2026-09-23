@@ -107,14 +107,27 @@ remain — repairing installs that previously recorded a no-op `068` while
 
 `APPLY_STRICT_FKS` defaults **ON** when `CI=true` or `NODE_ENV=production`
 (explicit `0` still opts out for local unit fixtures). The same flag gates
-`021a` / `021b` / `068` / `076` so VALIDATE cannot be ledger-recorded without
-create. Primary CI, restore-drill, and live onboard also set
+`021a` / `021b` / `068` / `082` / `100` so VALIDATE cannot be ledger-recorded
+without create. Primary CI, restore-drill, and live onboard also set
 `APPLY_STRICT_FKS=1` explicitly. Executable gates:
 
 - `pnpm check:strict-tenant-fks` — static posture (default ON, workflows,
   VALIDATE + repair present)
 - `pnpm check:strict-tenant-fks -- --live --require-live` — live `pg_catalog`
   proof of **zero** unvalidated `tenant_id → tenants` FKs (CI after apply)
+
+`100_tenant_id_uuid_fks.sql` is in that gate for a second reason beyond being
+strict-FK work: it closes with a **repo-wide** assertion that every `uuid`
+`tenant_id` column has a validated FK to `tenants`, and those FKs are created by
+`021b` and validated by `068` / `082`. With `100` outside the gate, a plain
+`bash tools/scripts/apply-sql.sh` skipped the files that produce that state and
+then failed asserting it — 100+ files applied, then a hard error naming 38 tables
+`100` does not touch. The consequence of the gate is that a local
+`APPLY_STRICT_FKS=0` database keeps `text tenant_id` on the 23 tables `100`
+migrates; that is the same divergence `021b` / `068` already accept for this
+configuration, and CI proves the `uuid` posture on every PR. The
+`Apply domain SQL with the developer default` step in `ci.yml` exists to keep the
+non-strict path exercised, because every other CI invocation sets the flag.
 
 ## Leading tenant_id indexes (W1-DATA-16)
 
