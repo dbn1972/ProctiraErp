@@ -1,3 +1,4 @@
+import { decodeJwtPayload, isJwtFresh } from '@proctira/common/jwt';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { defaultLocale, isValidLocale, getDirection } from './i18n/config';
@@ -245,17 +246,7 @@ export function resolveTenantFromSubdomain(hostname: string): string | null {
  * still in the future (with a small buffer).
  */
 function isAccessTokenFresh(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-
-  try {
-    const payload = JSON.parse(atob(parts[1]!)) as { exp?: number };
-    if (!payload.exp) return true;
-    const now = Math.floor(Date.now() / 1000);
-    return payload.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
-  } catch {
-    return false;
-  }
+  return isJwtFresh(token, TOKEN_EXPIRY_BUFFER_SECONDS);
 }
 
 /**
@@ -263,14 +254,7 @@ function isAccessTokenFresh(token: string): boolean {
  * Used to decide whether we should attempt a refresh vs. force a re-login.
  */
 function isStructurallyValid(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-  try {
-    JSON.parse(atob(parts[1]!));
-    return true;
-  } catch {
-    return false;
-  }
+  return decodeJwtPayload(token) !== null;
 }
 
 /** Normalised role ids from a JWT payload (`roleId` preferred over `roleName`). */
@@ -418,18 +402,17 @@ export async function middleware(request: NextRequest) {
 
     // Forward tenant from the JWT claim when present (takes precedence over
     // subdomain/header for authenticated requests — Design §M priority 3).
-    try {
-      const parts = accessToken.split('.');
-      const payload = JSON.parse(atob(parts[1]!)) as { tenantId?: string; roles?: unknown };
-      if (payload.tenantId) {
+    // `decodeJwtPayload` returns null instead of throwing, so an undecodable
+    // token falls through to the subdomain-resolved tenant.
+    const payload = decodeJwtPayload<{ tenantId?: string; roles?: unknown }>(accessToken);
+    if (payload) {
+      if (typeof payload.tenantId === 'string' && payload.tenantId) {
         response.headers.set('X-Tenant-ID', payload.tenantId);
       }
       const bounce = portalRoleRedirect(pathname, jwtRoleIds(payload));
       if (bounce) {
         return NextResponse.redirect(new URL(bounce, request.url));
       }
-    } catch {
-      // Token parsing failed, continue with subdomain-resolved tenant.
     }
   }
 

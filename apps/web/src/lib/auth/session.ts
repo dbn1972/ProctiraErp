@@ -7,6 +7,8 @@
  * client-side helpers that call those route handlers.
  */
 
+import { decodeJwtPayload } from '@proctira/common/jwt';
+
 import { withCsrfHeader } from '@/lib/auth/csrf';
 
 import type { AuthUserFromToken } from './auth-user';
@@ -83,16 +85,13 @@ export interface SignInResult {
  * Decodes a JWT token payload without verifying the signature.
  * Used client-side for reading user info from the token; signature
  * verification happens server-side.
+ *
+ * Delegates to `@proctira/common/jwt`, which handles the base64url alphabet
+ * and UTF-8 payloads. Decoding here with `atob()` would reject any token whose
+ * claims contain a non-Latin name.
  */
 export function decodeTokenPayload(token: string): TokenPayload | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]!));
-    return payload as TokenPayload;
-  } catch {
-    return null;
-  }
+  return decodeJwtPayload<TokenPayload>(token);
 }
 
 /**
@@ -220,7 +219,7 @@ export async function fetchSession(
       signal: options.signal,
       cache: 'no-store',
     });
-    const data = (await safeJson(response)) as ClientSessionSnapshot;
+    const data = await safeJson<ClientSessionSnapshot>(response);
     return {
       authenticated: Boolean(data.authenticated),
       user: data.user ?? null,
