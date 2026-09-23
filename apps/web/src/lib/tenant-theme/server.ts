@@ -43,6 +43,10 @@
  *     stampede the Theme Service.
  */
 
+import {
+  extractPublishedTokens,
+  tenantTokensToBrandFields,
+} from '@/lib/branding/tenant-token-fields';
 import type { Brand } from '@/providers/BrandConfigProvider';
 
 // NOTE: `BrandConfigProvider` is a `'use client'` module, so its *runtime*
@@ -75,14 +79,26 @@ function pickString(obj: Record<string, unknown>, keys: string[]): string | unde
 /** Server-side copy of the client `normalizeBrandResponse`. */
 function normalizeBrandResponse(payload: unknown): Brand {
   if (!payload || typeof payload !== 'object') return DEFAULT_BRAND;
-  const p = payload as Record<string, unknown>;
 
-  const name =
-    pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']) ?? DEFAULT_BRAND.name;
+  // A published-theme payload (`{ tokens, revision }`) describes the brand as CSS
+  // custom properties, not as brand fields. Translate those first and let an
+  // explicit top-level field win, so a flat brand payload still behaves as before.
+  const tokens = extractPublishedTokens(payload);
+  const p: Record<string, unknown> = tokens
+    ? { ...tenantTokensToBrandFields(tokens), ...(payload as Record<string, unknown>) }
+    : (payload as Record<string, unknown>);
+
+  const explicitName = pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']);
+  const name = explicitName ?? DEFAULT_BRAND.name;
+  // Deriving shortName from a *defaulted* name gave 'proctiraerp' where the default is
+  // 'proctira'. shortName keys client storage (`${shortName}-theme`,
+  // `${shortName}-language`), so a payload that carried no name silently moved every
+  // user's saved theme and locale to a key that had never been written. Derive only
+  // from a name the payload actually supplied.
   const shortName =
     pickString(p, ['shortName', 'short_name']) ??
     pickString(p, ['slug']) ??
-    name.toLowerCase().replace(/\s+/g, '-');
+    (explicitName ? explicitName.toLowerCase().replace(/\s+/g, '-') : DEFAULT_BRAND.shortName);
   const slug = pickString(p, ['slug']) ?? shortName;
   const logoUrl =
     pickString(p, ['logoUrl', 'logo_url']) ??
@@ -122,7 +138,22 @@ function normalizeBrandResponse(payload: unknown): Brand {
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-/** The Theme Service published-theme endpoint (relative to the gateway). */
+/**
+ * The Theme Service published-theme endpoint (relative to the gateway).
+ *
+ * **No backend package currently serves this path.** The tenant service registers
+ * `/tenant/branding` (and `/tenant/branding/active`), not `/tenant/theme/published`, so
+ * `fetchPublishedThemeFromGateway` gets a 404 and `getPublishedTenantTheme` returns
+ * `DEFAULT_BRAND` on every request — the SSR `<style data-tenant-theme>` block is
+ * always the platform baseline today, whatever a tenant has published.
+ *
+ * Repointing it at `/tenant/branding` is not a one-line change: that endpoint resolves
+ * the tenant from a verified JWT, and this fetcher runs before authentication with a
+ * slug in `X-Tenant-ID` and no Authorization header. Closing it needs either a public
+ * slug-addressed branding endpoint or a server-side credential. Tracked separately;
+ * the client-side path (`/api/v1/tenant/branding` via BrandConfigProvider) does work,
+ * so branding applies after hydration rather than on first paint.
+ */
 export const PUBLISHED_THEME_PATH = '/api/v1/tenant/theme/published';
 
 /** TTL for the SSR-side tenant-theme cache (60 seconds). */

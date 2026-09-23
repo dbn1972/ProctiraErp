@@ -498,4 +498,40 @@ describe('TenantService', () => {
       expect(response.decommissionedAt).toBeNull();
     });
   });
+
+  // ─── Read/write agreement ────────────────────────────────────────────────
+  describe('a repository whose write finds less than its read', () => {
+    /**
+     * Every mutator here does "find, gate, update, return". The update used to be
+     * returned through a `!` assertion, so a repository that resolves a tenant on read
+     * and then declines the write handed the route layer a null to dereference: a
+     * TypeError, not an AppError, so Fastify answered 500. `PgTenantRepository` could
+     * do exactly that once `findTenantById` consulted the `tenants` table while
+     * `updateTenant` consulted only control-plane documents.
+     */
+    function repositoryThatCannotWrite(base: InMemoryTenantRepository): InMemoryTenantRepository {
+      const proxy = Object.create(base) as InMemoryTenantRepository;
+      proxy.updateTenant = () => Promise.resolve(null);
+      return proxy;
+    }
+
+    it('reports a 404, not a dereferenced null, when the write resolves nothing', async () => {
+      const tenant = await service.createTenant(validCreateInput);
+      const brokenService = new TenantService(repositoryThatCannotWrite(repository));
+
+      // Each of these gates passes, so each reaches the write.
+      await expect(
+        brokenService.updateConfig(tenant.id, { branding: { primaryColor: '#123456' } }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      await expect(brokenService.setLegalHold(tenant.id, true)).rejects.toBeInstanceOf(
+        NotFoundError,
+      );
+      await expect(
+        brokenService.suspendTenant(tenant.id, { reason: 'unpaid' }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+      await expect(
+        brokenService.decommissionTenant(tenant.id, { reason: 'contract ended' }),
+      ).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
 });

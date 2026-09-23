@@ -21,6 +21,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   brandToTenantTokens,
   clearSSRThemeCache,
+  fetchPublishedThemeFromGateway,
   getPublishedTenantTheme,
   PUBLISHED_THEME_PATH,
   renderTenantThemeCSS,
@@ -187,5 +188,70 @@ describe('resolveRequestTenantSlug — header-based tenant resolution', () => {
 describe('PUBLISHED_THEME_PATH — endpoint contract', () => {
   it('matches the `/api/v1/tenant/theme/published` path described in the task brief', () => {
     expect(PUBLISHED_THEME_PATH).toBe('/api/v1/tenant/theme/published');
+  });
+});
+
+/**
+ * These cases stub `fetch`, so they prove the mapping, not that SSR branding works.
+ * It does not: no backend package serves `PUBLISHED_THEME_PATH`, so the real fetcher
+ * gets a 404 and the SSR head renders DEFAULT_BRAND on every request. See the doc
+ * comment on `PUBLISHED_THEME_PATH`. The mapping is asserted here anyway because this
+ * module keeps its own copy of `normalizeBrandResponse`, and an untested copy is how
+ * the two drift apart.
+ */
+describe('fetchPublishedThemeFromGateway — published tokens → Brand (mapping only)', () => {
+  beforeEach(() => {
+    clearSSRThemeCache();
+    vi.unstubAllGlobals();
+  });
+
+  it('applies published tokens rather than falling back to the default brand', async () => {
+    // This module keeps its own copy of `normalizeBrandResponse` (importing the
+    // client provider's runtime exports from a Server Component throws), so the
+    // token mapping has to be asserted on both copies or the two drift apart.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            tokens: {
+              '--tenant-name': "'EduZo'",
+              '--tenant-primary': 'hsl(12, 76%, 41%)',
+              '--tenant-logo': 'url("/cdn/eduzo/logo.svg")',
+            },
+            revision: 4,
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    );
+
+    const brand = await fetchPublishedThemeFromGateway('eduzo');
+
+    expect(brand.name).toBe('EduZo');
+    expect(brand.primary_color).toBe('hsl(12, 76%, 41%)');
+    expect(brand.logo.url).toBe('/cdn/eduzo/logo.svg');
+    // Unpublished slots still inherit the platform default.
+    expect(brand.accent_color).toBe('hsl(174, 62%, 40%)');
+  });
+
+  it('keeps the default short name when the published tokens carry no name', async () => {
+    // shortName keys client storage, so deriving it from a defaulted name would
+    // rewrite the SSR `--tenant-shortName` token to 'proctiraerp' and move every
+    // user's saved theme and locale to an unwritten key.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ tokens: { '--tenant-primary': '#123456' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+
+    const brand = await fetchPublishedThemeFromGateway('eduzo');
+
+    expect(brand.shortName).toBe('proctira');
+    expect(brandToTenantTokens(brand).shortName).toBe("'proctira'");
   });
 });

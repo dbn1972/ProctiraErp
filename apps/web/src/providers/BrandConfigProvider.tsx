@@ -48,6 +48,11 @@ import React, {
   useState,
 } from 'react';
 
+import {
+  extractPublishedTokens,
+  tenantTokensToBrandFields,
+} from '@/lib/branding/tenant-token-fields';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 /**
@@ -345,14 +350,26 @@ function unwrapCssUrl(value: string): string {
  */
 export function normalizeBrandResponse(payload: unknown): Brand {
   if (!payload || typeof payload !== 'object') return DEFAULT_BRAND;
-  const p = payload as Record<string, unknown>;
 
-  const name =
-    pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']) ?? DEFAULT_BRAND.name;
+  // A published-theme payload (`{ tokens, revision }`) describes the brand as CSS
+  // custom properties, not as brand fields. Translate those first and let an
+  // explicit top-level field win, so a flat brand payload still behaves as before.
+  const tokens = extractPublishedTokens(payload);
+  const p: Record<string, unknown> = tokens
+    ? { ...tenantTokensToBrandFields(tokens), ...(payload as Record<string, unknown>) }
+    : (payload as Record<string, unknown>);
+
+  const explicitName = pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']);
+  const name = explicitName ?? DEFAULT_BRAND.name;
+  // Deriving shortName from a *defaulted* name gave 'proctiraerp' where the default is
+  // 'proctira'. shortName keys client storage (`${shortName}-theme`,
+  // `${shortName}-language`), so a payload that carried no name silently moved every
+  // user's saved theme and locale to a key that had never been written. Derive only
+  // from a name the payload actually supplied.
   const shortName =
     pickString(p, ['shortName', 'short_name']) ??
     pickString(p, ['slug']) ??
-    name.toLowerCase().replace(/\s+/g, '-');
+    (explicitName ? explicitName.toLowerCase().replace(/\s+/g, '-') : DEFAULT_BRAND.shortName);
   const slug = pickString(p, ['slug']) ?? shortName;
   const logoUrl =
     pickString(p, ['logoUrl', 'logo_url']) ??
@@ -417,6 +434,12 @@ export async function defaultBrandFetcher(): Promise<Brand> {
       headers: { Accept: 'application/json' },
     });
     if (!response.ok) return DEFAULT_BRAND;
+    // 204 is the route's answer for an anonymous visitor: no tenant context, so no
+    // branding to resolve. It satisfies `response.ok`, so without this branch the
+    // empty body reaches `response.json()`, throws, and lands in the catch below —
+    // the right brand for the wrong reason, and a parse error on every public page if
+    // anyone ever narrows that catch.
+    if (response.status === 204) return DEFAULT_BRAND;
     const payload = (await response.json()) as unknown;
     return normalizeBrandResponse(payload);
   } catch {
