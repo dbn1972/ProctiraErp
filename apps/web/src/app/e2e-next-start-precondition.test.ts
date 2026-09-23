@@ -1,76 +1,115 @@
 /**
  * @vitest-environment node
  *
- * The e2e web server serves `next start` in CI. That only works because something
- * builds first — this pins the "something".
+ * The e2e web server may only use `next start` where a build actually exists.
  *
- * `playwright.config.ts` runs `next start` when `process.env.CI` is set. `next start`
- * requires a production build in `.next/`, and nothing in the Playwright config creates
- * one. The build comes from turbo: the Integration Tests job runs
- * `pnpm turbo run test:e2e`, and `test:e2e` declares `dependsOn: ["build"]`.
+ * ## The failure this exists to prevent
  *
- * Remove that `dependsOn`, or invoke `playwright test` directly instead of through turbo,
- * and every e2e run fails at server start with "Could not find a production build" —
- * a confusing failure a long way from its cause. So the dependency is asserted here
- * rather than left as a comment.
+ * The first version of this change gated on `process.env.CI`, reasoning that CI always
+ * builds first — the Integration Tests job runs `pnpm turbo run test:e2e`, and `test:e2e`
+ * declares `dependsOn: ["build"]`. True of that one caller, false of the other two, and CI
+ * proved it: `E2E Backend Ready` (a hard pull-request gate) and `Visual Regression` both
+ * went red at web-server start with `Could not find a production build`. Both run
+ * `pnpm --filter @proctira/web exec playwright test` directly rather than through turbo,
+ * while GitHub Actions sets `CI` on every runner.
  *
- * This is also why the five secondary Next apps keep `next dev`:
- * `tools/scripts/run-secondary-apps-e2e.sh` calls `playwright test` directly, so no build
- * runs for them.
+ * The first version of *this file* asserted the turbo `dependsOn` and the state of the five
+ * secondary apps — both true, neither load-bearing — and was green on that broken branch.
+ * So it now asserts the property that was actually violated: at least one CI caller does
+ * not build, and the resolver must choose `next dev` for it.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { resolveWebServerCommand } from '../../e2e/web-server-command';
+
 const REPO_ROOT = join(__dirname, '../../../..');
 
-function turboTasks(): Record<string, { dependsOn?: string[] }> {
-  const turbo = JSON.parse(readFileSync(join(REPO_ROOT, 'turbo.json'), 'utf8')) as {
-    tasks?: Record<string, { dependsOn?: string[] }>;
-    pipeline?: Record<string, { dependsOn?: string[] }>;
-  };
-  return turbo.tasks ?? turbo.pipeline ?? {};
+function walk(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) walk(full, out);
+    else out.push(full);
+  }
+  return out;
 }
 
-describe('e2e next start precondition', () => {
-  it('test:e2e depends on build, so a production build exists before the server starts', () => {
-    const task = turboTasks()['test:e2e'];
-    expect(task, 'turbo.json has no test:e2e task').toBeDefined();
-    expect(
-      task?.dependsOn ?? [],
-      'playwright.config.ts runs `next start` in CI, which needs the build this dependsOn ' +
-        'provides. Restore it, or switch the web server back to `next dev`.',
-    ).toContain('build');
-  });
+/** Every workflow or script that runs this Playwright config. */
+function webPlaywrightCallSites(): { file: string; buildsWeb: boolean }[] {
+  const candidates = [
+    ...walk(join(REPO_ROOT, '.github/workflows')),
+    ...walk(join(REPO_ROOT, 'tools/scripts')),
+  ].filter((f) => /\.(ya?ml|sh|mjs)$/.test(f));
 
-  it('the CI web-server command is next start, and the local one is next dev', () => {
-    // Pins both halves of the conditional: CI must not pay for an on-demand compile it
-    // already paid for at build time, and a local single-spec run must not need a build.
-    const config = readFileSync(join(__dirname, '../../playwright.config.ts'), 'utf8');
-    expect(config).toMatch(
-      /process\.env\.CI\s*\n?\s*\?\s*`pnpm --filter @proctira\/web exec next start/,
+  const sites: { file: string; buildsWeb: boolean }[] = [];
+  for (const file of candidates) {
+    const source = readFileSync(file, 'utf8');
+    const runsWebPlaywright = /@proctira\/web'? exec playwright test|turbo run test:e2e/.test(
+      source,
     );
-    expect(config).toMatch(/:\s*`pnpm --filter @proctira\/web exec next dev/);
+    if (!runsWebPlaywright) continue;
+    const buildsWeb =
+      /turbo run test:e2e/.test(source) ||
+      /--filter[= ]'?@proctira\/web'? (run )?build/.test(source);
+    sites.push({ file: file.slice(REPO_ROOT.length + 1), buildsWeb });
+  }
+  return sites;
+}
+
+describe('e2e web server: next start only where a build exists', () => {
+  it('chooses next start only when CI has produced a build', () => {
+    const port = '3001';
+    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: true, port })).toContain(
+      'next start',
+    );
+    // The case that broke two gates: CI is set, nothing built.
+    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: false, port })).toContain(
+      'next dev',
+    );
+    // Locally `next dev` regardless, because `next start` would serve a stale `.next`
+    // and `next dev` always compiles current source.
+    expect(resolveWebServerCommand({ ci: false, hasProductionBuild: true, port })).toContain(
+      'next dev',
+    );
+    expect(resolveWebServerCommand({ ci: false, hasProductionBuild: false, port })).toContain(
+      'next dev',
+    );
   });
 
-  it('the secondary-app runner still builds nothing, so those apps must stay on next dev', () => {
-    // If this ever gains a build step, the five secondary configs can switch too — and
-    // this assertion is what will say so.
-    const runner = readFileSync(join(REPO_ROOT, 'tools/scripts/run-secondary-apps-e2e.sh'), 'utf8');
-    expect(runner).toContain('playwright test');
-    expect(runner).not.toMatch(/turbo run|run build|next build/);
+  it('carries the port through unchanged', () => {
+    expect(resolveWebServerCommand({ ci: true, hasProductionBuild: true, port: '4123' })).toBe(
+      'pnpm --filter @proctira/web exec next start --port 4123',
+    );
+  });
 
-    for (const app of [
-      'admin-console',
-      'developer-portal',
-      'install-wizard',
-      'public-website',
-      'registration-portal',
-    ]) {
-      const config = readFileSync(join(REPO_ROOT, 'apps', app, 'playwright.config.ts'), 'utf8');
-      expect(config, `${app} would fail at server start: nothing builds it`).toContain('next dev');
-      expect(config, `${app} runs next start with no build`).not.toContain('next start');
-    }
+  it('at least one CI caller does not build web, so the dev fallback is load-bearing', () => {
+    // If this ever finds that every caller builds, the fallback stops being exercised and
+    // a regression to a CI-only predicate would go unnoticed — which is exactly how the
+    // first version of this change shipped.
+    const sites = webPlaywrightCallSites();
+    expect(sites.length, 'found no callers — the detection heuristic has drifted').toBeGreaterThan(
+      1,
+    );
+    const withoutBuild = sites.filter((s) => !s.buildsWeb).map((s) => s.file);
+    expect(
+      withoutBuild.length,
+      `every caller appears to build web (${sites.map((s) => s.file).join(', ')}); ` +
+        'verify before assuming next start is always safe',
+    ).toBeGreaterThan(0);
+  });
+
+  it('the turbo-driven caller still gets its build from test:e2e dependsOn', () => {
+    // This is what makes `next start` reachable at all. Remove it and the Integration
+    // Tests job quietly drops to `next dev` — slower, not broken, but the reason this
+    // change exists disappears.
+    const turbo = JSON.parse(readFileSync(join(REPO_ROOT, 'turbo.json'), 'utf8')) as {
+      tasks?: Record<string, { dependsOn?: string[] }>;
+      pipeline?: Record<string, { dependsOn?: string[] }>;
+    };
+    const task = (turbo.tasks ?? turbo.pipeline ?? {})['test:e2e'];
+    expect(task, 'turbo.json has no test:e2e task').toBeDefined();
+    expect(task?.dependsOn ?? []).toContain('build');
   });
 });
