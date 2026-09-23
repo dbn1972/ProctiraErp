@@ -49,11 +49,25 @@ describe('decodeTokenPayload with non-ASCII claims', () => {
     expect(decodeTokenPayload(mintToken(claims))?.displayName).toBe(displayName);
   });
 
-  it('does not silently substitute replacement characters', () => {
-    // A `fatal` TextDecoder means corrupt bytes yield null rather than a
-    // string full of U+FFFD that looks like a real name.
-    const decoded = decodeTokenPayload(mintToken({ sub: 'u-1', displayName: 'अनिता' }));
-    expect(decoded?.displayName).not.toContain('\uFFFD');
+  it('rejects a corrupt payload instead of returning a name of replacement characters', () => {
+    // Valid base64 and syntactically valid JSON, but `0x80` is a lone UTF-8
+    // continuation byte. A non-`fatal` TextDecoder turns it into U+FFFD, which
+    // parses fine and puts a `displayName` of "\uFFFD" on the screen — a
+    // corrupt token that looks like a real session. `fatal` makes it a null.
+    const corrupt = Buffer.concat([
+      Buffer.from('{"sub":"u-1","displayName":"'),
+      Buffer.from([0x80]),
+      Buffer.from('","exp":4000}'),
+    ]);
+    const token = `aaaa.${corrupt.toString('base64url')}.sig`;
+
+    // Guard the premise: these bytes really are non-fatally decodable JSON.
+    const lenient = JSON.parse(new TextDecoder('utf-8').decode(corrupt)) as {
+      displayName: string;
+    };
+    expect(lenient.displayName).toBe('\uFFFD');
+
+    expect(decodeTokenPayload(token)).toBeNull();
   });
 
   it('still reads exp from a non-ASCII payload', () => {

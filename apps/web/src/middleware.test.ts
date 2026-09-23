@@ -1,4 +1,6 @@
+import { isJwtFresh } from '@proctira/common/jwt';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
 import {
   resolveTenantFromSubdomain,
   getTenantConfig,
@@ -144,24 +146,18 @@ describe('Tenant Config Cache', () => {
   });
 });
 
-// Test the token validation logic
+// Test the token validation logic.
+//
+// This used to be a local re-implementation: `JSON.parse(atob(parts[1]))` plus a
+// third expiry rule with no clock buffer. It passed the whole time the
+// middleware it stood in for was rejecting every non-ASCII payload, because both
+// copies shared the same `atob()` defect and the fixtures below are ASCII by
+// construction. Pointed at the real decoder so that cannot recur; the non-ASCII
+// cases live in `middleware.jwt-decode.test.ts`.
 describe('Token Validation', () => {
-  function isTokenValid(token: string): boolean {
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
+  const isTokenValid = (token: string): boolean => isJwtFresh(token);
 
-    try {
-      const payload = JSON.parse(atob(parts[1]!));
-      const now = Math.floor(Date.now() / 1000);
-      if (payload.exp && payload.exp < now) {
-        return false;
-      }
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
+  /** Deliberately standard base64 — the decoder accepts either alphabet. */
   function createJwt(payload: Record<string, unknown>): string {
     const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
     const body = btoa(JSON.stringify(payload));

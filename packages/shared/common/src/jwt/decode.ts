@@ -133,19 +133,52 @@ export function decodeJwtPayload<T = Record<string, unknown>>(token: string): T 
 export const JWT_EXPIRY_BUFFER_SECONDS = 30;
 
 /**
+ * Reads `exp` as a number of seconds since the epoch.
+ *
+ * `undefined` means the claim is absent. `null` means it is present but does
+ * not denote a time — the caller decides what to do with each, because the two
+ * warrant opposite answers.
+ *
+ * A numeric string is accepted. Some issuers emit `exp` as a string, and the
+ * `atob()`-based callers this module replaced coerced it implicitly via
+ * `payload.exp - buffer > now`, so refusing it here would silently narrow the
+ * set of tokens that work.
+ */
+function readExpSeconds(exp: unknown): number | null | undefined {
+  if (exp === undefined || exp === null) return undefined;
+  if (typeof exp === 'number') return Number.isFinite(exp) ? exp : null;
+  if (typeof exp === 'string') {
+    const parsed = Number(exp.trim());
+    // `Number('')` is 0, which would read as "expired in 1970" rather than
+    // "unparseable"; an empty string denotes no time at all.
+    return exp.trim() !== '' && Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+/**
  * Returns true when the token's `exp` claim is still in the future, allowing
  * `bufferSeconds` of clock slack.
  *
- * An undecodable token is **not** fresh. A token with no `exp` is treated as
- * fresh, matching the callers this replaces: tokens are minted by our own
- * auth-service, which always sets `exp`, and the gateway rejects anything that
- * does not verify, so absence of `exp` is a structural oddity rather than an
- * expiry signal.
+ * Three cases, and they do not collapse:
+ *
+ * * **Undecodable token** — not fresh.
+ * * **No `exp` claim** — fresh. Our auth-service always sets one and the
+ *   gateway rejects anything that does not verify, so absence is a structural
+ *   oddity rather than an expiry signal. This matches the callers replaced here.
+ * * **`exp` present but not a time** (an object, a boolean, `"soon"`) — not
+ *   fresh. The old code reached the same answer by accident: the arithmetic
+ *   produced `NaN`, and `NaN > now` is false. Preserved deliberately, because
+ *   treating an unreadable expiry as valid is the one reading that fails open.
  */
 export function isJwtFresh(token: string, bufferSeconds = JWT_EXPIRY_BUFFER_SECONDS): boolean {
   const payload = decodeJwtPayload<{ exp?: unknown }>(token);
   if (!payload) return false;
-  if (typeof payload.exp !== 'number') return true;
+
+  const exp = readExpSeconds(payload.exp);
+  if (exp === undefined) return true;
+  if (exp === null) return false;
+
   const nowSeconds = Math.floor(Date.now() / 1000);
-  return payload.exp - bufferSeconds > nowSeconds;
+  return exp - bufferSeconds > nowSeconds;
 }

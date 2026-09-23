@@ -23,7 +23,7 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { clearTenantConfigCache, middleware } from './middleware';
+import { clearTenantConfigCache, DEFAULT_TENANT_CONFIG, middleware } from './middleware';
 
 /** Mint a token the way a conformant issuer does: base64url, unpadded. */
 function mintToken(claims: Record<string, unknown>): string {
@@ -117,6 +117,42 @@ describe('middleware JWT payload decoding', () => {
     // swallowed the throw, silently leaving the subdomain-resolved tenant in
     // place — a request executed against the wrong tenant context.
     expect(response.headers.get('X-Tenant-ID')).toBe('tenant-from-claim');
+  });
+
+  it.each([
+    ['CRLF, an attempt at response splitting', 'acme\r\nX-Injected: 1'],
+    ['a bare LF', 'acme\nfoo'],
+    ['a bare CR', 'acme\rfoo'],
+    ['a space', 'acme tenant'],
+    ['a leading dot', '.acme'],
+    ['a trailing hyphen', 'acme-'],
+    ['a NUL', 'acme\u0000'],
+    ['128 characters of slug plus one', `${'a'.repeat(128)}b`],
+    ['an empty string', ''],
+  ])('refuses to forward a tenantId claim containing %s', async (_label, tenantId) => {
+    // The claim is read without verifying the signature, so anyone who can set
+    // the cookie controls it. `Headers.set` throws a TypeError on CR/LF, which
+    // before validation escaped `middleware()` and made every navigation a 500.
+    const token = mintToken(freshClaims({ tenantId }));
+
+    const response = await middleware(request(PROTECTED, token));
+
+    // No throw, and the bad value is not forwarded as tenant context.
+    expect(response.headers.get('X-Tenant-ID')).not.toContain('acme');
+    expect(response.headers.get('X-Tenant-ID')).toBe(DEFAULT_TENANT_CONFIG.id);
+    expect(response.status).toBe(200);
+  });
+
+  it.each([
+    ['a UUID', '00000000-0000-4000-8000-00000000ce27'],
+    ['a slug', 'northbridge-academy'],
+    ['a dotted name', 'north.bridge_academy-2'],
+    ['a single character', 'a'],
+  ])('still forwards a well-formed tenantId claim: %s', async (_label, tenantId) => {
+    // The complement: if validation rejected everything, the header would
+    // silently stop working and no test above would notice.
+    const response = await middleware(request(PROTECTED, mintToken(freshClaims({ tenantId }))));
+    expect(response.headers.get('X-Tenant-ID')).toBe(tenantId);
   });
 
   it('applies portal role bouncing to a non-ASCII token', async () => {

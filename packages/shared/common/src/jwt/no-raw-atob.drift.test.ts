@@ -22,8 +22,19 @@ import { describe, expect, it } from 'vitest';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const REPO_ROOT = resolve(HERE, '../../../../..');
 
-/** Application source trees whose token handling must go through this module. */
-const SCANNED_ROOTS = ['apps/web/src', 'apps/admin-console/src', 'apps/public-website/src'];
+/**
+ * Browser and edge-runtime source trees whose token handling must go through
+ * this module. Apps that do not read tokens today are included on purpose: the
+ * point of the guard is to be already in place the day one of them starts.
+ */
+const SCANNED_ROOTS = [
+  'apps/web/src',
+  'apps/admin-console/src',
+  'apps/public-website/src',
+  'apps/registration-portal/src',
+  'apps/install-wizard/src',
+  'apps/developer-portal/src',
+];
 
 /** Files permitted to call `atob()` directly, each with a reason. */
 const ALLOWED = new Map<string, string>([
@@ -61,9 +72,25 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Strip line and block comments so prose about `atob()` does not trip the scan. */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '');
+/**
+ * True when a line is prose rather than code: a `//` comment, or a `*` / `/*`
+ * line inside a doc block.
+ *
+ * Deliberately line-oriented. Stripping block comments with a global regex
+ * first reads tidier, but an unterminated `/*` inside a string or regex literal
+ * would then swallow every line up to the next close marker anywhere in the
+ * file, hiding an `atob()` call behind it. A scanner that can silently blind
+ * itself is worse than no scanner. The trade is a possible false positive on a
+ * trailing inline comment, which is loud and trivially fixed.
+ */
+function isCommentLine(line: string): boolean {
+  const trimmed = line.trimStart();
+  return trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*');
+}
+
+/** Lines of `source` that call `atob()` outside a comment. */
+function offendingLines(source: string): string[] {
+  return source.split('\n').filter((line) => !isCommentLine(line) && RAW_ATOB_CALL.test(line));
 }
 
 function offenders(): string[] {
@@ -72,28 +99,48 @@ function offenders(): string[] {
     for (const file of walk(join(REPO_ROOT, root))) {
       const rel = relative(REPO_ROOT, file);
       if (ALLOWED.has(rel)) continue;
-      if (RAW_ATOB_CALL.test(stripComments(readFileSync(file, 'utf8')))) found.push(rel);
+      if (offendingLines(readFileSync(file, 'utf8')).length > 0) found.push(rel);
     }
   }
   return found.sort();
 }
 
 describe('no raw atob() in application source', () => {
-  it('scans a non-empty set of files, so a passing result means something', () => {
-    const scanned = SCANNED_ROOTS.flatMap((root) => walk(join(REPO_ROOT, root)));
-    expect(scanned.length).toBeGreaterThan(100);
+  it.each(SCANNED_ROOTS)('actually scans %s', (root) => {
+    // Per root, not summed. `apps/web/src` alone holds ~800 files, so a total
+    // count would stay comfortably above any threshold after a rename silently
+    // dropped `apps/admin-console/src` — the very tree this bug shipped in
+    // twice. A moved or renamed app must fail here, not pass quietly.
+    expect(walk(join(REPO_ROOT, root)).length).toBeGreaterThan(0);
   });
 
   it('finds no direct atob() call outside the sanctioned decoder', () => {
     expect(offenders()).toEqual([]);
   });
 
-  it('would catch a reintroduction (the matcher is not vacuous)', () => {
-    expect(RAW_ATOB_CALL.test('const p = JSON.parse(atob(parts[1]!));')).toBe(true);
-    expect(RAW_ATOB_CALL.test('  binary = atob(base64);')).toBe(true);
-    expect(RAW_ATOB_CALL.test('const x = globalThis.atob (s);')).toBe(true);
-    // Prose and identifiers that merely contain the name must not trip it.
-    expect(RAW_ATOB_CALL.test(stripComments('// the middleware\u2019s atob() need'))).toBe(false);
-    expect(RAW_ATOB_CALL.test('safeAtob(segment);')).toBe(false);
+  it.each([
+    'const p = JSON.parse(atob(parts[1]!));',
+    '  binary = atob(base64);',
+    'const x = globalThis.atob (s);',
+    'const y = window.atob(s);',
+  ])('would catch the reintroduction %j', (line) => {
+    expect(offendingLines(line)).toEqual([line]);
+  });
+
+  it.each([
+    '// the middleware\u2019s atob() need',
+    ' * `atob()` implements standard base64 and throws',
+    '/* atob(x) in a doc block */',
+    'safeAtob(segment);',
+    "const note = 'atob(' + segment;",
+  ])('does not trip on %j', (line) => {
+    expect(offendingLines(line)).toEqual([]);
+  });
+
+  it('cannot be blinded by an unterminated block-comment marker in a literal', () => {
+    // The failure mode of a global block-comment strip: `/*` inside a string
+    // with no matching close would hide everything after it.
+    const source = ["const marker = '/*';", 'const p = atob(segment);'].join('\n');
+    expect(offendingLines(source)).toEqual(['const p = atob(segment);']);
   });
 });

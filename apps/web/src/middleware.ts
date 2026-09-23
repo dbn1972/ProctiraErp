@@ -257,6 +257,35 @@ function isStructurallyValid(token: string): boolean {
   return decodeJwtPayload(token) !== null;
 }
 
+/**
+ * Shape a tenant identifier must have before we are willing to put it in a
+ * response header: a UUID or a slug, nothing else.
+ *
+ * The `tenantId` claim is read out of the access-token cookie *without*
+ * verifying the signature — the gateway is the signature authority, this
+ * middleware only reads claims. So the value is attacker-controlled by anyone
+ * who can set the cookie, and it flows into `X-Tenant-ID`, which downstream
+ * Server Components and API calls read as tenant context. Two reasons to
+ * validate rather than pass it through:
+ *
+ * * `Headers.set` throws a `TypeError` on a value containing CR or LF. An
+ *   unvalidated claim of `"acme\r\nX-Injected: 1"` turns every navigation into
+ *   an edge-middleware 500.
+ * * Even where the platform rejects the injection, a tenant id is a slug or a
+ *   UUID. Anything else is not a tenant id, and forwarding it as one asks every
+ *   downstream consumer to re-derive that judgement.
+ */
+const TENANT_ID_CLAIM = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$/;
+
+/**
+ * Returns the `tenantId` claim when it is a usable tenant identifier, else null.
+ * Exported for test: the rejection path is the security-relevant one.
+ */
+export function safeTenantIdClaim(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return TENANT_ID_CLAIM.test(value) ? value : null;
+}
+
 /** Normalised role ids from a JWT payload (`roleId` preferred over `roleName`). */
 export function jwtRoleIds(payload: unknown): string[] {
   if (!payload || typeof payload !== 'object') return [];
@@ -404,10 +433,15 @@ export async function middleware(request: NextRequest) {
     // subdomain/header for authenticated requests — Design §M priority 3).
     // `decodeJwtPayload` returns null instead of throwing, so an undecodable
     // token falls through to the subdomain-resolved tenant.
-    const payload = decodeJwtPayload<{ tenantId?: string; roles?: unknown }>(accessToken);
+    const payload = decodeJwtPayload<{ tenantId?: unknown; roles?: unknown }>(accessToken);
     if (payload) {
-      if (typeof payload.tenantId === 'string' && payload.tenantId) {
-        response.headers.set('X-Tenant-ID', payload.tenantId);
+      // Validated, not just type-checked: `Headers.set` throws on CR/LF, and
+      // this claim is unverified attacker-controlled input. A rejected claim
+      // leaves the subdomain-resolved tenant in place, which is what the old
+      // swallowing `catch` did for an undecodable token.
+      const claimedTenantId = safeTenantIdClaim(payload.tenantId);
+      if (claimedTenantId) {
+        response.headers.set('X-Tenant-ID', claimedTenantId);
       }
       const bounce = portalRoleRedirect(pathname, jwtRoleIds(payload));
       if (bounce) {

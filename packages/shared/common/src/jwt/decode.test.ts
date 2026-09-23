@@ -170,10 +170,39 @@ describe('isJwtFresh', () => {
     expect(isJwtFresh(mintToken({ exp: 2_000 }), 5)).toBe(true);
   });
 
-  it('treats a non-numeric or absent exp as fresh', () => {
+  it('treats an absent exp as fresh', () => {
     at(1_000);
     expect(isJwtFresh(mintToken({ sub: 'u-1' }))).toBe(true);
+    expect(isJwtFresh(mintToken({ sub: 'u-1', exp: null }))).toBe(true);
+  });
+
+  it('evaluates a numeric string exp rather than ignoring it', () => {
+    // Some issuers emit `exp` as a string, and the `atob()` callers this
+    // replaced coerced it. Returning "fresh" for a string would admit an
+    // expired session and skip the refresh that should have happened.
+    at(3_000);
+    expect(isJwtFresh(mintToken({ exp: '2000' }))).toBe(false);
+    at(1_000);
     expect(isJwtFresh(mintToken({ exp: '2000' }))).toBe(true);
+    expect(isJwtFresh(mintToken({ exp: ' 2000 ' }))).toBe(true);
+  });
+
+  it('treats exp: 0 as expired, not as absent', () => {
+    // `if (!payload.exp) return true` read 0 as "no expiry". 0 is a time.
+    at(1_000);
+    expect(isJwtFresh(mintToken({ exp: 0 }))).toBe(false);
+  });
+
+  it.each([
+    ['an object', {}],
+    ['a boolean', true],
+    ['an array', [2_000]],
+    ['a non-numeric string', 'soon'],
+    ['an empty string', ''],
+  ])('treats an exp that is %s as not fresh', (_label, exp) => {
+    // Fails closed: an unreadable expiry must not read as a valid session.
+    at(1_000);
+    expect(isJwtFresh(mintToken({ exp }))).toBe(false);
   });
 
   it('is false for an undecodable token', () => {
