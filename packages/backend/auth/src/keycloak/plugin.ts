@@ -146,7 +146,34 @@ export const keycloakAuthPlugin = fp(
       },
     );
   },
-  { name: 'proctira-keycloak-auth', fastify: '5.x' },
+  {
+    // Same capability name as `authPlugin` on purpose. These two are alternative
+    // implementations of one contract — authenticate the request and decorate
+    // `request.user` — and exactly one of them is registered (`app.ts` branches on
+    // whether KEYCLOAK_* is configured). A Fastify plugin name denotes the capability a
+    // dependent can rely on, so naming them differently made `rbacPlugin`'s
+    // `dependencies: ['@proctira/backend-auth']` unsatisfiable in Keycloak mode and the
+    // gateway refused to boot with
+    //
+    //   FST_ERR_PLUGIN_DEPENDENCY_NOT_REGISTERED: The dependency
+    //   '@proctira/backend-auth' of plugin '@proctira/rbac' is not registered
+    //
+    // which meant the gateway only started in its documented *fallback* mode. Keycloak is
+    // the platform IdP (ADR-001). `keycloak-boot.test.ts` in the gateway pins both modes,
+    // discriminating them by the OIDC callback route and by `app.jwt`, which only
+    // `authPlugin` creates.
+    //
+    // The shared name promises a *narrow* contract: authenticate the request and decorate
+    // `request.user`. It is not full parity — `authPlugin` also registers @fastify/jwt
+    // (`app.jwt`, `reply.jwtSign`) and decorates `authenticateLogout`, neither of which
+    // exists here, and this plugin accepts an `excludePaths` option its `authenticate`
+    // never reads (the gateway does its own exclusion in a global onRequest hook). Nothing
+    // depends on those today, but a future dependent declaring
+    // `dependencies: ['@proctira/backend-auth']` would typecheck and boot and then find
+    // them undefined in Keycloak mode. Closing that delta is tracked separately.
+    name: '@proctira/backend-auth',
+    fastify: '5.x',
+  },
 );
 
 async function hydrateKeycloakUser(
