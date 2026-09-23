@@ -14,7 +14,7 @@
  *   Subjects (tags), School, Status pill, icon-button actions
  */
 import Link from 'next/link';
-import { Eye, GitBranch, MoreVertical, Pencil, Plus } from 'lucide-react';
+import { Eye, MoreVertical, Pencil, Plus } from 'lucide-react';
 
 import { listInstitutions } from '@/lib/api/institutions';
 import { listStaff, type StaffListFilters } from '@/lib/api/staff';
@@ -335,12 +335,6 @@ export default async function StaffListPage(props: PageProps) {
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/staff/leaves">Leave requests</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/staff/assignments/new">
-              <GitBranch className="me-1.5 h-4 w-4" aria-hidden="true" />
-              New assignment
-            </Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/staff/new">
