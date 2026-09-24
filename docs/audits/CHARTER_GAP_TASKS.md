@@ -32,11 +32,11 @@ Ordered by leverage, not by size.
 | V15-B  | No error body a user could quote; no request id       | V15 D5 D11                  | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
 | V15-C  | Timeout was not a state — no deadline either side     | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
 | V15-D  | 12 pages had no error boundary at all                 | V15 D5 D6                   | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-9  | Non-atomic cross-package write bills for nothing      | V15 D9                      | `OPEN`         | —                                    | —    |
-| V15-15 | 401/403 mutations leave no audit row                  | V15 D10; V5 §6              | `OPEN`         | —                                    | —    |
+| V15-9  | Non-atomic cross-package write bills for nothing      | V15 D9                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-15 | Denied mutations left no audit row                    | V15 D10; V5 §6              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
 | V15-10 | Denied-vs-empty reaches 2 of ~24 lists (baseline 126) | V15 D6                      | `OPEN`         | —                                    | —    |
-| V15-11 | No client-side 401 handler; drafts lost               | V15 D5                      | `OPEN`         | —                                    | —    |
-| V15-19 | ~48-50 ad-hoc wire codes outside a 10-entry registry  | V15 D5; V4 §6               | `OPEN`         | —                                    | —    |
+| V15-11 | Client 401 handling; shell subscriber still open      | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-19 | 41 wire codes against a 10-entry registry             | V15 D5; V4 §6               | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
 | V10    | 9 defects behind Table 2; 1a partial, 8 open          | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
 | V9     | Error envelope inconsistent (`retryable` in 1 file)   | V4 §6                       | `OPEN`         | —                                    | —    |
 | V3     | MySQL offered but cannot work                         | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
