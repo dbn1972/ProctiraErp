@@ -26,25 +26,26 @@ test, or an observed runtime behaviour. Not "looks right".
 
 Ordered by leverage, not by size.
 
-| ID     | Gap                                                   | Spec                        | Status         | Branch                               | PR   |
-| ------ | ----------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V15-A  | Failure responses disclosed schema + infrastructure   | V15 D10; V5 §3              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-B  | No error body a user could quote; no request id       | V15 D5 D11                  | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-C  | Timeout was not a state — no deadline either side     | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
-| V15-D  | 12 pages had no error boundary at all                 | V15 D5 D6                   | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-9  | Non-atomic cross-package write bills for nothing      | V15 D9                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-15 | Denied mutations left no audit row                    | V15 D10; V5 §6              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-10 | Denied-vs-empty reaches 2 of ~24 lists (baseline 126) | V15 D6                      | `OPEN`         | —                                    | —    |
-| V15-11 | Client 401 handling; shell subscriber still open      | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
-| V15-19 | 41 wire codes against a 10-entry registry             | V15 D5; V4 §6               | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V10    | 9 defects behind Table 2; 1a partial, 8 open          | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
-| V9     | Error envelope inconsistent (`retryable` in 1 file)   | V4 §6                       | `OPEN`         | —                                    | —    |
-| V3     | MySQL offered but cannot work                         | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
-| V8     | No first-party SDK                                    | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
-| V5     | Hardcoded UI copy, 8 of 9 fees pages                  | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
-| V6     | No email/notification delivery adapter                | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
-| T6     | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate    | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
-| T4     | Zero statutory/interop implementation                 | —                           | `OPEN`         | —                                    | —    |
+| ID     | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
+| ------ | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
+| V15-A  | Failure responses disclosed schema + infrastructure | V15 D10; V5 §3              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-B  | No error body a user could quote; no request id     | V15 D5 D11                  | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-C  | Timeout was not a state — no deadline either side   | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-D  | 12 pages had no error boundary at all               | V15 D5 D6                   | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-9  | Non-atomic cross-package write bills for nothing    | V15 D9                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-15 | Denied mutations left no audit row                  | V15 D10; V5 §6              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-17 | Error copy English-only on localised routes         | V15 D4                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-10 | Denied-vs-empty: 126 reads in 24 lib/api modules    | V15 D6                      | `OPEN`         | —                                    | —    |
+| V15-11 | Client 401 handling; shell subscriber still open    | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-19 | 41 wire codes against a 10-entry registry           | V15 D5; V4 §6               | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V10    | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
+| V9     | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
+| V3     | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
+| V8     | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
+| V5     | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
+| V6     | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
+| T6     | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
+| T4     | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
 
 ### T11 — WITHDRAWN, not a defect
 
@@ -337,6 +338,48 @@ the pattern.
 runtime consumer, which serves it as documentation. Roughly 48-50 distinct wire codes are
 emitted outside it, and the single most-emitted code in the codebase — `TENANT_REQUIRED`,
 426 occurrences — is not in it. A registry no client can rely on cannot be used to branch.
+
+#### V15-10 — sized, and deliberately not started
+
+Measured rather than estimated: the 126 collapsing reads are not spread through pages. They
+are 126 functions in **24 modules under `apps/web/src/lib/api/`** — `hostel.ts` (13),
+`examinations.ts` (10), `fees.ts` (10), `lms.ts` (9), `staff.ts` (9) and 19 more — each the
+same `gatewayFetch(..., { throwOnError: false })` followed by `?? []`. Converting one changes
+its return type and every caller: sampling `library.ts` gives 1–3 caller files per function,
+so the real size is ~126 signatures plus ~175 call sites, each needing a decision about what
+that screen should say.
+
+**The cheap way must not be taken.** Converting the data functions and wrapping every call
+site in `itemsOrEmpty(...)` would drop the ratchet to near zero and change nothing a user
+sees — the collapse would merely move from the data layer to the page. That would make this
+tracker say `FULLY_CLOSED` about a defect still fully present, which is the failure mode this
+audit exists to catch.
+
+Recommended shape: one domain per commit, data functions together with their pages, `BASELINE`
+lowered in the same commit, and evidence per converted screen that a denial now renders as a
+denial.
+
+One counter artefact for whoever does the work: `getLibraryItem` is counted although it is a
+single-object read returning `null` — the counter's eight-line window catches the next
+function's `?? []`. Expect a handful of these, so the true figure is slightly under 126, and
+`BASELINE` must not be lowered for them without also fixing the counter.
+
+#### V15-17 — closed
+
+`route-error.tsx` and `list-load-failure.tsx` carried English literals, so eight of the nine
+supported locales read English failure copy. A `routeState` namespace now exists in all nine
+catalogues with verified key-set parity, and a test asserts the four failure kinds stay
+distinct once translated — a translation collapsing "you may not see this" into "nothing
+found" would reintroduce the original defect in that locale, silently. Translations are
+agent-authored and want native review.
+
+Two wirings, because the two components differ: `ListLoadFailure` is rendered from server
+components and takes its copy as a prop from `getListFailureCopy()` (the pattern
+`(dashboard)/loading.tsx` already uses for `RouteLoadingPanel`), while `RouteErrorPanel` is a
+client component under `NextIntlClientProvider` and translates directly. An earlier revision
+wrapped `useTranslations` in try/catch; eslint rejected it as a conditional hook call and was
+right twice — it breaks the rules of hooks, and the provider it was defending against is
+always present, because `error.tsx` renders inside the root layout.
 
 #### Method note
 
