@@ -121,13 +121,34 @@ strict-FK work: it closes with a **repo-wide** assertion that every `uuid`
 `tenant_id` column has a validated FK to `tenants`, and those FKs are created by
 `021b` and validated by `068` / `082`. With `100` outside the gate, a plain
 `bash tools/scripts/apply-sql.sh` skipped the files that produce that state and
-then failed asserting it — 100+ files applied, then a hard error naming 38 tables
-`100` does not touch. The consequence of the gate is that a local
-`APPLY_STRICT_FKS=0` database keeps `text tenant_id` on the 23 tables `100`
-migrates; that is the same divergence `021b` / `068` already accept for this
-configuration, and CI proves the `uuid` posture on every PR. The
-`Apply domain SQL with the developer default` step in `ci.yml` exists to keep the
-non-strict path exercised, because every other CI invocation sets the flag.
+then failed asserting it — 109 files applied, then a hard error naming 38 tables
+`100` does not touch.
+
+**An `APPLY_STRICT_FKS=0` database is a fixture, not an application database.**
+`082` and `100` are both in `PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS`
+(`packages/shared/database/src/schema-readiness.ts`), so `assertDatabaseSchemaReady`
+throws `DatabaseSchemaNotReadyError` at boot and names them. `082` already did
+that before `100` joined the gate — this is not a new consequence, but it is the
+one to know: the apply succeeds and then the app refuses to start. Re-run with
+`APPLY_STRICT_FKS=1` to get a servable database. Gating also does not create a
+`text`/`uuid` divergence, because `100` runs under `--single-transaction` and its
+failure previously rolled the whole file back; the 23 columns were already `text`
+in this configuration, along with `101`/`102` stranded behind the abort.
+
+**Known residual, ordering axis.** `100`'s closing assertion scans every `public`
+table, not just the 23 it migrates. A future `db/sql/103_*` (or Prisma migration)
+that adds a `uuid tenant_id` table without a validated FK to `tenants` will fail
+the apply _at file 100_, naming a table `100` has never heard of. It only bites on
+a fresh database, which is where CI lives. It cannot be fixed by editing `100` —
+see the row above about the checksum ledger — so a new tenant-owned table must
+carry its validated FK in the same migration that creates it.
+
+The `Apply domain SQL in the two configurations CI never used` step in `ci.yml`
+keeps both uncovered corners exercised: the developer default (`APPLY_STRICT_FKS`
+unset) and the shipping combination (`NODE_ENV=production`, `APPLY_SEEDS` unset).
+Each half greps the apply output to prove it is still testing what it claims,
+because a job-level environment change could otherwise turn either into a silent
+duplicate of the main apply.
 
 ## Leading tenant_id indexes (W1-DATA-16)
 

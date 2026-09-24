@@ -795,26 +795,64 @@ jobs:
       # default, which is the only way that configuration gets tested at all.
       # GitHub sets CI=true globally and apply-sql.sh reads it to pick the
       # default, so it is cleared for this step alone. ~15s on a clean database.
-      - name: Apply domain SQL with the developer default (APPLY_STRICT_FKS unset)
-        # STRICT_FK_SKIP_JUSTIFIED: the point of this step is to exercise the
-        # configuration where APPLY_STRICT_FKS is *not* set. It runs against a
-        # throwaway database (proctira_devdefault) that nothing else touches, and
-        # the strict-FK posture is proved on proctira_test by the step above plus
-        # `check-strict-tenant-fks.mjs --live --require-live`. Setting
-        # APPLY_STRICT_FKS=1 here would make the step assert nothing.
+      - name: Apply domain SQL in the two configurations CI never used
+        # STRICT_FK_SKIP_JUSTIFIED: one half of this step exists to exercise the
+        # configuration where APPLY_STRICT_FKS is *not* set; setting it would make
+        # that half assert nothing. Both halves run against throwaway databases
+        # nothing else touches, and the strict-FK posture is proved on
+        # proctira_test by the step above plus
+        # `check-strict-tenant-fks.mjs --live --require-live`.
         run: |
-          BOOTSTRAP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
-          MIGRATOR_PASSWORD=proctira_test \
-          APP_ROLE_PASSWORD=proctira_app_test \
-          BOOTSTRAP_DB_NAME=proctira_devdefault \
-          BOOTSTRAP_EXTENSIONS=1 \
-            bash tools/scripts/bootstrap-db-roles.sh
-          DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/proctira_devdefault \
-            pnpm --filter @proctira/database run prisma:migrate:deploy
-          env -u CI -u APPLY_STRICT_FKS -u APPLY_SEEDS \
+          set -euo pipefail
+
+          provision() {
+            BOOTSTRAP_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres \
+            MIGRATOR_PASSWORD=proctira_test \
+            APP_ROLE_PASSWORD=proctira_app_test \
+            BOOTSTRAP_DB_NAME="$1" \
+            BOOTSTRAP_EXTENSIONS=1 \
+              bash tools/scripts/bootstrap-db-roles.sh
+            DATABASE_URL="postgresql://proctira:proctira_test@localhost:5432/$1" \
+              pnpm --filter @proctira/database run prisma:migrate:deploy
+          }
+
+          # (a) The developer default. GitHub sets CI=true globally and
+          # apply-sql.sh reads CI *and* NODE_ENV to pick the default, so both are
+          # cleared. The grep is the point of the step: if a future job-level env
+          # var flips the default back on, this becomes a second strict apply that
+          # would otherwise pass silently while asserting nothing.
+          provision proctira_devdefault
+          env -u CI -u NODE_ENV -u APPLY_STRICT_FKS -u APPLY_SEEDS \
             MIGRATOR_DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/proctira_devdefault \
             DATABASE_URL=postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_devdefault \
-            bash tools/scripts/apply-sql.sh
+            bash tools/scripts/apply-sql.sh | tee /tmp/apply-devdefault.log
+          grep -q '100_tenant_id_uuid_fks.sql (strict FKs' /tmp/apply-devdefault.log \
+            || { echo "::error::strict-FK files were NOT skipped — this step is no longer testing the developer default"; exit 1; }
+
+          # (b) The shipping configuration: strict FKs on, demo seeds off. Every
+          # other apply in CI sets APPLY_SEEDS=1, so production's seed-free path
+          # had the same never-executed-anywhere problem.
+          provision proctira_prodlike
+          env -u CI -u APPLY_SEEDS NODE_ENV=production \
+            MIGRATOR_DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/proctira_prodlike \
+            DATABASE_URL=postgresql://proctira_app:proctira_app_test@localhost:5432/proctira_prodlike \
+            bash tools/scripts/apply-sql.sh | tee /tmp/apply-prodlike.log
+          grep -q '100_tenant_id_uuid_fks.sql$' /tmp/apply-prodlike.log \
+            || { echo "::error::NODE_ENV=production did not enable the strict-FK files"; exit 1; }
+          grep -q '_seed.sql (seed; set APPLY_SEEDS=1)' /tmp/apply-prodlike.log \
+            || { echo "::error::demo seeds were applied in the production-like run"; exit 1; }
+          MIGRATOR_DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/proctira_prodlike \
+            node tools/scripts/check-strict-tenant-fks.mjs --live --require-live
+
+      # tools/scripts is not a workspace package, so `turbo run test` cannot
+      # reach tools/scripts/__tests__ and neither dedicated vitest config
+      # includes it. The suite that pins apply-sql.sh's apply/skip ledger was
+      # therefore dead in CI — it passed on a developer's machine and enforced
+      # nothing here. Run it explicitly, without a database URL so its live
+      # W1-DATA-05 ledger cases stay skipped (they drop schema_migrations
+      # CASCADE and must never point at proctira_test).
+      - name: Unit-test apply-sql.sh apply/skip ledger
+        run: env -u DATABASE_URL -u MIGRATOR_DATABASE_URL npx vitest run tools/scripts/__tests__/apply-sql.test.ts
 
       # G-807: backend packages only define `test`, so `test:e2e` below never
       # reached them and every pg-*-repository / *.live.test.ts suite silently

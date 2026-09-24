@@ -151,6 +151,13 @@ describe('apply-sql.sh', () => {
     expect(applySection).toContain('068_validate_tenant_fk_constraints.sql');
     expect(applySection).toContain('082_repair_strict_tenant_fk_validate.sql');
     expect(applySection).toContain('100_tenant_id_uuid_fks.sql');
+    // Asserting "100 is applied under CI=true" alone is vacuous: it holds whether
+    // or not 100 is gated, because an ungated file is always applied. What makes
+    // it meaningful is that the same file moves to the skip side when the flag is
+    // off — the pair below, not either half.
+    const off = dryRun({ CI: undefined, NODE_ENV: undefined, APPLY_STRICT_FKS: undefined });
+    expect(off.status, off.stderr).toBe(0);
+    expect(off.stdout.split('==> Skipped')[1] ?? '').toContain('100_tenant_id_uuid_fks.sql');
   });
   it('W1-DATA-06: the developer default skips 100 rather than failing on it', () => {
     // The configuration a developer gets from a bare `bash apply-sql.sh`. 100

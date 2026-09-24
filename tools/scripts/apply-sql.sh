@@ -147,9 +147,20 @@ is_strict_fk_file() {
   # Gating it keeps the assertion at full repo-wide strength wherever the strict
   # FK chain actually ran (CI, production) instead of weakening the assertion.
   #
-  # The cost is that a local APPLY_STRICT_FKS=0 database keeps text tenant_id on
-  # those 23 tables. That is the same shape of divergence 021b/068 already accept
-  # for this configuration, and CI proves the uuid posture on every PR.
+  # Gating does not *create* a text/uuid divergence: 100 has no CONCURRENTLY, so
+  # it applied under --single-transaction and its failure rolled the whole file
+  # back. Those 23 columns were already text in this configuration, and 101/102
+  # were stranded behind the abort too. What changes is that the apply now
+  # completes and 101/102 land.
+  #
+  # What an APPLY_STRICT_FKS=0 database is NOT is runnable. 082 and 100 are both
+  # in PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS
+  # (packages/shared/database/src/schema-readiness.ts), so assertDatabaseSchemaReady
+  # throws DatabaseSchemaNotReadyError at boot and names them. 082 already did that
+  # before 100 joined the gate, which is why the usage text calls this
+  # configuration "local unit fixtures only" — it is a fixture database, not an
+  # application database. Run with APPLY_STRICT_FKS=1 to get one you can serve
+  # from.
   case "$base" in
     021a_strict_fk_prerequisite_tenants.sql|\
     021b_tenant_fk_constraints.sql|\
