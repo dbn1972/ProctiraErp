@@ -63,6 +63,15 @@ export type ListResult<T> =
       status: number;
       /** Upstream error code when the gateway supplied one. */
       code?: string;
+      /**
+       * The gateway's `requestId` from the error body, when present.
+       *
+       * Carried so the panel can show a user something support can search for. The
+       * gateway has always logged a request id and returned it as a header, but no client
+       * read the header — so the only thing a user could quote was the status code, which
+       * identifies a class of failure rather than the one that happened to them.
+       */
+      requestId?: string;
     };
 
 /**
@@ -133,7 +142,9 @@ export async function fetchList<T>(
     else console.error(line);
 
     const failure: ListResult<T> = { ok: false, kind, status: result.status };
-    return result.error?.code ? { ...failure, code: result.error.code } : failure;
+    const withCode = result.error?.code ? { ...failure, code: result.error.code } : failure;
+    const requestId = readRequestId(result.error?.details);
+    return requestId ? { ...withCode, requestId } : withCode;
   }
 
   const payload = result.data;
@@ -142,6 +153,19 @@ export async function fetchList<T>(
   // `T[]` and throw on the caller's first `.length` or `.filter`.
   const items = Array.isArray(payload?.data) ? payload.data : [];
   return payload?.meta ? { ok: true, items, meta: payload.meta } : { ok: true, items };
+}
+
+/**
+ * Pull `requestId` out of the gateway error body.
+ *
+ * `gatewayFetch` puts the whole parsed body on `error.details`, so the id arrives here
+ * without any change to the transport. Guarded rather than cast: `details` is `unknown`
+ * and is `null` whenever the failure was a network reject or a non-JSON response.
+ */
+function readRequestId(details: unknown): string | undefined {
+  if (typeof details !== 'object' || details === null) return undefined;
+  const value = (details as { requestId?: unknown }).requestId;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 /**

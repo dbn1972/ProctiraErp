@@ -20,6 +20,8 @@ import { Button } from '@proctira/ui/components';
 
 import type { ListFailureKind } from '@/lib/api/list-result';
 
+import { ReloadButton } from './reload-button';
+
 const COPY: Record<
   ListFailureKind,
   { title: string; description: string; Icon: typeof LockKeyhole }
@@ -57,10 +59,20 @@ export function ListLoadFailure({
   status,
   /** Path to return to after signing in, for the `unauthenticated` case. */
   returnTo,
+  /**
+   * The gateway's `requestId` from the failed response, when there was one.
+   *
+   * The gateway generates a request id, logs it and returns it as a header, and now also
+   * puts it in the error body. Showing it is the point: HTTP 503 identifies a class of
+   * failure, this identifies *the* failure, so support can find the one log line instead
+   * of asking what time it happened.
+   */
+  requestId,
 }: {
   kind: ListFailureKind;
   status?: number;
   returnTo?: string;
+  requestId?: string;
 }) {
   const { title, description, Icon } = COPY[kind];
   return (
@@ -84,10 +96,22 @@ export function ListLoadFailure({
           </Link>
         </Button>
       ) : null}
+      {kind === 'unavailable' ? (
+        // The copy said "Reload the page to try again" and shipped nothing to do it with,
+        // which is the one kind where retrying is the correct next action. A server
+        // component read cannot be re-run from the client, so this reloads the route
+        // rather than pretending to refetch in place.
+        <ReloadButton />
+      ) : null}
       {/* `!== undefined`, not truthiness: 0 is the documented status for a network
           failure and must still be quotable. */}
       {status !== undefined ? (
         <p className="text-xs text-muted-foreground/70">Reference: HTTP {status}</p>
+      ) : null}
+      {requestId ? (
+        <p className="font-mono text-xs text-muted-foreground/70" data-testid="failure-request-id">
+          Request ID: {requestId}
+        </p>
       ) : null}
     </div>
   );

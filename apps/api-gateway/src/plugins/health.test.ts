@@ -256,3 +256,93 @@ describe('GET /health/ready (W1-OPS-03 / W3-C1)', () => {
     await app.close();
   });
 });
+
+/**
+ * V15 — `/health` and `/health/ready` are in `authExcludePaths` because container and
+ * Kubernetes probes cannot authenticate, so whatever they return is world-readable.
+ *
+ * Reproduced before the fix, with failing probes in production posture:
+ *
+ *   {"status":"down","dependencies":{...},"message":"relation \"public.audit_events\"
+ *    does not exist (host=db-prod-1.internal db=proctira_prod); connect ETIMEDOUT
+ *    cache-prod-2.internal"}
+ *
+ * The per-dependency statuses are what a probe consumer needs and they name nothing;
+ * only the free-text detail is withheld, and only outside development.
+ */
+describe('anonymous readiness endpoints do not disclose dependency internals (V15)', () => {
+  const LEAKY_DB =
+    'relation "public.audit_events" does not exist (host=db-prod-1.internal db=proctira_prod)';
+  const LEAKY_REDIS = 'connect ETIMEDOUT cache-prod-2.internal';
+
+  async function mountFailing(nodeEnv: string) {
+    const app = Fastify();
+    await app.register(healthPlugin, {
+      services: {
+        auth: { prefix: '/auth', target: 'http://127.0.0.1:1', healthCheck: '/health' },
+      },
+      env: {
+        NODE_ENV: nodeEnv,
+        DATABASE_URL: 'postgresql://u:p@db-prod-1.internal:5432/proctira_prod',
+        REDIS_URL: 'redis://cache-prod-2.internal:6379',
+      },
+      probeDatabase: async () => ({ ok: false, message: LEAKY_DB }),
+      probeRedis: async () => ({ ok: false, message: LEAKY_REDIS }),
+    } as Parameters<typeof healthPlugin>[1]);
+    await app.ready();
+    return app;
+  }
+
+  it('/health/ready withholds the probe text but keeps the statuses', async () => {
+    const app = await mountFailing('production');
+    const res = await app.inject({ method: 'GET', url: '/health/ready' });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).not.toContain('db-prod-1.internal');
+    expect(res.body).not.toContain('proctira_prod');
+    expect(res.body).not.toContain('audit_events');
+    expect(res.body).not.toContain('cache-prod-2.internal');
+    // The useful, non-sensitive part survives.
+    expect(res.json()).toMatchObject({
+      status: 'down',
+      dependencies: { database: 'down', redis: 'down' },
+    });
+    await app.close();
+  });
+
+  it('/health withholds the probe text but keeps the statuses', async () => {
+    const app = await mountFailing('production');
+    const res = await app.inject({ method: 'GET', url: '/health' });
+
+    expect(res.statusCode).toBe(503);
+    expect(res.body).not.toContain('db-prod-1.internal');
+    expect(res.body).not.toContain('audit_events');
+    expect(res.json().checks.readiness.details).toMatchObject({
+      database: 'down',
+      redis: 'down',
+    });
+    await app.close();
+  });
+
+  it('development still shows the probe text', async () => {
+    // Withholding it locally would just make a broken dev database harder to diagnose.
+    const app = await mountFailing('development');
+    const res = await app.inject({ method: 'GET', url: '/health/ready' });
+    expect(res.json().message).toContain('db-prod-1.internal');
+    await app.close();
+  });
+
+  it('runReadinessProbe still returns the detail to in-process callers', async () => {
+    // The redaction belongs to the HTTP boundary, not the probe: logs and tests must keep
+    // the real reason.
+    const result = await runReadinessProbe({
+      env: {
+        NODE_ENV: 'production',
+        DATABASE_URL: 'postgresql://u:p@db-prod-1.internal:5432/proctira_prod',
+      },
+      probeDatabase: async () => ({ ok: false, message: LEAKY_DB }),
+    });
+    expect(result.ready).toBe(false);
+    expect(result.message).toContain('db-prod-1.internal');
+  });
+});

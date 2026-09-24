@@ -75,4 +75,38 @@ describe('ListLoadFailure', () => {
     render(<ListLoadFailure kind="unavailable" />);
     expect(screen.queryByText(/HTTP/)).not.toBeInTheDocument();
   });
+
+  // ─── V15 — retry control and request id ───────────────────────────────────
+
+  it('ships a retry control for the kind whose copy asks the user to retry', () => {
+    // The `unavailable` copy said "Reload the page to try again" and shipped no control.
+    render(<ListLoadFailure kind="unavailable" status={503} />);
+    expect(screen.getByTestId('list-load-failure-retry')).toBeInTheDocument();
+  });
+
+  it('does not offer retry for the kinds where retrying cannot help', () => {
+    // Retrying a denial or a route that is not served re-runs a request whose answer will
+    // not change, so offering it would be misleading.
+    for (const kind of ['unauthenticated', 'denied', 'missing'] as ListFailureKind[]) {
+      const { unmount } = render(<ListLoadFailure kind={kind} />);
+      expect(screen.queryByTestId('list-load-failure-retry')).not.toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it('shows the gateway request id so support can find the one log line', () => {
+    render(
+      <ListLoadFailure kind="unavailable" status={503} requestId="0f9c1d4e-77a2-4c1b-9f55-1" />,
+    );
+    expect(screen.getByTestId('failure-request-id')).toHaveTextContent(
+      'Request ID: 0f9c1d4e-77a2-4c1b-9f55-1',
+    );
+  });
+
+  it('omits the request id line when the gateway did not supply one', () => {
+    // A network reject never reaches the gateway, so there is no id to show — and an
+    // empty "Request ID:" label would send the user to support with nothing.
+    render(<ListLoadFailure kind="unavailable" status={0} />);
+    expect(screen.queryByTestId('failure-request-id')).not.toBeInTheDocument();
+  });
 });

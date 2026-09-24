@@ -25,11 +25,21 @@
 
 import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
 
+import { createTimeout } from './timeout';
+
 /** Base URL of the API gateway, configurable per environment. */
 export const BROWSER_GATEWAY_BASE_URL = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
 
 /** API version prefix used by every gateway path. */
 export const BROWSER_GATEWAY_API_PREFIX = '/api/v1';
+
+/**
+ * Browser-side request deadline. See `./timeout.ts` for why this exists at all.
+ *
+ * Shorter than the server client's 30s: this one runs in front of a person watching a
+ * spinner, and a browser call that has not answered in 20s is not going to.
+ */
+export const BROWSER_GATEWAY_TIMEOUT_MS = 20_000;
 
 export interface BrowserGatewayRequestInit extends Omit<RequestInit, 'body' | 'method'> {
   method?: RequestInit['method'];
@@ -39,8 +49,10 @@ export interface BrowserGatewayRequestInit extends Omit<RequestInit, 'body' | 'm
   body?: BodyInit | null;
   /** Tenant override (defaults to the JWT claim). */
   tenantId?: string;
-  /** Abort signal for cancellation. */
+  /** Abort signal for cancellation. Composed with the deadline below. */
   signal?: AbortSignal;
+  /** Abandon the request after this many ms. Defaults to {@link BROWSER_GATEWAY_TIMEOUT_MS}. */
+  timeoutMs?: number;
 }
 
 export class BrowserGatewayError extends Error {
@@ -90,6 +102,8 @@ export async function browserGatewayFetch<T>(
     }
   }
 
+  const timeout = createTimeout(init.timeoutMs ?? BROWSER_GATEWAY_TIMEOUT_MS, init.signal);
+
   let response: Response;
   try {
     response = await fetch(resolveUrl(path), {
@@ -98,13 +112,14 @@ export async function browserGatewayFetch<T>(
       headers,
       body: body ?? null,
       credentials: 'include',
+      signal: timeout.signal,
     });
   } catch (error) {
-    throw new BrowserGatewayError({
-      status: 0,
-      code: 'NETWORK_ERROR',
-      message: error instanceof Error ? error.message : 'Network error',
-    });
+    // `TIMEOUT` rather than `NETWORK_ERROR` when the deadline fired: the server was
+    // reachable and simply did not answer, which is a different thing to tell a user.
+    throw new BrowserGatewayError({ status: 0, ...timeout.classify(error) });
+  } finally {
+    timeout.clear();
   }
 
   const contentType = response.headers.get('content-type') ?? '';
