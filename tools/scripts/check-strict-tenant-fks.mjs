@@ -10,11 +10,19 @@
  * This gate requires:
  *   1. 021b exists and adds tenant_id → tenants(id) FKs.
  *   2. 068 VALIDATE migration exists (tenant FK VALIDATE signal).
- *   3. 076 repair migration exists (create+validate+assert for prior no-ops).
- *   4. apply-sql.sh gates 021a/021b/068/076 behind APPLY_STRICT_FKS and defaults
- *      that flag ON when CI=true or NODE_ENV=production.
+ *   3. 082 repair migration exists (create+validate+assert for prior no-ops).
+ *   4. apply-sql.sh gates 021a/021b/068/082/100 behind APPLY_STRICT_FKS and
+ *      defaults that flag ON when CI=true or NODE_ENV=production. Checked by
+ *      *executing* is_strict_fk_file, not by grepping for filenames.
  *   5. Every GitHub Actions step that runs apply-sql.sh sets APPLY_STRICT_FKS=1
  *      unless the step includes `# STRICT_FK_SKIP_JUSTIFIED: …`.
+ *
+ * Scope boundary, stated rather than implied: requirement 5 reads the step's
+ * own YAML in `.github/workflows/*.y*ml`, plus the wrapper scripts those steps
+ * call (see APPLY_SQL_WRAPPER_SCRIPTS). It does not descend into composite
+ * actions under `.github/actions/**`, reusable workflows in other repositories,
+ * or a shell script discovered at runtime. A new indirection needs a line in
+ * APPLY_SQL_WRAPPER_SCRIPTS.
  *   6. With --live (or DATABASE_URL / MIGRATOR_DATABASE_URL set under --require-live),
  *      query pg_catalog and fail if any tenant_id → tenants FK is NOT VALID, or if
  *      any uuid tenant_id base table lacks such an FK.
@@ -38,6 +46,19 @@ export const STRICT_FK_PREREQ_FILE = '021a_strict_fk_prerequisite_tenants.sql';
 export const VALIDATE_MIGRATION_HINT = '068_validate_tenant_fk_constraints.sql';
 export const REPAIR_MIGRATION_HINT = '082_repair_strict_tenant_fk_validate.sql';
 export const SKIP_JUSTIFICATION_MARKER = 'STRICT_FK_SKIP_JUSTIFIED:';
+
+/**
+ * Shell scripts that invoke apply-sql.sh on behalf of a workflow step.
+ *
+ * Requirement 5 reads the step's YAML, so an indirection through a wrapper hides
+ * the posture from it. `deploy.yml` reaches apply-sql.sh only this way, which
+ * means the production deploy path had no gate coverage at all: the wrapper does
+ * set the flag, but nothing was checking that it kept doing so.
+ */
+export const APPLY_SQL_WRAPPER_SCRIPTS = [
+  'tools/scripts/run-target-database-migrations.sh',
+  'tools/scripts/setup-live-db-and-onboard.sh',
+];
 
 /** SQL used by --live catalog proof (zero unvalidated / missing tenant FKs). */
 export const LIVE_CATALOG_QUERY = `
@@ -171,17 +192,95 @@ export function repairMigrationFailClosed(repairText) {
 }
 
 /**
- * True when apply-sql.sh gates strict FK files (create + validate + repair).
+ * Every db/sql file that must sit behind APPLY_STRICT_FKS.
+ *
+ * 100 is here because it completes the text→uuid migration for the last 23
+ * tables *and* closes with a repo-wide assertion that every uuid tenant_id
+ * column has a validated FK — FKs that 021b creates and 068/082 validate. With
+ * 100 ungated, a default `bash tools/scripts/apply-sql.sh` skipped the files
+ * that produce that state and then failed asserting it.
+ */
+export const STRICT_FK_UUID_COMPLETION_FILE = '100_tenant_id_uuid_fks.sql';
+
+/** Every file `is_strict_fk_file` must gate. */
+export const REQUIRED_STRICT_FK_FILES = [
+  STRICT_FK_PREREQ_FILE,
+  STRICT_FK_ADD_FILE,
+  VALIDATE_MIGRATION_HINT,
+  REPAIR_MIGRATION_HINT,
+  STRICT_FK_UUID_COMPLETION_FILE,
+];
+
+/**
+ * Which of `candidates` `apply-sql.sh` actually gates, decided by **running**
+ * `is_strict_fk_file`.
+ *
+ * Reading the source instead of running it kept producing answers that were
+ * true of the text and false of the behaviour. Asking whether a filename
+ * appeared anywhere in the script counted a comment as a gate. Narrowing that to
+ * the `case` block counted a *trailing* comment inside the block, and counted a
+ * `case` arm whose body is `return 1` — the exact opposite of gated. Every such
+ * fix invited the next variant.
+ *
+ * So the function is extracted verbatim and executed against each candidate.
+ * Comments, branch bodies, line continuations, indentation and glob patterns all
+ * behave as bash says they do, because bash is what decides.
+ *
+ * Fails closed: an unextractable or unrunnable function returns an empty set, so
+ * every required file reads as ungated and the gate reports failures rather than
+ * passing on an inconclusive read.
+ *
+ * @param {string} applySqlText
+ * @param {readonly string[]} candidates
+ * @returns {Set<string>}
+ */
+export function strictFkGatedFiles(applySqlText, candidates = REQUIRED_STRICT_FK_FILES) {
+  const lines = applySqlText.split('\n');
+  const start = lines.findIndex((line) => /^\s*is_strict_fk_file\s*\(\)\s*\{/.test(line));
+  if (start === -1) return new Set();
+  // The function's closing brace, at the same indentation as its declaration.
+  const declIndent = (lines[start].match(/^(\s*)/)?.[1] ?? '').length;
+  let end = -1;
+  for (let i = start + 1; i < lines.length; i += 1) {
+    const indent = (lines[i].match(/^(\s*)/)?.[1] ?? '').length;
+    if (indent === declIndent && /^\s*\}\s*$/.test(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+  if (end === -1) return new Set();
+
+  const fnSource = lines.slice(start, end + 1).join('\n');
+  const probe = `
+set -u
+${fnSource}
+for candidate in "$@"; do
+  if is_strict_fk_file "$candidate"; then printf '%s\\n' "$candidate"; fi
+done
+`;
+  const result = spawnSync('bash', ['-c', probe, 'probe', ...candidates], {
+    encoding: 'utf8',
+    timeout: 20_000,
+  });
+  if (result.error || result.status !== 0) return new Set();
+  return new Set(
+    result.stdout
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * True when apply-sql.sh gates every strict FK file (create, validate, repair,
+ * uuid completion) inside `is_strict_fk_file`.
  * @param {string} applySqlText
  */
 export function applySqlGatesStrictFks(applySqlText) {
-  return (
-    /APPLY_STRICT_FKS/.test(applySqlText) &&
-    /021b_tenant_fk_constraints\.sql/.test(applySqlText) &&
-    /068_validate_tenant_fk_constraints\.sql/.test(applySqlText) &&
-    /082_repair_strict_tenant_fk_validate\.sql/.test(applySqlText) &&
-    /is_strict_fk_file/.test(applySqlText)
-  );
+  if (!/APPLY_STRICT_FKS/.test(applySqlText)) return false;
+  if (!/is_strict_fk_file/.test(applySqlText)) return false;
+  const gated = strictFkGatedFiles(applySqlText);
+  return REQUIRED_STRICT_FK_FILES.every((file) => gated.has(file));
 }
 
 /**
@@ -195,6 +294,73 @@ export function applySqlDefaultsStrictFksOnInProd(applySqlText) {
     /production/.test(applySqlText) &&
     /APPLY_STRICT_FKS\s*=\s*1/.test(applySqlText)
   );
+}
+
+/**
+ * Remove a trailing `#` comment, respecting quotes.
+ *
+ * Both YAML and shell end a comment at end-of-line and require the `#` to start
+ * a word, so a single walk serves both. Quote tracking matters because
+ * `--password 'a#b'` and `sed 's/#//'` are not comments.
+ *
+ * @param {string} line
+ */
+export function stripInlineComment(line) {
+  let single = false;
+  let double = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '\\' && double) {
+      i += 1;
+      continue;
+    }
+    if (ch === "'" && !double) single = !single;
+    else if (ch === '"' && !single) double = !double;
+    else if (ch === '#' && !single && !double && (i === 0 || /\s/.test(line[i - 1]))) {
+      return line.slice(0, i);
+    }
+  }
+  return line;
+}
+
+/** Replace the contents of quoted spans with nothing, keeping the quotes. */
+function blankQuotedSpans(line) {
+  return line.replace(/'[^']*'/g, "''").replace(/"(?:[^"\\]|\\.)*"/g, '""');
+}
+
+/**
+ * True when a workflow step really sets `APPLY_STRICT_FKS=1`.
+ *
+ * "Really" is doing work here. Three readings all looked equivalent and are not:
+ *
+ * * `snippet.includes(...)` counted the step's own comment explaining that it
+ *   deliberately does *not* set the flag. That is the single worst misreading
+ *   this gate can make, because it turns a documented exception into a
+ *   false claim of compliance.
+ * * Dropping whole-line comments fixed that one case and not the class: a
+ *   *trailing* comment still established the posture.
+ * * Dropping all comments still counted `echo "APPLY_STRICT_FKS=1 would defeat
+ *   the point"`, because a string that mentions an assignment is not one.
+ *
+ * So: strip the comment, then look for the flag in a position where it is
+ * actually being set — a YAML `env:` mapping entry, or a shell assignment
+ * outside any quoted span.
+ *
+ * @param {string} snippet
+ */
+export function stepSetsStrictFks(snippet) {
+  for (const raw of snippet.split('\n')) {
+    const line = stripInlineComment(raw);
+    // YAML mapping entry: `APPLY_STRICT_FKS: '1'`. Anchored, so a value that
+    // merely contains the key name does not count.
+    if (/^\s*APPLY_STRICT_FKS\s*:\s*(['"]?)1\1\s*$/.test(line)) return true;
+    // Shell assignment, with quoted spans blanked so an echoed string cannot
+    // masquerade as one.
+    if (/(^|\s|;|&)APPLY_STRICT_FKS=(['"]?)1\2(\s|$|;|&|\\)/.test(blankQuotedSpans(line))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -217,17 +383,23 @@ export function findApplySqlSteps(yamlText, relPath) {
     const line = lines[idx];
     if (/^\s*#/.test(line)) return false;
     if (/^\s*(?:-\s+)?run:\s*.*apply-sql\.sh/.test(line)) return true;
-    // Multi-line `run: |` / `run: >` with script on a following non-comment line.
-    if (/^\s*(?:-\s+)?run:\s*[|>]\s*$/.test(line)) {
-      for (let k = idx + 1; k < Math.min(lines.length, idx + 8); k++) {
+    // Multi-line `run: |` / `run: >`. Scan the whole block scalar, not just its
+    // first body line: a step that sets env vars, provisions a database or runs
+    // migrations before invoking the script would otherwise be invisible to this
+    // gate, which is exactly the hole a non-strict CI apply would hide in.
+    // `|`, `>` with any combination of chomping (`-`/`+`) and explicit
+    // indentation indicator (`|2`). `run: |2` previously yielded zero steps.
+    const blockMatch = line.match(/^(\s*)(?:-\s+)?run:\s*[|>](?:[0-9][-+]?|[-+][0-9]?)?\s*$/);
+    if (blockMatch) {
+      const keyIndent = blockMatch[1].length;
+      for (let k = idx + 1; k < lines.length; k++) {
         const body = lines[k];
         if (!body.trim()) continue;
-        if (/^\s*#/.test(body)) continue;
-        // Stop at next YAML key at step body indent.
-        if (/^\s{0,8}[a-zA-Z0-9_-]+:/.test(body) && !/apply-sql\.sh/.test(body)) {
-          return false;
-        }
-        return /apply-sql\.sh/.test(body);
+        const bodyIndent = (body.match(/^(\s*)/)?.[1] ?? '').length;
+        // Block scalar content must be more indented than its key. Anything at
+        // or below that indent ends the block.
+        if (bodyIndent <= keyIndent) return false;
+        if (/apply-sql\.sh/.test(body) && !/^\s*#/.test(body)) return true;
       }
     }
     return false;
@@ -270,9 +442,8 @@ export function findApplySqlSteps(yamlText, relPath) {
     }
 
     const snippet = lines.slice(stepStart, Math.max(stepEnd, i + 1)).join('\n');
-    const hasStrictFks =
-      /APPLY_STRICT_FKS\s*:\s*['"]?1['"]?/.test(snippet) ||
-      /APPLY_STRICT_FKS\s*=\s*1\b/.test(snippet);
+    const hasStrictFks = stepSetsStrictFks(snippet);
+    // The marker is read from the comments on purpose. The posture is not.
     const justifiedSkip = snippet.includes(SKIP_JUSTIFICATION_MARKER);
 
     steps.push({
@@ -431,7 +602,7 @@ export function evaluateStrictTenantFks({
     const applyText = readFileSync(paths.applySqlScript, 'utf8');
     if (!applySqlGatesStrictFks(applyText)) {
       failures.push(
-        'apply-sql.sh must gate 021a/021b/068/076 behind APPLY_STRICT_FKS via is_strict_fk_file',
+        'apply-sql.sh must gate 021a/021b/068/082/100 behind APPLY_STRICT_FKS via is_strict_fk_file',
       );
     }
     if (!applySqlDefaultsStrictFksOnInProd(applyText)) {
@@ -439,14 +610,18 @@ export function evaluateStrictTenantFks({
         'apply-sql.sh must default APPLY_STRICT_FKS=1 when CI=true or NODE_ENV=production',
       );
     }
-    if (!applyText.includes(STRICT_FK_PREREQ_FILE)) {
-      failures.push(`apply-sql.sh must treat ${STRICT_FK_PREREQ_FILE} as a strict-FK file`);
-    }
-    if (!applyText.includes(VALIDATE_MIGRATION_HINT)) {
-      failures.push(`apply-sql.sh must treat ${VALIDATE_MIGRATION_HINT} as a strict-FK file`);
-    }
-    if (!applyText.includes(REPAIR_MIGRATION_HINT)) {
-      failures.push(`apply-sql.sh must treat ${REPAIR_MIGRATION_HINT} as a strict-FK file`);
+    // Decided by running `is_strict_fk_file`, not by reading around it.
+    const gatedFiles = strictFkGatedFiles(applyText);
+    for (const required of [
+      STRICT_FK_PREREQ_FILE,
+      STRICT_FK_ADD_FILE,
+      VALIDATE_MIGRATION_HINT,
+      REPAIR_MIGRATION_HINT,
+      STRICT_FK_UUID_COMPLETION_FILE,
+    ]) {
+      if (!gatedFiles.has(required)) {
+        failures.push(`apply-sql.sh must treat ${required} as a strict-FK file`);
+      }
     }
   }
 
@@ -482,6 +657,33 @@ export function evaluateStrictTenantFks({
       `${step.file} :: step "${step.stepName}" runs apply-sql.sh without APPLY_STRICT_FKS=1 ` +
         `(set it, or add "# ${SKIP_JUSTIFICATION_MARKER} <reason>" in the step)`,
     );
+  }
+
+  // Workflow steps are not the only callers. `deploy.yml` reaches apply-sql.sh
+  // only through a wrapper script, so scanning step YAML alone left the
+  // production deploy path with no coverage at all: the wrapper does set the
+  // flag, but nothing checked that it kept doing so.
+  for (const relScript of APPLY_SQL_WRAPPER_SCRIPTS) {
+    const abs = join(root, relScript);
+    if (!existsSync(abs)) {
+      notes.push(`wrapper ${relScript} not present (nothing to check)`);
+      continue;
+    }
+    const text = readFileSync(abs, 'utf8');
+    if (!/apply-sql\.sh/.test(text)) {
+      notes.push(`wrapper ${relScript} no longer calls apply-sql.sh`);
+      continue;
+    }
+    if (stepSetsStrictFks(text)) {
+      notes.push(`${relScript} sets APPLY_STRICT_FKS=1 before apply-sql.sh`);
+    } else if (text.includes(SKIP_JUSTIFICATION_MARKER)) {
+      notes.push(`${relScript} skips APPLY_STRICT_FKS with ${SKIP_JUSTIFICATION_MARKER}`);
+    } else {
+      failures.push(
+        `${relScript} calls apply-sql.sh without APPLY_STRICT_FKS=1 ` +
+          `(set it, or add "# ${SKIP_JUSTIFICATION_MARKER} <reason>")`,
+      );
+    }
   }
 
   /** @type {{ unvalidated: string[], missing: string[] } | null} */

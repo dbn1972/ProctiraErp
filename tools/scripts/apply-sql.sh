@@ -33,8 +33,9 @@
 #
 # G-705: demo seed files inside db/sql (NNNb_*_seed.sql) are applied only when
 #        APPLY_SEEDS=1 (CI / local dev). Production must not set it.
-# G-718 / W1-DATA-06 COMPLETE: 021a + 021b (create), 068 (VALIDATE), and 076
-#        (repair create+validate+assert) apply when APPLY_STRICT_FKS=1.
+# G-718 / W1-DATA-06 COMPLETE: 021a + 021b (create), 068 (VALIDATE), 082 (repair
+#        create+validate+assert), and 100 (text→uuid completion for the last 23
+#        tables, plus the repo-wide FK assertion) apply when APPLY_STRICT_FKS=1.
 #        Default ON when CI=true or NODE_ENV=production; local fixtures may set
 #        APPLY_STRICT_FKS=0. Gate: tools/scripts/check-strict-tenant-fks.mjs.
 #
@@ -93,7 +94,7 @@ Environment:
   PGHOST/PGPORT/PGUSER/PGPASSWORD  Standard libpq vars when URL unset
   BOOTSTRAP_DATABASE_URL Superuser URL — when set, runs bootstrap-db-roles.sh first
   APPLY_SEEDS=1          Also apply db/sql/*b_*_seed.sql demo rows (never in prod)
-  APPLY_STRICT_FKS=1     Apply 021a/021b create, 068 VALIDATE, 076 repair (prod/CI default)
+  APPLY_STRICT_FKS=1     Apply 021a/021b create, 068 VALIDATE, 082 repair, 100 uuid (prod/CI default)
   APPLY_STRICT_FKS=0     Skip strict tenant FK files (local unit fixtures only)
   APPLY_SQL_DIR          Override SQL directory (tests / fixtures)
   APPLY_SQL_NO_TX=1      Disable per-file --single-transaction for all files
@@ -132,13 +133,40 @@ is_seed_file() {
 is_strict_fk_file() {
   local base
   base="$(basename "$1")"
-  # Create (021a/021b), VALIDATE (068), and repair (076) share the same gate so
-  # 068 cannot be ledger-recorded as a no-op when create was skipped.
+  # Create (021a/021b), VALIDATE (068), repair (082) and the uuid completion (100)
+  # share the same gate so 068 cannot be ledger-recorded as a no-op when create
+  # was skipped.
+  #
+  # 100 belongs here: it is the file that finishes W1-DATA-06 by migrating the
+  # last 23 text tenant_id columns to uuid and attaching their FKs, and it closes
+  # with a repo-wide assertion that every uuid tenant_id column has a validated FK
+  # to tenants. Those FKs are created by 021b and validated by 068/082 — so with
+  # this gate off, 100 was asserting a state that the same gate had just skipped
+  # producing, and a bare `bash tools/scripts/apply-sql.sh` on a clean database
+  # failed after 100+ files with a message naming 38 tables 100 does not touch.
+  # Gating it keeps the assertion at full repo-wide strength wherever the strict
+  # FK chain actually ran (CI, production) instead of weakening the assertion.
+  #
+  # Gating does not *create* a text/uuid divergence: 100 has no CONCURRENTLY, so
+  # it applied under --single-transaction and its failure rolled the whole file
+  # back. Those 23 columns were already text in this configuration, and 101/102
+  # were stranded behind the abort too. What changes is that the apply now
+  # completes and 101/102 land.
+  #
+  # What an APPLY_STRICT_FKS=0 database is NOT is runnable. 082 and 100 are both
+  # in PERMANENT_RUNTIME_INTEGRITY_MIGRATIONS
+  # (packages/shared/database/src/schema-readiness.ts), so assertDatabaseSchemaReady
+  # throws DatabaseSchemaNotReadyError at boot and names them. 082 already did that
+  # before 100 joined the gate, which is why the usage text calls this
+  # configuration "local unit fixtures only" — it is a fixture database, not an
+  # application database. Run with APPLY_STRICT_FKS=1 to get one you can serve
+  # from.
   case "$base" in
     021a_strict_fk_prerequisite_tenants.sql|\
     021b_tenant_fk_constraints.sql|\
     068_validate_tenant_fk_constraints.sql|\
-    082_repair_strict_tenant_fk_validate.sql)
+    082_repair_strict_tenant_fk_validate.sql|\
+    100_tenant_id_uuid_fks.sql)
       return 0
       ;;
     *)
