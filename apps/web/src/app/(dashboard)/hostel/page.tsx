@@ -24,6 +24,9 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostels } from '@/lib/api/hostel';
 import { NewHostelForm } from './_components/new-hostel-form';
 
@@ -31,7 +34,21 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelOverviewPage() {
   await requireSession();
-  const [t, hostels] = await Promise.all([getTranslations('hostel'), listHostels()]);
+  const [t, hostelsResult] = await Promise.all([getTranslations('hostel'), listHostels()]);
+  if (!hostelsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={hostelsResult.kind}
+          status={hostelsResult.status}
+          requestId={hostelsResult.requestId}
+          returnTo="/hostel"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const hostels = hostelsResult.items;
 
   return (
     <div className="space-y-6 p-6">

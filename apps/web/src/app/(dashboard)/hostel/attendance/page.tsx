@@ -10,6 +10,9 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
 import { HostelAttendanceForm } from '../_components/attendance-form';
 
@@ -24,9 +27,40 @@ export default async function HostelAttendancePage({
   const { blockId, onDate } = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;
-  const blocks = await listHostelBlocks();
+  // Blocks are the subject here, not a lookup: with no block there is no roll call to
+  // take, so a denial on blocks must say so rather than render an empty register.
+  const blocksResult = await listHostelBlocks();
+  if (!blocksResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={blocksResult.kind}
+          status={blocksResult.status}
+          requestId={blocksResult.requestId}
+          returnTo="/hostel/attendance"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const blocks = blocksResult.items;
   const selectedBlock = blockId && blocks.some((b) => b.id === blockId) ? blockId : blocks[0]?.id;
-  const marks = selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : [];
+  const marksResult =
+    selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : null;
+  if (marksResult && !marksResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={marksResult.kind}
+          status={marksResult.status}
+          requestId={marksResult.requestId}
+          returnTo="/hostel/attendance"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const marks = marksResult ? marksResult.items : [];
 
   return (
     <div className="space-y-6 p-6">

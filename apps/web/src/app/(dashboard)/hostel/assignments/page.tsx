@@ -12,6 +12,9 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import {
   listHostelAssignments,
   listHostelBeds,
@@ -25,12 +28,31 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelAssignmentsPage() {
   await requireSession();
-  const [assignments, beds, hostels, feeStructures] = await Promise.all([
+  const [assignmentsResult, bedsResult, hostelsResult, feeStructuresResult] = await Promise.all([
     listHostelAssignments(),
     listHostelBeds(),
     listHostels(),
     listHostelFeeStructures(),
   ]);
+  if (!assignmentsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={assignmentsResult.kind}
+          status={assignmentsResult.status}
+          requestId={assignmentsResult.requestId}
+          returnTo="/hostel/assignments"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const assignments = assignmentsResult.items;
+  // Supporting lookups for form controls, not the page's subject: an explicit opt-out
+  // rather than a hidden collapse. The primary list above reports the real reason.
+  const beds = itemsOrEmpty(bedsResult);
+  const hostels = itemsOrEmpty(hostelsResult);
+  const feeStructures = itemsOrEmpty(feeStructuresResult);
 
   return (
     <div className="space-y-6 p-6">

@@ -10,6 +10,9 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
 import { GatePassActions } from '../_components/gate-pass-actions';
 import { GatePassRequestForm } from '../_components/gate-pass-form';
@@ -18,7 +21,25 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelGatePassesPage() {
   await requireSession();
-  const [hostels, passes] = await Promise.all([listHostels(), listHostelGatePasses()]);
+  const [hostelsResult, passesResult] = await Promise.all([listHostels(), listHostelGatePasses()]);
+  if (!passesResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={passesResult.kind}
+          status={passesResult.status}
+          requestId={passesResult.requestId}
+          returnTo="/hostel/gate-passes"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const passes = passesResult.items;
+  // Supporting lookup for a form control, not the page's subject: an explicit
+  // opt-out rather than a hidden collapse. The primary list above reports the
+  // real reason when the domain is denied or down.
+  const hostels = itemsOrEmpty(hostelsResult);
 
   return (
     <div className="space-y-6 p-6">

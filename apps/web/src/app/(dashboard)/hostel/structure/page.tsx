@@ -12,6 +12,9 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelBeds, listHostelBlocks, listHostelRooms, listHostels } from '@/lib/api/hostel';
 import { NewBedForm, NewBlockForm, NewRoomForm } from '../_components/structure-forms';
 
@@ -19,12 +22,33 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelStructurePage() {
   await requireSession();
-  const [hostels, blocks, rooms, beds] = await Promise.all([
+  const [hostelsResult, blocksResult, roomsResult, bedsResult] = await Promise.all([
     listHostels(),
     listHostelBlocks(),
     listHostelRooms(),
     listHostelBeds(),
   ]);
+  // The hostel list is this page's subject: without it the structure tree has no roots,
+  // and an empty tree for a denial is exactly the confusion being removed.
+  if (!hostelsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={hostelsResult.kind}
+          status={hostelsResult.status}
+          requestId={hostelsResult.requestId}
+          returnTo="/hostel/structure"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const hostels = hostelsResult.items;
+  // Supporting lookups for form controls, not the page's subject: an explicit opt-out
+  // rather than a hidden collapse. The primary list above reports the real reason.
+  const blocks = itemsOrEmpty(blocksResult);
+  const rooms = itemsOrEmpty(roomsResult);
+  const beds = itemsOrEmpty(bedsResult);
 
   const hostelById = new Map(hostels.map((h) => [h.id, h]));
   const blockById = new Map(blocks.map((b) => [b.id, b]));
