@@ -217,14 +217,31 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
           />
         </Link>
 
-        {/* Page title — flex-1 so it absorbs available space and truncates
-            cleanly on narrow viewports. */}
-        <h1
+        {/*
+          Page title — flex-1 so it absorbs available space and truncates cleanly on narrow
+          viewports.
+
+          Deliberately **not** an `<h1>`. This is chrome: it shows the route's label, or the
+          brand name when there is no label, while the routed page below renders its own `h1`.
+          Two `h1` elements on one document is an accessibility defect — a screen-reader user
+          asking "what is this page?" gets two conflicting answers — and it also made
+          `getByRole('heading', { level: 1 })` ambiguous, so 26 E2E specs that assert a single
+          level-1 heading failed with a Playwright strict-mode violation on mobile viewports:
+
+              strict mode violation: resolved to 2 elements
+                1) <h1 data-testid="mobile-shell-title">ProctiraERP</h1>
+                2) <h1 id="role-dashboard-heading">Dashboard</h1>
+
+          `aria-hidden` is not the answer either: the text is useful to sighted and
+          screen-reader users alike, it just is not the page's heading. A `<p>` keeps it
+          announced in reading order without claiming to be structure.
+        */}
+        <p
           className="flex-1 truncate text-base font-semibold text-foreground"
           data-testid="mobile-shell-title"
         >
           {resolvedTitle}
-        </h1>
+        </p>
 
         {/* Optional primary action (e.g., "+ New" on list pages). */}
         {primaryAction ? (
