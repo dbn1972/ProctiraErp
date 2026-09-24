@@ -14,7 +14,7 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryItems } from '@/lib/api/library';
 import { LibraryClearanceForm } from './_components/clearance-form';
@@ -27,21 +27,17 @@ export default async function LibraryCatalogPage() {
   await requireSession();
   const [t, itemsResult] = await Promise.all([getTranslations('library'), listLibraryItems()]);
 
-  // The catalogue *is* this page. An empty shelf is plausible on a new tenant, which is
-  // exactly why a denial must not be allowed to look like one.
-  if (!itemsResult.ok) {
-    return (
-      <ListLoadFailurePage
-        heading={t('title')}
-        kind={itemsResult.kind}
-        status={itemsResult.status}
-        requestId={itemsResult.requestId}
-        returnTo="/library"
-        copy={await getListFailureCopy()}
-      />
-    );
-  }
-  const items = itemsResult.items;
+  /**
+   * The catalogue list can fail without the page being useless.
+   *
+   * An empty shelf is plausible on a new tenant, which is exactly why a denial must not be
+   * allowed to look like one — but the panel belongs *where the table was*, not in place of
+   * the whole page. A librarian can still add a book or import an ISBN while the listing is
+   * down, and an earlier revision removed those forms by early-returning.
+   */
+  const failure = itemsResult.ok ? null : itemsResult;
+  const items = itemsResult.ok ? itemsResult.items : [];
+  const failureCopy = failure ? await getListFailureCopy() : undefined;
 
   return (
     <div className="space-y-6 p-6">
@@ -76,10 +72,20 @@ export default async function LibraryCatalogPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t('catalog')}</CardTitle>
-          <CardDescription>{t('itemCount', { count: items.length })}</CardDescription>
+          <CardDescription>
+            {failure ? t('catalog') : t('itemCount', { count: items.length })}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
+          {failure ? (
+            <ListLoadFailure
+              kind={failure.kind}
+              status={failure.status}
+              requestId={failure.requestId}
+              returnTo="/library"
+              copy={failureCopy}
+            />
+          ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               {t('noHoldings')}
             </p>

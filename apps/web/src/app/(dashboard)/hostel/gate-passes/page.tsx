@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
@@ -22,19 +22,11 @@ export const dynamic = 'force-dynamic';
 export default async function HostelGatePassesPage() {
   await requireSession();
   const [hostelsResult, passesResult] = await Promise.all([listHostels(), listHostelGatePasses()]);
-  if (!passesResult.ok) {
-    return (
-      <ListLoadFailurePage
-        heading="Gate passes"
-        kind={passesResult.kind}
-        status={passesResult.status}
-        requestId={passesResult.requestId}
-        returnTo="/hostel/gate-passes"
-        copy={await getListFailureCopy()}
-      />
-    );
-  }
-  const passes = passesResult.items;
+  // The pass list can fail without the page being useless: a resident can still request a
+  // pass. The panel replaces the table, not the screen.
+  const failure = passesResult.ok ? null : passesResult;
+  const passes = passesResult.ok ? passesResult.items : [];
+  const failureCopy = failure ? await getListFailureCopy() : undefined;
   // Supporting lookup for a form control, not the page's subject: an explicit
   // opt-out rather than a hidden collapse. The primary list above reports the
   // real reason when the domain is denied or down.
@@ -60,13 +52,23 @@ export default async function HostelGatePassesPage() {
         <CardHeader>
           <CardTitle className="text-base">Passes</CardTitle>
           <CardDescription>
-            {passes.length === 0
-              ? 'No gate passes yet.'
-              : `${passes.length} pass${passes.length === 1 ? '' : 'es'}.`}
+            {failure
+              ? 'Passes could not be loaded.'
+              : passes.length === 0
+                ? 'No gate passes yet.'
+                : `${passes.length} pass${passes.length === 1 ? '' : 'es'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {passes.length === 0 ? (
+          {failure ? (
+            <ListLoadFailure
+              kind={failure.kind}
+              status={failure.status}
+              requestId={failure.requestId}
+              returnTo="/hostel/gate-passes"
+              copy={failureCopy}
+            />
+          ) : passes.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               No gate passes yet.
             </p>

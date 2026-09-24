@@ -71,8 +71,13 @@ describe('V15-10 library: a denied list is not rendered as an empty one', () => 
       const src = readFileSync(file, 'utf8');
       const rel = file.slice(LIBRARY_DIR.length + 1);
       expect(src, `${rel} does not render ListLoadFailure`).toContain('<ListLoadFailure');
+      // Two shapes are legitimate. An early return guards the whole page when the read is the
+      // page's only subject; an inline `const failure = ….ok ? null : …` keeps the page's forms
+      // usable and swaps the panel in where the table was. Both branch on `.ok`, which is the
+      // property that matters — asserting one syntax is how this test started failing when the
+      // pages got better.
       expect(src, `${rel} does not branch on a failed read`).toMatch(
-        /if \([^)]*!\w+(Result)?\.ok\)/,
+        /if \([^)]*!\w+(Result)?\.ok\)|\w+Result\.ok \? null :/,
       );
     }
   });

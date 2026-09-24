@@ -69,25 +69,46 @@ describe('a failed list read still renders the page heading', () => {
   });
 
   it('every failure surface carries an h1', () => {
+    // The property: whatever branch renders the failure, the document still has a level-1
+    // heading. Two ways to satisfy it, and both are fine:
+    //
+    //   • `<ListLoadFailurePage heading=…>` — the panel replaces the page, wrapper owns the h1
+    //   • the panel rendered inline inside the page's normal return, which already has an h1
+    //
+    // An earlier revision of this test walked backwards from the `<ListLoadFailure` tag looking
+    // for `<h1` within 900 characters. That passed for early returns and failed once the panel
+    // moved inline into a Card far below the heading — the test was pinning a shape rather than
+    // the property.
     const offenders: string[] = [];
     for (const { rel, src } of failurePages()) {
       const viaWrapper = src.includes('<ListLoadFailurePage');
-      // The bare-panel shape is only acceptable when an h1 sits beside it in the same JSX.
-      const bareMatches = [...src.matchAll(/<ListLoadFailure\b(?!Page)/g)];
-      if (viaWrapper && bareMatches.length === 0) continue;
-      for (const m of bareMatches) {
-        // Look back over the enclosing return block for an <h1.
-        const before = src.slice(Math.max(0, m.index - 900), m.index);
-        const blockStart = before.lastIndexOf('return (');
-        const block = blockStart >= 0 ? before.slice(blockStart) : before;
-        if (!block.includes('<h1')) offenders.push(`${rel} (bare panel with no <h1> above it)`);
+      const hasOwnHeading = src.includes('<h1');
+      if (!viaWrapper && !hasOwnHeading) offenders.push(rel);
+    }
+    expect(
+      offenders,
+      'These pages can render a list failure with no level-1 heading anywhere. Use ' +
+        '<ListLoadFailurePage>, which owns the h1, or render the panel inside the page body ' +
+        'that already has one:\n' +
+        offenders.map((o) => `  ${o}`).join('\n'),
+    ).toEqual([]);
+  });
+
+  it('no page early-returns a bare panel, which would drop the heading', () => {
+    // The original defect, asserted directly: `return ( <div…> <ListLoadFailure` with no
+    // heading between them.
+    const offenders: string[] = [];
+    for (const { rel, src } of failurePages()) {
+      for (const m of src.matchAll(
+        /return \(\s*\n\s*<div[^>]*>\s*\n\s*<ListLoadFailure\b(?!Page)/g,
+      )) {
+        void m;
+        offenders.push(rel);
       }
     }
     expect(
       offenders,
-      'These pages drop the page heading when a list read fails. Render through ' +
-        '<ListLoadFailurePage>, which owns the h1:\n' +
-        offenders.map((o) => `  ${o}`).join('\n'),
+      `Bare-panel early return drops the page heading: ${offenders.join(', ')}`,
     ).toEqual([]);
   });
 

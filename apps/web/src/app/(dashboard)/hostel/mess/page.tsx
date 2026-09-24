@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelMessPlans, listHostels } from '@/lib/api/hostel';
@@ -21,19 +21,11 @@ export const dynamic = 'force-dynamic';
 export default async function HostelMessPage() {
   await requireSession();
   const [hostelsResult, plansResult] = await Promise.all([listHostels(), listHostelMessPlans()]);
-  if (!plansResult.ok) {
-    return (
-      <ListLoadFailurePage
-        heading="Mess plans"
-        kind={plansResult.kind}
-        status={plansResult.status}
-        requestId={plansResult.requestId}
-        returnTo="/hostel/mess"
-        copy={await getListFailureCopy()}
-      />
-    );
-  }
-  const plans = plansResult.items;
+  // The plan list can fail without the page being useless: a warden can still publish a new
+  // plan. The panel replaces the table, not the screen.
+  const failure = plansResult.ok ? null : plansResult;
+  const plans = plansResult.ok ? plansResult.items : [];
+  const failureCopy = failure ? await getListFailureCopy() : undefined;
   // Supporting lookup for a form control, not the page's subject: an explicit
   // opt-out rather than a hidden collapse. The primary list above reports the
   // real reason when the domain is denied or down.
@@ -59,13 +51,23 @@ export default async function HostelMessPage() {
         <CardHeader>
           <CardTitle className="text-base">Published plans</CardTitle>
           <CardDescription>
-            {plans.length === 0
-              ? 'No mess plans yet.'
-              : `${plans.length} plan${plans.length === 1 ? '' : 's'}.`}
+            {failure
+              ? 'Plans could not be loaded.'
+              : plans.length === 0
+                ? 'No mess plans yet.'
+                : `${plans.length} plan${plans.length === 1 ? '' : 's'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {plans.length === 0 ? (
+          {failure ? (
+            <ListLoadFailure
+              kind={failure.kind}
+              status={failure.status}
+              requestId={failure.requestId}
+              returnTo="/hostel/mess"
+              copy={failureCopy}
+            />
+          ) : plans.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               No mess plans yet.
             </p>
