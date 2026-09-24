@@ -110,3 +110,63 @@ describe('ListLoadFailure', () => {
     expect(screen.queryByTestId('failure-request-id')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * V15-17 — the panel's copy is localisable.
+ *
+ * It carried English literals, so a school operating in Hindi or Tamil read English failure
+ * copy on exactly the screens where a user is already confused. The strings are now defaults
+ * and `getListFailureCopy()` supplies the request's locale.
+ */
+describe('ListLoadFailure localisation', () => {
+  const hindi = {
+    kinds: {
+      unauthenticated: { title: 'आपका सत्र समाप्त हो गया है', description: 'दोबारा साइन इन करें।' },
+      denied: { title: 'आपको इस सूची तक पहुँच नहीं है', description: 'प्रशासक से संपर्क करें।' },
+      missing: { title: 'यह सूची यहाँ उपलब्ध नहीं है', description: 'प्रशासक से संपर्क करें।' },
+      unavailable: { title: 'यह सूची लोड नहीं हो सकी', description: 'कुछ क्षण बाद प्रयास करें।' },
+    },
+    signIn: 'साइन इन करें',
+    reference: 'संदर्भ',
+    requestId: 'अनुरोध आईडी',
+    tryAgain: 'पुनः प्रयास करें',
+    retrying: 'पुनः प्रयास हो रहा है…',
+  };
+
+  it('renders the supplied copy for every kind', () => {
+    for (const kind of KINDS) {
+      const { unmount } = render(<ListLoadFailure kind={kind} copy={hindi} />);
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(hindi.kinds[kind].title);
+      unmount();
+    }
+  });
+
+  it('keeps the four kinds distinguishable in the translated copy', () => {
+    // A translation that collapses "you may not see this" into "nothing found" reintroduces
+    // the original defect in that locale, so distinctness is asserted, not assumed.
+    const titles = new Set(Object.values(hindi.kinds).map((k) => k.title));
+    expect(titles.size).toBe(KINDS.length);
+  });
+
+  it('localises the controls and the reference labels too', () => {
+    render(<ListLoadFailure kind="unavailable" status={503} requestId="req-9" copy={hindi} />);
+    expect(screen.getByTestId('list-load-failure-retry')).toHaveTextContent(hindi.tryAgain);
+    expect(screen.getByText(/संदर्भ: HTTP 503/)).toBeInTheDocument();
+    expect(screen.getByTestId('failure-request-id')).toHaveTextContent('अनुरोध आईडी: req-9');
+  });
+
+  it('localises the sign-in control for the one kind that ships it', () => {
+    render(<ListLoadFailure kind="unauthenticated" returnTo="/health" copy={hindi} />);
+    expect(screen.getByRole('link', { name: hindi.signIn })).toHaveAttribute(
+      'href',
+      '/login?next=%2Fhealth',
+    );
+  });
+
+  it('falls back to English when no copy is supplied', () => {
+    // Every unmigrated caller does this, and it must degrade to today's behaviour rather
+    // than rendering blank keys.
+    render(<ListLoadFailure kind="denied" />);
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/do not have access/i);
+  });
+});

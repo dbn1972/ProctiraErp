@@ -932,5 +932,22 @@
     "managePlans": "Manage plans",
     "manageInvoices": "Manage invoices",
     "viewReceipts": "View receipts"
+  },
+  "routeState": {
+    "renderErrorTitle": "Something went wrong",
+    "renderErrorBody": "An unexpected error occurred while loading this page.",
+    "tryAgain": "Try again",
+    "retrying": "Retrying…",
+    "signIn": "Sign in",
+    "reference": "Reference",
+    "requestId": "Request ID",
+    "unauthenticatedTitle": "Your session has expired",
+    "unauthenticatedBody": "Sign in again to load this list.",
+    "deniedTitle": "You do not have access to this list",
+    "deniedBody": "Your role is not permitted to view these records. Contact your administrator if you need access.",
+    "missingTitle": "This list is not available here",
+    "missingBody": "These records are not served for this school or environment. Contact your administrator if you expected to see them.",
+    "unavailableTitle": "This list could not be loaded",
+    "unavailableBody": "The service is temporarily unavailable. Try again in a moment."
   }
 }

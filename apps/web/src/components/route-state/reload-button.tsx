@@ -19,7 +19,14 @@ import { useState, useTransition } from 'react';
 
 import { Button } from '@proctira/ui/components';
 
-export function ReloadButton({ label = 'Try again' }: { label?: string }) {
+export function ReloadButton({
+  label = 'Try again',
+  // V15-17: supplied by `getListFailureCopy()`; defaults keep unmigrated callers working.
+  retryingLabel = 'Retrying…',
+}: {
+  label?: string;
+  retryingLabel?: string;
+}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   // `refresh()` resolves before the new render is committed, so a bare `isPending` flicks
@@ -42,7 +49,7 @@ export function ReloadButton({ label = 'Try again' }: { label?: string }) {
         });
       }}
     >
-      {busy ? 'Retrying…' : label}
+      {busy ? retryingLabel : label}
     </Button>
   );
 }

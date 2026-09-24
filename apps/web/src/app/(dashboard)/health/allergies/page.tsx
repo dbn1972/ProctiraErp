@@ -7,6 +7,7 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { canAccessHealthRecords, listHealthRecordsResult } from '@/lib/api/health';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +27,13 @@ export default async function HealthAllergiesPage() {
     // previously showed an empty allergy list for a denial or an outage too.
     return (
       <div className="space-y-6 p-6">
-        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health/allergies" />
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/health/allergies"
+          requestId={result.requestId}
+          copy={await getListFailureCopy()}
+        />
       </div>
     );
   }

@@ -44,6 +44,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import {
   canAccessHealthRecords,
   listHealthRecordsResult,
@@ -100,7 +101,13 @@ export default async function HealthRecordsPage() {
         <h1 id="health-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
           {t('title')}
         </h1>
-        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health" />
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/health"
+          requestId={result.requestId}
+          copy={await getListFailureCopy()}
+        />
       </section>
     );
   }
