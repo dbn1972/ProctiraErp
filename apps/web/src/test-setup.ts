@@ -1,5 +1,16 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
+import * as axeMatchers from 'vitest-axe/matchers';
+
+// V15 — component-level axe for the error surfaces. `packages/ui/components` already
+// registers these matchers the same way, and for the same reason: `vitest-axe`'s shipped
+// `extend-expect` entry point is empty in this version, so the matchers are wired manually.
+//
+// Needed here because the E2E axe suite cannot reach these surfaces. `ListLoadFailure`
+// renders from a *server* component on a denied read, so `page.route` cannot fabricate the
+// 403 that produces it — the fetch never leaves the server. A component scan is the only
+// automated evidence available for the panels this audit introduced.
+expect.extend(axeMatchers);
 
 // Mock next/navigation — provides default stubs for useRouter, usePathname,
 // useSearchParams, and useParams. Individual tests can override via vi.mock()
