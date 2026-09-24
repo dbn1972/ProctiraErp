@@ -38,7 +38,7 @@ being looked at. The pattern is consistent across every finding: the mechanisms 
 are well built — a global error handler, a transaction helper, an offline queue with
 backoff, a denied-vs-empty classifier — and then the specific case nobody ran was wrong.
 
-**Composite score: 7.0 / 10** after two remediation waves, up from **5.4** as first graded.
+**Composite score: 7.3 / 10** (7.29) after three remediation waves, up from **5.4** as first graded.
 It is the unrounded mean of the seven dimensions scored; the arithmetic is in §2 and the
 remaining path to 7.5 is in §13. D7 is capped at 7 by verification this audit cannot
 perform.
@@ -99,21 +99,21 @@ Two columns: `Before` is the grade against `a2d77494`, `Now` is the grade agains
 branch. A score moves only where a named finding was closed **and** something fails when the
 fix is reverted. Nothing below moved because the write-up improved.
 
-| Dimension                                  | Before | Now | Severity now | What moved it, or why it did not                                                                                                                                                                                        |
-| ------------------------------------------ | -----: | --: | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D4 Content & messaging (errors)            |      6 |   6 | Minor        | **Unmoved.** 413/429 now say something specific, but V15-17 stands: the two shared error modules are English-only on localised routes. Localising them is the movement, and it was not done.                            |
-| D5 Error handling & recovery               |      6 |   8 | Minor        | 13 of the prompt's 14 required failure states now have a named code, a surface and a test. Not 9: handler-duration timeout is still open (V15-8), and idempotency remains client-opt-in with DELETE excluded.           |
-| D6 Loading / empty / edge states           |      5 |   6 | Major        | Root + global boundary closed 12 uncovered pages and a retry control landed. **Held at 6** because the largest D6 defect is untouched: 126 reads still render a denial as an empty table (V15-10), and V15-14 reverted. |
-| D7 Accessibility (error surfaces)          |      7 |   7 | Minor        | **Unmoved and capped.** The live-region wiring was already right. Moving this needs a screen reader and a real assistive-tech pass, which this audit cannot perform — see §13.                                          |
-| D9 Reliability & data integrity            |      5 |   7 | Minor        | The one proven non-atomic path can no longer bill for an unassigned bed, proved by an arm that reports 2 invoices on the old ordering. Not 8: cross-package atomicity and the post-hoc audit residual remain.           |
-| D10 Security & trust (failure paths)       |      4 |   8 | Minor        | Four reproduced disclosure paths and the anonymous health leak are closed and pinned by tests; 403 denials are audited. Not 9: 401 is unauditable in a tenant-scoped RLS table by design, and stated as such.           |
-| D11 Operational readiness (supportability) |      5 |   7 | Minor        | Every error body now carries `requestId`, including hand-built 401/403; the boundary shows a digest instead of raw internals. Not 8: nothing joins the id a user sees to a trace, and alerting is unchanged.            |
+| Dimension                                  | Before | Now | Severity now | What moved it, or why it did not                                                                                                                                                                                                         |
+| ------------------------------------------ | -----: | --: | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D4 Content & messaging (errors)            |      6 |   8 | Minor        | V15-17 closed: a `routeState` namespace in all nine catalogues, key-set parity verified, and a test asserting the four failure kinds stay distinct when translated. Not 9: per-screen copy outside the shared panels was never surveyed. |
+| D5 Error handling & recovery               |      6 |   8 | Minor        | 13 of the prompt's 14 required failure states now have a named code, a surface and a test. Not 9: handler-duration timeout is still open (V15-8), and idempotency remains client-opt-in with DELETE excluded.                            |
+| D6 Loading / empty / edge states           |      5 |   6 | Major        | Root + global boundary closed 12 uncovered pages and a retry control landed. **Held at 6** because the largest D6 defect is untouched: 126 reads still render a denial as an empty table (V15-10), and V15-14 reverted.                  |
+| D7 Accessibility (error surfaces)          |      7 |   7 | Minor        | **Unmoved and capped.** The live-region wiring was already right. Moving this needs a screen reader and a real assistive-tech pass, which this audit cannot perform — see §13.                                                           |
+| D9 Reliability & data integrity            |      5 |   7 | Minor        | The one proven non-atomic path can no longer bill for an unassigned bed, proved by an arm that reports 2 invoices on the old ordering. Not 8: cross-package atomicity and the post-hoc audit residual remain.                            |
+| D10 Security & trust (failure paths)       |      4 |   8 | Minor        | Four reproduced disclosure paths and the anonymous health leak are closed and pinned by tests; 403 denials are audited. Not 9: 401 is unauditable in a tenant-scoped RLS table by design, and stated as such.                            |
+| D11 Operational readiness (supportability) |      5 |   7 | Minor        | Every error body now carries `requestId`, including hand-built 401/403; the boundary shows a digest instead of raw internals. Not 8: nothing joins the id a user sees to a trace, and alerting is unchanged.                             |
 
-**Mean now: (8 + 6 + 7 + 8 + 6 + 7 + 7) ÷ 7 = 49 ÷ 7 = 7.0.** Before: 5.4.
+**Mean now: (8 + 6 + 7 + 8 + 8 + 7 + 7) ÷ 7 = 51 ÷ 7 = 7.29.** Before: 5.4.
 
-The target for this round was 7.5. It is not reached, and the gap is arithmetic rather than
-judgement: reaching it requires D6 → 8 and D4 → 8, which are the two large adoption items in
-§13. D7 cannot contribute without an assistive-technology pass.
+The target for this round was 7.5. It is not reached. D4 moved the distance asked of it; the
+remaining gap is a single dimension — D6, held at 6 by the 126 collapsing list reads — and
+D7, which cannot move without an assistive-technology pass. §13 has the arithmetic.
 
 ---
 
@@ -321,7 +321,7 @@ unsaved form state is lost on the next navigation. V15-11, P1, open.
 
 ## 6. Issue register
 
-Twenty findings. **Fifteen closed** across two waves, four open, one attempted and reverted.
+Twenty findings. **Sixteen closed** across three waves, three open, one attempted and reverted.
 Every `FIXED` row has a test that fails when the fix is reverted; that is the bar for the
 word, not "the code changed".
 
@@ -414,7 +414,7 @@ data was taken, so any score would be invented.
 ## 12. Final recommendation
 
 **Verdict: ready for production with minor improvements** (was: needs work before
-production). Composite **7.0 / 10**, up from 5.4.
+production). Composite **7.3 / 10**, up from 5.4.
 
 **Must fix before launch:** nothing outstanding. The two items that previously blocked —
 V15-9 and V15-15 — are closed and each has a reverting arm.
@@ -436,30 +436,53 @@ and already work.
 
 ## 13. The remaining path to 7.5, and what is blocking it
 
-The target was 7.5 and the result is 7.0. The shortfall is arithmetic, and it is worth
-setting out rather than rounding away.
+The target was 7.5. The result is **7.29**. D4 moved the full distance asked of it; what is
+left is one dimension and one measurement limit.
 
-| To move                | From → To | Requires                                                                                   | Size                                     |
-| ---------------------- | --------: | ------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| D6 Loading/empty/edge  |     6 → 8 | V15-10: migrate the 126 collapsing reads onto `fetchList` + `ListLoadFailure`; plus V15-14 | Large but mechanical; the pattern exists |
-| D4 Content & messaging |     6 → 8 | V15-17: message keys for the shared error modules in every locale catalogue                | Medium; touches every locale file        |
-| D7 Accessibility       |     7 → 8 | A real screen-reader pass over the error surfaces                                          | **Cannot be done by this audit**         |
+| To move                | From → To | Requires                                           | Status                           |
+| ---------------------- | --------: | -------------------------------------------------- | -------------------------------- |
+| D4 Content & messaging |     6 → 8 | V15-17: `routeState` keys in all nine catalogues   | **Done this wave**               |
+| D6 Loading/empty/edge  |     6 → 8 | V15-10: the 126 collapsing list reads, plus V15-14 | Open — the whole remaining gap   |
+| D7 Accessibility       |     7 → 8 | A screen-reader pass over the error surfaces       | **Cannot be done by this audit** |
 
-With D6 → 8 and D4 → 8: (8 + 8 + 7 + 8 + 8 + 7 + 7) ÷ 7 = **7.57**. So 7.5 is reachable
-without D7 moving, by finishing two adoption items that are large in volume and small in
-risk.
+With D6 → 8: (8 + 8 + 7 + 8 + 8 + 7 + 7) ÷ 7 = **7.57**. So 7.5 rests entirely on V15-10.
 
-**Why I did not simply do them in this round.** V15-10 is 126 call sites across ~24 list
-screens; done properly each needs its failure kinds checked against what that screen should
-say, and done carelessly it is a mass rename that lands a `ListLoadFailure` where a screen
-needed something else. V15-17 needs a decision on key naming across every locale catalogue.
-Both deserve their own branch and their own review, and batching them into this one would
-have produced a diff nobody could review against the audit it claims to close.
+### Why V15-10 was not attempted, in detail
 
-**Why D7 is capped.** Every D7 claim in §4 rests on reading `role`, `aria-live` and heading
-level in source. That is necessary and not sufficient: whether a screen-reader user actually
-learns that a list was denied rather than empty is an observation, not an inference. Scoring
-it 8 on source reading would be exactly the kind of claim this audit was written to catch.
+Measured precisely rather than estimated: the 126 collapsing reads are **not** spread through
+pages. They are 126 functions in **24 modules under `src/lib/api/`**, led by `hostel.ts` (13),
+`examinations.ts` (10), `fees.ts` (10), `lms.ts` (9) and `staff.ts` (9). Each is the same
+shape — `gatewayFetch(..., { throwOnError: false })` followed by `?? []`.
 
-**Stated plainly:** 7.0 is what the evidence supports today. 7.5 is two scheduled branches
-away. Neither number should move without something failing when the change is reverted.
+Converting one means changing its return type from `T[]` to `ListResult<T>` and updating every
+caller to handle `ok: false`. Sampling `library.ts`: 1–3 caller files per function. So the true
+size is roughly 126 signature changes plus 150–200 call-site changes, each needing a decision
+about what that particular screen should say.
+
+There is a much cheaper way to make the number go down, and it must be named so nobody reaches
+for it later: convert the data functions and wrap every call site in `itemsOrEmpty(...)`. The
+ratchet would fall to near zero and **not one user-visible behaviour would change** — the
+collapse would simply have moved from the data layer to the page. That is gaming the metric
+this audit exists to defend, and it would make the tracker say `FULLY_CLOSED` about a defect
+still fully present.
+
+One counter artefact worth recording for whoever does the work: `getLibraryItem` is counted
+although it is a single-object read returning `null`. The counter's eight-line window catches
+the `?? []` belonging to the next function. Expect a handful of similar false positives, so the
+true figure is slightly under 126 — and the ratchet should not be lowered for those without
+also fixing the counter, or the next person inherits a number nobody can reproduce.
+
+**Recommended shape for that branch:** one domain per commit, data functions and their pages
+together, `BASELINE` lowered in the same commit, and a screenshot or test per converted screen
+showing a denial rendering as a denial. That is reviewable. A single 300-file diff is not.
+
+### Why D7 is capped
+
+Every D7 claim in §4 rests on reading `role`, `aria-live` and heading level in source. That is
+necessary and not sufficient: whether a screen-reader user actually learns a list was denied
+rather than empty is an observation, not an inference. Scoring it 8 from source reading would
+be exactly the kind of claim this audit was written to catch.
+
+**Stated plainly:** 7.3 is what the evidence supports. 7.5 is one branch away, and that branch
+is 126 functions and ~175 call sites of careful, unglamorous work. The number should not move
+until a user hitting a denied list is told so.
