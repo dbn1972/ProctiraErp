@@ -14,6 +14,88 @@
 export const TIMEOUT_ERROR_CODE = 'TIMEOUT';
 export const NETWORK_ERROR_CODE = 'NETWORK_ERROR';
 
+/**
+ * V15-12 / V15-13 — statuses the clients used to flatten into one generic branch.
+ *
+ * Both clients ran every non-2xx through a single path, so a rate limit, an oversized
+ * upload and a server fault were indistinguishable to a call site. The gateway sends
+ * `Retry-After` on a 429 (`addHeaders` in `app.ts`) and nothing read it, so a user was told
+ * "try again" with no idea when.
+ */
+export const RATE_LIMITED_ERROR_CODE = 'RATE_LIMIT_EXCEEDED';
+export const PAYLOAD_TOO_LARGE_ERROR_CODE = 'PAYLOAD_TOO_LARGE';
+
+export interface StatusFailure extends TransportFailure {
+  /** Seconds to wait, parsed from `Retry-After`, when the server supplied one. */
+  retryAfterSeconds?: number;
+}
+
+/**
+ * Parse `Retry-After`, which RFC 9110 allows as either delta-seconds or an HTTP-date.
+ *
+ * Returns `undefined` rather than 0 for an unparseable or past value, so a caller can tell
+ * "no guidance" from "retry immediately".
+ */
+export function parseRetryAfter(
+  value: string | null,
+  now: number = Date.now(),
+): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    return Number.isFinite(seconds) ? seconds : undefined;
+  }
+  const at = Date.parse(trimmed);
+  if (Number.isNaN(at)) return undefined;
+  const seconds = Math.ceil((at - now) / 1000);
+  return seconds > 0 ? seconds : undefined;
+}
+
+/**
+ * Give a non-2xx response a code and a message a screen can act on.
+ *
+ * The gateway's own `code` wins when it sent one — it is the contract. This only fills in
+ * the cases where the body was absent or not the envelope (a proxy's HTML 502, a 413 that
+ * never reached the app), and attaches the retry guidance the clients were discarding.
+ */
+export function classifyStatusFailure(
+  response: { status: number; headers: { get(name: string): string | null } },
+  envelope: { code: string; message: string } | null,
+): StatusFailure {
+  const retryAfterSeconds = parseRetryAfter(response.headers.get('retry-after'));
+
+  if (response.status === 429) {
+    const message = retryAfterSeconds
+      ? `Too many requests. Try again in ${retryAfterSeconds}s.`
+      : 'Too many requests. Wait a moment and try again.';
+    return {
+      code: envelope?.code ?? RATE_LIMITED_ERROR_CODE,
+      message,
+      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+    };
+  }
+
+  if (response.status === 413) {
+    // Often produced by a proxy before the app is reached, so there is usually no envelope
+    // and the generic "Gateway request failed" told the user nothing about the real cause.
+    return {
+      code: envelope?.code ?? PAYLOAD_TOO_LARGE_ERROR_CODE,
+      message: envelope?.message ?? 'That file or request is too large to upload.',
+    };
+  }
+
+  if (envelope) {
+    return {
+      code: envelope.code,
+      message: envelope.message,
+      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+    };
+  }
+
+  return { code: 'GATEWAY_ERROR', message: 'The request could not be completed.' };
+}
+
 export interface TransportFailure {
   code: string;
   message: string;

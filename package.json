@@ -48,6 +48,8 @@
     "check:migration-timeouts": "node tools/scripts/check-migration-timeouts.mjs",
     "check:migration-timeouts:test": "node --test tools/scripts/check-migration-timeouts.test.mjs tools/scripts/migration-lock-recovery-drill.test.mjs",
     "check:migration-lock-recovery": "node tools/scripts/migration-lock-recovery-drill.mjs",
+    "check:error-codes": "node tools/scripts/check-error-code-registry.mjs",
+    "check:error-codes:test": "node --test tools/scripts/check-error-code-registry.test.mjs",
     "check:codeowners": "node tools/scripts/check-codeowners.mjs",
     "check:codeowners:test": "node --test tools/scripts/check-codeowners.test.mjs",
     "check:runtime-table-privileges": "node tools/scripts/check-runtime-table-privileges.mjs",

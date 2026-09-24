@@ -16,7 +16,7 @@ import { cookies, headers } from 'next/headers';
 
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
 
-import { createTimeout } from './timeout';
+import { classifyStatusFailure, createTimeout } from './timeout';
 
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
@@ -60,7 +60,13 @@ export interface GatewayResponse<T> {
   status: number;
   ok: boolean;
   data: T | null;
-  error?: { code: string; message: string; details?: unknown };
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+    /** Seconds the server asked the caller to wait, from `Retry-After` (429). */
+    retryAfterSeconds?: number;
+  };
 }
 
 /** Reads the current session's tenant + access token from cookies / headers. */
@@ -151,25 +157,32 @@ export async function gatewayFetch<T>(
   }
 
   if (!response.ok) {
-    const error = isErrorPayload(payload)
-      ? payload
-      : {
-          code: 'GATEWAY_ERROR',
-          message: response.statusText || 'Gateway request failed',
-        };
+    // V15-12 / V15-13: 429 and 413 get their own message and the `Retry-After` the
+    // gateway already sends, instead of every status collapsing into one generic branch.
+    const error = classifyStatusFailure(response, isErrorPayload(payload) ? payload : null);
     if (init.throwOnError !== false) {
       throw new GatewayError({
         status: response.status,
         code: error.code,
         message: error.message,
         details: payload,
+        ...(error.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: error.retryAfterSeconds }
+          : {}),
       });
     }
     return {
       status: response.status,
       ok: false,
       data: null,
-      error: { code: error.code, message: error.message, details: payload },
+      error: {
+        code: error.code,
+        message: error.message,
+        details: payload,
+        ...(error.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: error.retryAfterSeconds }
+          : {}),
+      },
     };
   }
 
@@ -196,6 +209,7 @@ export interface GatewayErrorInit {
   code: string;
   message: string;
   details?: unknown;
+  retryAfterSeconds?: number;
 }
 
 /** Error thrown by gatewayFetch when a non-2xx response is received. */
@@ -203,6 +217,8 @@ export class GatewayError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details?: unknown;
+  /** Seconds the server asked the caller to wait, from `Retry-After` (429). */
+  readonly retryAfterSeconds?: number;
 
   constructor(init: GatewayErrorInit) {
     super(init.message);
@@ -210,5 +226,6 @@ export class GatewayError extends Error {
     this.status = init.status;
     this.code = init.code;
     if (init.details !== undefined) this.details = init.details;
+    if (init.retryAfterSeconds !== undefined) this.retryAfterSeconds = init.retryAfterSeconds;
   }
 }

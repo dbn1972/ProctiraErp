@@ -74,10 +74,11 @@ import {
   MUTATING_HTTP_METHODS,
 } from './mutating-route-authz.js';
 import {
-  buildAuditValues,
   entityIdFromPath,
   entityTypeForPath,
+  isDeniedMutationStatus,
   MUTATION_AUDIT_UNAVAILABLE_BODY,
+  mutationAuditPayloadFor,
   operationForMethod,
   persistMutationAudit,
   shouldAuditMutation,
@@ -171,6 +172,28 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         : false,
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
+    /**
+     * V15-8 — the gateway had no timeout of any kind. `requestTimeout`,
+     * `connectionTimeout` and `keepAliveTimeout` were all unset, so a client that opened a
+     * socket and stalled mid-body, or one that never closed an idle connection, held a
+     * slot indefinitely. Combined with the absent client-side deadline (fixed separately),
+     * nothing on either side would give up.
+     *
+     * These are the Node-level socket budgets, which are safe to set: they cover a request
+     * that has stopped making progress and are enforced before a handler is entered, so no
+     * in-flight work is interrupted.
+     *
+     * **Deliberately not done here:** preempting a handler that is genuinely running long.
+     * That needs a `reply.send` race, and racing a mutation means a client can receive 504
+     * for a write that then commits — the ambiguity `Idempotency-Key` exists to resolve.
+     * Landing that in the gateway requires a ruling on the per-route budget (report
+     * exports are legitimately slow) and on which routes must require an idempotency key
+     * first. V15-8 stays open for that half; the user-facing timeout is covered by the
+     * client deadline in `apps/web/src/lib/api/timeout.ts`.
+     */
+    requestTimeout: Number(process.env['GATEWAY_REQUEST_TIMEOUT_MS'] ?? 60_000),
+    connectionTimeout: Number(process.env['GATEWAY_CONNECTION_TIMEOUT_MS'] ?? 70_000),
+    keepAliveTimeout: Number(process.env['GATEWAY_KEEP_ALIVE_TIMEOUT_MS'] ?? 72_000),
   });
 
   // W1-SEC-02: track mutating route registration for inventory coverage tests.
@@ -816,17 +839,46 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (!shouldAuditMutation(request.method, request.url)) return payload;
     // Already committed domain + audit/outbox atomically — do not dual-write.
     if (wasRegulatedMutationAuditCommitted(request)) return payload;
-    // Skip unauthenticated / forbidden — still record validation failures (4xx)
-    // so mutating attempts that passed RBAC leave an audit trail.
-    if (reply.statusCode === 401 || reply.statusCode === 403) return payload;
     if (reply.statusCode >= 500) return payload;
 
     const user = request.user;
+    // V15-15: a 401 has no authenticated principal, so there is no tenant to scope an
+    // audit row to and no actor to name. `audit_events` is tenant-scoped and RLS-bound;
+    // an anonymous rejection belongs in the security log, which already records it, not
+    // in a tenant's audit trail. 403 is the opposite case and is now recorded — see below.
     if (!user) return payload;
+
+    /**
+     * V15-15 — a denied mutation is an audit event.
+     *
+     * This hook used to return early for both 401 and 403, so every RBAC denial,
+     * `TENANT_SUSPENDED`, `FEATURE_NOT_ENTITLED` and default-deny rejection on a mutating
+     * route left only a log line. An insider walking the API for records they may not see
+     * produced no audit trail at all, which is the single control most often asked about
+     * in this sector.
+     *
+     * Recorded within the existing schema rather than by extending it: `AuditOperation` is
+     * a closed `CREATE | UPDATE | DELETE` union backed by the audit chain, so the row keeps
+     * the operation the caller *attempted* and carries the outcome in `metadata`. That
+     * makes denials queryable (`metadata->>'outcome' = 'denied'`) without a migration, a
+     * Prisma change, or a drift-gate update.
+     *
+     * `beforeValues` and `afterValues` are both null, deliberately. Nothing changed, and
+     * the request body of a denied call is unvalidated caller-controlled data that has no
+     * business being persisted — not even hashed, which is what `buildAuditValues` would
+     * have done.
+     */
+    const denied = isDeniedMutationStatus(reply.statusCode);
 
     const path = request.url.split('?')[0]!;
     const operation = operationForMethod(request.method);
-    const { beforeValues, afterValues } = buildAuditValues(operation, request);
+    const { beforeValues, afterValues, metadata } = mutationAuditPayloadFor({
+      operation,
+      request,
+      statusCode: reply.statusCode,
+      method: request.method,
+      path,
+    });
 
     const outcome = await persistMutationAudit({
       auditService: app.auditService,
@@ -841,18 +893,24 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         ipAddress: request.ip,
         beforeValues,
         afterValues,
-        metadata: { method: request.method, path, statusCode: reply.statusCode },
+        metadata,
       },
     });
 
     if (outcome.ok) return payload;
 
     request.log.error(
-      { err: outcome.error, path, method: request.method },
+      { err: outcome.error, path, method: request.method, denied },
       'mutation audit failed (W1-SEC-10)',
     );
 
     if (!outcome.failClosed) return payload;
+
+    // Never rewrite a denial. Fail-closed exists so a *successful* mutation is not
+    // acknowledged without an audit trail; a 403 acknowledged nothing, so turning it into
+    // a 503 would replace an accurate answer with a misleading one and hand a prober a
+    // way to distinguish audited paths from unaudited ones. The failure is logged above.
+    if (denied) return payload;
 
     reply.code(503);
     reply.header('content-type', 'application/json; charset=utf-8');

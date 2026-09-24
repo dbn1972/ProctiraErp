@@ -97,6 +97,55 @@ export function hashValue(value: unknown): string {
     .digest('hex');
 }
 
+/**
+ * V15-15 — statuses that mean "this mutation was refused", not "this mutation failed".
+ *
+ * A refusal is an authorization decision and belongs in the audit trail. A 4xx validation
+ * failure is a different thing (the caller was allowed, the payload was wrong) and was
+ * already recorded; a 5xx is a fault and is deliberately not recorded as a decision.
+ */
+export function isDeniedMutationStatus(statusCode: number): boolean {
+  return statusCode === 401 || statusCode === 403;
+}
+
+/**
+ * The audit row body for one mutation attempt.
+ *
+ * Extracted from the gateway's `onSend` hook so the denial rules are testable without
+ * booting the whole app — the hook previously decided this inline and nothing covered it,
+ * which is how `return payload` on 403 survived.
+ */
+export function mutationAuditPayloadFor(options: {
+  operation: AuditOperation;
+  request: FastifyRequest;
+  statusCode: number;
+  method: string;
+  path: string;
+}): {
+  beforeValues: Record<string, unknown> | null;
+  afterValues: Record<string, unknown> | null;
+  metadata: Record<string, unknown>;
+} {
+  const denied = isDeniedMutationStatus(options.statusCode);
+
+  // Both null for a denial: nothing changed, and the body of a refused call is
+  // unvalidated caller-controlled data that must not be persisted — not even as the hash
+  // `buildAuditValues` would otherwise store.
+  const values = denied
+    ? { beforeValues: null, afterValues: null }
+    : buildAuditValues(options.operation, options.request);
+
+  return {
+    ...values,
+    metadata: {
+      method: options.method,
+      path: options.path,
+      statusCode: options.statusCode,
+      outcome: denied ? 'denied' : 'applied',
+    },
+  };
+}
+
 export function buildAuditValues(
   operation: AuditOperation,
   request: FastifyRequest,
@@ -168,8 +217,7 @@ export function shouldFailClosedOnMutationAuditFailure(options: {
 
 export const MUTATION_AUDIT_UNAVAILABLE_BODY = {
   code: 'AUDIT_UNAVAILABLE',
-  message:
-    'Mutation audit trail unavailable; refusing to acknowledge security-sensitive mutation',
+  message: 'Mutation audit trail unavailable; refusing to acknowledge security-sensitive mutation',
   statusCode: 503,
 } as const;
 
@@ -191,8 +239,7 @@ export type MutationAuditRecorder = {
 };
 
 export type MutationAuditOutcome =
-  | { ok: true }
-  | { ok: false; failClosed: boolean; error: unknown };
+  { ok: true } | { ok: false; failClosed: boolean; error: unknown };
 
 /**
  * Attempt to persist a mutation audit record. Never swallows: callers must

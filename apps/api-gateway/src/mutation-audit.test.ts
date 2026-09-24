@@ -7,10 +7,13 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   ATOMIC_MUTATION_AUDIT_PATH_PREFIXES,
   isAtomicMutationAuditPath,
+  isDeniedMutationStatus,
   isMutationAuditDegradeAllowed,
   isSecuritySensitiveMutationPath,
   markRegulatedMutationAuditCommitted,
   MUTATION_AUDIT_UNAVAILABLE_BODY,
+  mutationAuditPayloadFor,
+  operationForMethod,
   persistMutationAudit,
   shouldAuditMutation,
   shouldFailClosedOnMutationAuditFailure,
@@ -173,5 +176,114 @@ describe('W1-SEC-10 mutation audit policy', () => {
   it('still selects mutating /api/v1 paths for audit', () => {
     expect(shouldAuditMutation('POST', '/api/v1/health/measurements')).toBe(true);
     expect(shouldAuditMutation('GET', '/api/v1/health/measurements')).toBe(false);
+  });
+});
+
+/**
+ * V15-15 — denied mutations must leave an audit row.
+ *
+ * The gateway's `onSend` hook returned early for both 401 and 403, so every RBAC denial,
+ * `TENANT_SUSPENDED`, `FEATURE_NOT_ENTITLED` and default-deny rejection on a mutating
+ * route left only a log line. The decision lived inline in the hook and nothing covered
+ * it, which is how it survived; it is now `mutationAuditPayloadFor` so it can be asserted
+ * without booting the app.
+ */
+describe('V15-15 denied mutation auditing', () => {
+  const request = {
+    method: 'POST',
+    url: '/api/v1/students/abc-123/consents?force=1',
+    body: { guardianId: 'g-1', secret: 'do-not-persist' },
+    ip: '10.1.2.3',
+  } as unknown as Parameters<typeof mutationAuditPayloadFor>[0]['request'];
+
+  it('classifies 401 and 403 as refusals, and nothing else', () => {
+    expect(isDeniedMutationStatus(401)).toBe(true);
+    expect(isDeniedMutationStatus(403)).toBe(true);
+    // A validation failure is not an authorization decision; a fault is not a decision.
+    expect(isDeniedMutationStatus(400)).toBe(false);
+    expect(isDeniedMutationStatus(409)).toBe(false);
+    expect(isDeniedMutationStatus(422)).toBe(false);
+    expect(isDeniedMutationStatus(500)).toBe(false);
+    expect(isDeniedMutationStatus(201)).toBe(false);
+  });
+
+  it('marks a 403 as denied so it is queryable', () => {
+    const payload = mutationAuditPayloadFor({
+      operation: 'CREATE',
+      request,
+      statusCode: 403,
+      method: 'POST',
+      path: '/api/v1/students/abc-123/consents',
+    });
+    expect(payload.metadata).toMatchObject({
+      outcome: 'denied',
+      statusCode: 403,
+      method: 'POST',
+      path: '/api/v1/students/abc-123/consents',
+    });
+  });
+
+  it('persists no request payload for a refused call — not even a hash', () => {
+    // The body of a denied mutation is unvalidated caller-controlled data. Storing it, or
+    // a hash of it, puts attacker-chosen content in a tenant's audit trail.
+    const payload = mutationAuditPayloadFor({
+      operation: 'CREATE',
+      request,
+      statusCode: 403,
+      method: 'POST',
+      path: '/api/v1/students/abc-123/consents',
+    });
+    expect(payload.beforeValues).toBeNull();
+    expect(payload.afterValues).toBeNull();
+    expect(JSON.stringify(payload)).not.toContain('do-not-persist');
+    expect(JSON.stringify(payload)).not.toContain('bodyHash');
+  });
+
+  it('keeps the attempted operation rather than inventing a DENY verb', () => {
+    // `AuditOperation` is a closed CREATE|UPDATE|DELETE union backed by the hash chain, so
+    // recording the attempt plus an outcome avoids a migration and a drift-gate change.
+    for (const [method, operation] of [
+      ['POST', 'CREATE'],
+      ['PATCH', 'UPDATE'],
+      ['DELETE', 'DELETE'],
+    ] as const) {
+      expect(operationForMethod(method)).toBe(operation);
+      const payload = mutationAuditPayloadFor({
+        operation,
+        request,
+        statusCode: 403,
+        method,
+        path: '/api/v1/students/abc-123',
+      });
+      expect(payload.metadata.outcome).toBe('denied');
+    }
+  });
+
+  it('still records an applied mutation with its body hash', () => {
+    // The pre-existing behaviour must not regress: a permitted mutation keeps the hash so
+    // a change can be correlated without storing the payload.
+    const payload = mutationAuditPayloadFor({
+      operation: 'CREATE',
+      request,
+      statusCode: 201,
+      method: 'POST',
+      path: '/api/v1/students/abc-123/consents',
+    });
+    expect(payload.metadata.outcome).toBe('applied');
+    expect(payload.afterValues).toMatchObject({ path: '/api/v1/students/abc-123/consents' });
+    expect(payload.afterValues?.bodyHash).toBeTypeOf('string');
+    expect(JSON.stringify(payload)).not.toContain('do-not-persist');
+  });
+
+  it('records a validation failure as applied-path, not as a refusal', () => {
+    // 4xx that is not 401/403 was already audited and must keep that shape.
+    const payload = mutationAuditPayloadFor({
+      operation: 'CREATE',
+      request,
+      statusCode: 422,
+      method: 'POST',
+      path: '/api/v1/students/abc-123/consents',
+    });
+    expect(payload.metadata).toMatchObject({ outcome: 'applied', statusCode: 422 });
   });
 });
