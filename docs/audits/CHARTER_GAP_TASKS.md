@@ -19,6 +19,10 @@ claims something the branch has not delivered.
 Status vocabulary: `OPEN` · `IN PROGRESS` · `PARTIAL` · `FULLY_CLOSED` ·
 `BLOCKED` · `NEEDS DECISION` · `EXTERNALLY_UNVERIFIED`
 
+A `TBD` in the PR column means the branch is pushed and the pull request is not open yet.
+Do not guess the number — an earlier draft of the V12 rows wrote `#377`, which by then
+belonged to an unrelated pull request.
+
 A gap moves to `FULLY_CLOSED` only with executable evidence — a command, a named
 test, or an observed runtime behaviour. Not "looks right".
 
@@ -28,11 +32,11 @@ Ordered by leverage, not by size.
 
 | ID    | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
 | ----- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V12-1 | §3/§5/§10 coverage declared but never executed      | V12 §3 §5 §10 §13           | `FULLY_CLOSED` | test/V12-qa-matrix-coverage          | #377 |
-| V12-2 | `setTheme()` no-op — `[dark]` scans measured light  | V12 §10                     | `FULLY_CLOSED` | test/V12-qa-matrix-coverage          | #377 |
+| V12-1 | §3/§5/§10 coverage declared but never executed      | V12 §3 §5 §10 §13           | `FULLY_CLOSED` | test/V12-qa-matrix-coverage          | TBD  |
+| V12-2 | `setTheme()` no-op — `[dark]` scans measured light  | V12 §10                     | `FULLY_CLOSED` | test/V12-qa-matrix-coverage          | TBD  |
 | V12-3 | `check:contrast` grades an unrendered stylesheet    | V12 §10; V1 §11.4           | `OPEN`         | —                                    | —    |
 | V12-4 | §13: 4 of 11 exit criteria have no mechanism        | V12 §13 §7.2                | `PARTIAL`      | —                                    | —    |
-| V12-5 | §9 per-module QA checklists unfilled                | V12 §9                      | `PARTIAL`      | test/V12-qa-matrix-coverage          | #377 |
+| V12-5 | §9 per-module QA checklists unfilled                | V12 §9                      | `PARTIAL`      | test/V12-qa-matrix-coverage          | TBD  |
 | V10   | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
 | V9    | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
 | V3    | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
