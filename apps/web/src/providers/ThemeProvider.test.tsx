@@ -24,6 +24,8 @@ import {
   THEME_STORAGE_KEY_SUFFIX,
 } from './ThemeProvider';
 import { BrandConfigProvider, DEFAULT_BRAND, type Brand } from './BrandConfigProvider';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -342,5 +344,75 @@ describe('ThemeProvider — SSR safety', () => {
       </ThemeProvider>,
     );
     expect(container.querySelector('[data-testid="probe"]')?.textContent).toBe('ok');
+  });
+});
+
+/**
+ * The brand context is read unconditionally.
+ *
+ * `useResolvedStorageKey` used to call `useBrand()` inside a `try/catch` so the provider could
+ * be mounted without a `<BrandConfigProvider>` — eslint reported it as
+ * `react-hooks/rules-of-hooks`, a hard error. It survived because CI lints only the files in a
+ * pull request's change range, and nothing had touched this file in a long time.
+ *
+ * The behavioural contract is already covered above: mounting bare falls back to
+ * `proctira-theme`, and wrapping in a `BrandConfigProvider` yields `eduzo-theme`. Both passed
+ * before and after the change, which is the point — this was a latent hazard, not a visible
+ * bug, so the regression guard has to be about the *mechanism*.
+ *
+ * Source-level because that is where the property lives. The alternative is running eslint on
+ * the file, which CI will not do unless the file itself changes.
+ */
+describe('ThemeProvider — brand context is read unconditionally', () => {
+  const SOURCE = readFileSync(join(__dirname, 'ThemeProvider.tsx'), 'utf8');
+
+  it('uses useOptionalBrand, not useBrand', () => {
+    expect(
+      SOURCE,
+      'ThemeProvider must read the brand through useOptionalBrand(), which returns undefined ' +
+        'instead of throwing. useBrand() throws, so reading it here needs a try/catch and that ' +
+        'is a conditional hook call.',
+    ).toContain('useOptionalBrand');
+    // Matches a call, not the word inside a comment explaining the history.
+    expect(SOURCE).not.toMatch(/(?<!Optional)\buseBrand\(\)\s*;?\s*$/m);
+    expect(SOURCE).not.toMatch(/=\s*useBrand\(\)/);
+    expect(SOURCE).not.toMatch(/\}\s*=\s*useBrand\(/);
+  });
+
+  it('calls no hook inside a try block', () => {
+    const lines = SOURCE.split('\n');
+    const offenders: string[] = [];
+    lines.forEach((line, i) => {
+      if (!/^\s*try\s*\{/.test(line)) return;
+      for (let j = i + 1; j < Math.min(i + 7, lines.length); j += 1) {
+        const candidate = lines[j]!;
+        if (/^\s*(\/\/|\*)/.test(candidate)) continue;
+        const match = /\b(use[A-Z]\w*)\s*\(/.exec(candidate);
+        if (match) {
+          offenders.push(`line ${j + 1}: ${match[1]}`);
+          break;
+        }
+      }
+    });
+    expect(
+      offenders,
+      `A hook inside try/catch is react-hooks/rules-of-hooks. If the hook throws partway ` +
+        `through a render, the hooks already registered stay registered while the rest do not, ` +
+        `so the order can differ between renders: ${offenders.join('; ')}`,
+    ).toEqual([]);
+  });
+
+  it('still mounts bare, which is what the try/catch was protecting', () => {
+    // The reason the original author reached for try/catch. It has to keep working, or the
+    // lint fix would have traded one defect for another.
+    installMatchMedia(false);
+    expect(() =>
+      render(
+        <ThemeProvider>
+          <span data-testid="bare">ok</span>
+        </ThemeProvider>,
+      ),
+    ).not.toThrow();
+    expect(window.localStorage.getItem(FALLBACK_STORAGE_KEY)).not.toBe('__unset__');
   });
 });
