@@ -10,6 +10,8 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { searchLibraryOpac } from '@/lib/api/library';
 import { OpacSearchForm } from '../_components/opac-search-form';
 
@@ -23,7 +25,24 @@ export default async function LibraryOpacPage({
   await requireSession();
   const { q = '' } = await searchParams;
   const query = q.trim();
-  const items = query ? await searchLibraryOpac(query) : [];
+  // No query means no read at all — a third state the old `?? []` could not express:
+  // "nothing searched yet" is neither "nothing found" nor "search failed".
+  const searchResult = query ? await searchLibraryOpac(query) : null;
+
+  if (searchResult && !searchResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={searchResult.kind}
+          status={searchResult.status}
+          requestId={searchResult.requestId}
+          returnTo={`/library/opac?q=${encodeURIComponent(query)}`}
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const items = searchResult?.items ?? [];
 
   return (
     <div className="space-y-6 p-6">

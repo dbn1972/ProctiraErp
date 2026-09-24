@@ -41,16 +41,21 @@ const SRC = join(__dirname, '../..');
  * controls use `itemsOrEmpty` — an explicit opt-out at the call site, with the reason in a
  * comment, rather than a collapse hidden in the data layer.
  *
- * 23 modules remain, led by `examinations.ts` (10), `fees.ts` (10), `lms.ts` (9) and
+ * 22 modules remain, led by `examinations.ts` (10), `fees.ts` (10), `lms.ts` (9) and
  * `staff.ts` (9). The data-layer half of those converts almost mechanically; the cost is the
  * ~411 call-site type errors it produces, each needing a decision about whether that read is
  * the screen's subject or a lookup. Do them one domain per commit.
+ *
+ * `hostel` (13) and `library` (6) are done and are the worked examples. `library.ts` still
+ * shows 1 because of the documented `getLibraryItem` false positive — a single-object read
+ * whose nested `copyList ?? []` falls inside the counter's window. `BASELINE` is not lowered
+ * for false positives without also fixing the counter.
  *
  * The counter cannot see a page that calls a *wrapper* which collapses internally, so
  * converting a page without converting its data function leaves this number unchanged.
  * That is a known limit, not a silent one.
  */
-const BASELINE = 113;
+const BASELINE = 107;
 
 /** How many lines after `throwOnError: false` a collapse still counts as the same read. */
 const WINDOW = 8;

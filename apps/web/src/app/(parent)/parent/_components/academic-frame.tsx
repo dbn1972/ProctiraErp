@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proc
 
 import { ChildSwitcher } from './child-switcher';
 import type { ParentChildLink } from '@/lib/api/parent-portal';
+import type { ListFailureKind } from '@/lib/api/list-result';
 
 export function pickChild(
   links: ParentChildLink[],
@@ -17,6 +18,26 @@ export function pickChild(
 export function firstSearchParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
+}
+
+/**
+ * V15-10 — map a {@link ListFailureKind} onto this frame's existing `status`.
+ *
+ * The parent and student portals already had `forbidden` and `error` states with their own
+ * copy; nothing was passing them, because the data layer had already flattened the reason
+ * into an empty array before the page could see it. So these portals shipped the chrome for
+ * a denial and could never reach it.
+ *
+ * Mapped rather than replaced with `ListLoadFailure`: these two portals render inside
+ * `AcademicFrame` for every screen, and introducing a second failure panel for one route
+ * would leave a guardian looking at two different designs for the same class of problem.
+ *
+ * `unauthenticated` maps to `error`, not `forbidden`. A 401 here means the session died
+ * between the layout's `requireSession` and this read, which is a transient fault the user
+ * should retry — not a statement about what they are allowed to see.
+ */
+export function academicFrameStatusFor(kind: ListFailureKind): 'forbidden' | 'error' {
+  return kind === 'denied' ? 'forbidden' : 'error';
 }
 
 export function AcademicFrame({

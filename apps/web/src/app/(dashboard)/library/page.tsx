@@ -14,6 +14,8 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryItems } from '@/lib/api/library';
 import { LibraryClearanceForm } from './_components/clearance-form';
 import { IsbnImportForm } from './_components/isbn-import-form';
@@ -23,7 +25,24 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const [t, items] = await Promise.all([getTranslations('library'), listLibraryItems()]);
+  const [t, itemsResult] = await Promise.all([getTranslations('library'), listLibraryItems()]);
+
+  // The catalogue *is* this page. An empty shelf is plausible on a new tenant, which is
+  // exactly why a denial must not be allowed to look like one.
+  if (!itemsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <ListLoadFailure
+          kind={itemsResult.kind}
+          status={itemsResult.status}
+          requestId={itemsResult.requestId}
+          returnTo="/library"
+          copy={await getListFailureCopy()}
+        />
+      </div>
+    );
+  }
+  const items = itemsResult.items;
 
   return (
     <div className="space-y-6 p-6">

@@ -1,7 +1,13 @@
 import { requireSession } from '@/lib/auth/server';
 import { listChildren } from '@/lib/api/parent-portal';
 import { listLibraryHolds, listLibraryLoans, searchLibraryOpac } from '@/lib/api/library';
-import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import type { ListFailure } from '@/lib/api/list-result';
+import {
+  AcademicFrame,
+  academicFrameStatusFor,
+  firstSearchParam,
+  pickChild,
+} from '../_components/academic-frame';
 import { Button, FormField, Input } from '@proctira/ui/components';
 
 export const dynamic = 'force-dynamic';
@@ -32,11 +38,46 @@ export default async function ParentLibraryPage({
     );
   }
 
-  const [items, loans, holds] = await Promise.all([
+  const [itemsResult, loansResult, holdsResult] = await Promise.all([
     searchLibraryOpac(q),
     listLibraryLoans({ studentId: child.studentId }),
     listLibraryHolds({ studentId: child.studentId }),
   ]);
+
+  /**
+   * Loans and holds are this child's own borrowing record, and the consequence of getting
+   * this wrong is concrete: a guardian shown "no loans" when the read was actually denied
+   * has no way to know a book is overdue and accruing a fine.
+   *
+   * Two separate early returns rather than one combined `failed` check: TypeScript cannot
+   * correlate a third variable back to the two results, so the combined form left both
+   * still unnarrowed and `.items` unreachable.
+   */
+  const failureFrame = (failure: ListFailure) => (
+    <AcademicFrame
+      title="Library"
+      description="Search the catalogue and see your child's loans and holds."
+      testId="parent-library"
+      childrenLinks={children}
+      selectedId={child.studentId}
+      status={academicFrameStatusFor(failure.kind)}
+      errorMessage={`Unable to load library records (status ${failure.status}${
+        failure.requestId ? `, reference ${failure.requestId}` : ''
+      }).`}
+      emptyMessage="No titles match this search."
+      hasRows={false}
+    >
+      {null}
+    </AcademicFrame>
+  );
+  if (!loansResult.ok) return failureFrame(loansResult);
+  if (!holdsResult.ok) return failureFrame(holdsResult);
+
+  const loans = loansResult.items;
+  const holds = holdsResult.items;
+  // The catalogue search is secondary here: a failure shows no results rather than hiding
+  // the child's own records, which are the reason a guardian opened this page.
+  const items = itemsResult.ok ? itemsResult.items : [];
 
   return (
     <AcademicFrame

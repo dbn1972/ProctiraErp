@@ -54,6 +54,21 @@ export interface ListMeta {
   totalPages?: number;
 }
 
+/**
+ * The failure arm of {@link ListResult}, on its own.
+ *
+ * Named so a page can pass "the thing that went wrong" to a local render helper. Without
+ * it, a page that reads two lists and wants one shared failure branch has to either
+ * duplicate the JSX or widen to `ListResult<unknown>` and lose the narrowing.
+ */
+export interface ListFailure {
+  ok: false;
+  kind: ListFailureKind;
+  status: number;
+  code?: string;
+  requestId?: string;
+}
+
 export type ListResult<T> =
   | { ok: true; items: T[]; meta?: ListMeta }
   | {
