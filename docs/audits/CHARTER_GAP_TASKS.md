@@ -1,13 +1,14 @@
 # Charter gap tasks — tracking file
 
-Single tracker for the gaps found by grading `main` against the five specification
-volumes in `docs/multitenant/`. Findings and evidence live in:
+Single tracker for the gaps found by grading `main` against the specification volumes in
+`docs/multitenant/`. Findings and evidence live in:
 
 - `CHARTER_CONFORMANCE_VOL1_VOL2_2026-09-21.md`
 - `CHARTER_CONFORMANCE_VOL3_VOL4_VOL5_2026-09-21.md`
+- `VOLUME_12_QA_CONFORMANCE_2026-09-24.md` (Volume 12 — QA / release readiness)
 - `TASKLIST_GAP_CLOSURE_2026-09-21.md` (pre-existing T-items)
 
-**Baseline tip:** `main` = `12705129`
+**Baseline tip:** `main` = `12705129` for the V1–V5 items; `a2d77494` for the V12-\* items.
 
 ## Working rules
 
@@ -25,16 +26,21 @@ test, or an observed runtime behaviour. Not "looks right".
 
 Ordered by leverage, not by size.
 
-| ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
-| --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V10 | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
-| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
-| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
-| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
-| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
-| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
-| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
-| T4  | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
+| ID    | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
+| ----- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
+| V12-1 | §3/§5/§10 coverage declared but never executed      | V12 §3 §5 §10 §13           | `FULLY_CLOSED` | test/V12-qa-matrix-coverage          | #377 |
+| V12-2 | `setTheme()` no-op — `[dark]` scans measured light  | V12 §10                     | `FULLY_CLOSED` | test/V12-qa-matrix-coverage          | #377 |
+| V12-3 | `check:contrast` grades an unrendered stylesheet    | V12 §10; V1 §11.4           | `OPEN`         | —                                    | —    |
+| V12-4 | §13: 4 of 11 exit criteria have no mechanism        | V12 §13 §7.2                | `PARTIAL`      | —                                    | —    |
+| V12-5 | §9 per-module QA checklists unfilled                | V12 §9                      | `PARTIAL`      | test/V12-qa-matrix-coverage          | #377 |
+| V10   | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
+| V9    | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
+| V3    | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
+| V8    | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
+| V5    | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
+| V6    | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
+| T6    | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
+| T4    | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
 
 ### T11 — WITHDRAWN, not a defect
 
@@ -254,6 +260,75 @@ _behaviour_ — a nested-set hierarchy, a hashed credential — not the noun; th
 **gateway mount state**, because in this repository a package having routes does not
 mean the routes are reachable. `apps/api-gateway/src/mount-matrix.ts` is the authority
 and it parks several packages outright.
+
+### V12 — Volume 12 QA, validation and release readiness
+
+Full evidence in `VOLUME_12_QA_CONFORMANCE_2026-09-24.md`. Graded against `a2d77494`.
+
+Volume 12's weak spot is not missing tests. It is **tests that exist and do not run**, and
+**gates pointed at the wrong artefact**. Three of the five items are that shape, and a file
+census finds none of them.
+
+**V12-1 `FULLY_CLOSED`.** `playwright.config.ts` claimed `// Volume 12 §3.3 — Chrome, Edge,
+Safari, Firefox` above a project list with no Edge in it (`--list` returned six projects,
+none Edge; `grep msedge` repo-wide returned nothing). §3.1's seven viewport classes resolved
+to three widths. §5's seven named responsive failure classes had zero automation — nothing
+between 390px and 1280px had ever been rendered by a test. And `dark-mode-parity.spec.ts`,
+~250 route/theme scans, was referenced by **no workflow**: absent from both spec sets in
+`e2e-backend-ready.yml`, and `ci.yml`'s turbo path does not set `E2E_BACKEND_READY`, so it
+self-skipped. Closed by `qa-matrix.ts` (the matrix as data, self-asserting), `55-responsive-
+layout.spec.ts` (sweeps all seven classes in one project), and workflow wiring. 35/35 across
+six projects, six consecutive `CI=1 --retries=0` runs, actionlint clean.
+
+**V12-2 `FULLY_CLOSED`.** `setTheme()` wrote `data-theme` onto `<html>` and `ThemeProvider`'s
+mount effect overwrote it from `prefers-color-scheme` (light by default). Measured: after
+`setTheme(page,'dark')` the attribute read back `light`, was still `light` 3s later, body at
+`rgb(248,250,252)`. Five always-on tests were green while scanning the wrong theme. Now
+driven by `emulateMedia` and the switch is asserted before the scan. Arming it exposed a real
+defect: three `bg-white`/`bg-slate-50` literals on the anonymous auth surfaces put tokenised
+near-white text on a fixed light panel — 1.19:1 settled. Attribution arm: reverting them
+fails all five auth routes' dark scan, restoring them passes all five.
+
+**V12-3 `OPEN`, needs a design-system ruling.** `ci.yml:210` runs `check:contrast` on every
+lint against `packages/ui/styles/theme.css`. `apps/web` imports
+`src/styles/globals.css`, which declares its own `--primary` family with **different values**
+(dark: `234 89% 74%` / `242 47% 14%` versus `hsl(222,47%,52%)` / white). `grep globals.css
+tools/scripts/` returns nothing. The gate has never read the stylesheet the product renders,
+so it cannot fail on a regression there, and its ten baselined waivers may describe tokens
+that are not on screen. The rendered values happen to be better for this pair — luck, not a
+control. Ruling needed: make `theme.css` authoritative and have `globals.css` consume it, or
+re-point the gate and recompute all ten baseline entries.
+
+**V12-4 `PARTIAL`.** Of §13's eleven exit criteria, four have no enforcing mechanism: API
+contract regressions (no committed OpenAPI document anywhere — `git ls-files | grep -Ei
+'openapi|swagger'` is empty, and the runtime spec has no drift gate), install/upgrade
+regressions, and documentation/evidence attachment (no pull-request template exists).
+Separately, release and deploy gate only on CI's overall conclusion for the SHA, so path-
+filter skip windows propagate to release, and `e2e-backend-ready.yml` — which carries the
+journey gate §13's first criterion depends on — is referenced by neither `ci-gate`.
+
+**V12-5 `PARTIAL`.** §9 requires a per-module QA checklist. Eleven templates existed and none
+carried a browser or theme column, so §3.3 and §3.4 had nowhere to be recorded.
+`VOLUME_12_MODULE_QA_CHECKLIST.md` adds them plus the Appendix A fields. Filling it per
+module is not done and is not claimed.
+
+#### Claim retracted — dark `--primary` was not a WCAG failure
+
+The first revision of V12-2 reported dark `--primary` / `--primary-foreground` at **3.34:1**
+and shipped `test.fail()` on two routes for it. Wrong, and withdrawn.
+
+`globals.css` puts 150ms `transition-colors` on themed surfaces. Sampling one node after a
+theme switch gave `#ffffff` on `#5048e5` at t+0, `#5c5b72` on `#7278f2` (1.78:1, neither
+theme) at t+50ms, and `#141334` on `#828df8` (**6.15:1**, passes AA) at t+150ms, with
+`getAnimations()` draining 22 → 0 across the window. Every ratio in the 1.3–3.4 range this
+spec produced while being wired up was an interpolated sample. The scans now freeze
+transitions and the exemption list is gone.
+
+**Lesson recorded deliberately:** three of the first four "violations" found by arming a
+visual gate were artefacts of the gate's own sampling; the fourth was real. The signal was
+two runs disagreeing on the _colour_ of a node, not merely the verdict — that makes the
+measurement the variable, not the product. Checking `document.getAnimations()` before filing
+anything would have caught it, and the same check belongs in any future colour assertion here.
 
 ## Needs a decision before work can start
 
