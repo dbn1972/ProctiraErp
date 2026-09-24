@@ -212,6 +212,24 @@ async function measureLayout(page: Page): Promise<LayoutMeasurement> {
 }
 
 /**
+ * Retry a layout measurement until it settles.
+ *
+ * Any assertion spanning more than one Playwright call races React hydration.
+ * `toBeVisible()` resolved against the server-rendered node and the very next
+ * `scrollIntoViewIfNeeded()` threw `Element is not attached to the DOM` — reproduced
+ * against a production build, where hydration replaced the subtree in between.
+ *
+ * Retrying is the right response rather than a papering-over, because the property under
+ * test is a property of the *settled* layout. A genuine overflow or occlusion keeps
+ * throwing for the whole window and still fails with its own message; only the transient
+ * detach is absorbed. The negative control in this file's history confirms real failures
+ * survive the retry — an injected 3000px block fails every attempt.
+ */
+async function settle(measure: () => Promise<void>): Promise<void> {
+  await expect(measure).toPass({ intervals: [100, 250, 500, 1000, 2000], timeout: 20_000 });
+}
+
+/**
  * Assert the primary CTA is reachable: visible, fully inside the viewport horizontally,
  * and topmost at its own centre.
  *
@@ -222,40 +240,47 @@ async function measureLayout(page: Page): Promise<LayoutMeasurement> {
  */
 async function assertPrimaryCtaReachable(page: Page, cta: Locator, context: string): Promise<void> {
   await expect(cta, `${context}: primary CTA is not visible`).toBeVisible();
-  await cta.scrollIntoViewIfNeeded();
 
-  const box = await cta.boundingBox();
-  expect(box, `${context}: primary CTA has no layout box`).not.toBeNull();
-  if (!box) return;
+  await settle(async () => {
+    await cta.scrollIntoViewIfNeeded();
 
-  // Configured device width, not `window.innerWidth` — see `measureLayout`.
-  const deviceWidth = page.viewportSize()?.width ?? 0;
-  expect(
-    box.x >= -OVERFLOW_TOLERANCE_PX,
-    `${context}: primary CTA starts off the left edge (x=${Math.round(box.x)})`,
-  ).toBe(true);
-  expect(
-    box.x + box.width <= deviceWidth + OVERFLOW_TOLERANCE_PX,
-    `${context}: primary CTA extends past the right edge ` +
-      `(right=${Math.round(box.x + box.width)}, device=${deviceWidth})`,
-  ).toBe(true);
+    const box = await cta.boundingBox();
+    expect(box, `${context}: primary CTA has no layout box`).not.toBeNull();
+    if (!box) return;
 
-  const occluder = await cta.evaluate((el) => {
-    const rect = el.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    if (!hit) return 'nothing (point is outside the viewport)';
-    if (hit === el || el.contains(hit) || hit.contains(el)) return null;
-    const tag = hit.tagName.toLowerCase();
-    const cls =
-      typeof hit.className === 'string' && hit.className.trim()
-        ? '.' + hit.className.trim().split(/\s+/).slice(0, 2).join('.')
-        : '';
-    return `${tag}${hit.id ? `#${hit.id}` : ''}${cls}`;
+    // Configured device width, not `window.innerWidth` — see `measureLayout`.
+    const deviceWidth = page.viewportSize()?.width ?? 0;
+    expect(
+      box.x >= -OVERFLOW_TOLERANCE_PX,
+      `${context}: primary CTA starts off the left edge (x=${Math.round(box.x)})`,
+    ).toBe(true);
+    expect(
+      box.x + box.width <= deviceWidth + OVERFLOW_TOLERANCE_PX,
+      `${context}: primary CTA extends past the right edge ` +
+        `(right=${Math.round(box.x + box.width)}, device=${deviceWidth})`,
+    ).toBe(true);
+
+    const occluder = await cta.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      if (!hit) return 'nothing (point is outside the viewport)';
+      if (hit === el || el.contains(hit) || hit.contains(el)) return null;
+      const tag = hit.tagName.toLowerCase();
+      const cls =
+        typeof hit.className === 'string' && hit.className.trim()
+          ? '.' + hit.className.trim().split(/\s+/).slice(0, 2).join('.')
+          : '';
+      return `${tag}${hit.id ? `#${hit.id}` : ''}${cls}`;
+    });
+    expect(occluder, `${context}: primary CTA is covered by ${occluder}`).toBeNull();
   });
-  expect(occluder, `${context}: primary CTA is covered by ${occluder}`).toBeNull();
 }
 
 async function assertHorizontallyContained(page: Page, context: string): Promise<void> {
+  await settle(() => assertHorizontalContainmentOnce(page, context));
+}
+
+async function assertHorizontalContainmentOnce(page: Page, context: string): Promise<void> {
   const measurement = await measureLayout(page);
 
   // Shrink-to-fit: the layout viewport growing past the device width is itself the
