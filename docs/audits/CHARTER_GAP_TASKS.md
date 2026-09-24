@@ -35,7 +35,9 @@ Ordered by leverage, not by size.
 | V15-9  | Non-atomic cross-package write bills for nothing    | V15 D9                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
 | V15-15 | Denied mutations left no audit row                  | V15 D10; V5 §6              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
 | V15-17 | Error copy English-only on localised routes         | V15 D4                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
-| V15-10 | Denied-vs-empty: 113 of 126 reads still collapse    | V15 D6                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-10 | Denied-vs-empty: 107 of 126 reads still collapse    | V15 D6                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-14 | Offline indicator built but mounted on one screen   | V15 D6; V1 §38.1            | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-16 | Post-hoc mutation audit; its 503 misled the caller  | V15 D9 D10 D11              | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
 | V15-11 | Client 401 handling; shell subscriber still open    | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
 | V15-19 | 41 wire codes against a 10-entry registry           | V15 D5; V4 §6               | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
 | V10    | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
@@ -346,7 +348,13 @@ correct and proved. As found it reached 2 pages against `BASELINE = 126`. Wave 4
 `BASELINE = 113` in the same commit, with `denied-not-empty.test.ts` pinning it and a negative
 control that names `mess/page.tsx` when the pattern is reverted.
 
-**113 reads across 23 modules still render a 401/403/404 as an empty table**, so this is
+Wave 5 added `library`: 6 functions and 8 call sites, `BASELINE` 113 → 107, with its own
+11-test suite. That domain also produced the first case where the panel was _not_ the right
+surface — the parent and student portals render every screen inside `AcademicFrame`, which
+already had `forbidden` and `error` states that nothing could reach, so the failure kind is
+mapped onto them instead of introducing a second design.
+
+**107 reads across 22 modules still render a 401/403/404 as an empty table**, so this is
 `PARTIAL`, not closed. An adoption gap, not a defect in the pattern.
 
 **V15-19 — now `FULLY_CLOSED`.** 46 registry entries covering all 41 emitted wire codes, plus a
@@ -361,7 +369,7 @@ codes, not 48–50, and `TENANT_REQUIRED` has **424** emit sites, not 426. The n
 111 candidates; requiring a sibling `statusCode` within ±4 lines brought it to 41. Recorded
 because a gate built on an unreproducible count is a gate nobody can maintain._
 
-#### V15-10 — one domain done, 113 reads remaining
+#### V15-10 — two domains done, 107 reads remaining
 
 Measured rather than estimated: the collapsing reads are not spread through pages. They were
 126 functions in **24 modules under `apps/web/src/lib/api/`** — `hostel.ts` (13, **now
@@ -371,7 +379,7 @@ each the same `gatewayFetch(..., { throwOnError: false })` followed by `?? []`.
 **What the `hostel` pass actually cost**, now that it is measured rather than sampled: 13
 signature changes and 9 pages. The slow part was not the type change but deciding, per screen,
 what that table should say when the read was denied. Scaling the observed ratio to the remaining
-113 gives ~113 signatures and 130–180 call sites.
+107 gives ~107 signatures and 120–170 call sites.
 
 **Remaining distribution:** `examinations.ts` (10), `fees.ts` (10), `lms.ts` (9), `staff.ts`
 (9), `health.ts` (8), `parent-portal.ts` (8), `lib/transport/api.ts` (8), `library.ts` (7),
@@ -395,7 +403,7 @@ denial.
 
 One counter artefact for whoever does the work: `getLibraryItem` is counted although it is a
 single-object read returning `null` — the counter's eight-line window catches the next
-function's `?? []`. Expect a handful of these, so the true figure is slightly under 113, and
+function's `?? []`. Expect a handful of these, so the true figure is slightly under 107, and
 `BASELINE` must not be lowered for them without also fixing the counter.
 
 #### V15-17 — closed
@@ -414,6 +422,54 @@ client component under `NextIntlClientProvider` and translates directly. An earl
 wrapped `useTranslations` in try/catch; eslint rejected it as a conditional hook call and was
 right twice — it breaks the rules of hooks, and the provider it was defending against is
 always present, because `error.tsx` renders inside the root layout.
+
+#### V15-16 — measuring it changed its severity (wave 5, now `PARTIAL`)
+
+Filed as "post-hoc audit for all but two path prefixes", P2 Minor, from source reading.
+Enumerating `app.mutatingRouteAuthzRegistry.getRegistered()` gives: 451 registered mutating
+routes, 447 auditable, **170 security-sensitive, 4 atomic, 166 post-hoc**. Re-graded to Major.
+
+Three defects on the `AUDIT_UNAVAILABLE` 503 that the post-hoc path produces — a response that
+can only ever mean "your write landed and we could not record it", because `onSend` runs after
+the handler commits:
+
+1. no `requestId`, because the hook that stamps every other error envelope is registered
+   earlier (`app.ts:222` vs `app.ts:838`) and Fastify runs `onSend` in registration order, so
+   it had already run and seen a 2xx;
+2. the message read "refusing to acknowledge", i.e. the opposite of what happened;
+3. `ERROR_CODE_REGISTRY` published `retryable: true`, and `plugins/api-contract.ts` serves that
+   to clients — so the documented contract invited a duplicate write.
+
+**(2) and (3) were introduced by this audit in wave 3, along with the test that pinned (3).**
+Recorded here because fixing your own regression restores a baseline, it does not advance past
+one, and §2 of the audit deliberately scores it as zero movement.
+
+Fixed: the 503 is truthful, carries a request id, sends no `Retry-After`. The residual is
+enumerated in `POST_HOC_MUTATION_AUDIT_WAIVERS` (15 prefixes, each with a reason and its
+observed route count) and gated two ways — an unaccounted sensitive route fails the build, and
+a waiver that matches no route or whose count drifts also fails.
+
+**Still `PARTIAL`: nothing became atomic.** Wiring 166 routes to commit domain state and audit
+in one transaction is per-handler work across the gateway. The gate bounds the gap; it does not
+close it, and the comment in the source says so.
+
+#### V15-14 — closed in wave 5 by fixing the harness, not the hook
+
+The wave-3 attempt made `useConnectivity` provider-tolerant, broke 26 tests, and in its first
+form let a missing provider unmount the whole shell. It was solving the wrong problem: the root
+layout already mounts `LanguageProvider` then `AppProviders` → `ConnectivityProvider`, so both
+providers are in scope on every App Router route. The strict hook was never the obstacle — the
+shell _tests_ mounted less than production.
+
+Wave 5 wrapped the real providers in `renderShell` and left `useConnectivity` strict, because
+throwing outside its provider is correct. The indicator is now mounted in `MobileShell`
+(`iconOnly`, label on `aria-label`) and the desktop `header.tsx`.
+
+**A test had been pinning the absence:** `MobileShell.test.tsx` asserted the _placeholder_
+existed, so it passed for exactly as long as the feature was missing. Worth naming as a class —
+a test can hold a to-do in place as if it were a contract. `connectivity-indicator-mounted.test.ts`
+covers the desktop header, which has no render test of its own because `AppShell.test.tsx`
+mocks `./header`.
 
 #### Wave 4, D7 — evidence class changed, no finding closed
 
@@ -438,7 +494,7 @@ present, so scanning the panels bare would have hidden the likeliest violation. 
 control: a skipped heading level and an unnamed button make the matcher fail naming
 `heading-order` and `button-name`.
 
-#### Out of scope, found while validating wave 4 — needs its own branch
+#### Out of scope, found while validating — needs its own branch
 
 `apps/web/src/providers/ThemeProvider.tsx:169` calls `useBrand()` inside a `try/catch`, which
 eslint reports as `react-hooks/rules-of-hooks` — a **hard error, not a warning**. Confirmed
