@@ -302,11 +302,19 @@ export const ERROR_CODE_REGISTRY: readonly ErrorCodeDefinition[] = [
     retryable: true,
   },
   {
+    // V15-16: `retryable` was `true` here, and that was the most dangerous entry in this
+    // file. This code is only emitted by the gateway's post-hoc `onSend` audit hook, which
+    // runs *after* the handler has committed — so it means "your change was applied and we
+    // could not record it", not "your change was rejected". A client trusting the published
+    // contract would repeat a write that had already landed. The four atomic audit paths
+    // roll back and surface a domain error instead, so they never produce this code.
     code: 'AUDIT_UNAVAILABLE',
     httpStatus: 503,
-    description: 'Audit trail unavailable; a security-sensitive mutation was not acknowledged',
+    description:
+      'Audit trail unavailable; the mutation may already have been applied. Do not retry — ' +
+      'confirm current state using the returned requestId.',
     since: '1.2.0',
-    retryable: true,
+    retryable: false,
   },
   {
     code: 'OFFERS_UNAVAILABLE',

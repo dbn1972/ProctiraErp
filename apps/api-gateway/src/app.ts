@@ -77,7 +77,7 @@ import {
   entityIdFromPath,
   entityTypeForPath,
   isDeniedMutationStatus,
-  MUTATION_AUDIT_UNAVAILABLE_BODY,
+  mutationAuditUnavailableBody,
   mutationAuditPayloadFor,
   operationForMethod,
   persistMutationAudit,
@@ -914,7 +914,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
     reply.code(503);
     reply.header('content-type', 'application/json; charset=utf-8');
-    return JSON.stringify(MUTATION_AUDIT_UNAVAILABLE_BODY);
+    // V15-16: `requestId` is stamped here rather than left to the `error-handler` onSend
+    // hook. That hook is registered above (line ~222) and Fastify runs onSend in
+    // registration order, so it has already run and seen a 2xx by the time this body
+    // exists. Reproduced before fixing: the old constant went out with no request id, on
+    // the one response where the user has to ask whether their write actually landed.
+    //
+    // No `Retry-After`, deliberately. Outside the four atomic paths the domain write has
+    // already committed, so inviting a retry would duplicate it.
+    void reply.removeHeader('content-length');
+    return JSON.stringify(mutationAuditUnavailableBody(String(request.id)));
   });
 
   // G-702 / G-712 / W1-SEC-02: every /api/v1 request is evaluated against the

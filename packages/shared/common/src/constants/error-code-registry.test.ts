@@ -41,10 +41,32 @@ describe('W2-API-02 error-code registry', () => {
       'IDEMPOTENCY_STORE_UNAVAILABLE',
       'IDEMPOTENCY_CONFLICT',
       'CIRCUIT_OPEN',
-      'AUDIT_UNAVAILABLE',
     ]) {
       expect(getErrorCodeDefinition(code), code).toMatchObject({ retryable: true });
     }
+  });
+
+  /**
+   * V15-16 — `AUDIT_UNAVAILABLE` was in the list above, and this test was pinning the bug.
+   *
+   * It is a 503, so it grouped naturally with `CIRCUIT_OPEN`. But the two mean opposite
+   * things about the caller's write. `CIRCUIT_OPEN` is raised before anything is attempted.
+   * `AUDIT_UNAVAILABLE` is emitted by the gateway's post-hoc `onSend` audit hook, which runs
+   * *after* the handler has committed — so the mutation has already been applied and only the
+   * audit row is missing. Retrying duplicates it.
+   *
+   * Note the mirror image of the comment above: treating `IDEMPOTENCY_REPLAY_PENDING` as
+   * terminal *drops* a mutation, and treating `AUDIT_UNAVAILABLE` as retryable *duplicates*
+   * one. Status code alone does not decide it; who committed what does.
+   */
+  it('never marks retryable a 503 raised after the write committed', () => {
+    expect(getErrorCodeDefinition('AUDIT_UNAVAILABLE')).toMatchObject({
+      httpStatus: 503,
+      retryable: false,
+    });
+    expect(getErrorCodeDefinition('AUDIT_UNAVAILABLE')?.description).toMatch(
+      /may already have been applied/i,
+    );
   });
 
   it('never marks an authorization answer retryable', () => {

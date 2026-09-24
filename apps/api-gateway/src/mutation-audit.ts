@@ -193,6 +193,101 @@ export function isAtomicMutationAuditPath(pathname: string): boolean {
 }
 
 /**
+ * V15-16 — the post-hoc residual, enumerated instead of described.
+ *
+ * `SEC_W1_SEC_10_COMPLETE.md` recorded this residual in prose as "other regulated
+ * mutations (allergies, privacy, billing, student, scholarship, …)". Counting the
+ * registered routes instead of reading the list gives a different picture: **166 of the 170
+ * security-sensitive mutating routes are post-hoc only.** Four are atomic. The prose was
+ * not wrong, but "…" was carrying almost the entire finding.
+ *
+ * Each entry below is a path prefix whose security-sensitive mutations are knowingly
+ * audited *after* the domain write commits. That means a failed audit yields a 503 for a
+ * change that already happened — see {@link mutationAuditUnavailableBody}.
+ *
+ * This list is not a fix and must not be read as one. It exists so that the residual is
+ * **bounded and cannot grow silently**: `mutation-audit-coverage.test.ts` fails when a
+ * registered security-sensitive mutating route is neither atomic nor listed here, so adding
+ * one becomes a deliberate act with a reviewer attached rather than an accident. It also
+ * fails when an entry here matches no registered route, so the list cannot rot into
+ * fiction after a refactor.
+ *
+ * `count` is the number of registered routes observed under the prefix when the entry was
+ * added. It is asserted, so a prefix that quietly doubles fails the gate.
+ */
+export const POST_HOC_MUTATION_AUDIT_WAIVERS = [
+  {
+    prefix: '/api/v1/staff',
+    count: 26,
+    reason: 'HR records and contracts; audit is post-hoc pending same-txn binder',
+  },
+  {
+    prefix: '/api/v1/health',
+    count: 22,
+    reason:
+      'PHI beyond measurements: allergies, conditions, vaccinations, insurance, counselling, break-glass',
+  },
+  {
+    prefix: '/api/v1/fees',
+    count: 20,
+    reason: 'money movement beyond /fees/payments: invoices, adjustments, refunds, waivers',
+  },
+  { prefix: '/api/v1/students', count: 15, reason: 'PII and custody records' },
+  { prefix: '/api/v1/billing', count: 12, reason: 'subscription and invoice state' },
+  { prefix: '/api/v1/parent-portal', count: 12, reason: 'guardian-facing writes on child records' },
+  { prefix: '/api/v1/admissions', count: 11, reason: 'applicant PII and offer decisions' },
+  { prefix: '/api/v1/tenant-lifecycle', count: 9, reason: 'tenant suspend/restore/purge' },
+  { prefix: '/api/v1/scholarships', count: 9, reason: 'financial award decisions' },
+  { prefix: '/api/v1/privacy', count: 9, reason: 'DSAR, erasure and legal-hold actions' },
+  { prefix: '/api/v1/tenants', count: 5, reason: 'tenant configuration' },
+  { prefix: '/api/v1/registrations', count: 5, reason: 'public registration intake' },
+  { prefix: '/api/v1/enrollments', count: 4, reason: 'enrolment state transitions' },
+  { prefix: '/api/v1/plugins', count: 4, reason: 'plugin enablement affects data access' },
+  { prefix: '/api/v1/break-glass', count: 3, reason: 'emergency access grants' },
+] as const;
+
+export function isPostHocAuditWaived(pathname: string): boolean {
+  const path = pathname.split('?')[0] ?? pathname;
+  return POST_HOC_MUTATION_AUDIT_WAIVERS.some(
+    (w) => path === w.prefix || path.startsWith(`${w.prefix}/`),
+  );
+}
+
+/**
+ * Security-sensitive mutating routes that are neither atomic nor waived.
+ *
+ * A non-empty result is a new gap: a route handling PHI, money, custody, privacy or
+ * identity whose audit trail nobody has decided about.
+ */
+export function findUnaccountedSensitiveMutations(
+  registered: readonly { method: string; path: string }[],
+): { method: string; path: string }[] {
+  return registered
+    .filter((r) => shouldAuditMutation(r.method, r.path))
+    .filter((r) => isSecuritySensitiveMutationPath(r.path))
+    .filter((r) => !isAtomicMutationAuditPath(r.path))
+    .filter((r) => !isPostHocAuditWaived(r.path))
+    .map((r) => ({ method: r.method, path: r.path }));
+}
+
+/** Waiver entries whose prefix matches no registered route, or whose count has drifted. */
+export function findStalePostHocWaivers(
+  registered: readonly { method: string; path: string }[],
+): { prefix: string; expected: number; actual: number }[] {
+  const sensitive = registered
+    .filter((r) => shouldAuditMutation(r.method, r.path))
+    .filter((r) => isSecuritySensitiveMutationPath(r.path))
+    .filter((r) => !isAtomicMutationAuditPath(r.path));
+
+  return POST_HOC_MUTATION_AUDIT_WAIVERS.map((w) => {
+    const actual = sensitive.filter(
+      (r) => r.path === w.prefix || r.path.startsWith(`${w.prefix}/`),
+    ).length;
+    return { prefix: w.prefix, expected: w.count, actual };
+  }).filter((r) => r.actual !== r.expected);
+}
+
+/**
  * Emergency degrade is never available in production (W1-SEC-10 COMPLETE).
  * Non-production may set ALLOW_MUTATION_AUDIT_DEGRADE=1 for local tooling.
  */
@@ -215,11 +310,58 @@ export function shouldFailClosedOnMutationAuditFailure(options: {
   return (env.NODE_ENV ?? '').toLowerCase() === 'production';
 }
 
-export const MUTATION_AUDIT_UNAVAILABLE_BODY = {
-  code: 'AUDIT_UNAVAILABLE',
-  message: 'Mutation audit trail unavailable; refusing to acknowledge security-sensitive mutation',
-  statusCode: 503,
-} as const;
+/**
+ * V15-16 — the body returned when a mutation committed but its audit row did not.
+ *
+ * ## Why the old message was wrong
+ *
+ * It read "refusing to acknowledge security-sensitive mutation", which tells the caller
+ * nothing happened. For every path except the four atomic ones, **the domain write has
+ * already committed** by the time this hook runs — `onSend` is after the handler. So the
+ * message described the opposite of the actual state, and a client acting on it would
+ * retry a `POST` that had already succeeded and create a duplicate.
+ *
+ * This code is only ever emitted on the post-hoc path: the atomic routes return early via
+ * `wasRegulatedMutationAuditCommitted`, and when *their* transaction fails the write rolls
+ * back and the caller gets a domain error instead. So "the mutation may have been applied"
+ * is not a hedge here — it is the normal case.
+ *
+ * ## Why it is a function now
+ *
+ * `requestId` has to be stamped at construction. The `onSend` hook in `error-handler.ts`
+ * that stamps every other error body is registered before this one (`app.ts:222` vs
+ * `app.ts:838`) and Fastify runs `onSend` hooks in registration order, so by the time this
+ * payload exists the stamping hook has already run and seen a 2xx. Verified by execution,
+ * not inferred: the previous constant went out with no `requestId` at all — on the single
+ * response where a user most needs to ask "did my payment actually save?" and support needs
+ * an identifier to reconcile against the log.
+ */
+export function mutationAuditUnavailableBody(requestId?: string): {
+  code: 'AUDIT_UNAVAILABLE';
+  message: string;
+  statusCode: 503;
+  retryable: false;
+  requestId?: string;
+} {
+  return {
+    code: 'AUDIT_UNAVAILABLE',
+    message:
+      'The change may have been applied but could not be recorded in the audit trail. ' +
+      'Do not retry: quote the request id and confirm the current state before acting.',
+    statusCode: 503,
+    // Not retryable, and this is the whole point of the message. The registry previously
+    // published `retryable: true` for this code, which told integrators it was safe to
+    // repeat a write that had already landed.
+    retryable: false,
+    ...(requestId ? { requestId } : {}),
+  };
+}
+
+/**
+ * Retained because the shape is referenced as a contract fixture. Prefer
+ * {@link mutationAuditUnavailableBody}, which carries the request id.
+ */
+export const MUTATION_AUDIT_UNAVAILABLE_BODY = mutationAuditUnavailableBody();
 
 export type MutationAuditRecordInput = {
   tenantId: string;
