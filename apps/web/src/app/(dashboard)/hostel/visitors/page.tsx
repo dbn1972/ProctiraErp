@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelVisitors, listHostels } from '@/lib/api/hostel';
@@ -26,15 +26,14 @@ export default async function HostelVisitorsPage() {
   const [visitorsResult, hostelsResult] = await Promise.all([listHostelVisitors(), listHostels()]);
   if (!visitorsResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={visitorsResult.kind}
-          status={visitorsResult.status}
-          requestId={visitorsResult.requestId}
-          returnTo="/hostel/visitors"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Visitors"
+        kind={visitorsResult.kind}
+        status={visitorsResult.status}
+        requestId={visitorsResult.requestId}
+        returnTo="/hostel/visitors"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const visitors = visitorsResult.items;

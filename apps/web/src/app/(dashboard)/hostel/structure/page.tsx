@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelBeds, listHostelBlocks, listHostelRooms, listHostels } from '@/lib/api/hostel';
@@ -32,15 +32,14 @@ export default async function HostelStructurePage() {
   // and an empty tree for a denial is exactly the confusion being removed.
   if (!hostelsResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={hostelsResult.kind}
-          status={hostelsResult.status}
-          requestId={hostelsResult.requestId}
-          returnTo="/hostel/structure"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Structure"
+        kind={hostelsResult.kind}
+        status={hostelsResult.status}
+        requestId={hostelsResult.requestId}
+        returnTo="/hostel/structure"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const hostels = hostelsResult.items;

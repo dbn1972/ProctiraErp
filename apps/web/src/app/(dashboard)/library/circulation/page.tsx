@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { Button } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryItems } from '@/lib/api/library';
 import { CirculationDesk } from '../_components/circulation-desk';
@@ -17,15 +17,14 @@ export default async function LibraryCirculationPage() {
   // silently matches nothing, so a denial has to be said out loud.
   if (!itemsResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={itemsResult.kind}
-          status={itemsResult.status}
-          requestId={itemsResult.requestId}
-          returnTo="/library/circulation"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Circulation"
+        kind={itemsResult.kind}
+        status={itemsResult.status}
+        requestId={itemsResult.requestId}
+        returnTo="/library/circulation"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const items = itemsResult.items;

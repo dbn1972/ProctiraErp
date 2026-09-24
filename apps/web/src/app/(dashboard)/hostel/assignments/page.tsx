@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import {
@@ -36,15 +36,14 @@ export default async function HostelAssignmentsPage() {
   ]);
   if (!assignmentsResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={assignmentsResult.kind}
-          status={assignmentsResult.status}
-          requestId={assignmentsResult.requestId}
-          returnTo="/hostel/assignments"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Assignments"
+        kind={assignmentsResult.kind}
+        status={assignmentsResult.status}
+        requestId={assignmentsResult.requestId}
+        returnTo="/hostel/assignments"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const assignments = assignmentsResult.items;

@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryOverdues } from '@/lib/api/library';
 import { AssessFineButton } from '../_components/assess-fine-button';
@@ -25,15 +25,14 @@ export default async function LibraryOverduesPage() {
   // to impersonate it.
   if (!overduesResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={overduesResult.kind}
-          status={overduesResult.status}
-          requestId={overduesResult.requestId}
-          returnTo="/library/overdues"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Overdues"
+        kind={overduesResult.kind}
+        status={overduesResult.status}
+        requestId={overduesResult.requestId}
+        returnTo="/library/overdues"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const overdues = overduesResult.items;

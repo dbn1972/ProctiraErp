@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { searchLibraryOpac } from '@/lib/api/library';
 import { OpacSearchForm } from '../_components/opac-search-form';
@@ -31,15 +31,14 @@ export default async function LibraryOpacPage({
 
   if (searchResult && !searchResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={searchResult.kind}
-          status={searchResult.status}
-          requestId={searchResult.requestId}
-          returnTo={`/library/opac?q=${encodeURIComponent(query)}`}
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="OPAC"
+        kind={searchResult.kind}
+        status={searchResult.status}
+        requestId={searchResult.requestId}
+        returnTo={`/library/opac?q=${encodeURIComponent(query)}`}
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const items = searchResult?.items ?? [];

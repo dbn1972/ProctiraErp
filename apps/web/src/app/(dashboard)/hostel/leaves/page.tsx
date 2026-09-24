@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelLeaves, listHostels } from '@/lib/api/hostel';
@@ -26,15 +26,14 @@ export default async function HostelLeavesPage() {
   const [leavesResult, hostelsResult] = await Promise.all([listHostelLeaves(), listHostels()]);
   if (!leavesResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={leavesResult.kind}
-          status={leavesResult.status}
-          requestId={leavesResult.requestId}
-          returnTo="/hostel/leaves"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Leaves"
+        kind={leavesResult.kind}
+        status={leavesResult.status}
+        requestId={leavesResult.requestId}
+        returnTo="/hostel/leaves"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const leaves = leavesResult.items;

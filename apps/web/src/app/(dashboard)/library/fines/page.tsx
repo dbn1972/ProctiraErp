@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryFines } from '@/lib/api/library';
 import { MarkPaidButton } from '../_components/mark-paid-button';
@@ -25,15 +25,14 @@ export default async function LibraryFinesPage() {
   // would say the ledger is clear when nobody actually looked.
   if (!finesResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={finesResult.kind}
-          status={finesResult.status}
-          requestId={finesResult.requestId}
-          returnTo="/library/fines"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Fines"
+        kind={finesResult.kind}
+        status={finesResult.status}
+        requestId={finesResult.requestId}
+        returnTo="/library/fines"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const fines = finesResult.items;

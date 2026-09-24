@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelFeeStructures, listHostels } from '@/lib/api/hostel';
@@ -23,15 +23,14 @@ export default async function HostelFeesPage() {
   const [hostelsResult, rowsResult] = await Promise.all([listHostels(), listHostelFeeStructures()]);
   if (!rowsResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={rowsResult.kind}
-          status={rowsResult.status}
-          requestId={rowsResult.requestId}
-          returnTo="/hostel/fees"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Hostel fee structures"
+        kind={rowsResult.kind}
+        status={rowsResult.status}
+        requestId={rowsResult.requestId}
+        returnTo="/hostel/fees"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const rows = rowsResult.items;

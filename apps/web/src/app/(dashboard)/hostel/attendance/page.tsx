@@ -10,7 +10,7 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
@@ -32,15 +32,14 @@ export default async function HostelAttendancePage({
   const blocksResult = await listHostelBlocks();
   if (!blocksResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={blocksResult.kind}
-          status={blocksResult.status}
-          requestId={blocksResult.requestId}
-          returnTo="/hostel/attendance"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Hostel attendance"
+        kind={blocksResult.kind}
+        status={blocksResult.status}
+        requestId={blocksResult.requestId}
+        returnTo="/hostel/attendance"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const blocks = blocksResult.items;
@@ -49,15 +48,14 @@ export default async function HostelAttendancePage({
     selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : null;
   if (marksResult && !marksResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={marksResult.kind}
-          status={marksResult.status}
-          requestId={marksResult.requestId}
-          returnTo="/hostel/attendance"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading="Hostel attendance"
+        kind={marksResult.kind}
+        status={marksResult.status}
+        requestId={marksResult.requestId}
+        returnTo="/hostel/attendance"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const marks = marksResult ? marksResult.items : [];

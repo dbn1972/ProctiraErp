@@ -14,7 +14,7 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryItems } from '@/lib/api/library';
 import { LibraryClearanceForm } from './_components/clearance-form';
@@ -31,15 +31,14 @@ export default async function LibraryCatalogPage() {
   // exactly why a denial must not be allowed to look like one.
   if (!itemsResult.ok) {
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure
-          kind={itemsResult.kind}
-          status={itemsResult.status}
-          requestId={itemsResult.requestId}
-          returnTo="/library"
-          copy={await getListFailureCopy()}
-        />
-      </div>
+      <ListLoadFailurePage
+        heading={t('title')}
+        kind={itemsResult.kind}
+        status={itemsResult.status}
+        requestId={itemsResult.requestId}
+        returnTo="/library"
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const items = itemsResult.items;
