@@ -5,9 +5,10 @@ volumes in `docs/multitenant/`. Findings and evidence live in:
 
 - `CHARTER_CONFORMANCE_VOL1_VOL2_2026-09-21.md`
 - `CHARTER_CONFORMANCE_VOL3_VOL4_VOL5_2026-09-21.md`
+- `VOLUME_15_ERROR_STATE_AUDIT_2026-09-24.md` (Volume 15 — error / failure / edge states)
 - `TASKLIST_GAP_CLOSURE_2026-09-21.md` (pre-existing T-items)
 
-**Baseline tip:** `main` = `12705129`
+**Baseline tip:** `main` = `12705129` for the V1–V5 items; `a2d77494` for the V15-\* items.
 
 ## Working rules
 
@@ -25,16 +26,25 @@ test, or an observed runtime behaviour. Not "looks right".
 
 Ordered by leverage, not by size.
 
-| ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
-| --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V10 | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
-| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
-| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
-| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
-| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
-| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
-| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
-| T4  | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
+| ID     | Gap                                                   | Spec                        | Status         | Branch                               | PR   |
+| ------ | ----------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
+| V15-A  | Failure responses disclosed schema + infrastructure   | V15 D10; V5 §3              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-B  | No error body a user could quote; no request id       | V15 D5 D11                  | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-C  | Timeout was not a state — no deadline either side     | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-D  | 12 pages had no error boundary at all                 | V15 D5 D6                   | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-9  | Non-atomic cross-package write bills for nothing      | V15 D9                      | `OPEN`         | —                                    | —    |
+| V15-15 | 401/403 mutations leave no audit row                  | V15 D10; V5 §6              | `OPEN`         | —                                    | —    |
+| V15-10 | Denied-vs-empty reaches 2 of ~24 lists (baseline 126) | V15 D6                      | `OPEN`         | —                                    | —    |
+| V15-11 | No client-side 401 handler; drafts lost               | V15 D5                      | `OPEN`         | —                                    | —    |
+| V15-19 | ~48-50 ad-hoc wire codes outside a 10-entry registry  | V15 D5; V4 §6               | `OPEN`         | —                                    | —    |
+| V10    | 9 defects behind Table 2; 1a partial, 8 open          | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
+| V9     | Error envelope inconsistent (`retryable` in 1 file)   | V4 §6                       | `OPEN`         | —                                    | —    |
+| V3     | MySQL offered but cannot work                         | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
+| V8     | No first-party SDK                                    | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
+| V5     | Hardcoded UI copy, 8 of 9 fees pages                  | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
+| V6     | No email/notification delivery adapter                | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
+| T6     | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate    | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
+| T4     | Zero statutory/interop implementation                 | —                           | `OPEN`         | —                                    | —    |
 
 ### T11 — WITHDRAWN, not a defect
 
@@ -254,6 +264,92 @@ _behaviour_ — a nested-set hierarchy, a hashed credential — not the noun; th
 **gateway mount state**, because in this repository a package having routes does not
 mean the routes are reachable. `apps/api-gateway/src/mount-matrix.ts` is the authority
 and it parks several packages outright.
+
+### V15 — error, failure and edge states
+
+Full evidence in `VOLUME_15_ERROR_STATE_AUDIT_2026-09-24.md`. Graded against `a2d77494`.
+
+The shape of every finding is the same: the mechanism exists and is well built, and the
+one branch nobody ran was wrong. A global error handler, a real transaction helper, a
+fail-closed idempotency store, an offline queue with correct backoff — and then four
+un-gated disclosure paths, an anonymous endpoint publishing hostnames, twelve pages with
+no boundary, and no request deadline anywhere.
+
+**V15-A `FULLY_CLOSED`.** Four reproduced disclosure paths, all under production posture
+(`includeStackTrace: false`). Prisma `P2002` emitted `"Unique constraint violation on:
+tenant_id, admission_number"`, `P2003` emitted the constraint identifier
+`student_guardians_student_id_fkey (index)`, `P2025` forwarded Prisma's generated
+`meta.cause` naming models and relations, and an `AppError` at 500 emitted its message
+verbatim — reproduced as `"connect ECONNREFUSED 10.0.3.14:5432 (database
+\"proctira_prod\")"`. The last is the subtle one: that branch runs _before_ the default
+500 branch that masks. Separately, `/health` and `/health/ready` are in
+`authExcludePaths` (container probes cannot authenticate) and published the raw probe
+text, including `host=db-prod-1.internal db=proctira_prod` and the missing relation name.
+All five now generic outside development; per-dependency statuses kept because they are
+what a probe consumer needs and they name nothing.
+
+**V15-B `FULLY_CLOSED`.** The gateway generated a request id, logged it, and returned it
+as a header — and no client read the header, and nothing put it in the body. A user
+reporting a failure had nothing to quote. `requestId` is now stamped by an `onSend` hook,
+not in the handler: the auth, RBAC, tenant, idempotency and service-router paths never
+throw, they build their own envelope and call `reply.send`, and a denial is the failure
+users are most likely to report. Narrow by construction — JSON only, envelope-shaped only,
+never overwrites, leaves 2xx and the health body alone, fixes content-length.
+
+**V15-C `PARTIAL`.** Neither web client had any deadline and the gateway sets no
+`requestTimeout`, so a hung handler produced an indefinite spinner — the one failure a
+person cannot act on. The client half is closed with a shared deadline reporting `TIMEOUT`
+distinctly from `NETWORK_ERROR`. **The server half is V15-8 and is open**: the budget is a
+product decision because report exports are legitimately slow.
+
+**V15-D `FULLY_CLOSED`.** `(public)`, `(student)`, `(marketing)` and `app/legal` shipped a
+`layout.tsx` and nothing else, with no root `error.tsx` or `global-error.tsx` above them —
+so 12 pages had no boundary and fell to Next's unstyled default with no retry. Those pages
+are `/track` (the anonymous admission tracker, used by people with no account), the nine
+student-portal routes, and the two legal documents signup asks users to accept.
+`route-state-boundaries.test.ts` could not see it: a recursive "at least 8 error.tsx" floor
+was satisfied the whole time, because a count cannot say which subtree is uncovered. It now
+walks every route group asking whether a boundary exists at or above it, and removing
+`app/error.tsx` makes it fail naming `(marketing)`.
+
+#### Open, and why each needs an owner rather than an agent
+
+**V15-9 `OPEN`, P1.** `hostel-service.ts:63-120` `createAssignment` posts a fee invoice
+through a cross-package port and _then_ writes the hostel row — two transactions in two
+packages. `createActiveAssignment` can throw `BedAssignmentConflictError` → 409, and when
+it does the invoice is already committed: the student is billed for a bed they were never
+assigned, and the 409 says nothing about the surviving financial row. Not fixed here
+because the remedy is a choice between a compensating reversal, a saga, and moving the
+invoice inside the assignment transaction — a finance-behaviour decision.
+
+**V15-15 `OPEN`, P1.** `app.ts:819-822` returns early for 401 and 403, so every RBAC
+denial, `TENANT_SUSPENDED`, `FEATURE_NOT_ENTITLED` and default-deny rejection on a
+mutation leaves only a log line. An insider probing for records they may not see produces
+no audit trail. Not fixed here because the volume and the PII shape of a denial audit row
+both need a security ruling.
+
+**V15-10 `OPEN`, P1.** The denied-vs-empty classifier (`fetchList` + `ListLoadFailure`) is
+correct and proved, and reaches 2 pages. `list-result.drift.test.ts` pins `BASELINE = 126`
+— 126 reads still render a 401/403/404 as an empty table. An adoption gap, not a defect in
+the pattern.
+
+**V15-19 `OPEN`, P2, the one with leverage.** `ERROR_CODE_REGISTRY` has 10 entries and one
+runtime consumer, which serves it as documentation. Roughly 48-50 distinct wire codes are
+emitted outside it, and the single most-emitted code in the codebase — `TENANT_REQUIRED`,
+426 occurrences — is not in it. A registry no client can rely on cannot be used to branch.
+
+#### Method note
+
+Every finding above was reproduced before it was filed, and each fix has an attribution
+arm: reverting it reproduces the defect. Two worth recording because they changed the fix:
+
+- The containment reference for the deadline test is a `fetch` that never settles. Without
+  the deadline that test _hangs_ until the runner kills it rather than failing — which is
+  exactly the user-visible behaviour, and a better demonstration than any assertion.
+- Four pre-existing `error-handler` tests asserted `toContain('email')`,
+  `toContain('institution_id')` and Prisma's `meta.cause` verbatim. They had pinned the
+  disclosure as expected behaviour, which is why it survived. Each is updated with a note
+  saying so, rather than silently rewritten.
 
 ## Needs a decision before work can start
 
