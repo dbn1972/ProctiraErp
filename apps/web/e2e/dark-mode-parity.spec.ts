@@ -20,14 +20,39 @@
  *
  * The test is gated on `E2E_BACKEND_READY=1` because the dashboard
  * routes require an authenticated session backed by a live API.
+ *
+ * ## Volume 12 §10 / §13 — this file was never executed by any workflow
+ *
+ * `grep -rn dark-mode-parity .github/ tools/` returned nothing: the spec appeared in
+ * neither `PR_SPECS` nor `NIGHTLY_SPECS` in `e2e-backend-ready.yml`, and the only other
+ * path that reaches it — `ci.yml`'s turbo `test:e2e` step — does not set
+ * `E2E_BACKEND_READY`, so every dashboard scan self-skipped. Volume 12 §10 requires all
+ * screens in both light and dark, and §13 makes theme regressions a release exit
+ * criterion; both were being satisfied by a file that had never run.
+ *
+ * Wiring it in required splitting the cost. The dashboard matrix is ~125 routes, and at
+ * one login and one navigation per theme it does not fit a pull-request gate, so:
+ *
+ *   • **Per pull request** — the public/auth block below, in both themes plus real
+ *     `prefers-color-scheme` emulation. Cheap, no backend, always on.
+ *   • **Nightly** (`E2E_THEME_MATRIX=1`) — the full authenticated route matrix.
+ *
+ * Each route is now a single test covering light *and* dark rather than two tests, which
+ * halves the logins and navigations. The per-theme `checkpointLabel` still names the
+ * failing theme, so nothing is lost in the report.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { loginAsTenantAdmin } from './fixtures/auth';
 import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/**
+ * The ~125-route authenticated matrix. Off by default so this spec is affordable in the
+ * pull-request set; `e2e-backend-ready.yml` sets it for the nightly run.
+ */
+const THEME_MATRIX = !!process.env.E2E_THEME_MATRIX;
 
 /**
  * All top-level authenticated dashboard routes derived from the
@@ -169,33 +194,67 @@ const WAVE9_BATCH3_INSTITUTION_ROUTES = [
 ] as const;
 
 /**
- * Toggles the page theme by manipulating the `<html>` element's
- * `data-theme` attribute and class list, mirroring what the
- * ThemeProvider does when `setMode` is called.
+ * Remove colour transitions so a contrast measurement reads settled values.
+ *
+ * `globals.css` puts `transition-colors` (150ms) on themed surfaces, so a scan taken
+ * during a theme change samples interpolated colours. Measured on `/forgot-password`
+ * after switching to dark, the submit button read:
+ *
+ *   t+0ms    #ffffff on #5048e5   (still light)
+ *   t+50ms   #5c5b72 on #7278f2   (1.78:1 — neither theme)
+ *   t+150ms  #141334 on #828df8   (6.15:1 — settled dark, passes AA)
+ *
+ * `document.getAnimations().length` went 22 → 0 across that window. Every "violation" in
+ * the 1.3–3.4:1 range that this spec reported while being wired up came from that window,
+ * not from the product. Freezing transitions removes the sampling race outright, which is
+ * the same reason `toHaveScreenshot` takes `animations: 'disabled'`.
  */
-async function setTheme(
-  page: import('@playwright/test').Page,
-  theme: 'light' | 'dark',
-): Promise<void> {
-  await page.evaluate((t) => {
-    const root = document.documentElement;
-    root.dataset.theme = t;
-    if (t === 'dark') {
-      root.classList.add('dark');
-      root.classList.remove('light');
-    } else {
-      root.classList.add('light');
-      root.classList.remove('dark');
-    }
-  }, theme);
-  // Allow a repaint cycle so CSS custom properties resolve.
-  await page.waitForTimeout(100);
+async function freezeTransitions(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content:
+      '*,*::before,*::after{transition:none!important;animation:none!important;' +
+      'animation-duration:0s!important;transition-duration:0s!important}',
+  });
 }
 
-async function gotoDashboardRoute(
-  page: import('@playwright/test').Page,
-  path: string,
-): Promise<void> {
+/**
+ * Switch the theme the way a user's machine does, then **verify the switch landed**.
+ *
+ * ## Why the previous implementation asserted nothing
+ *
+ * This function used to write `data-theme` and the `.dark` class onto `<html>` directly,
+ * "mirroring what the ThemeProvider does". `ThemeProvider` then undid it. Its mount effect
+ * resolves `system` mode from `prefers-color-scheme` — which Playwright reports as `light`
+ * by default — and calls `applyResolvedTheme('light')`, overwriting the mutation. Measured
+ * on `/login`: after `setTheme(page, 'dark')`, `document.documentElement.dataset.theme`
+ * read back **`light`** immediately and was still `light` three seconds later, with `body`
+ * painted `rgb(248, 250, 252)`.
+ *
+ * So every test in this file labelled `[dark]` was scanning the light theme. Five
+ * always-on tests had been green on that basis.
+ *
+ * ## What it does now
+ *
+ * `emulateMedia` changes the real media state, which is the input `ThemeProvider`
+ * subscribes to in `system` mode — so the product's own resolution path performs the
+ * switch. Whether the provider has hydrated or not, both paths converge: its mount
+ * resolve reads the current media state, and its `matchMedia` listener catches later
+ * changes.
+ *
+ * The `toHaveAttribute` wait is the part that must never be dropped. It retries until the
+ * product has actually applied the theme, which turns a silent no-op into a timeout with a
+ * name on it.
+ */
+async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
+  await freezeTransitions(page);
+  await page.emulateMedia({ colorScheme: theme });
+  await expect(
+    page.locator('html'),
+    `the app did not apply the ${theme} theme after emulating prefers-color-scheme: ${theme}`,
+  ).toHaveAttribute('data-theme', theme);
+}
+
+async function gotoDashboardRoute(page: Page, path: string): Promise<void> {
   const target = path === '/reports/dashboards' ? '/reports/dashboard' : path;
   await page.goto(target);
   await page
@@ -208,33 +267,31 @@ async function gotoDashboardRoute(
     });
 }
 
-test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
+test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1, E2E_THEME_MATRIX=1)', () => {
   test.skip(
     !BACKEND_READY,
     'E2E_BACKEND_READY is not set; skipping dark-mode parity scans. See e2e/README.md.',
   );
+  test.skip(
+    !THEME_MATRIX,
+    'E2E_THEME_MATRIX is not set; the ~125-route authenticated theme matrix runs nightly. ' +
+      'The public/auth theme block below runs unconditionally.',
+  );
 
   for (const route of [...DASHBOARD_ROUTES, ...WAVE9_BATCH3_INSTITUTION_ROUTES]) {
-    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in light mode`, async ({
+    // One test, both themes: the login and the navigation are the expensive parts, and
+    // running them twice per route is what put this matrix out of reach of any workflow.
+    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in light or dark mode`, async ({
       page,
     }) => {
       await loginAsTenantAdmin(page);
       await gotoDashboardRoute(page, route.path);
-      await setTheme(page, 'light');
-      await runAxe(page, {
-        checkpointLabel: `${route.path} [light]`,
-      });
-    });
 
-    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in dark mode`, async ({
-      page,
-    }) => {
-      await loginAsTenantAdmin(page);
-      await gotoDashboardRoute(page, route.path);
+      await setTheme(page, 'light');
+      await runAxe(page, { checkpointLabel: `${route.path} [light]` });
+
       await setTheme(page, 'dark');
-      await runAxe(page, {
-        checkpointLabel: `${route.path} [dark]`,
-      });
+      await runAxe(page, { checkpointLabel: `${route.path} [dark]` });
     });
   }
 });
@@ -251,9 +308,21 @@ const AUTH_PUBLIC_ROUTES = [
   { path: '/mfa', label: 'mfa' },
 ] as const;
 
+/**
+ * No route is exempt.
+ *
+ * An earlier revision of this change carried a `test.fail()` list here, asserting that
+ * dark `--primary` / `--primary-foreground` was a 3.34:1 WCAG failure. That was wrong: the
+ * 3.34:1 was a mid-transition sample (see `freezeTransitions`), and the settled pair is
+ * 6.15:1. The list is deliberately not replaced with an empty array — there is no known
+ * exemption to leave a hook for.
+ */
+
 test.describe('Property F-2: Dark Mode Parity — Auth public surfaces (always on)', () => {
   for (const route of AUTH_PUBLIC_ROUTES) {
-    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in dark mode`, async ({
+    // Both themes, not dark alone. Volume 12 §10 asks for every screen in light *and*
+    // dark, and "parity" between one rendered theme and nothing is not a comparison.
+    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in light or dark mode`, async ({
       page,
     }) => {
       const response = await page.goto(route.path);
@@ -261,10 +330,58 @@ test.describe('Property F-2: Dark Mode Parity — Auth public surfaces (always o
         test.skip(true, `${route.path} is not enabled in this build`);
       }
 
+      await setTheme(page, 'light');
+      await runAxe(page, { checkpointLabel: `${route.path} [light]` });
+
       await setTheme(page, 'dark');
-      await runAxe(page, {
-        checkpointLabel: `${route.path} [dark]`,
-      });
+      await runAxe(page, { checkpointLabel: `${route.path} [dark]` });
+    });
+  }
+});
+
+/**
+ * The scans above force the theme by writing `data-theme` and the `.dark` class directly,
+ * which is deterministic but bypasses everything that decides the theme in production:
+ * the inline boot script in `app/layout.tsx`, `localStorage`, and the
+ * `prefers-color-scheme` media query that `ThemeProvider` subscribes to in `system` mode.
+ * A regression in that resolution path would leave every scan above green while shipping
+ * users the wrong theme, and no Playwright asset in this repository used `colorScheme`
+ * emulation at all.
+ *
+ * This block closes that hole. It asserts the *resolution*, not the palette: with a clean
+ * storage origin the provider is in `system` mode, so the emulated OS preference is the
+ * only input.
+ */
+test.describe('Volume 12 §10 — theme resolution honours prefers-color-scheme', () => {
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`an OS preference of ${scheme} resolves to the ${scheme} theme on first paint`, async ({
+      browser,
+    }) => {
+      // A fresh context guarantees no persisted mode, so `system` is in force.
+      const context = await browser.newContext({ colorScheme: scheme });
+      const page = await context.newPage();
+
+      try {
+        const response = await page.goto('/login', { waitUntil: 'domcontentloaded' });
+        if (!response || response.status() >= 400) {
+          test.skip(true, '/login is not enabled in this build');
+          return;
+        }
+
+        const root = page.locator('html');
+        await expect(
+          root,
+          `prefers-color-scheme: ${scheme} did not stamp data-theme="${scheme}" on <html>`,
+        ).toHaveAttribute('data-theme', scheme);
+        // ThemeProvider maintains both classes so Tailwind's `dark:` variant and
+        // theme.css's `:root.light` / `:root.dark` blocks activate together.
+        await expect(root).toHaveClass(new RegExp(`\\b${scheme}\\b`));
+        await expect(root).not.toHaveClass(
+          new RegExp(`\\b${scheme === 'dark' ? 'light' : 'dark'}\\b`),
+        );
+      } finally {
+        await context.close();
+      }
     });
   }
 });

@@ -60,8 +60,15 @@ env:
   NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:3000
   # PR gate: HS256-cookie live smokes that need only Postgres + gateway.
   # G-722: PR gate includes authenticated axe matrix (a11y-axe) + 17c smoke.
+  # Volume 12 §5 / §13: `55-responsive-layout` is the responsive-smoke exit criterion.
+  # It sweeps all seven §3.1 viewport classes itself, so it costs one spec, and it needs
+  # no backend — the gateway is already up here, but the spec does not depend on it.
+  # `dark-mode-parity` carries the §10 theme coverage; its public/auth block is always on
+  # and its ~125-route authenticated matrix stays behind E2E_THEME_MATRIX (nightly only).
   PR_SPECS: >-
     e2e/08b-legal-pages.spec.ts
+    e2e/55-responsive-layout.spec.ts
+    e2e/dark-mode-parity.spec.ts
     e2e/17b-health-counselling-write-smoke.spec.ts
     e2e/17c-module-a11y-smoke.spec.ts
     e2e/a11y-axe.spec.ts
@@ -94,9 +101,14 @@ env:
     e2e/52-staff-hr-write-smoke.spec.ts
     e2e/53-communication-circulars-write-smoke.spec.ts
     e2e/54-transport-ops-write-smoke.spec.ts
-  # Nightly: PR set + the remaining live write smokes.
+  # Nightly: PR set + the remaining live write smokes. The nightly run also sets
+  # E2E_THEME_MATRIX=1, which turns on dark-mode-parity's ~125-route authenticated
+  # light/dark axe matrix (Volume 12 §10 "all screens in light mode / all screens in dark
+  # mode"). That matrix had never executed in any workflow before this entry existed.
   NIGHTLY_SPECS: >-
     e2e/08b-legal-pages.spec.ts
+    e2e/55-responsive-layout.spec.ts
+    e2e/dark-mode-parity.spec.ts
     e2e/17b-health-counselling-write-smoke.spec.ts
     e2e/17c-module-a11y-smoke.spec.ts
     e2e/a11y-axe.spec.ts
@@ -254,17 +266,23 @@ jobs:
           INPUT_SPECS: ${{ inputs.specs }}
           INPUT_REQUIRE_LIVE: ${{ inputs.require_live }}
         run: |
+          # theme_matrix turns on dark-mode-parity's ~125-route authenticated light/dark
+          # axe matrix. Nightly and dispatch only: at one login plus one navigation per
+          # route it does not fit alongside the pull-request spec set.
           case "$EVENT" in
             pull_request)
               echo "specs=${PR_SPECS}" >> "$GITHUB_OUTPUT"
               echo "require_live=1" >> "$GITHUB_OUTPUT"
+              echo "theme_matrix=0" >> "$GITHUB_OUTPUT"
               ;;
             schedule)
               echo "specs=${NIGHTLY_SPECS}" >> "$GITHUB_OUTPUT"
               echo "require_live=1" >> "$GITHUB_OUTPUT"
+              echo "theme_matrix=1" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "specs=${INPUT_SPECS:-$NIGHTLY_SPECS}" >> "$GITHUB_OUTPUT"
+              echo "theme_matrix=1" >> "$GITHUB_OUTPUT"
               if [ "$INPUT_REQUIRE_LIVE" = "false" ]; then
                 echo "require_live=0" >> "$GITHUB_OUTPUT"
               else
@@ -290,6 +308,8 @@ jobs:
           NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
           E2E_SPECS: ${{ steps.mode.outputs.specs }}
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
+          # Volume 12 §10 — nightly/dispatch only. See the "Select spec set" step.
+          E2E_THEME_MATRIX: ${{ steps.mode.outputs.theme_matrix == '1' && '1' || '' }}
           CI: true
 
       - name: Upload Playwright report

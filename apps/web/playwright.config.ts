@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig } from '@playwright/test';
 
+import { resolveProjects } from './e2e/qa-matrix';
 import { resolveWebServerCommand } from './e2e/web-server-command';
 
 /**
@@ -39,64 +40,16 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  // `pnpm test:e2e` only installs Chromium. Keep the full matrix available
-  // locally via PLAYWRIGHT_ALL_BROWSERS=1; CI stays Chromium-only so we
-  // don't fail hundreds of specs on missing Firefox/WebKit binaries.
-  projects: process.env.PLAYWRIGHT_ALL_BROWSERS
-    ? [
-        // Desktop browsers (Volume 12 §3.3 — Chrome, Edge, Safari, Firefox)
-        {
-          name: 'chromium',
-          use: { ...devices['Desktop Chrome'] },
-        },
-        {
-          name: 'firefox',
-          use: { ...devices['Desktop Firefox'] },
-        },
-        {
-          name: 'webkit',
-          use: { ...devices['Desktop Safari'] },
-        },
-        // Mobile devices (Volume 12 §3.2 — iPhone-size, Android phone)
-        {
-          name: 'mobile-chrome',
-          use: { ...devices['Pixel 5'] },
-        },
-        {
-          name: 'mobile-safari',
-          use: { ...devices['iPhone 13'] },
-        },
-        // Tablet (Volume 12 §3.2 — iPad-size). Force Chromium so CI does not
-        // need a WebKit install (device preset defaults to webkit).
-        {
-          name: 'tablet',
-          use: {
-            ...devices['iPad (gen 7)'],
-            defaultBrowserType: 'chromium',
-            browserName: 'chromium',
-          },
-        },
-      ]
-    : [
-        {
-          name: 'chromium',
-          use: { ...devices['Desktop Chrome'] },
-        },
-        // G-723 — always register tablet + Pixel so visual-regression.yml can
-        // capture iPad / phone baselines without PLAYWRIGHT_ALL_BROWSERS.
-        {
-          name: 'mobile-chrome',
-          use: { ...devices['Pixel 5'] },
-        },
-        {
-          name: 'tablet',
-          use: {
-            ...devices['iPad (gen 7)'],
-            defaultBrowserType: 'chromium',
-            browserName: 'chromium',
-          },
-        },
-      ],
+  // The Volume 12 §3 test-environment matrix lives in `./e2e/qa-matrix.ts` as data, and
+  // `e2e/55-responsive-layout.spec.ts` asserts every class the specification names
+  // resolves to a project that launches the intended engine. It used to be a comment
+  // here claiming "Chrome, Edge, Safari, Firefox" above a list with no Edge in it.
+  //
+  // `pnpm test:e2e` installs Chromium only, so the Firefox / WebKit / Edge projects stay
+  // behind PLAYWRIGHT_ALL_BROWSERS=1 rather than failing every spec on a missing binary.
+  // G-723 — `tablet` and `mobile-chrome` are always registered so visual-regression.yml
+  // can capture iPad / phone baselines without that flag.
+  projects: resolveProjects(process.env.PLAYWRIGHT_ALL_BROWSERS),
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
