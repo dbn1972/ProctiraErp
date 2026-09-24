@@ -6,7 +6,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { canAccessHealthRecords, listHealthRecordsResult } from '@/lib/api/health';
 
 export const dynamic = 'force-dynamic';
@@ -25,9 +26,14 @@ export default async function HealthAllergiesPage() {
     // Second conversion, so the reference is a pattern rather than a one-off: this page
     // previously showed an empty allergy list for a denial or an outage too.
     return (
-      <div className="space-y-6 p-6">
-        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health/allergies" />
-      </div>
+      <ListLoadFailurePage
+        heading="Allergies"
+        kind={result.kind}
+        status={result.status}
+        returnTo="/health/allergies"
+        requestId={result.requestId}
+        copy={await getListFailureCopy()}
+      />
     );
   }
   const flagged = result.items.filter((r) => (r.allergies?.length ?? 0) > 0);

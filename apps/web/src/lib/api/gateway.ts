@@ -16,12 +16,30 @@ import { cookies, headers } from 'next/headers';
 
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
 
+import { classifyStatusFailure, createTimeout } from './timeout';
+
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
   process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? process.env['GATEWAY_URL'] ?? 'http://localhost:3000';
 
 /** API version prefix used by the gateway. */
 export const GATEWAY_API_PREFIX = '/api/v1';
+
+/**
+ * How long a gateway call may take before it is abandoned.
+ *
+ * Neither client had any timeout: no `AbortController`, no `AbortSignal.timeout`, no race.
+ * The gateway has no `requestTimeout` either, so a handler that hangs held the connection
+ * open with nothing to abandon it from either end — the user saw a spinner forever, which
+ * is the one failure mode a person cannot act on. "Timeout" is a required failure state
+ * and it did not exist as a state at all.
+ *
+ * 30s, overridable per call via `timeoutMs` and globally via `GATEWAY_TIMEOUT_MS`. It is
+ * deliberately well above any normal read: the point is to convert "hangs forever" into
+ * "fails and says so", not to police latency. Callers that legitimately take longer (bulk
+ * exports) pass their own budget rather than having this lowered for everyone.
+ */
+export const GATEWAY_TIMEOUT_MS = Number(process.env['GATEWAY_TIMEOUT_MS'] ?? 30_000);
 
 export interface GatewayRequestInit extends Omit<RequestInit, 'body'> {
   /** Optional structured body that will be JSON encoded. */
@@ -34,13 +52,21 @@ export interface GatewayRequestInit extends Omit<RequestInit, 'body'> {
   throwOnError?: boolean;
   /** Next.js fetch caching options. */
   next?: { revalidate?: number | false; tags?: string[] };
+  /** Abandon the request after this many ms. Defaults to {@link GATEWAY_TIMEOUT_MS}. */
+  timeoutMs?: number;
 }
 
 export interface GatewayResponse<T> {
   status: number;
   ok: boolean;
   data: T | null;
-  error?: { code: string; message: string; details?: unknown };
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+    /** Seconds the server asked the caller to wait, from `Retry-After` (429). */
+    retryAfterSeconds?: number;
+  };
 }
 
 /** Reads the current session's tenant + access token from cookies / headers. */
@@ -91,11 +117,14 @@ export async function gatewayFetch<T>(
     ? path
     : `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}${path.startsWith('/') ? path : `/${path}`}`;
 
+  const timeout = createTimeout(init.timeoutMs ?? GATEWAY_TIMEOUT_MS, init.signal);
+
   const fetchInit: RequestInit & { next?: GatewayRequestInit['next'] } = {
     ...init,
     method: init.method ?? (body ? 'POST' : 'GET'),
     headers: requestHeaders,
     body: body ?? null,
+    signal: timeout.signal,
   };
   if (init.next) {
     fetchInit.next = init.next;
@@ -105,22 +134,16 @@ export async function gatewayFetch<T>(
   try {
     response = await fetch(url, fetchInit);
   } catch (error) {
+    // A timeout and a refused connection are different problems with different next
+    // actions — "it is taking too long, try again" versus "it is not reachable" — so they
+    // get different codes rather than both surfacing as NETWORK_ERROR.
+    const failure = timeout.classify(error);
     if (init.throwOnError !== false) {
-      throw new GatewayError({
-        status: 0,
-        code: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : 'Network error',
-      });
+      throw new GatewayError({ status: 0, ...failure });
     }
-    return {
-      status: 0,
-      ok: false,
-      data: null,
-      error: {
-        code: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : 'Network error',
-      },
-    };
+    return { status: 0, ok: false, data: null, error: failure };
+  } finally {
+    timeout.clear();
   }
 
   const contentType = response.headers.get('content-type') ?? '';
@@ -134,25 +157,32 @@ export async function gatewayFetch<T>(
   }
 
   if (!response.ok) {
-    const error = isErrorPayload(payload)
-      ? payload
-      : {
-          code: 'GATEWAY_ERROR',
-          message: response.statusText || 'Gateway request failed',
-        };
+    // V15-12 / V15-13: 429 and 413 get their own message and the `Retry-After` the
+    // gateway already sends, instead of every status collapsing into one generic branch.
+    const error = classifyStatusFailure(response, isErrorPayload(payload) ? payload : null);
     if (init.throwOnError !== false) {
       throw new GatewayError({
         status: response.status,
         code: error.code,
         message: error.message,
         details: payload,
+        ...(error.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: error.retryAfterSeconds }
+          : {}),
       });
     }
     return {
       status: response.status,
       ok: false,
       data: null,
-      error: { code: error.code, message: error.message, details: payload },
+      error: {
+        code: error.code,
+        message: error.message,
+        details: payload,
+        ...(error.retryAfterSeconds !== undefined
+          ? { retryAfterSeconds: error.retryAfterSeconds }
+          : {}),
+      },
     };
   }
 
@@ -179,6 +209,7 @@ export interface GatewayErrorInit {
   code: string;
   message: string;
   details?: unknown;
+  retryAfterSeconds?: number;
 }
 
 /** Error thrown by gatewayFetch when a non-2xx response is received. */
@@ -186,6 +217,8 @@ export class GatewayError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details?: unknown;
+  /** Seconds the server asked the caller to wait, from `Retry-After` (429). */
+  readonly retryAfterSeconds?: number;
 
   constructor(init: GatewayErrorInit) {
     super(init.message);
@@ -193,5 +226,6 @@ export class GatewayError extends Error {
     this.status = init.status;
     this.code = init.code;
     if (init.details !== undefined) this.details = init.details;
+    if (init.retryAfterSeconds !== undefined) this.retryAfterSeconds = init.retryAfterSeconds;
   }
 }

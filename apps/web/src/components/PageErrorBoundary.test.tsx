@@ -146,7 +146,18 @@ describe('PageErrorBoundary', () => {
     expect(errorUI.getAttribute('aria-live')).toBe('assertive');
   });
 
-  it('shows error details in a collapsible section', () => {
+  /**
+   * V15-18 — the collapsible block used to print `error.message` verbatim to every user.
+   *
+   * That string is whatever threw: a gateway envelope, a driver message, a library's
+   * internal assertion. It is the same disclosure the gateway's 500 branch is careful to
+   * mask, re-opened in the browser, and it is not actionable for the person reading it.
+   * It is now development-only; production shows Next's `digest`, which the server log
+   * carries too, so the user has something quotable and support has something resolvable.
+   *
+   * These tests run under `NODE_ENV=test`, i.e. the production branch.
+   */
+  it('does not print the raw error message outside development', () => {
     function ThrowingComponent(): React.ReactElement {
       throw new Error('Detailed error message for debugging');
     }
@@ -157,11 +168,27 @@ describe('PageErrorBoundary', () => {
       </PageErrorBoundary>,
     );
 
-    // Error details should be present (in a <details> element)
-    expect(screen.getByText('Error details')).toBeDefined();
+    expect(screen.queryByText(/Error details/)).toBeNull();
+    expect(screen.queryByText('Detailed error message for debugging')).toBeNull();
+    // The user is still told what happened and can still recover.
+    expect(screen.getByText('Something went wrong')).toBeDefined();
+    expect(screen.getByTestId('error-boundary-retry')).toBeDefined();
+  });
 
-    // The error message should be in the details
-    expect(screen.getByText('Detailed error message for debugging')).toBeDefined();
+  it('shows the digest as a quotable reference when Next supplied one', () => {
+    function ThrowingComponent(): React.ReactElement {
+      throw Object.assign(new Error('server render blew up'), { digest: 'abc123digest' });
+    }
+
+    render(
+      <PageErrorBoundary>
+        <ThrowingComponent />
+      </PageErrorBoundary>,
+    );
+
+    expect(screen.getByTestId('page-error-digest')).toHaveTextContent('Reference: abc123digest');
+    // The message itself still must not appear.
+    expect(screen.queryByText('server render blew up')).toBeNull();
   });
 
   it('renders custom fallback when provided', () => {

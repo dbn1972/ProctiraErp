@@ -10,6 +10,8 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryFines } from '@/lib/api/library';
 import { MarkPaidButton } from '../_components/mark-paid-button';
 
@@ -17,7 +19,23 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryFinesPage() {
   await requireSession();
-  const fines = await listLibraryFines();
+  const finesResult = await listLibraryFines();
+
+  // "No fines yet" is good news a bursar may act on. Showing it because the read was denied
+  // would say the ledger is clear when nobody actually looked.
+  if (!finesResult.ok) {
+    return (
+      <ListLoadFailurePage
+        heading="Fines"
+        kind={finesResult.kind}
+        status={finesResult.status}
+        requestId={finesResult.requestId}
+        returnTo="/library/fines"
+        copy={await getListFailureCopy()}
+      />
+    );
+  }
+  const fines = finesResult.items;
 
   return (
     <div className="space-y-6 p-6">

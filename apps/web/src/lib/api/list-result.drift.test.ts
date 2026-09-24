@@ -30,17 +30,32 @@ import { describe, expect, it } from 'vitest';
 const SRC = join(__dirname, '../..');
 
 /**
- * Collapsing reads remaining when `list-result.ts` was introduced, after converting the
- * health records list. Measured by {@link countCollapsingReads}, not by grep: an earlier
- * revision of this file counted `throwOnError: false` occurrences — including prose in doc
- * comments, single-object reads and mutations — and reported 204/206/208 for a figure that
- * is 126 collapsing reads.
+ * Collapsing reads remaining. Measured by {@link countCollapsingReads}, not by grep: an
+ * earlier revision of this file counted `throwOnError: false` occurrences — including prose
+ * in doc comments, single-object reads and mutations — and reported 204/206/208 for a figure
+ * that was 126.
+ *
+ * **126 → 113 (V15-10, hostel).** The whole `hostel` domain is converted: 13 data functions
+ * onto `fetchList`, and all nine `(dashboard)/hostel/*` pages now render `ListLoadFailure`
+ * for their primary list instead of an empty table. Supporting lookups that feed form
+ * controls use `itemsOrEmpty` — an explicit opt-out at the call site, with the reason in a
+ * comment, rather than a collapse hidden in the data layer.
+ *
+ * 22 modules remain, led by `examinations.ts` (10), `fees.ts` (10), `lms.ts` (9) and
+ * `staff.ts` (9). The data-layer half of those converts almost mechanically; the cost is the
+ * ~411 call-site type errors it produces, each needing a decision about whether that read is
+ * the screen's subject or a lookup. Do them one domain per commit.
+ *
+ * `hostel` (13) and `library` (6) are done and are the worked examples. `library.ts` still
+ * shows 1 because of the documented `getLibraryItem` false positive — a single-object read
+ * whose nested `copyList ?? []` falls inside the counter's window. `BASELINE` is not lowered
+ * for false positives without also fixing the counter.
  *
  * The counter cannot see a page that calls a *wrapper* which collapses internally, so
  * converting a page without converting its data function leaves this number unchanged.
  * That is a known limit, not a silent one.
  */
-const BASELINE = 126;
+const BASELINE = 107;
 
 /** How many lines after `throwOnError: false` a collapse still counts as the same read. */
 const WINDOW = 8;

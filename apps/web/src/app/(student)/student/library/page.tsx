@@ -1,7 +1,9 @@
 import { requireStudentSession } from '../_lib/session';
 import { listLibraryHolds, listLibraryLoans, searchLibraryOpac } from '@/lib/api/library';
+import type { ListFailure } from '@/lib/api/list-result';
 import {
   AcademicFrame,
+  academicFrameStatusFor,
   firstSearchParam,
 } from '../../../(parent)/parent/_components/academic-frame';
 import { Button, FormField, Input } from '@proctira/ui/components';
@@ -16,7 +18,7 @@ export default async function StudentLibraryPage({
   const session = await requireStudentSession();
   const params = await searchParams;
   const q = firstSearchParam(params.q) ?? '';
-  const [items, loans, holds] = await Promise.all([
+  const [itemsResult, loansResult, holdsResult] = await Promise.all([
     searchLibraryOpac(q),
     // The gateway pins student reads to the JWT subject (G-916 patron binding);
     // student loans/holds are keyed by students.id, which /student-portal/me also
@@ -24,6 +26,30 @@ export default async function StudentLibraryPage({
     listLibraryLoans({ studentId: session.user.sub }),
     listLibraryHolds({ studentId: session.user.sub }),
   ]);
+
+  // Same reasoning as the parent portal: the student's own loans and holds are the record
+  // that matters, and "no loans" is not a safe thing to show when nobody actually looked.
+  const failureFrame = (failure: ListFailure) => (
+    <AcademicFrame
+      title="Library"
+      description="Search the catalogue and see your loans and holds."
+      testId="student-library"
+      status={academicFrameStatusFor(failure.kind)}
+      errorMessage={`Unable to load library records (status ${failure.status}${
+        failure.requestId ? `, reference ${failure.requestId}` : ''
+      }).`}
+      emptyMessage="No titles match this search."
+      hasRows={false}
+    >
+      {null}
+    </AcademicFrame>
+  );
+  if (!loansResult.ok) return failureFrame(loansResult);
+  if (!holdsResult.ok) return failureFrame(holdsResult);
+
+  const loans = loansResult.items;
+  const holds = holdsResult.items;
+  const items = itemsResult.ok ? itemsResult.items : [];
 
   return (
     <AcademicFrame

@@ -2,6 +2,7 @@
  * Hostel service client.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 
 export interface Hostel {
   id: string;
@@ -34,12 +35,8 @@ export interface CreateHostelInput {
   capacity?: number;
 }
 
-export async function listHostels(): Promise<Hostel[]> {
-  const result = await gatewayFetch<{ data: Hostel[] }>('/hostel', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+export async function listHostels(): Promise<ListResult<Hostel>> {
+  return fetchList<Hostel>('/hostel', { next: { revalidate: 0 } });
 }
 
 export async function createHostel(input: CreateHostelInput): Promise<Hostel> {
@@ -57,12 +54,8 @@ export async function createHostel(input: CreateHostelInput): Promise<Hostel> {
   return result.data;
 }
 
-export async function listHostelAssignments(): Promise<HostelAssignment[]> {
-  const result = await gatewayFetch<{ data: HostelAssignment[] }>('/hostel/assignments', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+export async function listHostelAssignments(): Promise<ListResult<HostelAssignment>> {
+  return fetchList<HostelAssignment>('/hostel/assignments', { next: { revalidate: 0 } });
 }
 
 export async function createHostelAssignment(input: {
@@ -112,12 +105,8 @@ export interface HostelVisitor {
   updatedAt: string;
 }
 
-export async function listHostelLeaves(): Promise<HostelLeave[]> {
-  const result = await gatewayFetch<{ data: HostelLeave[] }>('/hostel/leaves', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+export async function listHostelLeaves(): Promise<ListResult<HostelLeave>> {
+  return fetchList<HostelLeave>('/hostel/leaves', { next: { revalidate: 0 } });
 }
 
 export async function createHostelLeave(input: {
@@ -177,12 +166,8 @@ export async function updateHostelVisitorStatus(
   return result.data;
 }
 
-export async function listHostelVisitors(): Promise<HostelVisitor[]> {
-  const result = await gatewayFetch<{ data: HostelVisitor[] }>('/hostel/visitors', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+export async function listHostelVisitors(): Promise<ListResult<HostelVisitor>> {
+  return fetchList<HostelVisitor>('/hostel/visitors', { next: { revalidate: 0 } });
 }
 
 export async function createHostelVisitor(input: {
@@ -235,13 +220,9 @@ export interface HostelBed {
   updatedAt: string;
 }
 
-export async function listHostelBlocks(hostelId?: string): Promise<HostelBlock[]> {
+export async function listHostelBlocks(hostelId?: string): Promise<ListResult<HostelBlock>> {
   const query = hostelId ? `?hostelId=${encodeURIComponent(hostelId)}` : '';
-  const result = await gatewayFetch<{ data: HostelBlock[] }>(`/hostel/blocks${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<HostelBlock>(`/hostel/blocks${query}`, { next: { revalidate: 0 } });
 }
 
 export async function createHostelBlock(input: {
@@ -263,13 +244,9 @@ export async function createHostelBlock(input: {
   return result.data;
 }
 
-export async function listHostelRooms(blockId?: string): Promise<HostelRoom[]> {
+export async function listHostelRooms(blockId?: string): Promise<ListResult<HostelRoom>> {
   const query = blockId ? `?blockId=${encodeURIComponent(blockId)}` : '';
-  const result = await gatewayFetch<{ data: HostelRoom[] }>(`/hostel/rooms${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<HostelRoom>(`/hostel/rooms${query}`, { next: { revalidate: 0 } });
 }
 
 export async function createHostelRoom(input: {
@@ -291,13 +268,9 @@ export async function createHostelRoom(input: {
   return result.data;
 }
 
-export async function listHostelBeds(roomId?: string): Promise<HostelBed[]> {
+export async function listHostelBeds(roomId?: string): Promise<ListResult<HostelBed>> {
   const query = roomId ? `?roomId=${encodeURIComponent(roomId)}` : '';
-  const result = await gatewayFetch<{ data: HostelBed[] }>(`/hostel/beds${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<HostelBed>(`/hostel/beds${query}`, { next: { revalidate: 0 } });
 }
 
 export async function createHostelBed(input: {
@@ -376,32 +349,24 @@ export interface HostelAttendanceMark {
   reason: string | null;
 }
 
-export async function listHostelMessPlans(hostelId?: string): Promise<HostelMessPlan[]> {
+export async function listHostelMessPlans(hostelId?: string): Promise<ListResult<HostelMessPlan>> {
   const query = hostelId ? `?hostelId=${encodeURIComponent(hostelId)}` : '';
-  const result = await gatewayFetch<{ data: HostelMessPlan[] }>(`/hostel/mess/plans${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<HostelMessPlan>(`/hostel/mess/plans${query}`, { next: { revalidate: 0 } });
 }
 
-export async function listHostelMessMenu(planId: string): Promise<HostelMessMenuItem[]> {
-  const result = await gatewayFetch<{ data: HostelMessMenuItem[] }>(
-    `/hostel/mess/menu?planId=${encodeURIComponent(planId)}`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.data?.data ?? [];
+export async function listHostelMessMenu(planId: string): Promise<ListResult<HostelMessMenuItem>> {
+  return fetchList<HostelMessMenuItem>(`/hostel/mess/menu?planId=${encodeURIComponent(planId)}`, {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function listHostelMessSubscriptions(
   planId?: string,
-): Promise<HostelMessSubscription[]> {
+): Promise<ListResult<HostelMessSubscription>> {
   const query = planId ? `?planId=${encodeURIComponent(planId)}` : '';
-  const result = await gatewayFetch<{ data: HostelMessSubscription[] }>(
-    `/hostel/mess/subscriptions${query}`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.data?.data ?? [];
+  return fetchList<HostelMessSubscription>(`/hostel/mess/subscriptions${query}`, {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function createHostelMessPlan(input: {
@@ -462,13 +427,9 @@ export async function subscribeHostelMess(input: {
   return result.data;
 }
 
-export async function listHostelGatePasses(hostelId?: string): Promise<HostelGatePass[]> {
+export async function listHostelGatePasses(hostelId?: string): Promise<ListResult<HostelGatePass>> {
   const query = hostelId ? `?hostelId=${encodeURIComponent(hostelId)}` : '';
-  const result = await gatewayFetch<{ data: HostelGatePass[] }>(`/hostel/gate-passes${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<HostelGatePass>(`/hostel/gate-passes${query}`, { next: { revalidate: 0 } });
 }
 
 export async function createHostelGatePass(input: {
@@ -512,13 +473,13 @@ export async function transitionHostelGatePass(
   return result.data;
 }
 
-export async function listHostelFeeStructures(hostelId?: string): Promise<HostelFeeStructure[]> {
+export async function listHostelFeeStructures(
+  hostelId?: string,
+): Promise<ListResult<HostelFeeStructure>> {
   const query = hostelId ? `?hostelId=${encodeURIComponent(hostelId)}` : '';
-  const result = await gatewayFetch<{ data: HostelFeeStructure[] }>(
-    `/hostel/fee-structures${query}`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.data?.data ?? [];
+  return fetchList<HostelFeeStructure>(`/hostel/fee-structures${query}`, {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function createHostelFeeStructure(input: {
@@ -544,12 +505,11 @@ export async function createHostelFeeStructure(input: {
 export async function listHostelAttendance(
   blockId: string,
   onDate: string,
-): Promise<HostelAttendanceMark[]> {
-  const result = await gatewayFetch<{ data: HostelAttendanceMark[] }>(
+): Promise<ListResult<HostelAttendanceMark>> {
+  return fetchList<HostelAttendanceMark>(
     `/hostel/attendance?blockId=${encodeURIComponent(blockId)}&onDate=${encodeURIComponent(onDate)}`,
-    { throwOnError: false, next: { revalidate: 0 } },
+    { next: { revalidate: 0 } },
   );
-  return result.data?.data ?? [];
 }
 
 export async function upsertHostelAttendance(input: {

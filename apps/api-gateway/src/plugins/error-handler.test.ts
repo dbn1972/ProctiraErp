@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Type } from '@sinclair/typebox';
 import {
+  AppError,
   ValidationError,
   ConflictError,
   NotFoundError,
@@ -238,7 +239,11 @@ describe('errorHandlerPlugin', () => {
       expect(response.statusCode).toBe(409);
       const body = response.json();
       expect(body.code).toBe(ErrorCode.CONFLICT);
-      expect(body.message).toContain('email');
+      // V15: this used to assert `toContain('email')`, i.e. it pinned the disclosure of
+      // the unique index's column names as the expected behaviour. The status and code
+      // are the contract; the column list is not. See the disclosure suite below for the
+      // development branch that still shows it.
+      expect(body.message).not.toContain('email');
       expect(body.statusCode).toBe(409);
     });
 
@@ -266,7 +271,10 @@ describe('errorHandlerPlugin', () => {
       expect(response.statusCode).toBe(404);
       const body = response.json();
       expect(body.code).toBe(ErrorCode.NOT_FOUND);
-      expect(body.message).toBe('Record to update not found.');
+      // V15: was `toBe('Record to update not found.')` — Prisma's own generated `meta.cause`.
+      // Harmless in this fixture, but the same field carries text naming models and
+      // relations, so the response no longer forwards it verbatim.
+      expect(body.message).toBe('The requested record was not found.');
       expect(body.statusCode).toBe(404);
     });
 
@@ -294,7 +302,10 @@ describe('errorHandlerPlugin', () => {
       expect(response.statusCode).toBe(400);
       const body = response.json();
       expect(body.code).toBe(ErrorCode.VALIDATION_ERROR);
-      expect(body.message).toContain('institution_id');
+      // V15: was `toContain('institution_id')`. Prisma's `field_name` is a constraint
+      // identifier (`<table>_<column>_fkey`), not the API field the client sent, so it was
+      // disclosing schema without telling the caller which input to fix.
+      expect(body.message).not.toContain('institution_id');
     });
 
     it('should map unknown Prisma errors to 500', async () => {
@@ -333,11 +344,15 @@ describe('errorHandlerPlugin', () => {
 
       expect(response.statusCode).toBe(404);
       const body = response.json();
-      expect(body).toEqual({
+      // `toMatchObject`, not `toEqual`: every error body now also carries `requestId`, and
+      // a whole-object comparison here would force this assertion to be rewritten each
+      // time the envelope gains a diagnostic field.
+      expect(body).toMatchObject({
         code: ErrorCode.NOT_FOUND,
         message: 'Route not found',
         statusCode: 404,
       });
+      expect(typeof body.requestId).toBe('string');
     });
   });
 
@@ -413,6 +428,198 @@ describe('errorHandlerPlugin', () => {
         expect(typeof body.message).toBe('string');
         expect(typeof body.statusCode).toBe('number');
       }
+    });
+  });
+});
+
+/**
+ * V15 — what a failure response is allowed to say, and how it is identified.
+ *
+ * These run against a separate instance because they need production posture
+ * (`includeStackTrace: false`) and a deterministic request id, which the shared
+ * `beforeEach` above does not provide.
+ */
+describe('errorHandlerPlugin — disclosure and attribution (V15)', () => {
+  function prismaError(code: string, meta: Record<string, unknown>) {
+    const e = new Error(`prisma ${code}`) as Error & {
+      name: string;
+      code: string;
+      meta: unknown;
+    };
+    e.name = 'PrismaClientKnownRequestError';
+    e.code = code;
+    e.meta = meta;
+    return e;
+  }
+
+  async function build(includeStackTrace: boolean, reqId = 'req-fixed-1') {
+    const instance = Fastify({ requestIdHeader: 'x-request-id', genReqId: () => reqId });
+    await instance.register(errorHandlerPlugin, { includeStackTrace });
+    return instance;
+  }
+
+  describe('database identifiers stay server-side outside development', () => {
+    it('P2002 does not name the columns of the unique index', async () => {
+      // Reproduced before the fix: the body read
+      // "Unique constraint violation on: tenant_id, admission_number".
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw prismaError('P2002', { target: ['tenant_id', 'admission_number'] });
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe(ErrorCode.CONFLICT);
+      expect(res.json().message).not.toMatch(/tenant_id|admission_number/);
+      await app.close();
+    });
+
+    it('P2003 does not name the foreign-key constraint', async () => {
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw prismaError('P2003', { field_name: 'student_guardians_student_id_fkey (index)' });
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().message).not.toMatch(/_fkey|student_guardians/);
+      await app.close();
+    });
+
+    it('P2025 does not return Prisma-generated prose naming models and relations', async () => {
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw prismaError('P2025', {
+          cause: "No 'StudentGuardian' record(s) (needed to inline the relation) was found",
+        });
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.statusCode).toBe(404);
+      expect(res.json().message).not.toMatch(/StudentGuardian|relation/);
+      await app.close();
+    });
+
+    it('development keeps the identifiers a developer needs', async () => {
+      // The masking must not cost local debuggability, or it gets reverted.
+      const app = await build(true);
+      app.get('/t', async () => {
+        throw prismaError('P2002', { target: ['admission_number'] });
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json().message).toContain('admission_number');
+      await app.close();
+    });
+  });
+
+  describe('AppError does not bypass the 5xx mask', () => {
+    it('masks the message at 500 while keeping the code', async () => {
+      // This branch runs before the default 500 branch, so it used to emit
+      // `error.message` verbatim in production — including driver text such as
+      // "connect ECONNREFUSED 10.0.3.14:5432 (database \"proctira_prod\")".
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw new AppError('connect ECONNREFUSED 10.0.3.14:5432 (database "x")', 'DB_DOWN', 500);
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.statusCode).toBe(500);
+      expect(res.json().message).toBe('Internal server error');
+      expect(res.json().message).not.toMatch(/5432|ECONNREFUSED/);
+      // The code is the client contract and is not sensitive — it must survive.
+      expect(res.json().code).toBe('DB_DOWN');
+      await app.close();
+    });
+
+    it('keeps the message below 500, where it is the user-facing reason', async () => {
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw new AppError('Admission window is closed for this class', 'WINDOW_CLOSED', 422);
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json().message).toBe('Admission window is closed for this class');
+      await app.close();
+    });
+  });
+
+  describe('every failure body is attributable', () => {
+    it('stamps requestId on a thrown failure', async () => {
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw new Error('boom');
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json().requestId).toBe('req-fixed-1');
+      await app.close();
+    });
+
+    it('stamps requestId on a hand-built reply.send failure', async () => {
+      // The auth, RBAC and tenant hooks never throw — they call reply.send directly, so a
+      // handler-only implementation would have missed every denial, which is the failure
+      // users are most likely to report.
+      const app = await build(false);
+      app.get('/t', async (_req, reply) =>
+        reply.status(403).send({ code: 'FORBIDDEN', message: 'Access denied', statusCode: 403 }),
+      );
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json()).toMatchObject({ code: 'FORBIDDEN', requestId: 'req-fixed-1' });
+      await app.close();
+    });
+
+    it('honours an inbound x-request-id so one id spans client and gateway', async () => {
+      const app = Fastify({ requestIdHeader: 'x-request-id' });
+      await app.register(errorHandlerPlugin, { includeStackTrace: false });
+      app.get('/t', async () => {
+        throw new Error('boom');
+      });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/t',
+        headers: { 'x-request-id': 'client-supplied-42' },
+      });
+      expect(res.json().requestId).toBe('client-supplied-42');
+      await app.close();
+    });
+
+    it('does not overwrite a requestId a handler already set', async () => {
+      const app = await build(false);
+      app.get('/t', async (_req, reply) =>
+        reply
+          .status(409)
+          .send({ code: 'CONFLICT', message: 'x', statusCode: 409, requestId: 'handler-owned' }),
+      );
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json().requestId).toBe('handler-owned');
+      await app.close();
+    });
+
+    it('leaves a success body untouched', async () => {
+      const app = await build(false);
+      app.get('/t', async () => ({ code: 'OK', statusCode: 200, data: 1 }));
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json().requestId).toBeUndefined();
+      await app.close();
+    });
+
+    it('leaves a non-envelope failure body untouched', async () => {
+      // The health endpoints return a different shape; the hook must not reshape it.
+      const app = await build(false);
+      app.get('/t', async (_req, reply) => reply.status(503).send({ status: 'down', uptime: 3 }));
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      expect(res.json()).toEqual({ status: 'down', uptime: 3 });
+      await app.close();
+    });
+
+    it('keeps content-length consistent with the rewritten body', async () => {
+      // The body grows by the requestId field; a stale content-length truncates the JSON
+      // and the client sees a parse error instead of the failure.
+      const app = await build(false);
+      app.get('/t', async () => {
+        throw new Error('boom');
+      });
+      const res = await app.inject({ method: 'GET', url: '/t' });
+      const declared = res.headers['content-length'];
+      if (declared !== undefined) {
+        expect(Number(declared)).toBe(Buffer.byteLength(res.body));
+      }
+      expect(() => JSON.parse(res.body)).not.toThrow();
+      await app.close();
     });
   });
 });

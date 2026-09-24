@@ -10,6 +10,8 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryOverdues } from '@/lib/api/library';
 import { AssessFineButton } from '../_components/assess-fine-button';
 
@@ -17,7 +19,23 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryOverduesPage() {
   await requireSession();
-  const overdues = await listLibraryOverdues();
+  const overduesResult = await listLibraryOverdues();
+
+  // "No overdues" is the answer a librarian wants to trust. A denied read must not be able
+  // to impersonate it.
+  if (!overduesResult.ok) {
+    return (
+      <ListLoadFailurePage
+        heading="Overdues"
+        kind={overduesResult.kind}
+        status={overduesResult.status}
+        requestId={overduesResult.requestId}
+        returnTo="/library/overdues"
+        copy={await getListFailureCopy()}
+      />
+    );
+  }
+  const overdues = overduesResult.items;
 
   return (
     <div className="space-y-6 p-6">

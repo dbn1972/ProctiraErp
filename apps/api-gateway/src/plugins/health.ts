@@ -263,6 +263,39 @@ export async function runReadinessProbe(
   };
 }
 
+/** Stand-in for probe text on a public endpoint. */
+export const REDACTED_PROBE_MESSAGE = 'A required dependency is unavailable.';
+
+/**
+ * Decide what a probe failure may say to an anonymous caller.
+ *
+ * `/health` and `/health/ready` sit in `authExcludePaths` because container and
+ * Kubernetes probes cannot authenticate — so whatever they return is world-readable. The
+ * body used to carry `readiness.message` verbatim, and that string is composed from the
+ * raw probe failure: `assertDatabaseSchemaReady` and the `pg`/`ioredis` connect errors
+ * routinely name the host, the database and the missing relation. Reproduced:
+ *
+ *   relation "public.audit_events" does not exist (host=db-prod-1.internal
+ *   db=proctira_prod); connect ETIMEDOUT cache-prod-2.internal
+ *
+ * That is internal topology, free, to anyone who can reach the port.
+ *
+ * The per-dependency *statuses* stay — `up` / `down` / `in-memory` / `required-missing` /
+ * `not-configured` is what a probe consumer actually needs, and it names nothing. Only
+ * the free-text detail is withheld, and only outside development. It is logged at `warn`
+ * on the way out so an operator loses nothing.
+ */
+export function publicProbeMessage(
+  message: string | undefined,
+  env: HealthCheckOptions['env'],
+  log?: { warn: (...args: unknown[]) => void },
+): string | undefined {
+  if (!message) return undefined;
+  if (readEnv(env).NODE_ENV === 'development') return message;
+  log?.warn({ probeFailure: message }, 'readiness probe failed (detail withheld from response)');
+  return REDACTED_PROBE_MESSAGE;
+}
+
 const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
   fastify: FastifyInstance,
   options: HealthCheckOptions,
@@ -352,8 +385,9 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
         database: readiness.dependencies.database,
         redis: readiness.dependencies.redis,
       };
-      if (readiness.message) {
-        readinessDetails.message = readiness.message;
+      const detail = publicProbeMessage(readiness.message, options.env, _request.log);
+      if (detail) {
+        readinessDetails.message = detail;
       }
 
       const healthStatus: HealthStatus = {
@@ -445,13 +479,14 @@ const healthPlugin: FastifyPluginAsync<HealthCheckOptions> = async (
         },
       },
     },
-    async (_request, reply) => {
+    async (request, reply) => {
       const readiness = await runReadinessProbe(probeOptions());
+      const detail = publicProbeMessage(readiness.message, options.env, request.log);
 
       const body = {
         status: readiness.ready ? 'up' : 'down',
         dependencies: readiness.dependencies,
-        ...(readiness.message ? { message: readiness.message } : {}),
+        ...(detail ? { message: detail } : {}),
         ...(readiness.latencyMs !== undefined ? { latencyMs: readiness.latencyMs } : {}),
       };
 

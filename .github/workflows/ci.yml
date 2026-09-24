@@ -209,6 +209,17 @@ jobs:
       - name: Run contrast gate (Requirement 37 AC 2 — light + dark modes)
         run: pnpm run check:contrast
 
+      # V15-19: the published error-code registry had 10 entries while the gateway emitted
+      # 41 distinct codes, and `TENANT_REQUIRED` — 424 emit sites, the most common rejection
+      # the platform produces — was not among them. A registry that omits what a client will
+      # actually receive is worse than none, because it looks authoritative. This gate
+      # re-derives the wire codes from source, so the registry cannot drift again.
+      - name: Unit-test the error-code registry gate (V15-19)
+        run: pnpm run check:error-codes:test
+
+      - name: Fail on error codes missing from the published registry (V15-19)
+        run: pnpm run check:error-codes
+
       - name: Run brand-neutrality ESLint scan (no-hardcoded-brand-strings)
         run: pnpm run lint:brand
 

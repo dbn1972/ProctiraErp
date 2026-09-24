@@ -23,7 +23,12 @@ interface PageErrorBoundaryProps {
 
 interface PageErrorBoundaryState {
   hasError: boolean;
-  error: Error | null;
+  /**
+   * `digest` is set by Next on errors that crossed the server boundary, and is the only
+   * identifier shared with the server log. It is what the panel shows in production
+   * instead of the raw message (V15-18).
+   */
+  error: (Error & { digest?: string }) | null;
 }
 
 export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErrorBoundaryState> {
@@ -86,14 +91,34 @@ export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErr
             An unexpected error occurred while rendering this page. The rest of the application is
             still functional.
           </p>
-          {this.state.error && (
+          {/*
+            V15-18 — this used to print `error.message` verbatim to every user. That string
+            is whatever threw: a gateway envelope, a driver message, a library's internal
+            assertion. It is the same disclosure the gateway's 500 branch is careful to
+            mask, re-opened in the browser, and it is not actionable for the person reading
+            it either.
+
+            Production shows the `digest` instead — the identifier Next puts in the server
+            log for the same error, so it is quotable to support and resolvable by someone
+            who can see the log. Development keeps the message, because that is where the
+            person reading it is the person who can fix it.
+          */}
+          {process.env.NODE_ENV === 'development' && this.state.error ? (
             <details className="max-w-md text-left text-xs text-muted-foreground">
-              <summary className="cursor-pointer">Error details</summary>
+              <summary className="cursor-pointer">Error details (development only)</summary>
               <pre className="mt-2 overflow-auto rounded bg-muted p-2">
                 {this.state.error.message}
               </pre>
             </details>
-          )}
+          ) : null}
+          {process.env.NODE_ENV !== 'development' && this.state.error?.digest ? (
+            <p
+              className="font-mono text-xs text-muted-foreground/70"
+              data-testid="page-error-digest"
+            >
+              Reference: {this.state.error.digest}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={this.handleRetry}

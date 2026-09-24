@@ -25,11 +25,21 @@
 
 import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
 
+import { classifyStatusFailure, createTimeout } from './timeout';
+
 /** Base URL of the API gateway, configurable per environment. */
 export const BROWSER_GATEWAY_BASE_URL = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
 
 /** API version prefix used by every gateway path. */
 export const BROWSER_GATEWAY_API_PREFIX = '/api/v1';
+
+/**
+ * Browser-side request deadline. See `./timeout.ts` for why this exists at all.
+ *
+ * Shorter than the server client's 30s: this one runs in front of a person watching a
+ * spinner, and a browser call that has not answered in 20s is not going to.
+ */
+export const BROWSER_GATEWAY_TIMEOUT_MS = 20_000;
 
 export interface BrowserGatewayRequestInit extends Omit<RequestInit, 'body' | 'method'> {
   method?: RequestInit['method'];
@@ -39,21 +49,60 @@ export interface BrowserGatewayRequestInit extends Omit<RequestInit, 'body' | 'm
   body?: BodyInit | null;
   /** Tenant override (defaults to the JWT claim). */
   tenantId?: string;
-  /** Abort signal for cancellation. */
+  /** Abort signal for cancellation. Composed with the deadline below. */
   signal?: AbortSignal;
+  /** Abandon the request after this many ms. Defaults to {@link BROWSER_GATEWAY_TIMEOUT_MS}. */
+  timeoutMs?: number;
 }
 
 export class BrowserGatewayError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details?: unknown;
+  /** Seconds the server asked the caller to wait, from `Retry-After` (429). */
+  readonly retryAfterSeconds?: number;
 
-  constructor(init: { status: number; code: string; message: string; details?: unknown }) {
+  constructor(init: {
+    status: number;
+    code: string;
+    message: string;
+    details?: unknown;
+    retryAfterSeconds?: number;
+  }) {
     super(init.message);
     this.name = 'BrowserGatewayError';
     this.status = init.status;
     this.code = init.code;
     if (init.details !== undefined) this.details = init.details;
+    if (init.retryAfterSeconds !== undefined) this.retryAfterSeconds = init.retryAfterSeconds;
+  }
+}
+
+/** Name of the event raised when the gateway reports the session is gone. */
+export const SESSION_EXPIRED_EVENT = 'proctira:session-expired';
+
+export interface SessionExpiredDetail {
+  /** Gateway path that returned 401, for the log line. */
+  path: string;
+  /** Envelope code, e.g. `UNAUTHORIZED` or `TOKEN_REVOKED`. */
+  code: string;
+}
+
+/**
+ * Announce an expired session once, on the document.
+ *
+ * A `CustomEvent` rather than a direct redirect: this module is imported by server-render
+ * paths and by tests, and a hard `window.location` assignment here would make it
+ * untestable and would discard unsaved work without asking. The shell subscribes and
+ * decides — which keeps draft preservation a UI concern, where the draft actually lives.
+ */
+function notifySessionExpired(detail: SessionExpiredDetail): void {
+  if (typeof window === 'undefined' || typeof window.dispatchEvent !== 'function') return;
+  try {
+    window.dispatchEvent(new CustomEvent<SessionExpiredDetail>(SESSION_EXPIRED_EVENT, { detail }));
+  } catch {
+    /* CustomEvent is unavailable in some non-browser runtimes; the throw must not mask
+       the original 401, which the caller still receives. */
   }
 }
 
@@ -90,6 +139,8 @@ export async function browserGatewayFetch<T>(
     }
   }
 
+  const timeout = createTimeout(init.timeoutMs ?? BROWSER_GATEWAY_TIMEOUT_MS, init.signal);
+
   let response: Response;
   try {
     response = await fetch(resolveUrl(path), {
@@ -98,13 +149,14 @@ export async function browserGatewayFetch<T>(
       headers,
       body: body ?? null,
       credentials: 'include',
+      signal: timeout.signal,
     });
   } catch (error) {
-    throw new BrowserGatewayError({
-      status: 0,
-      code: 'NETWORK_ERROR',
-      message: error instanceof Error ? error.message : 'Network error',
-    });
+    // `TIMEOUT` rather than `NETWORK_ERROR` when the deadline fired: the server was
+    // reachable and simply did not answer, which is a different thing to tell a user.
+    throw new BrowserGatewayError({ status: 0, ...timeout.classify(error) });
+  } finally {
+    timeout.clear();
   }
 
   const contentType = response.headers.get('content-type') ?? '';
@@ -118,18 +170,29 @@ export async function browserGatewayFetch<T>(
   }
 
   if (!response.ok) {
-    const error =
-      isErrorPayload(payload) && payload
-        ? payload
-        : {
-            code: 'GATEWAY_ERROR',
-            message: response.statusText || 'Gateway request failed',
-          };
+    // V15-12 / V15-13: 429 and 413 get their own message and the `Retry-After` the gateway
+    // already sends. Previously every non-2xx went through one branch, so a rate limit and
+    // a server fault were indistinguishable to the call site.
+    const error = classifyStatusFailure(response, isErrorPayload(payload) ? payload : null);
+
+    // V15-11: a session that expired mid-interaction. There was no handling at all — the
+    // error was thrown and, with no toast system mounted, usually vanished, leaving the
+    // user clicking a control that silently did nothing until the next navigation bounced
+    // them to the login page with no explanation. Recovery is delegated rather than forced:
+    // the client cannot know whether there is unsaved work worth preserving, so it raises a
+    // typed, subscribable event and lets the shell decide.
+    if (response.status === 401) {
+      notifySessionExpired({ path, code: error.code });
+    }
+
     throw new BrowserGatewayError({
       status: response.status,
       code: error.code,
       message: error.message,
       details: payload,
+      ...(error.retryAfterSeconds !== undefined
+        ? { retryAfterSeconds: error.retryAfterSeconds }
+        : {}),
     });
   }
 

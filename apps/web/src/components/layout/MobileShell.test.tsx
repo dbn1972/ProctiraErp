@@ -84,6 +84,9 @@ vi.mock('next/link', () => ({
 
 import { MobileShell, getActiveMobileTab } from './MobileShell';
 import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
+import { ConnectivityProvider } from '@/providers/ConnectivityProvider';
+import { NextIntlClientProvider } from 'next-intl';
+import enMessages from '@/messages/en.json';
 
 const TEST_BRAND: Brand = {
   name: 'EduZo',
@@ -97,11 +100,34 @@ const TEST_BRAND: Brand = {
   document_title_template: '{page} | {brand}',
 };
 
+/**
+ * V15-14 — the harness now mounts the providers the real tree already has.
+ *
+ * `MobileShell` renders `<ConnectivityIndicator>`, which needs `ConnectivityProvider` and
+ * `NextIntlClientProvider`. Both are present on every App Router route (root layout mounts
+ * `LanguageProvider` then `AppProviders` → `ConnectivityProvider`), so this brings the test
+ * closer to production rather than papering over a gap.
+ *
+ * The alternative — making `useConnectivity` tolerate a missing provider — was tried and
+ * reverted. It broke 26 tests by invalidating their mocking strategy, and it weakened a
+ * hook that is *correct* to throw when its provider is absent.
+ *
+ * `syncFetcher` is stubbed so the 30 s heartbeat never touches the network: jsdom reports
+ * `navigator.onLine === true`, so the provider would otherwise attempt a real HEAD request.
+ * The long interval keeps the timer from firing inside any test.
+ */
 function renderShell(node: React.ReactNode = <div data-testid="page">page-content</div>) {
   return render(
-    <BrandConfigProvider initialBrand={TEST_BRAND}>
-      <MobileShell>{node}</MobileShell>
-    </BrandConfigProvider>,
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <ConnectivityProvider
+        syncFetcher={async () => new Response(null, { status: 200 })}
+        heartbeatInterval={60 * 60 * 1000}
+      >
+        <BrandConfigProvider initialBrand={TEST_BRAND}>
+          <MobileShell>{node}</MobileShell>
+        </BrandConfigProvider>
+      </ConnectivityProvider>
+    </NextIntlClientProvider>,
   );
 }
 
@@ -309,14 +335,37 @@ describe('<MobileShell> — brand logo from useBrand() (Task 53.2 / Req 43.4)', 
   });
 });
 
-describe('<MobileShell> — persistent connectivity-indicator slot (Task 53.2 → 54.3 hand-off)', () => {
-  it('mounts a placeholder for the future <ConnectivityIndicator>', () => {
+describe('<MobileShell> — persistent connectivity indicator (Req 38.1, V15-14)', () => {
+  /**
+   * This suite previously asserted the *placeholder*: an `aria-hidden` grey dot that never
+   * changed. It passed for as long as the feature was missing, which is the failure mode
+   * worth naming — a test can pin a to-do as if it were behaviour.
+   */
+  it('mounts the live <ConnectivityIndicator>, not a placeholder', () => {
     renderShell();
-    const placeholder = screen.getByTestId('connectivity-indicator-placeholder');
-    expect(placeholder).toBeTruthy();
-    // The slot is in the header so it stays visible while the page scrolls.
+
+    const indicator = screen.getByTestId('connectivity-indicator');
+    expect(indicator).toBeTruthy();
+
+    // The dead placeholder must be gone, or both could coexist and the header would show
+    // a grey dot next to a live one.
+    expect(screen.queryByTestId('connectivity-indicator-placeholder')).toBeNull();
+  });
+
+  it('keeps the indicator in the header so it survives page scroll', () => {
+    renderShell();
     const header = screen.getByLabelText('Mobile header');
-    expect(header.contains(placeholder)).toBe(true);
+    expect(header.contains(screen.getByTestId('connectivity-indicator'))).toBe(true);
+  });
+
+  it('announces the state even in iconOnly mode', () => {
+    // The mobile header is too tight for a visible label, so the accessible name is the
+    // only channel a screen-reader user has for this state.
+    renderShell();
+    const indicator = screen.getByTestId('connectivity-indicator');
+    const label = indicator.getAttribute('aria-label') ?? indicator.textContent ?? '';
+    expect(label.trim().length).toBeGreaterThan(0);
+    expect(label).not.toMatch(/connectivity\./);
   });
 });
 

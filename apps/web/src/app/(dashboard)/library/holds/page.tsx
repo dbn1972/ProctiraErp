@@ -10,6 +10,9 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listLibraryHolds, listLibraryItems } from '@/lib/api/library';
 import { PlaceHoldForm } from '../_components/place-hold-form';
 
@@ -17,7 +20,26 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryHoldsPage() {
   await requireSession();
-  const [items, holds] = await Promise.all([listLibraryItems(), listLibraryHolds()]);
+  const [itemsResult, holdsResult] = await Promise.all([listLibraryItems(), listLibraryHolds()]);
+
+  // The hold queue is this page's subject.
+  if (!holdsResult.ok) {
+    return (
+      <ListLoadFailurePage
+        heading="Holds"
+        kind={holdsResult.kind}
+        status={holdsResult.status}
+        requestId={holdsResult.requestId}
+        returnTo="/library/holds"
+        copy={await getListFailureCopy()}
+      />
+    );
+  }
+  const holds = holdsResult.items;
+  // Supporting lookup for the "place a hold" picker, not the page's subject: an explicit
+  // opt-out rather than a hidden collapse. If the catalogue is unreadable the picker is
+  // empty, and the queue above still reports the real state.
+  const items = itemsOrEmpty(itemsResult);
 
   return (
     <div className="space-y-6 p-6">

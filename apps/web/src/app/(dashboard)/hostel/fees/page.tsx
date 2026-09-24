@@ -10,6 +10,9 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelFeeStructures, listHostels } from '@/lib/api/hostel';
 import { HostelFeeStructureForm } from '../_components/fee-structure-form';
 
@@ -17,7 +20,24 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelFeesPage() {
   await requireSession();
-  const [hostels, rows] = await Promise.all([listHostels(), listHostelFeeStructures()]);
+  const [hostelsResult, rowsResult] = await Promise.all([listHostels(), listHostelFeeStructures()]);
+  if (!rowsResult.ok) {
+    return (
+      <ListLoadFailurePage
+        heading="Hostel fee structures"
+        kind={rowsResult.kind}
+        status={rowsResult.status}
+        requestId={rowsResult.requestId}
+        returnTo="/hostel/fees"
+        copy={await getListFailureCopy()}
+      />
+    );
+  }
+  const rows = rowsResult.items;
+  // Supporting lookup for a form control, not the page's subject: an explicit
+  // opt-out rather than a hidden collapse. The primary list above reports the
+  // real reason when the domain is denied or down.
+  const hostels = itemsOrEmpty(hostelsResult);
 
   return (
     <div className="space-y-6 p-6">
