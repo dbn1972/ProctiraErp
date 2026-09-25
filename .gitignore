@@ -11,9 +11,19 @@ build/
 .turbo/
 
 # Environment
+#
+# `.env.*` rather than an enumerated list: the previous three rules covered `.env`,
+# `.env.local` and `.env.*.local`, which left every other suffix committable. A real
+# `.env.ec3` holding `JWT_SECRET`, `COOKIE_SECRET`, `KEYCLOAK_CLIENT_SECRET`,
+# `S3_SECRET_KEY` and `TWILIO_AUTH_TOKEN` was sitting untracked-but-not-ignored in a
+# working tree, one `git add .` away from being committed. `.env.production`,
+# `.env.staging` and `.env.test` had the same gap.
+#
+# `.env.example` is negated because it is the tracked template and contains only
+# placeholder values. Keep it that way: anything added to it must not be a real secret.
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # IDE
 .vscode/*
