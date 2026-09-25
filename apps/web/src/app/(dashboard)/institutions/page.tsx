@@ -47,7 +47,7 @@ import { cn } from '@/lib/utils';
 import { InstitutionsFilters } from '@/components/institutions/institutions-filters';
 import { PaginationControls } from '@/components/institutions/pagination-controls';
 import { ApiClientError, listInstitutions } from '@/lib/institutions/api';
-import { loadAreaOptions } from '@/lib/institutions/lookups';
+import { loadAreaOptionsResult } from '@/lib/institutions/lookups';
 import type {
   Institution,
   InstitutionListFilters,
@@ -291,15 +291,15 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
   const page = parsePage(searchParams.page);
   const pageSize = DEFAULT_PAGE_SIZE;
 
-  const [areas, listResult] = await Promise.all([
-    loadAreaOptions(),
+  const [areaResult, listResult] = await Promise.all([
+    loadAreaOptionsResult(),
     fetchInstitutions({ search, areaId, status, page, pageSize }),
   ]);
 
+  const areas = areaResult.options;
   // Build a fast area id→name lookup
   const areaById: Record<string, string> = Object.fromEntries(areas.map((a) => [a.id, a.name]));
   const totalItems = listResult.data.meta.totalItems;
-  const areaCount = areas.length;
 
   return (
     <section aria-labelledby="institutions-heading" className="space-y-6">
@@ -342,18 +342,26 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           value={totalItems.toLocaleString()}
           foot="across all blocks"
         />
+        {/*
+          This card used to report `areas.length` from a hardcoded fallback
+          list, so it always read "3" and named three invented areas
+          ("National · Region 1 · Region 2") as if they were tenant data.
+          It now reports the real hierarchy and says when it could not load.
+        */}
         <KpiCard
           icon={Map}
           iconBg="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
           label="Blocks / Areas"
-          value={areaCount.toLocaleString()}
+          value={areaResult.error ? '—' : areas.length.toLocaleString()}
           foot={
-            areaCount > 0
-              ? areas
-                  .slice(0, 3)
-                  .map((a) => a.name)
-                  .join(' · ') + (areaCount > 3 ? ' …' : '')
-              : '—'
+            areaResult.error
+              ? 'Area hierarchy unavailable'
+              : areas.length > 0
+                ? areas
+                    .slice(0, 3)
+                    .map((a) => a.name.replace(/^(—\s)+/, ''))
+                    .join(' · ') + (areas.length > 3 ? ' …' : '')
+                : 'No areas defined yet'
           }
         />
         <KpiCard

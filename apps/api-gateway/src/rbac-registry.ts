@@ -77,6 +77,10 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   subjects: 'institution',
   'institution-subjects': 'institution',
   infrastructure: 'institution',
+  // The geographic area hierarchy institutions are filed under. Absent from
+  // this map, `/areas/*` fell to the default-deny path (G-702) and returned
+  // 403 even though the routes and their 38 tests already existed.
+  areas: 'institution',
   reports: 'report',
   'data-warehouse': 'report',
   pipelines: 'report',
@@ -106,7 +110,6 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   dashboards: 'report',
   privacy: 'platform',
 };
-
 
 /**
  * G-702: `/api/v1/<segment>` paths outside `/auth` that are NOT in
@@ -296,12 +299,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   // W1-SEC-02 (D4): HR / registrar roles — gateway must align with
   // `@proctira/backend-staff` staff-access HR_OFFICER_ROLES (not only admin/principal).
   const STAFF_HR_PERMISSIONS: Permission[] = [{ resource: 'staff', action: 'manage' }];
-  for (const roleId of [
-    'hr_officer',
-    'staff_admin',
-    'registrar',
-    'admissions_officer',
-  ] as const) {
+  for (const roleId of ['hr_officer', 'staff_admin', 'registrar', 'admissions_officer'] as const) {
     roles.push({
       roleId,
       roleName: roleId

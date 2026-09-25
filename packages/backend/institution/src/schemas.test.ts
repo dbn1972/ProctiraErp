@@ -138,6 +138,57 @@ describe('CreateInstitutionSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  /**
+   * `type` / `sector` / `ownership` are VARCHAR(50) vocabulary columns, not
+   * references. These fields used to demand a UUID-v4 shape, so the vocabulary
+   * real rows actually carry — `K12`, `GOVERNMENT`, `CENTRAL` in the live
+   * database, `school` / `government` in db/seeds/002 — was rejected, and the
+   * only accepted values were UUIDs that corrupt the column.
+   */
+  describe('type / sector / ownership vocabulary (not references)', () => {
+    it('accepts the vocabulary real rows carry', () => {
+      const input = {
+        ...validInput(),
+        typeId: 'K12',
+        sectorId: 'GOVERNMENT',
+        ownershipId: 'CENTRAL',
+      };
+      const result = validate(CreateInstitutionSchema, input);
+      expect(result.success).toBe(true);
+    });
+
+    it('accepts the lowercase vocabulary db/seeds/002 inserts', () => {
+      const input = { ...validInput(), typeId: 'school', sectorId: 'government' };
+      expect(validate(CreateInstitutionSchema, input).success).toBe(true);
+    });
+
+    it.each(['typeId', 'sectorId', 'ownershipId'] as const)(
+      'rejects %s longer than the VARCHAR(50) column',
+      (field) => {
+        const input = { ...validInput(), [field]: 'x'.repeat(51) };
+        expect(validate(CreateInstitutionSchema, input).success).toBe(false);
+      },
+    );
+
+    it.each(['typeId', 'sectorId', 'ownershipId'] as const)(
+      'rejects %s containing characters outside the code charset',
+      (field) => {
+        const input = { ...validInput(), [field]: 'K12<script>' };
+        expect(validate(CreateInstitutionSchema, input).success).toBe(false);
+      },
+    );
+
+    it.each(['typeId', 'sectorId', 'ownershipId'] as const)('rejects an empty %s', (field) => {
+      const input = { ...validInput(), [field]: '' };
+      expect(validate(CreateInstitutionSchema, input).success).toBe(false);
+    });
+
+    it('accepts the vocabulary on update too', () => {
+      expect(validate(UpdateInstitutionSchema, { typeId: 'K12' }).success).toBe(true);
+      expect(validate(UpdateInstitutionSchema, { sectorId: 'x'.repeat(51) }).success).toBe(false);
+    });
+  });
+
   it('should fail when latitude is below -90', () => {
     const input = { ...validInput(), latitude: -91 };
     const result = validate(CreateInstitutionSchema, input);

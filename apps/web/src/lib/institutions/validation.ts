@@ -6,10 +6,31 @@
  */
 import { z } from 'zod';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/**
+ * Strict v4, matching `AREA_ID_PATTERN` in
+ * `packages/backend/institution/src/schemas.ts`. This previously accepted any
+ * UUID version while the server required v4, so a real v1/v5 area id passed
+ * client validation and then failed server-side with a 400.
+ */
+const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const uuid = (label: string) =>
-  z.string().min(1, `${label} is required`).regex(UUID_PATTERN, `${label} must be a valid UUID`);
+  z.string().min(1, `${label} is required`).regex(UUID_V4_PATTERN, `${label} must be a valid UUID`);
+
+/**
+ * Mirrors `VOCABULARY_PATTERN` in the backend schema. Type, sector and
+ * ownership are vocabulary codes persisted to `VARCHAR(50)` columns, not
+ * references to any table, so they are validated as bounded codes rather than
+ * as UUIDs.
+ */
+const VOCABULARY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._/-]*$/;
+
+const vocabulary = (label: string) =>
+  z
+    .string()
+    .min(1, `${label} is required`)
+    .max(50, `${label} must be 50 characters or fewer`)
+    .regex(VOCABULARY_PATTERN, `${label} may use letters, numbers, spaces and . _ / - only`);
 
 const optionalString = (max: number) =>
   z
@@ -39,9 +60,9 @@ export const institutionFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or fewer'),
   code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
   areaId: uuid('Area'),
-  typeId: uuid('Type'),
-  sectorId: uuid('Sector'),
-  ownershipId: uuid('Ownership'),
+  typeId: vocabulary('Type'),
+  sectorId: vocabulary('Sector'),
+  ownershipId: vocabulary('Ownership'),
   address: optionalString(500),
   contactPhone: optionalString(50),
   contactEmail: z

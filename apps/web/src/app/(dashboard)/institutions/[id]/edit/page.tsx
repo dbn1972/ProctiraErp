@@ -43,9 +43,7 @@ export default async function EditInstitutionPage(props: EditInstitutionPageProp
         <InstitutionForm
           initialValue={institution}
           areas={lookups.areas}
-          types={lookups.types}
-          sectors={lookups.sectors}
-          ownerships={lookups.ownerships}
+          areaError={lookups.areaError}
         />
       </CardContent>
     </Card>

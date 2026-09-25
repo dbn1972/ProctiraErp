@@ -55,6 +55,33 @@ function valuesEqual(a: unknown, b: unknown): boolean {
 }
 
 /** Flat-equality matcher covering the operators the academics services use. */
+/**
+ * Applies `gt` / `gte` / `lt` / `lte` when present. Comparable values only
+ * (numbers, dates, strings); anything else fails the comparison rather than
+ * matching by accident.
+ */
+function compareMatches(actual: unknown, expected: Record<string, unknown>): boolean {
+  const ops = ['gt', 'gte', 'lt', 'lte'] as const;
+  for (const op of ops) {
+    if (!(op in expected)) continue;
+    const bound = expected[op];
+    const left = comparable(actual);
+    const right = comparable(bound);
+    if (left === null || right === null) return false;
+    if (op === 'gt' && !(left > right)) return false;
+    if (op === 'gte' && !(left >= right)) return false;
+    if (op === 'lt' && !(left < right)) return false;
+    if (op === 'lte' && !(left <= right)) return false;
+  }
+  return true;
+}
+
+function comparable(value: unknown): number | string | null {
+  if (typeof value === 'number' || typeof value === 'string') return value;
+  if (value instanceof Date) return value.getTime();
+  return null;
+}
+
 function matches(row: Row, where: Where | undefined): boolean {
   if (!where) return true;
   for (const [key, expected] of Object.entries(where)) {
@@ -67,13 +94,18 @@ function matches(row: Row, where: Where | undefined): boolean {
         if (!matches(row, expected)) return false;
         continue;
       }
-      // Operator object: { not, in, notIn, equals }
+      // Operator object: { not, in, notIn, equals, gt, gte, lt, lte }
       if ('equals' in expected && !valuesEqual(actual, expected['equals'])) return false;
       if ('not' in expected && valuesEqual(actual, expected['not'])) return false;
       if (Array.isArray(expected['in']) && !expected['in'].some((v) => valuesEqual(actual, v)))
         return false;
       if (Array.isArray(expected['notIn']) && expected['notIn'].some((v) => valuesEqual(actual, v)))
         return false;
+      // Range operators. The area hierarchy filters subtrees by nested-set
+      // bounds (`lft: { gte }`, `rgt: { lte }`); without these the operator
+      // object fell through and every area matched, silently widening the
+      // subtree to the whole tenant.
+      if (!compareMatches(actual, expected)) return false;
       continue;
     }
     if (!valuesEqual(actual, expected)) return false;
@@ -219,7 +251,35 @@ export function createInMemoryAcademicsPrisma(
     class: new ModelTable(() => ({ capacity: null, ...soft() })),
     subject: new ModelTable(soft),
     institutionSubject: new ModelTable(() => ({})),
+    // Backs the area hierarchy routes on the in-memory path. Those routes are
+    // now mounted (they previously were not registered at all), so the
+    // fallback client has to carry the model they read.
+    geographicArea: new ModelTable(() => ({ parentId: null, ...soft() })),
   };
+
+  /**
+   * `AreaHierarchyDbClient` needs `institution.findMany` + `count` for
+   * `GET /areas/:areaId/institutions`. Both delegate to the repository so the
+   * in-memory path returns the same rows `/institutions` serves.
+   */
+  async function listForArea(
+    where: Where | undefined,
+  ): Promise<{ rows: Row[]; total: number } | null> {
+    const repo = options.institutionRepository;
+    const tenantId = where?.['tenantId'];
+    if (!repo || typeof tenantId !== 'string') return null;
+    const areaId = typeof where?.['areaId'] === 'string' ? (where['areaId'] as string) : undefined;
+    const page = await repo.list(tenantId, areaId ? { areaId } : {}, {
+      page: 1,
+      pageSize: 1000,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    });
+    return {
+      rows: page.data.map((entity) => ({ ...entity }) as unknown as Row),
+      total: page.meta.totalItems,
+    };
+  }
 
   const institution = {
     findFirst: async (args: { where?: Where } = {}): Promise<Row | null> => {
@@ -231,6 +291,18 @@ export function createInMemoryAcademicsPrisma(
       return entity ? ({ ...entity } as unknown as Row) : null;
     },
     findUnique: async (args: { where: Where }): Promise<Row | null> => institution.findFirst(args),
+    findMany: async (
+      args: { where?: Where; skip?: number; take?: number } = {},
+    ): Promise<Row[]> => {
+      const result = await listForArea(args.where);
+      if (!result) return [];
+      const skip = args.skip ?? 0;
+      return args.take === undefined
+        ? result.rows.slice(skip)
+        : result.rows.slice(skip, skip + args.take);
+    },
+    count: async (args: { where?: Where } = {}): Promise<number> =>
+      (await listForArea(args.where))?.total ?? 0,
   };
 
   const client = {

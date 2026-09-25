@@ -109,21 +109,43 @@ export const institutionPlugin = fp(
       prefix,
     });
 
-    // Register area hierarchy routes if db client is provided
-    if (areaHierarchyDb) {
-      const areaHierarchyService = new AreaHierarchyService(areaHierarchyDb);
+    const registerAreaRoutes = async (db: AreaHierarchyDbClient) => {
+      const areaHierarchyService = new AreaHierarchyService(db);
       fastify.decorate('areaHierarchyService', areaHierarchyService);
 
       await registerAreaHierarchyRoutes(fastify, {
         areaHierarchyService,
         prefix: areaPrefix,
       });
-    }
+    };
 
-    if (academics === false) return;
+    if (academics === false) {
+      // Area routes need an explicit client when academics are skipped.
+      if (areaHierarchyDb) await registerAreaRoutes(areaHierarchyDb);
+      return;
+    }
 
     const deps: AcademicsDeps =
       academics === true ? createAcademicsDeps({ institutionRepository: repository }) : academics;
+
+    /**
+     * Area hierarchy shares the academics persistence.
+     *
+     * These routes used to register only when a caller passed
+     * `areaHierarchyDb`, and no caller ever did: `apps/api-gateway` composes
+     * this plugin without it. So `/areas/*` was never mounted, the web
+     * institution module's `GET /areas/tree` was default-denied (403) by the
+     * gateway's unmapped-resource rule, and `apps/web` swallowed that error
+     * and substituted three fabricated areas. Those invented areas were what
+     * users saw in the area filter, the "Blocks / Areas" KPI and the create
+     * form — and an invented id cannot satisfy
+     * `institutions.area_id REFERENCES geographic_areas(id)`.
+     *
+     * `deps.prisma` is the tenant-bound client (`createTenantBoundPrisma`), so
+     * every area read/write runs inside `withTenantTransaction` under FORCE
+     * RLS, matching the guarantee the academics services already get.
+     */
+    await registerAreaRoutes(areaHierarchyDb ?? (deps.prisma as unknown as AreaHierarchyDbClient));
 
     // Request-scoped tenant for stores whose contract has no tenant argument
     // (infrastructure). Callback-style hook so `run` wraps the rest of the

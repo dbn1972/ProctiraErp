@@ -11,6 +11,37 @@
 import { Type, type Static } from '@sinclair/typebox';
 
 /**
+ * `areaId` is the only genuine reference an institution carries: `db/sql/001`
+ * declares `area_id UUID NOT NULL REFERENCES geographic_areas(id)`.
+ */
+export const AREA_ID_PATTERN =
+  '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+/**
+ * `typeId` / `sectorId` / `ownershipId` are NOT references, despite the names.
+ * They persist to `institutions.type|sector|ownership VARCHAR(50)` — plain
+ * vocabulary columns with no lookup table in the Prisma schema, in `db/sql`,
+ * or in the live database. The registration read model already treats the
+ * column itself as the identifier (`SELECT i.type AS type_id` in
+ * `packages/backend/registration/src/pg-registration-repository.ts`).
+ *
+ * These fields previously demanded a UUID-v4 shape, which no real value could
+ * satisfy: the vocabulary actually stored is `K12` / `GOVERNMENT` / `CENTRAL`
+ * (live rows) and `school` / `government` (`db/seeds/002`). Requiring a UUID
+ * meant the only accepted values were ones that corrupt the column, while the
+ * legitimate value `K12` was rejected. Validate the column's real contract
+ * instead: a bounded code token that fits VARCHAR(50).
+ *
+ * Deliberately permissive about *which* tokens. Jurisdictions use different
+ * taxonomies and this repository has no controlled list to promote; choosing
+ * one is a product decision, not a validation fix.
+ */
+export const VOCABULARY_PATTERN = '^[A-Za-z0-9][A-Za-z0-9 ._/-]*$';
+
+const vocabulary = (description: string) =>
+  Type.String({ minLength: 1, maxLength: 50, pattern: VOCABULARY_PATTERN, description });
+
+/**
  * Schema for creating a new institution.
  * All required fields per Requirement 5.3: name, code, area, type, sector, ownership.
  */
@@ -18,21 +49,12 @@ export const CreateInstitutionSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Institution name' }),
   code: Type.String({ minLength: 1, maxLength: 50, description: 'Unique institution code' }),
   areaId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: AREA_ID_PATTERN,
     description: 'Area hierarchy node UUID',
   }),
-  typeId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Institution type UUID',
-  }),
-  sectorId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Sector UUID',
-  }),
-  ownershipId: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-    description: 'Ownership UUID',
-  }),
+  typeId: vocabulary('Institution type code (e.g. K12)'),
+  sectorId: vocabulary('Sector code (e.g. GOVERNMENT)'),
+  ownershipId: vocabulary('Ownership code (e.g. CENTRAL)'),
   latitude: Type.Optional(
     Type.Number({ minimum: -90, maximum: 90, description: 'Latitude coordinate' }),
   ),
@@ -65,28 +87,13 @@ export const UpdateInstitutionSchema = Type.Object({
   ),
   areaId: Type.Optional(
     Type.String({
-      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      pattern: AREA_ID_PATTERN,
       description: 'Area hierarchy node UUID',
     }),
   ),
-  typeId: Type.Optional(
-    Type.String({
-      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-      description: 'Institution type UUID',
-    }),
-  ),
-  sectorId: Type.Optional(
-    Type.String({
-      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-      description: 'Sector UUID',
-    }),
-  ),
-  ownershipId: Type.Optional(
-    Type.String({
-      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
-      description: 'Ownership UUID',
-    }),
-  ),
+  typeId: Type.Optional(vocabulary('Institution type code (e.g. K12)')),
+  sectorId: Type.Optional(vocabulary('Sector code (e.g. GOVERNMENT)')),
+  ownershipId: Type.Optional(vocabulary('Ownership code (e.g. CENTRAL)')),
   latitude: Type.Optional(
     Type.Number({ minimum: -90, maximum: 90, description: 'Latitude coordinate' }),
   ),
@@ -164,9 +171,9 @@ export const InstitutionResponseSchema = Type.Object({
   name: Type.String({ description: 'Institution name' }),
   code: Type.String({ description: 'Unique institution code' }),
   areaId: Type.String({ description: 'Area hierarchy node UUID' }),
-  typeId: Type.String({ description: 'Institution type UUID' }),
-  sectorId: Type.String({ description: 'Sector UUID' }),
-  ownershipId: Type.String({ description: 'Ownership UUID' }),
+  typeId: Type.String({ description: 'Institution type code (e.g. K12)' }),
+  sectorId: Type.String({ description: 'Sector code (e.g. GOVERNMENT)' }),
+  ownershipId: Type.String({ description: 'Ownership code (e.g. CENTRAL)' }),
   status: Type.String({ description: 'Institution status (ACTIVE or INACTIVE)' }),
   latitude: Type.Union([Type.Number(), Type.Null()], { description: 'Latitude coordinate' }),
   longitude: Type.Union([Type.Number(), Type.Null()], { description: 'Longitude coordinate' }),

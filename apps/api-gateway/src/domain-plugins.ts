@@ -562,6 +562,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     // subjects / infrastructure) are served by the same plugin.
     proxyPrefixes: [
       '/institutions',
+      // The area hierarchy that institutions reference. Mounted by
+      // institutionPlugin; previously defined but never registered, so the
+      // web module's /areas/tree call was default-denied.
+      '/areas',
       '/academic-periods',
       '/grades',
       '/classes',

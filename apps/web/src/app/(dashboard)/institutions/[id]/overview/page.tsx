@@ -29,7 +29,7 @@ import {
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { getInfrastructureHierarchy, getInstitution } from '@/lib/institutions/api';
-import { loadAreaOptions, loadTypeOptions } from '@/lib/institutions/lookups';
+import { loadAreaOptions } from '@/lib/institutions/lookups';
 import { listStudents } from '@/lib/api/students';
 import { listStaff } from '@/lib/api/staff';
 import { calculateAttendancePercentage } from '@/lib/api/attendance';
@@ -235,10 +235,9 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 
 export default async function InstitutionOverviewPage(props: OverviewPageProps) {
   const params = await props.params;
-  const [institutionResult, areas, types] = await Promise.all([
+  const [institutionResult, areas] = await Promise.all([
     getInstitution(params.id).catch(() => null),
     loadAreaOptions(),
-    loadTypeOptions(),
   ]);
 
   // Layout already soft-fails when the gateway is down; mirror that here so
@@ -254,7 +253,8 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
   const areaName = nameFor(areas, institution.areaId);
-  const typeName = nameFor(types, institution.typeId);
+  // `typeId` is the vocabulary code itself, not a reference to look up.
+  const typeName = institution.typeId;
 
   const endDate = new Date();
   const startDate = new Date();

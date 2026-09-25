@@ -36,9 +36,11 @@ export interface InstitutionFormProps {
   initialValue?: Institution;
   /** Available areas for selection (kept simple for forms; AreaPicker is on list view). */
   areas: SelectOption[];
-  types: SelectOption[];
-  sectors: SelectOption[];
-  ownerships: SelectOption[];
+  /**
+   * Set when the area lookup failed. The form then explains the failure rather
+   * than rendering an empty or invented picker for a real foreign key.
+   */
+  areaError?: string | null;
 }
 
 const PLACEHOLDER_UUID = '';
@@ -57,13 +59,7 @@ function applyServerFieldErrors<T extends Record<string, unknown>>(
   }
 }
 
-export function InstitutionForm({
-  initialValue,
-  areas,
-  types,
-  sectors,
-  ownerships,
-}: InstitutionFormProps) {
+export function InstitutionForm({ initialValue, areas, areaError = null }: InstitutionFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -94,10 +90,9 @@ export function InstitutionForm({
     formState: { errors },
   } = form;
 
+  // Only `areaId` is a controlled Select; the vocabulary fields are registered
+  // text inputs and do not need to be watched.
   const areaId = watch('areaId');
-  const typeId = watch('typeId');
-  const sectorId = watch('sectorId');
-  const ownershipId = watch('ownershipId');
 
   const onSubmit = handleSubmit((values) => {
     setServerError(null);
@@ -186,93 +181,126 @@ export function InstitutionForm({
           <Label htmlFor="areaId">
             Area <span className="text-destructive">*</span>
           </Label>
-          <Select
-            value={areaId || undefined}
-            onValueChange={(value) => setValue('areaId', value, { shouldValidate: true })}
-            disabled={isPending}
-          >
-            <SelectTrigger id="areaId" aria-invalid={errors.areaId ? 'true' : 'false'}>
-              <SelectValue placeholder="Select an area" />
-            </SelectTrigger>
-            <SelectContent>
-              {areas.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.areaId && <p className="text-sm text-destructive">{errors.areaId.message}</p>}
+          {areaError ? (
+            /*
+             * Areas are a real foreign key. If the lookup failed we say so and
+             * block submission instead of offering invented options: the create
+             * would be rejected by
+             * `institutions.area_id REFERENCES geographic_areas(id)`.
+             */
+            <p id="areaId-error" role="alert" className="text-sm text-destructive">
+              {areaError} Areas must load before an institution can be registered.
+            </p>
+          ) : areas.length === 0 ? (
+            <p id="areaId-help" className="text-sm text-muted-foreground">
+              No areas exist for this tenant yet. Create an area in the area hierarchy first.
+            </p>
+          ) : (
+            <Select
+              value={areaId || undefined}
+              onValueChange={(value) => setValue('areaId', value, { shouldValidate: true })}
+              disabled={isPending}
+            >
+              <SelectTrigger
+                id="areaId"
+                aria-invalid={errors.areaId ? 'true' : 'false'}
+                aria-describedby={errors.areaId ? 'areaId-error' : undefined}
+              >
+                <SelectValue placeholder="Select an area" />
+              </SelectTrigger>
+              <SelectContent>
+                {areas.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {errors.areaId && !areaError && (
+            <p id="areaId-error" className="text-sm text-destructive">
+              {errors.areaId.message}
+            </p>
+          )}
         </div>
 
+        {/*
+         * Type / sector / ownership are free text, not pickers.
+         *
+         * They persist to `institutions.type|sector|ownership VARCHAR(50)` and
+         * no reference table for them exists in the Prisma schema, in db/sql or
+         * in the database. They were previously Selects fed by three invented
+         * UUID lists, so the only values a user could submit were UUIDs written
+         * verbatim into a column whose real vocabulary is `K12` / `GOVERNMENT` /
+         * `CENTRAL`. Promoting one taxonomy to a controlled list is a product
+         * decision; until then, collect the code honestly.
+         */}
         <div className="space-y-2">
           <Label htmlFor="typeId">
             Type <span className="text-destructive">*</span>
           </Label>
-          <Select
-            value={typeId || undefined}
-            onValueChange={(value) => setValue('typeId', value, { shouldValidate: true })}
+          <Input
+            id="typeId"
+            {...register('typeId')}
             disabled={isPending}
-          >
-            <SelectTrigger id="typeId" aria-invalid={errors.typeId ? 'true' : 'false'}>
-              <SelectValue placeholder="Select a type" />
-            </SelectTrigger>
-            <SelectContent>
-              {types.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.typeId && <p className="text-sm text-destructive">{errors.typeId.message}</p>}
+            placeholder="K12"
+            aria-invalid={errors.typeId ? 'true' : 'false'}
+            aria-describedby={errors.typeId ? 'typeId-error' : 'typeId-help'}
+          />
+          {errors.typeId ? (
+            <p id="typeId-error" className="text-sm text-destructive">
+              {errors.typeId.message}
+            </p>
+          ) : (
+            <p id="typeId-help" className="text-sm text-muted-foreground">
+              Institution type code used by your jurisdiction, for example K12.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="sectorId">
             Sector <span className="text-destructive">*</span>
           </Label>
-          <Select
-            value={sectorId || undefined}
-            onValueChange={(value) => setValue('sectorId', value, { shouldValidate: true })}
+          <Input
+            id="sectorId"
+            {...register('sectorId')}
             disabled={isPending}
-          >
-            <SelectTrigger id="sectorId" aria-invalid={errors.sectorId ? 'true' : 'false'}>
-              <SelectValue placeholder="Select a sector" />
-            </SelectTrigger>
-            <SelectContent>
-              {sectors.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.sectorId && <p className="text-sm text-destructive">{errors.sectorId.message}</p>}
+            placeholder="GOVERNMENT"
+            aria-invalid={errors.sectorId ? 'true' : 'false'}
+            aria-describedby={errors.sectorId ? 'sectorId-error' : 'sectorId-help'}
+          />
+          {errors.sectorId ? (
+            <p id="sectorId-error" className="text-sm text-destructive">
+              {errors.sectorId.message}
+            </p>
+          ) : (
+            <p id="sectorId-help" className="text-sm text-muted-foreground">
+              Sector code, for example GOVERNMENT, AIDED or PRIVATE.
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
           <Label htmlFor="ownershipId">
             Ownership <span className="text-destructive">*</span>
           </Label>
-          <Select
-            value={ownershipId || undefined}
-            onValueChange={(value) => setValue('ownershipId', value, { shouldValidate: true })}
+          <Input
+            id="ownershipId"
+            {...register('ownershipId')}
             disabled={isPending}
-          >
-            <SelectTrigger id="ownershipId" aria-invalid={errors.ownershipId ? 'true' : 'false'}>
-              <SelectValue placeholder="Select an ownership" />
-            </SelectTrigger>
-            <SelectContent>
-              {ownerships.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {errors.ownershipId && (
-            <p className="text-sm text-destructive">{errors.ownershipId.message}</p>
+            placeholder="CENTRAL"
+            aria-invalid={errors.ownershipId ? 'true' : 'false'}
+            aria-describedby={errors.ownershipId ? 'ownershipId-error' : 'ownershipId-help'}
+          />
+          {errors.ownershipId ? (
+            <p id="ownershipId-error" className="text-sm text-destructive">
+              {errors.ownershipId.message}
+            </p>
+          ) : (
+            <p id="ownershipId-help" className="text-sm text-muted-foreground">
+              Ownership code, for example CENTRAL, STATE or PRIVATE.
+            </p>
           )}
         </div>
       </div>
@@ -285,8 +313,13 @@ export function InstitutionForm({
           disabled={isPending}
           rows={3}
           aria-invalid={errors.address ? 'true' : 'false'}
+          aria-describedby={errors.address ? 'address-error' : undefined}
         />
-        {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
+        {errors.address && (
+          <p id="address-error" className="text-sm text-destructive">
+            {errors.address.message}
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -298,9 +331,12 @@ export function InstitutionForm({
             {...register('contactPhone')}
             disabled={isPending}
             aria-invalid={errors.contactPhone ? 'true' : 'false'}
+            aria-describedby={errors.contactPhone ? 'contactPhone-error' : undefined}
           />
           {errors.contactPhone && (
-            <p className="text-sm text-destructive">{errors.contactPhone.message}</p>
+            <p id="contactPhone-error" className="text-sm text-destructive">
+              {errors.contactPhone.message}
+            </p>
           )}
         </div>
 
@@ -312,9 +348,12 @@ export function InstitutionForm({
             {...register('contactEmail')}
             disabled={isPending}
             aria-invalid={errors.contactEmail ? 'true' : 'false'}
+            aria-describedby={errors.contactEmail ? 'contactEmail-error' : undefined}
           />
           {errors.contactEmail && (
-            <p className="text-sm text-destructive">{errors.contactEmail.message}</p>
+            <p id="contactEmail-error" className="text-sm text-destructive">
+              {errors.contactEmail.message}
+            </p>
           )}
         </div>
 
@@ -327,8 +366,13 @@ export function InstitutionForm({
             {...register('latitude')}
             disabled={isPending}
             aria-invalid={errors.latitude ? 'true' : 'false'}
+            aria-describedby={errors.latitude ? 'latitude-error' : undefined}
           />
-          {errors.latitude && <p className="text-sm text-destructive">{errors.latitude.message}</p>}
+          {errors.latitude && (
+            <p id="latitude-error" className="text-sm text-destructive">
+              {errors.latitude.message}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -340,9 +384,12 @@ export function InstitutionForm({
             {...register('longitude')}
             disabled={isPending}
             aria-invalid={errors.longitude ? 'true' : 'false'}
+            aria-describedby={errors.longitude ? 'longitude-error' : undefined}
           />
           {errors.longitude && (
-            <p className="text-sm text-destructive">{errors.longitude.message}</p>
+            <p id="longitude-error" className="text-sm text-destructive">
+              {errors.longitude.message}
+            </p>
           )}
         </div>
       </div>
