@@ -1,5 +1,7 @@
 # Module map — API, database, screens, gaps
 
+Follow-up with live schema evidence: `docs/audits/FULL_MODULE_AUDIT_20260925.md`. This file stays the source map. It is not the full audit.
+
 **Tip:** `0043e555` (`main`, 2026-09-25) — `chore(security): ignore every .env variant, not three of them (#385)`  
 **Date (UTC):** 2026-09-25  
 **Method:** static join of three inventories on this checkout. Not a live HTTP pass and not a SQL apply.
