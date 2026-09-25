@@ -30,6 +30,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
+import { NextIntlClientProvider } from 'next-intl';
+import enMessages from '@/messages/en.json';
 
 // ─── Module mocks ────────────────────────────────────────────────────────────
 
@@ -256,14 +258,16 @@ describe('AttendanceMarkingForm draft hydration', () => {
     );
 
     render(
-      <AttendanceMarkingForm
-        institutions={[
-          { id: INST_FROM_PROPS, name: 'Northside HS' },
-          { id: INST_FROM_DRAFT, name: 'Eastside HS' },
-        ]}
-        defaults={PROPS_DEFAULTS}
-        roster={ROSTER}
-      />,
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <AttendanceMarkingForm
+          institutions={[
+            { id: INST_FROM_PROPS, name: 'Northside HS' },
+            { id: INST_FROM_DRAFT, name: 'Eastside HS' },
+          ]}
+          defaults={PROPS_DEFAULTS}
+          roster={ROSTER}
+        />
+      </NextIntlClientProvider>,
     );
 
     // The form replaced the prop-supplied class/date with the draft
@@ -285,11 +289,13 @@ describe('AttendanceMarkingForm draft hydration', () => {
 
   it('writes form edits back through useDraftAutosave', () => {
     render(
-      <AttendanceMarkingForm
-        institutions={[{ id: INST_FROM_PROPS, name: 'Northside HS' }]}
-        defaults={PROPS_DEFAULTS}
-        roster={ROSTER}
-      />,
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <AttendanceMarkingForm
+          institutions={[{ id: INST_FROM_PROPS, name: 'Northside HS' }]}
+          defaults={PROPS_DEFAULTS}
+          roster={ROSTER}
+        />
+      </NextIntlClientProvider>,
     );
 
     const dateInput = screen.getByLabelText(/^Date$/i);
