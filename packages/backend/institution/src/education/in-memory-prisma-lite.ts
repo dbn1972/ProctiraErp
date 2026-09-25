@@ -268,7 +268,8 @@ export function createInMemoryAcademicsPrisma(
     const repo = options.institutionRepository;
     const tenantId = where?.['tenantId'];
     if (!repo || typeof tenantId !== 'string') return null;
-    const areaId = typeof where?.['areaId'] === 'string' ? (where['areaId'] as string) : undefined;
+    const rawAreaId = where?.['areaId'];
+    const areaId = typeof rawAreaId === 'string' ? rawAreaId : undefined;
     const page = await repo.list(tenantId, areaId ? { areaId } : {}, {
       page: 1,
       pageSize: 1000,
