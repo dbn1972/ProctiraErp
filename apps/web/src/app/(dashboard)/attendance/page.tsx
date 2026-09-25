@@ -16,6 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import type { ListResult } from '@/lib/api/list-result';
 import { getClassRoster, type RosterEntry } from '@/lib/api/attendance';
 import { listAcademicPeriods, listInstitutions, type AcademicPeriod } from '@/lib/api/institutions';
 import { listAttendancePeriods } from '@/lib/api/timetable';
@@ -49,23 +51,35 @@ export default async function AttendancePage(props: PageProps) {
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
-  const [institutions, classes, academicPeriods, roster, publishedPeriods] = await Promise.all([
-    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
-    institutionId
-      ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
-      : Promise.resolve<ClassSection[]>([]),
-    institutionId
-      ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
-      : Promise.resolve<AcademicPeriod[]>([]),
-    classId && academicPeriodId
-      ? getClassRoster(classId, academicPeriodId, date)
-      : Promise.resolve<RosterEntry[]>([]),
-    institutionId
-      ? listAttendancePeriods({ institutionId, dayOfWeek })
-      : Promise.resolve({ ok: true as const, data: [] }),
-  ]);
+  const [institutions, classes, academicPeriods, rosterResult, publishedPeriods] =
+    await Promise.all([
+      listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+      institutionId
+        ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
+        : Promise.resolve<ClassSection[]>([]),
+      institutionId
+        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+        : Promise.resolve<AcademicPeriod[]>([]),
+      classId && academicPeriodId
+        ? getClassRoster(classId, academicPeriodId, date)
+        : Promise.resolve<ListResult<RosterEntry>>({ ok: true, items: [] }),
+      institutionId
+        ? listAttendancePeriods({ institutionId, dayOfWeek })
+        : Promise.resolve({ ok: true as const, data: [] }),
+    ]);
 
   const publishedSlots = publishedPeriods.ok === true ? publishedPeriods.data : [];
+
+  /**
+   * UX AT-3 — "No roster yet" must not be what a denial looks like.
+   *
+   * Rendered inside the Roster card rather than in place of the page, so the selection controls
+   * stay usable (a teacher may simply have picked a class they do not teach) and the page `h1`
+   * survives. `ok: true, items: []` is the genuine "nothing selected yet" case and keeps the
+   * existing first-use copy.
+   */
+  const rosterFailure = rosterResult.ok ? null : rosterResult;
+  const roster = rosterResult.ok ? rosterResult.items : [];
 
   return (
     <section aria-labelledby="attendance-heading" className="space-y-6">
@@ -142,7 +156,14 @@ export default async function AttendancePage(props: PageProps) {
             active enrollments.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {rosterFailure ? (
+            <ListLoadFailure
+              kind={rosterFailure.kind}
+              status={rosterFailure.status}
+              returnTo={`/attendance?${new URLSearchParams({ institutionId, classId, academicPeriodId, date }).toString()}`}
+            />
+          ) : null}
           <AttendanceMarkingForm
             institutions={institutions.map((i) => ({ id: i.id, name: i.name }))}
             classes={classes.map((c) => ({ id: c.id, name: c.name }))}
