@@ -71,7 +71,7 @@ const OPTIONS: ReadonlyArray<DeployOption> = [
       'Single-server evaluation and small-school production. Everything — web, API, PostgreSQL, Redis — in one stack.',
     code: `# Clone and boot the full stack
 $ git clone ${SOURCE_REPOSITORY_URL}.git
-$ cd proctiraerp
+$ cd ProctiraErp
 $ cp .env.example .env
 $ docker compose up -d`,
   },

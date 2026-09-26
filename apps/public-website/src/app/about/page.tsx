@@ -154,7 +154,7 @@ export default function AboutPage() {
               href={SOURCE_REPOSITORY_URL}
               className="font-mono text-lg font-bold underline-offset-4 hover:underline"
             >
-              dbn1972 / proctiraerp
+              dbn1972 / ProctiraErp
             </a>
             <span className="ml-auto rounded-full bg-primary-foreground/10 px-3 py-1 text-xs font-semibold">
               Apache-2.0

@@ -3,7 +3,7 @@
  */
 
 /** Canonical source repository. Marketing copy must not invent a different org. */
-export const SOURCE_REPOSITORY_URL = 'https://github.com/dbn1972/proctiraerp';
+export const SOURCE_REPOSITORY_URL = 'https://github.com/dbn1972/ProctiraErp';
 
 /**
  * Login lives on the main web app, not this marketing surface.
