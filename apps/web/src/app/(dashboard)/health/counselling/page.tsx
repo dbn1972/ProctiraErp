@@ -30,9 +30,10 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import {
   canAccessHealthRecords,
-  listCounsellingSessions,
+  listCounsellingSessionsResult,
   type CounsellingSession,
 } from '@/lib/api/health';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +83,21 @@ export default async function CounsellingPage() {
     );
   }
 
-  const sessions = await listCounsellingSessions();
+  const result = await listCounsellingSessionsResult();
+  if (!result.ok) {
+    return (
+      <section aria-labelledby="counselling-heading" className="space-y-6">
+        <h1
+          id="counselling-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Counselling sessions
+        </h1>
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health/counselling" />
+      </section>
+    );
+  }
+  const sessions = result.items;
 
   const total = sessions.length;
   const studentsSupported = new Set(sessions.map((s) => s.studentId)).size;
