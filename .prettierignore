@@ -29,3 +29,13 @@ docs/testing/PAGE_REGRESSION_MATRIX.md
 # of someone else's tooling script into a huge unrelated diff instead of just the
 # targeted fix. Consistent with the other tooling exclusions above.
 docs/multitenant/trace-graph.mjs
+
+# PROCTIRA_FIX_LEDGER: a large (~2900-line), continuously-growing working
+# document edited one task at a time across many separate commits/PRs per the
+# ledger's own workflow. Forcing a full-file reformat on every touching PR would
+# bury each small task edit inside a large unrelated diff, and a full-file
+# prettier --write pass was confirmed (2026-09-26) to alter unrelated pre-existing
+# task text (a literal "subjects.0.*" glob pattern got rewritten to
+# "subjects.0._" because prettier's markdown formatter treated the trailing "*"
+# as unclosed emphasis) -- an unintended content change, not just style.
+docs/audits/PROCTIRA_FIX_LEDGER.md
