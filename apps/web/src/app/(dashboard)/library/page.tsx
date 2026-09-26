@@ -15,6 +15,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryItems } from '@/lib/api/library';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LibraryClearanceForm } from './_components/clearance-form';
 import { IsbnImportForm } from './_components/isbn-import-form';
 import { NewLibraryItemForm } from './_components/new-item-form';
@@ -23,7 +24,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const [t, items] = await Promise.all([getTranslations('library'), listLibraryItems()]);
+  const [t, items, studentOptions] = await Promise.all([
+    getTranslations('library'),
+    listLibraryItems(),
+    loadStudentOptions(),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -53,7 +58,7 @@ export default async function LibraryCatalogPage() {
 
       <NewLibraryItemForm />
       <IsbnImportForm />
-      <LibraryClearanceForm />
+      <LibraryClearanceForm studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>

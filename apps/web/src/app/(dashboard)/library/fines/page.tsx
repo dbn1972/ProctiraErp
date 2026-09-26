@@ -11,13 +11,15 @@ import {
 
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryFines } from '@/lib/api/library';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { MarkPaidButton } from '../_components/mark-paid-button';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryFinesPage() {
   await requireSession();
-  const fines = await listLibraryFines();
+  const [fines, studentLabels] = await Promise.all([listLibraryFines(), loadStudentLabelMap()]);
 
   return (
     <div className="space-y-6 p-6">
@@ -63,10 +65,11 @@ export default async function LibraryFinesPage() {
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
+                      {resolveEntityLabel(fine.studentId, studentLabels, 'Student')} ·{' '}
                       {fine.amountCents} cents · {fine.status}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      loan {fine.loanId.slice(0, 8)} · {fine.overdueDays} overdue day
+                      {resolveEntityLabel(fine.loanId, {}, 'Loan')} · {fine.overdueDays} overdue day
                       {fine.overdueDays === 1 ? '' : 's'}
                     </p>
                   </div>

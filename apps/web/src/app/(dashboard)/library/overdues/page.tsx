@@ -10,14 +10,21 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { listLibraryOverdues } from '@/lib/api/library';
+import { listLibraryItems, listLibraryOverdues } from '@/lib/api/library';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { AssessFineButton } from '../_components/assess-fine-button';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryOverduesPage() {
   await requireSession();
-  const overdues = await listLibraryOverdues();
+  const [overdues, items, studentLabels] = await Promise.all([
+    listLibraryOverdues(),
+    listLibraryItems(),
+    loadStudentLabelMap(),
+  ]);
+  const itemLabels = new Map(items.map((item) => [item.id, item.title]));
 
   return (
     <div className="space-y-6 p-6">
@@ -56,10 +63,11 @@ export default async function LibraryOverduesPage() {
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
-                      Loan {loan.id.slice(0, 8)}
+                      {resolveEntityLabel(loan.itemId, itemLabels, 'Title')}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      due {loan.dueAt.slice(0, 10)} · {loan.status}
+                      {resolveEntityLabel(loan.studentId, studentLabels, 'Student')} · due{' '}
+                      {loan.dueAt.slice(0, 10)} · {loan.status}
                       {loan.barcode ? ` · ${loan.barcode}` : ''}
                     </p>
                   </div>

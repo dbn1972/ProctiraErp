@@ -10,13 +10,17 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  FormField,
-  Input,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { checkLibraryClearanceAction } from '../../campus-actions';
 
-export function LibraryClearanceForm() {
+export function LibraryClearanceForm({
+  studentOptions = [],
+}: {
+  studentOptions?: EntityLabelOption[];
+}) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -26,7 +30,7 @@ export function LibraryClearanceForm() {
     const fd = new FormData(event.currentTarget);
     const studentId = String(fd.get('studentId') ?? '').trim();
     if (!studentId) {
-      setError('Student ID is required.');
+      setError('Select a student.');
       return;
     }
 
@@ -58,14 +62,14 @@ export function LibraryClearanceForm() {
           aria-label="Library clearance check"
           data-testid="library-clearance-form"
         >
-          <FormField id="clearance-student" label="Student UUID" required>
-            <Input
-              id="clearance-student"
-              name="studentId"
-              placeholder="Student id"
-              className="h-11 min-h-11"
-            />
-          </FormField>
+          <EntitySearchSelect
+            id="clearance-student"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+            placeholder="Search student by name or code…"
+          />
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}
@@ -80,7 +84,11 @@ export function LibraryClearanceForm() {
               {message}
             </p>
           ) : null}
-          <Button type="submit" disabled={pending} className="min-h-11">
+          <Button
+            type="submit"
+            disabled={pending || studentOptions.length === 0}
+            className="min-h-11"
+          >
             <Search className="me-1.5 h-4 w-4" aria-hidden="true" />
             {pending ? 'Checking…' : 'Check clearance'}
           </Button>

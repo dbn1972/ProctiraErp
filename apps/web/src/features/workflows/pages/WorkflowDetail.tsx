@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -283,7 +284,8 @@ export default function WorkflowDetail() {
           <h1 className="text-2xl font-semibold">{definition.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {formatEntityType(instance.entityType)} •{' '}
-            {(instance.metadata?.entityLabel as string) || instance.entityId}
+            {(instance.metadata?.entityLabel as string) ||
+              resolveEntityLabel(instance.entityId, {}, formatEntityType(instance.entityType))}
           </p>
         </div>
         <span
@@ -345,8 +347,11 @@ export default function WorkflowDetail() {
               <dd className="mt-1">{formatEntityType(instance.entityType)}</dd>
             </div>
             <div>
-              <dt className="font-medium text-muted-foreground">Entity ID</dt>
-              <dd className="mt-1 font-mono text-xs">{instance.entityId}</dd>
+              <dt className="font-medium text-muted-foreground">Subject</dt>
+              <dd className="mt-1">
+                {(instance.metadata?.entityLabel as string) ||
+                  resolveEntityLabel(instance.entityId, {}, formatEntityType(instance.entityType))}
+              </dd>
             </div>
             {instance.metadata &&
               Object.entries(instance.metadata)
