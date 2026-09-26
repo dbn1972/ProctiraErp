@@ -49,9 +49,23 @@ async function gatewayHealthy(request: APIRequestContext): Promise<boolean> {
   }
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -86,7 +100,7 @@ test.describe('Enrollment progression — ungated hub', () => {
     await page.getByTestId('enroll-hub-add-student').click();
     await expect(page).toHaveURL(/\/students\/new/);
     await expect(page.getByRole('heading', { name: /add student/i })).toBeVisible();
-    await expect(page.getByTestId('student-form')).toHaveAttribute('data-hydrated', 'true');
+    await hydrated(page, 'student-form');
   });
 
   test('/students/new remains the create path with validation', async ({ page }) => {
@@ -160,7 +174,10 @@ test.describe('Enrollment progression — live enroll (E2E_BACKEND_READY)', () =
       return;
     }
 
-    await expect(form).toHaveAttribute('data-hydrated', 'true');
+    await expect(async () => {
+      await expect(form).toHaveCount(1, { timeout: 2_000 });
+      await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('enroll-class-select')).toBeVisible();
 
     // Prefer UI submit when institution lookups populate; otherwise API enroll + already-active UX.

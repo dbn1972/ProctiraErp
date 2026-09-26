@@ -51,9 +51,23 @@ function shiftIso(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -135,7 +149,7 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
       })
       .toBe(true);
 
-    await page.getByTestId('discipline-add').click();
+    await (await hydrated(page, 'discipline-add')).click();
     await hydrated(page, 'discipline-form');
     await page.getByTestId('discipline-type').fill('Late to class');
     await page.getByTestId('discipline-date').fill(todayIso());

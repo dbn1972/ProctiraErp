@@ -69,10 +69,16 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
 
   test('create form validates required CreateExamination fields client-side', async ({ page }) => {
     await page.goto('/examinations/new', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('examination-create-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const createForm = page.getByTestId('examination-create-form');
+    await expect(async () => {
+      await expect(createForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(createForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.getByTestId('examination-start-date').fill('');
     await page.getByTestId('examination-end-date').fill('');
@@ -98,10 +104,11 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
 
   test('create form posts to API without inventing demo success', async ({ page }) => {
     await page.goto('/examinations/new', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('examination-create-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    const createForm2 = page.getByTestId('examination-create-form');
+    await expect(async () => {
+      await expect(createForm2).toHaveCount(1, { timeout: 2_000 });
+      await expect(createForm2).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.locator('#exam-name').fill('Mid-term Assessment');
     await page.locator('#exam-code').fill(`MTA-${Date.now()}`);

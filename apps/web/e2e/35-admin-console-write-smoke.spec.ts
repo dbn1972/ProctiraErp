@@ -36,9 +36,23 @@ function headers(tenantId = TENANT_A) {
   };
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -114,9 +128,16 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     const displayName = `Tenant A ${Date.now().toString(36)}`;
 
     await page.goto('/admin/tenant', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#tenant-config-form')).toHaveAttribute('data-hydrated', 'true', {
-      timeout: 20_000,
-    });
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const tenantConfigForm = page.locator('#tenant-config-form');
+    await expect(async () => {
+      await expect(tenantConfigForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(tenantConfigForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByLabel('Display name').fill(displayName);
     await page.getByLabel('Timezone').fill('Asia/Kolkata');
     await page.getByLabel('Academic year starts in month').fill('6');
