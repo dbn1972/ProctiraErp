@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { HOSTING_REGIONS } from '@/lib/hosting-regions';
+
 import { createTenantAction, type CreateTenantState } from '../actions';
 
 const initialState: CreateTenantState = {};
@@ -45,7 +47,7 @@ export function NewTenantForm() {
         state={state}
       />
       <PlanField state={state} />
-      <Field name="region" label="Hosting region" required defaultValue="us-east-1" state={state} />
+      <RegionField state={state} />
 
       <div className="sm:col-span-2 flex justify-end pt-2">
         <SubmitButton />
@@ -109,6 +111,35 @@ function PlanField({ state }: { state: CreateTenantState }) {
           <SelectItem value="enterprise">Enterprise</SelectItem>
         </SelectContent>
       </Select>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
+function RegionField({ state }: { state: CreateTenantState }) {
+  const error = state.fieldErrors?.region;
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="region">
+        Hosting region<span className="text-destructive"> *</span>
+      </Label>
+      <Select name="region" required>
+        <SelectTrigger id="region" aria-invalid={Boolean(error) || undefined}>
+          <SelectValue placeholder="Select a hosting region" />
+        </SelectTrigger>
+        <SelectContent>
+          {HOSTING_REGIONS.map((region) => (
+            <SelectItem key={region.value} value={region.value}>
+              {region.label} · {region.value}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {!error && (
+        <p className="text-xs text-muted-foreground">
+          Choose the region where this tenant&apos;s data is stored.
+        </p>
+      )}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

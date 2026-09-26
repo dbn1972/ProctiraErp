@@ -2,6 +2,7 @@ import { Database, HardDrive, KeyRound, Layers, Radio, Zap } from 'lucide-react'
 
 import { PageHeader } from '@/components/layout/page-header';
 import { StubDataBanner } from '@/components/stub-data-banner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
@@ -14,7 +15,14 @@ import {
 } from '@/components/ui/table';
 import { getSystemHealth, type AdapterHealth } from '@/lib/api/health';
 import { requireRole } from '@/lib/auth/server';
+import {
+  formatSnapshotAge,
+  healthSnapshotAgeMs,
+  isHealthSnapshotStale,
+} from '@/lib/health-snapshot';
 import { formatDateTime } from '@/lib/utils';
+
+import { RefreshHealthButton } from './refresh-button';
 
 const CATEGORY_ICON: Record<AdapterHealth['category'], typeof Database> = {
   database: Database,
@@ -33,15 +41,28 @@ export default async function HealthPage() {
   const healthy = health.adapters.filter((a) => a.status === 'healthy').length;
   const degraded = health.adapters.filter((a) => a.status === 'degraded').length;
   const down = health.adapters.filter((a) => a.status === 'down').length;
+  const ageMs = healthSnapshotAgeMs(health.generatedAt);
+  const stale = isHealthSnapshotStale(health.generatedAt);
 
   return (
     <>
       <PageHeader
         title="System health"
         description={`Snapshot generated ${formatDateTime(health.generatedAt)}.`}
+        actions={<RefreshHealthButton />}
       />
 
       <StubDataBanner source={source} />
+
+      {stale && ageMs !== null && (
+        <Alert variant="warning" className="mb-6">
+          <AlertTitle>Snapshot is stale</AlertTitle>
+          <AlertDescription>
+            This health snapshot is {formatSnapshotAge(ageMs)} old. Refresh to load the latest
+            probe.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Adapter cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -154,9 +175,9 @@ export default async function HealthPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <SummaryRow label="Adapters monitored" value={health.adapters.length} />
-            <SummaryRow label="Healthy" value={healthy} tone="success" />
-            <SummaryRow label="Degraded" value={degraded} tone="warning" />
-            <SummaryRow label="Down" value={down} tone="destructive" />
+            <SummaryRow label="Healthy" value={healthy} status="healthy" />
+            <SummaryRow label="Degraded" value={degraded} status="degraded" />
+            <SummaryRow label="Down" value={down} status="down" />
           </CardContent>
         </Card>
       </div>
@@ -164,27 +185,14 @@ export default async function HealthPage() {
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone?: 'success' | 'warning' | 'destructive';
-}) {
-  const toneClass =
-    tone === 'success'
-      ? 'text-[hsl(var(--success))]'
-      : tone === 'warning'
-        ? 'text-[hsl(var(--warning))]'
-        : tone === 'destructive'
-          ? 'text-[hsl(var(--destructive))]'
-          : 'text-foreground';
+function SummaryRow({ label, value, status }: { label: string; value: number; status?: string }) {
   return (
-    <div className="flex items-center justify-between border-b border-border pb-2 last:border-b-0 last:pb-0">
+    <div className="flex items-center justify-between gap-3 border-b border-border pb-2 last:border-b-0 last:pb-0">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-sm font-semibold tabular-nums ${toneClass}`}>{value}</span>
+      <span className="flex items-center gap-2">
+        <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
+        {status ? <StatusBadge status={status} /> : null}
+      </span>
     </div>
   );
 }
