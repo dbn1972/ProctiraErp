@@ -154,6 +154,7 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     await page.locator('#bi-structure').selectOption(structure.id);
     await page.locator('#bi-students').fill(STUDENT_A);
     await page.getByTestId('submit-bulk-invoice').click();
+    await page.getByTestId('bulk-invoice-confirm-confirm').click();
     await expect(page.getByTestId('bulk-invoice-result')).toHaveAttribute('data-created', '1', {
       timeout: 20_000,
     });
