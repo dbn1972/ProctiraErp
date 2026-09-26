@@ -4,9 +4,12 @@
  * Route: /students/records
  * Replaces placeholder-only Student Records surface.
  */
-import { IssueTranscriptForm } from '@/components/gradebook/issue-transcript-form';
 import { Card, CardContent } from '@proctira/ui/components';
 import { listGpaSnapshots, listReportCardJobs, listTranscripts } from '@/lib/api/gradebook';
+import { getStudent, listStudents } from '@/lib/api/students';
+
+import { IssueTranscriptByName } from '../_components/issue-transcript-by-name';
+import { studentDisplayName } from '../_components/student-placement-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +21,25 @@ export default async function StudentRecordsPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const studentId = searchParams?.studentId?.trim() || '';
 
-  const [transcriptsResult, jobsResult, gpaResult] = await Promise.all([
+  const [transcriptsResult, jobsResult, gpaResult, studentsResult] = await Promise.all([
     listTranscripts(studentId ? { studentId } : undefined),
     listReportCardJobs(),
     studentId ? listGpaSnapshots(studentId) : Promise.resolve({ ok: true as const, data: [] }),
+    listStudents({ page: 1, pageSize: 100, sortBy: 'lastName', sortOrder: 'asc' }),
   ]);
+
+  const studentNames = new Map(
+    studentsResult.data.map((student) => [
+      student.id,
+      studentDisplayName(student.firstName, student.lastName),
+    ]),
+  );
+  if (studentId && !studentNames.has(studentId)) {
+    const named = await getStudent(studentId);
+    if (named) studentNames.set(studentId, studentDisplayName(named.firstName, named.lastName));
+  }
+  const nameFor = (id: string) => studentNames.get(id) ?? 'Student';
+  const namedStudents = [...studentNames.entries()].map(([id, label]) => ({ id, label }));
 
   const apiError = !transcriptsResult.ok
     ? transcriptsResult.error
@@ -64,7 +81,7 @@ export default async function StudentRecordsPage(props: PageProps) {
           <p className="text-sm text-muted-foreground">
             Each issue creates a new immutable version; prior checksums stay unchanged.
           </p>
-          <IssueTranscriptForm defaultStudentId={studentId} />
+          <IssueTranscriptByName students={namedStudents} defaultStudentId={studentId} />
         </CardContent>
       </Card>
 
@@ -74,7 +91,7 @@ export default async function StudentRecordsPage(props: PageProps) {
           {transcripts.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No transcripts yet
-              {studentId ? ` for student ${studentId}` : ''}. Issue one above after computing GPA.
+              {studentId ? ` for ${nameFor(studentId)}` : ''}. Issue one above after computing GPA.
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -91,7 +108,7 @@ export default async function StudentRecordsPage(props: PageProps) {
                 <tbody>
                   {transcripts.map((row) => (
                     <tr key={row.id} className="border-b border-border/60">
-                      <td className="py-2 pr-3 font-mono text-xs">{row.studentId}</td>
+                      <td className="py-2 pr-3">{nameFor(row.studentId)}</td>
                       <td className="py-2 pr-3 tabular-nums">v{row.version}</td>
                       <td className="py-2 pr-3">{row.status}</td>
                       <td className="py-2 pr-3 text-muted-foreground">
@@ -140,7 +157,7 @@ export default async function StudentRecordsPage(props: PageProps) {
             <ul className="space-y-1 text-sm text-muted-foreground">
               {jobs.slice(0, 10).map((job) => (
                 <li key={job.id}>
-                  {job.status} · student {String(job.metadata.studentId ?? '—')} ·{' '}
+                  {job.status} · {nameFor(String(job.metadata.studentId ?? ''))} ·{' '}
                   {job.artifactUri ?? job.errorMessage ?? job.id}
                 </li>
               ))}
