@@ -13,6 +13,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listHostelVisitors, listHostels } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { NewVisitorForm } from '../_components/new-visitor-form';
 import { VisitorStatusButtons } from '../_components/visitor-status-buttons';
 
@@ -20,7 +22,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelVisitorsPage() {
   await requireSession();
-  const [visitors, hostels] = await Promise.all([listHostelVisitors(), listHostels()]);
+  const [visitors, hostels, studentOptions] = await Promise.all([
+    listHostelVisitors(),
+    listHostels(),
+    loadStudentOptions(),
+  ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -28,8 +35,7 @@ export default async function HostelVisitorsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Visitors</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Visitor register via GET/POST `/hostel/visitors` · status via
-            `/hostel/visitors/:id/status`.
+            Visitor register and check-in / check-out status.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -37,7 +43,7 @@ export default async function HostelVisitorsPage() {
         </Button>
       </div>
 
-      <NewVisitorForm hostels={hostels} />
+      <NewVisitorForm hostels={hostels} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>
@@ -61,7 +67,7 @@ export default async function HostelVisitorsPage() {
                     {row.visitorName} · {row.status}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {row.visitDate} · student {row.studentId.slice(0, 8)}
+                    {row.visitDate} · {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
                   </p>
                   <VisitorStatusButtons visitorId={row.id} status={row.status} />
                 </li>

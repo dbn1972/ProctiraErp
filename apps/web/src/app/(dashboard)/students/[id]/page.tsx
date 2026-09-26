@@ -544,25 +544,36 @@ function AttendanceHeatmap({ heatmap }: { heatmap: AttendanceHeatmap | null }) {
         aria-label={`Attendance from ${heatmap?.from ?? ''} to ${heatmap?.to ?? ''}`}
         className="grid grid-cols-[repeat(auto-fill,minmax(0.7rem,1fr))] gap-1"
       >
-        {days.map((day) => (
-          <span
-            key={day.date}
-            data-testid="heatmap-day"
-            data-date={day.date}
-            data-slot={day.slot}
-            title={`${day.date}: ${day.status ?? 'no record'}`}
-            className={cn(
-              'aspect-square rounded-[3px]',
-              day.slot === 'present'
-                ? 'bg-emerald-500'
-                : day.slot === 'half'
-                  ? 'bg-emerald-300'
-                  : day.slot === 'absent'
-                    ? 'bg-red-500'
-                    : 'bg-muted',
-            )}
-          />
-        ))}
+        {days.map((day) => {
+          const statusLabel =
+            day.slot === 'present'
+              ? 'Present'
+              : day.slot === 'half'
+                ? 'Late'
+                : day.slot === 'absent'
+                  ? 'Absent'
+                  : (day.status ?? 'No record');
+          return (
+            <span
+              key={day.date}
+              data-testid="heatmap-day"
+              data-date={day.date}
+              data-slot={day.slot}
+              title={`${day.date}: ${statusLabel}`}
+              aria-label={`${day.date}: ${statusLabel}`}
+              className={cn(
+                'aspect-square rounded-[3px]',
+                day.slot === 'present'
+                  ? 'bg-emerald-500'
+                  : day.slot === 'half'
+                    ? 'bg-emerald-300 ring-1 ring-inset ring-emerald-700/40'
+                    : day.slot === 'absent'
+                      ? 'bg-red-500 bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(0,0,0,0.25)_2px,rgba(0,0,0,0.25)_3px)]'
+                      : 'bg-muted',
+              )}
+            />
+          );
+        })}
       </div>
       <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
@@ -574,13 +585,16 @@ function AttendanceHeatmap({ heatmap }: { heatmap: AttendanceHeatmap | null }) {
         </span>
         <span className="flex items-center gap-1">
           <span
-            className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-300"
+            className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-300 ring-1 ring-inset ring-emerald-700/40"
             aria-hidden="true"
           />
           Late
         </span>
         <span className="flex items-center gap-1">
-          <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-red-500" aria-hidden="true" />
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-[3px] bg-red-500 bg-[repeating-linear-gradient(135deg,transparent,transparent_2px,rgba(0,0,0,0.25)_2px,rgba(0,0,0,0.25)_3px)]"
+            aria-hidden="true"
+          />
           Absent
         </span>
       </div>

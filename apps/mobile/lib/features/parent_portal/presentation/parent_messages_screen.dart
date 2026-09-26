@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Parent messaging list shell — wired to `/api/v1/parent-portal` in follow-up.
+/// Parent messaging list shell — threads API not wired on mobile yet.
 class ParentMessagesScreen extends StatelessWidget {
   const ParentMessagesScreen({super.key});
 
@@ -12,8 +12,8 @@ class ParentMessagesScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Open message threads with the school from the parent portal API '
-            '(`/parent-portal/messages/threads`).',
+            'School message threads are not available in this app build yet. '
+            'Use the parent web portal to read and send messages.',
             textAlign: TextAlign.center,
           ),
         ),

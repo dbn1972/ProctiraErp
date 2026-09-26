@@ -61,7 +61,8 @@ test.describe('Platform Admin — tenant write validation (ungated)', () => {
     await page.locator('#name').fill('A');
     await page.locator('#slug').fill('BAD_SLUG');
     await page.locator('#contactEmail').fill('ops@proctira.test');
-    await page.locator('#region').fill('us-east-1');
+    await page.getByRole('combobox', { name: /hosting region/i }).click();
+    await page.getByRole('option', { name: /US East/i }).click();
 
     await page.getByRole('button', { name: /provision tenant/i }).click();
 

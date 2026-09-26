@@ -31,6 +31,7 @@ import {
   TableRow,
   Textarea,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import {
   createCalendarEventAction,
@@ -376,17 +377,9 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
   const [copyLms, setCopyLms] = useState(true);
   const [summary, setSummary] = useState<RolloverSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmExecute, setConfirmExecute] = useState(false);
 
   const run = (dryRun: boolean) => {
-    if (
-      !dryRun &&
-      typeof window !== 'undefined' &&
-      !window.confirm(
-        'Execute the rollover? Class sections will be cloned and students promoted into the target year. This can be re-run safely but not undone from here.',
-      )
-    ) {
-      return;
-    }
     setError(null);
     startTransition(async () => {
       const result = await rolloverAcademicPeriodAction(source.id, {
@@ -404,6 +397,7 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
         return;
       }
       setSummary(result.data);
+      setConfirmExecute(false);
       if (!dryRun) router.refresh();
     });
   };
@@ -546,7 +540,7 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
               </Button>
               <Button
                 type="button"
-                onClick={() => run(false)}
+                onClick={() => setConfirmExecute(true)}
                 disabled={isPending || !targetPeriodId || !summary || !summary.dryRun}
                 data-testid="rollover-execute"
               >
@@ -620,6 +614,17 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
           </>
         )}
       </CardContent>
+      <ConfirmActionDialog
+        open={confirmExecute}
+        onOpenChange={setConfirmExecute}
+        title="Execute the rollover?"
+        description="Class sections will be cloned and students promoted into the target year. This can be re-run safely but not undone from here."
+        confirmLabel="Execute rollover"
+        destructive
+        pending={isPending}
+        onConfirm={() => run(false)}
+        testId="academic-period-rollover-confirm"
+      />
     </Card>
   );
 }

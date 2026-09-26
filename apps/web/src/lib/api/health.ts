@@ -8,7 +8,7 @@
  * call requireSession() and pass the access token through gatewayFetch.
  */
 import { GatewayError, gatewayFetch } from './gateway';
-import { fetchList, type ListResult } from './list-result';
+import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
 
 export interface HealthRecord {
   id: string;
@@ -168,20 +168,20 @@ export async function getHealthRecord(studentId: string): Promise<HealthRecord |
   return result.data;
 }
 
+export async function listSpecialNeedsResult(): Promise<ListResult<SpecialNeedRecord>> {
+  return fetchList<SpecialNeedRecord>('/health/special-needs', { next: { revalidate: 0 } });
+}
+
 export async function listSpecialNeeds(): Promise<SpecialNeedRecord[]> {
-  const result = await gatewayFetch<{ data: SpecialNeedRecord[] }>('/health/special-needs', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listSpecialNeedsResult());
+}
+
+export async function listCounsellingSessionsResult(): Promise<ListResult<CounsellingSession>> {
+  return fetchList<CounsellingSession>('/health/counselling', { next: { revalidate: 0 } });
 }
 
 export async function listCounsellingSessions(): Promise<CounsellingSession[]> {
-  const result = await gatewayFetch<{ data: CounsellingSession[] }>('/health/counselling', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listCounsellingSessionsResult());
 }
 
 /**

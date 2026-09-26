@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getPlan } from '@/lib/api/plans';
 import { requireRole } from '@/lib/auth/server';
 
-import { updateEntitlementsAction } from '../actions';
+import { EntitlementsForm } from './entitlements-form';
 
 export default async function PlanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -52,32 +52,11 @@ export default async function PlanDetailPage({ params }: { params: Promise<{ id:
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={updateEntitlementsAction} className="space-y-3">
-              <input type="hidden" name="planId" value={plan.id} />
-              {plan.entitlements.map((entitlement) => (
-                <label
-                  key={entitlement.key}
-                  className="flex items-start justify-between gap-4 rounded-md border border-border p-3"
-                >
-                  <div className="space-y-0.5">
-                    <div className="font-medium text-sm">{entitlement.label}</div>
-                    {entitlement.description && (
-                      <div className="text-xs text-muted-foreground">{entitlement.description}</div>
-                    )}
-                    <code className="text-xs text-muted-foreground">{entitlement.key}</code>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name={`entitlement.${entitlement.key}`}
-                    defaultChecked={entitlement.enabled}
-                    className="mt-1 h-4 w-4 rounded border-input accent-[hsl(var(--primary))]"
-                  />
-                </label>
-              ))}
-              <div className="flex justify-end pt-2">
-                <Button type="submit">Save entitlements</Button>
-              </div>
-            </form>
+            <EntitlementsForm
+              planId={plan.id}
+              planName={plan.name}
+              entitlements={plan.entitlements}
+            />
           </CardContent>
         </Card>
 

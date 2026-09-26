@@ -17,12 +17,43 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listWorkflowInstances, type WorkflowInstance } from '@/lib/api/workflows';
+import { listWorkflowInstancesResult, type WorkflowInstance } from '@/lib/api/workflows';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkflowInstancesPage() {
-  const instances = await listWorkflowInstances();
+  const instancesResult = await listWorkflowInstancesResult();
+  if (!instancesResult.ok) {
+    return (
+      <section aria-labelledby="instances-heading" className="space-y-6">
+        <div>
+          <h1
+            id="instances-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Workflow instances
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Every approval request currently moving through a workflow, district-wide.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={instancesResult.kind}
+          status={instancesResult.status}
+          returnTo="/workflows/instances"
+        />
+      </section>
+    );
+  }
+  const instances = instancesResult.items;
+  const [studentLabels, staffLabels] = await Promise.all([
+    loadStudentLabelMap(),
+    loadStaffLabelMap(),
+  ]);
+  const subjectLabels = new Map<string, string>([...studentLabels, ...staffLabels]);
   const pending = instances.filter((i) => i.status === 'PENDING').length;
   const approved = instances.filter((i) => i.status === 'APPROVED').length;
 
@@ -108,13 +139,13 @@ export default async function WorkflowInstancesPage() {
                       {inst.definitionName}
                     </TableCell>
                     <TableCell>
-                      <span className="text-muted-foreground">{inst.subjectType}/</span>
-                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                        {inst.subjectId}
-                      </code>
+                      <span className="text-muted-foreground">{inst.subjectType}</span>
+                      <span className="mt-0.5 block text-sm text-foreground">
+                        {resolveEntityLabel(inst.subjectId, subjectLabels, 'Subject')}
+                      </span>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {inst.initiatedBy || '—'}
+                      {resolveEntityLabel(inst.initiatedBy, subjectLabels, 'Person')}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {inst.initiatedAt || '—'}

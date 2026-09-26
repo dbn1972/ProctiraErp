@@ -15,11 +15,13 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { createContractAction } from '../hr-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewContractForm() {
+export function NewContractForm({ staffOptions = [] }: { staffOptions?: EntityLabelOption[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -30,7 +32,11 @@ export function NewContractForm() {
     const fd = new FormData(event.currentTarget);
     const staffId = String(fd.get('staffId') ?? '').trim();
     if (!UUID_RE.test(staffId)) {
-      setError('Staff must be a UUID v4 value.');
+      setError(
+        staffOptions.length === 0
+          ? 'Staff directory is empty — add staff before recording a contract.'
+          : 'Select a staff member.',
+      );
       return;
     }
     startTransition(async () => {
@@ -38,11 +44,7 @@ export function NewContractForm() {
       const result = await createContractAction({
         staffId,
         contractType: String(fd.get('contractType') ?? 'permanent') as
-          | 'permanent'
-          | 'probation'
-          | 'fixed_term'
-          | 'visiting'
-          | 'intern',
+          'permanent' | 'probation' | 'fixed_term' | 'visiting' | 'intern',
         startDate: String(fd.get('startDate') ?? ''),
         endDate: String(fd.get('endDate') ?? '') || undefined,
         salaryBand: String(fd.get('salaryBand') ?? '') || undefined,
@@ -72,9 +74,15 @@ export function NewContractForm() {
           data-testid="staff-contract-form"
           data-hydrated={hydrated ? 'true' : 'false'}
         >
-          <FormField id="contract-staff" label="Staff UUID" required className="sm:col-span-2">
-            <Input id="contract-staff" name="staffId" required disabled={!hydrated || pending} />
-          </FormField>
+          <div className="sm:col-span-2">
+            <EntitySearchSelect
+              id="contract-staff"
+              name="staffId"
+              label="Staff"
+              options={staffOptions}
+              required
+            />
+          </div>
           <FormField id="contract-type" label="Type">
             <select
               id="contract-type"

@@ -82,7 +82,11 @@ export default async function BillingPage(props: { searchParams?: Promise<Search
         </div>
       </div>
 
-      <PlatformSurfaceState surface="Billing plans" result={result} />
+      <PlatformSurfaceState
+        surface="Billing plans"
+        result={result}
+        scaffoldTitle="Billing plans temporarily unavailable"
+      />
 
       <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Filter plans">
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">

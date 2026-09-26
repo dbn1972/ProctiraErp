@@ -17,8 +17,15 @@ import {
 } from '@proctira/ui/components';
 
 import { createThreadAction } from '../../../parent-actions';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
-export function CreateThreadForm({ studentIds }: { studentIds: string[] }) {
+export function CreateThreadForm({
+  studentIds,
+  studentLabels = {},
+}: {
+  studentIds: string[];
+  studentLabels?: Record<string, string>;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -62,7 +69,7 @@ export function CreateThreadForm({ studentIds }: { studentIds: string[] }) {
           onSubmit={onSubmit}
           aria-label="Create message thread"
         >
-          <FormField id="thread-student" label="Student ID" required>
+          <FormField id="thread-student" label="Child" required>
             {studentIds.length > 0 ? (
               <select
                 id="thread-student"
@@ -72,12 +79,14 @@ export function CreateThreadForm({ studentIds }: { studentIds: string[] }) {
               >
                 {studentIds.map((id) => (
                   <option key={id} value={id}>
-                    {id.slice(0, 8)}…
+                    {resolveEntityLabel(id, studentLabels, 'Child')}
                   </option>
                 ))}
               </select>
             ) : (
-              <Input id="thread-student" name="studentId" className="h-11 min-h-11" />
+              <p className="text-sm text-muted-foreground" role="status">
+                Link a child to your account before starting a message.
+              </p>
             )}
           </FormField>
           <FormField id="thread-subject" label="Subject" required>
@@ -92,7 +101,11 @@ export function CreateThreadForm({ studentIds }: { studentIds: string[] }) {
             </p>
           ) : null}
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending} className="min-h-12">
+            <Button
+              type="submit"
+              disabled={pending || studentIds.length === 0}
+              className="min-h-12"
+            >
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Sending…' : 'Send message'}
             </Button>

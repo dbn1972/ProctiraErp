@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/student/student_route.dart';
+import '../../students/presentation/student_picker.dart';
 import '../bloc/examination_bloc.dart';
 import '../data/examination_repository.dart';
 
@@ -14,15 +16,21 @@ class ExaminationListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<ExaminationBloc>(
-      create: (BuildContext context) {
-        final ExaminationBloc bloc = ExaminationBloc(
-          repository: context.read<ExaminationRepository>(),
-        );
-        bloc.add(ExaminationListRequested(studentId: studentId));
-        return bloc;
-      },
-      child: const _ExaminationListView(),
+    final String id = studentId.trim();
+    return StudentRequiredGate(
+      studentId: id,
+      title: 'Examinations',
+      locationFor: (String picked) => withStudentQuery('/examinations', picked),
+      child: BlocProvider<ExaminationBloc>(
+        create: (BuildContext context) {
+          final ExaminationBloc bloc = ExaminationBloc(
+            repository: context.read<ExaminationRepository>(),
+          );
+          bloc.add(ExaminationListRequested(studentId: id));
+          return bloc;
+        },
+        child: const _ExaminationListView(),
+      ),
     );
   }
 }

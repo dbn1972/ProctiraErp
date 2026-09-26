@@ -1,6 +1,7 @@
 import { requireSession } from '@/lib/auth/server';
-import { getChildPalPlan, listChildren } from '@/lib/api/parent-portal';
+import { getChildPalPlan, listChildrenResult } from '@/lib/api/parent-portal';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +12,24 @@ export default async function ParentPalPage({
 }) {
   await requireSession();
   const params = await searchParams;
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="PAL plan"
+        description="Spiral PAL skills to review, reinforce, and introduce."
+        testId="parent-pal"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No PAL plan to show."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
   const child = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {

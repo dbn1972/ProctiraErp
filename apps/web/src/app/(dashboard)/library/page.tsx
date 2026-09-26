@@ -14,7 +14,9 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
-import { listLibraryItems } from '@/lib/api/library';
+import { listLibraryItemsResult } from '@/lib/api/library';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LibraryClearanceForm } from './_components/clearance-form';
 import { IsbnImportForm } from './_components/isbn-import-form';
 import { NewLibraryItemForm } from './_components/new-item-form';
@@ -23,7 +25,25 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const [t, items] = await Promise.all([getTranslations('library'), listLibraryItems()]);
+  const [t, result, studentOptions] = await Promise.all([
+    getTranslations('library'),
+    listLibraryItemsResult(),
+    loadStudentOptions(),
+  ]);
+
+  if (!result.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
+        </div>
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/library" />
+      </div>
+    );
+  }
+
+  const items = result.items;
 
   return (
     <div className="space-y-6 p-6">
@@ -53,7 +73,7 @@ export default async function LibraryCatalogPage() {
 
       <NewLibraryItemForm />
       <IsbnImportForm />
-      <LibraryClearanceForm />
+      <LibraryClearanceForm studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>

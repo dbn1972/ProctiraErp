@@ -119,16 +119,9 @@ export default async function DashboardPage() {
                   key={entry.id}
                   className="flex items-start gap-3 border-b border-border pb-4 last:border-b-0 last:pb-0"
                 >
-                  <span
-                    className={`mt-1 inline-flex h-2 w-2 shrink-0 rounded-full ${
-                      entry.outcome === 'failure'
-                        ? 'bg-[hsl(var(--destructive))]'
-                        : 'bg-[hsl(var(--success))]'
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <div className="min-w-0 space-y-1">
-                    <div className="text-sm">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <StatusBadge status={entry.outcome} />
                       <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-secondary-foreground">
                         {entry.action}
                       </span>{' '}

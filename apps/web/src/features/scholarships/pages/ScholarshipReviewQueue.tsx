@@ -291,14 +291,12 @@ export default function ScholarshipReviewQueue() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-xs font-mono">
-                          {app.applicantId.slice(0, 8)}…
+                        <div className="font-medium text-sm">
+                          {app.gender ? `Applicant · ${app.gender}` : 'Applicant'}
                         </div>
-                        {app.gender && (
-                          <div className="text-muted-foreground text-xs capitalize">
-                            {app.gender}
-                          </div>
-                        )}
+                        <div className="text-xs text-muted-foreground">
+                          Submitted {formatDate(app.submittedAt)}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <span

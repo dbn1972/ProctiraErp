@@ -29,6 +29,20 @@ class ParentHomeScreen extends StatelessWidget {
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 24),
+          Text('Child', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          const Card(
+            child: ListTile(
+              minVerticalPadding: 16,
+              leading: Icon(Icons.child_care_outlined),
+              title: Text('No linked child'),
+              subtitle: Text(
+                'Linked children are not available in this app build yet. '
+                'Messages, consents, and fees stay unavailable until a child list is connected.',
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
           _ParentTile(
             icon: Icons.chat_bubble_outline,
             title: 'Messages',

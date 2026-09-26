@@ -5,17 +5,16 @@
  * styling. Used by the public Application Tracking page (Requirement
  * 16.6 / Task 51.4) and any future unauthenticated public surfaces.
  *
- * Includes the `<MarketingHeader>` so anonymous visitors can use the
- * `<ThemeToggle>` (Task 47.4) — the toggle works here because
- * `<ThemeProvider>` sits ABOVE `<AuthProvider>` in the provider
- * hierarchy (Design §A).
+ * Uses a short header whose links are real routes (`/track`, `/login`).
+ * The marketing header's feature/pricing/about/contact/demo targets are
+ * not pages in this app, so they are not shown to applicants.
  */
-import { MarketingHeader } from '@/components/layout/marketing-header';
+import { PublicTrackHeader } from './_components/public-track-header';
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 text-foreground">
-      <MarketingHeader />
+      <PublicTrackHeader />
       {children}
     </div>
   );

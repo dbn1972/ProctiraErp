@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 import { decideStaffLeaveAction } from '../../../staff-leave-actions';
 
@@ -17,6 +18,7 @@ export function StaffLeaveDecisionButtons({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [confirm, setConfirm] = useState<'approved' | 'rejected' | null>(null);
 
   if (status !== 'pending') {
     return (
@@ -26,7 +28,9 @@ export function StaffLeaveDecisionButtons({
     );
   }
 
-  function decide(next: 'approved' | 'rejected') {
+  function onConfirm() {
+    if (!confirm) return;
+    const next = confirm;
     startTransition(async () => {
       setError(null);
       const result = await decideStaffLeaveAction(leaveId, next);
@@ -34,6 +38,7 @@ export function StaffLeaveDecisionButtons({
         setError(result.message ?? 'Failed to decide leave');
         return;
       }
+      setConfirm(null);
       router.refresh();
     });
   }
@@ -44,7 +49,7 @@ export function StaffLeaveDecisionButtons({
         type="button"
         size="sm"
         disabled={pending}
-        onClick={() => decide('approved')}
+        onClick={() => setConfirm('approved')}
         data-testid="leave-approve"
       >
         Approve
@@ -54,11 +59,32 @@ export function StaffLeaveDecisionButtons({
         size="sm"
         variant="outline"
         disabled={pending}
-        onClick={() => decide('rejected')}
+        onClick={() => setConfirm('rejected')}
         data-testid="leave-reject"
       >
         Reject
       </Button>
+      <ConfirmActionDialog
+        open={confirm === 'approved'}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title="Approve this staff leave?"
+        description="The leave will be recorded as approved and may affect coverage planning."
+        confirmLabel="Approve leave"
+        pending={pending}
+        onConfirm={onConfirm}
+        testId="staff-leave-approve-confirm"
+      />
+      <ConfirmActionDialog
+        open={confirm === 'rejected'}
+        onOpenChange={(open) => !open && setConfirm(null)}
+        title="Reject this staff leave?"
+        description="The leave request will be rejected. Confirm only if the staff member should remain on duty."
+        confirmLabel="Reject leave"
+        destructive
+        pending={pending}
+        onConfirm={onConfirm}
+        testId="staff-leave-reject-confirm"
+      />
       {error ? (
         <p className="w-full text-sm text-destructive" role="alert">
           {error}

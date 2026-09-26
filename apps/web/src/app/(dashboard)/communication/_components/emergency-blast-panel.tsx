@@ -15,6 +15,7 @@ import {
   FormField,
   Textarea,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 import {
   confirmEmergencyBlastAction,
@@ -40,6 +41,7 @@ export function EmergencyBlastPanel({
   const [hydrated, setHydrated] = useState(false);
   const [channels, setChannels] = useState<string[]>(['sms', 'push']);
   const [confirmAck, setConfirmAck] = useState(false);
+  const [dispatchId, setDispatchId] = useState<string | null>(null);
 
   useEffect(() => {
     setHydrated(true);
@@ -109,6 +111,7 @@ export function EmergencyBlastPanel({
       }
       setMessage(result.message ?? 'Dispatched.');
       setHonesty(result.honestyNote ?? null);
+      setDispatchId(null);
       router.refresh();
     });
   }
@@ -247,7 +250,7 @@ export function EmergencyBlastPanel({
                         size="sm"
                         className="min-h-11"
                         disabled={pending}
-                        onClick={() => onDispatch(blast.id)}
+                        onClick={() => setDispatchId(blast.id)}
                         data-testid="dispatch-emergency-button"
                       >
                         Sandbox dispatch
@@ -260,6 +263,19 @@ export function EmergencyBlastPanel({
           )}
         </CardContent>
       </Card>
+      <ConfirmActionDialog
+        open={Boolean(dispatchId)}
+        onOpenChange={(open) => !open && setDispatchId(null)}
+        title="Dispatch this emergency blast?"
+        description="Sandbox dispatch marks the blast as sent and writes delivery rows. Dual confirmation has already been recorded."
+        confirmLabel="Dispatch now"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          if (dispatchId) onDispatch(dispatchId);
+        }}
+        testId="emergency-dispatch-confirm"
+      />
     </div>
   );
 }

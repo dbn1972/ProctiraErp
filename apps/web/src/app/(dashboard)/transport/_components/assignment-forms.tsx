@@ -15,9 +15,11 @@ import {
   Input,
 } from '@proctira/ui/components';
 
-import { createDriverAssignmentAction, createStudentAssignmentAction } from '../actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { TransportRoute, TransportVehicle } from '@/lib/api/transport';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import type { RouteStop } from '@/lib/transport/api';
+import { createDriverAssignmentAction, createStudentAssignmentAction } from '../actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -25,10 +27,14 @@ export function AssignmentForms({
   routes,
   vehicles,
   stops,
+  studentOptions = [],
+  staffOptions = [],
 }: {
   routes: TransportRoute[];
   vehicles: TransportVehicle[];
   stops: RouteStop[];
+  studentOptions?: EntityLabelOption[];
+  staffOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +55,15 @@ export function AssignmentForms({
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
     if (!UUID_RE.test(vehicleId) || !UUID_RE.test(driverId)) {
-      setError('Vehicle and driver must be UUID v4 values.');
+      setError(
+        vehicles.length === 0 || staffOptions.length === 0
+          ? 'Vehicle list or staff directory is empty — add those records before assigning a driver.'
+          : 'Select a vehicle and a driver.',
+      );
       return;
     }
     if (routeId && !UUID_RE.test(routeId)) {
-      setError('Route id must be a UUID v4 when provided.');
+      setError('Select a route from the list, or leave route blank.');
       return;
     }
     if (!startDate) {
@@ -90,11 +100,15 @@ export function AssignmentForms({
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
     if (!UUID_RE.test(studentId) || !UUID_RE.test(routeId)) {
-      setError('Student and route must be UUID v4 values.');
+      setError(
+        studentOptions.length === 0 || routes.length === 0
+          ? 'Student directory or route list is empty — add those records before assigning a student.'
+          : 'Select a student and a route.',
+      );
       return;
     }
     if (stopId && !UUID_RE.test(stopId)) {
-      setError('Stop id must be a UUID v4 when provided.');
+      setError('Select a stop from the list, or leave stop blank.');
       return;
     }
     if (!startDate) {
@@ -128,7 +142,7 @@ export function AssignmentForms({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Assign driver</CardTitle>
-            <CardDescription>POST `/transport/driver-assignments`</CardDescription>
+            <CardDescription>Assign a driver to a vehicle and optional route.</CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -156,9 +170,13 @@ export function AssignmentForms({
                   ))}
                 </select>
               </FormField>
-              <FormField id="driver-id" label="Driver staff UUID" required>
-                <Input id="driver-id" name="driverId" className="h-11 min-h-11" />
-              </FormField>
+              <EntitySearchSelect
+                id="driver-id"
+                name="driverId"
+                label="Driver"
+                options={staffOptions}
+                required
+              />
               <FormField id="driver-route" label="Route (optional)">
                 <select
                   id="driver-route"
@@ -193,7 +211,7 @@ export function AssignmentForms({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Assign student</CardTitle>
-            <CardDescription>POST `/transport/student-assignments`</CardDescription>
+            <CardDescription>Assign a student to a route and stop.</CardDescription>
           </CardHeader>
           <CardContent>
             <form
@@ -203,9 +221,13 @@ export function AssignmentForms({
               aria-label="Create student assignment"
               data-testid="transport-student-assignment-form"
             >
-              <FormField id="student-id" label="Student UUID" required>
-                <Input id="student-id" name="studentId" className="h-11 min-h-11" />
-              </FormField>
+              <EntitySearchSelect
+                id="student-id"
+                name="studentId"
+                label="Student"
+                options={studentOptions}
+                required
+              />
               <FormField id="student-route" label="Route" required>
                 <select
                   id="student-route"

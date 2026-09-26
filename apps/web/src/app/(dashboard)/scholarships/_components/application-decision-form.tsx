@@ -4,12 +4,14 @@
  * G-911 — approve / reject a scholarship application with a reviewer comment.
  * Both buttons call the same server action; the page re-renders with the
  * persisted decision (status pill, reviewer, note) via router.refresh().
+ * UX_FINDINGS: decisions are final and queue payment — confirm before commit.
  */
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, X } from 'lucide-react';
 
 import { Button, Textarea } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 
 import { decideApplicationAction } from '../actions';
@@ -30,6 +32,7 @@ export function ApplicationDecisionForm({
   const [pending, setPending] = useState<'approve' | 'reject' | null>(null);
   const [message, setMessage] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirmDecision, setConfirmDecision] = useState<'approve' | 'reject' | null>(null);
 
   const decide = (decision: 'approve' | 'reject') => {
     setMessage(null);
@@ -37,6 +40,7 @@ export function ApplicationDecisionForm({
     startTransition(async () => {
       const result = await decideApplicationAction({ applicationId, decision, comment });
       setPending(null);
+      setConfirmDecision(null);
       if (result.status === 'success') {
         setMessage({ tone: 'success', text: result.message ?? 'Saved.' });
         router.refresh();
@@ -73,7 +77,7 @@ export function ApplicationDecisionForm({
           type="button"
           variant="destructive"
           disabled={isPending}
-          onClick={() => decide('reject')}
+          onClick={() => setConfirmDecision('reject')}
           data-testid="decision-reject"
         >
           <X className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -82,13 +86,42 @@ export function ApplicationDecisionForm({
         <Button
           type="button"
           disabled={isPending}
-          onClick={() => decide('approve')}
+          onClick={() => setConfirmDecision('approve')}
           data-testid="decision-approve"
         >
           <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
           {pending === 'approve' ? 'Approving…' : 'Approve'}
         </Button>
       </div>
+      <ConfirmActionDialog
+        open={confirmDecision === 'approve'}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDecision(null);
+        }}
+        title="Approve this application?"
+        description={
+          awardLabel
+            ? `Approving schedules the first ${awardLabel} and cannot be undone from this screen. Verify documents before continuing.`
+            : 'Approving schedules the first instalment and cannot be undone from this screen. Verify documents before continuing.'
+        }
+        confirmLabel="Approve & schedule payment"
+        pending={isPending}
+        onConfirm={() => decide('approve')}
+        testId="scholarship-approve-confirm"
+      />
+      <ConfirmActionDialog
+        open={confirmDecision === 'reject'}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDecision(null);
+        }}
+        title="Reject this application?"
+        description="Rejection is final on this screen. The applicant will see the decision and cannot re-open this application here."
+        confirmLabel="Reject application"
+        destructive
+        pending={isPending}
+        onConfirm={() => decide('reject')}
+        testId="scholarship-reject-confirm"
+      />
       {message ? (
         <p
           role={message.tone === 'error' ? 'alert' : 'status'}

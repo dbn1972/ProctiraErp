@@ -9,6 +9,7 @@ import {
   createCommentsBankAction,
   transitionGradeEntryAction,
 } from '@/app/(dashboard)/gradebook-actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import {
@@ -63,6 +64,10 @@ export function GradebookWorkflowPanel({
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState<{
+    action: GradeWorkflowAction;
+    ids: string[];
+  } | null>(null);
 
   const rankByStudent = useMemo(() => {
     const map = new Map<string, ClassRankSnapshot>();
@@ -85,8 +90,18 @@ export function GradebookWorkflowPanel({
       }
       setMessage(`${action} applied to ${ids.length} ${ids.length === 1 ? 'entry' : 'entries'}.`);
       setSelected([]);
+      setConfirmBulk(null);
       router.refresh();
     });
+  };
+
+  const requestTransition = (ids: string[], action: GradeWorkflowAction) => {
+    if (ids.length === 0) return;
+    if (action === 'publish' || action === 'lock' || action === 'approve') {
+      setConfirmBulk({ action, ids });
+      return;
+    }
+    runTransition(ids, action);
   };
 
   const onComputeRank = () => {
@@ -149,7 +164,7 @@ export function GradebookWorkflowPanel({
               variant="secondary"
               data-testid="bulk-approve"
               disabled={pending || selected.length === 0}
-              onClick={() => runTransition(selected, 'approve')}
+              onClick={() => requestTransition(selected, 'approve')}
             >
               Approve selected
             </Button>
@@ -159,7 +174,7 @@ export function GradebookWorkflowPanel({
               variant="secondary"
               data-testid="bulk-lock"
               disabled={pending || selected.length === 0}
-              onClick={() => runTransition(selected, 'lock')}
+              onClick={() => requestTransition(selected, 'lock')}
             >
               Lock selected
             </Button>
@@ -168,13 +183,45 @@ export function GradebookWorkflowPanel({
               size="sm"
               data-testid="bulk-publish"
               disabled={pending || selected.length === 0}
-              onClick={() => runTransition(selected, 'publish')}
+              onClick={() => requestTransition(selected, 'publish')}
             >
               Publish selected
             </Button>
           </>
         ) : null}
       </div>
+      <ConfirmActionDialog
+        open={confirmBulk !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmBulk(null);
+        }}
+        title={
+          confirmBulk?.action === 'publish'
+            ? `Publish ${confirmBulk.ids.length} grade ${confirmBulk.ids.length === 1 ? 'entry' : 'entries'}?`
+            : confirmBulk?.action === 'lock'
+              ? `Lock ${confirmBulk.ids.length} grade ${confirmBulk.ids.length === 1 ? 'entry' : 'entries'}?`
+              : `Approve ${confirmBulk?.ids.length ?? 0} grade ${(confirmBulk?.ids.length ?? 0) === 1 ? 'entry' : 'entries'}?`
+        }
+        description={
+          confirmBulk?.action === 'publish'
+            ? 'Publishing makes grades visible to parents and students and cannot be undone from this screen.'
+            : confirmBulk?.action === 'lock'
+              ? 'Locking prevents further edits until unlocked by a moderator workflow.'
+              : 'Approving advances these entries toward lock and publish.'
+        }
+        confirmLabel={
+          confirmBulk?.action === 'publish'
+            ? 'Publish'
+            : confirmBulk?.action === 'lock'
+              ? 'Lock'
+              : 'Approve'
+        }
+        pending={pending}
+        onConfirm={() => {
+          if (confirmBulk) runTransition(confirmBulk.ids, confirmBulk.action);
+        }}
+        testId="gradebook-workflow-confirm"
+      />
       {message ? (
         <p className="text-sm text-foreground" data-testid="gradebook-workflow-message">
           {message}
@@ -261,7 +308,7 @@ export function GradebookWorkflowPanel({
                           variant="outline"
                           disabled={pending}
                           data-testid={`transition-${next}-${row.id}`}
-                          onClick={() => runTransition([row.id], next)}
+                          onClick={() => requestTransition([row.id], next)}
                         >
                           {next === 'submit'
                             ? 'Submit'

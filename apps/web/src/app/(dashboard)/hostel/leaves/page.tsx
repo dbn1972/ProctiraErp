@@ -13,6 +13,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listHostelLeaves, listHostels } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LeaveDecisionButtons } from '../_components/leave-decision-buttons';
 import { NewLeaveForm } from '../_components/new-leave-form';
 
@@ -20,7 +22,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelLeavesPage() {
   await requireSession();
-  const [leaves, hostels] = await Promise.all([listHostelLeaves(), listHostels()]);
+  const [leaves, hostels, studentOptions] = await Promise.all([
+    listHostelLeaves(),
+    listHostels(),
+    loadStudentOptions(),
+  ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -36,7 +43,7 @@ export default async function HostelLeavesPage() {
         </Button>
       </div>
 
-      <NewLeaveForm hostels={hostels} />
+      <NewLeaveForm hostels={hostels} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>
@@ -57,7 +64,7 @@ export default async function HostelLeavesPage() {
               {leaves.map((row) => (
                 <li key={row.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">
-                    Student {row.studentId.slice(0, 8)} · {row.status}
+                    {resolveEntityLabel(row.studentId, studentLabels, 'Student')} · {row.status}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {row.startDate} → {row.endDate}

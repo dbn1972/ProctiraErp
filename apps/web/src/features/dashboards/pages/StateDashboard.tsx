@@ -137,22 +137,27 @@ function buildDistrictColumns(): ReadonlyArray<DataTableCardColumn<DistrictRow>>
       id: 'board-mix',
       header: 'Board Mix',
       cell: (row) => (
-        <div
-          className="flex h-2 w-24 overflow-hidden rounded"
-          aria-label={`Board mix: CBSE ${row.boardMix.cbse}%, State ${row.boardMix.state}%, ICSE ${row.boardMix.icse}%`}
-        >
-          <span
-            className="h-full bg-[hsl(var(--chart-1))]"
-            style={{ width: `${row.boardMix.cbse}%` }}
-          />
-          <span
-            className="h-full bg-[hsl(var(--chart-2))]"
-            style={{ width: `${row.boardMix.state}%` }}
-          />
-          <span
-            className="h-full bg-[hsl(var(--chart-3))]"
-            style={{ width: `${row.boardMix.icse}%` }}
-          />
+        <div>
+          <div
+            className="flex h-2 w-24 overflow-hidden rounded"
+            aria-label={`Board mix: CBSE ${row.boardMix.cbse}%, State ${row.boardMix.state}%, ICSE ${row.boardMix.icse}%`}
+          >
+            <span
+              className="h-full bg-[hsl(var(--chart-1))]"
+              style={{ width: `${row.boardMix.cbse}%` }}
+            />
+            <span
+              className="h-full bg-[hsl(var(--chart-2))]"
+              style={{ width: `${row.boardMix.state}%` }}
+            />
+            <span
+              className="h-full bg-[hsl(var(--chart-3))]"
+              style={{ width: `${row.boardMix.icse}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            CBSE {row.boardMix.cbse}% · State {row.boardMix.state}% · ICSE {row.boardMix.icse}%
+          </p>
         </div>
       ),
     },

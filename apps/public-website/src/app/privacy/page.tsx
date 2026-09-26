@@ -13,11 +13,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-/**
- * Boilerplate Privacy Policy. Tenants and operators must review and adjust
- * to match their lawful basis, processors, and jurisdiction before public
- * launch.
- */
+/** Public privacy notice for the ProctiraERP website. */
 export default function PrivacyPage() {
   return (
     <>
@@ -29,14 +25,13 @@ export default function PrivacyPage() {
       <section className="container py-16">
         <div className="mx-auto mb-8 flex max-w-3xl items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-medium text-primary">
           <CalendarClock aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
-          Effective date set by the operator — review and update before public launch.
+          Last reviewed: 26 September 2026. We will post material updates on this page.
         </div>
         <LegalProse>
           <p>
             This Privacy Policy describes how ProctiraERP (&ldquo;we&rdquo;, &ldquo;us&rdquo;)
             collects, uses, and discloses information when you use the ProctiraERP public website
-            and services. It is provided as a starting template and should be tailored to your
-            jurisdiction, legal basis, and processor agreements before publication.
+            and related services.
           </p>
 
           <h2>Information we collect</h2>

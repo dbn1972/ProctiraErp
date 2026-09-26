@@ -13,11 +13,17 @@ import {
   Input,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { createVaccinationAction } from '../actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function CreateVaccinationForm() {
+export function CreateVaccinationForm({
+  studentOptions = [],
+}: {
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -35,7 +41,11 @@ export function CreateVaccinationForm() {
     const notes = String(fd.get('notes') ?? '').trim();
 
     if (!UUID_RE.test(studentId)) {
-      setError('Student ID must be a valid UUID.');
+      setError(
+        studentOptions.length === 0
+          ? 'Student directory is empty — add students before recording a vaccination.'
+          : 'Select a student.',
+      );
       return;
     }
     if (!vaccineName || !dateAdministered) {
@@ -71,9 +81,13 @@ export function CreateVaccinationForm() {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit} data-testid="create-vaccination-form">
-          <FormField label="Student ID" htmlFor="studentId">
-            <Input id="studentId" name="studentId" required className="min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="studentId"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <FormField label="Vaccine name" htmlFor="vaccineName">
             <Input id="vaccineName" name="vaccineName" required className="min-h-11" />
           </FormField>
