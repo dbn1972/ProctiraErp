@@ -101,7 +101,11 @@ export default async function TenantLifecyclePage(props: { searchParams?: Promis
         ) : null}
       </div>
 
-      <PlatformSurfaceState surface="Tenant lifecycle" result={result} />
+      <PlatformSurfaceState
+        surface="Tenant lifecycle"
+        result={result}
+        scaffoldTitle="Tenant lifecycle temporarily unavailable"
+      />
 
       <form method="get" className="flex flex-wrap items-end gap-3" aria-label="Filter tenants">
         <label className="flex flex-col gap-1 text-xs font-semibold text-muted-foreground">
