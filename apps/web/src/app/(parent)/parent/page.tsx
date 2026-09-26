@@ -14,12 +14,15 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listChildren } from '@/lib/api/parent-portal';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ParentHomePage() {
   await requireSession();
   const children = await listChildren();
+  const studentLabels = await loadStudentLabelsForIds(children.map((child) => child.studentId));
 
   return (
     <div className="space-y-6" data-testid="parent-home">
@@ -50,7 +53,7 @@ export default async function ParentHomePage() {
               {children.map((child) => (
                 <li key={child.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">
-                    Student {child.studentId.slice(0, 8)}…
+                    {resolveEntityLabel(child.studentId, studentLabels, 'Child')}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {child.relationship} · {child.status}

@@ -3,7 +3,8 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listReceipts } from '@/lib/api/fees';
+import { listInvoices, listReceipts } from '@/lib/api/fees';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 import { getLocale } from 'next-intl/server';
 
@@ -14,7 +15,13 @@ export const dynamic = 'force-dynamic';
 export default async function FeesReceiptsPage() {
   await requireSession();
   const locale = await getLocale();
-  const receipts = await listReceipts('staff');
+  const [receipts, invoices] = await Promise.all([listReceipts('staff'), listInvoices('staff')]);
+  const invoiceLabels = new Map(
+    invoices.map((invoice) => [
+      invoice.id,
+      invoice.invoiceNumber?.trim() || invoice.title || 'Invoice',
+    ]),
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -47,8 +54,9 @@ export default async function FeesReceiptsPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{receipt.receiptNumber}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(receipt.amountCents, receipt.currency, locale)} · invoice{' '}
-                    {receipt.invoiceId.slice(0, 8)}… · {new Date(receipt.issuedAt).toLocaleString()}
+                    {formatAmount(receipt.amountCents, receipt.currency, locale)} ·{' '}
+                    {resolveEntityLabel(receipt.invoiceId, invoiceLabels, 'Invoice')} ·{' '}
+                    {new Date(receipt.issuedAt).toLocaleString()}
                   </p>
                 </li>
               ))}

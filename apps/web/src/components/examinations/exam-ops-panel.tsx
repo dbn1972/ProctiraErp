@@ -41,6 +41,7 @@ import type {
   ExamOpsSession,
   Examination,
 } from '@/lib/api/examinations';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 function Feedback({ state }: { state: ActionState | null }) {
   if (!state || state.status === 'idle') return null;
@@ -62,6 +63,8 @@ export interface ExamOpsPanelProps {
   seats: ExamOpsSeat[];
   marks: ExamOpsMarksPair[];
   reevaluations: ExamOpsReevaluation[];
+  staffLabels?: Record<string, string>;
+  candidateLabels?: Record<string, string>;
 }
 
 export function ExamOpsPanel({
@@ -71,6 +74,8 @@ export function ExamOpsPanel({
   seats,
   marks,
   reevaluations,
+  staffLabels = {},
+  candidateLabels = {},
 }: ExamOpsPanelProps) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -199,9 +204,9 @@ export function ExamOpsPanel({
                     <TableCell>{session.roomId}</TableCell>
                     <TableCell>
                       {(invigilatorsBySession[session.id] ?? []).map((inv) => (
-                        <code key={inv.id} className="me-1 text-xs">
-                          {inv.staffId.slice(0, 8)}
-                        </code>
+                        <span key={inv.id} className="me-2 text-xs">
+                          {resolveEntityLabel(inv.staffId, staffLabels, 'Staff')}
+                        </span>
                       ))}
                     </TableCell>
                     <TableCell>
@@ -282,9 +287,7 @@ export function ExamOpsPanel({
                   <TableRow key={seat.id} data-testid="exam-seat-row">
                     <TableCell>{seat.seatNumber}</TableCell>
                     <TableCell>{seat.roomNumber}</TableCell>
-                    <TableCell>
-                      <code className="text-xs">{seat.studentName}</code>
-                    </TableCell>
+                    <TableCell>{seat.studentName || 'Student'}</TableCell>
                     <TableCell>{seat.centerName}</TableCell>
                   </TableRow>
                 ))}
@@ -382,7 +385,7 @@ export function ExamOpsPanel({
                     data-testid="marks-pair-row"
                   >
                     <TableCell>
-                      <code className="text-xs">{pair.candidateId.slice(0, 8)}</code>
+                      {resolveEntityLabel(pair.candidateId, candidateLabels, 'Candidate')}
                     </TableCell>
                     <TableCell>{pair.entry1?.marks ?? '—'}</TableCell>
                     <TableCell>{pair.entry2?.marks ?? '—'}</TableCell>
@@ -515,7 +518,7 @@ export function ExamOpsPanel({
                       <Badge>{row.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs">{row.candidateId.slice(0, 8)}</code>
+                      {resolveEntityLabel(row.candidateId, candidateLabels, 'Candidate')}
                     </TableCell>
                     <TableCell>
                       {row.originalMarks ?? '—'}

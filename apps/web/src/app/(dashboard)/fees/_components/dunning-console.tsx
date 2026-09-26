@@ -25,6 +25,7 @@ import type {
   ReminderSuppression,
   SendRemindersResult,
 } from '@/lib/api/fees';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 function formatMoney(cents: number, currency = 'INR'): string {
   return `${currency} ${(cents / 100).toFixed(2)}`;
@@ -36,12 +37,14 @@ export function DunningConsole({
   suppressions,
   audits,
   honestyNote,
+  studentLabels = {},
 }: {
   overdue: OverdueReminderRow[];
   asOf: string;
   suppressions: ReminderSuppression[];
   audits: ReminderSendAudit[];
   honestyNote: string;
+  studentLabels?: Record<string, string>;
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -251,10 +254,11 @@ export function DunningConsole({
                           />
                         </td>
                         <td className="py-2 pr-2">
-                          <code className="text-xs">{row.invoiceNumber ?? row.invoiceId}</code>
+                          {row.invoiceNumber?.trim() ||
+                            resolveEntityLabel(row.invoiceId, {}, 'Invoice')}
                         </td>
                         <td className="py-2 pr-2">
-                          <code className="text-xs">{row.studentId}</code>
+                          {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
                         </td>
                         <td className="py-2 pr-2">{formatMoney(row.amountCents, row.currency)}</td>
                         <td className="py-2 pr-2">{row.overdueDays}d</td>
@@ -287,7 +291,7 @@ export function DunningConsole({
             <ul className="space-y-1 text-sm">
               {sendResult.results.map((row, index) => (
                 <li key={`${row.invoiceId}-${row.channel}-${index}`}>
-                  <code className="text-xs">{row.invoiceId.slice(0, 8)}</code> · {row.channel}
+                  {resolveEntityLabel(row.invoiceId, {}, 'Invoice')} · {row.channel}
                   {row.messageId
                     ? ` · ${row.messageId}`
                     : ` · skipped (${row.skippedReason ?? 'unknown'})`}
@@ -342,9 +346,11 @@ export function DunningConsole({
                     <div>
                       <p>{row.reason}</p>
                       <p className="text-xs text-muted-foreground">
-                        {row.studentId ? `student ${row.studentId}` : null}
+                        {row.studentId
+                          ? resolveEntityLabel(row.studentId, studentLabels, 'Student')
+                          : null}
                         {row.studentId && row.invoiceId ? ' · ' : null}
-                        {row.invoiceId ? `invoice ${row.invoiceId}` : null}
+                        {row.invoiceId ? resolveEntityLabel(row.invoiceId, {}, 'Invoice') : null}
                       </p>
                     </div>
                     <Button
@@ -383,8 +389,8 @@ export function DunningConsole({
                       {row.channel} · <code className="text-xs">{row.messageId}</code>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(row.createdAt).toLocaleString()} · invoice{' '}
-                      <code className="text-xs">{row.invoiceId}</code>
+                      {new Date(row.createdAt).toLocaleString()} ·{' '}
+                      {resolveEntityLabel(row.invoiceId, {}, 'Invoice')}
                     </p>
                   </li>
                 ))}

@@ -291,8 +291,9 @@ export default function ScholarshipReviewQueue() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-xs font-mono">
-                          {app.applicantId.slice(0, 8)}…
+                        <div className="font-medium text-sm">Applicant</div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          {app.applicantId.slice(0, 8)}
                         </div>
                         {app.gender && (
                           <div className="text-muted-foreground text-xs capitalize">

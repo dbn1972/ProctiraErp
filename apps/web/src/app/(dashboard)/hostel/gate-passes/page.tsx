@@ -11,6 +11,8 @@ import {
 
 import { requireSession } from '@/lib/auth/server';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { GatePassActions } from '../_components/gate-pass-actions';
 import { GatePassRequestForm } from '../_components/gate-pass-form';
 
@@ -18,7 +20,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelGatePassesPage() {
   await requireSession();
-  const [hostels, passes] = await Promise.all([listHostels(), listHostelGatePasses()]);
+  const [hostels, passes, studentLabels] = await Promise.all([
+    listHostels(),
+    listHostelGatePasses(),
+    loadStudentLabelMap(),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -64,8 +70,8 @@ export default async function HostelGatePassesPage() {
                     {pass.overdueReturn ? ' · overdue return' : ''}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    student {pass.studentId.slice(0, 8)} · out {pass.expectedOutAt.slice(0, 16)} →
-                    in {pass.expectedInAt.slice(0, 16)}
+                    {resolveEntityLabel(pass.studentId, studentLabels, 'Student')} · out{' '}
+                    {pass.expectedOutAt.slice(0, 16)} → in {pass.expectedInAt.slice(0, 16)}
                   </p>
                   <GatePassActions id={pass.id} status={pass.status} />
                 </li>

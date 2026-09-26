@@ -11,6 +11,8 @@ import {
   type FeeInvoice,
   type FeeReceipt,
 } from '@/lib/api/fees';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { PayInvoiceButton } from './_components/pay-invoice-button';
 
 export const dynamic = 'force-dynamic';
@@ -48,6 +50,7 @@ function dueDateForInstalment(invoice: FeeInvoice, instalment: FeeInstalment): D
 export default async function ParentFeesPage() {
   await requireSession();
   const [invoices, receipts] = await Promise.all([listInvoices('parent'), listReceipts('parent')]);
+  const studentLabels = await loadStudentLabelsForIds(invoices.map((invoice) => invoice.studentId));
 
   const structureIds = [
     ...new Set(invoices.map((invoice) => invoice.structureId).filter((id): id is string => !!id)),
@@ -129,8 +132,9 @@ export default async function ParentFeesPage() {
                     <p className="text-sm font-medium text-foreground">{invoice.title}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       Billed {formatAmount(invoice.amountCents, invoice.currency)} · Remaining{' '}
-                      {formatAmount(remaining, invoice.currency)} · Student{' '}
-                      {invoice.studentId.slice(0, 8)}… · {invoice.status}
+                      {formatAmount(remaining, invoice.currency)} ·{' '}
+                      {resolveEntityLabel(invoice.studentId, studentLabels, 'Child')} ·{' '}
+                      {invoice.status}
                       {invoice.dueAt
                         ? ` · due ${new Date(invoice.dueAt).toLocaleDateString()}`
                         : ''}

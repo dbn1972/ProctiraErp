@@ -11,6 +11,8 @@ import {
 
 import { requireSession } from '@/lib/auth/server';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { HostelAttendanceForm } from '../_components/attendance-form';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +26,7 @@ export default async function HostelAttendancePage({
   const { blockId, onDate } = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;
-  const blocks = await listHostelBlocks();
+  const [blocks, studentLabels] = await Promise.all([listHostelBlocks(), loadStudentLabelMap()]);
   const selectedBlock = blockId && blocks.some((b) => b.id === blockId) ? blockId : blocks[0]?.id;
   const marks = selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : [];
 
@@ -70,7 +72,7 @@ export default async function HostelAttendancePage({
                 >
                   <p className="text-sm font-medium text-foreground">{mark.status}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    student {mark.studentId.slice(0, 8)}
+                    {resolveEntityLabel(mark.studentId, studentLabels, 'Student')}
                     {mark.reason ? ` · ${mark.reason}` : ''}
                   </p>
                 </li>

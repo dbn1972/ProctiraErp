@@ -13,6 +13,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listHostelVisitors, listHostels } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { NewVisitorForm } from '../_components/new-visitor-form';
 import { VisitorStatusButtons } from '../_components/visitor-status-buttons';
 
@@ -20,7 +22,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelVisitorsPage() {
   await requireSession();
-  const [visitors, hostels] = await Promise.all([listHostelVisitors(), listHostels()]);
+  const [visitors, hostels, studentLabels] = await Promise.all([
+    listHostelVisitors(),
+    listHostels(),
+    loadStudentLabelMap(),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -61,7 +67,7 @@ export default async function HostelVisitorsPage() {
                     {row.visitorName} · {row.status}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {row.visitDate} · student {row.studentId.slice(0, 8)}
+                    {row.visitDate} · {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
                   </p>
                   <VisitorStatusButtons visitorId={row.id} status={row.status} />
                 </li>

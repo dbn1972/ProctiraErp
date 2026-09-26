@@ -4,6 +4,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listFeePlans, listInvoices } from '@/lib/api/fees';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { NewInvoiceForm } from '../_components/new-invoice-form';
 import { ConcessionDialog } from '../_components/concession-dialog';
 import { PayInvoiceStaffButton } from '../_components/pay-invoice-staff-button';
@@ -18,7 +20,12 @@ export const dynamic = 'force-dynamic';
 export default async function FeesInvoicesPage() {
   await requireSession();
   const locale = await getLocale();
-  const [plans, invoices] = await Promise.all([listFeePlans(), listInvoices('staff')]);
+  const [plans, invoices, studentLabels] = await Promise.all([
+    listFeePlans(),
+    listInvoices('staff'),
+    loadStudentLabelMap(),
+  ]);
+  const planLabels = new Map(plans.map((plan) => [plan.id, plan.name]));
 
   return (
     <div className="space-y-6 p-6">
@@ -53,10 +60,13 @@ export default async function FeesInvoicesPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{invoice.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(invoice.amountCents, invoice.currency, locale)} · Student{' '}
-                    {invoice.studentId.slice(0, 8)}… · {invoice.status}
+                    {formatAmount(invoice.amountCents, invoice.currency, locale)} ·{' '}
+                    {resolveEntityLabel(invoice.studentId, studentLabels, 'Student')} ·{' '}
+                    {invoice.status}
                     {invoice.invoiceNumber ? ` · ${invoice.invoiceNumber}` : ''}
-                    {invoice.planId ? ` · plan ${invoice.planId.slice(0, 8)}…` : ''}
+                    {invoice.planId
+                      ? ` · ${resolveEntityLabel(invoice.planId, planLabels, 'Plan')}`
+                      : ''}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.status === 'open' ? (

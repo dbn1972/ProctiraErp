@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listChildren, listThreads } from '@/lib/api/parent-portal';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { CreateThreadForm } from './_components/create-thread-form';
 
 export const dynamic = 'force-dynamic';
@@ -14,6 +16,7 @@ export default async function ParentMessagesPage() {
   await requireSession();
   const [threads, children] = await Promise.all([listThreads(), listChildren()]);
   const studentIds = children.map((child) => child.studentId);
+  const studentLabels = Object.fromEntries(await loadStudentLabelsForIds(studentIds));
 
   return (
     <div className="space-y-6">
@@ -26,7 +29,7 @@ export default async function ParentMessagesPage() {
         </div>
       </div>
 
-      <CreateThreadForm studentIds={studentIds} />
+      <CreateThreadForm studentIds={studentIds} studentLabels={studentLabels} />
 
       <Card>
         <CardHeader>
@@ -56,8 +59,8 @@ export default async function ParentMessagesPage() {
                   >
                     <p className="text-sm font-medium text-foreground">{thread.subject}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Student {thread.studentId.slice(0, 8)}… · {thread.status} ·{' '}
-                      {new Date(thread.updatedAt).toLocaleDateString()}
+                      {resolveEntityLabel(thread.studentId, studentLabels, 'Child')} ·{' '}
+                      {thread.status} · {new Date(thread.updatedAt).toLocaleDateString()}
                     </p>
                   </Link>
                 </li>
