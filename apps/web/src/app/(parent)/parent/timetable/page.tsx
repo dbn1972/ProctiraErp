@@ -1,7 +1,8 @@
 import { requireSession } from '@/lib/auth/server';
-import { getChildTimetable, listChildren } from '@/lib/api/parent-portal';
+import { getChildTimetable, listChildrenResult } from '@/lib/api/parent-portal';
 import { TimetableWeeklyGrid } from '@/components/timetable/weekly-grid';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,24 @@ export default async function ParentTimetablePage({
 }) {
   await requireSession();
   const params = await searchParams;
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="Timetable"
+        description="Class meetings for the current term."
+        testId="parent-timetable"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No timetable to show."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
   const child = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {

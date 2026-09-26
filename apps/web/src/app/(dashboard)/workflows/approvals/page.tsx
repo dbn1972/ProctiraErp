@@ -8,14 +8,45 @@ import { ArrowLeft, CheckCircle2, ListChecks } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listPendingApprovals, type WorkflowApproval } from '@/lib/api/workflows';
+import { listPendingApprovalsResult, type WorkflowApproval } from '@/lib/api/workflows';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { ApprovalDecisionButtons } from '../_components/approval-decision-buttons';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ApprovalsPage() {
   const session = await requireSession('/workflows/approvals');
-  const approvals = await listPendingApprovals();
+  const approvalsResult = await listPendingApprovalsResult();
+  if (!approvalsResult.ok) {
+    return (
+      <section aria-labelledby="approvals-heading" className="space-y-6">
+        <div>
+          <h1
+            id="approvals-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            My approvals
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Requests waiting on {session.user.email} for review.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={approvalsResult.kind}
+          status={approvalsResult.status}
+          returnTo="/workflows/approvals"
+        />
+      </section>
+    );
+  }
+  const approvals = approvalsResult.items;
+  const [studentLabels, staffLabels] = await Promise.all([
+    loadStudentLabelMap(),
+    loadStaffLabelMap(),
+  ]);
+  const subjectLabels = new Map<string, string>([...studentLabels, ...staffLabels]);
 
   return (
     <section aria-labelledby="approvals-heading" className="space-y-6">
@@ -62,7 +93,7 @@ export default async function ApprovalsPage() {
       ) : (
         <div className="flex max-w-[880px] flex-col gap-4">
           {approvals.map((a) => (
-            <ApprovalCard key={a.id} approval={a} />
+            <ApprovalCard key={a.id} approval={a} subjectLabels={subjectLabels} />
           ))}
         </div>
       )}
@@ -70,7 +101,13 @@ export default async function ApprovalsPage() {
   );
 }
 
-function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
+function ApprovalCard({
+  approval: a,
+  subjectLabels,
+}: {
+  approval: WorkflowApproval;
+  subjectLabels: Map<string, string>;
+}) {
   return (
     <Card className="overflow-hidden">
       <CardContent className="space-y-4 p-5">
@@ -89,8 +126,10 @@ function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
         <dl className="grid gap-x-4 gap-y-2 rounded-lg border border-border bg-muted/30 p-4 text-sm sm:grid-cols-[150px_1fr]">
           <dt className="text-muted-foreground">Subject</dt>
           <dd>
-            <span className="text-muted-foreground">{a.subjectType}/</span>
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{a.subjectId}</code>
+            <span className="text-muted-foreground">{a.subjectType}</span>
+            <span className="mt-0.5 block font-medium text-foreground">
+              {resolveEntityLabel(a.subjectId, subjectLabels, 'Subject')}
+            </span>
           </dd>
           <dt className="text-muted-foreground">Step</dt>
           <dd className="font-medium text-foreground">{a.stepName || '—'}</dd>

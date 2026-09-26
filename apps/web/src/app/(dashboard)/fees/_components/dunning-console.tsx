@@ -69,6 +69,21 @@ export function DunningConsole({
     () => overdue.filter((row) => !row.suppressed).map((row) => row.invoiceId),
     [overdue],
   );
+  const invoiceOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: EntityLabelOption[] = [];
+    for (const row of overdue) {
+      if (seen.has(row.invoiceId)) continue;
+      seen.add(row.invoiceId);
+      const number = row.invoiceNumber?.trim();
+      options.push({
+        id: row.invoiceId,
+        label: number || resolveEntityLabel(row.invoiceId, {}, 'Invoice'),
+        searchText: `${number ?? ''} ${row.studentId}`,
+      });
+    }
+    return options;
+  }, [overdue]);
 
   function toggleInvoice(invoiceId: string) {
     setSelected((prev) =>
@@ -331,9 +346,14 @@ export function DunningConsole({
                 label="Student (optional)"
                 options={studentOptions}
               />
-              <FormField id="sup-invoice" label="Invoice UUID">
-                <Input id="sup-invoice" name="invoiceId" disabled={!hydrated || pending} />
-              </FormField>
+              <EntitySearchSelect
+                id="sup-invoice"
+                name="invoiceId"
+                label="Invoice (optional)"
+                options={invoiceOptions}
+                placeholder="Search invoices…"
+                emptyMessage="No overdue invoices are loaded. You can still suppress by student."
+              />
               <FormField id="sup-reason" label="Reason" required>
                 <Input id="sup-reason" name="reason" required disabled={!hydrated || pending} />
               </FormField>

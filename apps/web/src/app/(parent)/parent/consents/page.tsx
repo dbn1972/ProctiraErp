@@ -3,7 +3,9 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listConsents } from '@/lib/api/parent-portal';
+import { listConsentsResult } from '@/lib/api/parent-portal';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { ConsentDecisionButtons } from './_components/consent-decision-buttons';
@@ -12,7 +14,25 @@ export const dynamic = 'force-dynamic';
 
 export default async function ParentConsentsPage() {
   await requireSession();
-  const consents = await listConsents();
+  const consentsResult = await listConsentsResult();
+  if (!consentsResult.ok) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Consents</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review permission requests from the school and approve or deny them.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={consentsResult.kind}
+          status={consentsResult.status}
+          returnTo="/parent/consents"
+        />
+      </div>
+    );
+  }
+  const consents = consentsResult.items;
   const studentLabels = await loadStudentLabelsForIds(consents.map((c) => c.studentId));
 
   return (
@@ -52,7 +72,7 @@ export default async function ParentConsentsPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {consent.consentType} ·{' '}
                     {resolveEntityLabel(consent.studentId, studentLabels, 'Child')} ·{' '}
-                    {consent.status}
+                    {humanizeStatus(consent.status)}
                   </p>
                   {consent.description ? (
                     <p className="mt-1 text-sm text-muted-foreground">{consent.description}</p>

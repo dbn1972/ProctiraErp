@@ -43,6 +43,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { attendanceBand } from '@/lib/status-label';
 import { InstitutionsFilters } from '@/components/institutions/institutions-filters';
 import { PaginationControls } from '@/components/institutions/pagination-controls';
 import { ApiClientError, listInstitutions } from '@/lib/institutions/api';
@@ -135,7 +136,9 @@ function AttendanceBar({ pct }: { pct: number | null }) {
           aria-label={`Attendance: ${pct}%`}
         />
       </div>
-      <span className={cn('text-xs font-semibold tabular-nums', textCls)}>{pct}%</span>
+      <span className={cn('text-xs font-semibold tabular-nums', textCls)}>
+        {attendanceBand(pct, 80)} · {pct}%
+      </span>
     </div>
   );
 }

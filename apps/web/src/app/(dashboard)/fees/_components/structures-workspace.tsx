@@ -22,9 +22,11 @@ import {
   Input,
 } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import { bulkInvoiceAction, createFeeStructureAction } from '@/lib/fees/actions';
 import type { FeeStructure } from '@/lib/api/fees';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 function formatAmount(cents: number, currency: string, locale: string): string {
   return new Intl.NumberFormat(locale, {
@@ -37,10 +39,16 @@ function formatAmount(cents: number, currency: string, locale: string): string {
 export function StructuresWorkspace({
   structures,
   header,
+  classOptions = [],
+  gradeOptions = [],
+  studentOptions = [],
 }: {
   structures: FeeStructure[];
   /** Server-rendered page heading (h1 + description) so the page owns its h1. */
   header: ReactNode;
+  classOptions?: EntityLabelOption[];
+  gradeOptions?: EntityLabelOption[];
+  studentOptions?: EntityLabelOption[];
 }) {
   const locale = useLocale();
   const router = useRouter();
@@ -161,12 +169,22 @@ export function StructuresWorkspace({
                   defaultValue="1"
                 />
               </FormField>
-              <FormField id="st-class" label="Class UUID">
-                <Input id="st-class" name="classId" />
-              </FormField>
-              <FormField id="st-grade" label="Grade UUID">
-                <Input id="st-grade" name="gradeId" />
-              </FormField>
+              <EntitySearchSelect
+                id="st-class"
+                name="classId"
+                label="Class"
+                options={classOptions}
+                placeholder="Search classes…"
+                emptyMessage="No classes are loaded. Create a section first, or leave this blank."
+              />
+              <EntitySearchSelect
+                id="st-grade"
+                name="gradeId"
+                label="Grade"
+                options={gradeOptions}
+                placeholder="Search grades…"
+                emptyMessage="No grades are loaded. Add grades in the institution setup, or leave this blank."
+              />
             </div>
             {error ? (
               <p className="text-sm text-destructive" role="alert">
@@ -211,12 +229,20 @@ export function StructuresWorkspace({
                 ))}
               </select>
             </FormField>
-            <FormField id="bi-class" label="Class UUID">
-              <Input id="bi-class" name="classId" disabled={!hydrated || pending} />
-            </FormField>
-            <FormField id="bi-students" label="Student UUIDs (comma-separated)">
-              <Input id="bi-students" name="studentIds" disabled={!hydrated || pending} />
-            </FormField>
+            <EntitySearchSelect
+              id="bi-class"
+              name="classId"
+              label="Class"
+              options={classOptions}
+              placeholder="Search classes…"
+              emptyMessage="No classes are loaded. Invoice selected students, or add a section first."
+            />
+            <StudentMultiAdd
+              id="bi-students"
+              name="studentIds"
+              options={studentOptions}
+              disabled={!hydrated || pending}
+            />
             <FormField id="bi-due" label="Due date">
               <Input id="bi-due" name="dueAt" type="date" disabled={!hydrated || pending} />
             </FormField>
@@ -303,6 +329,91 @@ export function StructuresWorkspace({
         onConfirm={onConfirmBulk}
         testId="bulk-invoice-confirm"
       />
+    </div>
+  );
+}
+
+function StudentMultiAdd({
+  id,
+  name,
+  options,
+  disabled,
+}: {
+  id: string;
+  name: string;
+  options: EntityLabelOption[];
+  disabled?: boolean;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [pick, setPick] = useState('');
+
+  if (options.length === 0) {
+    return (
+      <div className="space-y-1.5 sm:col-span-2">
+        <label htmlFor={id} className="text-sm font-medium text-foreground">
+          Students (optional)
+        </label>
+        <input type="hidden" id={id} name={name} value="" />
+        <p
+          className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+          role="status"
+        >
+          Student directory is not loaded. Leave this blank to invoice by class, or try again when
+          the directory is available.
+        </p>
+      </div>
+    );
+  }
+
+  const remaining = options.filter((option) => !selected.includes(option.id));
+
+  return (
+    <div className="space-y-1.5 sm:col-span-2">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
+        Students (optional)
+      </label>
+      <input type="hidden" name={name} value={selected.join(',')} />
+      <select
+        id={id}
+        value={pick}
+        disabled={disabled}
+        onChange={(event) => {
+          const value = event.target.value;
+          setPick('');
+          if (value && !selected.includes(value)) setSelected((prev) => [...prev, value]);
+        }}
+        className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+      >
+        <option value="">Add a student…</option>
+        {remaining.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {selected.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Leave empty to invoice every student in the selected class.
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-2" role="list">
+          {selected.map((studentId) => (
+            <li
+              key={studentId}
+              className="inline-flex items-center gap-2 rounded-full bg-muted px-2 py-1 text-xs"
+            >
+              {options.find((option) => option.id === studentId)?.label ?? 'Student'}
+              <button
+                type="button"
+                className="font-semibold text-muted-foreground"
+                onClick={() => setSelected((prev) => prev.filter((id) => id !== studentId))}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

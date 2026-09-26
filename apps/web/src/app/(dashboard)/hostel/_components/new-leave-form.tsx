@@ -48,7 +48,11 @@ export function NewLeaveForm({
     const endDate = String(fd.get('endDate') ?? '').trim();
     const reason = String(fd.get('reason') ?? '').trim();
     if (!UUID_RE.test(studentId) || !UUID_RE.test(hostelId)) {
-      setError('Student and hostel must be UUID v4 values.');
+      setError(
+        studentOptions.length === 0 || hostels.length === 0
+          ? 'Student directory or hostel list is empty — add those records before requesting leave.'
+          : 'Select a student and a hostel.',
+      );
       return;
     }
     if (!startDate || !endDate) {

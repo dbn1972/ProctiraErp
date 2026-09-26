@@ -13,39 +13,69 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import { applyScholarshipNettingAction } from '@/lib/fees/actions';
 import type { ScholarshipNettingResult } from '@/lib/api/fees';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { humanizeStatus } from '@/lib/status-label';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 function formatMoney(cents: number, currency = 'INR'): string {
   const amount = (cents / 100).toFixed(2);
   return `${currency} ${amount}`;
 }
 
-export function ScholarshipNettingForm() {
+export function ScholarshipNettingForm({
+  studentOptions = [],
+  invoiceOptions = [],
+  invoiceDirectoryFailed = false,
+}: {
+  studentOptions?: EntityLabelOption[];
+  invoiceOptions?: EntityLabelOption[];
+  invoiceDirectoryFailed?: boolean;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScholarshipNettingResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingValues, setPendingValues] = useState<{
+    studentId: string;
+    disbursementId: string;
+    amount: number;
+    invoiceId: string;
+    currency: string;
+  } | null>(null);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    setPendingValues({
+      studentId: String(fd.get('studentId') ?? '').trim(),
+      disbursementId: String(fd.get('disbursementId') ?? '').trim(),
+      amount: Number(fd.get('amount') ?? 0),
+      invoiceId: String(fd.get('invoiceId') ?? '').trim(),
+      currency: String(fd.get('currency') ?? '').trim() || 'INR',
+    });
+    setConfirmOpen(true);
+  }
+
+  function onConfirm() {
+    if (!pendingValues) return;
+    const values = pendingValues;
     startTransition(async () => {
       setError(null);
       setResult(null);
-      const actionResult = await applyScholarshipNettingAction({
-        studentId: String(fd.get('studentId') ?? '').trim(),
-        disbursementId: String(fd.get('disbursementId') ?? '').trim(),
-        amount: Number(fd.get('amount') ?? 0),
-        invoiceId: String(fd.get('invoiceId') ?? '').trim(),
-        currency: String(fd.get('currency') ?? '').trim() || 'INR',
-      });
+      const actionResult = await applyScholarshipNettingAction(values);
       if (!actionResult.success) {
         setError(actionResult.error);
         return;
       }
+      setConfirmOpen(false);
+      setPendingValues(null);
       setResult(actionResult.data);
       router.refresh();
     });
@@ -70,15 +100,13 @@ export function ScholarshipNettingForm() {
             data-testid="scholarship-netting-form"
             data-hydrated={hydrated ? 'true' : 'false'}
           >
-            <FormField id="net-student" label="Student UUID" required>
-              <Input
-                id="net-student"
-                name="studentId"
-                required
-                disabled={!hydrated || pending}
-                autoComplete="off"
-              />
-            </FormField>
+            <EntitySearchSelect
+              id="net-student"
+              name="studentId"
+              label="Student"
+              options={studentOptions}
+              required
+            />
             <FormField id="net-disbursement" label="Disbursement ID" required>
               <Input
                 id="net-disbursement"
@@ -100,15 +128,18 @@ export function ScholarshipNettingForm() {
                 disabled={!hydrated || pending}
               />
             </FormField>
-            <FormField id="net-invoice" label="Invoice UUID (optional)">
-              <Input
-                id="net-invoice"
-                name="invoiceId"
-                disabled={!hydrated || pending}
-                autoComplete="off"
-                placeholder="Defaults to first open/overdue invoice"
-              />
-            </FormField>
+            <EntitySearchSelect
+              id="net-invoice"
+              name="invoiceId"
+              label="Invoice (optional)"
+              options={invoiceOptions}
+              placeholder="Search invoices…"
+              emptyMessage={
+                invoiceDirectoryFailed
+                  ? 'Invoices could not be loaded. Leave this blank to use the first open invoice.'
+                  : 'No invoices are loaded. Leave this blank to use the first open invoice.'
+              }
+            />
             <input type="hidden" name="currency" value="INR" />
             {error ? (
               <p className="text-sm text-destructive" role="alert" data-testid="netting-error">
@@ -117,12 +148,22 @@ export function ScholarshipNettingForm() {
             ) : null}
             <Button
               type="submit"
-              disabled={!hydrated || pending}
+              disabled={!hydrated || pending || studentOptions.length === 0}
               data-testid="submit-scholarship-netting"
             >
               {pending ? 'Applying…' : 'Apply netting'}
             </Button>
           </form>
+          <ConfirmActionDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title="Apply this scholarship credit?"
+            description="This posts a fee credit from the disbursement. It cannot be undone from this form."
+            confirmLabel="Apply credit"
+            pending={pending}
+            onConfirm={onConfirm}
+            testId="scholarship-netting-confirm"
+          />
         </CardContent>
       </Card>
 
@@ -161,10 +202,14 @@ export function ScholarshipNettingForm() {
             {result.invoice ? (
               <p>
                 <span className="text-muted-foreground">Invoice: </span>
-                <code className="text-xs">{result.invoice.id}</code>
+                {resolveEntityLabel(
+                  result.invoice.id,
+                  Object.fromEntries(invoiceOptions.map((option) => [option.id, option.label])),
+                  'Invoice',
+                )}
                 <span className="ml-2">
                   balance {formatMoney(result.invoice.amountCents, result.invoice.currency)} (
-                  {result.invoice.status})
+                  {humanizeStatus(result.invoice.status)})
                 </span>
               </p>
             ) : (

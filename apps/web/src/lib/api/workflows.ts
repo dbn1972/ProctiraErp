@@ -4,6 +4,7 @@
  * Validates: Requirement 13.1 — workflow definitions, instances, approvals.
  */
 import { gatewayFetch, GatewayError } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 
 export interface WorkflowStep {
   id: string;
@@ -51,12 +52,20 @@ export interface CreateWorkflowDefinitionInput {
   steps: Array<{ name: string; approverRole: string }>;
 }
 
+export function listWorkflowDefinitionsResult(): Promise<ListResult<WorkflowDefinition>> {
+  return fetchList<WorkflowDefinition>('/workflows/definitions', { next: { revalidate: 0 } });
+}
+
 export async function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
-  const result = await gatewayFetch<{ data: WorkflowDefinition[] }>('/workflows/definitions', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listWorkflowDefinitionsResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load workflow definitions',
+    });
+  }
+  return result.items;
 }
 
 export async function getWorkflowDefinition(id: string): Promise<WorkflowDefinition | null> {
@@ -84,20 +93,36 @@ export async function createWorkflowDefinition(
   return result.data;
 }
 
+export function listWorkflowInstancesResult(): Promise<ListResult<WorkflowInstance>> {
+  return fetchList<WorkflowInstance>('/workflows/instances', { next: { revalidate: 0 } });
+}
+
 export async function listWorkflowInstances(): Promise<WorkflowInstance[]> {
-  const result = await gatewayFetch<{ data: WorkflowInstance[] }>('/workflows/instances', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listWorkflowInstancesResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load workflow instances',
+    });
+  }
+  return result.items;
+}
+
+export function listPendingApprovalsResult(): Promise<ListResult<WorkflowApproval>> {
+  return fetchList<WorkflowApproval>('/workflows/approvals/pending', { next: { revalidate: 0 } });
 }
 
 export async function listPendingApprovals(): Promise<WorkflowApproval[]> {
-  const result = await gatewayFetch<{ data: WorkflowApproval[] }>('/workflows/approvals/pending', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listPendingApprovalsResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load pending approvals',
+    });
+  }
+  return result.items;
 }
 
 export async function decideWorkflowApproval(

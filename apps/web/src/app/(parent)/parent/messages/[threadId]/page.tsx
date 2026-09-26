@@ -13,7 +13,9 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listMessages, listThreads } from '@/lib/api/parent-portal';
+import { listMessagesResult, listThreadsResult } from '@/lib/api/parent-portal';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { ReplyForm } from '../_components/reply-form';
@@ -27,7 +29,23 @@ export default async function ParentThreadPage({
 }) {
   await requireSession();
   const { threadId } = await params;
-  const [threads, messages] = await Promise.all([listThreads(), listMessages(threadId)]);
+  const [threadsResult, messagesResult] = await Promise.all([
+    listThreadsResult(),
+    listMessagesResult(threadId),
+  ]);
+  if (!threadsResult.ok) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Message</h1>
+        <ListLoadFailure
+          kind={threadsResult.kind}
+          status={threadsResult.status}
+          returnTo="/parent/messages"
+        />
+      </div>
+    );
+  }
+  const threads = threadsResult.items;
   const thread = threads.find((row) => row.id === threadId);
 
   if (!thread) {
@@ -35,6 +53,7 @@ export default async function ParentThreadPage({
   }
 
   const studentLabels = await loadStudentLabelsForIds([thread.studentId]);
+  const messages = messagesResult.ok ? messagesResult.items : [];
 
   return (
     <div className="space-y-6">
@@ -44,7 +63,8 @@ export default async function ParentThreadPage({
             {thread.subject}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {resolveEntityLabel(thread.studentId, studentLabels, 'Child')} · {thread.status}
+            {resolveEntityLabel(thread.studentId, studentLabels, 'Child')} ·{' '}
+            {humanizeStatus(thread.status)}
           </p>
         </div>
         <Button asChild variant="outline" className="min-h-12">
@@ -56,13 +76,21 @@ export default async function ParentThreadPage({
         <CardHeader>
           <CardTitle className="text-base">Messages</CardTitle>
           <CardDescription>
-            {messages.length === 0
-              ? 'No messages in this thread.'
-              : `${messages.length} message${messages.length === 1 ? '' : 's'}.`}
+            {!messagesResult.ok
+              ? 'Messages could not be loaded.'
+              : messages.length === 0
+                ? 'No messages in this thread.'
+                : `${messages.length} message${messages.length === 1 ? '' : 's'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {messages.length === 0 ? (
+          {!messagesResult.ok ? (
+            <ListLoadFailure
+              kind={messagesResult.kind}
+              status={messagesResult.status}
+              returnTo={`/parent/messages/${threadId}`}
+            />
+          ) : messages.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               No messages in this thread.
             </p>

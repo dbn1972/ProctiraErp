@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { utilizationBand } from '@/lib/status-label';
 import { AddGradeDialog } from '@/components/institutions/academics-create-dialogs';
 import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
@@ -41,9 +42,14 @@ function readNum(cd: Record<string, unknown> | null | undefined, key: string): n
 }
 
 function UtilizationBar({ pct }: { pct: number }) {
-  const cls = pct >= 95 ? 'bg-amber-500' : pct >= 100 ? 'bg-red-500' : 'bg-emerald-500';
+  const band = utilizationBand(pct);
+  const cls = pct >= 100 ? 'bg-red-500' : pct >= 95 ? 'bg-amber-500' : 'bg-emerald-500';
   const textCls =
-    pct >= 95 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400';
+    pct >= 100
+      ? 'text-red-700 dark:text-red-400'
+      : pct >= 95
+        ? 'text-amber-700 dark:text-amber-400'
+        : 'text-emerald-700 dark:text-emerald-400';
   return (
     <div className="flex items-center gap-2">
       <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
@@ -54,10 +60,12 @@ function UtilizationBar({ pct }: { pct: number }) {
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Utilization ${pct}%`}
+          aria-label={`Utilization ${band}, ${pct}%`}
         />
       </div>
-      <span className={cn('text-xs font-bold tabular-nums', textCls)}>{pct}%</span>
+      <span className={cn('text-xs font-bold tabular-nums', textCls)}>
+        {band} · {pct}%
+      </span>
     </div>
   );
 }
