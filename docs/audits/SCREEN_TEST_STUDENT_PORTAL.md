@@ -9,12 +9,12 @@
 
 ## Session binding
 
-| Field | Value |
-| ----- | ----- |
-| **Tenant (requested)** | `00000000-0000-4000-8000-00000000a501` (Sunrise demo) |
-| **Student (requested)** | Aarav Mehta |
-| **JWT `sub` (student id)** | `00000000-0000-4000-8000-00000000a502` |
-| **Binding model** | Same as E2E: HS256 session cookie + gateway `/api/v1/student-portal/me/*` resolves actor from JWT `sub` (not forgeable headers). |
+| Field                      | Value                                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Tenant (requested)**     | `00000000-0000-4000-8000-00000000a501` (Sunrise demo)                                                                            |
+| **Student (requested)**    | Aarav Mehta                                                                                                                      |
+| **JWT `sub` (student id)** | `00000000-0000-4000-8000-00000000a502`                                                                                           |
+| **Binding model**          | Same as E2E: HS256 session cookie + gateway `/api/v1/student-portal/me/*` resolves actor from JWT `sub` (not forgeable headers). |
 
 **Seed honesty:** At tip `52e01ed5`, the repository has **no** committed SQL seed for tenant `…a501` or student “Aarav Mehta”. For this screen pass, a **minimal local-only** tenant row and student row were inserted in the agent Postgres instance so binding matches production rules; nothing outside `docs/audits/` was changed for that bootstrap.
 
@@ -22,23 +22,23 @@
 
 ## Route matrix
 
-| Route | Screen | Result | Notes |
-| ----- | ------ | ------ | ----- |
-| `/student` | Today (hub) | **PASS** | Hub cards + nav; `data-testid=student-home`. |
-| `/student/attendance` | Attendance | **BLOCKED** | Skipped — open UX/module work **#386** (forbidden edit surface). |
-| `/student/calendar` | Calendar | **PASS** | API 200, `data: []`; UI empty copy: “No holidays or events have been published yet.” |
-| `/student/grades` | Grades | **PASS** | API 200, empty arrays; honest “No published grades yet.” |
-| `/student/homework` | Homework | **PASS** | API 200, empty list; honest “No published homework yet.” |
-| `/student/library` | Library | **PASS** | OPAC search shell, “Enter a title…”, empty loans/holds status lines. |
-| `/student/notices` | Notices | **PASS** | API 200, empty list; honest “There are no school notices right now.” |
-| `/student/pal` | PAL plan | **PASS** | API 200, empty plan; honest “No practice plan yet…” |
-| `/student/timetable` | Timetable | **PASS** | API 200, empty slots; honest “No published class meetings yet.” + empty grid. |
+| Route                 | Screen      | Result      | Notes                                                                                |
+| --------------------- | ----------- | ----------- | ------------------------------------------------------------------------------------ |
+| `/student`            | Today (hub) | **PASS**    | Hub cards + nav; `data-testid=student-home`.                                         |
+| `/student/attendance` | Attendance  | **BLOCKED** | Skipped — open UX/module work **#386** (forbidden edit surface).                     |
+| `/student/calendar`   | Calendar    | **PASS**    | API 200, `data: []`; UI empty copy: “No holidays or events have been published yet.” |
+| `/student/grades`     | Grades      | **PASS**    | API 200, empty arrays; honest “No published grades yet.”                             |
+| `/student/homework`   | Homework    | **PASS**    | API 200, empty list; honest “No published homework yet.”                             |
+| `/student/library`    | Library     | **PASS**    | OPAC search shell, “Enter a title…”, empty loans/holds status lines.                 |
+| `/student/notices`    | Notices     | **PASS**    | API 200, empty list; honest “There are no school notices right now.”                 |
+| `/student/pal`        | PAL plan    | **PASS**    | API 200, empty plan; honest “No practice plan yet…”                                  |
+| `/student/timetable`  | Timetable   | **PASS**    | API 200, empty slots; honest “No published class meetings yet.” + empty grid.        |
 
 ### Aggregate (in-scope routes)
 
 | PASS | FAIL | BLOCKED |
 | ---- | ---- | ------- |
-| 8 | 0 | 1 |
+| 8    | 0    | 1       |
 
 Attendance excluded from pass/fail denominator per #386 skip instruction.
 
