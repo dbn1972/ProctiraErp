@@ -50,6 +50,7 @@ Overall: this reads as a small-to-medium, well-bounded feature, not a rearchitec
 ## Recommendation
 
 Do not build this speculatively. Two things worth deciding first, in order:
+
 1. Is the multi-institution "additional charge" persona (the one the auth layer already names and tests) common enough among target customers to justify a dedicated rollup view, or is it a rare enough edge case that "browse per-institution" is an acceptable, if mildly tedious, workflow for it?
 2. Independent of (1): the `decideInstitutionScope` default-to-primary-only behavior for that persona is arguably a small correctness gap worth fixing on its own even without a new UI — a two-school headmaster silently defaulting to seeing only one school's data on any call that omits `institutionId` is a plausible source of quiet confusion today, separate from whether a dedicated cross-institution page ever gets built.
 
