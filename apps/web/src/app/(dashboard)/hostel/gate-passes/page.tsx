@@ -12,7 +12,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { GatePassActions } from '../_components/gate-pass-actions';
 import { GatePassRequestForm } from '../_components/gate-pass-form';
 
@@ -20,11 +20,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelGatePassesPage() {
   await requireSession();
-  const [hostels, passes, studentLabels] = await Promise.all([
+  const [hostels, passes, studentOptions] = await Promise.all([
     listHostels(),
     listHostelGatePasses(),
-    loadStudentLabelMap(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -40,7 +41,7 @@ export default async function HostelGatePassesPage() {
         </Button>
       </div>
 
-      <GatePassRequestForm hostels={hostels} />
+      <GatePassRequestForm hostels={hostels} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>

@@ -12,7 +12,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { HostelAttendanceForm } from '../_components/attendance-form';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,8 @@ export default async function HostelAttendancePage({
   const { blockId, onDate } = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;
-  const [blocks, studentLabels] = await Promise.all([listHostelBlocks(), loadStudentLabelMap()]);
+  const [blocks, studentOptions] = await Promise.all([listHostelBlocks(), loadStudentOptions()]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const selectedBlock = blockId && blocks.some((b) => b.id === blockId) ? blockId : blocks[0]?.id;
   const marks = selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : [];
 
@@ -46,7 +47,12 @@ export default async function HostelAttendancePage({
         </Button>
       </div>
 
-      <HostelAttendanceForm blocks={blocks} defaultBlockId={selectedBlock} defaultDate={date} />
+      <HostelAttendanceForm
+        blocks={blocks}
+        defaultBlockId={selectedBlock}
+        defaultDate={date}
+        studentOptions={studentOptions}
+      />
 
       <Card>
         <CardHeader>

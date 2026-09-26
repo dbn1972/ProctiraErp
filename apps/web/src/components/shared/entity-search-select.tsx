@@ -49,14 +49,16 @@ export function EntitySearchSelect({
     <div className={className ?? 'space-y-1.5'}>
       <Label htmlFor={id}>{label}</Label>
       {options.length === 0 ? (
-        <Input
-          id={id}
-          name={name}
-          required={required}
-          defaultValue={defaultValue}
-          autoComplete="off"
-          placeholder="No directory loaded — enter id"
-        />
+        <div className="space-y-1.5">
+          <input type="hidden" id={id} name={name} value="" />
+          <p
+            className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            No directory entries loaded. Add students or staff first, or try again when the
+            directory API is available.
+          </p>
+        </div>
       ) : (
         <>
           <Input

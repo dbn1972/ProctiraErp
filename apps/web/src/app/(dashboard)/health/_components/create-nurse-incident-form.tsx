@@ -13,12 +13,18 @@ import {
   Input,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { createNurseIncidentAction } from '../actions';
 
 const SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function CreateNurseIncidentForm() {
+export function CreateNurseIncidentForm({
+  studentOptions = [],
+}: {
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -35,7 +41,11 @@ export function CreateNurseIncidentForm() {
     const reportedBy = String(fd.get('reportedBy') ?? '').trim();
 
     if (!UUID_RE.test(studentId)) {
-      setError('Student ID must be a valid UUID.');
+      setError(
+        studentOptions.length === 0
+          ? 'Student directory is empty — add students before logging a visit.'
+          : 'Select a student.',
+      );
       return;
     }
     if (!incidentAt || !category || !reportedBy) {
@@ -70,9 +80,13 @@ export function CreateNurseIncidentForm() {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit} data-testid="create-incident-form">
-          <FormField label="Student ID" htmlFor="studentId">
-            <Input id="studentId" name="studentId" required className="min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="studentId"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <FormField label="Institution ID (optional)" htmlFor="institutionId">
             <Input id="institutionId" name="institutionId" className="min-h-11" />
           </FormField>

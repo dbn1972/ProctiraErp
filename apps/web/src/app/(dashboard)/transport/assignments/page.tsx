@@ -7,7 +7,7 @@ import {
   listTransportVehicles,
 } from '@/lib/api/transport';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
 import { listAllStops } from '@/lib/transport/api';
 import { AssignmentForms } from '../_components/assignment-forms';
 
@@ -15,16 +15,18 @@ export const dynamic = 'force-dynamic';
 
 export default async function TransportAssignmentsPage() {
   await requireSession();
-  const [drivers, students, routes, vehicles, stops, studentLabels, staffLabels] =
+  const [drivers, students, routes, vehicles, stops, studentOptions, staffOptions] =
     await Promise.all([
       listDriverAssignments(),
       listStudentAssignments(),
       listTransportRoutes(),
       listTransportVehicles(),
       listAllStops(),
-      loadStudentLabelMap(),
-      loadStaffLabelMap(),
+      loadStudentOptions(),
+      loadStaffOptions(),
     ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
   const routeLabels = new Map(routes.map((route) => [route.id, route.name]));
   const vehicleLabels = new Map(
     vehicles.map((vehicle) => [vehicle.id, vehicle.registrationNumber]),
@@ -39,7 +41,13 @@ export default async function TransportAssignmentsPage() {
         </p>
       </div>
 
-      <AssignmentForms routes={routes} vehicles={vehicles} stops={stops} />
+      <AssignmentForms
+        routes={routes}
+        vehicles={vehicles}
+        stops={stops}
+        studentOptions={studentOptions}
+        staffOptions={staffOptions}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

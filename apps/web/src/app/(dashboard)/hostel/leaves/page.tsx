@@ -14,7 +14,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listHostelLeaves, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LeaveDecisionButtons } from '../_components/leave-decision-buttons';
 import { NewLeaveForm } from '../_components/new-leave-form';
 
@@ -22,11 +22,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelLeavesPage() {
   await requireSession();
-  const [leaves, hostels, studentLabels] = await Promise.all([
+  const [leaves, hostels, studentOptions] = await Promise.all([
     listHostelLeaves(),
     listHostels(),
-    loadStudentLabelMap(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -42,7 +43,7 @@ export default async function HostelLeavesPage() {
         </Button>
       </div>
 
-      <NewLeaveForm hostels={hostels} />
+      <NewLeaveForm hostels={hostels} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>

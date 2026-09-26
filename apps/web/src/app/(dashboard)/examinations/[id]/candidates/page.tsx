@@ -23,7 +23,7 @@ import {
 import { RegisterCandidateDialog } from '@/components/examinations/exam-ops-controls';
 import { getExamination, listExaminationCandidates } from '@/lib/api/examinations';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,13 +38,14 @@ function formatDateTime(value: string): string {
 
 export default async function ExaminationCandidatesPage(props: PageProps) {
   const params = await props.params;
-  const [examination, candidates, studentLabels] = await Promise.all([
+  const [examination, candidates, studentOptions] = await Promise.all([
     getExamination(params.id),
     listExaminationCandidates(params.id),
-    loadStudentLabelMap(),
+    loadStudentOptions(),
   ]);
   if (!examination) notFound();
 
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const centerName = new Map(examination.centers.map((c) => [c.id, c.name]));
   const subjectCode = new Map(examination.subjects.map((s) => [s.id, s.code]));
 
@@ -57,7 +58,7 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
             {candidates.length.toLocaleString()} registered candidates.
           </CardDescription>
         </div>
-        <RegisterCandidateDialog examination={examination} />
+        <RegisterCandidateDialog examination={examination} studentOptions={studentOptions} />
       </CardHeader>
       <CardContent>
         {candidates.length === 0 ? (

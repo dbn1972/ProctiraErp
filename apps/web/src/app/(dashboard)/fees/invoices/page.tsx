@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proc
 import { requireSession } from '@/lib/auth/server';
 import { listFeePlans, listInvoices } from '@/lib/api/fees';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { NewInvoiceForm } from '../_components/new-invoice-form';
 import { ConcessionDialog } from '../_components/concession-dialog';
 import { PayInvoiceStaffButton } from '../_components/pay-invoice-staff-button';
@@ -20,11 +20,12 @@ export const dynamic = 'force-dynamic';
 export default async function FeesInvoicesPage() {
   await requireSession();
   const locale = await getLocale();
-  const [plans, invoices, studentLabels] = await Promise.all([
+  const [plans, invoices, studentOptions] = await Promise.all([
     listFeePlans(),
     listInvoices('staff'),
-    loadStudentLabelMap(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const planLabels = new Map(plans.map((plan) => [plan.id, plan.name]));
 
   return (
@@ -36,7 +37,7 @@ export default async function FeesInvoicesPage() {
         </p>
       </div>
 
-      <NewInvoiceForm plans={plans} />
+      <NewInvoiceForm plans={plans} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>

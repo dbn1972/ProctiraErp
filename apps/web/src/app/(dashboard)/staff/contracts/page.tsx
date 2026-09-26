@@ -14,7 +14,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listStaffContracts, listStaffQualifications } from '@/lib/api/staff';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStaffLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffOptions } from '@/lib/load-entity-labels';
 
 import { NewContractForm } from '../_components/new-contract-form';
 import { NewQualificationForm } from '../_components/new-qualification-form';
@@ -23,11 +23,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function StaffContractsPage() {
   await requireSession();
-  const [contracts, qualifications, staffLabels] = await Promise.all([
+  const [contracts, qualifications, staffOptions] = await Promise.all([
     listStaffContracts(),
     listStaffQualifications(),
-    loadStaffLabelMap(),
+    loadStaffOptions(),
   ]);
+  const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
   const renewals = contracts.filter((row) => row.renewalAlert);
 
   return (
@@ -57,8 +58,8 @@ export default async function StaffContractsPage() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <NewContractForm />
-        <NewQualificationForm />
+        <NewContractForm staffOptions={staffOptions} />
+        <NewQualificationForm staffOptions={staffOptions} />
       </div>
 
       <Card>

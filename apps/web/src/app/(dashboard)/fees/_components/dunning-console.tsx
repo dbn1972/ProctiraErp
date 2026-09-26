@@ -25,7 +25,8 @@ import type {
   ReminderSuppression,
   SendRemindersResult,
 } from '@/lib/api/fees';
-import { resolveEntityLabel } from '@/lib/entity-label';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 function formatMoney(cents: number, currency = 'INR'): string {
   return `${currency} ${(cents / 100).toFixed(2)}`;
@@ -38,6 +39,7 @@ export function DunningConsole({
   audits,
   honestyNote,
   studentLabels = {},
+  studentOptions = [],
 }: {
   overdue: OverdueReminderRow[];
   asOf: string;
@@ -45,6 +47,7 @@ export function DunningConsole({
   audits: ReminderSendAudit[];
   honestyNote: string;
   studentLabels?: Record<string, string>;
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -317,9 +320,12 @@ export function DunningConsole({
               aria-busy={pending}
               data-testid="dunning-suppression-form"
             >
-              <FormField id="sup-student" label="Student UUID">
-                <Input id="sup-student" name="studentId" disabled={!hydrated || pending} />
-              </FormField>
+              <EntitySearchSelect
+                id="sup-student"
+                name="studentId"
+                label="Student (optional)"
+                options={studentOptions}
+              />
               <FormField id="sup-invoice" label="Invoice UUID">
                 <Input id="sup-invoice" name="invoiceId" disabled={!hydrated || pending} />
               </FormField>

@@ -14,7 +14,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listStaffLeaves } from '@/lib/api/staff';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStaffLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffOptions } from '@/lib/load-entity-labels';
 import { NewStaffLeaveForm } from './_components/new-staff-leave-form';
 import { StaffLeaveDecisionButtons } from './_components/leave-decision-buttons';
 
@@ -22,7 +22,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function StaffLeavesPage() {
   await requireSession();
-  const [leaves, staffLabels] = await Promise.all([listStaffLeaves(), loadStaffLabelMap()]);
+  const [leaves, staffOptions] = await Promise.all([listStaffLeaves(), loadStaffOptions()]);
+  const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -38,7 +39,7 @@ export default async function StaffLeavesPage() {
         </Button>
       </div>
 
-      <NewStaffLeaveForm />
+      <NewStaffLeaveForm staffOptions={staffOptions} />
 
       <Card>
         <CardHeader>

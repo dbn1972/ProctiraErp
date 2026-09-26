@@ -30,11 +30,13 @@ import {
   type ActionState,
 } from '@/app/(dashboard)/examinations/actions';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type {
   Examination,
   ExaminationDocumentType,
   ExaminationSubject,
 } from '@/lib/api/examinations';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { useHydrated } from '@/hooks/useHydrated';
 import { marksCsvTemplate, parseMarksCsv } from '@/lib/examinations/marks-csv';
 
@@ -52,7 +54,13 @@ function Feedback({ state }: { state: ActionState | null }) {
 
 const REGISTRABLE: ReadonlySet<Examination['status']> = new Set(['DRAFT', 'SCHEDULED', 'OPEN']);
 
-export function RegisterCandidateDialog({ examination }: { examination: Examination }) {
+export function RegisterCandidateDialog({
+  examination,
+  studentOptions = [],
+}: {
+  examination: Examination;
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
@@ -106,16 +114,13 @@ export function RegisterCandidateDialog({ examination }: { examination: Examinat
                   {field}: {message}
                 </p>
               ))}
-            <div className="space-y-1.5">
-              <Label htmlFor="candidate-student">Student ID</Label>
-              <Input
-                id="candidate-student"
-                name="studentId"
-                required
-                placeholder="Student UUID"
-                pattern="[0-9a-fA-F-]{36}"
-              />
-            </div>
+            <EntitySearchSelect
+              id="candidate-student"
+              name="studentId"
+              label="Student"
+              options={studentOptions}
+              required
+            />
             <div className="space-y-1.5">
               <Label htmlFor="candidate-center">Centre</Label>
               <select

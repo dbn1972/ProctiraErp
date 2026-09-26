@@ -15,17 +15,21 @@ import {
   Input,
 } from '@proctira/ui/components';
 
-import { createHostelAssignmentAction } from '../../campus-actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { HostelBed, HostelFeeStructure } from '@/lib/api/hostel';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { createHostelAssignmentAction } from '../../campus-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function NewHostelAssignmentForm({
   beds,
   feeStructures,
+  studentOptions = [],
 }: {
   beds: HostelBed[];
   feeStructures: HostelFeeStructure[];
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +49,11 @@ export function NewHostelAssignmentForm({
     const endDate = String(fd.get('endDate') ?? '').trim();
     const feeStructureId = String(fd.get('feeStructureId') ?? '').trim();
     if (!UUID_RE.test(studentId)) {
-      setError('Student must be a UUID v4 value.');
+      setError(
+        studentOptions.length === 0
+          ? 'Student directory is empty — add students before assigning a bed.'
+          : 'Select a student.',
+      );
       return;
     }
     if (!bedId) {
@@ -90,9 +98,13 @@ export function NewHostelAssignmentForm({
           data-testid="hostel-assignment-form"
           data-hydrated={hydrated ? 'true' : 'false'}
         >
-          <FormField id="assign-student" label="Student UUID" required>
-            <Input id="assign-student" name="studentId" className="h-11 min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="assign-student"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <FormField id="assign-bed" label="Bed" required>
             {beds.length > 0 ? (
               <select
@@ -149,7 +161,7 @@ export function NewHostelAssignmentForm({
             </p>
           ) : null}
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || studentOptions.length === 0}>
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Saving…' : 'Assign bed'}
             </Button>

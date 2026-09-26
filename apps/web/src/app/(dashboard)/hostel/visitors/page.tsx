@@ -14,7 +14,7 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listHostelVisitors, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { NewVisitorForm } from '../_components/new-visitor-form';
 import { VisitorStatusButtons } from '../_components/visitor-status-buttons';
 
@@ -22,11 +22,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelVisitorsPage() {
   await requireSession();
-  const [visitors, hostels, studentLabels] = await Promise.all([
+  const [visitors, hostels, studentOptions] = await Promise.all([
     listHostelVisitors(),
     listHostels(),
-    loadStudentLabelMap(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -43,7 +44,7 @@ export default async function HostelVisitorsPage() {
         </Button>
       </div>
 
-      <NewVisitorForm hostels={hostels} />
+      <NewVisitorForm hostels={hostels} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>

@@ -15,11 +15,17 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { createQualificationAction } from '../hr-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewQualificationForm() {
+export function NewQualificationForm({
+  staffOptions = [],
+}: {
+  staffOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -30,7 +36,11 @@ export function NewQualificationForm() {
     const fd = new FormData(event.currentTarget);
     const staffId = String(fd.get('staffId') ?? '').trim();
     if (!UUID_RE.test(staffId)) {
-      setError('Staff must be a UUID v4 value.');
+      setError(
+        staffOptions.length === 0
+          ? 'Staff directory is empty — add staff before recording a qualification.'
+          : 'Select a staff member.',
+      );
       return;
     }
     startTransition(async () => {
@@ -64,9 +74,15 @@ export function NewQualificationForm() {
           data-testid="staff-qualification-form"
           data-hydrated={hydrated ? 'true' : 'false'}
         >
-          <FormField id="qual-staff" label="Staff UUID" required className="sm:col-span-2">
-            <Input id="qual-staff" name="staffId" required disabled={!hydrated || pending} />
-          </FormField>
+          <div className="sm:col-span-2">
+            <EntitySearchSelect
+              id="qual-staff"
+              name="staffId"
+              label="Staff"
+              options={staffOptions}
+              required
+            />
+          </div>
           <FormField id="qual-degree" label="Degree" required>
             <Input id="qual-degree" name="degree" required disabled={!hydrated || pending} />
           </FormField>
