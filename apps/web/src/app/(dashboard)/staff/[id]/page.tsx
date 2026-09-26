@@ -50,8 +50,66 @@ import {
   type Staff,
   type TrainingCertification,
 } from '@/lib/api/staff';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { listInstitutions } from '@/lib/api/institutions';
+import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
+import { listClassesByInstitution, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
+import type { ClassSection } from '@/lib/institutions/types';
 
 export const dynamic = 'force-dynamic';
+
+type LabelMaps = {
+  institutionLabels: Map<string, string>;
+  classLabels: Map<string, string>;
+  subjectLabels: Map<string, string>;
+};
+
+async function buildAssignmentLabelMaps(assignments: Assignment[]): Promise<LabelMaps> {
+  const institutionIds = [
+    ...new Set(assignments.map((a) => a.institutionId).filter(Boolean)),
+  ] as string[];
+
+  const [institutions, subjectsRaw, classLists] = await Promise.all([
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }).catch(() => []),
+    listSubjects().catch(() => [] as SubjectSummary[]),
+    Promise.all(
+      institutionIds.map((institutionId) =>
+        listClassesByInstitution(institutionId).catch(() => [] as ClassSection[]),
+      ),
+    ),
+  ]);
+
+  const institutionLabels = new Map(
+    (Array.isArray(institutions) ? institutions : []).map((row) => [row.id, row.name]),
+  );
+
+  const subjectRows = Array.isArray(subjectsRaw)
+    ? subjectsRaw
+    : Array.isArray((subjectsRaw as { data?: SubjectSummary[] } | null)?.data)
+      ? (subjectsRaw as { data: SubjectSummary[] }).data
+      : [];
+
+  const subjectLabels = new Map(
+    subjectRows.map((subject) => [
+      subject.id,
+      formatCodeNameLabel(subject.code, subject.name) || subject.name,
+    ]),
+  );
+
+  const classLabels = new Map<string, string>();
+  for (const classes of classLists) {
+    const rows = Array.isArray(classes)
+      ? classes
+      : Array.isArray((classes as { data?: ClassSection[] } | null)?.data)
+        ? (classes as { data: ClassSection[] }).data
+        : [];
+    for (const row of rows) {
+      classLabels.set(row.id, row.name);
+    }
+  }
+
+  return { institutionLabels, classLabels, subjectLabels };
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -142,9 +200,15 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 
 /* ──────────────────────────────────────────── Assignment cards ── */
 
-function AssignmentCard({ assignment }: { assignment: Assignment }) {
-  const classLabel = assignment.classId?.slice(0, 12) || '—';
-  const subject = assignment.subjectId || '—';
+function AssignmentCard({
+  assignment,
+  labelMaps,
+}: {
+  assignment: Assignment;
+  labelMaps: LabelMaps;
+}) {
+  const classLabel = resolveEntityLabel(assignment.classId, labelMaps.classLabels, 'Class');
+  const subject = resolveEntityLabel(assignment.subjectId, labelMaps.subjectLabels, 'Subject');
   const roleNote = assignment.role !== 'SUBJECT_TEACHER' ? assignment.role : '';
   const room: string | null = null;
   const periods: number | null = null;
@@ -341,10 +405,12 @@ function OverviewTab({
   staff,
   assignments,
   appraisals,
+  labelMaps,
 }: {
   staff: Staff;
   assignments: Assignment[];
   appraisals: Appraisal[];
+  labelMaps: LabelMaps;
 }) {
   const cd = staff.customData ?? {};
 
@@ -401,7 +467,9 @@ function OverviewTab({
             {activeAssignments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No active assignments.</p>
             ) : (
-              activeAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} />)
+              activeAssignments.map((a) => (
+                <AssignmentCard key={a.id} assignment={a} labelMaps={labelMaps} />
+              ))
             )}
             {totalPeriods > 0 && (
               <div className="pt-2">
@@ -498,7 +566,15 @@ function OverviewTab({
 
 /* ──────────────────────────────────────────── Assignments tab ── */
 
-function AssignmentsTab({ assignments, staffId }: { assignments: Assignment[]; staffId: string }) {
+function AssignmentsTab({
+  assignments,
+  staffId,
+  labelMaps,
+}: {
+  assignments: Assignment[];
+  staffId: string;
+  labelMaps: LabelMaps;
+}) {
   const totalAllocation = assignments
     .filter((a) => a.status === 'ACTIVE')
     .reduce((sum, a) => sum + a.allocationPercentage, 0);
@@ -539,9 +615,15 @@ function AssignmentsTab({ assignments, staffId }: { assignments: Assignment[]; s
             <TableBody>
               {assignments.map((a) => (
                 <TableRow key={a.id}>
-                  <TableCell>{a.institutionId}</TableCell>
-                  <TableCell>{a.classId}</TableCell>
-                  <TableCell>{a.subjectId}</TableCell>
+                  <TableCell>
+                    {resolveEntityLabel(a.institutionId, labelMaps.institutionLabels, 'School')}
+                  </TableCell>
+                  <TableCell>
+                    {resolveEntityLabel(a.classId, labelMaps.classLabels, 'Class')}
+                  </TableCell>
+                  <TableCell>
+                    {resolveEntityLabel(a.subjectId, labelMaps.subjectLabels, 'Subject')}
+                  </TableCell>
                   <TableCell>{a.role}</TableCell>
                   <TableCell>{a.allocationPercentage}%</TableCell>
                   <TableCell>
@@ -677,6 +759,8 @@ export default async function StaffProfilePage(props: PageProps) {
   if (!staff) {
     notFound();
   }
+
+  const labelMaps = await buildAssignmentLabelMaps(assignments);
 
   const cd = staff.customData ?? {};
   const fullName = `${staff.firstName} ${staff.lastName}`;
@@ -819,11 +903,16 @@ export default async function StaffProfilePage(props: PageProps) {
         </TabsList>
 
         <TabsContent value="overview" className="pt-5">
-          <OverviewTab staff={staff} assignments={assignments} appraisals={appraisals} />
+          <OverviewTab
+            staff={staff}
+            assignments={assignments}
+            appraisals={appraisals}
+            labelMaps={labelMaps}
+          />
         </TabsContent>
 
         <TabsContent value="assignments" className="space-y-4 pt-5">
-          <AssignmentsTab assignments={assignments} staffId={staff.id} />
+          <AssignmentsTab assignments={assignments} staffId={staff.id} labelMaps={labelMaps} />
         </TabsContent>
 
         <TabsContent value="appraisals" className="space-y-4 pt-5">
