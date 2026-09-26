@@ -28,8 +28,14 @@
 
 | Gate | Result | Notes |
 | ---- | ------ | ----- |
-| Screen walk (this doc) | **14 PASS · 1 FAIL (flake) · 1 BLOCKED** | See route table |
+| Screen walk (this doc) | **14 PASS · 1 route FAIL (flake) · 1 BLOCKED** | Overview failed once, then passed on re-run — both recorded below |
 | Tip **CI Aggregate (Required)** | **EXTERNALLY_UNVERIFIED** | Merge only when Aggregate green on PR tip (per release gate) |
+
+### Overview navigation flake (honest sequence)
+
+The first **sequential** Playwright pass (detail-root → overview immediately after) recorded **FAIL** on `/institutions/…/overview` with `page.goto: net::ERR_ABORTED` while Next was still completing the redirect from `/institutions/{id}`. That failure is in `/opt/cursor/artifacts/screen-test-institutions-results.json` and is **not** suppressed here.
+
+A **direct** navigation to the same overview URL (same HS256 Sunrise session, `networkidle`) **passed**: hero showed “Sunrise Public School”, no raw UUIDs. Treat overview as **PASS for product sign-off** with a **known automation flake** on back-to-back redirect + goto, not as “never failed.”
 
 ## Route table
 
@@ -38,7 +44,7 @@
 | `/institutions` | List | Search `SPS`; row shows Sunrise + code | **PASS** | Block column empty (area tree RBAC 403 — see blocked row) |
 | `/institutions/new` | Register | Form shell (no submit) | **PASS** | Irreversible create not attempted |
 | `/institutions/00000000-0000-4000-8000-00000000a551` | Detail root | Redirect to overview | **PASS** | |
-| `/institutions/00000000-0000-4000-8000-00000000a551/overview` | Overview | KPI / facts render | **PASS** | Re-run after navigation flake; first sequential goto aborted during redirect |
+| `/institutions/00000000-0000-4000-8000-00000000a551/overview` | Overview | KPI / facts render | **FAIL → PASS** | **First run: FAIL** (`net::ERR_ABORTED`, artifact JSON). **Re-run: PASS** (direct goto). Not upgraded to “always PASS” without noting the failed first run. |
 | `/institutions/00000000-0000-4000-8000-00000000a551/edit` | Edit | Form load (no save) | **PASS** | Save/deactivate not attempted |
 | `/institutions/00000000-0000-4000-8000-00000000a551/classes` | Classes | Table lists 8-A, 9-B, 10-A | **PASS** | Roster Eye links to `/attendance?…` — **not clicked** (attendance out of scope) |
 | `/institutions/00000000-0000-4000-8000-00000000a551/grades` | Grades | Tab + Add grade control | **PASS** | Create not submitted |
