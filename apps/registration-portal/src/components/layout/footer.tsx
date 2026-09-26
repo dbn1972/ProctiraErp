@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 
 /**
@@ -22,15 +23,15 @@ export function Footer() {
         </div>
         <p className="text-sm text-white/60 sm:ms-4">{t('copyright', { year: String(year) })}</p>
         <div className="flex gap-6 sm:ms-auto">
-          <a href="#" className="text-sm text-white/75 hover:text-white">
+          <Link href="/privacy" className="text-sm text-white/75 hover:text-white">
             {t('privacy')}
-          </a>
-          <a href="#" className="text-sm text-white/75 hover:text-white">
+          </Link>
+          <Link href="/terms" className="text-sm text-white/75 hover:text-white">
             {t('terms')}
-          </a>
-          <a href="#" className="text-sm text-white/75 hover:text-white">
+          </Link>
+          <Link href="/contact" className="text-sm text-white/75 hover:text-white">
             {t('contact')}
-          </a>
+          </Link>
         </div>
       </div>
     </footer>

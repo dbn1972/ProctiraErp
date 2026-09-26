@@ -12,10 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/terms' },
 };
 
-/**
- * Boilerplate Terms of Service. Operators must replace placeholders and
- * insert their commercial terms before public launch.
- */
+/** Public terms for the ProctiraERP website. */
 export default function TermsPage() {
   return (
     <>
@@ -74,8 +71,8 @@ export default function TermsPage() {
           <p>
             The Services are provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without
             warranties of any kind, either express or implied, to the maximum extent permitted by
-            law. Tenants and operators are responsible for configuring the platform appropriately
-            for their users.
+            law. Institution deployments are covered by that institution&apos;s own agreement, not by
+            these website terms.
           </p>
 
           <h2>Limitation of liability</h2>

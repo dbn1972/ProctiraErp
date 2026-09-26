@@ -395,9 +395,14 @@ export function SignUpForm(): JSX.Element {
                 value={institutionName}
                 onChange={(e) => setInstitutionName(e.target.value)}
                 aria-invalid={errors.institution ? 'true' : undefined}
-                aria-describedby={errors.institution ? `${fieldIds.institution}-error` : undefined}
+                aria-describedby={`${fieldIds.institution}-help${
+                  errors.institution ? ` ${fieldIds.institution}-error` : ''
+                }`}
                 className="h-12 min-h-12"
               />
+              <p id={`${fieldIds.institution}-help`} className="text-xs text-muted-foreground">
+                {t('institutionNamePlaceholder')}. {t('institutionNameRequired')}
+              </p>
               {errors.institution && (
                 <p
                   id={`${fieldIds.institution}-error`}

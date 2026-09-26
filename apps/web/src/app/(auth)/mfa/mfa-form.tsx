@@ -20,6 +20,8 @@ export function MfaForm(): JSX.Element {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
   const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
+  const method = (searchParams.get('method') ?? searchParams.get('channel') ?? '').toLowerCase();
+  const smsResend = method === 'sms';
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -109,19 +111,25 @@ export function MfaForm(): JSX.Element {
       </form>
 
       <div className="mt-6 space-y-3 text-sm">
-        <p className="text-muted-foreground">
-          {t('didntReceiveCode')}{' '}
-          <button
-            type="button"
-            className="inline-flex min-h-12 items-center font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={isSubmitting || isResending || !token}
-            onClick={() => {
-              void handleResend();
-            }}
-          >
-            {isResending ? t('verifying') : t('resend')}
-          </button>
-        </p>
+        {smsResend ? (
+          <p className="text-muted-foreground">
+            {t('didntReceiveCode')}{' '}
+            <button
+              type="button"
+              className="inline-flex min-h-12 items-center font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting || isResending || !token}
+              onClick={() => {
+                void handleResend();
+              }}
+            >
+              {isResending ? t('verifying') : t('resend')}
+            </button>
+          </p>
+        ) : (
+          <p className="text-muted-foreground">
+            {t('didntReceiveCode')} {t('mfaSubtitle')}
+          </p>
+        )}
         <p>
           <Link
             href="/login"

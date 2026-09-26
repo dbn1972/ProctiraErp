@@ -10,6 +10,7 @@ import {
   type FormConfiguration,
   type RegistrationSubmissionInput,
 } from '@/lib/api';
+import { registrationErrorMessage } from '@/lib/error-messages';
 import { createSubmissionKey } from '@/lib/registration-draft';
 import {
   isValidDateOfBirth,
@@ -31,9 +32,11 @@ import { useRegistration } from './registration-context';
 export function ReviewStep({
   institutionType,
   configuration,
+  institutionName,
 }: {
   institutionType: string;
   configuration: FormConfiguration;
+  institutionName?: string | null;
 }) {
   const t = useTranslations();
   const router = useRouter();
@@ -143,7 +146,16 @@ export function ReviewStep({
       if (err instanceof RegistrationApiError) {
         setFieldErrors(err.fieldErrors);
       }
-      setError(err instanceof Error ? err.message : t('submissionFailed'));
+      setError(
+        err instanceof RegistrationApiError
+          ? registrationErrorMessage(t as (key: string) => string, {
+              code: err.code,
+              message: err.message,
+            })
+          : err instanceof Error
+            ? registrationErrorMessage(t as (key: string) => string, err.message)
+            : t('submissionFailed'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -168,7 +180,10 @@ export function ReviewStep({
           <Row label={t('registration.gender')} value={draft.gender} />
           <Row label={t('registration.guardianName')} value={draft.guardianName} />
           <Row label={t('registration.guardianPhone')} value={draft.guardianPhone} />
-          <Row label={t('registration.institution')} value={configuration.institutionId} />
+          <Row
+            label={t('registration.institution')}
+            value={institutionName?.trim() || t('registration.schoolNameUnavailable')}
+          />
           {draft.guardianEmail && (
             <Row label={t('registration.guardianEmail')} value={draft.guardianEmail} />
           )}
@@ -209,7 +224,9 @@ export function ReviewStep({
           {fieldErrors.length > 0 ? (
             <ul className="mt-2 list-disc space-y-1 ps-5">
               {fieldErrors.map((fieldError, index) => (
-                <li key={`${fieldError.field}-${index}`}>{fieldError.message}</li>
+                <li key={`${fieldError.field}-${index}`}>
+                  {registrationErrorMessage(t as (key: string) => string, fieldError)}
+                </li>
               ))}
             </ul>
           ) : null}
