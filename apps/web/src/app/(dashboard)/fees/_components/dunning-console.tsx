@@ -119,7 +119,8 @@ export function DunningConsole({
 
   function onAddSuppression(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const fd = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const fd = new FormData(form);
     startTransition(async () => {
       setError(null);
       const result = await addReminderSuppressionAction({
@@ -131,7 +132,7 @@ export function DunningConsole({
         setError(result.error);
         return;
       }
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     });
   }

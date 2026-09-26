@@ -5,12 +5,16 @@ import { requireSession } from '@/lib/auth/server';
 import { fetchDuesReportResult } from '@/lib/api/fees';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { FeesReportsPanel } from '../_components/fees-reports-panel';
+import { loadFeeClassLabels } from '../_components/load-fee-class-labels';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesReportsPage() {
   await requireSession();
-  const reportResult = await fetchDuesReportResult();
+  const [reportResult, classLabels] = await Promise.all([
+    fetchDuesReportResult(),
+    loadFeeClassLabels(),
+  ]);
   if (!reportResult.ok) {
     return (
       <div className="space-y-6 p-6">
@@ -33,6 +37,7 @@ export default async function FeesReportsPage() {
     <div className="p-6">
       <FeesReportsPanel
         report={report}
+        classLabels={classLabels}
         header={
           <div>
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee reports</h1>

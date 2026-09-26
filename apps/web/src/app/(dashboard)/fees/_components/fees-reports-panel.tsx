@@ -14,6 +14,7 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { DuesReport } from '@/lib/api/fees';
+import { resolveEntityLabel } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
 
 function formatAmount(cents: number, locale: string): string {
@@ -24,7 +25,15 @@ function formatAmount(cents: number, locale: string): string {
   }).format(cents / 100);
 }
 
-export function FeesReportsPanel({ report, header }: { report: DuesReport; header: ReactNode }) {
+export function FeesReportsPanel({
+  report,
+  header,
+  classLabels = {},
+}: {
+  report: DuesReport;
+  header: ReactNode;
+  classLabels?: Record<string, string>;
+}) {
   const locale = useLocale();
   const hydrated = useHydrated();
 
@@ -51,7 +60,11 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
             <ul className="divide-y divide-border" role="list">
               {report.byClass.map((row) => (
                 <li key={row.classId} className="py-2" data-testid="dues-class-row">
-                  <p className="text-sm font-medium text-foreground">Class dues</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {row.classId === 'unassigned'
+                      ? 'Unassigned'
+                      : resolveEntityLabel(row.classId, classLabels, 'Class')}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Open {row.openCount} ({formatAmount(row.openCents, locale)}) · Overdue{' '}
                     {row.overdueCount} ({formatAmount(row.overdueCents, locale)})

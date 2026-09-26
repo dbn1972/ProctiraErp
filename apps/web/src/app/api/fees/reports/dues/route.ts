@@ -4,6 +4,10 @@
 import { NextResponse } from 'next/server';
 
 import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, getSessionContext } from '@/lib/api/gateway';
+import {
+  labelDuesCsv,
+  loadFeeClassLabels,
+} from '@/app/(dashboard)/fees/_components/load-fee-class-labels';
 
 export async function GET(): Promise<Response> {
   const { tenantId, accessToken } = await getSessionContext();
@@ -27,7 +31,9 @@ export async function GET(): Promise<Response> {
     });
   }
 
-  return new NextResponse(upstream.body, {
+  const csv = await upstream.text();
+  const labels = await loadFeeClassLabels();
+  return new NextResponse(labelDuesCsv(csv, labels), {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',
