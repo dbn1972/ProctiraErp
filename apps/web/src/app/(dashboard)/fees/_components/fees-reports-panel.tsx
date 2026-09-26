@@ -50,9 +50,7 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
             <ul className="divide-y divide-border" role="list">
               {report.byClass.map((row) => (
                 <li key={row.classId} className="py-2" data-testid="dues-class-row">
-                  <p className="text-sm font-medium text-foreground">
-                    Class {row.classId.slice(0, 8)}…
-                  </p>
+                  <p className="text-sm font-medium text-foreground">Class dues</p>
                   <p className="text-xs text-muted-foreground">
                     Open {row.openCount} ({formatAmount(row.openCents, locale)}) · Overdue{' '}
                     {row.overdueCount} ({formatAmount(row.overdueCents, locale)})

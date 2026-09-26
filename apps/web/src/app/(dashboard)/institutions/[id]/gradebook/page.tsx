@@ -192,7 +192,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   {jobs.slice(0, 5).map((job) => (
                     <li key={job.id}>
-                      Job {job.id.slice(0, 8)} · {job.status}
+                      Report card · {job.status}
                       {job.artifactUri ? ` · ${job.artifactUri}` : ''}
                     </li>
                   ))}
