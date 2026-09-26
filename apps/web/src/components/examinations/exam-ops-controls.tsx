@@ -29,6 +29,7 @@ import {
   registerCandidateAction,
   type ActionState,
 } from '@/app/(dashboard)/examinations/actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import type {
   Examination,
   ExaminationDocumentType,
@@ -178,6 +179,7 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
   const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [text, setText] = useState('');
   const [state, setState] = useState<ActionState | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -205,7 +207,10 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
     startTransition(async () => {
       const res = await publishResultsAction(examination.id);
       setState(res);
-      if (res.status === 'success') router.refresh();
+      if (res.status === 'success') {
+        setPublishConfirmOpen(false);
+        router.refresh();
+      }
     });
   };
 
@@ -238,7 +243,7 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
         </Button>
         <Button
           size="sm"
-          onClick={publish}
+          onClick={() => setPublishConfirmOpen(true)}
           disabled={!canPublish || isPending}
           title={
             published
@@ -258,6 +263,16 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
           {published ? 'Published' : 'Publish results'}
         </Button>
       </div>
+      <ConfirmActionDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+        title="Publish examination results?"
+        description="Publishing locks marks and makes them visible to parents and students. This cannot be undone from this screen."
+        confirmLabel="Publish results"
+        pending={isPending}
+        onConfirm={publish}
+        testId="publish-results-confirm"
+      />
       <Feedback state={state} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent data-hydrated="true" className="max-w-2xl">
