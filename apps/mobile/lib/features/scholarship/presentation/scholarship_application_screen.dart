@@ -165,22 +165,25 @@ class _ScholarshipApplicationFormState
                     ),
                     const SizedBox(height: 16),
 
-                    // Documents section.
+                    // Documents — upload API not wired on mobile yet (PARTIAL).
                     _SectionCard(
                       title: 'Documents',
                       children: <Widget>[
+                        Text(
+                          'Supporting document upload is not available in this '
+                          'app build yet. Submit the application without files, '
+                          'or attach documents from the web portal.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
                         Semantics(
                           button: true,
-                          label: 'Upload supporting documents',
+                          enabled: false,
+                          label: 'Upload supporting documents unavailable',
                           child: OutlinedButton.icon(
-                            onPressed: () {
-                              // TODO: Integrate document picker
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Document upload coming soon'),
-                                ),
-                              );
-                            },
+                            onPressed: null,
                             icon: const Icon(Icons.upload_file_outlined),
                             label: const Text('Upload Documents'),
                           ),

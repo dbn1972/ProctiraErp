@@ -138,11 +138,16 @@ class _NotificationPreferencesScreenState
   }
 
   Future<void> _savePreferences() async {
-    // In a production app this would call the backend API to persist
-    // preferences. For now we show a confirmation snackbar.
+    // No notification-preferences write API is wired on mobile yet. Do not
+    // claim a successful cloud save — keep toggles session-local only.
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Preferences saved')),
+      const SnackBar(
+        content: Text(
+          'Preferences apply on this device for now. Cloud sync is not '
+          'available in this app build yet.',
+        ),
+      ),
     );
   }
 }
