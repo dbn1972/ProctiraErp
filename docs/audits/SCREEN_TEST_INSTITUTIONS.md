@@ -29,7 +29,7 @@
 | Gate | Result | Notes |
 | ---- | ------ | ----- |
 | Screen walk (this doc) | **14 PASS · 1 route FAIL (flake) · 1 BLOCKED** | Overview failed once, then passed on re-run — both recorded below |
-| Tip **CI Aggregate (Required)** | **EXTERNALLY_UNVERIFIED** | Merge only when Aggregate green on PR tip (per release gate) |
+| Tip **CI Aggregate (Required)** | **EXTERNALLY_UNVERIFIED** | PR [#424](https://github.com/dbn1972/ProctiraErp/pull/424) tip `bfb551b6` — CI workflow run [#1380](https://github.com/dbn1972/ProctiraErp/actions/runs/36250505317) stayed **pending** (serialized `ci.yml` queue behind other screen-test PRs); Aggregate not observed green in-agent |
 
 ### Overview navigation flake (honest sequence)
 
