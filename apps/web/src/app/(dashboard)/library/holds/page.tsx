@@ -10,7 +10,8 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { listLibraryHolds, listLibraryItems } from '@/lib/api/library';
+import { listLibraryHoldsResult, listLibraryItemsResult } from '@/lib/api/library';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { PlaceHoldForm } from '../_components/place-hold-form';
@@ -19,11 +20,32 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryHoldsPage() {
   await requireSession();
-  const [items, holds, studentOptions] = await Promise.all([
-    listLibraryItems(),
-    listLibraryHolds(),
+  const [itemsResult, holdsResult, studentOptions] = await Promise.all([
+    listLibraryItemsResult(),
+    listLibraryHoldsResult(),
     loadStudentOptions(),
   ]);
+
+  if (!holdsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Holds</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            FIFO reservation queue. Returning a copy promotes the next patron.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={holdsResult.kind}
+          status={holdsResult.status}
+          returnTo="/library/holds"
+        />
+      </div>
+    );
+  }
+
+  const items = itemsResult.ok ? itemsResult.items : [];
+  const holds = holdsResult.items;
   const studentLabels = new Map(studentOptions.map((o) => [o.id, o.label]));
   const itemLabels = new Map(items.map((item) => [item.id, item.title]));
 
@@ -41,7 +63,15 @@ export default async function LibraryHoldsPage() {
         </Button>
       </div>
 
-      <PlaceHoldForm items={items} studentOptions={studentOptions} />
+      {itemsResult.ok ? (
+        <PlaceHoldForm items={items} studentOptions={studentOptions} />
+      ) : (
+        <ListLoadFailure
+          kind={itemsResult.kind}
+          status={itemsResult.status}
+          returnTo="/library/holds"
+        />
+      )}
 
       <Card>
         <CardHeader>

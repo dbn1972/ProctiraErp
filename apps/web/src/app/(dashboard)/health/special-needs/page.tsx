@@ -27,7 +27,8 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, listSpecialNeeds, type SpecialNeedRecord } from '@/lib/api/health';
+import { canAccessHealthRecords, listSpecialNeedsResult, type SpecialNeedRecord } from '@/lib/api/health';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -77,7 +78,25 @@ export default async function SpecialNeedsPage() {
     );
   }
 
-  const records = await listSpecialNeeds();
+  const result = await listSpecialNeedsResult();
+  if (!result.ok) {
+    return (
+      <section aria-labelledby="special-needs-heading" className="space-y-6">
+        <h1
+          id="special-needs-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Special needs register
+        </h1>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/health/special-needs"
+        />
+      </section>
+    );
+  }
+  const records = result.items;
   const total = records.length;
 
   return (
