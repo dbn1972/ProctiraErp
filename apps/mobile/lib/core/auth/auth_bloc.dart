@@ -27,14 +27,19 @@ class AuthLoggedIn extends AuthEvent {
     required this.userId,
     required this.accessToken,
     required this.refreshToken,
+    this.email,
+    this.displayName,
   });
 
   final String userId;
   final String accessToken;
   final String refreshToken;
+  final String? email;
+  final String? displayName;
 
   @override
-  List<Object?> get props => <Object?>[userId, accessToken, refreshToken];
+  List<Object?> get props =>
+      <Object?>[userId, accessToken, refreshToken, email, displayName];
 }
 
 /// User explicitly logged out.
@@ -104,8 +109,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         access.isNotEmpty &&
         refresh != null &&
         refresh.isNotEmpty) {
+      final String? userId = await _storage.readUserId();
       emit(AuthState(
         status: AuthStatus.authenticated,
+        userId: userId,
         accessToken: access,
       ));
     } else {
@@ -117,6 +124,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await _storage.writeTokens(
       accessToken: event.accessToken,
       refreshToken: event.refreshToken,
+    );
+    await _storage.writeUserProfile(
+      userId: event.userId,
+      email: event.email,
+      displayName: event.displayName,
     );
     emit(AuthState(
       status: AuthStatus.authenticated,

@@ -13,6 +13,9 @@ class SecureStorage {
 
   static const String accessTokenKey = 'auth.access_token';
   static const String refreshTokenKey = 'auth.refresh_token';
+  static const String userIdKey = 'auth.user_id';
+  static const String userEmailKey = 'auth.user_email';
+  static const String userDisplayNameKey = 'auth.user_display_name';
   static const String tenantIdKey = 'tenant.id';
   static const String tenantNameKey = 'tenant.display_name';
   static const String biometricEnabledKey = 'auth.biometric_enabled';
@@ -46,9 +49,33 @@ class SecureStorage {
     await _storage.write(key: refreshTokenKey, value: refreshToken);
   }
 
+  Future<String?> readUserId() => _storage.read(key: userIdKey);
+
+  Future<String?> readUserEmail() => _storage.read(key: userEmailKey);
+
+  Future<String?> readUserDisplayName() =>
+      _storage.read(key: userDisplayNameKey);
+
+  Future<void> writeUserProfile({
+    required String userId,
+    String? email,
+    String? displayName,
+  }) async {
+    await _storage.write(key: userIdKey, value: userId);
+    if (email != null) {
+      await _storage.write(key: userEmailKey, value: email);
+    }
+    if (displayName != null) {
+      await _storage.write(key: userDisplayNameKey, value: displayName);
+    }
+  }
+
   Future<void> clearTokens() async {
     await _storage.delete(key: accessTokenKey);
     await _storage.delete(key: refreshTokenKey);
+    await _storage.delete(key: userIdKey);
+    await _storage.delete(key: userEmailKey);
+    await _storage.delete(key: userDisplayNameKey);
   }
 
   Future<String?> readTenantId() => _storage.read(key: tenantIdKey);
