@@ -1,8 +1,9 @@
 'use client';
 
-import { useTransition } from 'react';
+import { useTransition, useState } from 'react';
 
 import { Button } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 import {
   deleteReportScheduleAction,
@@ -19,6 +20,7 @@ export function ScheduleRowActions({
   enabled: boolean;
 }) {
   const [pending, startTransition] = useTransition();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   return (
     <div className="flex flex-wrap justify-end gap-2">
@@ -56,14 +58,26 @@ export function ScheduleRowActions({
         variant="ghost"
         disabled={pending}
         title={pending ? 'Deleting schedule' : undefined}
-        onClick={() =>
-          startTransition(async () => {
-            await deleteReportScheduleAction(scheduleId);
-          })
-        }
+        onClick={() => setConfirmDelete(true)}
       >
         Delete
       </Button>
+      <ConfirmActionDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete this report schedule?"
+        description="Future automatic runs will stop. Past report results are kept."
+        confirmLabel="Delete schedule"
+        destructive
+        pending={pending}
+        onConfirm={() =>
+          startTransition(async () => {
+            await deleteReportScheduleAction(scheduleId);
+            setConfirmDelete(false);
+          })
+        }
+        testId="report-schedule-delete-confirm"
+      />
     </div>
   );
 }
