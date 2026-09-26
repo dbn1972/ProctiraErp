@@ -71,8 +71,8 @@ export default function TermsPage() {
           <p>
             The Services are provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without
             warranties of any kind, either express or implied, to the maximum extent permitted by
-            law. Institution deployments are covered by that institution&apos;s own agreement, not by
-            these website terms.
+            law. Institution deployments are covered by that institution&apos;s own agreement, not
+            by these website terms.
           </p>
 
           <h2>Limitation of liability</h2>

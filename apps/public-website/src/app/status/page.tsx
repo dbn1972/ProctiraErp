@@ -174,8 +174,8 @@ export default async function StatusPage() {
           </table>
         </div>
         <p className="mx-auto mt-4 max-w-3xl text-sm text-muted-foreground">
-          Rows marked Unknown — not monitored are listed so the gap is visible. They are not measured on this
-          page, and a healthy probe above them does not mean those services are up.
+          Rows marked Unknown — not monitored are listed so the gap is visible. They are not
+          measured on this page, and a healthy probe above them does not mean those services are up.
         </p>
       </section>
 
