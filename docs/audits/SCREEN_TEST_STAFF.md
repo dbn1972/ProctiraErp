@@ -3,7 +3,9 @@
 **Tenant:** `00000000-0000-4000-8000-00000000a501` (`sunrise-public-school`)  
 **Seed:** `db/seeds/006_sunrise_public_school_demo.sql` (see `docs/audits/DATA_SUNRISE_DEMO_TENANT.md`)  
 **Branch:** `cursor/screen-test-staff`  
+**Tip (screen-test):** `7fadcf6d57459856c840f556cbf50e00124efdf1`  
 **Reviewer session (UTC):** 2026-09-26  
+**PR:** [#423](https://github.com/dbn1972/ProctiraErp/pull/423) (ready for review)  
 **Auth:** HS256 gateway cookie (`setupGatewayTenantSession` pattern), `JWT_SECRET=dev-secret-change-in-production`  
 **Out of scope:** `/staff/attendance` (skipped per campaign), parent/fees/students trees untouched
 
@@ -47,7 +49,18 @@ Local Postgres 16 + api-gateway (`:3000`) + `@proctira/web` (`:3001`). Sunrise s
 
 - Substitutions **write** path needs timetable meetings (not in Sunrise seed).
 - Payroll export may show **no rows** until attendance/payroll inputs exist; export action still succeeds.
+- `/staff/attendance` remains **BLOCKED** in this audit (out of scope; see #386) — not upgraded to PASS.
 - Program **production-ready** / CI **Aggregate** not claimed here — merge only if tip Aggregate is green (squash-merge policy).
+
+## CI (PR #423 tip `7fadcf6d`)
+
+| Check                                                          | Result                                                                                 |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Lint (Prettier on changed files)                               | **PASS** after `7fadcf6d` format fix                                                   |
+| Type Check                                                     | **PASS**                                                                               |
+| Staff Playwright smokes (`52`, `15b`, staff `a11y-axe` routes) | **PASS** locally on Sunrise stack                                                      |
+| E2E backend-ready live gate (G-401 / G-706)                    | **FAIL** on GitHub Actions (program-wide PR spec matrix; not isolated to staff routes) |
+| CI Aggregate (Required)                                        | **Not green** while E2E gate fails — **do not squash-merge**                           |
 
 ## Evidence
 
