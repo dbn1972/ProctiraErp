@@ -160,6 +160,12 @@ const STATUS_STYLES = {
   upcoming: 'bg-muted text-muted-foreground',
 } as const;
 
+const STATUS_LABEL = {
+  done: 'Completed',
+  active: 'In progress',
+  upcoming: 'Upcoming',
+} as const;
+
 function ApprovalChain() {
   return (
     <Card>
@@ -191,7 +197,20 @@ function ApprovalChain() {
 
               {/* text */}
               <div className={cn('pb-5 pt-0.5', i === APPROVAL_STEPS.length - 1 && 'pb-0')}>
-                <p className="text-xs font-semibold leading-none text-foreground">{step.role}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-semibold leading-none text-foreground">{step.role}</p>
+                  <span
+                    className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                      step.status === 'done' &&
+                        'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+                      step.status === 'active' && 'bg-primary/10 text-primary',
+                      step.status === 'upcoming' && 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {STATUS_LABEL[step.status]}
+                  </span>
+                </div>
                 <p className="mt-1 text-[11px] text-muted-foreground">{step.action}</p>
               </div>
             </li>

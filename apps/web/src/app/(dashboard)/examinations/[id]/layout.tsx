@@ -19,6 +19,16 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  OPEN: 'Open',
+  SCHEDULED: 'Scheduled',
+  IN_PROGRESS: 'In progress',
+  DRAFT: 'Draft',
+  COMPLETED: 'Completed',
+  CLOSED: 'Closed',
+  CANCELLED: 'Cancelled',
+};
+
 const STATUS_PILL: Record<string, string> = {
   OPEN: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   SCHEDULED: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
@@ -71,7 +81,7 @@ export default async function ExaminationDetailLayout({ params, children }: Layo
                     STATUS_PILL[examination.status] ?? 'bg-zinc-100 text-zinc-600',
                   )}
                 >
-                  {examination.status}
+                  {STATUS_LABEL[examination.status] ?? examination.status}
                 </span>
               </div>
               <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
