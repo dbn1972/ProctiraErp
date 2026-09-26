@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth/server';
 import { listBreakGlassRequests } from '@/lib/api/break-glass';
+import { listTenants } from '@/lib/api/tenants';
 
 import { BreakGlassRequestForm } from './request-form';
 
@@ -20,9 +21,14 @@ import { BreakGlassRequestForm } from './request-form';
  *  - least-privilege scope (read / support / admin)
  *  - all transitions audited
  */
-export default async function BreakGlassPage() {
+export default async function BreakGlassPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tenantId?: string }>;
+}) {
   await requireRole('breakGlassRequest', '/break-glass');
-  const { source } = await listBreakGlassRequests();
+  const resolvedSearchParams = await searchParams;
+  const [{ source }, { tenants }] = await Promise.all([listBreakGlassRequests(), listTenants()]);
 
   return (
     <>
@@ -59,7 +65,14 @@ export default async function BreakGlassPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <BreakGlassRequestForm />
+          <BreakGlassRequestForm
+            tenants={tenants.map((tenant) => ({
+              id: tenant.id,
+              name: tenant.name,
+              slug: tenant.slug,
+            }))}
+            initialTenantId={resolvedSearchParams.tenantId}
+          />
         </CardContent>
       </Card>
     </>

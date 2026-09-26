@@ -2,6 +2,7 @@
 
 import { useFormState, useFormStatus } from 'react-dom';
 
+import { TenantCombobox, type TenantOption } from '@/components/tenant-combobox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input, Textarea } from '@/components/ui/input';
@@ -19,7 +20,13 @@ import { createBreakGlassAction, type CreateBreakGlassState } from './actions';
 
 const initialState: CreateBreakGlassState = {};
 
-export function BreakGlassRequestForm() {
+export function BreakGlassRequestForm({
+  tenants,
+  initialTenantId,
+}: {
+  tenants: TenantOption[];
+  initialTenantId?: string;
+}) {
   const [state, formAction] = useFormState(createBreakGlassAction, initialState);
 
   return (
@@ -32,12 +39,15 @@ export function BreakGlassRequestForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="targetTenantId">Target tenant ID *</Label>
-          <Input
+          <Label htmlFor="targetTenantId">Target tenant *</Label>
+          <TenantCombobox
             id="targetTenantId"
             name="targetTenantId"
-            placeholder="tnt_001 or 'platform'"
+            tenants={tenants}
+            defaultValue={initialTenantId}
+            includePlatform
             required
+            placeholder="Select a tenant"
             aria-invalid={Boolean(state.fieldErrors?.targetTenantId)}
           />
           {state.fieldErrors?.targetTenantId && (
