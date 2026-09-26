@@ -47,7 +47,7 @@ import { attendanceBand } from '@/lib/status-label';
 import { InstitutionsFilters } from '@/components/institutions/institutions-filters';
 import { PaginationControls } from '@/components/institutions/pagination-controls';
 import { ApiClientError, listInstitutions } from '@/lib/institutions/api';
-import { loadAreaOptions } from '@/lib/institutions/lookups';
+import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 import type {
   Institution,
   InstitutionListFilters,
@@ -189,11 +189,20 @@ function InstitutionStatusPill({ status }: { status: string }) {
 
 /* ──────────────────────────────────────── Institution row ── */
 
-function InstitutionRow({ institution, areaName }: { institution: Institution; areaName: string }) {
+function InstitutionRow({
+  institution,
+  areaName,
+  typeLabel,
+}: {
+  institution: Institution;
+  areaName: string;
+  typeLabel: string;
+}) {
   const palette = schoolAvatar(institution.name);
   // customData is not in the Institution type — use graceful fallbacks
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
-  const typeName = typeof cd['typeName'] === 'string' ? cd['typeName'] : '';
+  const typeName =
+    (typeof cd['typeName'] === 'string' ? cd['typeName'] : '') || typeLabel;
   const studentCount = typeof cd['studentCount'] === 'number' ? cd['studentCount'] : null;
   const staffCount = typeof cd['staffCount'] === 'number' ? cd['staffCount'] : null;
   const attendance = typeof cd['attendance'] === 'number' ? cd['attendance'] : null;
@@ -290,8 +299,9 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
   const page = parsePage(searchParams.page);
   const pageSize = DEFAULT_PAGE_SIZE;
 
-  const [areas, listResult] = await Promise.all([
+  const [areas, types, listResult] = await Promise.all([
     loadAreaOptions(),
+    loadTypeOptions(),
     fetchInstitutions({ search, areaId, status, page, pageSize }),
   ]);
 
@@ -427,6 +437,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
                         key={institution.id}
                         institution={institution}
                         areaName={areaById[institution.areaId] ?? ''}
+                        typeLabel={resolveLookupLabel(types, institution.typeId)}
                       />
                     ))}
                   </TableBody>
