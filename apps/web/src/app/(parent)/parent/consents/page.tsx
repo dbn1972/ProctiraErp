@@ -4,6 +4,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listConsents } from '@/lib/api/parent-portal';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { ConsentDecisionButtons } from './_components/consent-decision-buttons';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function ParentConsentsPage() {
   await requireSession();
   const consents = await listConsents();
+  const studentLabels = await loadStudentLabelsForIds(consents.map((c) => c.studentId));
 
   return (
     <div className="space-y-6">
@@ -47,7 +50,8 @@ export default async function ParentConsentsPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{consent.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {consent.consentType} · Student {consent.studentId.slice(0, 8)}… ·{' '}
+                    {consent.consentType} ·{' '}
+                    {resolveEntityLabel(consent.studentId, studentLabels, 'Child')} ·{' '}
                     {consent.status}
                   </p>
                   {consent.description ? (

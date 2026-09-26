@@ -22,6 +22,8 @@ import {
 } from '@proctira/ui/components';
 import { RegisterCandidateDialog } from '@/components/examinations/exam-ops-controls';
 import { getExamination, listExaminationCandidates } from '@/lib/api/examinations';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -36,9 +38,10 @@ function formatDateTime(value: string): string {
 
 export default async function ExaminationCandidatesPage(props: PageProps) {
   const params = await props.params;
-  const [examination, candidates] = await Promise.all([
+  const [examination, candidates, studentLabels] = await Promise.all([
     getExamination(params.id),
     listExaminationCandidates(params.id),
+    loadStudentLabelMap(),
   ]);
   if (!examination) notFound();
 
@@ -77,14 +80,21 @@ export default async function ExaminationCandidatesPage(props: PageProps) {
               {candidates.map((candidate) => (
                 <TableRow key={candidate.id}>
                   <TableCell>
-                    <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                      {candidate.id.slice(0, 8).toUpperCase()}
-                    </code>
+                    <span className="text-xs text-muted-foreground">
+                      {resolveEntityLabel(candidate.id, {}, 'Reg')}
+                    </span>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{candidate.studentId}</TableCell>
-                  <TableCell>{centerName.get(candidate.centerId) ?? candidate.centerId}</TableCell>
+                  <TableCell>
+                    {resolveEntityLabel(candidate.studentId, studentLabels, 'Student')}
+                  </TableCell>
+                  <TableCell>
+                    {centerName.get(candidate.centerId) ??
+                      resolveEntityLabel(candidate.centerId, {}, 'Centre')}
+                  </TableCell>
                   <TableCell className="text-xs">
-                    {candidate.subjectIds.map((id) => subjectCode.get(id) ?? id).join(', ')}
+                    {candidate.subjectIds
+                      .map((id) => subjectCode.get(id) ?? resolveEntityLabel(id, {}, 'Subject'))
+                      .join(', ')}
                   </TableCell>
                   <TableCell>{formatDateTime(candidate.registeredAt)}</TableCell>
                   <TableCell>

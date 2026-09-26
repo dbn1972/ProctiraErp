@@ -12,7 +12,9 @@ import {
   listExamReevaluations,
   listExamSeating,
   listExamSessions,
+  listExaminationCandidates,
 } from '@/lib/api/examinations';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -23,12 +25,16 @@ export default async function ExaminationOpsPage(props: PageProps) {
   const examination = await getExamination(params.id);
   if (!examination) notFound();
 
-  const [sessions, seats, marks, reevaluations] = await Promise.all([
-    listExamSessions(examination.id),
-    listExamSeating(examination.id),
-    listExamMarksPairs(examination.id),
-    listExamReevaluations(examination.id),
-  ]);
+  const [sessions, seats, marks, reevaluations, candidates, studentLabels, staffLabels] =
+    await Promise.all([
+      listExamSessions(examination.id),
+      listExamSeating(examination.id),
+      listExamMarksPairs(examination.id),
+      listExamReevaluations(examination.id),
+      listExaminationCandidates(examination.id),
+      loadStudentLabelMap(),
+      loadStaffLabelMap(),
+    ]);
 
   const invigilatorsBySession: Record<
     string,
@@ -40,6 +46,13 @@ export default async function ExaminationOpsPage(props: PageProps) {
     }),
   );
 
+  const candidateLabels = new Map(
+    candidates.map((candidate) => [
+      candidate.id,
+      studentLabels.get(candidate.studentId) || `Candidate ${candidate.id.slice(0, 8)}`,
+    ]),
+  );
+
   return (
     <ExamOpsPanel
       examination={examination}
@@ -48,6 +61,8 @@ export default async function ExaminationOpsPage(props: PageProps) {
       seats={seats}
       marks={marks}
       reevaluations={reevaluations}
+      staffLabels={Object.fromEntries(staffLabels)}
+      candidateLabels={Object.fromEntries(candidateLabels)}
     />
   );
 }

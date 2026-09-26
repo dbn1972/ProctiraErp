@@ -13,6 +13,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listStaffContracts, listStaffQualifications } from '@/lib/api/staff';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffLabelMap } from '@/lib/load-entity-labels';
 
 import { NewContractForm } from '../_components/new-contract-form';
 import { NewQualificationForm } from '../_components/new-qualification-form';
@@ -21,9 +23,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function StaffContractsPage() {
   await requireSession();
-  const [contracts, qualifications] = await Promise.all([
+  const [contracts, qualifications, staffLabels] = await Promise.all([
     listStaffContracts(),
     listStaffQualifications(),
+    loadStaffLabelMap(),
   ]);
   const renewals = contracts.filter((row) => row.renewalAlert);
 
@@ -83,7 +86,7 @@ export default async function StaffContractsPage() {
                     {row.renewalAlert ? ' · renewal due' : ''}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Staff {row.staffId.slice(0, 8)}… · {row.startDate}
+                    {resolveEntityLabel(row.staffId, staffLabels, 'Staff')} · {row.startDate}
                     {row.endDate ? ` → ${row.endDate}` : ''}
                   </p>
                 </li>
@@ -119,7 +122,8 @@ export default async function StaffContractsPage() {
                     {row.degree} · {row.institution} ({row.year}){row.verified ? ' · verified' : ''}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Staff {row.staffId.slice(0, 8)}…{row.documentRef ? ` · ${row.documentRef}` : ''}
+                    {resolveEntityLabel(row.staffId, staffLabels, 'Staff')}
+                    {row.documentRef ? ` · ${row.documentRef}` : ''}
                   </p>
                 </li>
               ))}

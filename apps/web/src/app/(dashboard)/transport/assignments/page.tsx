@@ -6,6 +6,8 @@ import {
   listTransportRoutes,
   listTransportVehicles,
 } from '@/lib/api/transport';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { listAllStops } from '@/lib/transport/api';
 import { AssignmentForms } from '../_components/assignment-forms';
 
@@ -13,13 +15,20 @@ export const dynamic = 'force-dynamic';
 
 export default async function TransportAssignmentsPage() {
   await requireSession();
-  const [drivers, students, routes, vehicles, stops] = await Promise.all([
-    listDriverAssignments(),
-    listStudentAssignments(),
-    listTransportRoutes(),
-    listTransportVehicles(),
-    listAllStops(),
-  ]);
+  const [drivers, students, routes, vehicles, stops, studentLabels, staffLabels] =
+    await Promise.all([
+      listDriverAssignments(),
+      listStudentAssignments(),
+      listTransportRoutes(),
+      listTransportVehicles(),
+      listAllStops(),
+      loadStudentLabelMap(),
+      loadStaffLabelMap(),
+    ]);
+  const routeLabels = new Map(routes.map((route) => [route.id, route.name]));
+  const vehicleLabels = new Map(
+    vehicles.map((vehicle) => [vehicle.id, vehicle.registrationNumber]),
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -52,7 +61,8 @@ export default async function TransportAssignmentsPage() {
                 {drivers.map((row) => (
                   <li key={row.id} className="py-3 first:pt-0 last:pb-0">
                     <p className="text-sm font-medium text-foreground">
-                      Driver {row.driverId.slice(0, 8)} · vehicle {row.vehicleId.slice(0, 8)}
+                      {resolveEntityLabel(row.driverId, staffLabels, 'Driver')} ·{' '}
+                      {resolveEntityLabel(row.vehicleId, vehicleLabels, 'Vehicle')}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       from {row.startDate}
@@ -84,7 +94,8 @@ export default async function TransportAssignmentsPage() {
                 {students.map((row) => (
                   <li key={row.id} className="py-3 first:pt-0 last:pb-0">
                     <p className="text-sm font-medium text-foreground">
-                      Student {row.studentId.slice(0, 8)} · route {row.routeId.slice(0, 8)}
+                      {resolveEntityLabel(row.studentId, studentLabels, 'Student')} ·{' '}
+                      {resolveEntityLabel(row.routeId, routeLabels, 'Route')}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       from {row.startDate}

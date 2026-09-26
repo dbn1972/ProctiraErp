@@ -13,6 +13,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listStaffLeaves } from '@/lib/api/staff';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffLabelMap } from '@/lib/load-entity-labels';
 import { NewStaffLeaveForm } from './_components/new-staff-leave-form';
 import { StaffLeaveDecisionButtons } from './_components/leave-decision-buttons';
 
@@ -20,7 +22,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function StaffLeavesPage() {
   await requireSession();
-  const leaves = await listStaffLeaves();
+  const [leaves, staffLabels] = await Promise.all([listStaffLeaves(), loadStaffLabelMap()]);
 
   return (
     <div className="space-y-6 p-6">
@@ -62,7 +64,7 @@ export default async function StaffLeavesPage() {
                     {leave.leaveType} · {leave.startDate} → {leave.endDate}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Staff {leave.staffId.slice(0, 8)}… · {leave.status}
+                    {resolveEntityLabel(leave.staffId, staffLabels, 'Staff')} · {leave.status}
                     {leave.reason ? ` · ${leave.reason}` : ''}
                   </p>
                   <StaffLeaveDecisionButtons leaveId={leave.id} status={leave.status} />

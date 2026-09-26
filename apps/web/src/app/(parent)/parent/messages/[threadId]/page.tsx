@@ -14,6 +14,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listMessages, listThreads } from '@/lib/api/parent-portal';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 import { ReplyForm } from '../_components/reply-form';
 
 export const dynamic = 'force-dynamic';
@@ -32,6 +34,8 @@ export default async function ParentThreadPage({
     notFound();
   }
 
+  const studentLabels = await loadStudentLabelsForIds([thread.studentId]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -40,7 +44,7 @@ export default async function ParentThreadPage({
             {thread.subject}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Student {thread.studentId.slice(0, 8)}… · {thread.status}
+            {resolveEntityLabel(thread.studentId, studentLabels, 'Child')} · {thread.status}
           </p>
         </div>
         <Button asChild variant="outline" className="min-h-12">

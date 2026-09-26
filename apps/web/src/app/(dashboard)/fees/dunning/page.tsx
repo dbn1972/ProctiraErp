@@ -9,16 +9,18 @@ import {
   listReminderSendAudits,
   listReminderSuppressions,
 } from '@/lib/api/fees';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { DunningConsole } from '../_components/dunning-console';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesDunningPage() {
   await requireSession();
-  const [overdue, suppressions, auditPayload] = await Promise.all([
+  const [overdue, suppressions, auditPayload, studentLabels] = await Promise.all([
     listOverdueReminders(),
     listReminderSuppressions(),
     listReminderSendAudits(),
+    loadStudentLabelMap(),
   ]);
 
   return (
@@ -45,6 +47,7 @@ export default async function FeesDunningPage() {
         suppressions={suppressions}
         audits={auditPayload.data}
         honestyNote={auditPayload.honestyNote}
+        studentLabels={Object.fromEntries(studentLabels)}
       />
     </div>
   );
