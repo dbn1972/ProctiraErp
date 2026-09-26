@@ -5,6 +5,7 @@
  * Implements the HealthRepository interface with Map-based stores.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -102,10 +103,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthMeasurementEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity> {
     const now = new Date();
@@ -118,6 +116,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<HealthMeasurementEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity | null> {
     const existing = this.measurements.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -151,7 +152,13 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
-  async deleteMeasurement(id: string, tenantId: string): Promise<boolean> {
+  async deleteMeasurement(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     const entity = this.measurements.get(id);
     if (!entity || entity.tenantId !== tenantId) return false;
     this.measurements.delete(id);
@@ -163,10 +170,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AllergyEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity> {
     const now = new Date();
@@ -179,6 +183,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<AllergyEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
   ): Promise<AllergyEntity | null> {
     const existing = this.allergies.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -212,7 +219,13 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
-  async deleteAllergy(id: string, tenantId: string): Promise<boolean> {
+  async deleteAllergy(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     const entity = this.allergies.get(id);
     if (!entity || entity.tenantId !== tenantId) return false;
     this.allergies.delete(id);
@@ -224,10 +237,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthConditionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity> {
     const now = new Date();
@@ -240,6 +250,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<HealthConditionEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity | null> {
     const existing = this.conditions.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -273,7 +286,13 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
-  async deleteCondition(id: string, tenantId: string): Promise<boolean> {
+  async deleteCondition(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     const entity = this.conditions.get(id);
     if (!entity || entity.tenantId !== tenantId) return false;
     this.conditions.delete(id);
@@ -285,10 +304,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: VaccinationEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity> {
     const now = new Date();
@@ -301,6 +317,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<VaccinationEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
   ): Promise<VaccinationEntity | null> {
     const existing = this.vaccinations.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -334,7 +353,13 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
-  async deleteVaccination(id: string, tenantId: string): Promise<boolean> {
+  async deleteVaccination(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     const entity = this.vaccinations.get(id);
     if (!entity || entity.tenantId !== tenantId) return false;
     this.vaccinations.delete(id);
@@ -346,10 +371,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: InsuranceEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity> {
     const now = new Date();
@@ -362,6 +384,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<InsuranceEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
   ): Promise<InsuranceEntity | null> {
     const existing = this.insurances.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -395,7 +420,13 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
-  async deleteInsurance(id: string, tenantId: string): Promise<boolean> {
+  async deleteInsurance(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     const entity = this.insurances.get(id);
     if (!entity || entity.tenantId !== tenantId) return false;
     this.insurances.delete(id);
@@ -408,7 +439,7 @@ export class InMemoryHealthRepository implements HealthRepository {
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         entity: SpecialNeedsAssessmentEntity,
       ) => Promise<void>;
     },
@@ -444,10 +475,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createDiagnosis(
     data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: DiagnosisEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: DiagnosisEntity) => Promise<void>;
     },
   ): Promise<DiagnosisEntity> {
     const now = new Date();
@@ -478,10 +506,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createReferral(
     data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ReferralEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
     },
   ): Promise<ReferralEntity> {
     const now = new Date();
@@ -532,10 +557,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createAccommodationPlan(
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AccommodationPlanEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
     },
   ): Promise<AccommodationPlanEntity> {
     const now = new Date();
@@ -589,10 +611,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: CounsellingSessionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity> {
     const now = new Date();
@@ -684,10 +703,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ScreeningProgramEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
     const now = new Date();
@@ -700,6 +716,9 @@ export class InMemoryHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<ScreeningProgramEntity>,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity | null> {
     const existing = this.screeningPrograms.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
@@ -713,6 +732,20 @@ export class InMemoryHealthRepository implements HealthRepository {
     };
     this.screeningPrograms.set(id, updated);
     return updated;
+  }
+
+  /** W1-SEC: screening programs had no delete path — added for audit completeness. */
+  async deleteScreeningProgram(
+    id: string,
+    tenantId: string,
+    _options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    const entity = this.screeningPrograms.get(id);
+    if (!entity || entity.tenantId !== tenantId) return false;
+    this.screeningPrograms.delete(id);
+    return true;
   }
 
   async findScreeningProgramById(
@@ -748,10 +781,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createNurseIncident(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: NurseIncidentEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: NurseIncidentEntity) => Promise<void>;
     },
   ): Promise<NurseIncidentEntity> {
     const now = new Date();
@@ -824,10 +854,7 @@ export class InMemoryHealthRepository implements HealthRepository {
   async createBreakGlassGrant(
     input: CreateHealthBreakGlassInput,
     _options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthBreakGlassGrant,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
     },
   ): Promise<HealthBreakGlassGrant> {
     const now = new Date().toISOString();
