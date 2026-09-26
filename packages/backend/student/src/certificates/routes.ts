@@ -1,6 +1,6 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 
-import { LifecycleCertificateService } from './lifecycle-certificate-service.js';
+import type { LifecycleCertificateService } from './lifecycle-certificate-service.js';
 import type { LifecycleCertificateType } from './types.js';
 
 export interface LifecycleCertificateRouteOptions {

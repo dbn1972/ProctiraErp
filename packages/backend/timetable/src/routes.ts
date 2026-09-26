@@ -86,8 +86,9 @@ function requireAction(
 }
 
 function ifMatchOf(request: FastifyRequest): string | undefined {
-  const header = request.headers['if-match'];
-  const raw = Array.isArray(header) ? header[0] : header;
+  const headers: Record<string, string | string[] | undefined> = request.headers;
+  const header = headers['if-match'];
+  const raw: string | undefined = Array.isArray(header) ? header[0] : header;
   return normalizeIfMatchToken(raw);
 }
 
