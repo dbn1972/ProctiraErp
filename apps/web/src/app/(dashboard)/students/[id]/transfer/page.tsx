@@ -36,6 +36,12 @@ import { listAreas, listInstitutions } from '@/lib/api/institutions';
 import { getStudent, getStudentEnrollments } from '@/lib/api/students';
 
 import { TransferForm } from './_components/transfer-form';
+import { loadPlacementDirectories } from '../../_components/load-student-placement';
+import {
+  classSectionLabel,
+  enrollmentOptionLabel,
+  institutionLabel,
+} from '../../_components/student-placement-label';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
@@ -88,7 +94,8 @@ function TransferChecklist() {
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold">Transfer checklist</CardTitle>
         <CardDescription className="text-xs">
-          {done}/{total} items complete
+          Sample checklist — not loaded from this student&apos;s live records. {done}/{total} sample
+          items marked complete.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 pb-5">
@@ -178,7 +185,7 @@ function ApprovalChain() {
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold">Approval chain</CardTitle>
         <CardDescription className="text-xs">
-          All steps required for district-level transfer
+          Example sequence. Live status is recorded after you submit a transfer.
         </CardDescription>
       </CardHeader>
       <CardContent className="pb-5">
@@ -241,15 +248,32 @@ export default async function StudentTransferPage(props: PageProps) {
   }
 
   const activeEnrollments = enrollments.filter((e) => e.status === 'ENROLLED');
+  const directories = await loadPlacementDirectories(
+    [
+      ...enrollments.map((entry) => entry.institutionId),
+      ...institutions.map((institution) => institution.id),
+    ],
+    institutions.map((institution) => ({ id: institution.id, name: institution.name })),
+  );
 
-  // Build source info for subtitle
+  // Build source info for subtitle from the enrollment, not a raw id.
   const cd = student.customData ?? {};
-  const gradeSection = typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '';
-  const institutionName = typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '';
+  const source = activeEnrollments[0];
+  const gradeSection = classSectionLabel({
+    classId: source?.classId,
+    gradeId: source?.gradeId,
+    customGradeSection: typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '',
+    directories,
+  });
+  const institutionName = institutionLabel({
+    institutionId: source?.institutionId,
+    customName: typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '',
+    directories,
+  });
   const subtitleParts = [
     `${student.firstName} ${student.lastName}`,
-    gradeSection && `Grade ${gradeSection}`,
-    institutionName,
+    gradeSection !== '—' ? gradeSection : '',
+    institutionName !== '—' ? institutionName : '',
   ].filter(Boolean);
 
   return (
@@ -309,6 +333,16 @@ export default async function StudentTransferPage(props: PageProps) {
                     institutionId: e.institutionId,
                     gradeId: e.gradeId,
                     academicPeriodId: e.academicPeriodId,
+                    label: enrollmentOptionLabel({
+                      institutionId: e.institutionId,
+                      classId: e.classId,
+                      gradeId: e.gradeId,
+                      customGradeSection:
+                        typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '',
+                      customInstitutionName:
+                        typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '',
+                      directories,
+                    }),
                   }))}
                   institutions={institutions.map((i) => ({
                     id: i.id,

@@ -7,9 +7,14 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
-import { getStudent, getStudentCustomFields } from '@/lib/api/students';
+import { getStudent, getStudentCustomFields, getStudentEnrollments } from '@/lib/api/students';
 
 import { StudentForm } from '../../_components/student-form';
+import {
+  loadPlacementDirectories,
+  preferActiveEnrollment,
+} from '../../_components/load-student-placement';
+import { classSectionLabel, institutionLabel } from '../../_components/student-placement-label';
 import type { StudentFormValues } from '@/lib/validation/student-schema';
 
 export const dynamic = 'force-dynamic';
@@ -20,9 +25,10 @@ interface PageProps {
 
 export default async function EditStudentPage(props: PageProps) {
   const params = await props.params;
-  const [student, customFields] = await Promise.all([
+  const [student, customFields, enrollments] = await Promise.all([
     getStudent(params.id),
     getStudentCustomFields(),
+    getStudentEnrollments(params.id),
   ]);
 
   if (!student) {
@@ -59,10 +65,27 @@ export default async function EditStudentPage(props: PageProps) {
   };
 
   const cd = student.customData ?? {};
-  const gradeSection = typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '';
-  const institutionName = typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '';
+  const enrollment = preferActiveEnrollment(enrollments);
+  const directories = await loadPlacementDirectories(
+    enrollments.map((entry) => entry.institutionId),
+  );
+  const gradeSection = classSectionLabel({
+    classId: enrollment?.classId,
+    gradeId: enrollment?.gradeId,
+    customGradeSection: typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '',
+    directories,
+  });
+  const institutionName = institutionLabel({
+    institutionId: enrollment?.institutionId,
+    customName: typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '',
+    directories,
+  });
   const admNo = typeof cd['admissionNo'] === 'string' ? cd['admissionNo'] : '';
-  const contextParts = [admNo && `Adm. ${admNo}`, gradeSection, institutionName].filter(Boolean);
+  const contextParts = [
+    admNo && `Adm. ${admNo}`,
+    gradeSection !== '—' ? gradeSection : '',
+    institutionName !== '—' ? institutionName : '',
+  ].filter(Boolean);
 
   return (
     <section aria-labelledby="edit-student-heading" className="space-y-6">

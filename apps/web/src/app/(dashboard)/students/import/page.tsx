@@ -135,7 +135,7 @@ export default function StudentBulkImportPage() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <a href="/api/students/import/template" download="students-import-template.xlsx">
+            <a href="/students/import/template" download="students-import-template.xlsx">
               <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
               Download template
             </a>
