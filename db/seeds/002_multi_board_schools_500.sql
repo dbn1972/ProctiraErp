@@ -38,6 +38,21 @@ BEGIN
     BEGIN DELETE FROM grading_scales WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN DELETE FROM credit_rules WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
     BEGIN DELETE FROM board_codes WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    -- KNOWN LIMITATION, not fixable here: this teardown cannot run twice against a
+    -- database where the certification tenant has accumulated enrollment history.
+    -- `enrollment_history` references `enrollments`, so the DELETE below needs it
+    -- cleared first —
+    --   ERROR: update or delete on table "enrollments" violates foreign key
+    --          constraint "enrollment_history_enrollment_id_fkey"
+    -- — but `enrollment_history` is append-only by trigger
+    -- (db/sql/080_enrollment_grade_audit_harden.sql):
+    --   ERROR: enrollment_history is append-only (DELETE rejected)
+    -- so there is no delete order that satisfies both. The seed is effectively
+    -- single-use per database once history exists; re-seeding needs a fresh database
+    -- or a deliberate, audited archival of that history. Reconciling the two is its
+    -- own change — do not "fix" it by loosening the append-only trigger, which is a
+    -- W1-DATA-07 audit invariant. Found by re-applying this seed while verifying the
+    -- config shape below.
     DELETE FROM enrollments WHERE tenant_id = tid;
     DELETE FROM classes WHERE tenant_id = tid;
     DELETE FROM students WHERE tenant_id = tid;
@@ -54,12 +69,46 @@ END $$;
 DO $$ BEGIN PERFORM set_config('app.tenant_id', '00000000-0000-4000-8000-00000000ce27', true); END $$;
 
 WITH tenant_ins AS (
-  INSERT INTO tenants (id, name, slug, config, status)
+  -- `timezone` is set explicitly. The column defaults to 'UTC' and
+  -- `resolveTenantTimezone` ranks it *first*, ahead of anything in `config` — so
+  -- while this insert omitted it, an Indian multi-board certification tenant
+  -- resolved to UTC and the Asia/Kolkata in its config was dead weight. Every
+  -- timestamp the certification suite produced was in the wrong zone.
+  INSERT INTO tenants (id, name, slug, timezone, config, status)
   VALUES (
     '00000000-0000-4000-8000-00000000ce27',
     'Proctira Multi-Board Certification Tenant',
     'proctira-multiboard-cert',
-    '{"locale":"en-IN","timezone":"Asia/Kolkata","certification":true}'::jsonb,
+    'Asia/Kolkata',
+    -- Shape matters here. `TenantConfigSchema` (packages/backend/tenant/src/schemas.ts)
+    -- declares `locale` as an object with three required fields; this row used to
+    -- write it as the bare string "en-IN" with a sibling "timezone".
+    --
+    -- `resolveTenantTimezone` tolerates the flat form (it is priority 4 of its
+    -- candidate list), so the timezone kept resolving and the mismatch stayed
+    -- invisible. Fastify's response serializer does not tolerate it: served through
+    -- `TenantConfigSchema` this row yields `500 "defaultLocale" is required!`, because
+    -- fast-json-stringify throws rather than emit a partial object.
+    --
+    -- Latent, not live: `routes.ts` declares no `schema:` block, so `config` is
+    -- returned raw today and nothing serializes it through `TenantConfigSchema`.
+    -- `TenantResponseSchema` exists to be attached to those routes, and whoever
+    -- attaches it inherits the 500 for any row still holding the flat shape.
+    --
+    -- Scope of this change: the seed only. Rows that already hold the flat shape are
+    -- NOT repaired here, and deliberately not repaired on read either — normalizing
+    -- in the repository would change a live response body, and `updateTenant`
+    -- persists what it read via `mirrorToTenantRow`, so a name-only edit would write
+    -- back a `supportedLocales` nobody supplied. Repairing existing rows is a forward
+    -- migration's job (it must cover `control_plane_documents` tenant documents as
+    -- well as `tenants.config`), tracked separately.
+    --
+    -- The flat `timezone` is kept alongside the nested one on purpose:
+    -- `resolveTenantTimezone` reads `config.timezone` as one of its candidates, so
+    -- dropping it here would make a freshly-seeded database resolve differently from
+    -- one carrying the legacy row. `certification` is kept because it is stored state;
+    -- `TenantConfigSchema` does not declare it, so a schema-bearing route omits it.
+    '{"locale":{"defaultLocale":"en-IN","supportedLocales":["en-IN"],"timezone":"Asia/Kolkata"},"timezone":"Asia/Kolkata","certification":true}'::jsonb,
     'active'
   )
   RETURNING id

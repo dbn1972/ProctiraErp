@@ -342,11 +342,25 @@ export class PgTenantRepository implements TenantRepository {
       slug: row.slug,
       status,
       // Cast, not validated, unlike `status` above. `tenants.config` is unconstrained
-      // jsonb and the seeded rows do not match `TenantConfigSchema` (002 stores
-      // `locale` as the string "en-IN" where the schema declares an object), so
-      // validating here would reject real tenants and substituting `{}` would drop
-      // their locale and timezone. The response serializer is lossy for such a value
-      // rather than loud. Tracked separately as a seed/schema conformance defect.
+      // jsonb and rows predating `db/seeds/002`'s fix do not match
+      // `TenantConfigSchema`: 002 stored `locale` as the string "en-IN" where the
+      // schema declares an object with three *required* fields. Validating here would
+      // reject real tenants and substituting `{}` would drop their locale.
+      //
+      // Correction to what this comment used to say: serializing such a value is not
+      // "lossy rather than loud". `fast-json-stringify` throws on the missing required
+      // fields, so a route that attaches `TenantResponseSchema` returns
+      // `500 "defaultLocale" is required!` for that row. The earlier note claiming a
+      // silent `{"locale":{}}` came from a probe schema that omitted `required`.
+      //
+      // Not reachable from these routes today: `routes.ts` declares no `schema:`
+      // block at all, so `config` is returned raw and the flat shape passes through.
+      // That is also why this is not normalized on read — rewriting it here would
+      // change a live response body, and `updateTenant` would then persist the
+      // rewritten shape through `mirrorToTenantRow`, turning a read into an
+      // unaudited migration that invents `supportedLocales`. See
+      // `tenant-config-wire-shape.test.ts` and the forward-migration note in
+      // `db/seeds/002_multi_board_schools_500.sql`.
       config: (row.config ?? {}) as TenantEntity['config'],
       legalHold: row.legal_hold,
       createdAt: asDate(row.created_at),
