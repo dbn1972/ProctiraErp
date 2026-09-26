@@ -135,12 +135,12 @@ const APPROVAL_STEPS = [
   {
     role: 'School registrar',
     action: 'Initial review & documentation check',
-    status: 'upcoming' as const,
+    status: 'done' as const,
   },
   {
     role: 'School principal',
     action: 'Academic record approval',
-    status: 'upcoming' as const,
+    status: 'active' as const,
   },
   {
     role: 'District education officer',
@@ -154,17 +154,23 @@ const APPROVAL_STEPS = [
   },
 ] as const;
 
-const STATUS_STYLES = {
+const STATUS_STYLES: Record<(typeof APPROVAL_STEPS)[number]['status'], string> = {
   done: 'bg-primary text-primary-foreground',
   active: 'bg-primary/20 text-primary ring-4 ring-primary/10',
   upcoming: 'bg-muted text-muted-foreground',
-} as const;
+};
 
-const STATUS_LABEL = {
+const STATUS_LABEL: Record<(typeof APPROVAL_STEPS)[number]['status'], string> = {
   done: 'Completed',
   active: 'In progress',
   upcoming: 'Upcoming',
-} as const;
+};
+
+const STATUS_PILL: Record<(typeof APPROVAL_STEPS)[number]['status'], string> = {
+  done: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  active: 'bg-primary/10 text-primary',
+  upcoming: 'bg-muted text-muted-foreground',
+};
 
 function ApprovalChain() {
   return (
@@ -202,10 +208,7 @@ function ApprovalChain() {
                   <span
                     className={cn(
                       'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      step.status === 'done' &&
-                        'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-                      step.status === 'active' && 'bg-primary/10 text-primary',
-                      step.status === 'upcoming' && 'bg-muted text-muted-foreground',
+                      STATUS_PILL[step.status],
                     )}
                   >
                     {STATUS_LABEL[step.status]}
