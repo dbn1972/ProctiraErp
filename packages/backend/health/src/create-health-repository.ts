@@ -8,6 +8,7 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
+  type PgQueryable,
 } from '@proctira/database';
 
 import type {
@@ -24,12 +25,11 @@ import type {
   VaccinationEntity,
 } from './health-repository.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
-import { createPgBreakGlassStore, type PgBreakGlassStore } from './pg-break-glass-store.js';
-import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
 import { findActorInstitutionAssignments } from './pg-actor-institution-assignments.js';
-import { getSharedCounsellingPool } from './pg-counselling-store.js';
+import { createPgBreakGlassStore, type PgBreakGlassStore } from './pg-break-glass-store.js';
 import {
   createPgCounsellingStore,
+  getSharedCounsellingPool,
   isPgCounsellingEnabled,
   type PgCounsellingStore,
 } from './pg-counselling-store.js';
@@ -43,6 +43,7 @@ import {
   type PgSpecialNeedsStore,
   type PhiAccessLogInput,
 } from './pg-special-needs-store.js';
+import { findStudentInstitutionId } from './pg-student-institution-lookup.js';
 import type {
   CreateHealthBreakGlassInput,
   HealthBreakGlassGrant,
@@ -177,10 +178,7 @@ export class HybridHealthRepository implements HealthRepository {
   async createBreakGlassGrant(
     input: CreateHealthBreakGlassInput,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthBreakGlassGrant,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthBreakGlassGrant) => Promise<void>;
     },
   ): Promise<HealthBreakGlassGrant> {
     if (this.breakGlass) return this.breakGlass.create(input, options);
@@ -245,10 +243,7 @@ export class HybridHealthRepository implements HealthRepository {
   async createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthMeasurementEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity> {
     if (this.phi) return this.phi.createMeasurement(data, options);
@@ -259,9 +254,12 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<HealthMeasurementEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity | null> {
-    if (this.phi) return this.phi.updateMeasurement(id, tenantId, data);
-    return this.memory.updateMeasurement(id, tenantId, data);
+    if (this.phi) return this.phi.updateMeasurement(id, tenantId, data, options);
+    return this.memory.updateMeasurement(id, tenantId, data, options);
   }
 
   async findMeasurementById(id: string, tenantId: string): Promise<HealthMeasurementEntity | null> {
@@ -278,18 +276,21 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listMeasurementsByStudent(tenantId, studentId, pagination);
   }
 
-  async deleteMeasurement(id: string, tenantId: string): Promise<boolean> {
-    if (this.phi) return this.phi.deleteMeasurement(id, tenantId);
-    return this.memory.deleteMeasurement(id, tenantId);
+  async deleteMeasurement(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (this.phi) return this.phi.deleteMeasurement(id, tenantId, options);
+    return this.memory.deleteMeasurement(id, tenantId, options);
   }
 
   async createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AllergyEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity> {
     if (this.phi) return this.phi.createAllergy(data, options);
@@ -300,9 +301,12 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<AllergyEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
   ): Promise<AllergyEntity | null> {
-    if (this.phi) return this.phi.updateAllergy(id, tenantId, data);
-    return this.memory.updateAllergy(id, tenantId, data);
+    if (this.phi) return this.phi.updateAllergy(id, tenantId, data, options);
+    return this.memory.updateAllergy(id, tenantId, data, options);
   }
 
   async findAllergyById(id: string, tenantId: string): Promise<AllergyEntity | null> {
@@ -319,18 +323,21 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listAllergiesByStudent(tenantId, studentId, pagination);
   }
 
-  async deleteAllergy(id: string, tenantId: string): Promise<boolean> {
-    if (this.phi) return this.phi.deleteAllergy(id, tenantId);
-    return this.memory.deleteAllergy(id, tenantId);
+  async deleteAllergy(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (this.phi) return this.phi.deleteAllergy(id, tenantId, options);
+    return this.memory.deleteAllergy(id, tenantId, options);
   }
 
   async createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthConditionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity> {
     if (this.phi) return this.phi.createCondition(data, options);
@@ -341,9 +348,12 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<HealthConditionEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity | null> {
-    if (this.phi) return this.phi.updateCondition(id, tenantId, data);
-    return this.memory.updateCondition(id, tenantId, data);
+    if (this.phi) return this.phi.updateCondition(id, tenantId, data, options);
+    return this.memory.updateCondition(id, tenantId, data, options);
   }
 
   async findConditionById(id: string, tenantId: string): Promise<HealthConditionEntity | null> {
@@ -360,18 +370,21 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listConditionsByStudent(tenantId, studentId, pagination);
   }
 
-  async deleteCondition(id: string, tenantId: string): Promise<boolean> {
-    if (this.phi) return this.phi.deleteCondition(id, tenantId);
-    return this.memory.deleteCondition(id, tenantId);
+  async deleteCondition(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (this.phi) return this.phi.deleteCondition(id, tenantId, options);
+    return this.memory.deleteCondition(id, tenantId, options);
   }
 
   async createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: VaccinationEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity> {
     if (this.phi) return this.phi.createVaccination(data, options);
@@ -382,9 +395,12 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<VaccinationEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
   ): Promise<VaccinationEntity | null> {
-    if (this.phi) return this.phi.updateVaccination(id, tenantId, data);
-    return this.memory.updateVaccination(id, tenantId, data);
+    if (this.phi) return this.phi.updateVaccination(id, tenantId, data, options);
+    return this.memory.updateVaccination(id, tenantId, data, options);
   }
 
   async findVaccinationById(id: string, tenantId: string): Promise<VaccinationEntity | null> {
@@ -401,18 +417,21 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listVaccinationsByStudent(tenantId, studentId, pagination);
   }
 
-  async deleteVaccination(id: string, tenantId: string): Promise<boolean> {
-    if (this.phi) return this.phi.deleteVaccination(id, tenantId);
-    return this.memory.deleteVaccination(id, tenantId);
+  async deleteVaccination(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (this.phi) return this.phi.deleteVaccination(id, tenantId, options);
+    return this.memory.deleteVaccination(id, tenantId, options);
   }
 
   async createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: InsuranceEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity> {
     if (this.phi) return this.phi.createInsurance(data, options);
@@ -423,9 +442,12 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<InsuranceEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
   ): Promise<InsuranceEntity | null> {
-    if (this.phi) return this.phi.updateInsurance(id, tenantId, data);
-    return this.memory.updateInsurance(id, tenantId, data);
+    if (this.phi) return this.phi.updateInsurance(id, tenantId, data, options);
+    return this.memory.updateInsurance(id, tenantId, data, options);
   }
 
   async findInsuranceById(id: string, tenantId: string): Promise<InsuranceEntity | null> {
@@ -442,9 +464,15 @@ export class HybridHealthRepository implements HealthRepository {
     return this.memory.listInsuranceByStudent(tenantId, studentId, pagination);
   }
 
-  async deleteInsurance(id: string, tenantId: string): Promise<boolean> {
-    if (this.phi) return this.phi.deleteInsurance(id, tenantId);
-    return this.memory.deleteInsurance(id, tenantId);
+  async deleteInsurance(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (this.phi) return this.phi.deleteInsurance(id, tenantId, options);
+    return this.memory.deleteInsurance(id, tenantId, options);
   }
 
   // ─── Screenings ───────────────────────────────────────────────────────────
@@ -452,10 +480,7 @@ export class HybridHealthRepository implements HealthRepository {
   async createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ScreeningProgramEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity> {
     if (this.phi) return this.phi.createScreeningProgram(data, options);
@@ -466,9 +491,23 @@ export class HybridHealthRepository implements HealthRepository {
     id: string,
     tenantId: string,
     data: Partial<ScreeningProgramEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity | null> {
-    if (this.phi) return this.phi.updateScreeningProgram(id, tenantId, data);
-    return this.memory.updateScreeningProgram(id, tenantId, data);
+    if (this.phi) return this.phi.updateScreeningProgram(id, tenantId, data, options);
+    return this.memory.updateScreeningProgram(id, tenantId, data, options);
+  }
+
+  async deleteScreeningProgram(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (this.phi) return this.phi.deleteScreeningProgram(id, tenantId, options);
+    return this.memory.deleteScreeningProgram(id, tenantId, options);
   }
 
   async findScreeningProgramById(
@@ -501,10 +540,7 @@ export class HybridHealthRepository implements HealthRepository {
   async createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: CounsellingSessionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity> {
     if (this.counselling) {
@@ -583,10 +619,7 @@ export class HybridHealthRepository implements HealthRepository {
   async createNurseIncident(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: NurseIncidentEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: NurseIncidentEntity) => Promise<void>;
     },
   ): Promise<NurseIncidentEntity> {
     if (this.nurseIncidents) return this.nurseIncidents.create(data, options);

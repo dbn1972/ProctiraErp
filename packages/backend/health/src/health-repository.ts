@@ -11,6 +11,7 @@
  * - 12.5: Support configurable health screening programs per grade level
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 
 // ─── Entity Types ─────────────────────────────────────────────────────────────
 
@@ -209,16 +210,16 @@ export interface HealthRepository {
   createMeasurement(
     data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthMeasurementEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
     },
   ): Promise<HealthMeasurementEntity>;
   updateMeasurement(
     id: string,
     tenantId: string,
     data: Partial<HealthMeasurementEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity | null>;
   findMeasurementById(id: string, tenantId: string): Promise<HealthMeasurementEntity | null>;
   listMeasurementsByStudent(
@@ -226,22 +227,28 @@ export interface HealthRepository {
     studentId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<HealthMeasurementEntity>>;
-  deleteMeasurement(id: string, tenantId: string): Promise<boolean>;
+  deleteMeasurement(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
+  ): Promise<boolean>;
 
   // Allergies
   createAllergy(
     data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AllergyEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
     },
   ): Promise<AllergyEntity>;
   updateAllergy(
     id: string,
     tenantId: string,
     data: Partial<AllergyEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
   ): Promise<AllergyEntity | null>;
   findAllergyById(id: string, tenantId: string): Promise<AllergyEntity | null>;
   listAllergiesByStudent(
@@ -249,22 +256,28 @@ export interface HealthRepository {
     studentId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<AllergyEntity>>;
-  deleteAllergy(id: string, tenantId: string): Promise<boolean>;
+  deleteAllergy(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
+  ): Promise<boolean>;
 
   // Conditions
   createCondition(
     data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: HealthConditionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
     },
   ): Promise<HealthConditionEntity>;
   updateCondition(
     id: string,
     tenantId: string,
     data: Partial<HealthConditionEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity | null>;
   findConditionById(id: string, tenantId: string): Promise<HealthConditionEntity | null>;
   listConditionsByStudent(
@@ -272,22 +285,28 @@ export interface HealthRepository {
     studentId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<HealthConditionEntity>>;
-  deleteCondition(id: string, tenantId: string): Promise<boolean>;
+  deleteCondition(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
+  ): Promise<boolean>;
 
   // Vaccinations
   createVaccination(
     data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: VaccinationEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
     },
   ): Promise<VaccinationEntity>;
   updateVaccination(
     id: string,
     tenantId: string,
     data: Partial<VaccinationEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
   ): Promise<VaccinationEntity | null>;
   findVaccinationById(id: string, tenantId: string): Promise<VaccinationEntity | null>;
   listVaccinationsByStudent(
@@ -295,22 +314,28 @@ export interface HealthRepository {
     studentId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<VaccinationEntity>>;
-  deleteVaccination(id: string, tenantId: string): Promise<boolean>;
+  deleteVaccination(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
+  ): Promise<boolean>;
 
   // Insurance
   createInsurance(
     data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: InsuranceEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
     },
   ): Promise<InsuranceEntity>;
   updateInsurance(
     id: string,
     tenantId: string,
     data: Partial<InsuranceEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
   ): Promise<InsuranceEntity | null>;
   findInsuranceById(id: string, tenantId: string): Promise<InsuranceEntity | null>;
   listInsuranceByStudent(
@@ -318,14 +343,20 @@ export interface HealthRepository {
     studentId: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<InsuranceEntity>>;
-  deleteInsurance(id: string, tenantId: string): Promise<boolean>;
+  deleteInsurance(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
+  ): Promise<boolean>;
 
   // Special Needs Assessments
   createAssessment(
     data: Omit<SpecialNeedsAssessmentEntity, 'createdAt' | 'updatedAt'>,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         entity: SpecialNeedsAssessmentEntity,
       ) => Promise<void>;
     },
@@ -341,10 +372,7 @@ export interface HealthRepository {
   createDiagnosis(
     data: Omit<DiagnosisEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: DiagnosisEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: DiagnosisEntity) => Promise<void>;
     },
   ): Promise<DiagnosisEntity>;
   findDiagnosisById(id: string, tenantId: string): Promise<DiagnosisEntity | null>;
@@ -358,10 +386,7 @@ export interface HealthRepository {
   createReferral(
     data: Omit<ReferralEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ReferralEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ReferralEntity) => Promise<void>;
     },
   ): Promise<ReferralEntity>;
   updateReferral(
@@ -380,10 +405,7 @@ export interface HealthRepository {
   createAccommodationPlan(
     data: Omit<AccommodationPlanEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: AccommodationPlanEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: AccommodationPlanEntity) => Promise<void>;
     },
   ): Promise<AccommodationPlanEntity>;
   updateAccommodationPlan(
@@ -402,10 +424,7 @@ export interface HealthRepository {
   createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: CounsellingSessionEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: CounsellingSessionEntity) => Promise<void>;
     },
   ): Promise<CounsellingSessionEntity>;
   updateCounsellingSession(
@@ -438,10 +457,7 @@ export interface HealthRepository {
   createNurseIncident?(
     data: Omit<NurseIncidentEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: NurseIncidentEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: NurseIncidentEntity) => Promise<void>;
     },
   ): Promise<NurseIncidentEntity>;
   listNurseIncidents?(tenantId: string): Promise<NurseIncidentEntity[]>;
@@ -451,16 +467,16 @@ export interface HealthRepository {
   createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
     options?: {
-      appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
-        entity: ScreeningProgramEntity,
-      ) => Promise<void>;
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
     },
   ): Promise<ScreeningProgramEntity>;
   updateScreeningProgram(
     id: string,
     tenantId: string,
     data: Partial<ScreeningProgramEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity | null>;
   findScreeningProgramById(id: string, tenantId: string): Promise<ScreeningProgramEntity | null>;
   listScreeningPrograms(
@@ -472,6 +488,14 @@ export interface HealthRepository {
     gradeLevel: string,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<ScreeningProgramEntity>>;
+  /** W1-SEC: screening programs had no delete path at all — added alongside audit completeness. */
+  deleteScreeningProgram(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
+  ): Promise<boolean>;
 
   /** Active enrollment institution for institution-scoped PHI authZ (W1-SEC-04). */
   findStudentInstitutionId?(tenantId: string, studentId: string): Promise<string | null>;
