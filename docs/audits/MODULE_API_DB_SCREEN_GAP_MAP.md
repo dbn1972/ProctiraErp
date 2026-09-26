@@ -6,12 +6,12 @@ Follow-up with live schema evidence: `docs/audits/FULL_MODULE_AUDIT_20260925.md`
 **Date (UTC):** 2026-09-25  
 **Method:** static join of three inventories on this checkout. Not a live HTTP pass and not a SQL apply.
 
-| Inventory | Source | Count |
-| --------- | ------ | ----- |
+| Inventory              | Source                                                                             | Count       |
+| ---------------------- | ---------------------------------------------------------------------------------- | ----------- |
 | Backend route handlers | `packages/backend/*/src` Fastify `.get/.post/.put/.patch/.delete` (tests excluded) | 39 packages |
-| SQL tables | `CREATE TABLE` in `db/sql/*.sql` | 225 tables |
-| Staff / portal screens | `apps/web/src/app/**/page.tsx` | 204 pages |
-| Screen → API prefixes | string literals `/…` and `/api/v1/…` under `apps/web/src` | 51 prefixes |
+| SQL tables             | `CREATE TABLE` in `db/sql/*.sql`                                                   | 225 tables  |
+| Staff / portal screens | `apps/web/src/app/**/page.tsx`                                                     | 204 pages   |
+| Screen → API prefixes  | string literals `/…` and `/api/v1/…` under `apps/web/src`                          | 51 prefixes |
 
 **What this pass did not do**
 
@@ -26,51 +26,51 @@ Mount source of truth: `apps/api-gateway/src/mount-matrix.ts` and `docs/audits/G
 
 ## How to read a row
 
-| Word | Meaning |
-| ---- | ------- |
-| **LINKED** | Mounted prefix, package routes, SQL (or an explicit document store), and at least one screen or `apps/web` client that calls that prefix. |
-| **PARTIAL** | Two of the three exist, or the third is only a stub / in-memory / parked package with a leftover caller. |
-| **GAP** | A product surface is missing: API with no screen, screen calling an unmounted API, or durable data with no UI. |
+| Word        | Meaning                                                                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **LINKED**  | Mounted prefix, package routes, SQL (or an explicit document store), and at least one screen or `apps/web` client that calls that prefix. |
+| **PARTIAL** | Two of the three exist, or the third is only a stub / in-memory / parked package with a leftover caller.                                  |
+| **GAP**     | A product surface is missing: API with no screen, screen calling an unmounted API, or durable data with no UI.                            |
 
 ---
 
 ## Mounted modules
 
-| Module | Prefix(es) | Handlers | Test files | SQL | Screens (pages) | Disposition |
-| ------ | ---------- | -------: | ---------: | --- | --- | ----------- |
-| student | `/students`, `/enrollments` | 31 | 23 | `035` students 360 + Prisma | `/students` 9 | **LINKED** |
-| institution | `/institutions`, `/academic-periods`, `/grades`, `/classes`, `/subjects`, `/infrastructure` | 44 | 24 | `027`, `029`, `030` | `/institutions` 15, `/academic-periods` 3 | **LINKED** |
-| staff | `/staff` | 45 | 20 | `043`, `013`, `018` | `/staff` 12 | **LINKED** |
-| attendance | `/attendance` | 18 | 9 | `042` | `/attendance` 3 | **LINKED** |
-| examination | `/examinations` | 35 | 18 | `036` | `/examinations` 8 | **LINKED** |
-| assessment | `/assessments`, `/grading-schemes`, `/assessment-items`, `/outcomes`, `/results`, `/report-cards` | 21 | 13 | `024` report cards | `/assessments` 7 | **LINKED** |
-| timetable | `/timetable` | 35 | 7 | `003`, `041` | no `/timetable` staff page folder; client `lib/api/timetable.ts` (23 refs) | **PARTIAL** — API+SQL+client, staff route folder missing |
-| gradebook | `/gradebook` | 33 | 9 | `003`, `004`, `032` | client `lib/api/gradebook.ts`; no `/gradebook` page folder | **PARTIAL** — same shape as timetable |
-| curriculum | `/curriculum` | 8 | 3 | `033` | client only (`lib/api/curriculum.ts`, 9 refs); no `/curriculum` pages | **PARTIAL** |
-| lms | `/lms` | 48 | 6 | `026`, `038` | `/lms` 10 | **LINKED** |
-| scholarship | `/scholarships` | 17 | 7 | `016`, `060`, `079` | `/scholarships` 7 | **LINKED** |
-| health | `/health` | 42 | 19 | `012`, `017`, `046`, `049` | `/health` 13 | **LINKED** (creates are stronger than updates; see residuals) |
-| notification | `/notifications` | 19 | 11 | mixed PG deliveries | `/notifications` 2 | **LINKED** — thin UI vs 19 handlers |
-| transport | `/transport` | 38 | 8 | `006`, `045` | `/transport` 10 | **LINKED** |
-| communication | `/communication` | 16 | 10 | `007`, `044` | `/communication` 8 | **LINKED** — live Twilio/SES/WhatsApp still sandbox |
-| hostel | `/hostel` | 31 | 6 | `008`, `040` | `/hostel` 9 | **LINKED** |
-| library | `/library` | 23 | 6 | `009`, `039` | `/library` 7 | **LINKED** |
-| parent-portal | `/parent-portal`, `/student-portal` | 25 | 5 | `010` | `/parent` 16, `/student` 9 via `lib/api/parent-portal.ts` (`/student-portal/me/*`) | **LINKED** |
-| fees | `/fees` | 36 | 13 | `011`, `023`, `031`, `048`, `057`–`061` | `/fees` 9 | **LINKED** — PSP is sandbox |
-| registration | `/registrations`, `/admissions` | 29 | 11 | `014`, `034`, `097` | `/admissions` 5; registrations client only | **PARTIAL** — admissions UI, registration pipeline UI thin |
-| developer-portal | `/developer` | 34 | 8 | `055`, `089`, `093`, `094` | no `/developer` pages in `apps/web` | **GAP** — API+SQL, no staff/developer screen in this app |
-| auth | `/auth` | 25 | 25 | `066` session tables; PG identity when `DATABASE_URL` set, else memory | `/login`, `/signup`, `/mfa`, `/forgot-password`, `/reset-password` | **LINKED** with memory fallback |
-| audit | `/audit-logs` | 8 | 6 | `022`, `028` | `/audit-logs` 2 | **LINKED** |
-| billing | `/billing` | 17 | 6 | PG via `PgBillingRepository` when `DATABASE_URL` set | `/billing` 1 | **PARTIAL** — one screen for 17 handlers; matrix text still says “in-memory” and is stale vs `create-billing-repository.ts` |
-| providers | `/providers` | 0 in package (facade only) | 2 | none | no `/providers` pages | **GAP** — discovery API is gateway-owned; SMS/email/push/PSP adapters are not live |
-| tenant | `/tenant-lifecycle`, `/tenant`, `/scim` | 32 | 12 | `022` control plane | `/tenant-lifecycle` 1, `/admin` 6 | **PARTIAL** — SCIM and lifecycle have little UI |
-| report | `/reports` | 25 | 7 | `037` | `/reports` 6 | **LINKED** |
-| insights-ui | `/data-warehouse` (+ board summary) | gateway plugin | — | `020` | `/data-warehouse` 4 | **PARTIAL** — UI is the insights plugin, not `backend/data-warehouse` |
-| etl | `/pipelines` | 6 | 12 | `046` | `/pipelines` 1; clients also say `/etl` | **PARTIAL** — two prefixes in the UI (`/pipelines` mounted, `/etl` not a registrar) |
-| workflow-ui | `/workflows` | gateway plugin | — | `025` via engine | `/workflows` 5 | **LINKED** to engine-backed UI store |
-| workflow engine | `/workflow-engine` | 14 | 12 | `025` | no page calls `/workflow-engine` directly | **PARTIAL** — UI uses `/workflows`; engine prefix is headless |
-| privacy | `/privacy` | 8 | 4 | `067`, `078`, `090` | none (`/legal/privacy` is a policy page, not this API) | **GAP** — legal hold / erasure / offboard have SQL+API and no operator screen |
-| platform-admin-ui | `/tenants`, `/plans`, `/plugins`, `/themes`, `/break-glass`, `/audit`, `/platform` | gateway UI plugin | — | seed / stubs | mixed into `/admin` | **PARTIAL** — several prefixes are UI stubs, not the domain package |
+| Module            | Prefix(es)                                                                                        |                   Handlers | Test files | SQL                                                                    | Screens (pages)                                                                    | Disposition                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------- | -------------------------: | ---------: | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| student           | `/students`, `/enrollments`                                                                       |                         31 |         23 | `035` students 360 + Prisma                                            | `/students` 9                                                                      | **LINKED**                                                                                                                  |
+| institution       | `/institutions`, `/academic-periods`, `/grades`, `/classes`, `/subjects`, `/infrastructure`       |                         44 |         24 | `027`, `029`, `030`                                                    | `/institutions` 15, `/academic-periods` 3                                          | **LINKED**                                                                                                                  |
+| staff             | `/staff`                                                                                          |                         45 |         20 | `043`, `013`, `018`                                                    | `/staff` 12                                                                        | **LINKED**                                                                                                                  |
+| attendance        | `/attendance`                                                                                     |                         18 |          9 | `042`                                                                  | `/attendance` 3                                                                    | **LINKED**                                                                                                                  |
+| examination       | `/examinations`                                                                                   |                         35 |         18 | `036`                                                                  | `/examinations` 8                                                                  | **LINKED**                                                                                                                  |
+| assessment        | `/assessments`, `/grading-schemes`, `/assessment-items`, `/outcomes`, `/results`, `/report-cards` |                         21 |         13 | `024` report cards                                                     | `/assessments` 7                                                                   | **LINKED**                                                                                                                  |
+| timetable         | `/timetable`                                                                                      |                         35 |          7 | `003`, `041`                                                           | no `/timetable` staff page folder; client `lib/api/timetable.ts` (23 refs)         | **PARTIAL** — API+SQL+client, staff route folder missing                                                                    |
+| gradebook         | `/gradebook`                                                                                      |                         33 |          9 | `003`, `004`, `032`                                                    | client `lib/api/gradebook.ts`; no `/gradebook` page folder                         | **PARTIAL** — same shape as timetable                                                                                       |
+| curriculum        | `/curriculum`                                                                                     |                          8 |          3 | `033`                                                                  | client only (`lib/api/curriculum.ts`, 9 refs); no `/curriculum` pages              | **PARTIAL**                                                                                                                 |
+| lms               | `/lms`                                                                                            |                         48 |          6 | `026`, `038`                                                           | `/lms` 10                                                                          | **LINKED**                                                                                                                  |
+| scholarship       | `/scholarships`                                                                                   |                         17 |          7 | `016`, `060`, `079`                                                    | `/scholarships` 7                                                                  | **LINKED**                                                                                                                  |
+| health            | `/health`                                                                                         |                         42 |         19 | `012`, `017`, `046`, `049`                                             | `/health` 13                                                                       | **LINKED** (creates are stronger than updates; see residuals)                                                               |
+| notification      | `/notifications`                                                                                  |                         19 |         11 | mixed PG deliveries                                                    | `/notifications` 2                                                                 | **LINKED** — thin UI vs 19 handlers                                                                                         |
+| transport         | `/transport`                                                                                      |                         38 |          8 | `006`, `045`                                                           | `/transport` 10                                                                    | **LINKED**                                                                                                                  |
+| communication     | `/communication`                                                                                  |                         16 |         10 | `007`, `044`                                                           | `/communication` 8                                                                 | **LINKED** — live Twilio/SES/WhatsApp still sandbox                                                                         |
+| hostel            | `/hostel`                                                                                         |                         31 |          6 | `008`, `040`                                                           | `/hostel` 9                                                                        | **LINKED**                                                                                                                  |
+| library           | `/library`                                                                                        |                         23 |          6 | `009`, `039`                                                           | `/library` 7                                                                       | **LINKED**                                                                                                                  |
+| parent-portal     | `/parent-portal`, `/student-portal`                                                               |                         25 |          5 | `010`                                                                  | `/parent` 16, `/student` 9 via `lib/api/parent-portal.ts` (`/student-portal/me/*`) | **LINKED**                                                                                                                  |
+| fees              | `/fees`                                                                                           |                         36 |         13 | `011`, `023`, `031`, `048`, `057`–`061`                                | `/fees` 9                                                                          | **LINKED** — PSP is sandbox                                                                                                 |
+| registration      | `/registrations`, `/admissions`                                                                   |                         29 |         11 | `014`, `034`, `097`                                                    | `/admissions` 5; registrations client only                                         | **PARTIAL** — admissions UI, registration pipeline UI thin                                                                  |
+| developer-portal  | `/developer`                                                                                      |                         34 |          8 | `055`, `089`, `093`, `094`                                             | no `/developer` pages in `apps/web`                                                | **GAP** — API+SQL, no staff/developer screen in this app                                                                    |
+| auth              | `/auth`                                                                                           |                         25 |         25 | `066` session tables; PG identity when `DATABASE_URL` set, else memory | `/login`, `/signup`, `/mfa`, `/forgot-password`, `/reset-password`                 | **LINKED** with memory fallback                                                                                             |
+| audit             | `/audit-logs`                                                                                     |                          8 |          6 | `022`, `028`                                                           | `/audit-logs` 2                                                                    | **LINKED**                                                                                                                  |
+| billing           | `/billing`                                                                                        |                         17 |          6 | PG via `PgBillingRepository` when `DATABASE_URL` set                   | `/billing` 1                                                                       | **PARTIAL** — one screen for 17 handlers; matrix text still says “in-memory” and is stale vs `create-billing-repository.ts` |
+| providers         | `/providers`                                                                                      | 0 in package (facade only) |          2 | none                                                                   | no `/providers` pages                                                              | **GAP** — discovery API is gateway-owned; SMS/email/push/PSP adapters are not live                                          |
+| tenant            | `/tenant-lifecycle`, `/tenant`, `/scim`                                                           |                         32 |         12 | `022` control plane                                                    | `/tenant-lifecycle` 1, `/admin` 6                                                  | **PARTIAL** — SCIM and lifecycle have little UI                                                                             |
+| report            | `/reports`                                                                                        |                         25 |          7 | `037`                                                                  | `/reports` 6                                                                       | **LINKED**                                                                                                                  |
+| insights-ui       | `/data-warehouse` (+ board summary)                                                               |             gateway plugin |          — | `020`                                                                  | `/data-warehouse` 4                                                                | **PARTIAL** — UI is the insights plugin, not `backend/data-warehouse`                                                       |
+| etl               | `/pipelines`                                                                                      |                          6 |         12 | `046`                                                                  | `/pipelines` 1; clients also say `/etl`                                            | **PARTIAL** — two prefixes in the UI (`/pipelines` mounted, `/etl` not a registrar)                                         |
+| workflow-ui       | `/workflows`                                                                                      |             gateway plugin |          — | `025` via engine                                                       | `/workflows` 5                                                                     | **LINKED** to engine-backed UI store                                                                                        |
+| workflow engine   | `/workflow-engine`                                                                                |                         14 |         12 | `025`                                                                  | no page calls `/workflow-engine` directly                                          | **PARTIAL** — UI uses `/workflows`; engine prefix is headless                                                               |
+| privacy           | `/privacy`                                                                                        |                          8 |          4 | `067`, `078`, `090`                                                    | none (`/legal/privacy` is a policy page, not this API)                             | **GAP** — legal hold / erasure / offboard have SQL+API and no operator screen                                               |
+| platform-admin-ui | `/tenants`, `/plans`, `/plugins`, `/themes`, `/break-glass`, `/audit`, `/platform`                |          gateway UI plugin |          — | seed / stubs                                                           | mixed into `/admin`                                                                | **PARTIAL** — several prefixes are UI stubs, not the domain package                                                         |
 
 ---
 
@@ -78,17 +78,17 @@ Mount source of truth: `apps/api-gateway/src/mount-matrix.ts` and `docs/audits/G
 
 These packages still contain route handlers. `mount-matrix.ts` keeps them parked. A screen or client that calls the prefix will not hit this package.
 
-| Package | Handlers | Test files | Why it is parked | Screen caller? | Gap |
-| ------- | -------: | ---------: | ---------------- | -------------- | --- |
-| custom-field | 8 | 4 | No durable PG adapter; boot refused | 1 ref (`lib/api/students.ts`) | **GAP** — caller vs unmounted API |
-| dashboards | 3 | 2 | No durable aggregate adapter | ~10 refs under `lib/api/dashboards.ts` and dashboard pages | **GAP** — UI still names `/dashboards` while the package is parked; role dashboards are supposed to live on `backend/report` |
-| data-warehouse | 15 | 3 | Superseded by insights `/data-warehouse` | screens call insights prefix, not `/warehouses` | **GAP** — package routes are dead; do not treat package tests as the live DW API |
-| survey | 8 | 3 | No product surface | none | **GAP** — API only |
-| theme | 7 | 3 | `/themes` owned by platform-admin stub | none on this package | **PARTIAL** |
-| policy | 9 | 3 | Superseded by audit retention scheduler | none | **GAP** — API only |
-| plugin | 7 | 5 | `/plugins` owned by platform-admin UI | none on this package | **PARTIAL** |
-| install | 3 | 2 | Must not be on a live tenant gateway | none | **GAP** (intentional) |
-| admin-dashboard | 4 | 0 | Superseded by platform-admin + insights | none | **GAP** — routes and **zero** tests |
+| Package         | Handlers | Test files | Why it is parked                         | Screen caller?                                             | Gap                                                                                                                          |
+| --------------- | -------: | ---------: | ---------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| custom-field    |        8 |          4 | No durable PG adapter; boot refused      | 1 ref (`lib/api/students.ts`)                              | **GAP** — caller vs unmounted API                                                                                            |
+| dashboards      |        3 |          2 | No durable aggregate adapter             | ~10 refs under `lib/api/dashboards.ts` and dashboard pages | **GAP** — UI still names `/dashboards` while the package is parked; role dashboards are supposed to live on `backend/report` |
+| data-warehouse  |       15 |          3 | Superseded by insights `/data-warehouse` | screens call insights prefix, not `/warehouses`            | **GAP** — package routes are dead; do not treat package tests as the live DW API                                             |
+| survey          |        8 |          3 | No product surface                       | none                                                       | **GAP** — API only                                                                                                           |
+| theme           |        7 |          3 | `/themes` owned by platform-admin stub   | none on this package                                       | **PARTIAL**                                                                                                                  |
+| policy          |        9 |          3 | Superseded by audit retention scheduler  | none                                                       | **GAP** — API only                                                                                                           |
+| plugin          |        7 |          5 | `/plugins` owned by platform-admin UI    | none on this package                                       | **PARTIAL**                                                                                                                  |
+| install         |        3 |          2 | Must not be on a live tenant gateway     | none                                                       | **GAP** (intentional)                                                                                                        |
+| admin-dashboard |        4 |          0 | Superseded by platform-admin + insights  | none                                                       | **GAP** — routes and **zero** tests                                                                                          |
 
 ---
 
@@ -116,13 +116,13 @@ These are the breaks a file-by-file reading misses, because each side looks fini
 
 ## Screen folders with no module of the same name
 
-| Screen folder | Pages | Where the API actually is |
-| ------------- | ----: | ------------------------- |
-| `/parent`, `/student` | 16 + 9 | `/parent-portal`, `/student-portal` |
-| `/admin` | 6 | `/tenant` plus platform-admin UI stubs |
-| `/login`, `/signup`, `/mfa`, `/auth` | auth chrome | `/auth` |
-| `/legal` | 2 | static policy copy, not `/privacy` |
-| `/help`, `/track` | 1 each | no domain package |
+| Screen folder                        |       Pages | Where the API actually is              |
+| ------------------------------------ | ----------: | -------------------------------------- |
+| `/parent`, `/student`                |      16 + 9 | `/parent-portal`, `/student-portal`    |
+| `/admin`                             |           6 | `/tenant` plus platform-admin UI stubs |
+| `/login`, `/signup`, `/mfa`, `/auth` | auth chrome | `/auth`                                |
+| `/legal`                             |           2 | static policy copy, not `/privacy`     |
+| `/help`, `/track`                    |      1 each | no domain package                      |
 
 ---
 

@@ -12,16 +12,16 @@ Dispositions used below: `FULLY_CLOSED` · `PARTIAL` · `OPEN` · `REGRESSED` ·
 
 ## What was run
 
-| Check | Result |
-| ----- | ------ |
-| Source inventories | 39 backend packages, 204 `page.tsx` screens, 225 `CREATE TABLE` statements, 86 Playwright specs |
-| Live Postgres 16.15 | Installed on this VM. Cluster `16/main` started. Database `proctira`. Roles `proctira` and `proctira_app` created from `db/bootstrap/01_runtime_roles.sql` |
-| `tools/scripts/apply-sql.sh` | `APPLY_STRICT_FKS=0` `APPLY_SEEDS=0`. **104 files recorded** in `schema_migrations`. **226** public tables. Stopped on `098_staff_identity_link.sql` |
-| Gateway HTTP | Not run. Nothing was listening, and `node_modules` is not installed, so the API process was not booted |
-| Unit tests | Not run (no `node_modules`) |
-| Playwright / axe / screenshots | Not run. 67 of 86 e2e specs mention `E2E_BACKEND_READY` and skip the live path when that flag is unset |
-| Multi-board seed (3×2×500) | Not run |
-| Mobile device | Not run (`apps/mobile` has 65 Dart files on disk only) |
+| Check                          | Result                                                                                                                                                     |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source inventories             | 39 backend packages, 204 `page.tsx` screens, 225 `CREATE TABLE` statements, 86 Playwright specs                                                            |
+| Live Postgres 16.15            | Installed on this VM. Cluster `16/main` started. Database `proctira`. Roles `proctira` and `proctira_app` created from `db/bootstrap/01_runtime_roles.sql` |
+| `tools/scripts/apply-sql.sh`   | `APPLY_STRICT_FKS=0` `APPLY_SEEDS=0`. **104 files recorded** in `schema_migrations`. **226** public tables. Stopped on `098_staff_identity_link.sql`       |
+| Gateway HTTP                   | Not run. Nothing was listening, and `node_modules` is not installed, so the API process was not booted                                                     |
+| Unit tests                     | Not run (no `node_modules`)                                                                                                                                |
+| Playwright / axe / screenshots | Not run. 67 of 86 e2e specs mention `E2E_BACKEND_READY` and skip the live path when that flag is unset                                                     |
+| Multi-board seed (3×2×500)     | Not run                                                                                                                                                    |
+| Mobile device                  | Not run (`apps/mobile` has 65 Dart files on disk only)                                                                                                     |
 
 First apply attempt failed earlier, before any ledger row, because `001_core_onboarding_schema.sql` grants to role `proctira` and that role did not exist yet. Bootstrap is a separate script and is not implied by `apply-sql.sh` unless `BOOTSTRAP_DATABASE_URL` is set.
 
@@ -29,16 +29,16 @@ First apply attempt failed earlier, before any ledger row, because `001_core_onb
 
 ## Pillars (whole product)
 
-| Pillar | Disposition | Why |
-| ------ | ----------- | --- |
-| Functionality (API ↔ screen ↔ table) | **PARTIAL** | Source map in the companion file. Live HTTP read/write per module was not executed |
-| Data / SQL | **PARTIAL** | Fresh raw-SQL apply reaches 097 and dies on 098. Strict FK files and seeds were intentionally off. Volume cert (3 boards, 6 schools, 3000 students) was not run |
-| Security / tenancy | **PARTIAL** | No live cross-tenant deny and no live RBAC deny in this session. Static residuals are listed under findings |
-| E2E journeys | **EXTERNALLY_UNVERIFIED** | Specs exist; this VM did not execute them against a gateway |
-| UX | **EXTERNALLY_UNVERIFIED** | No screenshots were viewed. Sixteen pages still mount `ScaffoldModeBanner` |
-| Accessibility | **EXTERNALLY_UNVERIFIED** | `a11y-axe.spec.ts` skips authenticated routes unless `E2E_BACKEND_READY=1` |
-| Mobile | **EXTERNALLY_UNVERIFIED** | No `flutter test`, no device, no golden comparison |
-| Release / tip CI | **EXTERNALLY_UNVERIFIED** | This document does not read a GitHub Actions run on `0043e555` |
+| Pillar                               | Disposition               | Why                                                                                                                                                             |
+| ------------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Functionality (API ↔ screen ↔ table) | **PARTIAL**               | Source map in the companion file. Live HTTP read/write per module was not executed                                                                              |
+| Data / SQL                           | **PARTIAL**               | Fresh raw-SQL apply reaches 097 and dies on 098. Strict FK files and seeds were intentionally off. Volume cert (3 boards, 6 schools, 3000 students) was not run |
+| Security / tenancy                   | **PARTIAL**               | No live cross-tenant deny and no live RBAC deny in this session. Static residuals are listed under findings                                                     |
+| E2E journeys                         | **EXTERNALLY_UNVERIFIED** | Specs exist; this VM did not execute them against a gateway                                                                                                     |
+| UX                                   | **EXTERNALLY_UNVERIFIED** | No screenshots were viewed. Sixteen pages still mount `ScaffoldModeBanner`                                                                                      |
+| Accessibility                        | **EXTERNALLY_UNVERIFIED** | `a11y-axe.spec.ts` skips authenticated routes unless `E2E_BACKEND_READY=1`                                                                                      |
+| Mobile                               | **EXTERNALLY_UNVERIFIED** | No `flutter test`, no device, no golden comparison                                                                                                              |
+| Release / tip CI                     | **EXTERNALLY_UNVERIFIED** | This document does not read a GitHub Actions run on `0043e555`                                                                                                  |
 
 ---
 
@@ -74,13 +74,13 @@ Not applied after the failure: `098`, `099`, `101`, `102`. Skipped on purpose: s
 
 ### AUD-04 — Web calls prefixes the gateway does not serve as those names — **OPEN**
 
-| Caller | Calls | What is actually mounted |
-| ------ | ----- | ------------------------ |
-| `apps/web/src/features/etl/pages/PipelineList.tsx`, `PipelineBuilder.tsx`, `ExecutionLog.tsx` | `/etl/pipelines`, `/etl/executions` | `/pipelines` (`backend/etl`) |
-| `apps/web/src/lib/api/dashboards.ts` and dashboard pages | `/dashboards` | package parked in `mount-matrix.ts` |
-| `apps/web/src/lib/api/students.ts` | `/custom-fields` | package parked |
-| `apps/web/src/lib/api/audit.ts` | `/audit/entries` | audit API is `/audit-logs`; `/audit` is the platform-admin UI stub |
-| `apps/web/src/lib/institutions/api.ts` | `/areas/tree` | not a key in `PATH_RESOURCE_MAP` (`rbac-registry.ts`) |
+| Caller                                                                                        | Calls                               | What is actually mounted                                           |
+| --------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------ |
+| `apps/web/src/features/etl/pages/PipelineList.tsx`, `PipelineBuilder.tsx`, `ExecutionLog.tsx` | `/etl/pipelines`, `/etl/executions` | `/pipelines` (`backend/etl`)                                       |
+| `apps/web/src/lib/api/dashboards.ts` and dashboard pages                                      | `/dashboards`                       | package parked in `mount-matrix.ts`                                |
+| `apps/web/src/lib/api/students.ts`                                                            | `/custom-fields`                    | package parked                                                     |
+| `apps/web/src/lib/api/audit.ts`                                                               | `/audit/entries`                    | audit API is `/audit-logs`; `/audit` is the platform-admin UI stub |
+| `apps/web/src/lib/institutions/api.ts`                                                        | `/areas/tree`                       | not a key in `PATH_RESOURCE_MAP` (`rbac-registry.ts`)              |
 
 ### AUD-05 — Staff pages missing for three academic APIs — **OPEN**
 
@@ -131,16 +131,16 @@ Unmounted, with handlers still in the package: `custom-field`, `dashboards`, `da
 
 No module is `FULLY_CLOSED`. A module is **PARTIAL** when the gateway mounts it, SQL for it landed in this apply, and the web app has a page or client. It is **OPEN** when one of those three is missing or the screen is only a scaffold. Live behavior of every row is still **EXTERNALLY_UNVERIFIED**.
 
-| Module | This session | Blocker |
-| ------ | ------------ | ------- |
-| student, institution, staff, attendance, examination, assessment, lms, scholarship, health, notification, transport, communication, hostel, library, parent/student portal, fees, registration, auth, audit | **PARTIAL** | No live HTTP. Health writes: AUD-07. Staff assignments table missing: AUD-01 |
-| curriculum, gradebook, timetable | **OPEN** | No matching `app/` folder (AUD-05). Header fallback (AUD-08) |
-| report, data-warehouse UI, admin | **OPEN** | Scaffold banners (AUD-06) |
-| etl | **OPEN** | UI calls `/etl`, gateway mounts `/pipelines` (AUD-04) |
-| privacy, developer-portal | **OPEN** | No product screen (AUD-02, AUD-03) |
-| billing, workflow, providers, tenant/SCIM | **PARTIAL** | Thin or headless UI (AUD-11, AUD-12) |
-| custom-field, dashboards, survey, policy, theme, plugin, install, admin-dashboard, data-warehouse package | **OPEN** | Not mounted (AUD-10) |
-| mobile | **EXTERNALLY_UNVERIFIED** | Not executed |
+| Module                                                                                                                                                                                                      | This session              | Blocker                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------------------------- |
+| student, institution, staff, attendance, examination, assessment, lms, scholarship, health, notification, transport, communication, hostel, library, parent/student portal, fees, registration, auth, audit | **PARTIAL**               | No live HTTP. Health writes: AUD-07. Staff assignments table missing: AUD-01 |
+| curriculum, gradebook, timetable                                                                                                                                                                            | **OPEN**                  | No matching `app/` folder (AUD-05). Header fallback (AUD-08)                 |
+| report, data-warehouse UI, admin                                                                                                                                                                            | **OPEN**                  | Scaffold banners (AUD-06)                                                    |
+| etl                                                                                                                                                                                                         | **OPEN**                  | UI calls `/etl`, gateway mounts `/pipelines` (AUD-04)                        |
+| privacy, developer-portal                                                                                                                                                                                   | **OPEN**                  | No product screen (AUD-02, AUD-03)                                           |
+| billing, workflow, providers, tenant/SCIM                                                                                                                                                                   | **PARTIAL**               | Thin or headless UI (AUD-11, AUD-12)                                         |
+| custom-field, dashboards, survey, policy, theme, plugin, install, admin-dashboard, data-warehouse package                                                                                                   | **OPEN**                  | Not mounted (AUD-10)                                                         |
+| mobile                                                                                                                                                                                                      | **EXTERNALLY_UNVERIFIED** | Not executed                                                                 |
 
 ---
 
