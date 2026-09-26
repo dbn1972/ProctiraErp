@@ -20,6 +20,7 @@ import {
 } from '@proctira/ui/components';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { listReportRuns, listReportSchedules, listReportTemplates } from '@/lib/reports/api';
+import { humanizeStatus } from '@/lib/status-label';
 
 import { ReportScheduleForm } from './schedule-form';
 import { RunDueButton, ScheduleRowActions } from './schedule-actions';
@@ -134,7 +135,7 @@ export default async function ReportSchedulesPage() {
                     <TableCell className="text-xs">{run.generatedAt}</TableCell>
                     <TableCell>{run.templateName}</TableCell>
                     <TableCell>{run.trigger ?? 'manual'}</TableCell>
-                    <TableCell>{run.status}</TableCell>
+                    <TableCell>{humanizeStatus(run.status)}</TableCell>
                     <TableCell className="max-w-[12rem] truncate font-mono text-[11px]">
                       {run.sha256 ?? '—'}
                     </TableCell>

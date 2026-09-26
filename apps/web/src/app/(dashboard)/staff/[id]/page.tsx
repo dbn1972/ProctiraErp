@@ -39,6 +39,7 @@ import {
   TabsTrigger,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { workloadBand } from '@/lib/status-label';
 import {
   getStaff,
   listStaffAppraisals,
@@ -407,7 +408,8 @@ function OverviewTab({
                 <div className="mb-1.5 flex items-center justify-between text-xs text-muted-foreground">
                   <span>Weekly workload</span>
                   <span className="font-bold text-foreground">
-                    {totalPeriods} / {maxPeriods} periods
+                    {workloadBand((totalPeriods / maxPeriods) * 100)} · {totalPeriods} /{' '}
+                    {maxPeriods} periods
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">

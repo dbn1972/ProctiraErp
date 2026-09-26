@@ -3,7 +3,8 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listInvoices, listReceipts } from '@/lib/api/fees';
+import { listInvoicesResult, listReceiptsResult } from '@/lib/api/fees';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { resolveEntityLabel } from '@/lib/entity-label';
 
 import { getLocale } from 'next-intl/server';
@@ -15,7 +16,29 @@ export const dynamic = 'force-dynamic';
 export default async function FeesReceiptsPage() {
   await requireSession();
   const locale = await getLocale();
-  const [receipts, invoices] = await Promise.all([listReceipts('staff'), listInvoices('staff')]);
+  const [receiptsResult, invoicesResult] = await Promise.all([
+    listReceiptsResult('staff'),
+    listInvoicesResult('staff'),
+  ]);
+  if (!receiptsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee receipts</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Issued after sandbox (or recorded) payment. Live PSP waived for this slice.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={receiptsResult.kind}
+          status={receiptsResult.status}
+          returnTo="/fees/receipts"
+        />
+      </div>
+    );
+  }
+  const receipts = receiptsResult.items;
+  const invoices = invoicesResult.ok ? invoicesResult.items : [];
   const invoiceLabels = new Map(
     invoices.map((invoice) => [
       invoice.id,

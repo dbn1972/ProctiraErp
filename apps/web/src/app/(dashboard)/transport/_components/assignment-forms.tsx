@@ -55,11 +55,15 @@ export function AssignmentForms({
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
     if (!UUID_RE.test(vehicleId) || !UUID_RE.test(driverId)) {
-      setError('Vehicle and driver must be UUID v4 values.');
+      setError(
+        vehicles.length === 0 || staffOptions.length === 0
+          ? 'Vehicle list or staff directory is empty — add those records before assigning a driver.'
+          : 'Select a vehicle and a driver.',
+      );
       return;
     }
     if (routeId && !UUID_RE.test(routeId)) {
-      setError('Route id must be a UUID v4 when provided.');
+      setError('Select a route from the list, or leave route blank.');
       return;
     }
     if (!startDate) {
@@ -96,11 +100,15 @@ export function AssignmentForms({
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
     if (!UUID_RE.test(studentId) || !UUID_RE.test(routeId)) {
-      setError('Student and route must be UUID v4 values.');
+      setError(
+        studentOptions.length === 0 || routes.length === 0
+          ? 'Student directory or route list is empty — add those records before assigning a student.'
+          : 'Select a student and a route.',
+      );
       return;
     }
     if (stopId && !UUID_RE.test(stopId)) {
-      setError('Stop id must be a UUID v4 when provided.');
+      setError('Select a stop from the list, or leave stop blank.');
       return;
     }
     if (!startDate) {

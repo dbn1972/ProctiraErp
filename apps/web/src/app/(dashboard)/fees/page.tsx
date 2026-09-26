@@ -24,18 +24,21 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans, listInvoices, listReceipts } from '@/lib/api/fees';
+import { listFeePlansResult, listInvoicesResult, listReceiptsResult } from '@/lib/api/fees';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesOverviewPage() {
   await requireSession();
-  const [t, plans, invoices, receipts] = await Promise.all([
+  const [t, plansResult, invoicesResult, receiptsResult] = await Promise.all([
     getTranslations('fees'),
-    listFeePlans(),
-    listInvoices('staff'),
-    listReceipts('staff'),
+    listFeePlansResult(),
+    listInvoicesResult('staff'),
+    listReceiptsResult('staff'),
   ]);
+  const plans = plansResult.ok ? plansResult.items : [];
+  const invoices = invoicesResult.ok ? invoicesResult.items : [];
+  const receipts = receiptsResult.ok ? receiptsResult.items : [];
 
   return (
     <div className="space-y-6 p-6">
@@ -51,7 +54,11 @@ export default async function FeesOverviewPage() {
               <Wallet className="h-4 w-4" aria-hidden="true" />
               {t('plans')}
             </CardTitle>
-            <CardDescription>{t('planCount', { count: plans.length })}</CardDescription>
+            <CardDescription>
+              {plansResult.ok
+                ? t('planCount', { count: plans.length })
+                : 'Plans could not be loaded.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
@@ -65,7 +72,11 @@ export default async function FeesOverviewPage() {
               <FileText className="h-4 w-4" aria-hidden="true" />
               {t('invoices')}
             </CardTitle>
-            <CardDescription>{t('invoiceCount', { count: invoices.length })}</CardDescription>
+            <CardDescription>
+              {invoicesResult.ok
+                ? t('invoiceCount', { count: invoices.length })
+                : 'Invoices could not be loaded.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>
@@ -79,7 +90,11 @@ export default async function FeesOverviewPage() {
               <Receipt className="h-4 w-4" aria-hidden="true" />
               {t('receipts')}
             </CardTitle>
-            <CardDescription>{t('receiptCount', { count: receipts.length })}</CardDescription>
+            <CardDescription>
+              {receiptsResult.ok
+                ? t('receiptCount', { count: receipts.length })
+                : 'Receipts could not be loaded.'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild>

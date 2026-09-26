@@ -320,7 +320,7 @@ export function ResultsEntryGrid({
     if (!subjectId || !academicPeriodId) {
       setServerState({
         status: 'error',
-        message: 'Subject and academic period UUIDs are required.',
+        message: 'Choose a subject and an academic period.',
       });
       return;
     }
@@ -421,7 +421,7 @@ export function ResultsEntryGrid({
         errors.push({
           row,
           field: 'studentId',
-          message: 'Invalid UUID',
+          message: 'Student id is not a recognised directory id',
           value: studentId,
           severity: 'error',
         });
@@ -460,7 +460,7 @@ export function ResultsEntryGrid({
 
   async function confirmImport(file: File): Promise<{ success: number; failed: number }> {
     if (!subjectId || !academicPeriodId) {
-      throw new Error('Subject and academic period UUIDs are required.');
+      throw new Error('Choose a subject and an academic period.');
     }
     const text = await file.text();
     const lines = text
@@ -652,13 +652,9 @@ export function ResultsEntryGrid({
                           ))}
                         </select>
                       ) : (
-                        <Input
-                          aria-label={`Student id ${row.id}`}
-                          value={row.studentId}
-                          onChange={(e) => updateRow(row.id, { studentId: e.target.value })}
-                          className="font-mono text-xs"
-                          placeholder="Directory unavailable — paste id only if required"
-                        />
+                        <p className="text-sm text-muted-foreground" role="status">
+                          Student directory is unavailable. Add students before entering results.
+                        </p>
                       )}
                       {row.rowError && (
                         <p className="mt-1 text-xs text-[hsl(var(--destructive))]" role="alert">

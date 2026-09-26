@@ -1,4 +1,5 @@
 import { getSelfGrades } from '@/lib/api/parent-portal';
+import { humanizeStatus } from '@/lib/status-label';
 import { AcademicFrame } from '../../../(parent)/parent/_components/academic-frame';
 import { requireStudentSession, studentStatus } from '../_lib/session';
 
@@ -32,7 +33,7 @@ export default async function StudentGradesPage() {
         {reportCards.map((card) => (
           <li key={card.id} className="py-3 first:pt-0 last:pb-0">
             <p className="text-sm font-medium text-foreground">Report card</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">{card.status}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{humanizeStatus(card.status)}</p>
           </li>
         ))}
       </ul>

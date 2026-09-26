@@ -4,15 +4,18 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import {
-  listInstalments,
-  listInvoices,
-  listReceipts,
+  listInstalmentsResult,
+  listInvoicesResult,
+  listReceiptsResult,
   type FeeInstalment,
   type FeeInvoice,
   type FeeReceipt,
 } from '@/lib/api/fees';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import type { ListFailureKind } from '@/lib/api/list-result';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
+import { humanizeStatus } from '@/lib/status-label';
 import { PayInvoiceButton } from './_components/pay-invoice-button';
 
 export const dynamic = 'force-dynamic';
@@ -49,17 +52,28 @@ function dueDateForInstalment(invoice: FeeInvoice, instalment: FeeInstalment): D
 
 export default async function ParentFeesPage() {
   await requireSession();
-  const [invoices, receipts] = await Promise.all([listInvoices('parent'), listReceipts('parent')]);
+  const [invoicesResult, receiptsResult] = await Promise.all([
+    listInvoicesResult('parent'),
+    listReceiptsResult('parent'),
+  ]);
+  if (!invoicesResult.ok) {
+    return <ParentFeesFailure kind={invoicesResult.kind} status={invoicesResult.status} />;
+  }
+  if (!receiptsResult.ok) {
+    return <ParentFeesFailure kind={receiptsResult.kind} status={receiptsResult.status} />;
+  }
+  const invoices = invoicesResult.items;
+  const receipts = receiptsResult.items;
   const studentLabels = await loadStudentLabelsForIds(invoices.map((invoice) => invoice.studentId));
 
   const structureIds = [
     ...new Set(invoices.map((invoice) => invoice.structureId).filter((id): id is string => !!id)),
   ];
-  const instalmentsByStructure = new Map<string, FeeInstalment[]>();
+  const instalmentsByStructure = new Map<string, FeeInstalment[] | null>();
   await Promise.all(
     structureIds.map(async (structureId) => {
-      const parts = await listInstalments(structureId);
-      instalmentsByStructure.set(structureId, parts);
+      const parts = await listInstalmentsResult(structureId);
+      instalmentsByStructure.set(structureId, parts.ok ? parts.items : null);
     }),
   );
 
@@ -134,7 +148,7 @@ export default async function ParentFeesPage() {
                       Billed {formatAmount(invoice.amountCents, invoice.currency)} · Remaining{' '}
                       {formatAmount(remaining, invoice.currency)} ·{' '}
                       {resolveEntityLabel(invoice.studentId, studentLabels, 'Child')} ·{' '}
-                      {invoice.status}
+                      {humanizeStatus(invoice.status)}
                       {invoice.dueAt
                         ? ` · due ${new Date(invoice.dueAt).toLocaleDateString()}`
                         : ''}
@@ -174,7 +188,21 @@ export default async function ParentFeesPage() {
               {invoices
                 .filter((invoice) => invoice.structureId)
                 .map((invoice) => {
-                  const parts = instalmentsByStructure.get(invoice.structureId!) ?? [];
+                  const parts = instalmentsByStructure.get(invoice.structureId!);
+                  if (parts == null) {
+                    return (
+                      <li
+                        key={`${invoice.id}-schedule`}
+                        className="rounded-md border border-border p-3"
+                        data-testid="parent-instalment-group"
+                      >
+                        <p className="text-sm font-medium text-foreground">{invoice.title}</p>
+                        <p className="mt-1 text-sm text-muted-foreground" role="status">
+                          Instalment schedule could not be loaded for this invoice.
+                        </p>
+                      </li>
+                    );
+                  }
                   if (parts.length === 0) return null;
                   const remaining = remainingBalanceCents(invoice, receipts);
                   let covered = invoice.amountCents - remaining;
@@ -205,7 +233,7 @@ export default async function ParentFeesPage() {
                                   ? 'Part paid'
                                   : invoice.status === 'open'
                                     ? 'Upcoming'
-                                    : invoice.status;
+                                    : humanizeStatus(invoice.status);
                             return (
                               <li
                                 key={part.id}
@@ -267,6 +295,21 @@ export default async function ParentFeesPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function ParentFeesFailure({ kind, status }: { kind: ListFailureKind; status: number }) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fees</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          See what is due, how instalments are scheduled, and what remains to pay. Online payment
+          uses a test processor until your school connects a live payment provider.
+        </p>
+      </div>
+      <ListLoadFailure kind={kind} status={status} returnTo="/parent/fees" />
     </div>
   );
 }

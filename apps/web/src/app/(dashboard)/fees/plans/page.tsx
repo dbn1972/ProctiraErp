@@ -3,7 +3,9 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans } from '@/lib/api/fees';
+import { listFeePlansResult } from '@/lib/api/fees';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { humanizeStatus } from '@/lib/status-label';
 import { NewFeePlanForm } from '../_components/new-fee-plan-form';
 
 import { getLocale } from 'next-intl/server';
@@ -15,7 +17,8 @@ export const dynamic = 'force-dynamic';
 export default async function FeesPlansPage() {
   await requireSession();
   const locale = await getLocale();
-  const plans = await listFeePlans();
+  const plansResult = await listFeePlansResult();
+  const plans = plansResult.ok ? plansResult.items : [];
 
   return (
     <div className="space-y-6 p-6">
@@ -32,11 +35,21 @@ export default async function FeesPlansPage() {
         <CardHeader>
           <CardTitle className="text-base">Plans</CardTitle>
           <CardDescription>
-            {plans.length === 0 ? 'No plans yet.' : `${plans.length} plan(s).`}
+            {!plansResult.ok
+              ? 'Plans could not be loaded.'
+              : plans.length === 0
+                ? 'No plans yet.'
+                : `${plans.length} plan(s).`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {plans.length === 0 ? (
+          {!plansResult.ok ? (
+            <ListLoadFailure
+              kind={plansResult.kind}
+              status={plansResult.status}
+              returnTo="/fees/plans"
+            />
+          ) : plans.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               Create a plan to issue recurring or term invoices quickly.
             </p>
@@ -49,8 +62,8 @@ export default async function FeesPlansPage() {
                     <span className="font-normal text-muted-foreground">({plan.code})</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(plan.amountCents, plan.currency, locale)} · {plan.frequency} ·{' '}
-                    {plan.status}
+                    {formatAmount(plan.amountCents, plan.currency, locale)} ·{' '}
+                    {humanizeStatus(plan.frequency)} · {humanizeStatus(plan.status)}
                   </p>
                 </li>
               ))}

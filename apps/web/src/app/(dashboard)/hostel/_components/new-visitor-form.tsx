@@ -46,7 +46,11 @@ export function NewVisitorForm({
     const studentId = String(fd.get('studentId') ?? '').trim();
     const visitDate = String(fd.get('visitDate') ?? '').trim();
     if (!UUID_RE.test(hostelId) || !UUID_RE.test(studentId)) {
-      setError('Hostel and student must be UUID v4 values.');
+      setError(
+        studentOptions.length === 0 || hostels.length === 0
+          ? 'Student directory or hostel list is empty — add those records before logging a visitor.'
+          : 'Select a hostel and a student.',
+      );
       return;
     }
     if (!visitorName) {
