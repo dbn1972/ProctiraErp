@@ -18,8 +18,8 @@ function hasFile(dir: string, name: string): boolean {
 }
 
 describe('W2-STATE-01 route error/loading boundaries', () => {
-  it('covers parent, auth, and dashboard shells', () => {
-    for (const group of ['(dashboard)', '(parent)', '(auth)']) {
+  it('covers parent, student, auth, and dashboard shells', () => {
+    for (const group of ['(dashboard)', '(parent)', '(student)', '(auth)']) {
       const dir = join(APP_DIR, group);
       expect(hasFile(dir, 'error.tsx'), `${group}/error.tsx`).toBe(true);
       expect(hasFile(dir, 'loading.tsx'), `${group}/loading.tsx`).toBe(true);
