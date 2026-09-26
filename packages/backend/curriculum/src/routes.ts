@@ -5,6 +5,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 import {
   CreateLearningOutcomeSchema,
   CreateLessonPlanSchema,
@@ -12,7 +13,6 @@ import {
   MarkTaughtSchema,
 } from './schemas.js';
 import type { CurriculumService } from './service.js';
-import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 
 export interface CurriculumRoutesOptions {
   service: CurriculumService;
@@ -45,7 +45,6 @@ export async function registerCurriculumRoutes(
   fastify: FastifyInstance,
   options: CurriculumRoutesOptions,
 ): Promise<void> {
-  
   // W1-SEC-02: package-level RBAC (clears deferred curriculum inventory residual).
   fastify.addHook('preHandler', async (request, reply) => {
     if (!enforceCurriculumRouteAccess(request, reply)) {
