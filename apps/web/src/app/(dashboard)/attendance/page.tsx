@@ -16,6 +16,9 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getTranslations } from 'next-intl/server';
+import type { ListResult } from '@/lib/api/list-result';
 import { getClassRoster, type RosterEntry } from '@/lib/api/attendance';
 import { listAcademicPeriods, listInstitutions, type AcademicPeriod } from '@/lib/api/institutions';
 import { listAttendancePeriods } from '@/lib/api/timetable';
@@ -40,6 +43,8 @@ function readStringParam(params: Awaited<PageProps['searchParams']>, key: string
 }
 
 export default async function AttendancePage(props: PageProps) {
+  // UX AT-4 — attendance was an untranslated island inside a localised shell.
+  const t = await getTranslations('attendance');
   const searchParams = await props.searchParams;
   const institutionId = readStringParam(searchParams, 'institutionId');
   const classId = readStringParam(searchParams, 'classId');
@@ -49,23 +54,35 @@ export default async function AttendancePage(props: PageProps) {
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
-  const [institutions, classes, academicPeriods, roster, publishedPeriods] = await Promise.all([
-    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
-    institutionId
-      ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
-      : Promise.resolve<ClassSection[]>([]),
-    institutionId
-      ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
-      : Promise.resolve<AcademicPeriod[]>([]),
-    classId && academicPeriodId
-      ? getClassRoster(classId, academicPeriodId, date)
-      : Promise.resolve<RosterEntry[]>([]),
-    institutionId
-      ? listAttendancePeriods({ institutionId, dayOfWeek })
-      : Promise.resolve({ ok: true as const, data: [] }),
-  ]);
+  const [institutions, classes, academicPeriods, rosterResult, publishedPeriods] =
+    await Promise.all([
+      listInstitutions({ pageSize: MAX_API_PAGE_SIZE }),
+      institutionId
+        ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
+        : Promise.resolve<ClassSection[]>([]),
+      institutionId
+        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+        : Promise.resolve<AcademicPeriod[]>([]),
+      classId && academicPeriodId
+        ? getClassRoster(classId, academicPeriodId, date)
+        : Promise.resolve<ListResult<RosterEntry>>({ ok: true, items: [] }),
+      institutionId
+        ? listAttendancePeriods({ institutionId, dayOfWeek })
+        : Promise.resolve({ ok: true as const, data: [] }),
+    ]);
 
   const publishedSlots = publishedPeriods.ok === true ? publishedPeriods.data : [];
+
+  /**
+   * UX AT-3 — "No roster yet" must not be what a denial looks like.
+   *
+   * Rendered inside the Roster card rather than in place of the page, so the selection controls
+   * stay usable (a teacher may simply have picked a class they do not teach) and the page `h1`
+   * survives. `ok: true, items: []` is the genuine "nothing selected yet" case and keeps the
+   * existing first-use copy.
+   */
+  const rosterFailure = rosterResult.ok ? null : rosterResult;
+  const roster = rosterResult.ok ? rosterResult.items : [];
 
   return (
     <section aria-labelledby="attendance-heading" className="space-y-6">
@@ -75,21 +92,18 @@ export default async function AttendancePage(props: PageProps) {
             id="attendance-heading"
             className="text-3xl font-extrabold tracking-tight text-foreground"
           >
-            Mark attendance
+            {t('title')}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Daily attendance against the active class roster. Past 30 days editable; future dates
-            are locked.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm" className="shrink-0">
-            <Link href="/attendance/ops">Regularisation & leave</Link>
+            <Link href="/attendance/ops">{t('regularisationLink')}</Link>
           </Button>
           <Button asChild variant="outline" size="sm" className="shrink-0">
             <Link href="/attendance/reports">
               <BarChart3 className="me-1.5 h-4 w-4" aria-hidden="true" />
-              View reports
+              {t('reportsLink')}
             </Link>
           </Button>
         </div>
@@ -98,7 +112,7 @@ export default async function AttendancePage(props: PageProps) {
       {institutionId && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Published section meetings</CardTitle>
+            <CardTitle className="text-base">{t('publishedTitle')}</CardTitle>
             <CardDescription>
               Period slots from the master schedule for this weekday (ISO day {dayOfWeek}). Use as
               the period reference when marking period-level attendance.
@@ -106,10 +120,7 @@ export default async function AttendancePage(props: PageProps) {
           </CardHeader>
           <CardContent>
             {publishedSlots.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No published section meetings for this day. Publish a section on the institution
-                Schedule tab to surface periods here.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('publishedEmpty')}</p>
             ) : (
               <ul className="space-y-2 text-sm">
                 {publishedSlots.map((slot) => (
@@ -136,13 +147,17 @@ export default async function AttendancePage(props: PageProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Roster</CardTitle>
-          <CardDescription>
-            Choose institution, class, academic period, and date. The roster is pre-populated from
-            active enrollments.
-          </CardDescription>
+          <CardTitle className="text-base">{t('rosterTitle')}</CardTitle>
+          <CardDescription>{t('rosterHelp')}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {rosterFailure ? (
+            <ListLoadFailure
+              kind={rosterFailure.kind}
+              status={rosterFailure.status}
+              returnTo={`/attendance?${new URLSearchParams({ institutionId, classId, academicPeriodId, date }).toString()}`}
+            />
+          ) : null}
           <AttendanceMarkingForm
             institutions={institutions.map((i) => ({ id: i.id, name: i.name }))}
             classes={classes.map((c) => ({ id: c.id, name: c.name }))}

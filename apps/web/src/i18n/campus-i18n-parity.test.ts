@@ -19,6 +19,29 @@ const MESSAGES_DIR = join(HERE, '../messages');
 
 /** Critical keys that must exist (subset of the full English namespace). */
 const REQUIRED: Record<string, string[]> = {
+  /**
+   * UX AT-4 — attendance was an untranslated island inside a localised shell: zero
+   * `useTranslations` calls across the whole tree while the sidebar around it translated.
+   * These are the keys a teacher reads on every row of every period, so a locale missing any
+   * of them is a visible regression, not a cosmetic one.
+   */
+  attendance: [
+    'title',
+    'subtitle',
+    'rosterTitle',
+    'emptyRoster',
+    'loadRoster',
+    'markAllPresent',
+    'submit',
+    'submitting',
+    'statusPresent',
+    'statusAbsent',
+    'statusLate',
+    'statusExcused',
+    'statusEarly',
+    'rosterCount',
+    'recorded',
+  ],
   transport: [
     'title',
     'subtitle',

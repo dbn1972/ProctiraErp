@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { listLeaveRequests, listRegularisations } from '@/lib/api/attendance';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { listInstitutions } from '@/lib/api/institutions';
 import { listStudents } from '@/lib/api/students';
 import { formatCodeNameLabel, formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
@@ -86,11 +87,26 @@ async function loadAttendanceOpsLookups(): Promise<{
 }
 
 export default async function AttendanceOpsPage() {
-  const [regularisations, leaves, lookups] = await Promise.all([
+  const [regularisationsResult, leavesResult, lookups] = await Promise.all([
     listRegularisations(),
     listLeaveRequests(),
     loadAttendanceOpsLookups(),
   ]);
+
+  /**
+   * UX AT-3 — a denied queue must not read as an empty one.
+   *
+   * The panel is rendered *inside* the page body, which already owns the `h1` above, rather
+   * than replacing the page: the request forms below stay usable when only the approval lists
+   * are unreadable, and the heading survives so a screen-reader user still knows where they are.
+   */
+  const queueFailure = !regularisationsResult.ok
+    ? regularisationsResult
+    : !leavesResult.ok
+      ? leavesResult
+      : null;
+  const regularisations = regularisationsResult.ok ? regularisationsResult.items : [];
+  const leaves = leavesResult.ok ? leavesResult.items : [];
 
   return (
     <section className="space-y-6" data-testid="attendance-ops-page" data-hydrated="true">
@@ -119,6 +135,13 @@ export default async function AttendanceOpsPage() {
           {lookups.studentTotal.toLocaleString()} students. If the student you need is not listed,
           search by class or period instead — this picker is limited to one page.
         </p>
+      ) : null}
+      {queueFailure ? (
+        <ListLoadFailure
+          kind={queueFailure.kind}
+          status={queueFailure.status}
+          returnTo="/attendance/ops"
+        />
       ) : null}
       <Card>
         <CardContent className="p-6">

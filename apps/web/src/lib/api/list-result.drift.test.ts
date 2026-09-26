@@ -40,7 +40,7 @@ const SRC = join(__dirname, '../..');
  * converting a page without converting its data function leaves this number unchanged.
  * That is a known limit, not a silent one.
  */
-const BASELINE = 107;
+const BASELINE = 104;
 
 /** How many lines after `throwOnError: false` a collapse still counts as the same read. */
 const WINDOW = 8;
