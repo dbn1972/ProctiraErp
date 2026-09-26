@@ -44,8 +44,7 @@ function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | unde
   // has no standalone boot path, so there is no legitimate case where tenant identity
   // should fall back to it. Resolve strictly from server-verified sources.
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
-  const tenantId =
-    user?.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
+  const tenantId = user?.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (!tenantId) {
     reply.status(401).send({
       code: 'UNAUTHORIZED',
