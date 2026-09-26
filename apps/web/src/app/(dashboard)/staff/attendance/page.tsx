@@ -50,7 +50,7 @@ export default async function StaffAttendancePage(props: PageProps) {
     listStaffAttendanceSummary(month),
   ]);
   const staffLabels = new Map(
-    staff.map((s) => [
+    staff.data.map((s) => [
       s.id,
       [s.firstName, s.lastName].filter(Boolean).join(' ').trim() || s.position || 'Staff member',
     ]),
