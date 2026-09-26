@@ -60,9 +60,23 @@ async function createYear(
   return { id: body.id as string, name: body.name as string, code };
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -79,14 +93,33 @@ test.describe('Academic calendar — pages render (ungated)', () => {
   test('/academic-periods renders with the New period action', async ({ page }) => {
     await page.goto('/academic-periods', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('new-period')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const newPeriod = page.getByTestId('new-period');
+    await expect(async () => {
+      await expect(newPeriod).toHaveCount(1, { timeout: 2_000 });
+      await expect(newPeriod).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/academic-periods exposes Export calendar (.ics) CTA', async ({ page }) => {
     await page.goto('/academic-periods', { waitUntil: 'domcontentloaded' });
     const exportLink = page.getByTestId('export-calendar');
-    await expect(exportLink).toBeVisible();
-    await expect(exportLink).toHaveAttribute('href', '/api/academic-calendar/export');
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility+href triple rather than
+    // assuming one oscillation, since a bare check throws immediately on a
+    // strict-mode (multiple-match) violation.
+    await expect(async () => {
+      await expect(exportLink).toHaveCount(1, { timeout: 2_000 });
+      await expect(exportLink).toBeVisible({ timeout: 2_000 });
+      await expect(exportLink).toHaveAttribute('href', '/api/academic-calendar/export', {
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/academic-periods/[id]/calendar shows not-found for an unknown period', async ({
@@ -280,11 +313,21 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
     expect(section.status(), await section.text()).toBe(201);
 
     await page.goto(`/academic-periods/${source.id}/calendar`, { waitUntil: 'domcontentloaded' });
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toBeVisible`/`toHaveAttribute` alone do not
+    // retry past a strict-mode (multiple-match) violation.
     const card = page.getByTestId('rollover-card');
-    await expect(card).toBeVisible();
-    await expect(card.locator('[data-hydrated]')).toHaveAttribute('data-hydrated', 'true', {
-      timeout: 20_000,
-    });
+    await expect(async () => {
+      await expect(card).toHaveCount(1, { timeout: 2_000 });
+      await expect(card).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+    const cardHydrated = card.locator('[data-hydrated]');
+    await expect(async () => {
+      await expect(cardHydrated).toHaveCount(1, { timeout: 2_000 });
+      await expect(cardHydrated).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await pickOption(page, 'rollover-target', target.name);
     await expect(page.getByTestId('rollover-execute')).toBeDisabled();

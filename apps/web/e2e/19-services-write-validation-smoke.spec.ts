@@ -83,11 +83,16 @@ test.describe('Services — scholarships/workflows write validation (ungated)', 
       waitUntil: 'domcontentloaded',
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
-    await expect(page.getByTestId('scholarship-program-form')).toBeVisible();
-    await expect(page.getByTestId('scholarship-program-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toBeVisible`/`toHaveAttribute` alone do not
+    // retry past a strict-mode (multiple-match) violation.
+    const programForm = page.getByTestId('scholarship-program-form');
+    await expect(async () => {
+      await expect(programForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(programForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.getByRole('button', { name: /create program/i }).click();
     await expect(page.getByTestId('scholarship-program-error')).toContainText(/name is required/i);
@@ -98,11 +103,11 @@ test.describe('Services — scholarships/workflows write validation (ungated)', 
       waitUntil: 'domcontentloaded',
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
-    await expect(page.getByTestId('workflow-definition-form')).toBeVisible();
-    await expect(page.getByTestId('workflow-definition-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    const definitionForm = page.getByTestId('workflow-definition-form');
+    await expect(async () => {
+      await expect(definitionForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(definitionForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.getByRole('button', { name: /create definition/i }).click();
     await expect(page.getByTestId('workflow-definition-error')).toContainText(

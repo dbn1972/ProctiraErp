@@ -79,20 +79,37 @@ test.describe('Fee structures — pages render (ungated)', () => {
   test('/fees/structures renders with the New structure action', async ({ page }) => {
     await page.goto('/fees/structures', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /fee structures/i })).toBeVisible();
-    await expect(page.getByTestId('new-structure')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const newStructure = page.getByTestId('new-structure');
+    await expect(async () => {
+      await expect(newStructure).toHaveCount(1, { timeout: 2_000 });
+      await expect(newStructure).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/fees/reports renders the dues summary', async ({ page }) => {
     await page.goto('/fees/reports', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /fee reports/i })).toBeVisible();
-    await expect(page.getByTestId('download-dues-csv')).toBeVisible();
+    const downloadDuesCsv = page.getByTestId('download-dues-csv');
+    await expect(async () => {
+      await expect(downloadDuesCsv).toHaveCount(1, { timeout: 2_000 });
+      await expect(downloadDuesCsv).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('open-reconciliation-from-reports')).toBeVisible();
   });
 
   test('/fees/reconciliation renders import and audit empty state', async ({ page }) => {
     await page.goto('/fees/reconciliation', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /reconciliation/i })).toBeVisible();
-    await expect(page.getByTestId('recon-import-form')).toBeVisible();
+    const reconImportForm = page.getByTestId('recon-import-form');
+    await expect(async () => {
+      await expect(reconImportForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(reconImportForm).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('submit-recon')).toBeVisible();
   });
 
@@ -101,14 +118,22 @@ test.describe('Fee structures — pages render (ungated)', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: /^scholarship netting$/i }),
     ).toBeVisible();
-    await expect(page.getByTestId('scholarship-netting-form')).toBeVisible();
+    const nettingForm = page.getByTestId('scholarship-netting-form');
+    await expect(async () => {
+      await expect(nettingForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(nettingForm).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('submit-scholarship-netting')).toBeVisible();
   });
 
   test('/fees/dunning renders the reminder console', async ({ page }) => {
     await page.goto('/fees/dunning', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /dunning \/ reminders/i })).toBeVisible();
-    await expect(page.getByTestId('dunning-console')).toBeVisible();
+    const dunningConsole = page.getByTestId('dunning-console');
+    await expect(async () => {
+      await expect(dunningConsole).toHaveCount(1, { timeout: 2_000 });
+      await expect(dunningConsole).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('dunning-sandbox-banner')).toBeVisible();
   });
 });
@@ -146,9 +171,16 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     );
     await expect(row).toBeVisible();
 
-    await expect(page.getByTestId('bulk-invoice-form')).toHaveAttribute('data-hydrated', 'true', {
-      timeout: 20_000,
-    });
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const bulkInvoiceForm = page.getByTestId('bulk-invoice-form');
+    await expect(async () => {
+      await expect(bulkInvoiceForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(bulkInvoiceForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     // The select defaults to the first structure in the list; other specs and
     // earlier runs leave structures behind, so pin ours explicitly.
     await page.locator('#bi-structure').selectOption(structure.id);
@@ -279,7 +311,11 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     });
 
     await page.goto('/fees/reconciliation', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('recon-import-form')).toBeVisible();
+    const reconImportForm2 = page.getByTestId('recon-import-form');
+    await expect(async () => {
+      await expect(reconImportForm2).toHaveCount(1, { timeout: 2_000 });
+      await expect(reconImportForm2).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('recon-batch-list')).toBeVisible();
 
     await page.goto('/fees/reports', { waitUntil: 'domcontentloaded' });
