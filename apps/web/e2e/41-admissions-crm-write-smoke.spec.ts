@@ -139,13 +139,31 @@ test.describe('Admissions CRM — pages render (ungated)', () => {
   test('/admissions/enquiries renders the new enquiry action', async ({ page }) => {
     await page.goto('/admissions/enquiries', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('new-enquiry')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const newEnquiry = page.getByTestId('new-enquiry');
+    await expect(async () => {
+      await expect(newEnquiry).toHaveCount(1, { timeout: 2_000 });
+      await expect(newEnquiry).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/admissions/seat-matrix renders the save control', async ({ page }) => {
     await page.goto('/admissions/seat-matrix', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('seat-honesty')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const seatHonesty = page.getByTestId('seat-honesty');
+    await expect(async () => {
+      await expect(seatHonesty).toHaveCount(1, { timeout: 2_000 });
+      await expect(seatHonesty).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(
       page.getByTestId('save-seat').or(page.getByTestId('seat-lookups-empty')),
     ).toBeVisible();
@@ -154,7 +172,16 @@ test.describe('Admissions CRM — pages render (ungated)', () => {
   test('/admissions/merit renders the generate control', async ({ page }) => {
     await page.goto('/admissions/merit', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('merit-honesty')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const meritHonesty = page.getByTestId('merit-honesty');
+    await expect(async () => {
+      await expect(meritHonesty).toHaveCount(1, { timeout: 2_000 });
+      await expect(meritHonesty).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(
       page.getByTestId('generate-merit').or(page.getByTestId('merit-lookups-empty')),
     ).toBeVisible();

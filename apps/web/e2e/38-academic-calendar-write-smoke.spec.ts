@@ -108,8 +108,18 @@ test.describe('Academic calendar — pages render (ungated)', () => {
   test('/academic-periods exposes Export calendar (.ics) CTA', async ({ page }) => {
     await page.goto('/academic-periods', { waitUntil: 'domcontentloaded' });
     const exportLink = page.getByTestId('export-calendar');
-    await expect(exportLink).toBeVisible();
-    await expect(exportLink).toHaveAttribute('href', '/api/academic-calendar/export');
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility+href triple rather than
+    // assuming one oscillation, since a bare check throws immediately on a
+    // strict-mode (multiple-match) violation.
+    await expect(async () => {
+      await expect(exportLink).toHaveCount(1, { timeout: 2_000 });
+      await expect(exportLink).toBeVisible({ timeout: 2_000 });
+      await expect(exportLink).toHaveAttribute('href', '/api/academic-calendar/export', {
+        timeout: 2_000,
+      });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/academic-periods/[id]/calendar shows not-found for an unknown period', async ({
