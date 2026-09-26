@@ -23,3 +23,9 @@ tools/dod-checks/reports/dod-report.json
 
 # G-804 generated page-wise regression matrix (tools/scripts/page-regression-matrix.mjs)
 docs/testing/PAGE_REGRESSION_MATRIX.md
+
+# UI->API->DB static trace tool (PROCTIRA_FIX_LEDGER). Deliberately dense/compact
+# one-liner style throughout; running prettier --write would reformat every line
+# of someone else's tooling script into a huge unrelated diff instead of just the
+# targeted fix. Consistent with the other tooling exclusions above.
+docs/multitenant/trace-graph.mjs
