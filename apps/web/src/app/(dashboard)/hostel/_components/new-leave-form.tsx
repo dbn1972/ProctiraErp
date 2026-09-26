@@ -82,7 +82,7 @@ export function NewLeaveForm({
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Record leave</CardTitle>
-        <CardDescription>Creates a leave via POST `/hostel/leaves`.</CardDescription>
+        <CardDescription>Submit a leave request for a resident.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

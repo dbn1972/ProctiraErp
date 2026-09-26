@@ -357,14 +357,14 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           iconBg="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
           label="Students enrolled"
           value="—"
-          foot="Connect enrollment API for live data"
+          foot="Enrollment totals not available yet"
         />
         <KpiCard
           icon={CheckCircle2}
           iconBg="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
           label="Reporting today"
           value="—"
-          foot="Connect reporting API for live data"
+          foot="Attendance reporting not available yet"
         />
       </div>
 

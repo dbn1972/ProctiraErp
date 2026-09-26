@@ -79,7 +79,7 @@ export function NewVisitorForm({
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Register visitor</CardTitle>
-        <CardDescription>Creates a visitor via POST `/hostel/visitors`.</CardDescription>
+        <CardDescription>Register a visitor against a hostel and student.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

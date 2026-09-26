@@ -75,7 +75,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
               {apiError}
               {sectionsResult.ok === false &&
                 sectionsResult.code === 'TIMETABLE_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql.'}
+                ' Schedule storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>

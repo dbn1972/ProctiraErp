@@ -71,7 +71,7 @@ export function NewVehicleForm() {
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Add vehicle</CardTitle>
-        <CardDescription>Creates a fleet record via POST `/transport/vehicles`.</CardDescription>
+        <CardDescription>Add a vehicle to the transport fleet.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

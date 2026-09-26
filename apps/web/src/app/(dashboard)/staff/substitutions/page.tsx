@@ -74,7 +74,7 @@ export default async function StaffSubstitutionsPage() {
               {apiError}
               {!subsResult.ok &&
                 subsResult.code === 'TIMETABLE_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql.'}
+                ' Timetable storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>

@@ -43,7 +43,7 @@ export default async function HostelAssignmentsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Assignments</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Student bed assignments via GET/POST `/hostel/assignments`.
+            Student bed assignments for this hostel.
           </p>
         </div>
         <Button asChild variant="outline">
