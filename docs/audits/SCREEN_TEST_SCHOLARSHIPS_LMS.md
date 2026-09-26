@@ -2,7 +2,7 @@
 
 **Repository:** `dbn1972/ProctiraERP`  
 **Branch:** `cursor/screen-test-scholarships-lms-2a96`  
-**Tip SHA (audit):** `6b38de8a`  
+**Tip SHA (audit):** `7f00f664`  
 **Tenant:** `00000000-0000-4000-8000-00000000a501` · slug `sunrise-public-school`  
 **Institution:** `00000000-0000-4000-8000-00000000a551` · Sunrise Public School  
 **Session:** HS256 gateway cookie (`JWT_SECRET` dev default) · tenant id bound in JWT  
