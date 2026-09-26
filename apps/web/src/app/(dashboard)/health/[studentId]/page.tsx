@@ -24,6 +24,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords, getHealthRecord, listStudentVaccinations } from '@/lib/api/health';
+import { getStudent } from '@/lib/api/students';
 import { cn } from '@/lib/utils';
 
 /* ---------------------------------------------------------------- helpers */
@@ -82,10 +83,26 @@ export default async function HealthRecordPage(props: PageProps) {
   }
 
   const record = await getHealthRecord(params.studentId);
-  if (!record) notFound();
+  const student = record ? null : await getStudent(params.studentId);
+  if (!record && !student) notFound();
+
+  const displayName =
+    record?.studentName ??
+    (`${student?.firstName ?? ''} ${student?.lastName ?? ''}`.trim() || 'Student');
+  const profile = record ?? {
+    id: params.studentId,
+    studentId: params.studentId,
+    studentName: displayName,
+    bloodType: null,
+    allergies: [],
+    chronicConditions: [],
+    emergencyContactName: null,
+    emergencyContactPhone: null,
+    lastUpdated: '',
+  };
 
   const vaccinations = await listStudentVaccinations(params.studentId);
-  const palette = avatarPalette(record.studentName);
+  const palette = avatarPalette(profile.studentName);
 
   return (
     <div className="space-y-6">
@@ -107,16 +124,16 @@ export default async function HealthRecordPage(props: PageProps) {
               palette,
             )}
           >
-            {initialsOf(record.studentName)}
+            {initialsOf(profile.studentName)}
           </span>
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-              {record.studentName}
+              {profile.studentName}
             </h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-              <span className="font-mono">{record.bloodType ?? 'Blood type —'}</span>
+              <span className="font-mono">{profile.bloodType ?? 'Blood type —'}</span>
               <span aria-hidden="true">·</span>
-              <span>Last updated {record.lastUpdated || '—'}</span>
+              <span>Last updated {profile.lastUpdated || '—'}</span>
             </p>
           </div>
         </div>
@@ -161,9 +178,9 @@ export default async function HealthRecordPage(props: PageProps) {
               </div>
             </CardHeader>
             <CardContent>
-              {record.allergies?.length ? (
+              {profile.allergies?.length ? (
                 <ul className="flex flex-wrap gap-2">
-                  {record.allergies.map((a) => (
+                  {profile.allergies.map((a) => (
                     <li
                       key={a}
                       className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
@@ -209,9 +226,9 @@ export default async function HealthRecordPage(props: PageProps) {
               <CardDescription>Ongoing conditions under monitoring.</CardDescription>
             </CardHeader>
             <CardContent>
-              {record.chronicConditions?.length ? (
+              {profile.chronicConditions?.length ? (
                 <ul className="flex flex-wrap gap-2">
-                  {record.chronicConditions.map((c) => (
+                  {profile.chronicConditions.map((c) => (
                     <li
                       key={c}
                       className="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 dark:bg-violet-950/40 dark:text-violet-400"
@@ -235,20 +252,20 @@ export default async function HealthRecordPage(props: PageProps) {
             </CardHeader>
             <CardContent>
               <dl className="text-sm">
-                <FactRow label="Blood group" value={record.bloodType ?? '—'} mono />
+                <FactRow label="Blood group" value={profile.bloodType ?? '—'} mono />
                 <FactRow
                   label="Allergies"
-                  value={record.allergies?.length ? `${record.allergies.length} on file` : 'None'}
+                  value={profile.allergies?.length ? `${profile.allergies.length} on file` : 'None'}
                 />
                 <FactRow
                   label="Chronic conditions"
                   value={
-                    record.chronicConditions?.length
-                      ? `${record.chronicConditions.length} on file`
+                    profile.chronicConditions?.length
+                      ? `${profile.chronicConditions.length} on file`
                       : 'None'
                   }
                 />
-                <FactRow label="Last updated" value={record.lastUpdated || '—'} />
+                <FactRow label="Last updated" value={profile.lastUpdated || '—'} />
               </dl>
             </CardContent>
           </Card>
@@ -259,8 +276,8 @@ export default async function HealthRecordPage(props: PageProps) {
             </CardHeader>
             <CardContent>
               <dl className="text-sm">
-                <FactRow label="Emergency contact" value={record.emergencyContactName ?? '—'} />
-                <FactRow label="Emergency phone" value={record.emergencyContactPhone ?? '—'} />
+                <FactRow label="Emergency contact" value={profile.emergencyContactName ?? '—'} />
+                <FactRow label="Emergency phone" value={profile.emergencyContactPhone ?? '—'} />
               </dl>
             </CardContent>
           </Card>

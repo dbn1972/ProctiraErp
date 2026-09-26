@@ -45,7 +45,7 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await setupHealthSession(page);
   });
 
-  test('/health/counselling/new rejects invalid student UUID', async ({ page }) => {
+  test('client validation requires student and counsellor selection', async ({ page }) => {
     const response = await page.goto('/health/counselling/new', {
       waitUntil: 'domcontentloaded',
     });
@@ -58,16 +58,12 @@ test.describe('Health counselling — write validation (ungated)', () => {
       'true',
     );
 
-    await page.getByLabel(/student id/i).fill('not-a-uuid');
-    await page.getByLabel(/counsellor id/i).fill('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1');
     await page.getByLabel(/session date/i).fill('2026-09-06');
     await page.getByLabel(/^reason$/i).fill('Exam anxiety');
     await page.getByLabel(/case notes/i).fill('Initial notes');
     await page.getByRole('button', { name: /schedule session/i }).click();
 
-    await expect(page.getByTestId('counselling-session-error')).toContainText(
-      /student id must be a valid uuid/i,
-    );
+    await expect(page.getByTestId('counselling-session-error')).toContainText(/select a student/i);
   });
 });
 
@@ -104,8 +100,10 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
 
   test('schedules a counselling session via live API', async ({ page }) => {
     await page.goto('/health/counselling/new', { waitUntil: 'domcontentloaded' });
-    await page.getByLabel(/student id/i).fill('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1');
-    await page.getByLabel(/counsellor id/i).fill('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1');
+    await expect(page.locator('#counselling-student-id option')).toHaveCount(2, { timeout: 15_000 });
+    await page.locator('#counselling-student-id').selectOption({ index: 1 });
+    await expect(page.locator('#counselling-counsellor-id option')).toHaveCount(2, { timeout: 15_000 });
+    await page.locator('#counselling-counsellor-id').selectOption({ index: 1 });
     await page.getByLabel(/session date/i).fill('2026-09-06');
     await page.getByLabel(/^reason$/i).fill('Live E2E counselling create');
     await page.getByLabel(/case notes/i).fill('Created by enterprise live smoke.');
