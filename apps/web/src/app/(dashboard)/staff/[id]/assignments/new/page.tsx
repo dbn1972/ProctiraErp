@@ -222,10 +222,7 @@ export default async function NewAssignmentPage(props: PageProps) {
   ];
   const classLabels = new Map(allClassRows.map((row) => [row.id, row.name]));
   const subjectLabels = new Map(
-    subjectRows.map((row) => [
-      row.id,
-      formatCodeNameLabel(row.code, row.name) || row.name,
-    ]),
+    subjectRows.map((row) => [row.id, formatCodeNameLabel(row.code, row.name) || row.name]),
   );
 
   return (

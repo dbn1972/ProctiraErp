@@ -5,15 +5,15 @@
 **Branch:** `cursor/screen-test-staff`  
 **Reviewer session (UTC):** 2026-09-26  
 **Auth:** HS256 gateway cookie (`setupGatewayTenantSession` pattern), `JWT_SECRET=dev-secret-change-in-production`  
-**Out of scope:** `/staff/attendance` (skipped per campaign), parent/fees/students trees untouched  
+**Out of scope:** `/staff/attendance` (skipped per campaign), parent/fees/students trees untouched
 
 **Seeded staff (primary labels):**
 
-| Person        | Role              | Id |
-| ------------- | ----------------- | -- |
-| Sunil Rao     | Principal         | `00000000-0000-4000-8000-00000000a591` |
-| Priya Sharma  | Class teacher 9-B | `00000000-0000-4000-8000-00000000a592` |
-| Neha Verma    | Accounts          | `00000000-0000-4000-8000-00000000a593` |
+| Person       | Role              | Id                                     |
+| ------------ | ----------------- | -------------------------------------- |
+| Sunil Rao    | Principal         | `00000000-0000-4000-8000-00000000a591` |
+| Priya Sharma | Class teacher 9-B | `00000000-0000-4000-8000-00000000a592` |
+| Neha Verma   | Accounts          | `00000000-0000-4000-8000-00000000a593` |
 
 ## Environment
 
@@ -21,21 +21,21 @@ Local Postgres 16 + api-gateway (`:3000`) + `@proctira/web` (`:3001`). Sunrise s
 
 ## Route table
 
-| Route | Primary action exercised | Result | Notes |
-| ----- | ------------------------ | ------ | ----- |
-| `/staff` | Open **Sunil Rao** from directory table | **PASS** | Three seeded names listed; no UUID primary labels in table |
-| `/staff/00000000-0000-4000-8000-00000000a591` | Profile head shows **Sunil Rao**; overview loads | **PASS** | Principal row; assignments tab empty (expected) |
-| `/staff/00000000-0000-4000-8000-00000000a592` | **Assignments** tab shows **9-B**, **Mathematics** | **PASS** | Institution **Sunrise Public School** (post label fix) |
-| `/staff/00000000-0000-4000-8000-00000000a592/edit` | Edit shell for **Priya Sharma** | **PASS** | `Edit Priya Sharma` heading |
-| `/staff/new` | Add staff form renders | **PASS** | Primary CTA present; no write attempted |
-| `/staff/import` | Bulk import heading + panel | **PASS** | CSV dry-run not re-run (non-destructive inventory) |
-| `/staff/contracts` | Contract form staff picker lists **Sunil Rao** | **PASS** | Name labels in `<select>` |
-| `/staff/payroll` | **Build export** for current month | **PASS** | Panel hydrates; export returns rows / empty-state copy |
-| `/staff/leaves` | Submit leave for **Neha Verma**; **Approve** opens confirm dialog | **PASS** | `ConfirmActionDialog` before approve POST |
-| `/staff/substitutions` | Substitutions workspace + create form | **PASS** | **No timetable meetings** seeded — create submit not exercised (empty options) |
-| `/staff/00000000-0000-4000-8000-00000000a592/assignments/new` | Workload sidebar shows **9-B · Mathematics** | **PASS** | No raw assignment UUIDs in sidebar after fix |
-| `/staff/00000000-0000-4000-8000-00000000a591/appraisals/new` | **New appraisal** form for Sunil Rao | **PASS** | Heading + criteria card |
-| `/staff/attendance` | — | **BLOCKED** | Skipped per screen-test scope |
+| Route                                                         | Primary action exercised                                          | Result      | Notes                                                                          |
+| ------------------------------------------------------------- | ----------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
+| `/staff`                                                      | Open **Sunil Rao** from directory table                           | **PASS**    | Three seeded names listed; no UUID primary labels in table                     |
+| `/staff/00000000-0000-4000-8000-00000000a591`                 | Profile head shows **Sunil Rao**; overview loads                  | **PASS**    | Principal row; assignments tab empty (expected)                                |
+| `/staff/00000000-0000-4000-8000-00000000a592`                 | **Assignments** tab shows **9-B**, **Mathematics**                | **PASS**    | Institution **Sunrise Public School** (post label fix)                         |
+| `/staff/00000000-0000-4000-8000-00000000a592/edit`            | Edit shell for **Priya Sharma**                                   | **PASS**    | `Edit Priya Sharma` heading                                                    |
+| `/staff/new`                                                  | Add staff form renders                                            | **PASS**    | Primary CTA present; no write attempted                                        |
+| `/staff/import`                                               | Bulk import heading + panel                                       | **PASS**    | CSV dry-run not re-run (non-destructive inventory)                             |
+| `/staff/contracts`                                            | Contract form staff picker lists **Sunil Rao**                    | **PASS**    | Name labels in `<select>`                                                      |
+| `/staff/payroll`                                              | **Build export** for current month                                | **PASS**    | Panel hydrates; export returns rows / empty-state copy                         |
+| `/staff/leaves`                                               | Submit leave for **Neha Verma**; **Approve** opens confirm dialog | **PASS**    | `ConfirmActionDialog` before approve POST                                      |
+| `/staff/substitutions`                                        | Substitutions workspace + create form                             | **PASS**    | **No timetable meetings** seeded — create submit not exercised (empty options) |
+| `/staff/00000000-0000-4000-8000-00000000a592/assignments/new` | Workload sidebar shows **9-B · Mathematics**                      | **PASS**    | No raw assignment UUIDs in sidebar after fix                                   |
+| `/staff/00000000-0000-4000-8000-00000000a591/appraisals/new`  | **New appraisal** form for Sunil Rao                              | **PASS**    | Heading + criteria card                                                        |
+| `/staff/attendance`                                           | —                                                                 | **BLOCKED** | Skipped per screen-test scope                                                  |
 
 ## Fixes applied (staff-only)
 

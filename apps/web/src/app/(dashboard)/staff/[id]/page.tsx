@@ -53,7 +53,11 @@ import {
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 import { listInstitutions } from '@/lib/api/institutions';
 import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { listClassesByInstitution, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
+import {
+  listClassesByInstitution,
+  listSubjects,
+  type SubjectSummary,
+} from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
 
 export const dynamic = 'force-dynamic';
