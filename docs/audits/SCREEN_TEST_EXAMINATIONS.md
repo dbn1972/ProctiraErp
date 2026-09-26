@@ -12,16 +12,16 @@ This is a route walk of staff **examinations** screens only. It is not a product
 
 ## Route table
 
-| Route | Result | What was exercised |
-| ----- | ------ | ------------------ |
-| `/examinations` | PASS | Hub loaded (empty, then one exam after schedule). **Board export packs** and **Schedule exam** CTAs present. No raw UUID primary labels. |
-| `/examinations/new` | PASS | **AY 2026-27** academic period Select, **Sunrise Public School** institution, subject/centre fields. Created **Sunrise screen-test midterm** (code `SPS-SCR-*`, start ≥14 days ahead). Redirect to detail overview. |
-| `/examinations/board-exports` | PASS | **Board export packs** heading; institution picker shows **SPS-PUN-01 · Sunrise Public School**, not a UUID. CBSE / ICSE / MH-STATE board Select. |
-| `/examinations/[id]` | PASS | Overview KPIs and facts for the scheduled exam. |
-| `/examinations/[id]/candidates` | PASS | Empty state, then **Register candidate** with **Aarav Mehta** (`SPS-NID-001`) from the Sunrise student directory; table row shows the name, not the student UUID. |
-| `/examinations/[id]/results` | PASS | Results shell with **Upload marks** / **Download CSV** / **Publish results** (disabled until exam status allows publish). No marks uploaded; publish did not run. |
-| `/examinations/[id]/documents` | PASS | Admit cards / seating / certificates generate buttons render; no generate jobs submitted on this walk. |
-| `/examinations/[id]/ops` | PASS | Exam ops panel loads (invigilation / seating / marks entry shell). No write actions submitted. |
+| Route                           | Result | What was exercised                                                                                                                                                                                                  |
+| ------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/examinations`                 | PASS   | Hub loaded (empty, then one exam after schedule). **Board export packs** and **Schedule exam** CTAs present. No raw UUID primary labels.                                                                            |
+| `/examinations/new`             | PASS   | **AY 2026-27** academic period Select, **Sunrise Public School** institution, subject/centre fields. Created **Sunrise screen-test midterm** (code `SPS-SCR-*`, start ≥14 days ahead). Redirect to detail overview. |
+| `/examinations/board-exports`   | PASS   | **Board export packs** heading; institution picker shows **SPS-PUN-01 · Sunrise Public School**, not a UUID. CBSE / ICSE / MH-STATE board Select.                                                                   |
+| `/examinations/[id]`            | PASS   | Overview KPIs and facts for the scheduled exam.                                                                                                                                                                     |
+| `/examinations/[id]/candidates` | PASS   | Empty state, then **Register candidate** with **Aarav Mehta** (`SPS-NID-001`) from the Sunrise student directory; table row shows the name, not the student UUID.                                                   |
+| `/examinations/[id]/results`    | PASS   | Results shell with **Upload marks** / **Download CSV** / **Publish results** (disabled until exam status allows publish). No marks uploaded; publish did not run.                                                   |
+| `/examinations/[id]/documents`  | PASS   | Admit cards / seating / certificates generate buttons render; no generate jobs submitted on this walk.                                                                                                              |
+| `/examinations/[id]/ops`        | PASS   | Exam ops panel loads (invigilation / seating / marks entry shell). No write actions submitted.                                                                                                                      |
 
 No examinations route in this table was **FAIL** or **BLOCKED** after the fix below.
 
@@ -29,8 +29,8 @@ Out of scope: attendance, gradebook (non–board-export), parent portal, and fed
 
 ## Fixes from the walk
 
-| Screen | Fault | Change |
-| ------ | ----- | ------ |
+| Screen          | Fault                                                                                          | Change                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Results · table | **Student** column showed raw `studentId` UUIDs (mono). Candidates tab already resolved names. | `results/page.tsx` loads `loadStudentOptions()` and renders `resolveEntityLabel` for each row. |
 
 ## Rows this walk added
