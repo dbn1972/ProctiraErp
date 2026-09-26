@@ -63,6 +63,8 @@ async function postOk(
 interface ExamFixture {
   examId: string;
   studentId: string;
+  /** Primary label on Candidates / Results tabs (directory name, not raw UUID). */
+  studentLabel: string;
   subjectIds: string[];
   centerId: string;
 }
@@ -164,6 +166,7 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
   return {
     examId: exam.id as string,
     studentId: student.id as string,
+    studentLabel: `Exam Candidate ${stamp}`,
     subjectIds: (exam.subjects as Array<{ id: string }>).map((s) => s.id),
     centerId: (exam.centers as Array<{ id: string }>)[0]!.id,
   };
@@ -213,7 +216,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
       201,
     );
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(fx.studentId)).toBeVisible();
+    await expect(page.getByText(fx.studentLabel)).toBeVisible();
     await expect(page.getByText(/registered/i).first()).toBeVisible();
 
     // Admit cards while SCHEDULED (candidates resolved from registrations).
@@ -244,7 +247,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
     );
     await page.goto(`/examinations/${fx.examId}/results`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('publish-results')).toBeVisible();
-    await expect(page.getByText(fx.studentId)).toBeVisible();
+    await expect(page.getByText(fx.studentLabel)).toBeVisible();
     await expect(page.getByText('PENDING').first()).toBeVisible();
 
     // Publish (IN_PROGRESS → publish) from the UI and verify grades render.
@@ -255,6 +258,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
     expect(moved.status(), await moved.text()).toBe(200);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await (await hydrated(page, 'publish-results')).click();
+    await page.getByTestId('publish-results-confirm-confirm').click();
     await expect(page.getByText('PUBLISHED').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('A', { exact: true }).first()).toBeVisible();
 
