@@ -4,6 +4,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
+import '../student/selected_student_store.dart';
 
 // ---------------------------------------------------------------------------
 // Events
@@ -85,9 +86,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required SecureStorage secureStorage,
     AppDatabase? database,
     AuthApi? authApi,
+    SelectedStudentStore? selectedStudent,
   })  : _storage = secureStorage,
         _database = database,
         _authApi = authApi,
+        _selectedStudent = selectedStudent,
         super(const AuthState.unknown()) {
     on<AuthBootstrapRequested>(_onBootstrap);
     on<AuthLoggedIn>(_onLoggedIn);
@@ -97,6 +100,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SecureStorage _storage;
   final AppDatabase? _database;
   final AuthApi? _authApi;
+  final SelectedStudentStore? _selectedStudent;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -152,6 +156,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
     await _storage.clearTokens();
     await _storage.clearTenant();
+    await _selectedStudent?.clear();
     final AppDatabase? database = _database;
     if (database != null) {
       await database.purgeAllUserData();
