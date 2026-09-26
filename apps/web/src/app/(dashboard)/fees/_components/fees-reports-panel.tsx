@@ -29,10 +29,16 @@ export function FeesReportsPanel({
   report,
   header,
   classLabels = {},
+  listFailed = false,
+  failure = null,
 }: {
   report: DuesReport;
   header: ReactNode;
   classLabels?: Record<string, string>;
+  /** Dues call failed. Do not describe that as an empty report. */
+  listFailed?: boolean;
+  /** Shown under the heading, after the download action. */
+  failure?: ReactNode;
 }) {
   const locale = useLocale();
   const hydrated = useHydrated();
@@ -46,13 +52,19 @@ export function FeesReportsPanel({
         </Button>
       </div>
 
+      {failure}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Dues by class</CardTitle>
           <CardDescription>As of {new Date(report.asOf).toLocaleString()}</CardDescription>
         </CardHeader>
         <CardContent>
-          {report.byClass.length === 0 ? (
+          {listFailed ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Dues could not be loaded. Download stays available for a retry.
+            </p>
+          ) : report.byClass.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status" data-testid="dues-empty">
               No open dues.
             </p>
@@ -81,7 +93,11 @@ export function FeesReportsPanel({
           <CardTitle className="text-base">By status</CardTitle>
         </CardHeader>
         <CardContent>
-          {report.byStatus.length === 0 ? (
+          {listFailed ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Status totals were not loaded.
+            </p>
+          ) : report.byStatus.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               No invoices.
             </p>

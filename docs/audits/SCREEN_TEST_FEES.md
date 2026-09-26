@@ -30,12 +30,13 @@ Out of scope: attendance, hostel fees, transport fees, and the parent fees porta
 
 ## Fixes from the walk
 
-| Screen            | Fault                                                                                       | Change                                                                                                                            |
-| ----------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Invoices · refund | “Confirm refund” posted from the amount form. Pay already stopped on `ConfirmActionDialog`. | `refund-dialog.tsx` collects amount and reason, then opens `ConfirmActionDialog` (`refund-confirm`) before `refundInvoiceAction`. |
-| Reports           | Both class rows were titled “Class dues”. The CSV `classId` column was the raw class UUID.  | Class names come from the classes directory (`9-B`, `10-A`). The dues CSV column is `class`.                                      |
-| Reconciliation    | The import summary and match line led with an 8-character UUID fragment.                    | Summary uses the filename. Match lines show the invoice number and amount.                                                        |
-| Dunning           | Suppression reset read `event.currentTarget` after the server action.                       | The form element is captured before the await.                                                                                    |
+| Screen              | Fault                                                                                                                                             | Change                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Invoices · refund   | “Confirm refund” posted from the amount form. Pay already stopped on `ConfirmActionDialog`.                                                       | `refund-dialog.tsx` collects amount and reason, then opens `ConfirmActionDialog` (`refund-confirm`) before `refundInvoiceAction`.      |
+| Reports             | Both class rows were titled “Class dues”. The CSV `classId` column was the raw class UUID.                                                        | Class names come from the classes directory (`9-B`, `10-A`). The dues CSV column is `class`.                                           |
+| Reconciliation      | The import summary and match line led with an 8-character UUID fragment.                                                                          | Summary uses the filename. Match lines show the invoice number and amount.                                                             |
+| Dunning             | Suppression reset read `event.currentTarget` after the server action.                                                                             | The form element is captured before the await.                                                                                         |
+| Structures, reports | Ungated CI has no gateway (`HTTP 0`). The page replaced the whole view with the load failure, so New structure and Download dues CSV were absent. | The heading and those actions stay on the page. The failure panel sits under them. Empty-catalogue copy is not used for a failed load. |
 
 ## Rows this walk added
 
