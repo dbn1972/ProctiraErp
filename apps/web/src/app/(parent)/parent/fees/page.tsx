@@ -74,8 +74,8 @@ export default async function ParentFeesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fees</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            See what is due, how instalments are scheduled, and what remains to pay. Payments use
-            the sandbox processor until a live payment provider is connected.
+            See what is due, how instalments are scheduled, and what remains to pay. Online payment
+            uses a test processor until your school connects a live payment provider.
           </p>
         </div>
       </div>

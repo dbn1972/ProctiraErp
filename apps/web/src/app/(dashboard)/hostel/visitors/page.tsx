@@ -35,8 +35,7 @@ export default async function HostelVisitorsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Visitors</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Visitor register via GET/POST `/hostel/visitors` · status via
-            `/hostel/visitors/:id/status`.
+            Visitor register and check-in / check-out status.
           </p>
         </div>
         <Button asChild variant="outline">

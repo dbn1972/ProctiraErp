@@ -33,8 +33,7 @@ export default async function ParentOffersPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Offers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Review admission offers for your family, record a sandbox payment reference, and accept to
-          enrol.
+          Review admission offers for your family and accept once the offer fee is paid.
         </p>
       </div>
 
@@ -43,10 +42,10 @@ export default async function ParentOffersPage() {
         role="status"
         data-testid="sandbox-honesty-banner"
       >
-        <p className="font-medium">Sandbox payment only</p>
+        <p className="font-medium">Test payments only</p>
         <p className="mt-1 text-muted-foreground">
-          Live payment service providers are not connected for family offer fees. Use the sandbox
-          payment reference (same as staff) — this does not charge a real card.
+          Your school has not connected a live payment provider for offer fees yet. Accepting an
+          offer records a test payment reference and does not charge a real card.
         </p>
       </div>
 

@@ -134,7 +134,7 @@ export function AssignmentForms({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Assign driver</CardTitle>
-            <CardDescription>POST `/transport/driver-assignments`</CardDescription>
+            <CardDescription>Assign a driver to a vehicle and optional route.</CardDescription>
           </CardHeader>
           <CardContent>
             <form

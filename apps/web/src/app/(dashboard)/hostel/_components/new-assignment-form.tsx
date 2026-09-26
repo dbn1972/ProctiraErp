@@ -87,7 +87,7 @@ export function NewHostelAssignmentForm({
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Assign bed</CardTitle>
-        <CardDescription>Creates an assignment via POST `/hostel/assignments`.</CardDescription>
+        <CardDescription>Assign a student to an available bed.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

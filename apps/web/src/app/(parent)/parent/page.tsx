@@ -114,7 +114,7 @@ export default async function ParentHomePage() {
               <FileText className="h-4 w-4" aria-hidden="true" />
               Offers
             </CardTitle>
-            <CardDescription>Admission offers and sandbox fee accept</CardDescription>
+            <CardDescription>Admission offers and fee acceptance</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline" className="min-h-12">
