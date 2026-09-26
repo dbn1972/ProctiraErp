@@ -15,7 +15,7 @@
  * - Inline filter bar (no Card wrapper)
  * - Table: school cell (icon + name + UDISE code mono), Block, Type tag,
  *   Students (dash if not in type), Staff, Attendance bar, Status pill,
- *   icon-button actions (Eye/Pencil/MoreVertical)
+ *   icon-button actions (Eye/Pencil)
  */
 import Link from 'next/link';
 import {
@@ -24,7 +24,6 @@ import {
   Eye,
   GraduationCap,
   Map,
-  MoreVertical,
   Pencil,
   Plus,
   School,
@@ -271,9 +270,6 @@ function InstitutionRow({ institution, areaName }: { institution: Institution; a
             >
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Link>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </TableCell>

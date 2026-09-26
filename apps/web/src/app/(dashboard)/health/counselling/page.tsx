@@ -11,18 +11,7 @@
  *    status pill, sealed-notes cell, icon actions
  */
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Clock,
-  Eye,
-  Info,
-  Lock,
-  MessageSquare,
-  MoreVertical,
-  Plus,
-  User,
-  Users,
-} from 'lucide-react';
+import { ArrowLeft, Clock, Info, Lock, MessageSquare, Plus, User, Users } from 'lucide-react';
 
 import {
   Button,
@@ -274,24 +263,9 @@ function SessionRow({ session }: { session: CounsellingSession }) {
       {/* Actions */}
       <TableCell className="pe-4">
         <div className="flex items-center justify-end gap-0.5 opacity-60 transition-opacity group-hover:opacity-100">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label={`View session for ${session.studentName}`}
-          >
-            <Eye className="h-4 w-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-            aria-label={`More options for ${session.studentName}`}
-          >
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </Button>
+          <span className="px-2 text-xs text-muted-foreground" role="status">
+            Notes sealed
+          </span>
         </div>
       </TableCell>
     </TableRow>

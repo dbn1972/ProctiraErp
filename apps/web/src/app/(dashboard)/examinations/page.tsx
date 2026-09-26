@@ -4,7 +4,7 @@
  * Validates: Requirement 10.1 — examination definition browse / management.
  */
 import Link from 'next/link';
-import { Eye, MoreVertical, Plus, Users } from 'lucide-react';
+import { Eye, Plus, Users } from 'lucide-react';
 
 import {
   Button,
@@ -147,14 +147,6 @@ export default async function ExaminationsPage() {
                           >
                             <Users className="h-4 w-4" aria-hidden="true" />
                           </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 p-0"
-                          aria-label="More actions"
-                        >
-                          <MoreVertical className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </div>
                     </TableCell>
