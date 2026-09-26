@@ -16,12 +16,20 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 
-import { createHostelLeaveAction } from '../../campus-actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { Hostel } from '@/lib/api/hostel';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { createHostelLeaveAction } from '../../campus-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewLeaveForm({ hostels }: { hostels: Hostel[] }) {
+export function NewLeaveForm({
+  hostels,
+  studentOptions = [],
+}: {
+  hostels: Hostel[];
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -102,9 +110,13 @@ export function NewLeaveForm({ hostels }: { hostels: Hostel[] }) {
               ))}
             </select>
           </FormField>
-          <FormField id="leave-student" label="Student UUID" required>
-            <Input id="leave-student" name="studentId" className="h-11 min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="leave-student"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="leave-start" label="Start date" required>
               <Input id="leave-start" name="startDate" type="date" className="h-11 min-h-11" />

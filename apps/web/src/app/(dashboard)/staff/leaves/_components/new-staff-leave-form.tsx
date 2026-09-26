@@ -15,11 +15,13 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { createStaffLeaveAction } from '../../../staff-leave-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewStaffLeaveForm() {
+export function NewStaffLeaveForm({ staffOptions = [] }: { staffOptions?: EntityLabelOption[] }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -34,17 +36,17 @@ export function NewStaffLeaveForm() {
     const fd = new FormData(event.currentTarget);
     const staffId = String(fd.get('staffId') ?? '').trim();
     const leaveType = String(fd.get('leaveType') ?? 'annual') as
-      | 'annual'
-      | 'sick'
-      | 'casual'
-      | 'unpaid'
-      | 'other';
+      'annual' | 'sick' | 'casual' | 'unpaid' | 'other';
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
     const reason = String(fd.get('reason') ?? '').trim();
 
     if (!UUID_RE.test(staffId)) {
-      setError('Staff must be a UUID v4 value.');
+      setError(
+        staffOptions.length === 0
+          ? 'Staff directory is empty — add staff before requesting leave.'
+          : 'Select a staff member.',
+      );
       return;
     }
     if (!startDate || !endDate) {
@@ -84,9 +86,13 @@ export function NewStaffLeaveForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={pending}>
-          <FormField id="leave-staff" label="Staff UUID" required>
-            <Input id="leave-staff" name="staffId" required disabled={!hydrated || pending} />
-          </FormField>
+          <EntitySearchSelect
+            id="leave-staff"
+            name="staffId"
+            label="Staff"
+            options={staffOptions}
+            required
+          />
           <FormField id="leave-type" label="Leave type">
             <select
               id="leave-type"

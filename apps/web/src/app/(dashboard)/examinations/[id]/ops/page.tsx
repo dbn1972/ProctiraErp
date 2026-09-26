@@ -14,7 +14,7 @@ import {
   listExamSessions,
   listExaminationCandidates,
 } from '@/lib/api/examinations';
-import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -25,15 +25,15 @@ export default async function ExaminationOpsPage(props: PageProps) {
   const examination = await getExamination(params.id);
   if (!examination) notFound();
 
-  const [sessions, seats, marks, reevaluations, candidates, studentLabels, staffLabels] =
+  const [sessions, seats, marks, reevaluations, candidates, studentOptions, staffOptions] =
     await Promise.all([
       listExamSessions(examination.id),
       listExamSeating(examination.id),
       listExamMarksPairs(examination.id),
       listExamReevaluations(examination.id),
       listExaminationCandidates(examination.id),
-      loadStudentLabelMap(),
-      loadStaffLabelMap(),
+      loadStudentOptions(),
+      loadStaffOptions(),
     ]);
 
   const invigilatorsBySession: Record<
@@ -46,12 +46,14 @@ export default async function ExaminationOpsPage(props: PageProps) {
     }),
   );
 
-  const candidateLabels = new Map(
-    candidates.map((candidate) => [
-      candidate.id,
-      studentLabels.get(candidate.studentId) || `Candidate ${candidate.id.slice(0, 8)}`,
-    ]),
-  );
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  const candidateOptions = candidates.map((candidate) => ({
+    id: candidate.id,
+    label: studentLabels.get(candidate.studentId) || `Candidate ${candidate.id.slice(0, 8)}`,
+    searchText: candidate.studentId,
+  }));
+  const candidateLabels = new Map(candidateOptions.map((option) => [option.id, option.label]));
+  const staffLabels = new Map(staffOptions.map((option) => [option.id, option.label]));
 
   return (
     <ExamOpsPanel
@@ -63,6 +65,8 @@ export default async function ExaminationOpsPage(props: PageProps) {
       reevaluations={reevaluations}
       staffLabels={Object.fromEntries(staffLabels)}
       candidateLabels={Object.fromEntries(candidateLabels)}
+      staffOptions={staffOptions}
+      candidateOptions={candidateOptions}
     />
   );
 }

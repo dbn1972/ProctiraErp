@@ -19,7 +19,7 @@ import {
   listHostels,
 } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import { loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { HostelFeeStructureForm } from '../_components/fee-structure-form';
 import { NewHostelAssignmentForm } from '../_components/new-assignment-form';
 
@@ -27,13 +27,14 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelAssignmentsPage() {
   await requireSession();
-  const [assignments, beds, hostels, feeStructures, studentLabels] = await Promise.all([
+  const [assignments, beds, hostels, feeStructures, studentOptions] = await Promise.all([
     listHostelAssignments(),
     listHostelBeds(),
     listHostels(),
     listHostelFeeStructures(),
-    loadStudentLabelMap(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const bedLabels = new Map(beds.map((bed) => [bed.id, bed.bedLabel]));
 
   return (
@@ -51,7 +52,11 @@ export default async function HostelAssignmentsPage() {
       </div>
 
       <HostelFeeStructureForm hostels={hostels} />
-      <NewHostelAssignmentForm beds={beds} feeStructures={feeStructures} />
+      <NewHostelAssignmentForm
+        beds={beds}
+        feeStructures={feeStructures}
+        studentOptions={studentOptions}
+      />
 
       <Card>
         <CardHeader>

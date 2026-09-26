@@ -41,7 +41,8 @@ import type {
   ExamOpsSession,
   Examination,
 } from '@/lib/api/examinations';
-import { resolveEntityLabel } from '@/lib/entity-label';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 function Feedback({ state }: { state: ActionState | null }) {
   if (!state || state.status === 'idle') return null;
@@ -65,6 +66,8 @@ export interface ExamOpsPanelProps {
   reevaluations: ExamOpsReevaluation[];
   staffLabels?: Record<string, string>;
   candidateLabels?: Record<string, string>;
+  staffOptions?: EntityLabelOption[];
+  candidateOptions?: EntityLabelOption[];
 }
 
 export function ExamOpsPanel({
@@ -76,6 +79,8 @@ export function ExamOpsPanel({
   reevaluations,
   staffLabels = {},
   candidateLabels = {},
+  staffOptions = [],
+  candidateOptions = [],
 }: ExamOpsPanelProps) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -224,17 +229,18 @@ export function ExamOpsPanel({
                           );
                         }}
                       >
-                        <Input
+                        <EntitySearchSelect
+                          id={`staff-${session.id}`}
                           name="staffId"
+                          label={`Staff for session ${session.roomId}`}
+                          options={staffOptions}
                           required
-                          placeholder="Staff UUID"
-                          pattern="[0-9a-fA-F-]{36}"
-                          aria-label={`Staff for session ${session.roomId}`}
+                          className="min-w-[12rem] space-y-1.5"
                         />
                         <Button
                           type="submit"
                           size="sm"
-                          disabled={isPending}
+                          disabled={isPending || staffOptions.length === 0}
                           data-testid="allocate-invigilator"
                         >
                           Assign
@@ -323,10 +329,13 @@ export function ExamOpsPanel({
               );
             }}
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="marks-candidate">Candidate ID</Label>
-              <Input id="marks-candidate" name="candidateId" required pattern="[0-9a-fA-F-]{36}" />
-            </div>
+            <EntitySearchSelect
+              id="marks-candidate"
+              name="candidateId"
+              label="Candidate"
+              options={candidateOptions}
+              required
+            />
             <div className="space-y-1.5">
               <Label htmlFor="marks-subject">Subject</Label>
               <select
@@ -469,10 +478,13 @@ export function ExamOpsPanel({
               );
             }}
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="reeval-candidate">Candidate ID</Label>
-              <Input id="reeval-candidate" name="candidateId" required pattern="[0-9a-fA-F-]{36}" />
-            </div>
+            <EntitySearchSelect
+              id="reeval-candidate"
+              name="candidateId"
+              label="Candidate"
+              options={candidateOptions}
+              required
+            />
             <div className="space-y-1.5">
               <Label htmlFor="reeval-subject">Subject</Label>
               <select
@@ -540,14 +552,20 @@ export function ExamOpsPanel({
                             );
                           }}
                         >
-                          <Input
+                          <EntitySearchSelect
+                            id={`evaluator-${row.id}`}
                             name="evaluatorId"
+                            label="Evaluator"
+                            options={staffOptions}
                             required
-                            placeholder="Evaluator UUID"
-                            pattern="[0-9a-fA-F-]{36}"
-                            aria-label="Evaluator"
+                            className="min-w-[12rem] space-y-1.5"
                           />
-                          <Button type="submit" size="sm" data-testid="assign-reevaluation">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={staffOptions.length === 0}
+                            data-testid="assign-reevaluation"
+                          >
                             Assign
                           </Button>
                         </form>
