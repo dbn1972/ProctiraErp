@@ -21,6 +21,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { bulkInvoiceAction, createFeeStructureAction } from '@/lib/fees/actions';
 import type { FeeStructure } from '@/lib/api/fees';
@@ -49,6 +50,8 @@ export function StructuresWorkspace({
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
   const [pending, startTransition] = useTransition();
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [pendingBulkFd, setPendingBulkFd] = useState<FormData | null>(null);
 
   function onCreate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,7 +80,13 @@ export function StructuresWorkspace({
 
   function onBulk(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const fd = new FormData(event.currentTarget);
+    setPendingBulkFd(new FormData(event.currentTarget));
+    setConfirmBulk(true);
+  }
+
+  function onConfirmBulk() {
+    if (!pendingBulkFd) return;
+    const fd = pendingBulkFd;
     startTransition(async () => {
       setBulkError(null);
       setBulkResult(null);
@@ -92,6 +101,8 @@ export function StructuresWorkspace({
         return;
       }
       setBulkResult(result.data ?? { created: 0, skipped: 0 });
+      setConfirmBulk(false);
+      setPendingBulkFd(null);
       router.refresh();
     });
   }
@@ -279,6 +290,19 @@ export function StructuresWorkspace({
           )}
         </CardContent>
       </Card>
+      <ConfirmActionDialog
+        open={confirmBulk}
+        onOpenChange={(open) => {
+          setConfirmBulk(open);
+          if (!open) setPendingBulkFd(null);
+        }}
+        title="Create bulk invoices?"
+        description="Invoices will be created for the selected structure and class. Students who already have an invoice for this structure are skipped."
+        confirmLabel="Bulk invoice"
+        pending={pending}
+        onConfirm={onConfirmBulk}
+        testId="bulk-invoice-confirm"
+      />
     </div>
   );
 }

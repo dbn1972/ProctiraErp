@@ -26,6 +26,7 @@ import type {
   SendRemindersResult,
 } from '@/lib/api/fees';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 function formatMoney(cents: number, currency = 'INR'): string {
@@ -61,6 +62,8 @@ export function DunningConsole({
   const [error, setError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<SendRemindersResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [removeSuppressionId, setRemoveSuppressionId] = useState<string | null>(null);
 
   const selectable = useMemo(
     () => overdue.filter((row) => !row.suppressed).map((row) => row.invoiceId),
@@ -94,6 +97,7 @@ export function DunningConsole({
       }
       setSendResult(result.data);
       setSelected([]);
+      setConfirmSend(false);
       router.refresh();
     });
   }
@@ -125,6 +129,7 @@ export function DunningConsole({
         setError(result.error);
         return;
       }
+      setRemoveSuppressionId(null);
       router.refresh();
     });
   }
@@ -219,7 +224,7 @@ export function DunningConsole({
                 </FormField>
                 <Button
                   type="button"
-                  onClick={onSend}
+                  onClick={() => setConfirmSend(true)}
                   disabled={
                     !hydrated ||
                     pending ||
@@ -364,7 +369,7 @@ export function DunningConsole({
                       variant="outline"
                       size="sm"
                       disabled={!hydrated || pending}
-                      onClick={() => onRemoveSuppression(row.id)}
+                      onClick={() => setRemoveSuppressionId(row.id)}
                     >
                       Remove
                     </Button>
@@ -405,6 +410,29 @@ export function DunningConsole({
           </CardContent>
         </Card>
       </div>
+      <ConfirmActionDialog
+        open={confirmSend}
+        onOpenChange={setConfirmSend}
+        title="Send fee reminders?"
+        description={`Sandbox reminders will be queued for ${selected.length} selected invoice${selected.length === 1 ? '' : 's'}. Confirm channels and selection before sending.`}
+        confirmLabel="Send reminders"
+        pending={pending}
+        onConfirm={onSend}
+        testId="dunning-send-confirm"
+      />
+      <ConfirmActionDialog
+        open={Boolean(removeSuppressionId)}
+        onOpenChange={(open) => !open && setRemoveSuppressionId(null)}
+        title="Remove this suppression?"
+        description="The student or invoice will start receiving dunning reminders again."
+        confirmLabel="Remove suppression"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          if (removeSuppressionId) onRemoveSuppression(removeSuppressionId);
+        }}
+        testId="dunning-remove-suppression-confirm"
+      />
     </div>
   );
 }
