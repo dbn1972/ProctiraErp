@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/student/student_route.dart';
+import '../../students/presentation/student_picker.dart';
 import '../bloc/scholarship_bloc.dart';
 import '../data/scholarship_repository.dart';
 
@@ -13,15 +15,22 @@ class ScholarshipStatusScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<ScholarshipBloc>(
-      create: (BuildContext context) {
-        final ScholarshipBloc bloc = ScholarshipBloc(
-          repository: context.read<ScholarshipRepository>(),
-        );
-        bloc.add(ScholarshipApplicationsRequested(studentId: studentId));
-        return bloc;
-      },
-      child: const _StatusView(),
+    final String id = studentId.trim();
+    return StudentRequiredGate(
+      studentId: id,
+      title: 'Scholarship applications',
+      locationFor: (String picked) =>
+          withStudentQuery('/scholarships/status', picked),
+      child: BlocProvider<ScholarshipBloc>(
+        create: (BuildContext context) {
+          final ScholarshipBloc bloc = ScholarshipBloc(
+            repository: context.read<ScholarshipRepository>(),
+          );
+          bloc.add(ScholarshipApplicationsRequested(studentId: id));
+          return bloc;
+        },
+        child: const _StatusView(),
+      ),
     );
   }
 }
@@ -50,7 +59,11 @@ class _StatusView extends StatelessWidget {
               return _ErrorView(
                 message: state.errorMessage ?? l10n.error,
                 onRetry: () {
-                  // Re-fetch — studentId comes from the parent widget.
+                  context.read<ScholarshipBloc>().add(
+                        ScholarshipApplicationsRequested(
+                          studentId: state.studentId,
+                        ),
+                      );
                 },
               );
             case ScholarshipStatus.loaded:

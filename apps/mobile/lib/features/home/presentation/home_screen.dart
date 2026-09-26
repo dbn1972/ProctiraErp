@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/student/selected_student_store.dart';
+import '../../../core/student/student_route.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../students/presentation/student_picker.dart';
 
 /// Authenticated landing screen. A welcoming header is followed by quick
 /// actions and the services grid, each tile deep-linking into a feature area
@@ -18,7 +23,16 @@ class HomeScreen extends StatelessWidget {
     final ThemeData theme = Theme.of(context);
     final ColorScheme colors = theme.colorScheme;
 
-    return Scaffold(
+    final SelectedStudentStore selected = getIt<SelectedStudentStore>();
+
+    return ListenableBuilder(
+      listenable: selected,
+      builder: (BuildContext context, _) {
+        final String? studentId = selected.studentId;
+        final String studentLabel = selected.hasStudent
+            ? (selected.displayName ?? 'Selected student')
+            : 'Choose a student';
+        return Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,8 +78,8 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(width: 12),
               _QuickAction(
                 icon: Icons.assignment_outlined,
-                label: 'Marks entry',
-                onTap: () => context.push('/assessments'),
+                label: 'Results',
+                onTap: () => context.push(withStudentQuery('/assessments', studentId)),
               ),
               const SizedBox(width: 12),
               _QuickAction(
@@ -78,6 +92,21 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 28),
           Text('Services', style: theme.textTheme.titleMedium),
           const SizedBox(height: 12),
+          Card(
+            child: ListTile(
+              minVerticalPadding: 16,
+              leading: const Icon(Icons.person_outline),
+              title: Text(studentLabel),
+              subtitle: const Text(
+                'Assessments, examinations, health, and scholarships use this student.',
+              ),
+              trailing: const Icon(Icons.unfold_more),
+              onTap: () {
+                unawaited(showStudentPicker(context));
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -85,59 +114,59 @@ class HomeScreen extends StatelessWidget {
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
             childAspectRatio: 1.55,
-            children: const <Widget>[
+            children: <Widget>[
               _ServiceTile(
                 icon: Icons.assignment_outlined,
-                color: Color(0xFF4F46E5),
+                color: const Color(0xFF4F46E5),
                 title: 'Assessments',
-                subtitle: 'Enter unit test & CCE marks',
-                route: '/assessments',
+                subtitle: 'Published assessment results',
+                route: withStudentQuery('/assessments', studentId),
               ),
               _ServiceTile(
                 icon: Icons.description_outlined,
-                color: Color(0xFF8B5CF6),
+                color: const Color(0xFF8B5CF6),
                 title: 'Examinations',
                 subtitle: 'Schedules, halls & results',
-                route: '/examinations',
+                route: withStudentQuery('/examinations', studentId),
               ),
               _ServiceTile(
                 icon: Icons.emoji_events_outlined,
-                color: Color(0xFFF59E0B),
+                color: const Color(0xFFF59E0B),
                 title: 'Scholarships',
                 subtitle: 'Apply & track for students',
-                route: '/scholarships',
+                route: withStudentQuery('/scholarships', studentId),
               ),
               _ServiceTile(
                 icon: Icons.favorite_outline,
-                color: Color(0xFFEF4444),
+                color: const Color(0xFFEF4444),
                 title: 'Health records',
                 subtitle: 'Screenings & immunization',
-                route: '/health',
+                route: withStudentQuery('/health', studentId),
               ),
               _ServiceTile(
                 icon: Icons.people_outline,
-                color: Color(0xFF0EA5E9),
+                color: const Color(0xFF0EA5E9),
                 title: 'Students',
                 subtitle: 'Profiles & enrollment',
                 route: '/students',
               ),
               _ServiceTile(
                 icon: Icons.account_balance_outlined,
-                color: Color(0xFF14B8A6),
+                color: const Color(0xFF14B8A6),
                 title: 'Institutions',
                 subtitle: 'School profile & cluster info',
                 route: '/institutions',
               ),
               _ServiceTile(
                 icon: Icons.bar_chart_outlined,
-                color: Color(0xFF10B981),
+                color: const Color(0xFF10B981),
                 title: 'Reports',
                 subtitle: 'Attendance & exam PDFs',
                 route: '/reports',
               ),
               _ServiceTile(
                 icon: Icons.notifications_outlined,
-                color: Color(0xFF64748B),
+                color: const Color(0xFF64748B),
                 title: 'Notifications',
                 subtitle: 'Alerts & announcements',
                 route: '/notifications',
@@ -146,6 +175,8 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
+        );
+      },
     );
   }
 }
