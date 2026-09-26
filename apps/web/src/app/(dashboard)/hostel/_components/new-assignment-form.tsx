@@ -124,12 +124,9 @@ export function NewHostelAssignmentForm({
                 ))}
               </select>
             ) : (
-              <Input
-                id="assign-bed"
-                name="bedId"
-                className="h-11 min-h-11"
-                placeholder="Bed UUID"
-              />
+              <p className="text-sm text-muted-foreground" role="status">
+                No beds are available to assign yet. Add rooms and beds in hostel setup first.
+              </p>
             )}
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
@@ -161,7 +158,10 @@ export function NewHostelAssignmentForm({
             </p>
           ) : null}
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending || studentOptions.length === 0}>
+            <Button
+              type="submit"
+              disabled={pending || studentOptions.length === 0 || beds.length === 0}
+            >
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Saving…' : 'Assign bed'}
             </Button>

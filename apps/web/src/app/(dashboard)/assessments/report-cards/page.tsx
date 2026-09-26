@@ -140,7 +140,7 @@ export default async function AssessmentReportCardsPage() {
             <ul className="space-y-1 text-sm" data-testid="report-card-jobs">
               {jobs.slice(0, 20).map((job) => (
                 <li key={job.id}>
-                  {job.id.slice(0, 8)} · {job.status}
+                  {job.status}
                   {job.artifactUri ? ` · ${job.artifactUri}` : ''}
                 </li>
               ))}

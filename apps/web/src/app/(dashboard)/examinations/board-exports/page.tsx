@@ -129,10 +129,12 @@ export default async function BoardExportsPage() {
                   return (
                     <tr key={job.id} className="border-t border-border">
                       <td className="px-3 py-2">
-                        Export job
-                        <span className="ms-2 font-mono text-xs text-muted-foreground">
-                          {job.id.slice(0, 8)}
-                        </span>
+                        Export · {boardCode}
+                        {typeof job.createdAt === 'string' ? (
+                          <span className="ms-2 text-xs text-muted-foreground">
+                            {job.createdAt.slice(0, 10)}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-2">{boardCode}</td>
                       <td className="px-3 py-2">{job.status}</td>

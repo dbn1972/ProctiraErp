@@ -243,7 +243,7 @@ export default function ScholarshipDisbursementSchedule() {
               ) : (
                 disbursements.map((d) => (
                   <tr key={d.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 font-mono text-xs">{d.applicationId.slice(0, 8)}…</td>
+                    <td className="px-4 py-3 text-sm">Application</td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium">
                       {formatCurrency(d.amount)}
                     </td>

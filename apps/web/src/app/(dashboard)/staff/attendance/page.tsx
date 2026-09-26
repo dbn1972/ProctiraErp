@@ -49,6 +49,12 @@ export default async function StaffAttendancePage(props: PageProps) {
     listStaffAttendance({ date }),
     listStaffAttendanceSummary(month),
   ]);
+  const staffLabels = new Map(
+    staff.map((s) => [
+      s.id,
+      [s.firstName, s.lastName].filter(Boolean).join(' ').trim() || s.position || 'Staff member',
+    ]),
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -109,8 +115,8 @@ export default async function StaffAttendancePage(props: PageProps) {
                   className="py-2 text-sm"
                   data-testid="staff-attendance-summary-row"
                 >
-                  Staff {row.staffId.slice(0, 8)}… · present {row.present} · leave {row.leave} ·
-                  half-day {row.halfDay} · payable {row.payableDays}
+                  {staffLabels.get(row.staffId) ?? 'Staff member'} · present {row.present} · leave{' '}
+                  {row.leave} · half-day {row.halfDay} · payable {row.payableDays}
                 </li>
               ))}
             </ul>
