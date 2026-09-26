@@ -6,15 +6,27 @@ import Link from 'next/link';
 
 import { BoardExportTriggerForm } from '@/components/examinations/board-export-trigger-form';
 import { listBoardExportJobs, listBoardPacks, listGradebookBoards } from '@/lib/api/gradebook';
+import { listInstitutions } from '@/lib/api/institutions';
+import { formatCodeNameLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BoardExportsPage() {
-  const [packs, boards, jobs] = await Promise.all([
+  const [packs, boards, jobs, institutions, studentOptions] = await Promise.all([
     listBoardPacks(),
     listGradebookBoards(),
     listBoardExportJobs(),
+    listInstitutions({ pageSize: MAX_API_PAGE_SIZE }).catch(() => []),
+    loadStudentOptions(),
   ]);
+
+  const institutionOptions = institutions.map((inst) => ({
+    id: inst.id,
+    label: formatCodeNameLabel(inst.code, inst.name),
+    searchText: `${inst.code} ${inst.name}`,
+  }));
 
   const apiDown = !packs.ok || !boards.ok || !jobs.ok;
   const errorMsg = [packs, boards, jobs]
@@ -79,7 +91,10 @@ export default async function BoardExportsPage() {
 
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Generate pack</h2>
-        <BoardExportTriggerForm />
+        <BoardExportTriggerForm
+          institutionOptions={institutionOptions}
+          studentOptions={studentOptions}
+        />
       </div>
 
       <div className="space-y-3">
@@ -113,7 +128,12 @@ export default async function BoardExportsPage() {
                       : null;
                   return (
                     <tr key={job.id} className="border-t border-border">
-                      <td className="px-3 py-2 font-mono text-xs">{job.id.slice(0, 8)}…</td>
+                      <td className="px-3 py-2">
+                        Export job
+                        <span className="ms-2 font-mono text-xs text-muted-foreground">
+                          {job.id.slice(0, 8)}
+                        </span>
+                      </td>
                       <td className="px-3 py-2">{boardCode}</td>
                       <td className="px-3 py-2">{job.status}</td>
                       <td className="px-3 py-2">
