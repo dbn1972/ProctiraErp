@@ -244,7 +244,7 @@ export async function fetchSession(
       signal: options.signal,
       cache: 'no-store',
     });
-    const data = (await safeJson(response)) as ClientSessionSnapshot;
+    const data = await safeJson<ClientSessionSnapshot>(response);
     return {
       authenticated: Boolean(data.authenticated),
       user: data.user ?? null,

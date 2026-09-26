@@ -19,7 +19,7 @@ import {
 } from '@proctira/ui/components';
 import { EmptyState } from '@/components/page';
 import { cn } from '@/lib/utils';
-import { listExaminations, type Examination } from '@/lib/api/examinations';
+import { listExaminations } from '@/lib/api/examinations';
 
 export const dynamic = 'force-dynamic';
 
