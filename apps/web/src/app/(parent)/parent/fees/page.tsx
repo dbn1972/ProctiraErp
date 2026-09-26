@@ -4,13 +4,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import {
-  listInstalmentsResult,
   listInvoicesResult,
   listReceiptsResult,
   type FeeInstalment,
   type FeeInvoice,
   type FeeReceipt,
 } from '@/lib/api/fees';
+import { fetchList } from '@/lib/api/list-result';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import type { ListFailureKind } from '@/lib/api/list-result';
 import { resolveEntityLabel } from '@/lib/entity-label';
@@ -72,15 +72,27 @@ export default async function ParentFeesPage() {
   const instalmentsByStructure = new Map<string, FeeInstalment[] | null>();
   await Promise.all(
     structureIds.map(async (structureId) => {
-      const parts = await listInstalmentsResult(structureId);
+      // Staff `fees.read` is denied to parents. `scope=parent` uses fees.read.self.
+      const parts = await fetchList<FeeInstalment>(
+        `/fees/structures/${structureId}/instalments?scope=parent`,
+        { next: { revalidate: 0 } },
+      );
       instalmentsByStructure.set(structureId, parts.ok ? parts.items : null);
     }),
   );
+  const hasVisibleSchedule = invoices.some((invoice) => {
+    if (!invoice.structureId) return false;
+    const parts = instalmentsByStructure.get(invoice.structureId);
+    return parts == null || parts.length > 0;
+  });
 
   const openRemaining = invoices.reduce(
     (sum, invoice) => sum + remainingBalanceCents(invoice, receipts),
     0,
   );
+  const openCount = invoices.filter(
+    (invoice) => remainingBalanceCents(invoice, receipts) > 0,
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -109,11 +121,7 @@ export default async function ParentFeesPage() {
             {formatAmount(openRemaining, 'INR')}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            {invoices.filter((invoice) => remainingBalanceCents(invoice, receipts) > 0).length} open
-            invoice
-            {invoices.filter((invoice) => remainingBalanceCents(invoice, receipts) > 0).length === 1
-              ? ''
-              : 's'}
+            {`${openCount} open invoice${openCount === 1 ? '' : 's'}`}
           </p>
         </CardContent>
       </Card>
@@ -174,7 +182,7 @@ export default async function ParentFeesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {structureIds.length === 0 ? (
+          {structureIds.length === 0 || !hasVisibleSchedule ? (
             <p
               className="text-sm text-muted-foreground"
               role="status"
