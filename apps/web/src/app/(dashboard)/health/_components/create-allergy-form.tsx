@@ -13,18 +13,19 @@ import {
   Input,
 } from '@proctira/ui/components';
 
-import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { EntityLabelOption } from '@/lib/entity-label';
+import { HealthStudentSelect } from './health-directory-select';
 import { createAllergyAction } from '../actions';
 
 const SEVERITIES = ['mild', 'moderate', 'severe', 'life-threatening'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function CreateAllergyForm({
-  studentOptions = [],
+  studentOptionsJson = '[]',
 }: {
-  studentOptions?: EntityLabelOption[];
+  studentOptionsJson?: string;
 }) {
+  const studentOptions: EntityLabelOption[] = JSON.parse(studentOptionsJson) as EntityLabelOption[];
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -80,13 +81,7 @@ export function CreateAllergyForm({
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit} data-testid="create-allergy-form">
-          <EntitySearchSelect
-            id="studentId"
-            name="studentId"
-            label="Student"
-            options={studentOptions}
-            required
-          />
+          <HealthStudentSelect options={studentOptions} />
           <FormField label="Allergy type" htmlFor="allergyType">
             <Input
               id="allergyType"

@@ -21,6 +21,9 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { HealthStaffSelect, HealthStudentSelect } from './health-directory-select';
+
 import { createCounsellingSessionAction } from '../actions';
 
 const SESSION_TYPES = ['individual', 'group', 'family', 'crisis'] as const;
@@ -28,7 +31,15 @@ const SESSION_STATUSES = ['scheduled', 'completed', 'cancelled', 'no-show'] as c
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function CreateCounsellingSessionForm() {
+export function CreateCounsellingSessionForm({
+  studentOptionsJson = '[]',
+  staffOptionsJson = '[]',
+}: {
+  studentOptionsJson?: string;
+  staffOptionsJson?: string;
+}) {
+  const studentOptions: EntityLabelOption[] = JSON.parse(studentOptionsJson) as EntityLabelOption[];
+  const staffOptions: EntityLabelOption[] = JSON.parse(staffOptionsJson) as EntityLabelOption[];
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -54,11 +65,19 @@ export function CreateCounsellingSessionForm() {
     const followUpDate = String(fd.get('followUpDate') ?? '').trim();
 
     if (!UUID_RE.test(studentId)) {
-      setError('Student ID must be a valid UUID (version 4).');
+      setError(
+        studentOptions.length === 0
+          ? 'Student directory is empty — add students before scheduling a session.'
+          : 'Select a student.',
+      );
       return;
     }
     if (!UUID_RE.test(counsellorId)) {
-      setError('Counsellor ID must be a valid UUID (version 4).');
+      setError(
+        staffOptions.length === 0
+          ? 'Staff directory is empty — add a counsellor before scheduling a session.'
+          : 'Select a counsellor.',
+      );
       return;
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(sessionDate)) {
@@ -127,26 +146,16 @@ export function CreateCounsellingSessionForm() {
           data-hydrated={hydrated ? 'true' : 'false'}
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField id="counselling-student-id" label="Student ID" required>
-              <Input
-                id="counselling-student-id"
-                name="studentId"
-                placeholder="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1"
-                required
-                autoComplete="off"
-                className="h-11 min-h-11"
-              />
-            </FormField>
-            <FormField id="counselling-counsellor-id" label="Counsellor ID" required>
-              <Input
-                id="counselling-counsellor-id"
-                name="counsellorId"
-                placeholder="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1"
-                required
-                autoComplete="off"
-                className="h-11 min-h-11"
-              />
-            </FormField>
+            <HealthStudentSelect
+              id="counselling-student-id"
+              name="studentId"
+              options={studentOptions}
+            />
+            <HealthStaffSelect
+              id="counselling-counsellor-id"
+              name="counsellorId"
+              options={staffOptions}
+            />
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
