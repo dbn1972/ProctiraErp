@@ -67,38 +67,38 @@ Leave these pull requests, their branches, and their worktrees alone. Do not mer
 
 ## Rollup
 
-Counted from the tables below. `PASS` count is 24, all from merged #426 (`docs/audits/SCREEN_TEST_CAMPUS.md`, merge `6ca09c58`). No other module is marked `PASS`.
+Counted from the tables below. `PASS` count is 49. Sources: #426 campus (`6ca09c58`, 24), #421 student portal (`5b54b6f3`, 8), #422 scholarships and LMS (`2de080dd`, 13), #427 admissions (`0b1a64cc`, 4). `BLOCKED` rows from those reports stay `BLOCKED`.
 
-| Module           | Status        |  Routes | `NOT_RUN` | `BLOCKED` | Owner           |
-| ---------------- | ------------- | ------: | --------: | --------: | --------------- |
-| Parent           | `IN_PROGRESS` |      15 |        15 |         0 | `parent-portal` |
-| Fees             | `IN_PROGRESS` |       9 |         9 |         0 | `fees`          |
-| Students         | `IN_PROGRESS` |       9 |         9 |         0 | `students`      |
-| Attendance       | `BLOCKED`     |       8 |         0 |         8 | `skipped`       |
-| Staff            | `NOT_RUN`     |      11 |        11 |         0 | `unassigned`    |
-| Health           | `NOT_RUN`     |      13 |        13 |         0 | `unassigned`    |
-| Institutions     | `NOT_RUN`     |      15 |        15 |         0 | `unassigned`    |
-| Home             | `NOT_RUN`     |       1 |         1 |         0 | `unassigned`    |
-| Academic periods | `NOT_RUN`     |       3 |         3 |         0 | `unassigned`    |
-| Admissions       | `NOT_RUN`     |       5 |         5 |         0 | `unassigned`    |
-| Assessments      | `NOT_RUN`     |       7 |         7 |         0 | `unassigned`    |
-| Examinations     | `NOT_RUN`     |       8 |         8 |         0 | `unassigned`    |
-| Scholarships     | `NOT_RUN`     |       7 |         7 |         0 | `unassigned`    |
-| LMS              | `NOT_RUN`     |      10 |        10 |         0 | `unassigned`    |
-| Reports          | `NOT_RUN`     |       6 |         6 |         0 | `unassigned`    |
-| Communication    | `NOT_RUN`     |       8 |         8 |         0 | `unassigned`    |
-| Notifications    | `NOT_RUN`     |       2 |         2 |         0 | `unassigned`    |
-| Library          | `PASS`        |       7 |         0 |         0 | `campus`        |
-| Hostel           | `PASS`        |       8 |         0 |         0 | `campus`        |
-| Transport        | `PASS`        |       9 |         0 |         0 | `campus`        |
-| Workflows        | `NOT_RUN`     |       5 |         5 |         0 | `unassigned`    |
-| Data warehouse   | `NOT_RUN`     |       4 |         4 |         0 | `unassigned`    |
-| Admin            | `NOT_RUN`     |       6 |         6 |         0 | `unassigned`    |
-| Student portal   | `NOT_RUN`     |       8 |         8 |         0 | `unassigned`    |
-| Auth             | `NOT_RUN`     |      10 |        10 |         0 | `unassigned`    |
-| Public and legal | `NOT_RUN`     |       3 |         3 |         0 | `unassigned`    |
-| Platform         | `NOT_RUN`     |       7 |         7 |         0 | `unassigned`    |
-| **Total**        |               | **204** |   **172** |     **8** |                 |
+| Module           | Status        |  Routes | `NOT_RUN` | `BLOCKED` | Owner            |
+| ---------------- | ------------- | ------: | --------: | --------: | ---------------- |
+| Parent           | `IN_PROGRESS` |      15 |        15 |         0 | `parent-portal`  |
+| Fees             | `IN_PROGRESS` |       9 |         9 |         0 | `fees`           |
+| Students         | `IN_PROGRESS` |       9 |         9 |         0 | `students`       |
+| Attendance       | `BLOCKED`     |       8 |         0 |         8 | `skipped`        |
+| Staff            | `NOT_RUN`     |      11 |        11 |         0 | `unassigned`     |
+| Health           | `NOT_RUN`     |      13 |        13 |         0 | `unassigned`     |
+| Institutions     | `NOT_RUN`     |      15 |        15 |         0 | `unassigned`     |
+| Home             | `NOT_RUN`     |       1 |         1 |         0 | `unassigned`     |
+| Academic periods | `NOT_RUN`     |       3 |         3 |         0 | `unassigned`     |
+| Admissions       | `PARTIAL`     |       5 |         0 |         1 | `admissions`     |
+| Assessments      | `NOT_RUN`     |       7 |         7 |         0 | `unassigned`     |
+| Examinations     | `NOT_RUN`     |       8 |         8 |         0 | `unassigned`     |
+| Scholarships     | `PARTIAL`     |       7 |         0 |         3 | `scholarships`   |
+| LMS              | `PARTIAL`     |      10 |         0 |         1 | `lms`            |
+| Reports          | `NOT_RUN`     |       6 |         6 |         0 | `unassigned`     |
+| Communication    | `NOT_RUN`     |       8 |         8 |         0 | `unassigned`     |
+| Notifications    | `NOT_RUN`     |       2 |         2 |         0 | `unassigned`     |
+| Library          | `PASS`        |       7 |         0 |         0 | `campus`         |
+| Hostel           | `PASS`        |       8 |         0 |         0 | `campus`         |
+| Transport        | `PASS`        |       9 |         0 |         0 | `campus`         |
+| Workflows        | `NOT_RUN`     |       5 |         5 |         0 | `unassigned`     |
+| Data warehouse   | `NOT_RUN`     |       4 |         4 |         0 | `unassigned`     |
+| Admin            | `NOT_RUN`     |       6 |         6 |         0 | `unassigned`     |
+| Student portal   | `PASS`        |       8 |         0 |         0 | `student-portal` |
+| Auth             | `NOT_RUN`     |      10 |        10 |         0 | `unassigned`     |
+| Public and legal | `NOT_RUN`     |       3 |         3 |         0 | `unassigned`     |
+| Platform         | `NOT_RUN`     |       7 |         7 |         0 | `unassigned`     |
+| **Total**        |               | **204** |   **142** |    **13** |                  |
 
 `/staff/attendance`, `/hostel/attendance`, `/transport/attendance`, `/parent/attendance`, and `/student/attendance` are in Attendance, not in the module that shares the rest of the path.
 
@@ -245,17 +245,17 @@ Actor: staff admin on the Sunrise tenant with `institution.read`. School id `000
 | `/academic-periods/[id]/calendar`       | staff admin (Sunrise) | Open the calendar for AY 2026-27 `00000000-0000-4000-8000-00000000a531`. Honest empty if no events are seeded. | `NOT_RUN` | not exercised | `unassigned` |
 | `/academic-periods/[id]/bell-schedules` | staff admin (Sunrise) | Open bell schedules for AY 2026-27. Honest empty if none are seeded.                                           | `NOT_RUN` | not exercised | `unassigned` |
 
-## Admissions — `NOT_RUN`
+## Admissions — `PARTIAL`
 
-The seed has enrolled students and no enquiry pipeline. Empty inbox after a successful read is honest.
+Copied from #427. The seed has no enquiry or application rows. Offer, accept, decline, pay, and enrol were not run.
 
-| Route                     | Actor                 | Primary action                                                                            | Result    | Evidence      | Owner worker |
-| ------------------------- | --------------------- | ----------------------------------------------------------------------------------------- | --------- | ------------- | ------------ |
-| `/admissions`             | staff admin (Sunrise) | Open the admissions inbox. Honest empty.                                                  | `NOT_RUN` | not exercised | `unassigned` |
-| `/admissions/enquiries`   | staff admin (Sunrise) | List enquiries. Honest empty.                                                             | `NOT_RUN` | not exercised | `unassigned` |
-| `/admissions/seat-matrix` | staff admin (Sunrise) | Open the seat matrix for Sunrise classes.                                                 | `NOT_RUN` | not exercised | `unassigned` |
-| `/admissions/merit`       | staff admin (Sunrise) | Open the merit list. Honest empty.                                                        | `NOT_RUN` | not exercised | `unassigned` |
-| `/admissions/[id]`        | staff admin (Sunrise) | Open one application from the inbox, or record an honest empty when the inbox has no row. | `NOT_RUN` | not exercised | `unassigned` |
+| Route                     | Actor                 | Primary action                                                                            | Result    | Evidence                                                                                    | Owner worker |
+| ------------------------- | --------------------- | ----------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- | ------------ |
+| `/admissions`             | staff admin (Sunrise) | Open the admissions inbox. Honest empty.                                                  | `PASS`    | #427: empty applications, waitlist, and slots. Update and book controls disabled.           | `admissions` |
+| `/admissions/enquiries`   | staff admin (Sunrise) | List enquiries. Honest empty.                                                             | `PASS`    | #427: empty enquiry list. Institution option is Sunrise Public School.                      | `admissions` |
+| `/admissions/seat-matrix` | staff admin (Sunrise) | Open the seat matrix for Sunrise classes.                                                 | `PASS`    | #427: seat-matrix form hydrated. No matrix rows.                                            | `admissions` |
+| `/admissions/merit`       | staff admin (Sunrise) | Open the merit list. Honest empty.                                                        | `PASS`    | #427: merit form hydrated. No merit list generated.                                         | `admissions` |
+| `/admissions/[id]`        | staff admin (Sunrise) | Open one application from the inbox, or record an honest empty when the inbox has no row. | `BLOCKED` | #427: a missing id shows not-found. No seeded application, so offer and enrol were not run. | `admissions` |
 
 ## Assessments — `NOT_RUN`
 
@@ -282,32 +282,36 @@ The seed has enrolled students and no enquiry pipeline. Empty inbox after a succ
 | `/examinations/[id]/ops`        | staff admin (Sunrise) | Open exam-day operations. Honest empty.                                   | `NOT_RUN` | not exercised | `unassigned` |
 | `/examinations/[id]/results`    | staff admin (Sunrise) | List exam results. Honest empty.                                          | `NOT_RUN` | not exercised | `unassigned` |
 
-## Scholarships — `NOT_RUN`
+## Scholarships — `PARTIAL`
 
-| Route                              | Actor                 | Primary action                                                      | Result    | Evidence      | Owner worker |
-| ---------------------------------- | --------------------- | ------------------------------------------------------------------- | --------- | ------------- | ------------ |
-| `/scholarships`                    | staff admin (Sunrise) | List scholarship programs. Honest empty if none are seeded.         | `NOT_RUN` | not exercised | `unassigned` |
-| `/scholarships/programs/new`       | staff admin (Sunrise) | Open the new program form. Saving is optional.                      | `NOT_RUN` | not exercised | `unassigned` |
-| `/scholarships/programs/[id]`      | staff admin (Sunrise) | Open one program, or record an honest empty when none exist.        | `NOT_RUN` | not exercised | `unassigned` |
-| `/scholarships/programs/[id]/edit` | staff admin (Sunrise) | Open program edit from a listed program, or record an honest empty. | `NOT_RUN` | not exercised | `unassigned` |
-| `/scholarships/applications`       | staff admin (Sunrise) | List applications. Honest empty.                                    | `NOT_RUN` | not exercised | `unassigned` |
-| `/scholarships/applications/[id]`  | staff admin (Sunrise) | Open one application, or record an honest empty.                    | `NOT_RUN` | not exercised | `unassigned` |
-| `/scholarships/disbursements`      | staff admin (Sunrise) | List disbursements. Honest empty.                                   | `NOT_RUN` | not exercised | `unassigned` |
+Copied from #422. Retired `/app/scholarships/*` routes are not in this 204-route inventory. Approve, reject, and retry were not run.
 
-## LMS — `NOT_RUN`
+| Route                              | Actor                 | Primary action                                                      | Result    | Evidence                                                                   | Owner worker   |
+| ---------------------------------- | --------------------- | ------------------------------------------------------------------- | --------- | -------------------------------------------------------------------------- | -------------- |
+| `/scholarships`                    | staff admin (Sunrise) | List scholarship programs. Honest empty if none are seeded.         | `PASS`    | #422: empty catalog.                                                       | `scholarships` |
+| `/scholarships/programs/new`       | staff admin (Sunrise) | Open the new program form. Saving is optional.                      | `PASS`    | #422: form rendered. No submit.                                            | `scholarships` |
+| `/scholarships/programs/[id]`      | staff admin (Sunrise) | Open one program, or record an honest empty when none exist.        | `BLOCKED` | #422: no programs seeded (not found).                                      | `scholarships` |
+| `/scholarships/programs/[id]/edit` | staff admin (Sunrise) | Open program edit from a listed program, or record an honest empty. | `BLOCKED` | #422: no programs seeded (not found).                                      | `scholarships` |
+| `/scholarships/applications`       | staff admin (Sunrise) | List applications. Honest empty.                                    | `PASS`    | #422: empty queue.                                                         | `scholarships` |
+| `/scholarships/applications/[id]`  | staff admin (Sunrise) | Open one application, or record an honest empty.                    | `BLOCKED` | #422: no applications seeded (not found). Approve and reject were not run. | `scholarships` |
+| `/scholarships/disbursements`      | staff admin (Sunrise) | List disbursements. Honest empty.                                   | `PASS`    | #422: empty ledger. No failed batch, so retry was not shown.               | `scholarships` |
 
-| Route                   | Actor                 | Primary action                                        | Result    | Evidence      | Owner worker |
-| ----------------------- | --------------------- | ----------------------------------------------------- | --------- | ------------- | ------------ |
-| `/lms`                  | staff admin (Sunrise) | Open coursework. Honest empty if no course is seeded. | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/assignments/new`  | staff admin (Sunrise) | Open the new assignment form. Saving is optional.     | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/assignments/[id]` | staff admin (Sunrise) | Open one assignment, or record an honest empty.       | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/bank`             | staff admin (Sunrise) | Open the question bank. Honest empty.                 | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/rubrics`          | staff admin (Sunrise) | List rubrics. Honest empty.                           | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/discussions`      | staff admin (Sunrise) | List discussions. Honest empty.                       | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/lessons`          | staff admin (Sunrise) | List lessons. Honest empty.                           | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/content`          | staff admin (Sunrise) | List content. Honest empty.                           | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/analytics`        | staff admin (Sunrise) | Open class analytics. Honest empty.                   | `NOT_RUN` | not exercised | `unassigned` |
-| `/lms/pal`              | staff admin (Sunrise) | Open Spiral PAL. Honest empty.                        | `NOT_RUN` | not exercised | `unassigned` |
+## LMS — `PARTIAL`
+
+Copied from #422. Retired `/app/lms/*` routes are not in this inventory.
+
+| Route                   | Actor                 | Primary action                                        | Result    | Evidence                                                           | Owner worker |
+| ----------------------- | --------------------- | ----------------------------------------------------- | --------- | ------------------------------------------------------------------ | ------------ |
+| `/lms`                  | staff admin (Sunrise) | Open coursework. Honest empty if no course is seeded. | `PASS`    | #422: coursework hub. Empty assignments.                           | `lms`        |
+| `/lms/assignments/new`  | staff admin (Sunrise) | Open the new assignment form. Saving is optional.     | `PASS`    | #422: builder rendered. Empty save blocked in the client. No save. | `lms`        |
+| `/lms/assignments/[id]` | staff admin (Sunrise) | Open one assignment, or record an honest empty.       | `BLOCKED` | #422: no assignments seeded (not found).                           | `lms`        |
+| `/lms/bank`             | staff admin (Sunrise) | Open the question bank. Honest empty.                 | `PASS`    | #422: question bank opened.                                        | `lms`        |
+| `/lms/rubrics`          | staff admin (Sunrise) | List rubrics. Honest empty.                           | `PASS`    | #422: rubrics opened.                                              | `lms`        |
+| `/lms/discussions`      | staff admin (Sunrise) | List discussions. Honest empty.                       | `PASS`    | #422: discussions opened.                                          | `lms`        |
+| `/lms/lessons`          | staff admin (Sunrise) | List lessons. Honest empty.                           | `PASS`    | #422: lessons opened.                                              | `lms`        |
+| `/lms/content`          | staff admin (Sunrise) | List content. Honest empty.                           | `PASS`    | #422: content opened.                                              | `lms`        |
+| `/lms/analytics`        | staff admin (Sunrise) | Open class analytics. Honest empty.                   | `PASS`    | #422: class analytics opened.                                      | `lms`        |
+| `/lms/pal`              | staff admin (Sunrise) | Open Spiral PAL. Honest empty.                        | `PASS`    | #422: invalid learner id shows client validation. No API write.    | `lms`        |
 
 ## Reports — `NOT_RUN`
 
@@ -417,20 +421,20 @@ Actor: staff session whose role matches admin, principal, or super-admin, on the
 | `/admin/tenant`             | staff admin (Sunrise) | Open tenant settings and see slug `sunrise-public-school`.             | `NOT_RUN` | not exercised | `unassigned` |
 | `/admin/notification-rules` | staff admin (Sunrise) | List notification rules. Honest empty.                                 | `NOT_RUN` | not exercised | `unassigned` |
 
-## Student portal — `NOT_RUN`
+## Student portal — `PASS`
 
-Separate from `/students`. The seed has no student login subject. Treat a staff session on these routes as the wrong actor.
+Copied from #421. `/student/attendance` stays `BLOCKED` under Attendance. The walk used JWT `sub` `00000000-0000-4000-8000-00000000a502` (Aarav). The report says that student row was inserted only in the agent database; it is not in the committed Sunrise seed.
 
-| Route                | Actor                         | Primary action                                      | Result    | Evidence      | Owner worker |
-| -------------------- | ----------------------------- | --------------------------------------------------- | --------- | ------------- | ------------ |
-| `/student`           | student (no seeded login sub) | Open Today for a linked student.                    | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/grades`    | student (no seeded login sub) | List own grades. Honest empty if none are seeded.   | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/timetable` | student (no seeded login sub) | Open own timetable. Honest empty if none is seeded. | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/homework`  | student (no seeded login sub) | List own homework. Honest empty.                    | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/library`   | student (no seeded login sub) | Open own library. Honest empty.                     | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/calendar`  | student (no seeded login sub) | Open own calendar. Honest empty.                    | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/notices`   | student (no seeded login sub) | List notices. Honest empty.                         | `NOT_RUN` | not exercised | `unassigned` |
-| `/student/pal`       | student (no seeded login sub) | Open own PAL plan. Honest empty.                    | `NOT_RUN` | not exercised | `unassigned` |
+| Route                | Actor                                              | Primary action                                      | Result | Evidence                                               | Owner worker     |
+| -------------------- | -------------------------------------------------- | --------------------------------------------------- | ------ | ------------------------------------------------------ | ---------------- |
+| `/student`           | student `…a502` (local row, not in committed seed) | Open Today for a linked student.                    | `PASS` | #421: hub cards and nav.                               | `student-portal` |
+| `/student/grades`    | student `…a502` (local row, not in committed seed) | List own grades. Honest empty if none are seeded.   | `PASS` | #421: “No published grades yet.”                       | `student-portal` |
+| `/student/timetable` | student `…a502` (local row, not in committed seed) | Open own timetable. Honest empty if none is seeded. | `PASS` | #421: “No published class meetings yet.”               | `student-portal` |
+| `/student/homework`  | student `…a502` (local row, not in committed seed) | List own homework. Honest empty.                    | `PASS` | #421: “No published homework yet.”                     | `student-portal` |
+| `/student/library`   | student `…a502` (local row, not in committed seed) | Open own library. Honest empty.                     | `PASS` | #421: OPAC search shell. Empty loans and holds.        | `student-portal` |
+| `/student/calendar`  | student `…a502` (local row, not in committed seed) | Open own calendar. Honest empty.                    | `PASS` | #421: “No holidays or events have been published yet.” | `student-portal` |
+| `/student/notices`   | student `…a502` (local row, not in committed seed) | List notices. Honest empty.                         | `PASS` | #421: “There are no school notices right now.”         | `student-portal` |
+| `/student/pal`       | student `…a502` (local row, not in committed seed) | Open own PAL plan. Honest empty.                    | `PASS` | #421: “No practice plan yet.”                          | `student-portal` |
 
 ## Auth — `NOT_RUN`
 
