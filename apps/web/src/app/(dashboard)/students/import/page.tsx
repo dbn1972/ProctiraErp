@@ -9,7 +9,7 @@
  * visual 4-step stepper (Upload → Validate → Review → Import).
  */
 import Link from 'next/link';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import {
   Button,
@@ -22,6 +22,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { BulkImportPanel } from './_components/bulk-import-panel';
+import { DownloadTemplateButton } from './_components/download-template-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,12 +135,7 @@ export default function StudentBulkImportPage() {
               Back to students
             </Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <a href="/students/import/template" download="students-import-template.xlsx">
-              <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Download template
-            </a>
-          </Button>
+          <DownloadTemplateButton />
         </div>
       </div>
 
