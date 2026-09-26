@@ -185,7 +185,7 @@ interface ServiceEvent {
   date?: string | null;
   title?: string | null;
   detail?: string | null;
-  type?: 'assignment' | 'appraisal' | 'training' | 'transfer' | 'join' | string;
+  type?: string;
 }
 
 const TL_DOT_COLORS: Record<string, string> = {
