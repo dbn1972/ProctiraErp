@@ -5,6 +5,7 @@ import { ArrowRight, BookOpen, Boxes, Cloud, Code2, Layers, Server } from 'lucid
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SOURCE_REPOSITORY_URL } from '@/lib/site';
 
 export const dynamic = 'force-static';
 
@@ -69,8 +70,8 @@ const OPTIONS: ReadonlyArray<DeployOption> = [
     description:
       'Single-server evaluation and small-school production. Everything — web, API, PostgreSQL, Redis — in one stack.',
     code: `# Clone and boot the full stack
-$ git clone https://github.com/proctira/proctira-erp.git
-$ cd proctira-erp
+$ git clone ${SOURCE_REPOSITORY_URL}.git
+$ cd ProctiraErp
 $ cp .env.example .env
 $ docker compose up -d`,
   },
@@ -173,7 +174,7 @@ export default function InstallationPage() {
             <Link href="#options">Choose a deployment</Link>
           </Button>
           <Button asChild variant="outline" size="lg">
-            <Link href="/about#opensource">Browse the source on GitHub</Link>
+            <a href={SOURCE_REPOSITORY_URL}>Browse the source on GitHub</a>
           </Button>
         </div>
       </section>
@@ -198,8 +199,35 @@ export default function InstallationPage() {
           Sized for a mid-size district deployment. Smaller pilots run comfortably on a fraction of
           this.
         </p>
-        <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card">
-          <table className="w-full text-left text-sm">
+        <ul className="mt-8 space-y-4 md:hidden">
+          {REQUIREMENTS.map((row) => (
+            <li key={row.component} className="rounded-2xl border border-border bg-card p-4">
+              <p className="font-semibold text-foreground">{row.component}</p>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Minimum
+                  </dt>
+                  <dd className="text-foreground">{row.minimum}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Recommended
+                  </dt>
+                  <dd className="text-foreground">{row.recommended}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Notes
+                  </dt>
+                  <dd className="text-foreground">{row.notes}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-8 hidden max-w-full overflow-x-auto rounded-2xl border border-border bg-card md:block">
+          <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-border bg-secondary/50">
               <tr>
                 <th className="px-5 py-3 font-semibold text-foreground">Component</th>

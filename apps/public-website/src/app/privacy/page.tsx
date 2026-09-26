@@ -13,11 +13,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/privacy' },
 };
 
-/**
- * Boilerplate Privacy Policy. Tenants and operators must review and adjust
- * to match their lawful basis, processors, and jurisdiction before public
- * launch.
- */
+/** Public privacy notice for the ProctiraERP website. */
 export default function PrivacyPage() {
   return (
     <>
