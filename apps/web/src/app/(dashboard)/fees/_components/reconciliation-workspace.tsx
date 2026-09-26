@@ -64,19 +64,20 @@ export function ReconciliationWorkspace({
   function onImport(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    const filename = String(fd.get('filename') ?? '').trim() || 'staff-import.csv';
     startTransition(async () => {
       setError(null);
       setSummary(null);
       const result = await importReconciliationAction({
         csv: String(fd.get('csv') ?? ''),
-        filename: String(fd.get('filename') ?? '').trim() || 'staff-import.csv',
+        filename,
       });
       if (!result.success) {
         setError(result.error);
         return;
       }
       setSummary(
-        `Imported batch ${result.data.batchId.slice(0, 8)}… — matched ${result.data.matched}, exceptions ${result.data.unmatched}`,
+        `Imported ${filename} — matched ${result.data.matched}, exceptions ${result.data.unmatched}.`,
       );
       setSelectedBatchId(result.data.batchId);
       router.push(`/fees/reconciliation?batch=${result.data.batchId}`);
@@ -238,8 +239,7 @@ export function ReconciliationWorkspace({
                     <li key={row.id} className="py-2" data-testid="recon-match-row">
                       <p className="text-sm font-medium text-foreground">{row.invoiceNumber}</p>
                       <p className="text-xs text-muted-foreground">
-                        {formatAmount(row.amountCents, locale)}
-                        {row.invoiceId ? ` · invoice ${row.invoiceId.slice(0, 8)}…` : ''}
+                        {formatAmount(row.amountCents, locale)} · matched
                       </p>
                     </li>
                   ))}

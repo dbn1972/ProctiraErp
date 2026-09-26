@@ -42,6 +42,8 @@ export function StructuresWorkspace({
   classOptions = [],
   gradeOptions = [],
   studentOptions = [],
+  listFailed = false,
+  failure = null,
 }: {
   structures: FeeStructure[];
   /** Server-rendered page heading (h1 + description) so the page owns its h1. */
@@ -49,6 +51,10 @@ export function StructuresWorkspace({
   classOptions?: EntityLabelOption[];
   gradeOptions?: EntityLabelOption[];
   studentOptions?: EntityLabelOption[];
+  /** List call failed. Do not describe that as an empty catalogue. */
+  listFailed?: boolean;
+  /** Shown under the heading, after the New structure action. */
+  failure?: ReactNode;
 }) {
   const locale = useLocale();
   const router = useRouter();
@@ -129,6 +135,8 @@ export function StructuresWorkspace({
           New structure
         </Button>
       </div>
+
+      {failure}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -281,11 +289,19 @@ export function StructuresWorkspace({
         <CardHeader>
           <CardTitle className="text-base">Structures</CardTitle>
           <CardDescription>
-            {structures.length === 0 ? 'No structures yet.' : `${structures.length} structure(s).`}
+            {listFailed
+              ? 'The structure list did not load.'
+              : structures.length === 0
+                ? 'No structures yet.'
+                : `${structures.length} structure(s).`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {structures.length === 0 ? (
+          {listFailed ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Reload the page after the service is back. New structure stays available.
+            </p>
+          ) : structures.length === 0 ? (
             <p
               className="text-sm text-muted-foreground"
               role="status"

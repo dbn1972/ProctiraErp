@@ -14,6 +14,7 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { DuesReport } from '@/lib/api/fees';
+import { resolveEntityLabel } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
 
 function formatAmount(cents: number, locale: string): string {
@@ -24,7 +25,21 @@ function formatAmount(cents: number, locale: string): string {
   }).format(cents / 100);
 }
 
-export function FeesReportsPanel({ report, header }: { report: DuesReport; header: ReactNode }) {
+export function FeesReportsPanel({
+  report,
+  header,
+  classLabels = {},
+  listFailed = false,
+  failure = null,
+}: {
+  report: DuesReport;
+  header: ReactNode;
+  classLabels?: Record<string, string>;
+  /** Dues call failed. Do not describe that as an empty report. */
+  listFailed?: boolean;
+  /** Shown under the heading, after the download action. */
+  failure?: ReactNode;
+}) {
   const locale = useLocale();
   const hydrated = useHydrated();
 
@@ -37,13 +52,19 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
         </Button>
       </div>
 
+      {failure}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Dues by class</CardTitle>
           <CardDescription>As of {new Date(report.asOf).toLocaleString()}</CardDescription>
         </CardHeader>
         <CardContent>
-          {report.byClass.length === 0 ? (
+          {listFailed ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Dues could not be loaded. Download stays available for a retry.
+            </p>
+          ) : report.byClass.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status" data-testid="dues-empty">
               No open dues.
             </p>
@@ -51,7 +72,11 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
             <ul className="divide-y divide-border" role="list">
               {report.byClass.map((row) => (
                 <li key={row.classId} className="py-2" data-testid="dues-class-row">
-                  <p className="text-sm font-medium text-foreground">Class dues</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {row.classId === 'unassigned'
+                      ? 'Unassigned'
+                      : resolveEntityLabel(row.classId, classLabels, 'Class')}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Open {row.openCount} ({formatAmount(row.openCents, locale)}) · Overdue{' '}
                     {row.overdueCount} ({formatAmount(row.overdueCents, locale)})
@@ -68,7 +93,11 @@ export function FeesReportsPanel({ report, header }: { report: DuesReport; heade
           <CardTitle className="text-base">By status</CardTitle>
         </CardHeader>
         <CardContent>
-          {report.byStatus.length === 0 ? (
+          {listFailed ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Status totals were not loaded.
+            </p>
+          ) : report.byStatus.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               No invoices.
             </p>
