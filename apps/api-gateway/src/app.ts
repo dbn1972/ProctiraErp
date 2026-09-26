@@ -710,6 +710,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   // 8a-ter. G-805 — School (institution) scope for school-bound principals.
+  //
+  // G-805-FIX-1: decideInstitutionScope's 'inject' branch defaults a missing
+  // institutionId to the caller's PRIMARY institution, and only does so for
+  // GET/HEAD (see isInstitutionInjectionMethod) — no mutating-method route
+  // handler in this repo reads query.institutionId, so injecting one there
+  // would be dead data at best and a latent risk if some future handler
+  // starts trusting a gateway-written query field nobody actually supplied.
+  // The 'deny' branch is unaffected by method: it fires whenever the caller
+  // explicitly supplied an institutionId outside their allowed set, which is
+  // a real authorization check that must hold for writes exactly as for reads.
   app.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
@@ -722,7 +732,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       params: request.params,
       body: request.body,
     });
-    const decision = decideInstitutionScope(user, url, institutionId);
+    const decision = decideInstitutionScope(user, url, institutionId, request.method);
     if (decision.action === 'deny') {
       return reply.status(403).send({
         code: 'INSTITUTION_OUT_OF_SCOPE',
