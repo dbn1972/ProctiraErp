@@ -3,8 +3,8 @@
 **Purpose:** Honest disposition of UX gap themes after Waves **W1–W13**, pinned to tip `main`.  
 **Source file:** `proctira-design/UX_FINDINGS.md` is **not in-repo**. This ledger reconstructs from merged PR evidence + tip residual scans across `apps/web`, `apps/mobile`, `apps/admin-console`, `apps/public-website`, `apps/registration-portal`.  
 **Tip SHA (Phase 0 pin):** `e04de049` (`fix(web): clear leftover UUID-primary labels and inputs (W13) (#408)`)  
-**Tip SHA (live):** `1e65cd75` (includes #409 ledger + #401 gateway — merged externally)  
-**Updated (UTC):** 2026-09-26T13:02Z  
+**Tip SHA (live):** `8ff9d60a` (includes #409 ledger + #411 mobile + #401 gateway)  
+**Updated (UTC):** 2026-09-26T13:03Z  
 **Orchestrator run:** `bc-c03978a9-1637-47e1-89c8-cce4f6b5119b`  
 **Honesty:** Do **not** claim all ~304 original findings `FULLY_CLOSED` without row-level proof below. Theme rollups may be `PARTIAL` even when high-severity surfaces closed.
 
@@ -19,18 +19,18 @@ Disposition vocabulary: `FULLY_CLOSED` | `PARTIAL` | `OPEN` | `NEEDS_API` | `DEF
 | Theme buckets tracked           |    14 | See § Theme rollup                                                                                                         |
 | Themes `FULLY_CLOSED`           |     3 | W4 inert; W6 student route state; W12 visitor legal banners (auth/public may expand)                                       |
 | Themes `PARTIAL`                |     8 | Confirm, UUID labels/pickers, colour-status, scaffold, empty≠error, mobile honesty, website residual, leftover UUID inputs |
-| Themes `OPEN` / worker-owned    |     4 | Still OPEN until worker PRs merge: mobile #411, admin #410, auth/public #412, web #413                                     |
+| Themes `OPEN` / worker-owned    |     3 | Admin #410, auth/public #412, web #413 still open. Mobile studentId theme PARTIAL pending tip re-audit after #411.         |
 | Themes `NEEDS_API`              |     4 | Mobile doc upload + notif cloud sync; parent child picker enrichment; fees class-name API; profile cloud prefs             |
 | Themes `DEFERRED` / collision   |     1 | Attendance UX (#386) only — #401 **merged** 2026-09-26                                                                     |
-| Worker PRs open (this campaign) |     4 | #411 mobile, #410 admin, #412 auth/public, #413 web                                                                        |
-| Merged this campaign            |     1 | **#409** tip ledger                                                                                                        |
+| Worker PRs open (this campaign) |     3 | #410 admin, #412 auth/public, #413 web (+ orch live #414)                                                                  |
+| Merged this campaign            |     2 | **#409** tip ledger; **#411** mobile W17                                                                                   |
 
 ### Worker ownership matrix
 
 | Lane                    | Path allowlist                                                                                       | Owns themes                                                                      | Status                                                          | PR                                                      |
 | ----------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------- |
 | **Orchestrator**        | `docs/audits/UX_FINDINGS_TIP_LEDGER.md` only (+ tiny docs fixes)                                     | Ledger live counts                                                               | #409 merged; live update PR                                     | `cursor/ux-orch-w0-ledger-live`                         |
-| **Mobile worker**       | `apps/mobile/**` only                                                                                | MOB-*, studentId plumbing, parent shells → existing APIs, profile/routes honesty | CI in progress                                                  | [#411](https://github.com/dbn1972/ProctiraErp/pull/411) |
+| **Mobile worker**       | `apps/mobile/**` only                                                                                | MOB-*, studentId plumbing, parent shells → existing APIs, profile/routes honesty | **MERGED #411**                                                 | [#411](https://github.com/dbn1972/ProctiraErp/pull/411) |
 | **Admin worker**        | `apps/admin-console/**` only                                                                         | ADM-* colour text, UUID filters→pickers, break-glass/decommission confirm        | **BLOCKED** Unit Tests W3-TEST-04 coverage 3.06% &lt; 5%        | [#410](https://github.com/dbn1972/ProctiraErp/pull/410) |
 | **Auth/Public worker**  | `apps/web/src/app/(auth)/**`, `(public)/**`, `apps/public-website/**`, `apps/registration-portal/**` | AUTH-_, WWW-_, REG-* MFA/oauth/reset, legal residual, i18n/DOB-in-URL            | **BLOCKED** Prettier Lint (`status/page.tsx`, `terms/page.tsx`) | [#412](https://github.com/dbn1972/ProctiraErp/pull/412) |
 | **Web residual worker** | `apps/web` dashboard/parent/student **except** auth/public                                           | WEB-* colour residuals, UUID leftovers, missed confirms; skip attendance         | **BLOCKED** ESLint redundant-type-constituents + RTL            | [#413](https://github.com/dbn1972/ProctiraErp/pull/413) |
@@ -200,4 +200,5 @@ Columns: **id/route** · **theme** · **severity** · **disposition** · **evide
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | 2026-09-26T12:43Z | Phase 0 ledger created at tip `e04de049`; worker PRs not yet open                                                                   |
 | 2026-09-26T13:01Z | **Merged #409** tip ledger; tip `1e65cd75`. Workers: #411/#410/#412/#413 open. Blockers: #410 coverage, #412 prettier, #413 eslint. |
+| 2026-09-26T13:02Z | **Merged #411** mobile W17; tip `8ff9d60a`. Next: #410 when Aggregate green.                                                        |
 | _(append)_        | Worker Aggregate green → squash-merge → disposition updates                                                                         |
