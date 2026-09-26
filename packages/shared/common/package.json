@@ -9,6 +9,7 @@
     "./interfaces": "./src/interfaces/index.ts",
     "./schemas": "./src/schemas/index.ts",
     "./constants": "./src/constants/index.ts",
+    "./jwt": "./src/jwt/decode.ts",
     "./exceptions": "./src/exceptions/index.ts"
   },
   "scripts": {

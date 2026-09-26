@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+import { isJwtFresh } from '@proctira/common/jwt';
+
 import { ADMIN_AUTH_COOKIES } from './lib/auth/cookies';
 import { isPublicPath } from './lib/auth/public-paths';
 import { sanitizeReturnTo } from './lib/auth/return-to';
@@ -13,17 +15,7 @@ const TOKEN_EXPIRY_BUFFER_SECONDS = 30;
  * here — the upstream auth-service does that.
  */
 function isAccessTokenFresh(token: string): boolean {
-  const parts = token.split('.');
-  if (parts.length !== 3) return false;
-
-  try {
-    const payload = JSON.parse(atob(parts[1]!)) as { exp?: number };
-    if (!payload.exp) return true;
-    const now = Math.floor(Date.now() / 1000);
-    return payload.exp - TOKEN_EXPIRY_BUFFER_SECONDS > now;
-  } catch {
-    return false;
-  }
+  return isJwtFresh(token, TOKEN_EXPIRY_BUFFER_SECONDS);
 }
 
 /**
