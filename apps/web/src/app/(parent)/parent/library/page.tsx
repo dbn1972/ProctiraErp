@@ -20,9 +20,7 @@ function firstFailure(
   return null;
 }
 
-function frameStatusFromKind(
-  kind: ListFailureKind | null,
-): 'ok' | 'forbidden' | 'error' {
+function frameStatusFromKind(kind: ListFailureKind | null): 'ok' | 'forbidden' | 'error' {
   if (!kind) return 'ok';
   if (kind === 'denied' || kind === 'unauthenticated') return 'forbidden';
   return 'error';

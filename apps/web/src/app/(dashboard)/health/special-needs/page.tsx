@@ -27,7 +27,11 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { canAccessHealthRecords, listSpecialNeedsResult, type SpecialNeedRecord } from '@/lib/api/health';
+import {
+  canAccessHealthRecords,
+  listSpecialNeedsResult,
+  type SpecialNeedRecord,
+} from '@/lib/api/health';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { cn } from '@/lib/utils';
 

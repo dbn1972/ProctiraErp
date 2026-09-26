@@ -35,11 +35,7 @@ export default async function LibraryOverduesPage() {
             Items past their due date that still need follow-up.
           </p>
         </div>
-        <ListLoadFailure
-          kind={result.kind}
-          status={result.status}
-          returnTo="/library/overdues"
-        />
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/library/overdues" />
       </div>
     );
   }

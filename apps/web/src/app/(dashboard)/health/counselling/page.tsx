@@ -93,11 +93,7 @@ export default async function CounsellingPage() {
         >
           Counselling sessions
         </h1>
-        <ListLoadFailure
-          kind={result.kind}
-          status={result.status}
-          returnTo="/health/counselling"
-        />
+        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/health/counselling" />
       </section>
     );
   }
