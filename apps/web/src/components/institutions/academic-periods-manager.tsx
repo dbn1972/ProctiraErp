@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { cn } from '@/lib/utils';
 import { AcademicPeriodFormDialog } from './academic-period-form-dialog';
@@ -128,14 +129,9 @@ export function AcademicPeriodsManager({ periods, loadError }: AcademicPeriodsMa
   const rows = buildRows(periods);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [deleteTarget, setDeleteTarget] = useState<AcademicPeriod | null>(null);
 
   const handleDelete = (period: AcademicPeriod) => {
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm(`Delete academic period "${period.name}"? This action cannot be undone.`)
-    ) {
-      return;
-    }
     setError(null);
     startTransition(async () => {
       const result = await deleteAcademicPeriodAction(period.id);
@@ -143,6 +139,7 @@ export function AcademicPeriodsManager({ periods, loadError }: AcademicPeriodsMa
         setError(result.error);
         return;
       }
+      setDeleteTarget(null);
       router.refresh();
     });
   };
@@ -313,7 +310,7 @@ export function AcademicPeriodsManager({ periods, loadError }: AcademicPeriodsMa
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(period)}
+                          onClick={() => setDeleteTarget(period)}
                           disabled={isPending || isActive}
                           aria-label={`Delete ${period.name}`}
                         >
@@ -341,6 +338,23 @@ export function AcademicPeriodsManager({ periods, loadError }: AcademicPeriodsMa
         initialValue={dialogState.initial}
         years={years}
         defaultParentId={dialogState.parentId ?? null}
+      />
+      <ConfirmActionDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title={
+          deleteTarget
+            ? `Delete academic period “${deleteTarget.name}”?`
+            : 'Delete academic period?'
+        }
+        description="This action cannot be undone. Nested terms and linked schedules may be affected."
+        confirmLabel="Delete period"
+        destructive
+        pending={isPending}
+        onConfirm={() => {
+          if (deleteTarget) handleDelete(deleteTarget);
+        }}
+        testId="academic-period-delete-confirm"
       />
     </Card>
   );

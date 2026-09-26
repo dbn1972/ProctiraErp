@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import {
   createNotificationRuleAction,
   deleteNotificationRuleAction,
@@ -218,6 +219,7 @@ function RuleRowActions({ rule }: { rule: NotificationRule }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<NotificationRulesActionState | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleToggle = (checked: boolean) => {
     startTransition(async () => {
@@ -231,7 +233,10 @@ function RuleRowActions({ rule }: { rule: NotificationRule }) {
     startTransition(async () => {
       const result = await deleteNotificationRuleAction(rule.id);
       setFeedback(result);
-      if (result.status === 'success') router.refresh();
+      if (result.status === 'success') {
+        setConfirmDelete(false);
+        router.refresh();
+      }
     });
   };
 
@@ -250,7 +255,7 @@ function RuleRowActions({ rule }: { rule: NotificationRule }) {
           type="button"
           variant="ghost"
           size="icon"
-          onClick={handleDelete}
+          onClick={() => setConfirmDelete(true)}
           disabled={pending}
           aria-label={`Delete ${rule.name}`}
           data-testid={`rule-delete-${rule.id}`}
@@ -259,6 +264,17 @@ function RuleRowActions({ rule }: { rule: NotificationRule }) {
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
+      <ConfirmActionDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete rule “${rule.name}”?`}
+        description="This notification rule will stop firing for future events. This cannot be undone from here."
+        confirmLabel="Delete rule"
+        destructive
+        pending={pending}
+        onConfirm={handleDelete}
+        testId={`rule-delete-confirm-${rule.id}`}
+      />
       <Feedback state={feedback} />
     </div>
   );

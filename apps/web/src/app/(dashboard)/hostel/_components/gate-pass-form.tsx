@@ -14,12 +14,20 @@ import {
   Input,
   Textarea,
 } from '@proctira/ui/components';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { Hostel } from '@/lib/api/hostel';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { requestGatePassAction } from '../../campus-ops-actions';
-import type { Hostel } from '@/lib/api/hostel';
 
-export function GatePassRequestForm({ hostels }: { hostels: Hostel[] }) {
+export function GatePassRequestForm({
+  hostels,
+  studentOptions = [],
+}: {
+  hostels: Hostel[];
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(null);
@@ -88,14 +96,15 @@ export function GatePassRequestForm({ hostels }: { hostels: Hostel[] }) {
               ))}
             </select>
           </FormField>
-          <FormField id="gp-student" label="Student UUID" required>
-            <Input
+          <div data-testid="hostel-gate-student">
+            <EntitySearchSelect
               id="gp-student"
               name="studentId"
-              className="h-11 min-h-11"
-              data-testid="hostel-gate-student"
+              label="Student"
+              options={studentOptions}
+              required
             />
-          </FormField>
+          </div>
           <FormField id="gp-who" label="Requested by">
             <select
               id="gp-who"

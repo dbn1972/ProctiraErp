@@ -10,6 +10,7 @@ import {
   isValidPhone,
   validateRequiredFields,
 } from '@/lib/validation';
+import { registrationErrorMessage } from '@/lib/error-messages';
 import { useRegistration } from './registration-context';
 
 interface PersonalInfoFormProps {
@@ -99,8 +100,7 @@ export function PersonalInfoForm({
   function errorMessage(key: string): string | undefined {
     const code = errors[key];
     if (!code) return undefined;
-    if (code === 'required') return t('common.required');
-    return code;
+    return registrationErrorMessage(t as (key: string) => string, code);
   }
 
   return (

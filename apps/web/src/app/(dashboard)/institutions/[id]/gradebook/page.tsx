@@ -100,7 +100,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
               {apiError}
               {sectionsResult.ok === false &&
                 sectionsResult.code === 'GRADEBOOK_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql on Postgres.'}
+                ' Gradebook storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>
@@ -109,9 +109,8 @@ export default async function InstitutionGradebookPage(props: PageProps) {
       {!apiError && sections.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            No sections for this institution yet. Seed with{' '}
-            <code className="text-xs">db/seeds/004_sis_gradebook_credit_section.sql</code> or create
-            sections from master schedule (WS2).
+            No sections for this institution yet. Create sections from the master schedule, or ask
+            an administrator to finish gradebook setup.
           </CardContent>
         </Card>
       ) : null}
@@ -193,7 +192,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   {jobs.slice(0, 5).map((job) => (
                     <li key={job.id}>
-                      Job {job.id.slice(0, 8)} · {job.status}
+                      Report card · {job.status}
                       {job.artifactUri ? ` · ${job.artifactUri}` : ''}
                     </li>
                   ))}

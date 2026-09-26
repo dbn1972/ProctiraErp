@@ -1,10 +1,13 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import { getTranslations } from 'next-intl/server';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { StatusCard } from '@/components/tracking/status-card';
 import { TrackingForm } from '@/components/tracking/tracking-form';
 import { checkApplicationStatus } from '@/lib/api';
+import { TRACK_DOB_COOKIE } from '@/lib/track-lookup';
 import { isValidDateOfBirth, isValidTrackingNumber } from '@/lib/validation';
 
 interface PageProps {
@@ -15,19 +18,22 @@ interface PageProps {
 /**
  * Application status detail page.
  *
- * Looks up the application server-side using the tracking number from the
- * URL path and verifies the supplied date of birth against the application's
- * stored DOB before showing the result. If the tracking number is invalid,
- * the DOB is missing or doesn't match, we render a friendly "not found"
- * message and a fresh tracking form so the user can correct their input.
+ * The date of birth comes from the httpOnly cookie set by POST /track/lookup.
+ * A `dob` query value is stripped and ignored so it is not kept in the address
+ * bar, history, or the next page's referrer.
  */
 export default async function TrackingDetailPage({ params, searchParams }: PageProps) {
   const t = await getTranslations('tracking');
   const { trackingNumber: rawTrackingNumber } = await params;
-  const { dob: rawDob } = await searchParams;
+  const query = await searchParams;
   const trackingNumber = decodeURIComponent(rawTrackingNumber).toUpperCase();
-  const dob = rawDob ?? '';
 
+  if (query.dob) {
+    redirect(`/track/${encodeURIComponent(trackingNumber)}`);
+  }
+
+  const cookieStore = await cookies();
+  const dob = cookieStore.get(TRACK_DOB_COOKIE)?.value ?? '';
   const valid = isValidTrackingNumber(trackingNumber) && isValidDateOfBirth(dob);
 
   let result: Awaited<ReturnType<typeof checkApplicationStatus>> = null;
@@ -39,9 +45,6 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
     }
   }
 
-  // The status response doesn't expose DOB, so we ask the backend to verify
-  // when implemented; for now we additionally require the DOB to be present
-  // and well-formed, and treat a missing DOB as "not found" for safety.
   const isMatch = valid && result !== null;
 
   return (

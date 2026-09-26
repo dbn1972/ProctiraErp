@@ -76,6 +76,11 @@ export default async function AuditPage({
               q={resolvedSearchParams.q ?? ''}
               resourceType={resolvedSearchParams.resourceType ?? ''}
               tenantId={resolvedSearchParams.tenantId ?? ''}
+              tenants={tenants.map((tenant) => ({
+                id: tenant.id,
+                name: tenant.name,
+                slug: tenant.slug,
+              }))}
             />
           </div>
           <Table>

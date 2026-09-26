@@ -1,4 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+
+import '../../../core/di/injector.dart';
+import '../../../core/storage/secure_storage.dart';
+import '../data/local_notification_preferences.dart';
 
 /// `/notifications/preferences` route — allows users to configure which
 /// notification channels and categories they want to receive push
@@ -13,26 +20,54 @@ class NotificationPreferencesScreen extends StatefulWidget {
 
 class _NotificationPreferencesScreenState
     extends State<NotificationPreferencesScreen> {
-  // Channel toggles.
-  bool _pushEnabled = true;
-  bool _emailEnabled = true;
-  bool _inAppEnabled = true;
+  LocalNotificationPreferences _prefs = const LocalNotificationPreferences();
 
-  // Category toggles.
-  bool _attendanceAlerts = true;
-  bool _workflowApprovals = true;
-  bool _reportReady = true;
-  bool _examResults = true;
-  bool _studentTransfers = true;
-  bool _systemAnnouncements = true;
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    final String? raw =
+        await getIt<SecureStorage>().readNotificationPreferences();
+    if (!mounted || raw == null || raw.isEmpty) {
+      return;
+    }
+    try {
+      final Object? decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        setState(() {
+          _prefs = LocalNotificationPreferences.fromJson(
+            Map<String, dynamic>.from(decoded),
+          );
+        });
+      }
+    } catch (_) {
+      // Keep defaults when the stored payload is unreadable.
+    }
+  }
+
+  void _update(LocalNotificationPreferences next) {
+    setState(() => _prefs = next);
+    unawaited(_persist(announce: false));
+  }
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Notification Preferences')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: <Widget>[
+          Text(
+            'Stored on this device only. These choices are not saved to your account.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 16),
           _SectionHeader(title: 'Channels'),
           const SizedBox(height: 8),
           _PrefCard(
@@ -42,27 +77,27 @@ class _NotificationPreferencesScreenState
                 tint: const Color(0xFF4F46E5),
                 title: 'Push notifications',
                 subtitle: 'Receive alerts on your device',
-                value: _pushEnabled,
+                value: _prefs.pushEnabled,
                 onChanged: (bool value) =>
-                    setState(() => _pushEnabled = value),
+                    _update(_prefs.copyWith(pushEnabled: value)),
               ),
               _PrefSwitch(
                 icon: Icons.email_outlined,
                 tint: const Color(0xFF0EA5E9),
                 title: 'Email notifications',
                 subtitle: 'Receive alerts via email',
-                value: _emailEnabled,
+                value: _prefs.emailEnabled,
                 onChanged: (bool value) =>
-                    setState(() => _emailEnabled = value),
+                    _update(_prefs.copyWith(emailEnabled: value)),
               ),
               _PrefSwitch(
                 icon: Icons.inbox_outlined,
                 tint: const Color(0xFF14B8A6),
                 title: 'In-app notifications',
                 subtitle: 'Show in the notification inbox',
-                value: _inAppEnabled,
+                value: _prefs.inAppEnabled,
                 onChanged: (bool value) =>
-                    setState(() => _inAppEnabled = value),
+                    _update(_prefs.copyWith(inAppEnabled: value)),
               ),
             ],
           ),
@@ -76,54 +111,54 @@ class _NotificationPreferencesScreenState
                 tint: const Color(0xFF10B981),
                 title: 'Attendance alerts',
                 subtitle: 'Absence threshold warnings',
-                value: _attendanceAlerts,
+                value: _prefs.attendanceAlerts,
                 onChanged: (bool value) =>
-                    setState(() => _attendanceAlerts = value),
+                    _update(_prefs.copyWith(attendanceAlerts: value)),
               ),
               _PrefSwitch(
                 icon: Icons.assignment_turned_in_outlined,
                 tint: const Color(0xFF4F46E5),
                 title: 'Workflow approvals',
                 subtitle: 'Pending approval requests',
-                value: _workflowApprovals,
+                value: _prefs.workflowApprovals,
                 onChanged: (bool value) =>
-                    setState(() => _workflowApprovals = value),
+                    _update(_prefs.copyWith(workflowApprovals: value)),
               ),
               _PrefSwitch(
                 icon: Icons.insert_chart_outlined,
                 tint: const Color(0xFF8B5CF6),
                 title: 'Report ready',
                 subtitle: 'When a generated report is available',
-                value: _reportReady,
+                value: _prefs.reportReady,
                 onChanged: (bool value) =>
-                    setState(() => _reportReady = value),
+                    _update(_prefs.copyWith(reportReady: value)),
               ),
               _PrefSwitch(
                 icon: Icons.school_outlined,
                 tint: const Color(0xFFF59E0B),
                 title: 'Exam results',
                 subtitle: 'Examination result publications',
-                value: _examResults,
+                value: _prefs.examResults,
                 onChanged: (bool value) =>
-                    setState(() => _examResults = value),
+                    _update(_prefs.copyWith(examResults: value)),
               ),
               _PrefSwitch(
                 icon: Icons.swap_horiz_outlined,
                 tint: const Color(0xFF0EA5E9),
                 title: 'Student transfers',
                 subtitle: 'Transfer request notifications',
-                value: _studentTransfers,
+                value: _prefs.studentTransfers,
                 onChanged: (bool value) =>
-                    setState(() => _studentTransfers = value),
+                    _update(_prefs.copyWith(studentTransfers: value)),
               ),
               _PrefSwitch(
                 icon: Icons.campaign_outlined,
                 tint: const Color(0xFF64748B),
                 title: 'System announcements',
                 subtitle: 'Platform updates and maintenance',
-                value: _systemAnnouncements,
+                value: _prefs.systemAnnouncements,
                 onChanged: (bool value) =>
-                    setState(() => _systemAnnouncements = value),
+                    _update(_prefs.copyWith(systemAnnouncements: value)),
               ),
             ],
           ),
@@ -138,11 +173,34 @@ class _NotificationPreferencesScreenState
   }
 
   Future<void> _savePreferences() async {
-    // In a production app this would call the backend API to persist
-    // preferences. For now we show a confirmation snackbar.
-    if (!mounted) return;
+    await _persist(announce: true);
+  }
+
+  Future<void> _persist({required bool announce}) async {
+    try {
+      await getIt<SecureStorage>().writeNotificationPreferences(
+        jsonEncode(_prefs.toJson()),
+      );
+    } catch (_) {
+      if (!mounted || !announce) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not save preferences on this device.'),
+        ),
+      );
+      return;
+    }
+    if (!mounted || !announce) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Preferences saved')),
+      const SnackBar(
+        content: Text(
+          'Saved on this device. These choices are not synced to your account.',
+        ),
+      ),
     );
   }
 }

@@ -13,6 +13,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 import { createRouteStopAction, deleteRouteStopAction } from '../actions';
 import type { RouteStop } from '@/lib/transport/api';
@@ -21,6 +22,7 @@ export function StopsManager({ routeId, stops }: { routeId: string; stops: Route
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
+  const [removeStopId, setRemoveStopId] = useState<string | null>(null);
 
   useEffect(() => {
     setHydrated(true);
@@ -177,12 +179,7 @@ export function StopsManager({ routeId, stops }: { routeId: string; stops: Route
                     type="button"
                     variant="outline"
                     disabled={pending}
-                    onClick={() => {
-                      startTransition(async () => {
-                        const result = await deleteRouteStopAction(stop.id, routeId);
-                        if (result.status === 'error') setError(result.message ?? 'Failed');
-                      });
-                    }}
+                    onClick={() => setRemoveStopId(stop.id)}
                   >
                     <Trash2 className="me-1.5 h-4 w-4" aria-hidden="true" />
                     Remove
@@ -193,6 +190,27 @@ export function StopsManager({ routeId, stops }: { routeId: string; stops: Route
           )}
         </CardContent>
       </Card>
+      <ConfirmActionDialog
+        open={Boolean(removeStopId)}
+        onOpenChange={(open) => !open && setRemoveStopId(null)}
+        title="Remove this stop?"
+        description="The stop will be deleted from the route. Assignments that relied on it may need updating."
+        confirmLabel="Remove stop"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          if (!removeStopId) return;
+          startTransition(async () => {
+            const result = await deleteRouteStopAction(removeStopId, routeId);
+            if (result.status === 'error') {
+              setError(result.message ?? 'Failed');
+              return;
+            }
+            setRemoveStopId(null);
+          });
+        }}
+        testId="transport-stop-remove-confirm"
+      />
     </div>
   );
 }

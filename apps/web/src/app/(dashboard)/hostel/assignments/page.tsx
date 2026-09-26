@@ -18,6 +18,8 @@ import {
   listHostelFeeStructures,
   listHostels,
 } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { HostelFeeStructureForm } from '../_components/fee-structure-form';
 import { NewHostelAssignmentForm } from '../_components/new-assignment-form';
 
@@ -25,12 +27,15 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelAssignmentsPage() {
   await requireSession();
-  const [assignments, beds, hostels, feeStructures] = await Promise.all([
+  const [assignments, beds, hostels, feeStructures, studentOptions] = await Promise.all([
     listHostelAssignments(),
     listHostelBeds(),
     listHostels(),
     listHostelFeeStructures(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  const bedLabels = new Map(beds.map((bed) => [bed.id, bed.bedLabel]));
 
   return (
     <div className="space-y-6 p-6">
@@ -38,7 +43,7 @@ export default async function HostelAssignmentsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Assignments</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Student bed assignments via GET/POST `/hostel/assignments`.
+            Student bed assignments for this hostel.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -47,7 +52,11 @@ export default async function HostelAssignmentsPage() {
       </div>
 
       <HostelFeeStructureForm hostels={hostels} />
-      <NewHostelAssignmentForm beds={beds} feeStructures={feeStructures} />
+      <NewHostelAssignmentForm
+        beds={beds}
+        feeStructures={feeStructures}
+        studentOptions={studentOptions}
+      />
 
       <Card>
         <CardHeader>
@@ -68,7 +77,8 @@ export default async function HostelAssignmentsPage() {
               {assignments.map((row) => (
                 <li key={row.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">
-                    Student {row.studentId.slice(0, 8)} · bed {row.bedId.slice(0, 8)}
+                    {resolveEntityLabel(row.studentId, studentLabels, 'Student')} · bed{' '}
+                    {resolveEntityLabel(row.bedId, bedLabels, 'Bed')}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     from {row.startDate}

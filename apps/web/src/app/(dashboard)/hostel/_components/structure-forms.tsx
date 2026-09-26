@@ -64,7 +64,7 @@ export function NewBlockForm({ hostels }: { hostels: Hostel[] }) {
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Add block</CardTitle>
-        <CardDescription>Creates a block via POST `/hostel/blocks`.</CardDescription>
+        <CardDescription>Add a block within a hostel.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -159,7 +159,7 @@ export function NewRoomForm({ blocks }: { blocks: HostelBlock[] }) {
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Add room</CardTitle>
-        <CardDescription>Creates a room via POST `/hostel/rooms`.</CardDescription>
+        <CardDescription>Add a room within a block.</CardDescription>
       </CardHeader>
       <CardContent>
         <form
@@ -255,7 +255,7 @@ export function NewBedForm({ rooms }: { rooms: HostelRoom[] }) {
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Add bed</CardTitle>
-        <CardDescription>Creates a bed via POST `/hostel/beds`.</CardDescription>
+        <CardDescription>Add a bed within a room.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

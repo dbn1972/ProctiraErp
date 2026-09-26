@@ -19,6 +19,8 @@ import {
 import { canAccessPhiAccessLogs, listPhiAccessLogs } from '@/lib/api/health';
 import { PhiAccessDenied } from '@/lib/auth/health-route-guards';
 import { requireSession } from '@/lib/auth/server';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +29,10 @@ export default async function PhiAccessPage() {
   if (!canAccessPhiAccessLogs(session.user.roles ?? [])) {
     return <PhiAccessDenied />;
   }
-  const { rows, accessDenied } = await listPhiAccessLogs();
+  const [{ rows, accessDenied }, studentLabels] = await Promise.all([
+    listPhiAccessLogs(),
+    loadStudentLabelMap(),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -71,10 +76,10 @@ export default async function PhiAccessPage() {
                     <TableCell className="text-xs">
                       {r.createdAt.slice(0, 19).replace('T', ' ')}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {r.actorUserId.slice(0, 8)}…
+                    <TableCell>{resolveEntityLabel(r.actorUserId, {}, 'User')}</TableCell>
+                    <TableCell>
+                      {resolveEntityLabel(r.studentId, studentLabels, 'Student')}
                     </TableCell>
-                    <TableCell className="font-mono text-xs">{r.studentId.slice(0, 8)}…</TableCell>
                     <TableCell>{r.resourceType}</TableCell>
                     <TableCell>{r.action}</TableCell>
                   </TableRow>

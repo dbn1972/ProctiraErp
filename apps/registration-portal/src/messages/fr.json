@@ -88,7 +88,10 @@
     "institutionRequiredTitle": "Sélectionnez d'abord une école",
     "retryConfiguration": "Réessayer",
     "chooseInstitution": "Choisir une école",
-    "fixFieldErrors": "Veuillez corriger les champs en surbrillance avant de soumettre."
+    "fixFieldErrors": "Veuillez corriger les champs en surbrillance avant de soumettre.",
+    "trackingMissingTitle": "Ce navigateur n'a pas votre numéro de suivi",
+    "trackingMissingBody": "Si vous l'avez noté, ouvrez Suivi et saisissez-le avec la date de naissance de l'élève. Sinon, contactez le bureau des admissions de l'école. Cette page ne peut pas le retrouver.",
+    "schoolNameUnavailable": "Le nom de l'école n'a pas pu être chargé"
   },
   "documents": {
     "title": "Téléverser des documents",
@@ -151,6 +154,31 @@
     "statusApproved": "Approuvée",
     "statusRejected": "Refusée",
     "statusWaitlisted": "Liste d'attente"
+  },
+  "errors": {
+    "validation": "Certains renseignements doivent être corrigés avant de continuer.",
+    "unavailable": "Le service d'inscription est indisponible. Réessayez dans un moment.",
+    "contextMissing": "Nous n'avons pas pu rattacher cette inscription à une école. Choisissez une école et réessayez.",
+    "unknown": "Une erreur s'est produite. Veuillez réessayer."
+  },
+  "legal": {
+    "privacyTitle": "Avis de confidentialité",
+    "privacyLead": "Cet avis s'adresse aux familles qui utilisent ce portail pour déposer une demande auprès d'une école. Il décrit les renseignements que vous envoyez ici. L'école ou l'autorité éducative exploite le portail pour ses propres admissions. Ce n'est pas l'avis d'un système de démonstration.",
+    "privacyCollectTitle": "Ce que vous envoyez",
+    "privacyCollect": "Le portail recueille les renseignements saisis, comme le nom et la date de naissance de l'élève, les coordonnées du tuteur, les documents et le numéro de suivi de cette demande.",
+    "privacyUseTitle": "Utilisation",
+    "privacyUse": "L'école utilise ces renseignements pour recevoir, examiner et répondre à la demande. La consultation du statut demande le numéro de suivi et la date de naissance afin que la date ne figure pas dans l'adresse de la page.",
+    "privacyContact": "Pour une question sur les renseignements d'un enfant, contactez le bureau des admissions de l'école concernée.",
+    "termsTitle": "Conditions d'utilisation",
+    "termsLead": "Ces conditions couvrent l'usage de ce portail pour déposer une demande auprès d'une école. Elles ne décrivent pas un environnement de démonstration et ne remplacent pas l'accord que vous avez avec l'école.",
+    "termsUseTitle": "Votre demande",
+    "termsUse": "Fournissez des renseignements exacts au mieux de votre connaissance. N'utilisez un numéro de suivi que pour la demande à laquelle il appartient.",
+    "termsSchoolTitle": "Décision de l'école",
+    "termsSchool": "L'école décide d'offrir une place ou non. Déposer une demande est une requête, pas une inscription.",
+    "contactTitle": "Contacter l'école",
+    "contactLead": "Les questions sur une demande, un document ou une décision s'adressent au bureau des admissions de l'école. Ce portail ne publie pas un service d'assistance distinct.",
+    "contactTrackTitle": "Si vous avez un numéro de suivi",
+    "contactTrack": "Si vous avez noté un numéro de suivi, utilisez Suivi avec la date de naissance de l'élève."
   },
   "footer": {
     "copyright": "© {year} ProctiraERP. Tous droits réservés.",

@@ -41,11 +41,13 @@ export interface TimetableRoutesOptions {
 }
 
 function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | undefined {
+  // SEC-2: `x-tenant-id` is a client-supplied header and must never be trusted as a
+  // tenant source. The gateway overwrites it with the JWT-verified tenant before
+  // proxying (see apps/api-gateway/src/plugins/service-router.ts), but this package
+  // has no standalone boot path, so there is no legitimate case where tenant identity
+  // should fall back to it. Resolve strictly from server-verified sources.
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
-  const tenantId =
-    user?.tenantId ??
-    (request as FastifyRequest & { tenantId?: string }).tenantId ??
-    (request.headers['x-tenant-id'] as string | undefined);
+  const tenantId = user?.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (!tenantId) {
     reply.status(401).send({
       code: 'UNAUTHORIZED',
@@ -84,8 +86,9 @@ function requireAction(
 }
 
 function ifMatchOf(request: FastifyRequest): string | undefined {
-  const header = request.headers['if-match'];
-  const raw = Array.isArray(header) ? header[0] : header;
+  const headers: Record<string, string | string[] | undefined> = request.headers;
+  const header = headers['if-match'];
+  const raw: string | undefined = Array.isArray(header) ? header[0] : header;
   return normalizeIfMatchToken(raw);
 }
 

@@ -41,6 +41,8 @@ import type {
   ExamOpsSession,
   Examination,
 } from '@/lib/api/examinations';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 function Feedback({ state }: { state: ActionState | null }) {
   if (!state || state.status === 'idle') return null;
@@ -62,6 +64,10 @@ export interface ExamOpsPanelProps {
   seats: ExamOpsSeat[];
   marks: ExamOpsMarksPair[];
   reevaluations: ExamOpsReevaluation[];
+  staffLabels?: Record<string, string>;
+  candidateLabels?: Record<string, string>;
+  staffOptions?: EntityLabelOption[];
+  candidateOptions?: EntityLabelOption[];
 }
 
 export function ExamOpsPanel({
@@ -71,6 +77,10 @@ export function ExamOpsPanel({
   seats,
   marks,
   reevaluations,
+  staffLabels = {},
+  candidateLabels = {},
+  staffOptions = [],
+  candidateOptions = [],
 }: ExamOpsPanelProps) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -199,9 +209,9 @@ export function ExamOpsPanel({
                     <TableCell>{session.roomId}</TableCell>
                     <TableCell>
                       {(invigilatorsBySession[session.id] ?? []).map((inv) => (
-                        <code key={inv.id} className="me-1 text-xs">
-                          {inv.staffId.slice(0, 8)}
-                        </code>
+                        <span key={inv.id} className="me-2 text-xs">
+                          {resolveEntityLabel(inv.staffId, staffLabels, 'Staff')}
+                        </span>
                       ))}
                     </TableCell>
                     <TableCell>
@@ -219,17 +229,18 @@ export function ExamOpsPanel({
                           );
                         }}
                       >
-                        <Input
+                        <EntitySearchSelect
+                          id={`staff-${session.id}`}
                           name="staffId"
+                          label={`Staff for session ${session.roomId}`}
+                          options={staffOptions}
                           required
-                          placeholder="Staff UUID"
-                          pattern="[0-9a-fA-F-]{36}"
-                          aria-label={`Staff for session ${session.roomId}`}
+                          className="min-w-[12rem] space-y-1.5"
                         />
                         <Button
                           type="submit"
                           size="sm"
-                          disabled={isPending}
+                          disabled={isPending || staffOptions.length === 0}
                           data-testid="allocate-invigilator"
                         >
                           Assign
@@ -282,9 +293,7 @@ export function ExamOpsPanel({
                   <TableRow key={seat.id} data-testid="exam-seat-row">
                     <TableCell>{seat.seatNumber}</TableCell>
                     <TableCell>{seat.roomNumber}</TableCell>
-                    <TableCell>
-                      <code className="text-xs">{seat.studentName}</code>
-                    </TableCell>
+                    <TableCell>{seat.studentName || 'Student'}</TableCell>
                     <TableCell>{seat.centerName}</TableCell>
                   </TableRow>
                 ))}
@@ -320,10 +329,13 @@ export function ExamOpsPanel({
               );
             }}
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="marks-candidate">Candidate ID</Label>
-              <Input id="marks-candidate" name="candidateId" required pattern="[0-9a-fA-F-]{36}" />
-            </div>
+            <EntitySearchSelect
+              id="marks-candidate"
+              name="candidateId"
+              label="Candidate"
+              options={candidateOptions}
+              required
+            />
             <div className="space-y-1.5">
               <Label htmlFor="marks-subject">Subject</Label>
               <select
@@ -382,7 +394,7 @@ export function ExamOpsPanel({
                     data-testid="marks-pair-row"
                   >
                     <TableCell>
-                      <code className="text-xs">{pair.candidateId.slice(0, 8)}</code>
+                      {resolveEntityLabel(pair.candidateId, candidateLabels, 'Candidate')}
                     </TableCell>
                     <TableCell>{pair.entry1?.marks ?? '—'}</TableCell>
                     <TableCell>{pair.entry2?.marks ?? '—'}</TableCell>
@@ -466,10 +478,13 @@ export function ExamOpsPanel({
               );
             }}
           >
-            <div className="space-y-1.5">
-              <Label htmlFor="reeval-candidate">Candidate ID</Label>
-              <Input id="reeval-candidate" name="candidateId" required pattern="[0-9a-fA-F-]{36}" />
-            </div>
+            <EntitySearchSelect
+              id="reeval-candidate"
+              name="candidateId"
+              label="Candidate"
+              options={candidateOptions}
+              required
+            />
             <div className="space-y-1.5">
               <Label htmlFor="reeval-subject">Subject</Label>
               <select
@@ -515,7 +530,7 @@ export function ExamOpsPanel({
                       <Badge>{row.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs">{row.candidateId.slice(0, 8)}</code>
+                      {resolveEntityLabel(row.candidateId, candidateLabels, 'Candidate')}
                     </TableCell>
                     <TableCell>
                       {row.originalMarks ?? '—'}
@@ -537,14 +552,20 @@ export function ExamOpsPanel({
                             );
                           }}
                         >
-                          <Input
+                          <EntitySearchSelect
+                            id={`evaluator-${row.id}`}
                             name="evaluatorId"
+                            label="Evaluator"
+                            options={staffOptions}
                             required
-                            placeholder="Evaluator UUID"
-                            pattern="[0-9a-fA-F-]{36}"
-                            aria-label="Evaluator"
+                            className="min-w-[12rem] space-y-1.5"
                           />
-                          <Button type="submit" size="sm" data-testid="assign-reevaluation">
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={staffOptions.length === 0}
+                            data-testid="assign-reevaluation"
+                          >
                             Assign
                           </Button>
                         </form>

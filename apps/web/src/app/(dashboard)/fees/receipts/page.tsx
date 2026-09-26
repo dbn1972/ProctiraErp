@@ -3,7 +3,9 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listReceipts } from '@/lib/api/fees';
+import { listInvoicesResult, listReceiptsResult } from '@/lib/api/fees';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 import { getLocale } from 'next-intl/server';
 
@@ -14,7 +16,35 @@ export const dynamic = 'force-dynamic';
 export default async function FeesReceiptsPage() {
   await requireSession();
   const locale = await getLocale();
-  const receipts = await listReceipts('staff');
+  const [receiptsResult, invoicesResult] = await Promise.all([
+    listReceiptsResult('staff'),
+    listInvoicesResult('staff'),
+  ]);
+  if (!receiptsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee receipts</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Issued after sandbox (or recorded) payment. Live PSP waived for this slice.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={receiptsResult.kind}
+          status={receiptsResult.status}
+          returnTo="/fees/receipts"
+        />
+      </div>
+    );
+  }
+  const receipts = receiptsResult.items;
+  const invoices = invoicesResult.ok ? invoicesResult.items : [];
+  const invoiceLabels = new Map(
+    invoices.map((invoice) => [
+      invoice.id,
+      invoice.invoiceNumber?.trim() || invoice.title || 'Invoice',
+    ]),
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -47,8 +77,9 @@ export default async function FeesReceiptsPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{receipt.receiptNumber}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(receipt.amountCents, receipt.currency, locale)} · invoice{' '}
-                    {receipt.invoiceId.slice(0, 8)}… · {new Date(receipt.issuedAt).toLocaleString()}
+                    {formatAmount(receipt.amountCents, receipt.currency, locale)} ·{' '}
+                    {resolveEntityLabel(receipt.invoiceId, invoiceLabels, 'Invoice')} ·{' '}
+                    {new Date(receipt.issuedAt).toLocaleString()}
                   </p>
                 </li>
               ))}

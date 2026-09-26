@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Textarea } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { getTheme } from '@/lib/api/themes';
 import { requireRole } from '@/lib/auth/server';
 import { formatDateTime } from '@/lib/utils';
@@ -77,7 +78,17 @@ export default async function ThemeDetailPage({ params }: { params: Promise<{ id
           <CardContent>
             <form action={themeDecisionAction} className="space-y-3">
               <input type="hidden" name="id" value={theme.id} />
-              <Textarea name="reason" required minLength={10} placeholder="Reviewer notes…" />
+              <div className="space-y-1.5">
+                <Label htmlFor="reviewer-notes">Reviewer notes</Label>
+                <Textarea
+                  id="reviewer-notes"
+                  name="reason"
+                  required
+                  minLength={10}
+                  aria-label="Reviewer notes"
+                  placeholder="What did you check before this decision?"
+                />
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <Button type="submit" name="action" value="approve">
                   Approve

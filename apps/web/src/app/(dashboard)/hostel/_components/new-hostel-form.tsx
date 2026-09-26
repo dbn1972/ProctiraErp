@@ -65,7 +65,7 @@ export function NewHostelForm() {
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Add hostel</CardTitle>
-        <CardDescription>Creates a hostel via POST `/hostel`.</CardDescription>
+        <CardDescription>Add a hostel building to the register.</CardDescription>
       </CardHeader>
       <CardContent>
         <form

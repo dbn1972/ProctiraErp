@@ -13,19 +13,23 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { HostelBlock } from '@/lib/api/hostel';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { recordHostelAttendanceAction } from '../../campus-ops-actions';
-import type { HostelBlock } from '@/lib/api/hostel';
 
 export function HostelAttendanceForm({
   blocks,
   defaultBlockId,
   defaultDate,
+  studentOptions = [],
 }: {
   blocks: HostelBlock[];
   defaultBlockId?: string;
   defaultDate: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -92,9 +96,13 @@ export function HostelAttendanceForm({
               ))}
             </select>
           </FormField>
-          <FormField id="att-student" label="Student UUID" required>
-            <Input id="att-student" name="studentId" className="h-11 min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="att-student"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <FormField id="att-date" label="Date" required>
             <Input
               id="att-date"

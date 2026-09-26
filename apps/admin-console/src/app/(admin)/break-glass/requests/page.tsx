@@ -11,6 +11,7 @@ import { listBreakGlassRequests } from '@/lib/api/break-glass';
 import { listTenants } from '@/lib/api/tenants';
 import { hasRole } from '@/lib/auth';
 import { requireRole } from '@/lib/auth/server';
+import { requesterMatchesSession } from '@/lib/same-operator';
 import { formatDateTime } from '@/lib/utils';
 
 import { ApprovalActions } from './approval-actions';
@@ -23,7 +24,7 @@ import { ApprovalActions } from './approval-actions';
 export default async function BreakGlassRequestsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ submitted?: string }>;
+  searchParams: Promise<{ submitted?: string; blocked?: string }>;
 }) {
   const session = await requireRole('breakGlassRequest', '/break-glass/requests');
   const resolvedSearchParams = await searchParams;
@@ -61,6 +62,14 @@ export default async function BreakGlassRequestsPage({
       />
 
       <StubDataBanner source={source} />
+
+      {resolvedSearchParams.blocked === 'own-request' && (
+        <Alert variant="warning" className="mb-6">
+          <AlertDescription>
+            Approval was blocked because you filed this request. Another operator must approve it.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {resolvedSearchParams.submitted && (
         <Alert variant="success" className="mb-6">
@@ -122,7 +131,11 @@ export default async function BreakGlassRequestsPage({
                 </blockquote>
                 {canDecide && (
                   <div className="border-t border-border pt-4">
-                    <ApprovalActions id={request.id} status={request.status} />
+                    <ApprovalActions
+                      id={request.id}
+                      status={request.status}
+                      canApprove={!requesterMatchesSession(request.requester, session.user)}
+                    />
                   </div>
                 )}
               </CardContent>
@@ -160,7 +173,13 @@ export default async function BreakGlassRequestsPage({
                     : formatDateTime(request.createdAt)}
                 </span>
                 <StatusBadge status={request.status} />
-                {canDecide && <ApprovalActions id={request.id} status={request.status} />}
+                {canDecide && (
+                  <ApprovalActions
+                    id={request.id}
+                    status={request.status}
+                    canApprove={!requesterMatchesSession(request.requester, session.user)}
+                  />
+                )}
               </div>
             </div>
           ))}

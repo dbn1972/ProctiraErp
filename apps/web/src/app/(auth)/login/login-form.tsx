@@ -106,9 +106,9 @@ export function LoginForm(): JSX.Element {
             <a
               href={`${AUTH_ENDPOINTS.KEYCLOAK}?returnTo=${encodeURIComponent(returnTo)}`}
               data-testid="keycloak-sso"
-              aria-label="Sign in with Keycloak SSO"
+              aria-label="Sign in with your organization"
             >
-              Sign in with SSO (Keycloak)
+              Sign in with your organization
             </a>
           </Button>
         </div>

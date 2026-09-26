@@ -135,4 +135,42 @@ describe('gradebook routes G-907', () => {
     const rows = listed.json().data as Array<{ id: string }>;
     expect(rows.map((r) => r.id)).toContain(entry.id);
   });
+
+  describe('SEC-2 tenant resolution', () => {
+    it('rejects a request that only supplies x-tenant-id via header (no user.tenantId, no request.tenantId)', async () => {
+      await app.close();
+      app = Fastify({ logger: false });
+      // Deliberately do NOT set user.tenantId/request.tenantId, to simulate a
+      // request that never went through a trusted tenant-resolution hook.
+      app.addHook('onRequest', async (request) => {
+        (request as FastifyRequest & { user: { id: string; roles: string[] } }).user = {
+          id: 'actor-1',
+          roles: ['admin'],
+        };
+      });
+      await app.register(gradebookPlugin, {
+        repository: repo,
+        extras: new InMemoryGradebookExtrasStore(),
+        prefix: '/gradebook',
+      });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'PUT',
+        url: '/gradebook/entries',
+        headers: { 'x-tenant-id': TENANT },
+        payload: {
+          sectionId: SECTION,
+          studentId: STUDENT,
+          assessmentCode: 'MATH',
+          numericScore: 95,
+        },
+      });
+
+      // Must NOT resolve a tenant from the header and proceed (200); it must
+      // fail the tenant-context check.
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toMatchObject({ code: 'UNAUTHORIZED' });
+    });
+  });
 });

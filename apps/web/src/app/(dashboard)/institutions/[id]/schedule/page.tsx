@@ -75,7 +75,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
               {apiError}
               {sectionsResult.ok === false &&
                 sectionsResult.code === 'TIMETABLE_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql.'}
+                ' Schedule storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>
@@ -95,9 +95,10 @@ export default async function InstitutionSchedulePage(props: PageProps) {
                         {c.reason}
                       </span>
                       {' · '}
-                      day {c.dayOfWeek} · period {c.periodId.slice(0, 8)}
-                      {c.staffId ? ` · staff ${c.staffId.slice(0, 8)}` : ''}
-                      {c.roomId ? ` · room ${c.roomId.slice(0, 8)}` : ''}
+                      day {c.dayOfWeek}
+                      {c.staffId ? ' · staff conflict' : ''}
+                      {c.roomId ? ' · room conflict' : ''}
+                      {!c.staffId && !c.roomId ? ' · period conflict' : ''}
                     </li>
                   ))}
                 </ul>
@@ -150,8 +151,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
                             {section.defaultRoomId
-                              ? (roomLabel.get(section.defaultRoomId) ??
-                                section.defaultRoomId.slice(0, 8))
+                              ? (roomLabel.get(section.defaultRoomId) ?? 'Assigned room')
                               : '—'}
                           </td>
                           <td className="px-4 py-3 tabular-nums">{section.capacity}</td>
