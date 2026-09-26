@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
 import { Alert, AlertDescription, Button, MfaCodeInput } from '@proctira/ui/components';
-import { sanitizeReturnTo, verifyMfa } from '@/lib/auth';
+import { resendMfa, sanitizeReturnTo, verifyMfa } from '@/lib/auth';
 
 const CODE_LENGTH = 6;
 
@@ -23,11 +23,14 @@ export function MfaForm(): JSX.Element {
 
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setStatus(null);
 
     if (!token) {
       setError(t('mfaTokenMissing'));
@@ -51,6 +54,23 @@ export function MfaForm(): JSX.Element {
     setCode('');
   }
 
+  async function handleResend() {
+    setError(null);
+    setStatus(null);
+    if (!token) {
+      setError(t('mfaTokenMissing'));
+      return;
+    }
+    setIsResending(true);
+    const result = await resendMfa(token);
+    setIsResending(false);
+    if (result.success) {
+      setStatus(result.message ?? t('resend'));
+      return;
+    }
+    setError(result.message ?? t('mfaInvalid'));
+  }
+
   return (
     <div className="w-full max-w-[400px]">
       <div className="mb-4 flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-accent/10 text-accent">
@@ -66,18 +86,23 @@ export function MfaForm(): JSX.Element {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      {status && !error ? (
+        <Alert className="mt-5">
+          <AlertDescription>{status}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-6">
         <MfaCodeInput
           value={code}
           onChange={setCode}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isResending}
           autoFocus
           ariaLabel={t('verificationCode')}
           digitLabel={(n) => t('digitNumber', { number: n })}
         />
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
+        <Button type="submit" className="w-full" disabled={isSubmitting || isResending}>
           {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
           {isSubmitting ? t('verifying') : t('verify')}
         </Button>
@@ -88,10 +113,13 @@ export function MfaForm(): JSX.Element {
           {t('didntReceiveCode')}{' '}
           <button
             type="button"
-            className="inline-flex min-h-12 items-center font-medium text-primary hover:underline"
-            disabled={isSubmitting}
+            className="inline-flex min-h-12 items-center font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={isSubmitting || isResending || !token}
+            onClick={() => {
+              void handleResend();
+            }}
           >
-            {t('resend')}
+            {isResending ? t('verifying') : t('resend')}
           </button>
         </p>
         <p>
