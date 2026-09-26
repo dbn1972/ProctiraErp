@@ -62,12 +62,7 @@ export default async function NewInstitutionPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <InstitutionForm
-            areas={lookups.areas}
-            types={lookups.types}
-            sectors={lookups.sectors}
-            ownerships={lookups.ownerships}
-          />
+          <InstitutionForm areas={lookups.areas} areaError={lookups.areaError} />
         </CardContent>
       </Card>
     </section>

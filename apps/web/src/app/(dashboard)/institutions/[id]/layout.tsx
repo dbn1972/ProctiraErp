@@ -15,12 +15,7 @@ import { cn } from '@/lib/utils';
 import { InstitutionTabs } from '@/components/institutions/institution-tabs';
 import { ApiClientError, getInstitution } from '@/lib/institutions/api';
 import type { Institution } from '@/lib/institutions/types';
-import {
-  loadAreaOptions,
-  loadOwnershipOptions,
-  loadSectorOptions,
-  loadTypeOptions,
-} from '@/lib/institutions/lookups';
+import { loadAreaOptions } from '@/lib/institutions/lookups';
 
 interface InstitutionLayoutProps {
   params: Promise<{ id: string }>;
@@ -49,16 +44,15 @@ export default async function InstitutionLayout({ params, children }: Institutio
     notFound();
   }
 
-  const [areas, types, sectors, ownerships] = await Promise.all([
-    loadAreaOptions(),
-    loadTypeOptions(),
-    loadSectorOptions(),
-    loadOwnershipOptions(),
-  ]);
+  // `sectors` and `ownerships` were loaded here and never read; they only
+  // existed to map an id to a label, and these fields carry no ids.
+  const areas = await loadAreaOptions();
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
   const areaName = nameFor(areas, institution.areaId);
-  const typeName = nameFor(types, institution.typeId);
+  // `typeId` holds the vocabulary code itself (`K12`), not a reference, so it
+  // is already the display value. There is no institution-type table to join.
+  const typeName = institution.typeId;
   const medium = readStr(cd, 'medium');
   const isActive = institution.status === 'ACTIVE';
 

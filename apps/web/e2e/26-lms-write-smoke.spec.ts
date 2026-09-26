@@ -100,7 +100,15 @@ test.describe('LMS — client validation (ungated)', () => {
   test('/lms/pal rejects an invalid learner id client-side', async ({ page }) => {
     await page.goto('/lms/pal', { waitUntil: 'domcontentloaded' });
     const form = page.getByTestId('pal-lookup-form');
-    await expect(form).toHaveAttribute('data-hydrated', 'true');
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    await expect(async () => {
+      await expect(form).toHaveCount(1, { timeout: 2_000 });
+      await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     const input = form.locator('input');
     if ((await input.count()) > 0) {
       await input.fill('not-a-uuid');
@@ -286,7 +294,10 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
     await page.goto('/lms/pal', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     const form = page.getByTestId('pal-lookup-form');
-    await expect(form).toHaveAttribute('data-hydrated', 'true');
+    await expect(async () => {
+      await expect(form).toHaveCount(1, { timeout: 2_000 });
+      await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     const input = form.locator('input');
     if ((await input.count()) > 0) {
       await input.fill(STUDENT_ID);

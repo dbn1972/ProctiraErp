@@ -37,9 +37,24 @@ function stamp() {
   return Date.now().toString(36).slice(-6).toUpperCase();
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute`/`toBeVisible` do not retry past a Playwright strict-mode
+ * violation (throws immediately on multiple matches), so wait on
+ * `toHaveCount(1)` first — that assertion DOES retry until the transient
+ * duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -87,7 +102,7 @@ test.describe('Curriculum — pages render (ungated)', () => {
   test('/institutions/[id]/curriculum renders the Curriculum heading', async ({ page }) => {
     await page.goto(`/institutions/${INSTITUTION_A}/curriculum`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Curriculum' })).toBeVisible();
-    await expect(page.getByTestId('curriculum-panel')).toBeVisible();
+    await hydrated(page, 'curriculum-panel');
   });
 });
 

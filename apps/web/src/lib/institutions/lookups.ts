@@ -1,10 +1,24 @@
 /**
- * Lookup data sources for institution forms (areas, types, sectors, ownership).
+ * Lookup data for institution filters and forms.
  *
- * These options are typically served by the institution backend's metadata
- * endpoints. When those endpoints are unreachable in development we fall back
- * to a small static set so the UI remains usable. Production deployments
- * provide the real lookup endpoints via the API gateway.
+ * Areas come from the institution backend's area hierarchy (`GET /areas/tree`).
+ *
+ * This file used to serve four hardcoded option lists built from invented
+ * UUIDs (`00000000-0000-4000-8000-000000000001` "National",
+ * `…010` "Primary School", …) and claimed in its own header that "production
+ * deployments provide the real lookup endpoints". No such code path existed:
+ * `loadTypeOptions`/`loadSectorOptions`/`loadOwnershipOptions` never called the
+ * backend at all, and `loadAreaOptions` swallowed every failure and returned
+ * the invented list. Because `/areas/*` was not mounted, the area call always
+ * failed, so every environment showed fabricated areas — and an invented id
+ * cannot satisfy `institutions.area_id REFERENCES geographic_areas(id)`, so a
+ * create submitted from those options could not persist.
+ *
+ * Areas are now a real lookup and failures surface instead of being replaced
+ * with fiction. Type / sector / ownership are not lookups at all: they persist
+ * to `institutions.type|sector|ownership VARCHAR(50)`, free vocabulary columns
+ * with no reference table anywhere in the schema. They are collected as text
+ * with suggestions drawn from values the tenant already uses.
  */
 import { listAreaTree } from './api';
 import type { AreaNode } from './types';
@@ -14,35 +28,12 @@ export interface LookupOption {
   name: string;
 }
 
-/**
- * Static fallback options used when backend lookup endpoints are unavailable.
- * Each entry uses the nil UUID structure expected by Typebox UUID validation
- * (`v4`-shaped) so users don't accidentally see invalid UUID errors during
- * local development.
- */
-const FALLBACK_AREAS: LookupOption[] = [
-  { id: '00000000-0000-4000-8000-000000000001', name: 'National' },
-  { id: '00000000-0000-4000-8000-000000000002', name: 'Region 1' },
-  { id: '00000000-0000-4000-8000-000000000003', name: 'Region 2' },
-];
-
-const FALLBACK_TYPES: LookupOption[] = [
-  { id: '00000000-0000-4000-8000-000000000010', name: 'Primary School' },
-  { id: '00000000-0000-4000-8000-000000000011', name: 'Secondary School' },
-  { id: '00000000-0000-4000-8000-000000000012', name: 'University' },
-];
-
-const FALLBACK_SECTORS: LookupOption[] = [
-  { id: '00000000-0000-4000-8000-000000000020', name: 'Public' },
-  { id: '00000000-0000-4000-8000-000000000021', name: 'Private' },
-  { id: '00000000-0000-4000-8000-000000000022', name: 'Faith-based' },
-];
-
-const FALLBACK_OWNERSHIPS: LookupOption[] = [
-  { id: '00000000-0000-4000-8000-000000000030', name: 'Government' },
-  { id: '00000000-0000-4000-8000-000000000031', name: 'Private' },
-  { id: '00000000-0000-4000-8000-000000000032', name: 'Mixed' },
-];
+/** Areas failed to load: the caller must say so rather than invent options. */
+export interface AreaOptionsResult {
+  options: LookupOption[];
+  /** Present when the lookup failed. Renderable, already user-facing. */
+  error: string | null;
+}
 
 function flattenAreas(nodes: AreaNode[], depth = 0): LookupOption[] {
   return nodes.flatMap((node) => {
@@ -55,37 +46,39 @@ function flattenAreas(nodes: AreaNode[], depth = 0): LookupOption[] {
 }
 
 /**
- * Loads area options for filter UIs and form selects. Falls back to static
- * options if the backend area-tree endpoint is unavailable.
+ * Loads the tenant's area hierarchy, flattened for selects.
+ *
+ * Returns the failure instead of masking it. An empty list with no error means
+ * the tenant genuinely has no areas yet, which is a different state from "the
+ * area service could not be reached" and must be presented differently.
  */
-export async function loadAreaOptions(): Promise<LookupOption[]> {
+export async function loadAreaOptionsResult(): Promise<AreaOptionsResult> {
   try {
     const tree = await listAreaTree();
-    const flat = flattenAreas(tree);
-    return flat.length > 0 ? flat : FALLBACK_AREAS;
-  } catch {
-    return FALLBACK_AREAS;
+    return { options: flattenAreas(tree), error: null };
+  } catch (error) {
+    return {
+      options: [],
+      error:
+        error instanceof Error && error.message
+          ? error.message
+          : 'The area hierarchy service is currently unavailable.',
+    };
   }
 }
 
-export async function loadTypeOptions(): Promise<LookupOption[]> {
-  return Promise.resolve(FALLBACK_TYPES);
+/**
+ * Convenience wrapper for callers that only need the options (for example an
+ * id→name map). Still never fabricates: a failure yields an empty list.
+ */
+export async function loadAreaOptions(): Promise<LookupOption[]> {
+  return (await loadAreaOptionsResult()).options;
 }
 
-export async function loadSectorOptions(): Promise<LookupOption[]> {
-  return Promise.resolve(FALLBACK_SECTORS);
-}
-
-export async function loadOwnershipOptions(): Promise<LookupOption[]> {
-  return Promise.resolve(FALLBACK_OWNERSHIPS);
-}
-
-export async function loadInstitutionFormLookups() {
-  const [areas, types, sectors, ownerships] = await Promise.all([
-    loadAreaOptions(),
-    loadTypeOptions(),
-    loadSectorOptions(),
-    loadOwnershipOptions(),
-  ]);
-  return { areas, types, sectors, ownerships };
+export async function loadInstitutionFormLookups(): Promise<{
+  areas: LookupOption[];
+  areaError: string | null;
+}> {
+  const areas = await loadAreaOptionsResult();
+  return { areas: areas.options, areaError: areas.error };
 }
