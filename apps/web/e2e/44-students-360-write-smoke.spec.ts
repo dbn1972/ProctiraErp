@@ -123,11 +123,20 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
     await expect(page.getByTestId('student-profile-heading')).toBeVisible();
     await hydrated(page, 'student-360');
 
+    const uploadResponse = page.waitForResponse((res) => {
+      const req = res.request();
+      return (
+        req.method() === 'POST' &&
+        res.url().includes(`/students/${studentId}`) &&
+        req.headers()['next-action'] !== undefined
+      );
+    });
     await page.getByTestId('student-photo-input').setInputFiles({
       name: 'photo.png',
       mimeType: 'image/png',
       buffer: PNG_1X1,
     });
+    expect((await uploadResponse).ok()).toBeTruthy();
     await expect
       .poll(async () => {
         const res = await request.get(`${GATEWAY_URL}/api/v1/students/${studentId}/photo`, {
