@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -172,5 +176,69 @@ describe('gradebook routes G-907', () => {
       expect(response.statusCode).toBe(401);
       expect(response.json()).toMatchObject({ code: 'UNAUTHORIZED' });
     });
+  });
+
+  it('returns an actionable 503 when production transcript signing keys are missing', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSecret = process.env.TRANSCRIPT_SIGNING_SECRET;
+    const previousKms = process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
+    process.env.NODE_ENV = 'production';
+    delete process.env.TRANSCRIPT_SIGNING_SECRET;
+    delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/gradebook/transcripts/issue',
+        headers: { 'x-roles': 'registrar' },
+        payload: { studentId: STUDENT },
+      });
+      expect(response.statusCode).toBe(503);
+      const body = response.json() as { code: string; message: string; statusCode: number };
+      expect(body.code).toBe('TRANSCRIPT_SIGNING_KEY_MISSING');
+      expect(body.statusCode).toBe(503);
+      expect(body.message).toMatch(/TRANSCRIPT_SIGNING_SECRET/);
+      expect(body.message).toMatch(/TRANSCRIPT_SIGNING_KMS_KEY_REF/);
+    } finally {
+      if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+      else process.env.NODE_ENV = previousNodeEnv;
+      if (previousSecret === undefined) delete process.env.TRANSCRIPT_SIGNING_SECRET;
+      else process.env.TRANSCRIPT_SIGNING_SECRET = previousSecret;
+      if (previousKms === undefined) delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
+      else process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF = previousKms;
+    }
+  });
+
+  it('issues a transcript when the dedicated signing secret is configured', async () => {
+    const previousDir = process.env.SIS_TRANSCRIPT_DIR;
+    const previousSecret = process.env.TRANSCRIPT_SIGNING_SECRET;
+    const previousKms = process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
+    process.env.SIS_TRANSCRIPT_DIR = mkdtempSync(join(tmpdir(), 'transcript-issue-'));
+    process.env.TRANSCRIPT_SIGNING_SECRET = 'route-test-dedicated-transcript-secret';
+    process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF = 'env:TRANSCRIPT_SIGNING_SECRET';
+    try {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/gradebook/transcripts/issue',
+        headers: { 'x-roles': 'registrar' },
+        payload: { studentId: STUDENT },
+      });
+      expect(response.statusCode).toBe(201);
+      const body = response.json() as {
+        status: string;
+        signatureHmac: string;
+        metadata: { kmsKeyRef?: string; signingKeyId?: string };
+      };
+      expect(body.status).toBe('ISSUED');
+      expect(body.signatureHmac).toMatch(/^[a-f0-9]{64}$/);
+      expect(body.metadata.kmsKeyRef).toBe('env:TRANSCRIPT_SIGNING_SECRET');
+      expect(body.metadata.signingKeyId).toBe('transcript-default');
+    } finally {
+      if (previousDir === undefined) delete process.env.SIS_TRANSCRIPT_DIR;
+      else process.env.SIS_TRANSCRIPT_DIR = previousDir;
+      if (previousSecret === undefined) delete process.env.TRANSCRIPT_SIGNING_SECRET;
+      else process.env.TRANSCRIPT_SIGNING_SECRET = previousSecret;
+      if (previousKms === undefined) delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
+      else process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF = previousKms;
+    }
   });
 });

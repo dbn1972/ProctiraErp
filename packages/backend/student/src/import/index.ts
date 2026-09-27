@@ -25,7 +25,12 @@ export type {
 export { MAX_IMPORT_FILE_SIZE, ASYNC_THRESHOLD_ROWS } from './types.js';
 
 // Excel Parser
-export { parseExcelBuffer, EXPECTED_HEADERS } from './excel-parser.js';
+export {
+  parseExcelBuffer,
+  EXPECTED_HEADERS,
+  createExcelWorkbook,
+  resolveExcelWorkbookConstructor,
+} from './excel-parser.js';
 export type { ParseResult, HeaderName } from './excel-parser.js';
 
 // Row Validator

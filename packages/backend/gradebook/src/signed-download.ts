@@ -7,9 +7,15 @@
  *
  * Transcript authenticity MUST use a dedicated rotated KMS/PKI-backed key
  * (TRANSCRIPT_SIGNING_SECRET material + TRANSCRIPT_SIGNING_KMS_KEY_REF).
- * Never JWT_SECRET, never board-export secrets, never hardcoded fallbacks.
+ * Never JWT_SECRET, never board-export secrets, never a committed private key.
+ *
+ * Outside production, a missing secret uses a process-local ephemeral HMAC key
+ * generated at startup (see prepareTranscriptSigningAtStartup). Production
+ * fail-closes with TranscriptSigningKeyMissingError.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+
+import { createLogger } from '@proctira/logging';
 
 export type BoardExportSignedDownload = {
   token: string;
@@ -33,16 +39,133 @@ export type TranscriptSigningMaterial = {
   hmacKey: Buffer;
 };
 
+/** Logical ref stamped on issuances signed with the non-production ephemeral key. */
+export const DEV_EPHEMERAL_TRANSCRIPT_KMS_REF = 'dev:ephemeral-in-memory';
+
+/** Key id stamped on issuances signed with the non-production ephemeral key. */
+export const DEV_EPHEMERAL_TRANSCRIPT_KEY_ID = 'transcript-dev-ephemeral';
+
+export const TRANSCRIPT_SIGNING_KEY_MISSING_MESSAGE =
+  'Dedicated transcript signing key is not configured. Set TRANSCRIPT_SIGNING_SECRET ' +
+  '(KMS-unwrapped HMAC material) and TRANSCRIPT_SIGNING_KMS_KEY_REF ' +
+  '(arn:aws:kms:… / pkcs11:… / vault:… / env:TRANSCRIPT_SIGNING_SECRET). ' +
+  'JWT_SECRET and SIS_BOARD_EXPORT_SIGNING_SECRET must not be reused. ' +
+  'Issuance stays blocked until both are set. See .env.example.';
+
+export type TranscriptSigningLog = {
+  warn: (obj: Record<string, unknown>, msg?: string) => void;
+  error: (obj: Record<string, unknown>, msg?: string) => void;
+};
+
+let fallbackLog: TranscriptSigningLog | null = null;
+
+function getFallbackLog(): TranscriptSigningLog {
+  if (!fallbackLog) {
+    const logger = createLogger({ name: 'transcript-signing', level: 'warn' });
+    fallbackLog = {
+      warn: (obj, msg) => {
+        logger.warn(obj, msg);
+      },
+      error: (obj, msg) => {
+        logger.error(obj, msg);
+      },
+    };
+  }
+  return fallbackLog;
+}
+
+type EphemeralDevKey = { secret: string; logged: boolean };
+
+/** Process-local only. Never written to disk and never used when NODE_ENV=production. */
+let ephemeralDevKey: EphemeralDevKey | null = null;
+
 export class TranscriptSigningKeyMissingError extends Error {
+  readonly code = 'TRANSCRIPT_SIGNING_KEY_MISSING' as const;
+  readonly statusCode = 503;
+
   constructor(detail?: string) {
-    super(
-      detail ??
-        'Dedicated transcript signing key required: set TRANSCRIPT_SIGNING_SECRET ' +
-          '(KMS-unwrapped HMAC material) and TRANSCRIPT_SIGNING_KMS_KEY_REF ' +
-          '(arn:aws:kms:… / pkcs11:… / vault:… / env:TRANSCRIPT_SIGNING_SECRET). ' +
-          'JWT_SECRET and SIS_BOARD_EXPORT_SIGNING_SECRET must not be reused.',
-    );
+    super(detail ?? TRANSCRIPT_SIGNING_KEY_MISSING_MESSAGE);
     this.name = 'TranscriptSigningKeyMissingError';
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+
+  toJSON() {
+    return {
+      code: this.code,
+      message: this.message,
+      statusCode: this.statusCode,
+    };
+  }
+}
+
+export function isTranscriptSigningKeyMissingError(
+  error: unknown,
+): error is TranscriptSigningKeyMissingError {
+  return (
+    error instanceof TranscriptSigningKeyMissingError ||
+    (typeof error === 'object' &&
+      error !== null &&
+      (error as { code?: string }).code === 'TRANSCRIPT_SIGNING_KEY_MISSING' &&
+      typeof (error as { toJSON?: unknown }).toJSON === 'function')
+  );
+}
+
+/** Test hook. Production code must not call this. */
+export function resetDevTranscriptSigningForTests(): void {
+  ephemeralDevKey = null;
+}
+
+function isProduction(env: NodeJS.ProcessEnv): boolean {
+  return env.NODE_ENV === 'production';
+}
+
+function ensureEphemeralDevKey(env: NodeJS.ProcessEnv, log: TranscriptSigningLog): string {
+  if (!ephemeralDevKey) {
+    ephemeralDevKey = { secret: randomBytes(32).toString('base64url'), logged: false };
+  }
+  if (!ephemeralDevKey.logged) {
+    ephemeralDevKey.logged = true;
+    log.warn(
+      {
+        event: 'transcript_signing_dev_ephemeral_key',
+        nodeEnv: env.NODE_ENV ?? 'undefined',
+        kmsKeyRef: DEV_EPHEMERAL_TRANSCRIPT_KMS_REF,
+        keyId: DEV_EPHEMERAL_TRANSCRIPT_KEY_ID,
+      },
+      'TRANSCRIPT_SIGNING_SECRET is unset outside production. Using an ephemeral in-memory HMAC key for this process only. It is not persisted, is not valid across restarts, and must not be used for real transcripts. Set TRANSCRIPT_SIGNING_SECRET and TRANSCRIPT_SIGNING_KMS_KEY_REF before production.',
+    );
+  }
+  return ephemeralDevKey.secret;
+}
+
+/**
+ * Startup hook for the gradebook plugin.
+ * Outside production, generates the ephemeral key once when the secret is unset and logs it.
+ * In production, logs an actionable error and leaves issuance fail-closed (no key is invented).
+ */
+export function prepareTranscriptSigningAtStartup(
+  env: NodeJS.ProcessEnv = process.env,
+  log: TranscriptSigningLog = getFallbackLog(),
+): void {
+  const secret = env.TRANSCRIPT_SIGNING_SECRET?.trim();
+  const kmsKeyRef = env.TRANSCRIPT_SIGNING_KMS_KEY_REF?.trim();
+  if (isProduction(env)) {
+    if (!secret || !kmsKeyRef) {
+      log.error(
+        {
+          event: 'transcript_signing_key_missing',
+          missing: [
+            !secret ? 'TRANSCRIPT_SIGNING_SECRET' : null,
+            !kmsKeyRef ? 'TRANSCRIPT_SIGNING_KMS_KEY_REF' : null,
+          ].filter((name): name is string => Boolean(name)),
+        },
+        TRANSCRIPT_SIGNING_KEY_MISSING_MESSAGE,
+      );
+    }
+    return;
+  }
+  if (!secret) {
+    ensureEphemeralDevKey(env, log);
   }
 }
 
@@ -125,13 +248,17 @@ function assertDedicatedKmsRef(kmsKeyRef: string): void {
 
 /**
  * Resolve dedicated transcript signing material for a tenant/institution scope.
- * Fail-closed when the dedicated secret or (in production) KMS/PKI ref is missing.
+ * Production fail-closes when the dedicated secret or KMS/PKI ref is missing.
+ * Other environments generate one ephemeral in-memory key per process.
  */
 export function resolveTranscriptSigningMaterial(
   scope: TranscriptSigningScope,
   env: NodeJS.ProcessEnv = process.env,
+  log: TranscriptSigningLog = getFallbackLog(),
 ): TranscriptSigningMaterial {
-  const secret = env.TRANSCRIPT_SIGNING_SECRET?.trim();
+  const configuredSecret = env.TRANSCRIPT_SIGNING_SECRET?.trim();
+  const ephemeral = !configuredSecret && !isProduction(env);
+  const secret = configuredSecret || (ephemeral ? ensureEphemeralDevKey(env, log) : '');
   if (!secret) {
     throw new TranscriptSigningKeyMissingError();
   }
@@ -151,17 +278,24 @@ export function resolveTranscriptSigningMaterial(
     );
   }
 
-  const kmsKeyRef =
-    env.TRANSCRIPT_SIGNING_KMS_KEY_REF?.trim() ||
-    (env.NODE_ENV === 'production' ? '' : 'env:TRANSCRIPT_SIGNING_SECRET');
-  if (!kmsKeyRef) {
-    throw new TranscriptSigningKeyMissingError(
-      'TRANSCRIPT_SIGNING_KMS_KEY_REF is required in production',
-    );
+  const configuredKms = env.TRANSCRIPT_SIGNING_KMS_KEY_REF?.trim() ?? '';
+  let kmsKeyRef = configuredKms;
+  let keyId = env.TRANSCRIPT_SIGNING_KEY_ID?.trim() || 'transcript-default';
+  if (ephemeral) {
+    // Do not stamp a real KMS locator on material that was never unwrapped from it.
+    kmsKeyRef = DEV_EPHEMERAL_TRANSCRIPT_KMS_REF;
+    keyId = DEV_EPHEMERAL_TRANSCRIPT_KEY_ID;
+  } else if (!kmsKeyRef) {
+    if (isProduction(env)) {
+      throw new TranscriptSigningKeyMissingError(
+        'TRANSCRIPT_SIGNING_KMS_KEY_REF is required in production. ' +
+          TRANSCRIPT_SIGNING_KEY_MISSING_MESSAGE,
+      );
+    }
+    kmsKeyRef = 'env:TRANSCRIPT_SIGNING_SECRET';
   }
   assertDedicatedKmsRef(kmsKeyRef);
 
-  const keyId = env.TRANSCRIPT_SIGNING_KEY_ID?.trim() || 'transcript-default';
   const institution = scope.institutionId?.trim() || 'tenant';
   const hmacKey = createHmac('sha256', secret)
     .update(`transcript:v1:${scope.tenantId}:${institution}`, 'utf8')
@@ -176,13 +310,8 @@ export function resolveTranscriptSigningMaterial(
 }
 
 /** Boot / issue guard — throws when dedicated key material is missing. */
-export function assertTranscriptSigningConfigured(
-  env: NodeJS.ProcessEnv = process.env,
-): void {
-  resolveTranscriptSigningMaterial(
-    { tenantId: '00000000-0000-4000-8000-000000000000' },
-    env,
-  );
+export function assertTranscriptSigningConfigured(env: NodeJS.ProcessEnv = process.env): void {
+  resolveTranscriptSigningMaterial({ tenantId: '00000000-0000-4000-8000-000000000000' }, env);
 }
 
 /**
