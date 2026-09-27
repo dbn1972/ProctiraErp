@@ -518,11 +518,8 @@ export async function fetchParentStudentDashboard(
 }
 
 /**
- * Board Comparison + Cross-Board Transfer endpoints have not landed in
- * the gateway yet (they need the data warehouse rollup + workflow
- * service detail view to ship first). Re-export typed stubs that throw
- * a recognisable error so the hooks fall back to the deterministic mock
- * payload until those endpoints are wired up.
+ * Board comparison still depends on the data-warehouse rollup.
+ * The stub throws so that hook can fall back until the rollup ships.
  */
 export async function fetchBoardComparison(
   _boardCodes?: ReadonlyArray<string>,
@@ -536,14 +533,20 @@ export async function fetchBoardComparison(
 }
 
 export async function fetchCrossBoardTransfer(
-  _transferId?: string,
-  _signal?: AbortSignal,
+  transferId?: string,
+  signal?: AbortSignal,
 ): Promise<CrossBoardTransferData> {
-  throw new BrowserGatewayError({
-    status: 501,
-    code: 'NOT_IMPLEMENTED',
-    message: 'Cross-board transfer endpoint pending workflow detail view',
-  });
+  if (!transferId) {
+    throw new BrowserGatewayError({
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'A transfer id is required',
+    });
+  }
+  return browserGatewayFetch<CrossBoardTransferData>(
+    `/transfers/${encodeURIComponent(transferId)}`,
+    { signal },
+  );
 }
 
 export { BrowserGatewayError };

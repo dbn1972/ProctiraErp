@@ -41,6 +41,10 @@ const CAMPUS_MANAGE: Permission[] = CAMPUS_MANAGE_RESOURCES.map((resource) => ({
 export const PATH_RESOURCE_MAP: Record<string, string> = {
   students: 'student',
   institutions: 'institution',
+  // Area labels for institution screens (GET /areas/tree). Same resource as institutions.
+  areas: 'institution',
+  // Cross-board / inter-institution transfer detail (GET /transfers/:id).
+  transfers: 'student',
   staff: 'staff',
   attendance: 'attendance',
   examinations: 'examination',
@@ -106,7 +110,6 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   dashboards: 'report',
   privacy: 'platform',
 };
-
 
 /**
  * G-702: `/api/v1/<segment>` paths outside `/auth` that are NOT in
@@ -296,12 +299,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   // W1-SEC-02 (D4): HR / registrar roles — gateway must align with
   // `@proctira/backend-staff` staff-access HR_OFFICER_ROLES (not only admin/principal).
   const STAFF_HR_PERMISSIONS: Permission[] = [{ resource: 'staff', action: 'manage' }];
-  for (const roleId of [
-    'hr_officer',
-    'staff_admin',
-    'registrar',
-    'admissions_officer',
-  ] as const) {
+  for (const roleId of ['hr_officer', 'staff_admin', 'registrar', 'admissions_officer'] as const) {
     roles.push({
       roleId,
       roleName: roleId

@@ -25,6 +25,7 @@ import type {
   EnrollmentFilter,
   EnrollmentHistoryEntity,
   EnrollmentRepository,
+  TransferRecordDetail,
   TransferRecordEntity,
 } from './enrollment-repository.js';
 import type {
@@ -418,6 +419,18 @@ export class EnrollmentService {
     studentId: string,
   ): Promise<TransferRecordEntity[]> {
     return this.repository.getTransferRecords(tenantId, studentId);
+  }
+
+  /**
+   * Load one transfer for the caller's tenant.
+   * A row that exists only in another tenant is indistinguishable from a missing id.
+   */
+  async getTransferById(tenantId: string, transferId: string): Promise<TransferRecordDetail> {
+    const record = await this.repository.getTransferById(tenantId, transferId);
+    if (!record) {
+      throw new NotFoundError(`Transfer with id '${transferId}' not found`);
+    }
+    return record;
   }
 
   /** W3-RACE-02 — one ENROLLED row per student per academic period (service guard). */
