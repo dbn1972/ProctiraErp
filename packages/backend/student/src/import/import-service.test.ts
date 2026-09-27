@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 
+import { createExcelWorkbook } from './excel-parser.js';
 import { ImportService } from './import-service.js';
 import { InMemoryStudentRepository } from './in-memory-student-repository.js';
 import { InMemoryImportQueue } from './in-memory-import-queue.js';
@@ -279,90 +280,105 @@ describe('ImportService', () => {
     });
   });
 
+  it('W2-JOB-12: mid-batch create failure rolls back prior creates', async () => {
+    const rows: ImportStudentRow[] = [
+      {
+        rowNumber: 2,
+        firstName: 'Alice',
+        lastName: 'Smith',
+        dateOfBirth: '2005-01-15',
+        nationalId: 'NID-A',
+      },
+      {
+        rowNumber: 3,
+        firstName: 'Bob',
+        lastName: 'Jones',
+        dateOfBirth: '2005-02-20',
+        nationalId: 'NID-B',
+      },
+      {
+        rowNumber: 4,
+        firstName: 'Carol',
+        lastName: 'Lee',
+        dateOfBirth: '2005-03-10',
+        nationalId: 'NID-C',
+      },
+    ];
 
-    it('W2-JOB-12: mid-batch create failure rolls back prior creates', async () => {
-      const rows: ImportStudentRow[] = [
-        { rowNumber: 2, firstName: 'Alice', lastName: 'Smith', dateOfBirth: '2005-01-15', nationalId: 'NID-A' },
-        { rowNumber: 3, firstName: 'Bob', lastName: 'Jones', dateOfBirth: '2005-02-20', nationalId: 'NID-B' },
-        { rowNumber: 4, firstName: 'Carol', lastName: 'Lee', dateOfBirth: '2005-03-10', nationalId: 'NID-C' },
-      ];
+    let createCount = 0;
+    const originalCreate = repository.create.bind(repository);
+    repository.create = async (tenantId, data) => {
+      createCount += 1;
+      if (createCount === 3) {
+        throw new Error('simulated DB failure on third create');
+      }
+      return originalCreate(tenantId, data);
+    };
 
-      let createCount = 0;
-      const originalCreate = repository.create.bind(repository);
-      repository.create = async (tenantId, data) => {
-        createCount += 1;
-        if (createCount === 3) {
-          throw new Error('simulated DB failure on third create');
-        }
-        return originalCreate(tenantId, data);
-      };
+    await expect(
+      service.processRows(TENANT_ID, rows, { duplicateResolution: 'skip' }),
+    ).rejects.toThrow(/simulated DB failure/);
 
-      await expect(
-        service.processRows(TENANT_ID, rows, { duplicateResolution: 'skip' }),
-      ).rejects.toThrow(/simulated DB failure/);
+    expect(repository.getAll()).toHaveLength(0);
+  });
 
-      expect(repository.getAll()).toHaveLength(0);
+  it('W2-JOB-12: mid-batch update failure restores prior snapshots and drops creates', async () => {
+    const existing = await repository.create(TENANT_ID, {
+      firstName: 'Prior',
+      lastName: 'Student',
+      dateOfBirth: '2004-01-01',
+      gender: null,
+      nationalId: 'NID-EXIST',
+      nationality: null,
+      contactPhone: null,
+      contactEmail: null,
+      guardianName: null,
+      guardianPhone: null,
+      institutionCode: null,
+      customData: null,
     });
 
-    it('W2-JOB-12: mid-batch update failure restores prior snapshots and drops creates', async () => {
-      const existing = await repository.create(TENANT_ID, {
-        firstName: 'Prior',
+    const rows: ImportStudentRow[] = [
+      {
+        rowNumber: 2,
+        firstName: 'New',
+        lastName: 'Kid',
+        dateOfBirth: '2005-01-15',
+        nationalId: 'NID-NEW',
+      },
+      {
+        rowNumber: 3,
+        firstName: 'Updated',
         lastName: 'Student',
         dateOfBirth: '2004-01-01',
-        gender: null,
         nationalId: 'NID-EXIST',
-        nationality: null,
-        contactPhone: null,
-        contactEmail: null,
-        guardianName: null,
-        guardianPhone: null,
-        institutionCode: null,
-        customData: null,
-      });
+      },
+    ];
 
-      const rows: ImportStudentRow[] = [
-        {
-          rowNumber: 2,
-          firstName: 'New',
-          lastName: 'Kid',
-          dateOfBirth: '2005-01-15',
-          nationalId: 'NID-NEW',
-        },
-        {
-          rowNumber: 3,
-          firstName: 'Updated',
-          lastName: 'Student',
-          dateOfBirth: '2004-01-01',
-          nationalId: 'NID-EXIST',
-        },
-      ];
+    const originalUpdate = repository.update.bind(repository);
+    let updates = 0;
+    repository.update = async (tenantId, id, data) => {
+      updates += 1;
+      if (updates === 1) {
+        throw new Error('simulated update failure');
+      }
+      return originalUpdate(tenantId, id, data);
+    };
 
-      const originalUpdate = repository.update.bind(repository);
-      let updates = 0;
-      repository.update = async (tenantId, id, data) => {
-        updates += 1;
-        if (updates === 1) {
-          throw new Error('simulated update failure');
-        }
-        return originalUpdate(tenantId, id, data);
-      };
+    await expect(
+      service.processRows(TENANT_ID, rows, { duplicateResolution: 'update' }),
+    ).rejects.toThrow(/simulated update failure/);
 
-      await expect(
-        service.processRows(TENANT_ID, rows, { duplicateResolution: 'update' }),
-      ).rejects.toThrow(/simulated update failure/);
-
-      const remaining = repository.getAll();
-      expect(remaining).toHaveLength(1);
-      expect(remaining[0]!.id).toBe(existing.id);
-      expect(remaining[0]!.firstName).toBe('Prior');
-      expect(remaining[0]!.nationalId).toBe('NID-EXIST');
-    });
+    const remaining = repository.getAll();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]!.id).toBe(existing.id);
+    expect(remaining[0]!.firstName).toBe('Prior');
+    expect(remaining[0]!.nationalId).toBe('NID-EXIST');
+  });
 
   describe('processImport (async queueing)', () => {
     it('should queue large imports for background processing', async () => {
-      // Create a valid Excel buffer using ExcelJS
-      const ExcelJS = await import('exceljs');
-      const workbook = new ExcelJS.Workbook();
+      const workbook = await createExcelWorkbook();
       const worksheet = workbook.addWorksheet('Students');
 
       // Add headers
@@ -394,9 +410,7 @@ describe('ImportService', () => {
     }, 30_000);
 
     it('should queue when async option is explicitly set', async () => {
-      // Create a small valid Excel buffer
-      const ExcelJS = await import('exceljs');
-      const workbook = new ExcelJS.Workbook();
+      const workbook = await createExcelWorkbook();
       const worksheet = workbook.addWorksheet('Students');
       worksheet.addRow(['first_name', 'last_name', 'date_of_birth']);
       worksheet.addRow(['Alice', 'Smith', '2005-01-15']);

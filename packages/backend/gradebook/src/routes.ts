@@ -31,6 +31,7 @@ import {
   UpsertCommentsBankSchema,
   UpsertGradeEntrySchema,
 } from './schemas.js';
+import { isTranscriptSigningKeyMissingError } from './signed-download.js';
 
 export interface GradebookRoutesOptions {
   service: GradebookService;
@@ -89,6 +90,10 @@ function requireAction(
 function sendDomainError(reply: FastifyReply, error: unknown) {
   if (isGradebookSchemaMissingError(error)) {
     return reply.status(503).send(error.toJSON());
+  }
+  if (isTranscriptSigningKeyMissingError(error)) {
+    const body = error.toJSON();
+    return reply.status(body.statusCode).send(body);
   }
   if (isGradeLockedError(error) || isTranscriptImmutableError(error)) {
     return reply.status(409).send(error.toJSON());

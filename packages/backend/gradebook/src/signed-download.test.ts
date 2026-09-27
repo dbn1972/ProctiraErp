@@ -1,7 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   createBoardExportDownloadToken,
+  DEV_EPHEMERAL_TRANSCRIPT_KEY_ID,
+  DEV_EPHEMERAL_TRANSCRIPT_KMS_REF,
+  prepareTranscriptSigningAtStartup,
+  resetDevTranscriptSigningForTests,
   resolveTranscriptSigningMaterial,
   signTranscriptChecksum,
   TranscriptSigningKeyMissingError,
@@ -45,6 +49,10 @@ describe('W1-DATA-08 transcript dedicated signing', () => {
   const prevBoard = process.env.SIS_BOARD_EXPORT_SIGNING_SECRET;
   const prevNode = process.env.NODE_ENV;
 
+  beforeEach(() => {
+    resetDevTranscriptSigningForTests();
+  });
+
   afterEach(() => {
     if (prevSecret === undefined) delete process.env.TRANSCRIPT_SIGNING_SECRET;
     else process.env.TRANSCRIPT_SIGNING_SECRET = prevSecret;
@@ -76,22 +84,77 @@ describe('W1-DATA-08 transcript dedicated signing', () => {
     ).toBe(false);
   });
 
-  it('fail-closes when dedicated secret is missing', () => {
+  it('fail-closes in production when the dedicated secret is missing', () => {
+    process.env.NODE_ENV = 'production';
     delete process.env.TRANSCRIPT_SIGNING_SECRET;
+    delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
     process.env.JWT_SECRET = 'should-not-be-used-for-transcripts';
     process.env.SIS_BOARD_EXPORT_SIGNING_SECRET = 'also-not-for-transcripts';
     expect(() => signTranscriptChecksum('a'.repeat(64), TENANT)).toThrow(
       TranscriptSigningKeyMissingError,
     );
+    try {
+      signTranscriptChecksum('a'.repeat(64), TENANT);
+    } catch (error) {
+      expect(error).toBeInstanceOf(TranscriptSigningKeyMissingError);
+      const body = (error as TranscriptSigningKeyMissingError).toJSON();
+      expect(body.statusCode).toBe(503);
+      expect(body.code).toBe('TRANSCRIPT_SIGNING_KEY_MISSING');
+      expect(body.message).toMatch(/TRANSCRIPT_SIGNING_SECRET/);
+      expect(body.message).toMatch(/TRANSCRIPT_SIGNING_KMS_KEY_REF/);
+      expect(body.message).not.toMatch(/should-not-be-used-for-transcripts/);
+    }
+  });
+
+  it('uses one logged ephemeral key outside production when the secret is unset', () => {
+    process.env.NODE_ENV = 'test';
+    delete process.env.TRANSCRIPT_SIGNING_SECRET;
+    delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
+    delete process.env.TRANSCRIPT_SIGNING_KEY_ID;
+    process.env.JWT_SECRET = 'jwt-must-not-become-the-transcript-key';
+    const warnings: unknown[][] = [];
+    const log = {
+      warn: (...args: unknown[]) => {
+        warnings.push(args);
+      },
+      error: () => {
+        throw new Error('production error log must not run outside production');
+      },
+    };
+
+    prepareTranscriptSigningAtStartup(process.env, log);
+    const checksum = 'b'.repeat(64);
+    const first = resolveTranscriptSigningMaterial(
+      { tenantId: TENANT, institutionId: INST },
+      process.env,
+      log,
+    );
+    const second = resolveTranscriptSigningMaterial(
+      { tenantId: TENANT, institutionId: INST },
+      process.env,
+      log,
+    );
+    const signature = signTranscriptChecksum(checksum, TENANT, INST);
+
+    expect(first.keyId).toBe(DEV_EPHEMERAL_TRANSCRIPT_KEY_ID);
+    expect(first.kmsKeyRef).toBe(DEV_EPHEMERAL_TRANSCRIPT_KMS_REF);
+    expect(first.hmacKey.equals(second.hmacKey)).toBe(true);
+    expect(verifyTranscriptSignature(checksum, TENANT, signature, INST)).toBe(true);
+    expect(warnings).toHaveLength(1);
+    const serialized = JSON.stringify(warnings);
+    expect(serialized).toMatch(/TRANSCRIPT_SIGNING_SECRET/);
+    expect(serialized).toMatch(/ephemeral/);
+    expect(serialized).not.toContain(first.hmacKey.toString('base64'));
+    expect(serialized).not.toContain('jwt-must-not-become-the-transcript-key');
   });
 
   it('fail-closes in production without KMS/PKI ref', () => {
     process.env.NODE_ENV = 'production';
     process.env.TRANSCRIPT_SIGNING_SECRET = 'dedicated-transcript-hmac-material-v1';
     delete process.env.TRANSCRIPT_SIGNING_KMS_KEY_REF;
-    expect(() =>
-      resolveTranscriptSigningMaterial({ tenantId: TENANT }, process.env),
-    ).toThrow(/TRANSCRIPT_SIGNING_KMS_KEY_REF/i);
+    expect(() => resolveTranscriptSigningMaterial({ tenantId: TENANT }, process.env)).toThrow(
+      /TRANSCRIPT_SIGNING_KMS_KEY_REF/i,
+    );
   });
 
   it('rejects JWT / board-export secret reuse and kms ref aliases', () => {
