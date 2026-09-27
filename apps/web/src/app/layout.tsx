@@ -49,7 +49,6 @@ import { BrandConfigProvider } from '@/providers/BrandConfigProvider';
 import { LanguageProvider } from '@/providers/LanguageProvider';
 import type { TranslationMap } from '@/providers/LanguageProvider';
 import { getThemeBootScript } from '@/lib/theme/boot-script';
-import { DROP_STALE_STREAM_SLOTS_SCRIPT } from '@/lib/dom/drop-stale-stream-slots';
 import { AppProviders } from '@/components/AppProviders';
 import '@/styles/globals.css';
 
@@ -196,15 +195,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <AppProviders>{children}</AppProviders>
           </LanguageProvider>
         </BrandConfigProvider>
-        {/*
-          Runs after the streamed body is parsed and before DOMContentLoaded.
-          See drop-stale-stream-slots.ts — removes a revealed Next.js `S:` slot
-          so test ids exist once per viewport.
-        */}
-        <script
-          // eslint-disable-next-line react/no-danger
-          dangerouslySetInnerHTML={{ __html: DROP_STALE_STREAM_SLOTS_SCRIPT }}
-        />
       </body>
     </html>
   );
