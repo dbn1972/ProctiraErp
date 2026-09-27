@@ -39,6 +39,7 @@ export default async function LibraryCatalogPage() {
           <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <ListLoadFailure kind={result.kind} status={result.status} returnTo="/library" />
+        <NewLibraryItemForm />
       </div>
     );
   }
