@@ -33,7 +33,7 @@ export default async function FeesStructuresPage() {
     searchText: `${grade.code} ${grade.name}`,
   }));
   return (
-    <div className="p-6">
+    <div className="space-y-6 p-6">
       <StructuresWorkspace
         structures={structuresResult.ok ? structuresResult.items : []}
         listFailed={!structuresResult.ok}
