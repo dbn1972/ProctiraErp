@@ -13,6 +13,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listApplications, listInterviewSlots, listWaitlist } from '@/lib/api/admissions';
+import { loadAdmissionsLookups } from '@/lib/admissions/lookups';
+import { waitlistApplicantLabel } from '@/lib/admissions/waitlist-label';
 import { AdmissionsNav } from './_components/admissions-nav';
 import { StatusForm } from './_components/status-form';
 import { NewInterviewSlotForm } from './_components/new-interview-slot-form';
@@ -22,11 +24,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdmissionsPage() {
   await requireSession();
-  const [applications, waitlist, slots] = await Promise.all([
+  const [applications, waitlist, slots, lookups] = await Promise.all([
     listApplications(),
     listWaitlist(),
     listInterviewSlots(),
+    loadAdmissionsLookups(),
   ]);
+  const institutions = lookups.institutions.map((row) => ({ id: row.id, label: row.name }));
 
   return (
     <div className="space-y-6 p-6">
@@ -47,7 +51,7 @@ export default async function AdmissionsPage() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <StatusForm applications={applications} />
-        <NewInterviewSlotForm />
+        <NewInterviewSlotForm institutions={institutions} />
       </div>
       <BookInterviewForm applications={applications} slots={slots} />
 
@@ -105,7 +109,8 @@ export default async function AdmissionsPage() {
               {waitlist.map((entry) => (
                 <li key={entry.id} className="py-3 first:pt-0 last:pb-0" data-testid="waitlist-row">
                   <p className="text-sm font-medium text-foreground">
-                    Position {entry.position} · app {entry.applicationId.slice(0, 8)}…
+                    Position {entry.position} ·{' '}
+                    {waitlistApplicantLabel(entry.applicationId, applications)}
                   </p>
                 </li>
               ))}

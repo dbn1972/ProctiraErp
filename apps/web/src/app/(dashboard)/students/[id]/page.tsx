@@ -65,6 +65,12 @@ import {
   StudentLmsTab,
 } from '../_components/student-360-live-panels';
 import { GraduateStudentButton } from '../_components/graduate-student-button';
+import { loadPlacementDirectories } from '../_components/load-student-placement';
+import {
+  classSectionLabel,
+  institutionLabel,
+  type PlacementDirectories,
+} from '../_components/student-placement-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,6 +183,11 @@ export default async function StudentProfilePage(props: PageProps) {
   ]);
 
   const cd = student.customData ?? {};
+  const directories = await loadPlacementDirectories([
+    ...enrollments.map((entry) => entry.institutionId),
+    ...history.map((entry) => entry.institutionId),
+    ...transfers.flatMap((record) => [record.sourceInstitutionId, record.destinationInstitutionId]),
+  ]);
   const currentEnrollment = enrollments.find((e) => e.status === 'ENROLLED') ?? null;
   const currentStatus =
     (currentEnrollment?.status ?? readStr(cd, 'enrollmentStatus')) || 'ENROLLED';
@@ -193,6 +204,17 @@ export default async function StudentProfilePage(props: PageProps) {
   const rankBand = readStr(cd, 'rankBand') || readStr(cd, 'rank');
   const feeStatus = readStr(cd, 'feeStatus') || readStr(cd, 'feeClearanceStatus');
   const attendancePct = heatmap?.totalRecords ? heatmap.attendancePercentage : (attendance ?? null);
+  const profileSection = classSectionLabel({
+    classId: currentEnrollment?.classId,
+    gradeId: currentEnrollment?.gradeId,
+    customGradeSection: readStr(cd, 'gradeSection') || readStr(cd, 'grade'),
+    directories,
+  });
+  const profileSchool = institutionLabel({
+    institutionId: currentEnrollment?.institutionId,
+    customName: readStr(cd, 'institutionName') || readStr(cd, 'institution'),
+    directories,
+  });
 
   return (
     <section aria-labelledby="student-profile-heading" className="space-y-0">
@@ -240,6 +262,18 @@ export default async function StudentProfilePage(props: PageProps) {
                 <>
                   <span aria-hidden="true">·</span>
                   <span>Adm. {admNo}</span>
+                </>
+              )}
+              {profileSection !== '—' && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span data-testid="student-profile-class">{profileSection}</span>
+                </>
+              )}
+              {profileSchool !== '—' && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{profileSchool}</span>
                 </>
               )}
               <StatusPill status={currentStatus} />
@@ -396,7 +430,11 @@ export default async function StudentProfilePage(props: PageProps) {
 
               {/* Current enrollment stats */}
               {currentEnrollment && (
-                <CurrentEnrollmentCard enrollment={currentEnrollment} cd={cd} />
+                <CurrentEnrollmentCard
+                  enrollment={currentEnrollment}
+                  cd={cd}
+                  directories={directories}
+                />
               )}
             </div>
           </div>
@@ -429,7 +467,12 @@ export default async function StudentProfilePage(props: PageProps) {
 
         {/* ── History tab ── */}
         <TabsContent value="history" className="mt-6">
-          <EnrollmentTab enrollments={enrollments} history={history} transfers={transfers} />
+          <EnrollmentTab
+            enrollments={enrollments}
+            history={history}
+            transfers={transfers}
+            directories={directories}
+          />
         </TabsContent>
 
         {/* ── Health tab ── */}
@@ -805,14 +848,26 @@ function EnrollmentTimelineCard({ history }: { history: EnrollmentHistoryEntry[]
 function CurrentEnrollmentCard({
   enrollment,
   cd,
+  directories,
 }: {
   enrollment: EnrollmentEntry;
   cd: Record<string, unknown>;
+  directories: PlacementDirectories;
 }) {
   const classTeacher = readStr(cd, 'classTeacher');
   const rollNumber = readStr(cd, 'rollNumber');
   const udise = readStr(cd, 'udise') || readStr(cd, 'udiseCode');
-  const gradeSection = readStr(cd, 'gradeSection') || readStr(cd, 'grade');
+  const gradeSection = classSectionLabel({
+    classId: enrollment.classId,
+    gradeId: enrollment.gradeId,
+    customGradeSection: readStr(cd, 'gradeSection') || readStr(cd, 'grade'),
+    directories,
+  });
+  const school = institutionLabel({
+    institutionId: enrollment.institutionId,
+    customName: readStr(cd, 'institutionName') || readStr(cd, 'institution'),
+    directories,
+  });
 
   return (
     <Card>
@@ -821,13 +876,13 @@ function CurrentEnrollmentCard({
       </CardHeader>
       <CardContent>
         <dl className="space-y-2 text-sm">
-          <FactRow label="Institution">{enrollment.institutionId}</FactRow>
+          <FactRow label="Institution">{school}</FactRow>
           {udise && (
             <FactRow label="UDISE">
               <span className="font-mono">{udise}</span>
             </FactRow>
           )}
-          <FactRow label="Grade / Section">{gradeSection || enrollment.gradeId}</FactRow>
+          <FactRow label="Grade / Section">{gradeSection}</FactRow>
           {classTeacher && <FactRow label="Class teacher">{classTeacher}</FactRow>}
           {rollNumber && <FactRow label="Roll number">{rollNumber}</FactRow>}
         </dl>
@@ -842,10 +897,12 @@ function EnrollmentTab({
   enrollments: _enrollments,
   history,
   transfers,
+  directories,
 }: {
   enrollments: EnrollmentEntry[];
   history: EnrollmentHistoryEntry[];
   transfers: TransferRecord[];
+  directories: PlacementDirectories;
 }) {
   return (
     <div className="space-y-4">
@@ -874,7 +931,9 @@ function EnrollmentTab({
                     <TableCell>{e.effectiveDate}</TableCell>
                     <TableCell>{e.previousStatus ?? '—'}</TableCell>
                     <TableCell>{titleCase(e.newStatus)}</TableCell>
-                    <TableCell>{e.institutionId}</TableCell>
+                    <TableCell>
+                      {institutionLabel({ institutionId: e.institutionId, directories })}
+                    </TableCell>
                     <TableCell className="max-w-xs truncate">{e.reason ?? '—'}</TableCell>
                   </TableRow>
                 ))}
@@ -903,8 +962,15 @@ function EnrollmentTab({
                 {transfers.map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>{t.transferDate}</TableCell>
-                    <TableCell>{t.sourceInstitutionId}</TableCell>
-                    <TableCell>{t.destinationInstitutionId}</TableCell>
+                    <TableCell>
+                      {institutionLabel({ institutionId: t.sourceInstitutionId, directories })}
+                    </TableCell>
+                    <TableCell>
+                      {institutionLabel({
+                        institutionId: t.destinationInstitutionId,
+                        directories,
+                      })}
+                    </TableCell>
                     <TableCell className="max-w-xs truncate">{t.reason}</TableCell>
                   </TableRow>
                 ))}

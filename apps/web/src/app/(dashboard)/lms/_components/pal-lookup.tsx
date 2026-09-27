@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { useId, useState, useTransition } from 'react';
+import { useId, useState } from 'react';
 import { Search } from 'lucide-react';
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@proctira/ui/components';
@@ -48,20 +48,27 @@ export function PalLookup({ students }: { students: Array<{ id: string; name: st
   const t = useTranslations('lms');
   const id = useId();
   const hydrated = useHydrated();
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
   const [studentId, setStudentId] = useState(students[0]?.id ?? '');
   const [state, setState] = useState<PalLookupState>({ status: 'idle' });
 
-  function lookup(event: React.FormEvent<HTMLFormElement>) {
+  async function lookup(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmed = studentId.trim();
+    // Read the control's current value. React 18 does not keep an async
+    // function passed to startTransition pending, and a click that races
+    // the controlled state update would submit the previous id (or none).
+    const submitted = new FormData(event.currentTarget).get('studentId');
+    const trimmed = (typeof submitted === 'string' ? submitted : studentId).trim();
     if (!UUID_RE.test(trimmed)) {
       setState({ status: 'error', message: t('errStudentId') });
       return;
     }
-    startTransition(async () => {
+    setPending(true);
+    try {
       setState(await lookupStudentPalAction(trimmed));
-    });
+    } finally {
+      setPending(false);
+    }
   }
 
   const plan = state.plan ?? null;
@@ -86,6 +93,7 @@ export function PalLookup({ students }: { students: Array<{ id: string; name: st
             {students.length > 0 ? (
               <select
                 id={`${id}-student`}
+                name="studentId"
                 className={selectClass}
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
@@ -99,6 +107,7 @@ export function PalLookup({ students }: { students: Array<{ id: string; name: st
             ) : (
               <Input
                 id={`${id}-student`}
+                name="studentId"
                 value={studentId}
                 onChange={(e) => setStudentId(e.target.value)}
                 placeholder={t('fieldIdPlaceholder')}

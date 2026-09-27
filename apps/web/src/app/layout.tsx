@@ -35,7 +35,7 @@
  * file remains idempotent across renders.
  */
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import { headers } from 'next/headers';
 import { getLocale, getMessages } from 'next-intl/server';
 import { getDirection } from '@/i18n/config';
@@ -55,24 +55,24 @@ import '@/styles/globals.css';
 /**
  * Inter web font (Design §J / Requirement 39.4).
  *
- * `next/font/google` does three things automatically:
- *   1. Self-hosts the font files at build time so we are not blocked on
- *      a third-party CDN at first paint.
- *   2. Emits a `<link rel="preload" as="font" ... crossorigin>` plus the
- *      generated `@font-face` rule with `font-display: swap`, so text
- *      remains readable in the system-font fallback while Inter is in
- *      flight (no FOIT).
- *   3. Exposes the loaded family as a CSS variable that we surface as
- *      `--font-inter`. The existing `--font-sans` chain in
- *      `src/styles/globals.css` already lists Inter AFTER the system
- *      fonts, so first paint uses the OS native font and only swaps to
- *      Inter once the woff2 finishes downloading (Requirement 39.3).
+ * Files live in `src/fonts` (SIL OFL) and are loaded with `next/font/local`
+ * so `next build` never fetches fonts.googleapis.com. The loader still:
+ *   1. Self-hosts the woff2 files and emits a preload plus `@font-face`.
+ *   2. Sets `font-display: swap`, so text stays readable on the system-font
+ *      fallback while Inter downloads (no FOIT).
+ *   3. Exposes the family as `--font-inter`. `--font-sans` in
+ *      `src/styles/globals.css` lists Inter AFTER the system fonts, so first
+ *      paint uses the OS font and swaps once the woff2 arrives (Requirement 39.3).
  */
-const inter = Inter({
-  subsets: ['latin'],
+const inter = localFont({
+  src: [
+    { path: '../fonts/inter-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: '../fonts/inter-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: '../fonts/inter-latin-600-normal.woff2', weight: '600', style: 'normal' },
+    { path: '../fonts/inter-latin-700-normal.woff2', weight: '700', style: 'normal' },
+  ],
   display: 'swap',
   variable: '--font-inter',
-  weight: ['400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {

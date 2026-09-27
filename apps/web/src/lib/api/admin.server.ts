@@ -50,6 +50,10 @@ export interface TenantSettings {
   contact: { email?: string | null; phone?: string | null };
   updatedAt: string;
   updatedBy: string | null;
+  /** School directory slug. Null when the tenants row was not readable. */
+  slug?: string | null;
+  /** School directory name. Distinct from the editable settings display name. */
+  directoryName?: string | null;
 }
 
 function sourceOf(status: number, ok: boolean): AdminSource {

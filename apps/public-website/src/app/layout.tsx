@@ -1,13 +1,19 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 
 import { CookieConsent } from '@/components/cookie-consent';
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
 import '@/styles/globals.css';
 
-const inter = Inter({
-  subsets: ['latin'],
+/**
+ * Variable Inter (latin, weights 100–900), self-hosted under `src/fonts`
+ * (SIL OFL). `next/font/local` keeps `next build` off fonts.googleapis.com.
+ * CSS variable name matches the previous `next/font/google` setup.
+ */
+const inter = localFont({
+  src: '../fonts/inter-latin-wght-normal.woff2',
+  weight: '100 900',
   display: 'swap',
   variable: '--font-sans',
 });
@@ -64,8 +70,8 @@ export const viewport: Viewport = {
  * Provides:
  *  - Skip-to-content link for keyboard users (WCAG 2.4.1).
  *  - Global header and footer that link every required public property.
- *  - Inter font from Google Fonts via a stylesheet link to avoid runtime
- *    network calls during static export.
+ *  - Self-hosted Inter (`next/font/local`) so static export does not fetch
+ *    fonts.googleapis.com at build time.
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
 import { getLesson, listLessons } from '@/lib/api/lms';
+import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
 
 import { LmsSubnav } from '../_components/lms-subnav';
@@ -12,7 +13,7 @@ import { LessonForm } from '../_components/lesson-form';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsLessonsPage() {
-  const listed = await listLessons();
+  const [listed, schools] = await Promise.all([listLessons(), loadInstitutionOptions()]);
   const items = await Promise.all(listed.map(async (item) => (await getLesson(item.id)) ?? item));
   return (
     <section className="space-y-6" aria-labelledby="lms-lessons-heading">
@@ -31,7 +32,7 @@ export default async function LmsLessonsPage() {
           <CardTitle>New lesson</CardTitle>
         </CardHeader>
         <CardContent>
-          <LessonForm />
+          <LessonForm schools={schools} />
         </CardContent>
       </Card>
       {items.length === 0 ? (

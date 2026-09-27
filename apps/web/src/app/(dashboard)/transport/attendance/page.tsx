@@ -1,5 +1,7 @@
 import { requireSession } from '@/lib/auth/server';
 import { listStudentAssignments, listTransportRoutes } from '@/lib/api/transport';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { toLabelMap } from '@/lib/entity-label';
 import { getTripAttendance } from '@/lib/transport/api';
 import { AttendancePanel } from '../_components/attendance-panel';
 
@@ -12,10 +14,13 @@ interface PageProps {
 export default async function TransportAttendancePage(props: PageProps) {
   await requireSession();
   const query = await props.searchParams;
-  const [routes, assignments] = await Promise.all([
+  const [routes, assignments, students] = await Promise.all([
     listTransportRoutes(),
     listStudentAssignments(),
+    loadStudentOptions(),
   ]);
+  const studentLabels = Object.fromEntries(toLabelMap(students));
+  const routeLabels = Object.fromEntries(routes.map((route) => [route.id, route.name]));
   const direction =
     query.direction === 'drop' ? 'drop' : query.direction === 'pickup' ? 'pickup' : null;
   const trip =
@@ -35,7 +40,13 @@ export default async function TransportAttendancePage(props: PageProps) {
           Mark boarded, alighted, or absent for a trip. Counts summarise the current trip.
         </p>
       </div>
-      <AttendancePanel routes={routes} assignments={assignments} trip={trip} />
+      <AttendancePanel
+        routes={routes}
+        assignments={assignments}
+        trip={trip}
+        studentLabels={studentLabels}
+        routeLabels={routeLabels}
+      />
     </div>
   );
 }

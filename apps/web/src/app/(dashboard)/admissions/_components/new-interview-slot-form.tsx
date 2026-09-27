@@ -13,12 +13,16 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { createInterviewSlotAction } from '../../admissions-actions';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-export function NewInterviewSlotForm() {
+export function NewInterviewSlotForm({
+  institutions = [],
+}: {
+  institutions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -36,8 +40,8 @@ export function NewInterviewSlotForm() {
     const endsAt = String(fd.get('endsAt') ?? '').trim();
     const capacity = Number(String(fd.get('capacity') ?? '1'));
     const location = String(fd.get('location') ?? '').trim();
-    if (!UUID_RE.test(institutionId) || !startsAt || !endsAt) {
-      setError('Institution UUID and start/end are required.');
+    if (!institutionId || !startsAt || !endsAt) {
+      setError('Choose a school and enter the start and end times.');
       return;
     }
     startTransition(async () => {
@@ -66,14 +70,15 @@ export function NewInterviewSlotForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-3" aria-busy={pending}>
-          <FormField id="slot-institution" label="Institution UUID" required>
-            <Input
-              id="slot-institution"
-              name="institutionId"
-              required
-              disabled={!hydrated || pending}
-            />
-          </FormField>
+          <EntitySearchSelect
+            id="slot-institution"
+            name="institutionId"
+            label="School"
+            options={institutions}
+            required
+            placeholder="Search schools by name…"
+            emptyMessage="No schools are loaded. Add a school under Institutions, then return here."
+          />
           <FormField id="slot-start" label="Starts at" required>
             <Input
               id="slot-start"

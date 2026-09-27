@@ -43,6 +43,7 @@ import {
   assertInMemoryFallbackAllowed,
   assertPostgresRepositoryAvailable,
   getSharedPgPool,
+  withPgTenant,
 } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
@@ -96,7 +97,22 @@ export const tenantAdminPlugin = fp(
     });
 
     await registerRolesRoutes(fastify, { rolesService, prefix });
-    await registerTenantSettingsRoutes(fastify, { store: settingsStore, prefix });
+    await registerTenantSettingsRoutes(fastify, {
+      store: settingsStore,
+      prefix,
+      loadDirectory: async (tenantId) => {
+        const pool = getSharedPgPool();
+        if (!pool) return null;
+        const result = await withPgTenant(pool, tenantId, (client) =>
+          client.query('SELECT name, slug FROM tenants WHERE id = $1', [tenantId]),
+        );
+        const row = result.rows[0] as { name?: unknown; slug?: unknown } | undefined;
+        const name = typeof row?.name === 'string' ? row.name.trim() : '';
+        const slug = typeof row?.slug === 'string' ? row.slug.trim() : '';
+        if (!name || !slug) return null;
+        return { name, slug };
+      },
+    });
 
     // World-class branding (draft/publish/versions/active/preview)
     const { repository: tenantRepo } = createTenantRepository();

@@ -14,6 +14,7 @@ import { listAudit } from '@/lib/api/audit';
 import { requireRole } from '@/lib/auth/server';
 import { formatDateTime, formatDate } from '@/lib/utils';
 
+import { CopyTenantId } from './copy-tenant-id';
 import { TenantLifecycleActions } from './lifecycle-actions';
 
 export default async function TenantDetailPage({
@@ -94,7 +95,7 @@ export default async function TenantDetailPage({
             <CardContent>
               <DefinitionList
                 items={[
-                  ['Tenant ID', tenant.id],
+                  ['Tenant', tenant.name],
                   ['Slug', tenant.slug],
                   ['Plan', tenant.plan],
                   ['Region', tenant.region],
@@ -104,6 +105,7 @@ export default async function TenantDetailPage({
                   ['Created', formatDateTime(tenant.createdAt)],
                 ]}
               />
+              <CopyTenantId id={tenant.id} />
             </CardContent>
           </Card>
         </TabsContent>

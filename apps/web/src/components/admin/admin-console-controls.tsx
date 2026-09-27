@@ -33,6 +33,7 @@ import {
   type AdminActionState,
 } from '@/app/(dashboard)/admin/actions';
 import { useHydrated } from '@/hooks/useHydrated';
+import { tenantIdentityCopy } from '@/lib/admin/tenant-identity';
 import type { PermissionRef, TenantRole, TenantSettings, TenantUser } from '@/lib/api/admin.server';
 
 function Feedback({ state }: { state: AdminActionState | null }) {
@@ -558,11 +559,12 @@ export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
       <section className="max-w-[860px] space-y-4 rounded-xl border bg-card p-5">
         <div>
           <h2 className="text-base font-semibold">Identity</h2>
+          <p className="text-sm text-foreground" data-testid="tenant-identity">
+            {tenantIdentityCopy(settings).schoolLine}
+          </p>
           <p className="text-xs text-muted-foreground">
-            Tenant ID <code className="rounded bg-muted px-1.5 py-0.5">{settings.tenantId}</code>
-            {settings.updatedAt
-              ? ` · last saved ${new Date(settings.updatedAt).toLocaleString()}`
-              : ''}
+            {tenantIdentityCopy(settings).savedLine ??
+              'These settings have not been saved yet. The form below still shows product defaults until you save.'}
           </p>
         </div>
         {field(

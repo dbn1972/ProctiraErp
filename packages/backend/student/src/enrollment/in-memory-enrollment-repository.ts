@@ -14,6 +14,7 @@ import type {
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
+  TransferRecordDetail,
   TransferRecordEntity,
 } from './enrollment-repository.js';
 
@@ -24,7 +25,11 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
   private enrollments: Map<string, EnrollmentEntity> = new Map();
   private historyEntries: EnrollmentHistoryEntity[] = [];
   private transferRecords: TransferRecordEntity[] = [];
-  private institutions: Map<string, InstitutionLookup & { tenantId: string }> = new Map();
+  private institutions: Map<
+    string,
+    InstitutionLookup & { tenantId: string; name?: string; boardName?: string }
+  > = new Map();
+  private studentNames: Map<string, { tenantId: string; name: string }> = new Map();
 
   async createEnrollment(
     data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
@@ -191,6 +196,29 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
+  async getTransferById(
+    tenantId: string,
+    transferId: string,
+  ): Promise<TransferRecordDetail | null> {
+    const record = this.transferRecords.find(
+      (row) => row.tenantId === tenantId && row.id === transferId,
+    );
+    if (!record) return null;
+    const source = this.institutions.get(record.sourceInstitutionId);
+    const destination = this.institutions.get(record.destinationInstitutionId);
+    const student = this.studentNames.get(record.studentId);
+    return {
+      ...record,
+      studentName: student && student.tenantId === tenantId ? student.name : null,
+      sourceInstitutionName: source && source.tenantId === tenantId ? (source.name ?? null) : null,
+      sourceBoardName: source && source.tenantId === tenantId ? (source.boardName ?? null) : null,
+      destinationInstitutionName:
+        destination && destination.tenantId === tenantId ? (destination.name ?? null) : null,
+      destinationBoardName:
+        destination && destination.tenantId === tenantId ? (destination.boardName ?? null) : null,
+    };
+  }
+
   async findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null> {
     const inst = this.institutions.get(id);
     if (!inst || inst.tenantId !== tenantId) {
@@ -202,8 +230,17 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
   // ---- Test helpers ----
 
   /** Add an institution to the in-memory store for transfer validation */
-  addInstitution(id: string, tenantId: string, status: string): void {
-    this.institutions.set(id, { id, tenantId, status });
+  addInstitution(
+    id: string,
+    tenantId: string,
+    status: string,
+    labels?: { name?: string; boardName?: string },
+  ): void {
+    this.institutions.set(id, { id, tenantId, status, ...labels });
+  }
+
+  addStudentName(id: string, tenantId: string, name: string): void {
+    this.studentNames.set(id, { tenantId, name });
   }
 
   /** Clear all data */
@@ -212,5 +249,6 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     this.historyEntries = [];
     this.transferRecords = [];
     this.institutions.clear();
+    this.studentNames.clear();
   }
 }

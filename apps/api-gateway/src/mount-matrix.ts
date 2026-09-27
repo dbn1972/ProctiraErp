@@ -135,7 +135,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   {
     package: 'student',
     mounted: true,
-    prefixes: ['/students', '/enrollments'],
+    prefixes: ['/students', '/enrollments', '/transfers'],
     persistence: 'prisma+rls',
     rbacWired: true,
     notes:
@@ -147,6 +147,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: [
       '/institutions',
+      '/areas',
       '/academic-periods',
       '/grades',
       '/classes',
