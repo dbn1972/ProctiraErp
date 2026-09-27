@@ -6,31 +6,31 @@ script is a single `.mjs` file with no compile step so it runs without
 
 ## Scripts
 
-| Command                    | Script                               | Purpose                                                                                                  |
-| -------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `pnpm lint:a11y`           | `check-icon-only-button.mjs`         | Standalone scan for the `proctira/icon-only-button-requires-aria-label` ESLint rule.                     |
-| `pnpm check:contrast`      | `check-contrast.mjs`                 | Semantic-token contrast gate (≥ 7:1 in light + dark per Requirement 37 AC 2).                            |
-| `pnpm check:bundle`        | `check-bundle.mjs`                   | Bundle-size gate (≤ 500 KB gzip per named route per Requirement 39 AC 1).                                |
-| `pnpm check:lighthouse`    | `check-lighthouse.mjs`               | Lighthouse gate (Property F-10 — desktop + 3G mobile, four category thresholds).                         |
-| `pnpm check:brand-strings` | `check-brand-strings.mjs`            | Grep gate for hardcoded brand names (ProctiraERP / EduZo) in non-TypeScript assets.                      |
-| `pnpm dod:check`           | `definition-of-done-checks.mjs`      | Charter §32 release-gate checks.                                                                         |
-| `pnpm dod:test`            | `definition-of-done-checks.test.mjs` | Unit tests for the DoD checks.                                                                           |
-| (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                                           |
-| (CI / W1-OPS-24)           | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules; wired in `observability-config.yml`.                    |
-| (CI / W1-OPS-24)           | `assert-reusable-ci-assets.mjs`      | Fails if reusable-setup / setup-node-pnpm / validate-observability lose workflow callers.              |
-| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05 file + phase ledger + W1-DATA-17 lock/statement timeouts. |
-| (CI / local)               | `split-sql-phases.mjs`               | W1-DATA-05: split non-txn SQL files into resumable statement phases. |
-| (CI / local)               | `prisma-migrate-deploy.sh`           | W1-DATA-17: Prisma migrate deploy with lock_timeout + statement_timeout (URL options + PGOPTIONS). |
-| (CI / local)               | `migration-timeouts.sh`              | W1-DATA-17: shared timeout defaults/helpers sourced by apply-sql + prisma wrapper. |
-| (CI / local)               | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                        |
-| `pnpm check:prisma-sql-drift` | `check-prisma-sql-drift.mjs`      | W1-DATA-04 COMPLETE: fail-closed Prisma↔SQL catalog parity (columns/types/nulls/defaults/PK/unique/check/FK/index + authority manifest). |
-| `pnpm check:strict-tenant-fks` | `check-strict-tenant-fks.mjs`    | W1-DATA-06 COMPLETE: fail when CI skips `APPLY_STRICT_FKS`, VALIDATE/repair missing, prod default OFF, or (with `--live`) unvalidated tenant FKs remain. |
-| `pnpm check:tenant-id-indexes` | `check-tenant-id-indexes.mjs`    | W1-DATA-16: fail when tenant-scoped tables lack a leading `tenant_id` index (allowlist documented). |
-| `pnpm check:migration-timeouts` | `check-migration-timeouts.mjs`  | W1-DATA-17: wrappers + post-baseline DDL hazard scan + waiver + recovery contract. |
-| `pnpm check:migration-lock-recovery` | `migration-lock-recovery-drill.mjs` | W1-DATA-17 COMPLETE: live lock_timeout fail → resume drill (needs DATABASE_URL). |
-| (CI / local)               | `migration-ddl-hazard-waiver.json` | W1-DATA-17 COMPLETE: baseline cutover + maintenance-window waivers for long-lock DDL. |
-| (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset.                  |
-| (CI / local)               | `helm-template-check.sh`             | P0-12 / G-501: lint + `helm template` for `proctira-service` + `proctira-platform` (deploy path parity). |
+| Command                              | Script                               | Purpose                                                                                                                                                  |
+| ------------------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint:a11y`                     | `check-icon-only-button.mjs`         | Standalone scan for the `proctira/icon-only-button-requires-aria-label` ESLint rule.                                                                     |
+| `pnpm check:contrast`                | `check-contrast.mjs`                 | Semantic-token contrast gate (≥ 7:1 in light + dark per Requirement 37 AC 2).                                                                            |
+| `pnpm check:bundle`                  | `check-bundle.mjs`                   | Bundle-size gate (≤ 500 KB gzip per named route per Requirement 39 AC 1).                                                                                |
+| `pnpm check:lighthouse`              | `check-lighthouse.mjs`               | Lighthouse gate (Property F-10 — desktop + 3G mobile, four category thresholds).                                                                         |
+| `pnpm check:brand-strings`           | `check-brand-strings.mjs`            | Grep gate for hardcoded brand names (ProctiraERP / EduZo) in non-TypeScript assets.                                                                      |
+| `pnpm dod:check`                     | `definition-of-done-checks.mjs`      | Charter §32 release-gate checks.                                                                                                                         |
+| `pnpm dod:test`                      | `definition-of-done-checks.test.mjs` | Unit tests for the DoD checks.                                                                                                                           |
+| (internal)                           | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                                                                                           |
+| (CI / W1-OPS-24)                     | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules; wired in `observability-config.yml`.                                                                    |
+| (CI / W1-OPS-24)                     | `assert-reusable-ci-assets.mjs`      | Fails if reusable-setup / setup-node-pnpm / validate-observability lose workflow callers.                                                                |
+| (CI / local)                         | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002). W1-DATA-05 file + phase ledger + W1-DATA-17 lock/statement timeouts.                             |
+| (CI / local)                         | `split-sql-phases.mjs`               | W1-DATA-05: split non-txn SQL files into resumable statement phases.                                                                                     |
+| (CI / local)                         | `prisma-migrate-deploy.sh`           | W1-DATA-17: Prisma migrate deploy with lock_timeout + statement_timeout (URL options + PGOPTIONS).                                                       |
+| (CI / local)                         | `migration-timeouts.sh`              | W1-DATA-17: shared timeout defaults/helpers sourced by apply-sql + prisma wrapper.                                                                       |
+| (CI / local)                         | `bootstrap-db-roles.sh`              | W1-DATA-10: idempotent migrator + `proctira_app` role bootstrap (superuser URL only).                                                                    |
+| `pnpm check:prisma-sql-drift`        | `check-prisma-sql-drift.mjs`         | W1-DATA-04 COMPLETE: fail-closed Prisma↔SQL catalog parity (columns/types/nulls/defaults/PK/unique/check/FK/index + authority manifest).                 |
+| `pnpm check:strict-tenant-fks`       | `check-strict-tenant-fks.mjs`        | W1-DATA-06 COMPLETE: fail when CI skips `APPLY_STRICT_FKS`, VALIDATE/repair missing, prod default OFF, or (with `--live`) unvalidated tenant FKs remain. |
+| `pnpm check:tenant-id-indexes`       | `check-tenant-id-indexes.mjs`        | W1-DATA-16: fail when tenant-scoped tables lack a leading `tenant_id` index (allowlist documented).                                                      |
+| `pnpm check:migration-timeouts`      | `check-migration-timeouts.mjs`       | W1-DATA-17: wrappers + post-baseline DDL hazard scan + waiver + recovery contract.                                                                       |
+| `pnpm check:migration-lock-recovery` | `migration-lock-recovery-drill.mjs`  | W1-DATA-17 COMPLETE: live lock_timeout fail → resume drill (needs DATABASE_URL).                                                                         |
+| (CI / local)                         | `migration-ddl-hazard-waiver.json`   | W1-DATA-17 COMPLETE: baseline cutover + maintenance-window waivers for long-lock DDL.                                                                    |
+| (CI / local)                         | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset. Optional `PLAYWRIGHT_SHARD=i/n`.                                 |
+| (CI / local)                         | `helm-template-check.sh`             | P0-12 / G-501: lint + `helm template` for `proctira-service` + `proctira-platform` (deploy path parity).                                                 |
 
 ## `check:brand-strings` (task 57.4 / Design M)
 
