@@ -4,7 +4,7 @@
  * Implements Requirement 8.1 (grading schemes per institution + period).
  */
 import Link from 'next/link';
-import { Eye, ListChecks, MoreVertical, Pencil, Plus } from 'lucide-react';
+import { Eye, ListChecks, Pencil, Plus } from 'lucide-react';
 
 import {
   Button,
@@ -137,88 +137,82 @@ export default async function AssessmentsPage(props: PageProps) {
           {response.data.length === 0 ? (
             <EmptyState />
           ) : (
-            <Table aria-label="Grading schemes">
-              <TableHeader>
-                <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="font-semibold">Scheme</TableHead>
-                  <TableHead className="font-semibold">Type</TableHead>
-                  <TableHead className="font-semibold">Range</TableHead>
-                  <TableHead className="text-end font-semibold">Bands</TableHead>
-                  <TableHead className="font-semibold">Updated</TableHead>
-                  <TableHead className="text-end font-semibold">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {response.data.map((scheme) => (
-                  <TableRow key={scheme.id} className="group">
-                    <TableCell>
-                      <Link
-                        href={`/assessments/schemes/${scheme.id}/edit`}
-                        className="font-semibold text-foreground hover:underline"
-                      >
-                        {scheme.name}
-                      </Link>
-                      <p className="text-[11px] text-muted-foreground">
-                        {scheme.thresholds.length} grade{' '}
-                        {scheme.thresholds.length === 1 ? 'band' : 'bands'} ·{' '}
-                        {titleCase(scheme.type)} scale
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                          TYPE_PILL[scheme.type] ?? 'bg-zinc-100 text-zinc-600',
-                        )}
-                      >
-                        {titleCase(scheme.type)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm tabular-nums text-muted-foreground">
-                      {scheme.minValue} – {scheme.maxValue}
-                    </TableCell>
-                    <TableCell className="text-end text-sm tabular-nums text-foreground">
-                      {scheme.thresholds.length}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(scheme.updatedAt).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </TableCell>
-                    <TableCell className="text-end">
-                      <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-                          <Link
-                            href="/assessments/items"
-                            aria-label={`View items for ${scheme.name}`}
-                          >
-                            <Eye className="h-4 w-4" aria-hidden="true" />
-                          </Link>
-                        </Button>
-                        <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-                          <Link
-                            href={`/assessments/schemes/${scheme.id}/edit`}
-                            aria-label={`Edit ${scheme.name}`}
-                          >
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                          </Link>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 p-0"
-                          aria-label="More actions"
-                        >
-                          <MoreVertical className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table aria-label="Grading schemes">
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableHead className="font-semibold">Scheme</TableHead>
+                    <TableHead className="font-semibold">Type</TableHead>
+                    <TableHead className="font-semibold">Range</TableHead>
+                    <TableHead className="text-end font-semibold">Bands</TableHead>
+                    <TableHead className="font-semibold">Updated</TableHead>
+                    <TableHead className="text-end font-semibold">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {response.data.map((scheme) => (
+                    <TableRow key={scheme.id} className="group">
+                      <TableCell>
+                        <Link
+                          href={`/assessments/schemes/${scheme.id}/edit`}
+                          className="font-semibold text-foreground hover:underline"
+                        >
+                          {scheme.name}
+                        </Link>
+                        <p className="text-[11px] text-muted-foreground">
+                          {scheme.thresholds.length} grade{' '}
+                          {scheme.thresholds.length === 1 ? 'band' : 'bands'} ·{' '}
+                          {titleCase(scheme.type)} scale
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                            TYPE_PILL[scheme.type] ?? 'bg-zinc-100 text-zinc-600',
+                          )}
+                        >
+                          {titleCase(scheme.type)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm tabular-nums text-muted-foreground">
+                        {scheme.minValue} – {scheme.maxValue}
+                      </TableCell>
+                      <TableCell className="text-end text-sm tabular-nums text-foreground">
+                        {scheme.thresholds.length}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(scheme.updatedAt).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </TableCell>
+                      <TableCell className="text-end">
+                        <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
+                          <Button asChild variant="ghost" size="icon" className="h-11 w-11 p-0">
+                            <Link
+                              href="/assessments/items"
+                              aria-label={`View items for ${scheme.name}`}
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                            </Link>
+                          </Button>
+                          <Button asChild variant="ghost" size="icon" className="h-11 w-11 p-0">
+                            <Link
+                              href={`/assessments/schemes/${scheme.id}/edit`}
+                              aria-label={`Edit ${scheme.name}`}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden="true" />
+                            </Link>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
