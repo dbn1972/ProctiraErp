@@ -11,7 +11,7 @@ import { LanguageSelector } from '@/components/LanguageSelector';
  */
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-white lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       {/* Hero panel — visible on lg+ */}
       <section
         aria-hidden="true"
