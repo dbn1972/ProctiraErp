@@ -36,7 +36,7 @@ export default async function WorkflowsPage() {
             Workflow definitions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Approval flows for transfers, leaves, disbursements and other district actions.
+            Approval flows for transfers, leaves, disbursements, and other school actions.
           </p>
         </div>
         <ListLoadFailure
@@ -61,7 +61,7 @@ export default async function WorkflowsPage() {
             Workflow definitions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Approval flows for transfers, leaves, disbursements and other district actions ·{' '}
+            Approval flows for transfers, leaves, disbursements, and other school actions ·{' '}
             {definitions.length.toLocaleString()} definition
             {definitions.length === 1 ? '' : 's'}, {activeCount.toLocaleString()} active
           </p>

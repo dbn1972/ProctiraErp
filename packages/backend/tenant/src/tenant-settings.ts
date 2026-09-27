@@ -95,12 +95,22 @@ export function effectiveTenantSettings(
   );
 }
 
+export interface TenantDirectoryIdentity {
+  name: string;
+  slug: string;
+}
+
 export interface TenantSettingsRoutesOptions {
   store: TenantSettingsStore;
   /** Default `/tenant`. */
   prefix?: string;
   getTenantId?: (request: FastifyRequest) => string | undefined;
   getActorId?: (request: FastifyRequest) => string | undefined;
+  /**
+   * School directory name and slug for the signed-in tenant.
+   * Settings documents do not store the slug; the tenants row does.
+   */
+  loadDirectory?: (tenantId: string) => Promise<TenantDirectoryIdentity | null>;
 }
 
 export async function registerTenantSettingsRoutes(
@@ -114,7 +124,24 @@ export async function registerTenantSettingsRoutes(
     getActorId = (request) =>
       (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user?.sub ??
       (request as FastifyRequest & { user?: { userId?: string } }).user?.userId,
+    loadDirectory,
   } = options;
+
+  async function withDirectory(tenantId: string, record: TenantSettingsRecord) {
+    let directory: TenantDirectoryIdentity | null = null;
+    if (loadDirectory) {
+      try {
+        directory = await loadDirectory(tenantId);
+      } catch {
+        directory = null;
+      }
+    }
+    return {
+      ...record,
+      slug: directory?.slug ?? null,
+      directoryName: directory?.name ?? null,
+    };
+  }
 
   fastify.get(`${prefix}/settings`, async (request, reply: FastifyReply) => {
     const tenantId = getTenantId(request);
@@ -124,7 +151,9 @@ export async function registerTenantSettingsRoutes(
         .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
     }
     const stored = await store.get(tenantId);
-    return reply.status(200).send(effectiveTenantSettings(tenantId, stored));
+    return reply
+      .status(200)
+      .send(await withDirectory(tenantId, effectiveTenantSettings(tenantId, stored)));
   });
 
   fastify.put(`${prefix}/settings`, async (request, reply: FastifyReply) => {
@@ -164,7 +193,7 @@ export async function registerTenantSettingsRoutes(
         updatedAt: new Date().toISOString(),
         updatedBy: getActorId(request) ?? null,
       });
-      return reply.status(200).send(saved);
+      return reply.status(200).send(await withDirectory(tenantId, saved));
     } catch (error) {
       if (error instanceof AppError) {
         return reply.status(error.statusCode).send(error.toJSON());
