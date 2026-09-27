@@ -36,7 +36,7 @@ const STATS = [
 
 export function AuthShell({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div className="flex min-h-screen flex-col bg-white lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       {/* Brand panel — visible on lg+ */}
       <aside
         aria-hidden="true"

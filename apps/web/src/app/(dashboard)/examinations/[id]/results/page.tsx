@@ -23,6 +23,8 @@ import {
 } from '@proctira/ui/components';
 import { ResultsControls } from '@/components/examinations/exam-ops-controls';
 import { getExamination, getExaminationResultsView } from '@/lib/api/examinations';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -38,7 +40,11 @@ export default async function ExaminationResultsPage(props: PageProps) {
   const params = await props.params;
   const examination = await getExamination(params.id);
   if (!examination) notFound();
-  const view = await getExaminationResultsView(examination);
+  const [view, studentOptions] = await Promise.all([
+    getExaminationResultsView(examination),
+    loadStudentOptions(),
+  ]);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   const csv = [
     ['studentId', ...view.subjects.map((s) => s.code), 'total', 'status'].join(','),
@@ -98,7 +104,9 @@ export default async function ExaminationResultsPage(props: PageProps) {
             <TableBody>
               {view.rows.map((row) => (
                 <TableRow key={row.candidateId}>
-                  <TableCell className="font-mono text-xs">{row.studentId}</TableCell>
+                  <TableCell>
+                    {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
+                  </TableCell>
                   {row.subjects.map((subject) => (
                     <TableCell key={subject.id} className="text-end">
                       {subject.score === null ? '—' : subject.score}
