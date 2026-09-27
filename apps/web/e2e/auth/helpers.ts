@@ -145,15 +145,17 @@ export async function mockSignup(page: Page, options: SignupMockOptions = {}): P
  * to a third-party host (that would break offline runs and CI).
  */
 export async function mockOAuthAuthorize(page: Page): Promise<void> {
-  await page.route('**/api/auth/oauth/authorize**', async (route) => {
+  // The Next route handler 302s to the upstream auth service
+  // (`AUTH_SERVICE_URL`, default localhost:3010). Match both that hop and
+  // the app route so CI does not follow a dead TCP connection.
+  await page.route(/\/(?:api\/auth\/)?oauth\/authorize/, async (route) => {
     const url = new URL(route.request().url());
     const provider = url.searchParams.get('provider') ?? 'unknown';
-    // Redirect to a synthetic, same-origin sentinel page so we can
-    // assert the parameters without leaving the dev origin.
+    const origin = page.url().startsWith('http') ? new URL(page.url()).origin : url.origin;
     await route.fulfill({
       status: 302,
       headers: {
-        location: `/login?oauth_test=1&provider=${encodeURIComponent(provider)}`,
+        location: `${origin}/login?oauth_test=1&provider=${encodeURIComponent(provider)}`,
       },
     });
   });

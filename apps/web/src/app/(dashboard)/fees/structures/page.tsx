@@ -20,23 +20,6 @@ export default async function FeesStructuresPage() {
     listGrades().catch(() => []),
     loadStudentOptions(),
   ]);
-  if (!structuresResult.ok) {
-    return (
-      <div className="space-y-6 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee structures</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Class × category × term amounts, instalment schedules, and bulk invoicing.
-          </p>
-        </div>
-        <ListLoadFailure
-          kind={structuresResult.kind}
-          status={structuresResult.status}
-          returnTo="/fees/structures"
-        />
-      </div>
-    );
-  }
   const classOptions = sections.ok
     ? sections.data.map((section) => ({
         id: section.id,
@@ -50,9 +33,16 @@ export default async function FeesStructuresPage() {
     searchText: `${grade.code} ${grade.name}`,
   }));
   return (
-    <div className="p-6">
+    <div className="space-y-6 p-6">
+      {!structuresResult.ok ? (
+        <ListLoadFailure
+          kind={structuresResult.kind}
+          status={structuresResult.status}
+          returnTo="/fees/structures"
+        />
+      ) : null}
       <StructuresWorkspace
-        structures={structuresResult.items}
+        structures={structuresResult.ok ? structuresResult.items : []}
         classOptions={classOptions}
         gradeOptions={gradeOptions}
         studentOptions={studentOptions}
