@@ -37,7 +37,7 @@ export default async function WorkflowInstancesPage() {
             Workflow instances
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every approval request currently moving through a workflow, district-wide.
+            Every approval request currently moving through a workflow for this school.
           </p>
         </div>
         <ListLoadFailure
@@ -75,7 +75,7 @@ export default async function WorkflowInstancesPage() {
             Workflow instances
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every approval request currently moving through a workflow, district-wide ·{' '}
+            Every approval request currently moving through a workflow for this school ·{' '}
             {instances.length.toLocaleString()} run
             {instances.length === 1 ? '' : 's'}
           </p>
