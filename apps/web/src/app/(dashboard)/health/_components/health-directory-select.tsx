@@ -4,8 +4,7 @@ import { FormField } from '@proctira/ui/components';
 
 import type { EntityLabelOption } from '@/lib/entity-label';
 
-const SELECT_CLASS =
-  'min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm';
+const SELECT_CLASS = 'min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm';
 
 export function HealthStudentSelect({
   options,

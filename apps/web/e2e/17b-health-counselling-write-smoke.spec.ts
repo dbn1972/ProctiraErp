@@ -53,10 +53,16 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await expect(
       page.getByRole('heading', { name: /schedule counselling session/i }),
     ).toBeVisible();
-    await expect(page.getByTestId('counselling-session-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const counsellingForm = page.getByTestId('counselling-session-form');
+    await expect(async () => {
+      await expect(counsellingForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(counsellingForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.getByLabel(/session date/i).fill('2026-09-06');
     await page.getByLabel(/^reason$/i).fill('Exam anxiety');
@@ -100,9 +106,13 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
 
   test('schedules a counselling session via live API', async ({ page }) => {
     await page.goto('/health/counselling/new', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('#counselling-student-id option')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('#counselling-student-id option')).toHaveCount(2, {
+      timeout: 15_000,
+    });
     await page.locator('#counselling-student-id').selectOption({ index: 1 });
-    await expect(page.locator('#counselling-counsellor-id option')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('#counselling-counsellor-id option')).toHaveCount(2, {
+      timeout: 15_000,
+    });
     await page.locator('#counselling-counsellor-id').selectOption({ index: 1 });
     await page.getByLabel(/session date/i).fill('2026-09-06');
     await page.getByLabel(/^reason$/i).fill('Live E2E counselling create');

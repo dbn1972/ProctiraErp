@@ -20,11 +20,7 @@ import { createAllergyAction } from '../actions';
 const SEVERITIES = ['mild', 'moderate', 'severe', 'life-threatening'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function CreateAllergyForm({
-  studentOptionsJson = '[]',
-}: {
-  studentOptionsJson?: string;
-}) {
+export function CreateAllergyForm({ studentOptionsJson = '[]' }: { studentOptionsJson?: string }) {
   const studentOptions: EntityLabelOption[] = JSON.parse(studentOptionsJson) as EntityLabelOption[];
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
