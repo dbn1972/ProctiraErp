@@ -1,10 +1,43 @@
 import { requireSession } from '@/lib/auth/server';
+import { listInstitutions } from '@/lib/api/institutions';
+import { listTenantRoles } from '@/lib/api/admin.server';
+import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
+import { listClassesByInstitution } from '@/lib/institutions/api';
+import { formatCodeNameLabel, type EntityLabelOption } from '@/lib/entity-label';
+import { toNamedOptions } from '@/lib/communication/named-options';
+
 import { NewCircularForm } from '../../_components/new-circular-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewCircularPage() {
   const session = await requireSession();
+  const [students, staff, institutions, rolesResult] = await Promise.all([
+    loadStudentOptions(),
+    loadStaffOptions(),
+    listInstitutions({ pageSize: 20 }).catch(() => []),
+    listTenantRoles().catch(() => ({ roles: [], source: 'scaffold' as const })),
+  ]);
+  const classGroups = await Promise.all(
+    institutions.slice(0, 5).map(async (institution) => {
+      try {
+        return await listClassesByInstitution(institution.id);
+      } catch {
+        return [];
+      }
+    }),
+  );
+
+  const people: EntityLabelOption[] = [...students, ...staff];
+  const institutionOptions = toNamedOptions(institutions);
+  const classOptions = toNamedOptions(
+    classGroups.flat().map((row) => ({ id: row.id, name: row.name })),
+  );
+  const roleOptions: EntityLabelOption[] = rolesResult.roles.map((role) => ({
+    id: role.id,
+    label: formatCodeNameLabel(null, role.name) || role.name,
+    searchText: role.name,
+  }));
 
   return (
     <div className="space-y-6 p-6">
@@ -14,7 +47,13 @@ export default async function NewCircularPage() {
           Draft a circular. Send it after review; acknowledgements are tracked per recipient.
         </p>
       </div>
-      <NewCircularForm createdBy={session.user.sub} />
+      <NewCircularForm
+        createdBy={session.user.sub}
+        people={people}
+        roleOptions={roleOptions}
+        classOptions={classOptions}
+        institutionOptions={institutionOptions}
+      />
     </div>
   );
 }
