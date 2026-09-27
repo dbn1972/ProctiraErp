@@ -66,19 +66,19 @@ class AppRouter {
               path: 'messages',
               name: 'parent-messages',
               builder: (BuildContext context, GoRouterState state) =>
-                  const ParentMessagesScreen(),
+                  ParentMessagesScreen(studentId: _parentStudentId(state)),
             ),
             GoRoute(
               path: 'consents',
               name: 'parent-consents',
               builder: (BuildContext context, GoRouterState state) =>
-                  const ParentConsentsScreen(),
+                  ParentConsentsScreen(studentId: _parentStudentId(state)),
             ),
             GoRoute(
               path: 'fees',
               name: 'parent-fees',
               builder: (BuildContext context, GoRouterState state) =>
-                  const ParentFeesScreen(),
+                  ParentFeesScreen(studentId: _parentStudentId(state)),
             ),
           ],
         ),
@@ -315,6 +315,12 @@ class AppRouter {
       return '/';
     }
     return null;
+  }
+
+  /// Child chosen on the parent home. Query only — no client tenant id.
+  String? _parentStudentId(GoRouterState state) {
+    final String raw = state.uri.queryParameters['studentId']?.trim() ?? '';
+    return raw.isEmpty ? null : raw;
   }
 
   /// Query `studentId` wins. Otherwise the device-local selection is used so
