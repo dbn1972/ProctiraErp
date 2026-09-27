@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords } from '@/lib/api/health';
-import { loadStudentOptions } from '@/lib/load-entity-labels';
+import { loadHealthStudentOptions } from '../../_components/load-health-directory';
 import { CreateVaccinationForm } from '../../_components/create-vaccination-form';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ export default async function NewVaccinationPage() {
   if (!canAccessHealthRecords(session.user.roles ?? [])) {
     return <p className="p-6 text-sm">You need a health role.</p>;
   }
-  const studentOptions = await loadStudentOptions();
+  const studentOptions = await loadHealthStudentOptions();
   return (
     <div className="space-y-4 p-6">
       <Button asChild variant="ghost" size="sm">
@@ -24,7 +24,7 @@ export default async function NewVaccinationPage() {
         </Link>
       </Button>
       <h1 className="text-2xl font-semibold">New vaccination</h1>
-      <CreateVaccinationForm studentOptions={studentOptions} />
+      <CreateVaccinationForm studentOptionsJson={JSON.stringify(studentOptions)} />
     </div>
   );
 }

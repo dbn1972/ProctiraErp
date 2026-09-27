@@ -11,12 +11,22 @@ import { Button, Card, CardDescription, CardHeader, CardTitle } from '@proctira/
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords } from '@/lib/api/health';
 
+import {
+  loadHealthStaffOptions,
+  loadHealthStudentOptions,
+} from '../../_components/load-health-directory';
+
 import { CreateCounsellingSessionForm } from '../../_components/create-counselling-session-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function NewCounsellingSessionPage() {
   const session = await requireSession('/health/counselling/new');
+
+  const [studentOptions, staffOptions] = await Promise.all([
+    loadHealthStudentOptions(),
+    loadHealthStaffOptions(),
+  ]);
 
   if (!canAccessHealthRecords(session.user.roles)) {
     return (
@@ -53,7 +63,10 @@ export default async function NewCounsellingSessionPage() {
         </p>
       </div>
 
-      <CreateCounsellingSessionForm />
+      <CreateCounsellingSessionForm
+        studentOptionsJson={JSON.stringify(studentOptions)}
+        staffOptionsJson={JSON.stringify(staffOptions)}
+      />
     </section>
   );
 }

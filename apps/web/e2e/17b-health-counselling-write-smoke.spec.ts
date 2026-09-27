@@ -45,7 +45,7 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await setupHealthSession(page);
   });
 
-  test('/health/counselling/new rejects invalid student UUID', async ({ page }) => {
+  test('client validation requires student and counsellor selection', async ({ page }) => {
     const response = await page.goto('/health/counselling/new', {
       waitUntil: 'domcontentloaded',
     });
@@ -64,15 +64,24 @@ test.describe('Health counselling — write validation (ungated)', () => {
       await expect(counsellingForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
 
-    await page.getByLabel(/student id/i).fill('not-a-uuid');
-    await page.getByLabel(/counsellor id/i).fill('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1');
+    await expect(page.getByTestId('counselling-student-id-empty')).toBeVisible();
+    await expect(page.getByTestId('counselling-student-id-empty')).toContainText(
+      /no students loaded/i,
+    );
+    await expect(page.locator('input[type="hidden"][name="studentId"]')).toHaveCount(0);
+    await expect(page.getByTestId('counselling-counsellor-id-empty')).toBeVisible();
+    await expect(page.getByTestId('counselling-counsellor-id-empty')).toContainText(
+      /no staff loaded/i,
+    );
+    await expect(page.locator('input[type="hidden"][name="counsellorId"]')).toHaveCount(0);
+
     await page.getByLabel(/session date/i).fill('2026-09-06');
     await page.getByLabel(/^reason$/i).fill('Exam anxiety');
     await page.getByLabel(/case notes/i).fill('Initial notes');
     await page.getByRole('button', { name: /schedule session/i }).click();
 
     await expect(page.getByTestId('counselling-session-error')).toContainText(
-      /student id must be a valid uuid/i,
+      /student directory is empty/i,
     );
   });
 });
@@ -108,10 +117,45 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
     await setupHealthLiveSession(page);
   });
 
-  test('schedules a counselling session via live API', async ({ page }) => {
+  test('schedules a counselling session via live API', async ({ page, request }) => {
+    const stamp = Date.now().toString(36);
+    const studentName = `E2E Aaa${stamp}`;
+    const createdStudent = await request.post(`${GATEWAY_URL}/api/v1/students`, {
+      headers: healthApiHeaders(),
+      data: {
+        firstName: 'E2E',
+        lastName: `Aaa${stamp}`,
+        dateOfBirth: '2012-04-04',
+        gender: 'female',
+      },
+    });
+    expect(createdStudent.status(), await createdStudent.text()).toBe(201);
+
+    const counsellorName = `Counsellor · E2E AaaC${stamp}`;
+    const createdStaff = await request.post(`${GATEWAY_URL}/api/v1/staff`, {
+      headers: healthApiHeaders(),
+      data: {
+        firstName: 'E2E',
+        lastName: `AaaC${stamp}`,
+        dateOfBirth: '1985-03-03',
+        identityNumber: `HC-${stamp}`,
+        contactPhone: '+15550100',
+        position: 'Counsellor',
+      },
+    });
+    expect(createdStaff.status(), await createdStaff.text()).toBe(201);
+
     await page.goto('/health/counselling/new', { waitUntil: 'domcontentloaded' });
-    await page.getByLabel(/student id/i).fill('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1');
-    await page.getByLabel(/counsellor id/i).fill('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1');
+    const studentSelect = page.locator('#counselling-student-id');
+    await expect(studentSelect.locator('option', { hasText: studentName })).toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await studentSelect.selectOption({ label: studentName });
+    const counsellorSelect = page.locator('#counselling-counsellor-id');
+    await expect(counsellorSelect.locator('option', { hasText: counsellorName })).toHaveCount(1, {
+      timeout: 15_000,
+    });
+    await counsellorSelect.selectOption({ label: counsellorName });
     await page.getByLabel(/session date/i).fill('2026-09-06');
     await page.getByLabel(/^reason$/i).fill('Live E2E counselling create');
     await page.getByLabel(/case notes/i).fill('Created by enterprise live smoke.');

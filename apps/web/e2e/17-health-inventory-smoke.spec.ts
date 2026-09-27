@@ -86,8 +86,8 @@ test.describe('Health — authenticated inventory (E2E_BACKEND_READY)', () => {
       page.getByRole('heading', { name: /schedule counselling session/i }),
     ).toBeVisible();
     await expect(page.getByRole('form', { name: /create counselling session/i })).toBeVisible();
-    await expect(page.getByLabel(/student id/i)).toBeVisible();
-    await expect(page.getByLabel(/counsellor id/i)).toBeVisible();
+    await expect(page.getByLabel(/^student$/i)).toBeVisible();
+    await expect(page.getByLabel(/^counsellor$/i)).toBeVisible();
     await expect(page.getByLabel(/session date/i)).toBeVisible();
     await expect(page.getByRole('button', { name: /schedule session/i })).toBeVisible();
   });
