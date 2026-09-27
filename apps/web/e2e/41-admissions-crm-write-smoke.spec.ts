@@ -46,9 +46,23 @@ function stamp() {
   return Date.now().toString(36).slice(-6).toUpperCase();
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -125,13 +139,31 @@ test.describe('Admissions CRM — pages render (ungated)', () => {
   test('/admissions/enquiries renders the new enquiry action', async ({ page }) => {
     await page.goto('/admissions/enquiries', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('new-enquiry')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const newEnquiry = page.getByTestId('new-enquiry');
+    await expect(async () => {
+      await expect(newEnquiry).toHaveCount(1, { timeout: 2_000 });
+      await expect(newEnquiry).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/admissions/seat-matrix renders the save control', async ({ page }) => {
     await page.goto('/admissions/seat-matrix', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('seat-honesty')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const seatHonesty = page.getByTestId('seat-honesty');
+    await expect(async () => {
+      await expect(seatHonesty).toHaveCount(1, { timeout: 2_000 });
+      await expect(seatHonesty).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(
       page.getByTestId('save-seat').or(page.getByTestId('seat-lookups-empty')),
     ).toBeVisible();
@@ -140,7 +172,16 @@ test.describe('Admissions CRM — pages render (ungated)', () => {
   test('/admissions/merit renders the generate control', async ({ page }) => {
     await page.goto('/admissions/merit', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('merit-honesty')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const meritHonesty = page.getByTestId('merit-honesty');
+    await expect(async () => {
+      await expect(meritHonesty).toHaveCount(1, { timeout: 2_000 });
+      await expect(meritHonesty).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(
       page.getByTestId('generate-merit').or(page.getByTestId('merit-lookups-empty')),
     ).toBeVisible();

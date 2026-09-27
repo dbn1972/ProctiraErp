@@ -24,6 +24,9 @@
 #                    (default: health write smoke + health/scholarships a11y smoke)
 #   E2E_REQUIRE_LIVE If 1, exit non-zero when gateway health fails
 #   E2E_SKIP_STACK   If 1 (or --skip-stack), print skip summary and exit 0
+#   PLAYWRIGHT_SHARD Optional i/n (for example 2/4). Passed as --shard so CI
+#                    can split the same spec list. Every shard still receives
+#                    the full E2E_SPECS list; Playwright selects the slice.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -34,7 +37,7 @@ for arg in "$@"; do
   case "$arg" in
     --skip-stack) SKIP_STACK=1 ;;
     --help|-h)
-      sed -n '2,35p' "$0"
+      sed -n '2,29p' "$0"
       exit 0
       ;;
     *)
@@ -65,6 +68,12 @@ export GATEWAY_URL="${GATEWAY_URL}"
 export CI="${CI:-}"
 
 SPECS="${E2E_SPECS:-e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts e2e/22-parent-portal-smoke.spec.ts}"
+
+PW_SHARD="${PLAYWRIGHT_SHARD:-}"
+if [[ -n "$PW_SHARD" && ! "$PW_SHARD" =~ ^[1-9][0-9]*/[1-9][0-9]*$ ]]; then
+  echo "error: PLAYWRIGHT_SHARD must look like 1/4, got: ${PW_SHARD}" >&2
+  exit 2
+fi
 
 print_skip_summary() {
   local reason="$1"
@@ -217,8 +226,12 @@ PW_GREP_ARGS=()
 if [[ -n "$PW_GREP" ]]; then
   PW_GREP_ARGS=(--grep "$PW_GREP")
 fi
+PW_SHARD_ARGS=()
+if [[ -n "$PW_SHARD" ]]; then
+  PW_SHARD_ARGS=(--shard="$PW_SHARD")
+fi
 # shellcheck disable=SC2086
-pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_GREP_ARGS[@]}"
+pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_SHARD_ARGS[@]}" "${PW_GREP_ARGS[@]}"
 PW_EXIT=$?
 set -e
 
@@ -228,6 +241,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo ""
     echo "- Gateway: \`${GATEWAY_URL}\` (healthy)"
     echo "- Specs: \`${SPECS}\`"
+    echo "- Shard: \`${PW_SHARD:-all}\`"
     echo "- Exit: \`${PW_EXIT}\`"
     echo "- E2E_BACKEND_READY=1"
   } >>"$GITHUB_STEP_SUMMARY"
