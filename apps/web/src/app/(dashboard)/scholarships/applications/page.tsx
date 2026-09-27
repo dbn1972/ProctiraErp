@@ -9,7 +9,7 @@
  * Validates: Requirement 11.1 — review and triage scholarship applications.
  */
 import Link from 'next/link';
-import { Eye, MoreVertical } from 'lucide-react';
+import { Eye } from 'lucide-react';
 
 import {
   Button,
@@ -232,9 +232,6 @@ function ApplicationRow({ app }: { app: ScholarshipApplication }) {
             <Link href={`/scholarships/applications/${app.id}`} aria-label="Review">
               <Eye className="h-4 w-4" aria-hidden="true" />
             </Link>
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More">
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
           </Button>
         </div>
       </TableCell>

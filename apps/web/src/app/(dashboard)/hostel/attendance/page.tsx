@@ -12,8 +12,9 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
-import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelAttendance, listHostelBlocks } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { HostelAttendanceForm } from '../_components/attendance-form';
 
 export const dynamic = 'force-dynamic';
@@ -29,7 +30,10 @@ export default async function HostelAttendancePage({
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;
   // Blocks are the subject here, not a lookup: with no block there is no roll call to
   // take, so a denial on blocks must say so rather than render an empty register.
-  const blocksResult = await listHostelBlocks();
+  const [blocksResult, studentOptions] = await Promise.all([
+    listHostelBlocks(),
+    loadStudentOptions(),
+  ]);
   if (!blocksResult.ok) {
     return (
       <ListLoadFailurePage
@@ -43,6 +47,7 @@ export default async function HostelAttendancePage({
     );
   }
   const blocks = blocksResult.items;
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const selectedBlock = blockId && blocks.some((b) => b.id === blockId) ? blockId : blocks[0]?.id;
   const marksResult =
     selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : null;
@@ -76,7 +81,12 @@ export default async function HostelAttendancePage({
         </Button>
       </div>
 
-      <HostelAttendanceForm blocks={blocks} defaultBlockId={selectedBlock} defaultDate={date} />
+      <HostelAttendanceForm
+        blocks={blocks}
+        defaultBlockId={selectedBlock}
+        defaultDate={date}
+        studentOptions={studentOptions}
+      />
 
       <Card>
         <CardHeader>
@@ -102,7 +112,7 @@ export default async function HostelAttendancePage({
                 >
                   <p className="text-sm font-medium text-foreground">{mark.status}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    student {mark.studentId.slice(0, 8)}
+                    {resolveEntityLabel(mark.studentId, studentLabels, 'Student')}
                     {mark.reason ? ` · ${mark.reason}` : ''}
                   </p>
                 </li>

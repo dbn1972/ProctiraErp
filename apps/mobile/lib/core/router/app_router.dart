@@ -18,7 +18,9 @@ import '../../features/parent_portal/presentation/parent_consents_screen.dart';
 import '../../features/parent_portal/presentation/parent_fees_screen.dart';
 import '../../features/parent_portal/presentation/parent_home_screen.dart';
 import '../../features/parent_portal/presentation/parent_messages_screen.dart';
+import '../../features/profile/presentation/language_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/profile/presentation/theme_screen.dart';
 import '../../features/reports/presentation/report_detail_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/scholarship/presentation/scholarship_application_screen.dart';
@@ -31,6 +33,7 @@ import '../../features/students/presentation/students_screen.dart';
 import '../../features/tenant/presentation/tenant_selection_screen.dart';
 import '../auth/auth_bloc.dart';
 import '../di/injector.dart';
+import '../student/selected_student_store.dart';
 import '../tenant/tenant_provider.dart';
 
 /// GoRouter configuration with auth + tenant guards.
@@ -190,7 +193,7 @@ class AppRouter {
           name: 'assessments',
           builder: (BuildContext context, GoRouterState state) =>
               AssessmentResultsScreen(
-            studentId: state.uri.queryParameters['studentId'] ?? '',
+            studentId: _studentIdOf(state),
           ),
         ),
         GoRoute(
@@ -198,7 +201,7 @@ class AppRouter {
           name: 'examinations',
           builder: (BuildContext context, GoRouterState state) =>
               ExaminationListScreen(
-            studentId: state.uri.queryParameters['studentId'] ?? '',
+            studentId: _studentIdOf(state),
           ),
           routes: <RouteBase>[
             GoRoute(
@@ -206,7 +209,7 @@ class AppRouter {
               name: 'examination-results',
               builder: (BuildContext context, GoRouterState state) =>
                   ExaminationResultsScreen(
-                studentId: state.uri.queryParameters['studentId'] ?? '',
+                studentId: _studentIdOf(state),
               ),
             ),
           ],
@@ -215,14 +218,16 @@ class AppRouter {
           path: '/scholarships',
           name: 'scholarships',
           builder: (BuildContext context, GoRouterState state) =>
-              const ScholarshipProgramsScreen(),
+              ScholarshipProgramsScreen(
+            studentId: _studentIdOf(state),
+          ),
           routes: <RouteBase>[
             GoRoute(
               path: 'status',
               name: 'scholarship-status',
               builder: (BuildContext context, GoRouterState state) =>
                   ScholarshipStatusScreen(
-                studentId: state.uri.queryParameters['studentId'] ?? '',
+                studentId: _studentIdOf(state),
               ),
             ),
             GoRoute(
@@ -231,7 +236,7 @@ class AppRouter {
               builder: (BuildContext context, GoRouterState state) =>
                   ScholarshipApplicationScreen(
                 programId: state.pathParameters['programId'] ?? '',
-                studentId: state.uri.queryParameters['studentId'] ?? '',
+                studentId: _studentIdOf(state),
               ),
             ),
           ],
@@ -241,7 +246,7 @@ class AppRouter {
           name: 'health',
           builder: (BuildContext context, GoRouterState state) =>
               HealthRecordsScreen(
-            studentId: state.uri.queryParameters['studentId'] ?? '',
+            studentId: _studentIdOf(state),
           ),
         ),
         GoRoute(
@@ -255,6 +260,18 @@ class AppRouter {
               name: 'profile-notifications',
               builder: (BuildContext context, GoRouterState state) =>
                   const NotificationPreferencesScreen(),
+            ),
+            GoRoute(
+              path: 'language',
+              name: 'profile-language',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const LanguageScreen(),
+            ),
+            GoRoute(
+              path: 'theme',
+              name: 'profile-theme',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const ThemeScreen(),
             ),
           ],
         ),
@@ -288,10 +305,29 @@ class AppRouter {
       return atLogin ? null : '/login';
     }
 
-    if (atLogin || atTenant) {
+    if (atLogin) {
+      return '/';
+    }
+
+    // Profile → workspace switch lands on `/tenant?switch=1`. Without the
+    // query, an already-configured session still returns home.
+    if (atTenant && state.uri.queryParameters['switch'] != '1') {
       return '/';
     }
     return null;
+  }
+
+  /// Query `studentId` wins. Otherwise the device-local selection is used so
+  /// home tiles and deep links share one student.
+  String _studentIdOf(GoRouterState state) {
+    final String fromQuery = state.uri.queryParameters['studentId']?.trim() ?? '';
+    if (fromQuery.isNotEmpty) {
+      return fromQuery;
+    }
+    if (getIt.isRegistered<SelectedStudentStore>()) {
+      return getIt<SelectedStudentStore>().studentId?.trim() ?? '';
+    }
+    return '';
   }
 }
 

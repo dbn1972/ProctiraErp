@@ -17,13 +17,37 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listWorkflowDefinitions, type WorkflowDefinition } from '@/lib/api/workflows';
+import { listWorkflowDefinitionsResult, type WorkflowDefinition } from '@/lib/api/workflows';
 import { EmptyState } from '@/components/page';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WorkflowsPage() {
-  const definitions = await listWorkflowDefinitions();
+  const definitionsResult = await listWorkflowDefinitionsResult();
+  if (!definitionsResult.ok) {
+    return (
+      <section aria-labelledby="workflows-heading" className="space-y-6">
+        <div>
+          <h1
+            id="workflows-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Workflow definitions
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Approval flows for transfers, leaves, disbursements and other district actions.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={definitionsResult.kind}
+          status={definitionsResult.status}
+          returnTo="/workflows"
+        />
+      </section>
+    );
+  }
+  const definitions = definitionsResult.items;
   const activeCount = definitions.filter((d) => d.active).length;
 
   return (

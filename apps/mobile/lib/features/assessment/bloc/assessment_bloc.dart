@@ -117,6 +117,18 @@ class AssessmentBloc extends Bloc<AssessmentEvent, AssessmentState> {
     AssessmentResultsRequested event,
     Emitter<AssessmentState> emit,
   ) async {
+    if (event.studentId.trim().isEmpty) {
+      emit(state.copyWith(
+        status: AssessmentStatus.error,
+        studentId: '',
+        results: const <AssessmentResult>[],
+        subjects: const <String>[],
+        periods: const <String>[],
+        errorMessage: 'Choose a student to view assessment results.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(
       status: AssessmentStatus.loading,
       studentId: event.studentId,

@@ -14,6 +14,8 @@ import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelGatePasses, listHostels } from '@/lib/api/hostel';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { GatePassActions } from '../_components/gate-pass-actions';
 import { GatePassRequestForm } from '../_components/gate-pass-form';
 
@@ -21,7 +23,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelGatePassesPage() {
   await requireSession();
-  const [hostelsResult, passesResult] = await Promise.all([listHostels(), listHostelGatePasses()]);
+  const [hostelsResult, passesResult, studentOptions] = await Promise.all([
+    listHostels(),
+    listHostelGatePasses(),
+    loadStudentOptions(),
+  ]);
   // The pass list can fail without the page being useless: a resident can still request a
   // pass. The panel replaces the table, not the screen.
   const failure = passesResult.ok ? null : passesResult;
@@ -31,6 +37,7 @@ export default async function HostelGatePassesPage() {
   // opt-out rather than a hidden collapse. The primary list above reports the
   // real reason when the domain is denied or down.
   const hostels = itemsOrEmpty(hostelsResult);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -46,7 +53,7 @@ export default async function HostelGatePassesPage() {
         </Button>
       </div>
 
-      <GatePassRequestForm hostels={hostels} />
+      <GatePassRequestForm hostels={hostels} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>
@@ -86,8 +93,8 @@ export default async function HostelGatePassesPage() {
                     {pass.overdueReturn ? ' · overdue return' : ''}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    student {pass.studentId.slice(0, 8)} · out {pass.expectedOutAt.slice(0, 16)} →
-                    in {pass.expectedInAt.slice(0, 16)}
+                    {resolveEntityLabel(pass.studentId, studentLabels, 'Student')} · out{' '}
+                    {pass.expectedOutAt.slice(0, 16)} → in {pass.expectedInAt.slice(0, 16)}
                   </p>
                   <GatePassActions id={pass.id} status={pass.status} />
                 </li>

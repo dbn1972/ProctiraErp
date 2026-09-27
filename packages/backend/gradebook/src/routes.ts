@@ -38,11 +38,13 @@ export interface GradebookRoutesOptions {
 }
 
 function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | undefined {
+  // SEC-2: `x-tenant-id` is a client-supplied header and must never be trusted as a
+  // tenant source. The gateway overwrites it with the JWT-verified tenant before
+  // proxying (see apps/api-gateway/src/plugins/service-router.ts), but this package
+  // has no standalone boot path, so there is no legitimate case where tenant identity
+  // should fall back to it. Resolve strictly from server-verified sources.
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
-  const tenantId =
-    user?.tenantId ??
-    (request as FastifyRequest & { tenantId?: string }).tenantId ??
-    (request.headers['x-tenant-id'] as string | undefined);
+  const tenantId = user?.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
   if (!tenantId) {
     reply.status(401).send({
       code: 'UNAUTHORIZED',

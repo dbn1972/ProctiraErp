@@ -71,7 +71,8 @@ export function RefundDialog({
           <DialogHeader>
             <DialogTitle>Record refund</DialogTitle>
             <DialogDescription>
-              Cannot exceed the amount already paid on this invoice.
+              Confirm the refund amount and reason. Cannot exceed the amount already paid on this
+              invoice. This money-moving action posts immediately.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-3">
@@ -83,6 +84,7 @@ export function RefundDialog({
                 min="0.01"
                 step="0.01"
                 defaultValue={(amountCents / 100).toFixed(2)}
+                required
               />
             </FormField>
             <FormField id="refund-reason" label="Reason" required>
@@ -95,8 +97,21 @@ export function RefundDialog({
             ) : null}
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={!hydrated || pending} data-testid="submit-refund">
-              {pending ? 'Saving…' : 'Refund'}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={pending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={!hydrated || pending}
+              data-testid="submit-refund"
+            >
+              {pending ? 'Saving…' : 'Confirm refund'}
             </Button>
           </DialogFooter>
         </form>

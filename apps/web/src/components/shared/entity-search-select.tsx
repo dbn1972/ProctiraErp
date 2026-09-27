@@ -18,6 +18,7 @@ export function EntitySearchSelect({
   defaultValue = '',
   required = false,
   placeholder = 'Search by code or name…',
+  emptyMessage = 'No directory entries loaded. Add students or staff first, or try again when the directory API is available.',
   className,
 }: {
   id: string;
@@ -27,6 +28,8 @@ export function EntitySearchSelect({
   defaultValue?: string;
   required?: boolean;
   placeholder?: string;
+  /** Shown instead of a paste field when the directory is empty. */
+  emptyMessage?: string;
   className?: string;
 }) {
   const [query, setQuery] = useState('');
@@ -49,14 +52,15 @@ export function EntitySearchSelect({
     <div className={className ?? 'space-y-1.5'}>
       <Label htmlFor={id}>{label}</Label>
       {options.length === 0 ? (
-        <Input
-          id={id}
-          name={name}
-          required={required}
-          defaultValue={defaultValue}
-          autoComplete="off"
-          placeholder="No directory loaded — enter id"
-        />
+        <div className="space-y-1.5">
+          <input type="hidden" id={id} name={name} value="" />
+          <p
+            className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+            role="status"
+          >
+            {emptyMessage}
+          </p>
+        </div>
       ) : (
         <>
           <Input

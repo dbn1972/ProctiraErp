@@ -12,10 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/cookies' },
 };
 
-/**
- * Boilerplate Cookie Policy. Operators must update with the actual cookies
- * set by their deployment before publication.
- */
+/** Public cookie notice. Matches the consent control in the site layout. */
 export default function CookiesPage() {
   return (
     <>
@@ -27,7 +24,7 @@ export default function CookiesPage() {
       <section className="container py-16">
         <div className="mx-auto mb-8 flex max-w-3xl items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-medium text-primary">
           <CalendarClock aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
-          Applies to proctira.org and its subdomains — review and update before public launch.
+          Applies to proctira.org and its subdomains. Last reviewed: 26 September 2026.
         </div>
         <LegalProse>
           <p>
@@ -58,14 +55,16 @@ export default function CookiesPage() {
 
           <h2>Managing cookies</h2>
           <p>
-            You can control cookies through your browser settings or, where offered, via the consent
-            banner on this site. Blocking some types of cookies may impact your experience.
+            A consent bar on this site lets you choose essential cookies only, or record that
+            analytics may be used later. This website does not load a third-party analytics cookie
+            today. If one is added, it loads only after you choose Allow analytics. You can also
+            block cookies in your browser. Clearing this site&apos;s data shows the bar again.
           </p>
 
           <h2>Do Not Track</h2>
           <p>
-            We respect Do Not Track signals where required by law or where our cookie consent
-            surface offers an explicit opt-out.
+            Choosing Essential only is the explicit opt-out on this site. We do not set analytics
+            cookies unless you allow them.
           </p>
 
           <h2>Changes to this policy</h2>

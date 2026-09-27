@@ -63,18 +63,16 @@ export function SuccessCard() {
           </button>
         </div>
       ) : (
-        <p className="mt-6 text-sm text-gray-500">—</p>
+        <div className="mx-auto mt-6 max-w-md rounded-md border border-amber-200 bg-amber-50 p-4 text-start text-sm text-amber-950">
+          <p className="font-semibold">{t('trackingMissingTitle')}</p>
+          <p className="mt-2 leading-relaxed">{t('trackingMissingBody')}</p>
+        </div>
       )}
 
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-        {trackingNumber && (
-          <Link
-            href={`/track/${encodeURIComponent(trackingNumber)}`}
-            className="btn-primary h-11 px-6 text-base"
-          >
-            {tLanding('trackCta')}
-          </Link>
-        )}
+        <Link href="/track" className="btn-primary h-11 px-6 text-base">
+          {tLanding('trackCta')}
+        </Link>
         <Link href="/" className="btn-secondary h-11 px-6 text-base">
           {tCommon('home')}
         </Link>

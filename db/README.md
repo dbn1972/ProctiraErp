@@ -377,6 +377,12 @@ Apply explicitly when needed, for example:
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/002_multi_board_schools_500.sql
 ```
 
+Screen-review demo (one school, named students and staff, INR fee plans, consents). Idempotent. Run after Prisma migrate and `apply-sql.sh`. It does not create a password user; bind tenant `00000000-0000-4000-8000-00000000a501` (`sunrise-public-school`, Sunrise Public School):
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+```
+
 `tools/scripts/setup-live-db-and-onboard.sh` runs `apply-sql.sh` for all numbered domain SQL, then applies the multi-board onboard seed.
 
 Module-local demo seeds that ship next to schema (`006b`, `007b`, …) **are** included in the numbered `db/sql/` apply and run after their schema file.

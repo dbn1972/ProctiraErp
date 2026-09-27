@@ -5,7 +5,9 @@
  */
 import { useState } from 'react';
 
-import { Button, Input } from '@proctira/ui/components';
+import { Button } from '@proctira/ui/components';
+
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 interface BoardSummaryResponse {
   boardId: string;
@@ -18,8 +20,8 @@ interface BoardSummaryResponse {
   schoolsBreakdown: Array<{ institutionId: string; name: string; enrolment: number }>;
 }
 
-export function BoardSummaryPanel() {
-  const [boardId, setBoardId] = useState('');
+export function BoardSummaryPanel({ boardOptions = [] }: { boardOptions?: EntityLabelOption[] }) {
+  const [boardId, setBoardId] = useState(boardOptions[0]?.id ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<BoardSummaryResponse | null>(null);
@@ -27,7 +29,7 @@ export function BoardSummaryPanel() {
   async function onFetch() {
     const id = boardId.trim();
     if (!id) {
-      setError('Enter a board id');
+      setError('Select a board');
       return;
     }
     setLoading(true);
@@ -66,19 +68,35 @@ export function BoardSummaryPanel() {
       </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-          <span className="font-medium text-foreground">Board id</span>
-          <Input
-            value={boardId}
-            onChange={(e) => setBoardId(e.target.value)}
-            placeholder="e.g. board UUID"
-            aria-label="Board id"
-          />
+          <span className="font-medium text-foreground">Board</span>
+          {boardOptions.length === 0 ? (
+            <p
+              className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+              role="status"
+            >
+              No boards available from the gradebook directory yet.
+            </p>
+          ) : (
+            <select
+              value={boardId}
+              onChange={(e) => setBoardId(e.target.value)}
+              aria-label="Board"
+              className="h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">Select board…</option>
+              {boardOptions.map((board) => (
+                <option key={board.id} value={board.id}>
+                  {board.label}
+                </option>
+              ))}
+            </select>
+          )}
         </label>
         <Button
           type="button"
           className="min-h-11"
           onClick={() => void onFetch()}
-          disabled={loading}
+          disabled={loading || boardOptions.length === 0 || !boardId}
         >
           {loading ? 'Loading…' : 'Fetch summary'}
         </Button>

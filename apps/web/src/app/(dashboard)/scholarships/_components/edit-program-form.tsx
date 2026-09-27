@@ -9,6 +9,7 @@ import { useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 
 import { Button, FormField, Input, Textarea } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import type { ScholarshipProgram } from '@/lib/api/scholarships';
 
 import { updateScholarshipProgramAction } from '../actions';
@@ -25,10 +26,10 @@ export function EditProgramForm({ program }: EditProgramFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [pendingFd, setPendingFd] = useState<FormData | null>(null);
 
-  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const fd = new FormData(event.currentTarget);
+  function save(fd: FormData) {
     const name = String(fd.get('name') ?? '').trim();
     const totalSlots = Number(fd.get('totalSlots'));
     const awardAmount = Number(fd.get('awardAmount'));
@@ -56,104 +57,139 @@ export function EditProgramForm({ program }: EditProgramFormProps) {
         setError(result.message ?? 'Update failed');
         return;
       }
+      setConfirmClose(false);
+      setPendingFd(null);
       router.push(`/scholarships/programs/${program.id}`);
       router.refresh();
     });
   }
 
+  function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    const statusRaw = String(fd.get('status') ?? program.status).toLowerCase();
+    const closing =
+      (statusRaw === 'closed' || statusRaw === 'archived') &&
+      program.status.toLowerCase() !== statusRaw;
+    if (closing) {
+      setPendingFd(fd);
+      setConfirmClose(true);
+      return;
+    }
+    save(fd);
+  }
+
   return (
-    <form className="space-y-5" noValidate onSubmit={onSubmit}>
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField id="program-name" label="Name" required>
-          <Input id="program-name" name="name" defaultValue={program.name} required />
-        </FormField>
-        <FormField id="program-code" label="Code">
-          <Input id="program-code" name="code" defaultValue={program.code} disabled />
-        </FormField>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <FormField id="program-slots" label="Total slots" required>
-          <Input
-            id="program-slots"
-            name="totalSlots"
-            type="number"
-            min={1}
-            defaultValue={program.totalSlots}
-            required
+    <>
+      <form className="space-y-5" noValidate onSubmit={onSubmit}>
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormField id="program-name" label="Name" required>
+            <Input id="program-name" name="name" defaultValue={program.name} required />
+          </FormField>
+          <FormField id="program-code" label="Code">
+            <Input id="program-code" name="code" defaultValue={program.code} disabled />
+          </FormField>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <FormField id="program-slots" label="Total slots" required>
+            <Input
+              id="program-slots"
+              name="totalSlots"
+              type="number"
+              min={1}
+              defaultValue={program.totalSlots}
+              required
+            />
+          </FormField>
+          <FormField id="program-amount" label="Award amount" required>
+            <Input
+              id="program-amount"
+              name="awardAmount"
+              type="number"
+              step="0.01"
+              defaultValue={program.awardAmount}
+              required
+            />
+          </FormField>
+          <FormField id="program-currency" label="Currency" required>
+            <Input
+              id="program-currency"
+              name="currency"
+              defaultValue={program.currency}
+              maxLength={3}
+              required
+            />
+          </FormField>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <FormField id="program-app-start" label="Application opens" required>
+            <Input
+              id="program-app-start"
+              name="applicationStartDate"
+              type="date"
+              defaultValue={toDateInput(program.applicationStartDate)}
+              required
+            />
+          </FormField>
+          <FormField id="program-app-end" label="Application closes" required>
+            <Input
+              id="program-app-end"
+              name="applicationEndDate"
+              type="date"
+              defaultValue={toDateInput(program.applicationEndDate)}
+              required
+            />
+          </FormField>
+          <FormField id="program-status" label="Status">
+            <Input
+              id="program-status"
+              name="status"
+              defaultValue={program.status.toLowerCase()}
+              placeholder="open"
+            />
+          </FormField>
+        </div>
+        <FormField id="program-eligibility" label="Description / eligibility">
+          <Textarea
+            id="program-eligibility"
+            name="eligibility"
+            rows={4}
+            defaultValue={program.description ?? ''}
           />
         </FormField>
-        <FormField id="program-amount" label="Award amount" required>
-          <Input
-            id="program-amount"
-            name="awardAmount"
-            type="number"
-            step="0.01"
-            defaultValue={program.awardAmount}
-            required
-          />
-        </FormField>
-        <FormField id="program-currency" label="Currency" required>
-          <Input
-            id="program-currency"
-            name="currency"
-            defaultValue={program.currency}
-            maxLength={3}
-            required
-          />
-        </FormField>
-      </div>
-      <div className="grid gap-4 md:grid-cols-3">
-        <FormField id="program-app-start" label="Application opens" required>
-          <Input
-            id="program-app-start"
-            name="applicationStartDate"
-            type="date"
-            defaultValue={toDateInput(program.applicationStartDate)}
-            required
-          />
-        </FormField>
-        <FormField id="program-app-end" label="Application closes" required>
-          <Input
-            id="program-app-end"
-            name="applicationEndDate"
-            type="date"
-            defaultValue={toDateInput(program.applicationEndDate)}
-            required
-          />
-        </FormField>
-        <FormField id="program-status" label="Status">
-          <Input
-            id="program-status"
-            name="status"
-            defaultValue={program.status.toLowerCase()}
-            placeholder="open"
-          />
-        </FormField>
-      </div>
-      <FormField id="program-eligibility" label="Description / eligibility">
-        <Textarea
-          id="program-eligibility"
-          name="eligibility"
-          rows={4}
-          defaultValue={program.description ?? ''}
-        />
-      </FormField>
 
-      {error ? (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
 
-      <div className="flex justify-end gap-3 pt-2">
-        <Button asChild variant="outline" type="button">
-          <Link href={`/scholarships/programs/${program.id}`}>Cancel</Link>
-        </Button>
-        <Button type="submit" disabled={isPending}>
-          <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
-          {isPending ? 'Saving…' : 'Save changes'}
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end gap-3 pt-2">
+          <Button asChild variant="outline" type="button">
+            <Link href={`/scholarships/programs/${program.id}`}>Cancel</Link>
+          </Button>
+          <Button type="submit" disabled={isPending}>
+            <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
+            {isPending ? 'Saving…' : 'Save changes'}
+          </Button>
+        </div>
+      </form>
+      <ConfirmActionDialog
+        open={confirmClose}
+        onOpenChange={(open) => {
+          setConfirmClose(open);
+          if (!open) setPendingFd(null);
+        }}
+        title="Close this scholarship program?"
+        description="Closing or archiving stops new applications. Existing applications stay available for review."
+        confirmLabel="Close program"
+        destructive
+        pending={isPending}
+        onConfirm={() => {
+          if (pendingFd) save(pendingFd);
+        }}
+        testId="scholarship-program-close-confirm"
+      />
+    </>
   );
 }

@@ -4,6 +4,7 @@ import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
+import '../student/selected_student_store.dart';
 
 // ---------------------------------------------------------------------------
 // Events
@@ -27,14 +28,19 @@ class AuthLoggedIn extends AuthEvent {
     required this.userId,
     required this.accessToken,
     required this.refreshToken,
+    this.email,
+    this.displayName,
   });
 
   final String userId;
   final String accessToken;
   final String refreshToken;
+  final String? email;
+  final String? displayName;
 
   @override
-  List<Object?> get props => <Object?>[userId, accessToken, refreshToken];
+  List<Object?> get props =>
+      <Object?>[userId, accessToken, refreshToken, email, displayName];
 }
 
 /// User explicitly logged out.
@@ -80,9 +86,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     required SecureStorage secureStorage,
     AppDatabase? database,
     AuthApi? authApi,
+    SelectedStudentStore? selectedStudent,
   })  : _storage = secureStorage,
         _database = database,
         _authApi = authApi,
+        _selectedStudent = selectedStudent,
         super(const AuthState.unknown()) {
     on<AuthBootstrapRequested>(_onBootstrap);
     on<AuthLoggedIn>(_onLoggedIn);
@@ -92,6 +100,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final SecureStorage _storage;
   final AppDatabase? _database;
   final AuthApi? _authApi;
+  final SelectedStudentStore? _selectedStudent;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -104,8 +113,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         access.isNotEmpty &&
         refresh != null &&
         refresh.isNotEmpty) {
+      final String? userId = await _storage.readUserId();
       emit(AuthState(
         status: AuthStatus.authenticated,
+        userId: userId,
         accessToken: access,
       ));
     } else {
@@ -117,6 +128,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     await _storage.writeTokens(
       accessToken: event.accessToken,
       refreshToken: event.refreshToken,
+    );
+    await _storage.writeUserProfile(
+      userId: event.userId,
+      email: event.email,
+      displayName: event.displayName,
     );
     emit(AuthState(
       status: AuthStatus.authenticated,
@@ -140,6 +156,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     }
     await _storage.clearTokens();
     await _storage.clearTenant();
+    await _selectedStudent?.clear();
     final AppDatabase? database = _database;
     if (database != null) {
       await database.purgeAllUserData();

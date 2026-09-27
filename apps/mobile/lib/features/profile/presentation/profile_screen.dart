@@ -41,6 +41,9 @@ class _ProfileView extends StatelessWidget {
           }
 
           final TenantProvider tenant = getIt<TenantProvider>();
+          return ListenableBuilder(
+            listenable: tenant,
+            builder: (BuildContext context, _) {
           final String workspace = tenant.displayName ??
               tenant.tenantId ??
               'No workspace selected';
@@ -118,7 +121,7 @@ class _ProfileView extends StatelessWidget {
                       color: const Color(0xFF14B8A6),
                       title: 'Workspace',
                       subtitle: '$workspace · tap to switch',
-                      onTap: () => context.go('/tenant'),
+                      onTap: () => context.push('/tenant?switch=1'),
                     ),
                   ],
                 ),
@@ -138,14 +141,14 @@ class _ProfileView extends StatelessWidget {
                       icon: Icons.language_outlined,
                       color: const Color(0xFF0EA5E9),
                       title: l10n.language,
-                      subtitle: _localeName(state.locale),
+                      subtitle: _localeName(tenant.locale),
                       onTap: () => context.push('/profile/language'),
                     ),
                     _SettingsTile(
                       icon: Icons.palette_outlined,
                       color: const Color(0xFFF59E0B),
                       title: l10n.theme,
-                      subtitle: _themeModeName(state.themeMode, l10n),
+                      subtitle: _themeModeName(tenant.themeMode, l10n),
                       onTap: () => context.push('/profile/theme'),
                     ),
                   ],
@@ -172,12 +175,17 @@ class _ProfileView extends StatelessWidget {
               ],
             ),
           );
+            },
+          );
         },
       ),
     );
   }
 
-  String _localeName(Locale locale) {
+  String _localeName(Locale? locale) {
+    if (locale == null) {
+      return 'Device default';
+    }
     switch (locale.languageCode) {
       case 'hi':
         return 'हिन्दी';

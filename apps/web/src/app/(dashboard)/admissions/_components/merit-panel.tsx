@@ -121,7 +121,7 @@ export function MeritPanel({
                   id="merit-app-id"
                   name="applicationId"
                   data-testid="merit-application-id"
-                  placeholder="UUID from /admissions/[id]"
+                  placeholder="Application reference from admissions detail"
                   required
                   disabled={!hydrated || pending}
                 />

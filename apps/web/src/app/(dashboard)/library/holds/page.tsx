@@ -14,13 +14,19 @@ import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listLibraryHolds, listLibraryItems } from '@/lib/api/library';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { PlaceHoldForm } from '../_components/place-hold-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryHoldsPage() {
   await requireSession();
-  const [itemsResult, holdsResult] = await Promise.all([listLibraryItems(), listLibraryHolds()]);
+  const [itemsResult, holdsResult, studentOptions] = await Promise.all([
+    listLibraryItems(),
+    listLibraryHolds(),
+    loadStudentOptions(),
+  ]);
 
   // The hold queue is this page's subject.
   if (!holdsResult.ok) {
@@ -40,6 +46,8 @@ export default async function LibraryHoldsPage() {
   // opt-out rather than a hidden collapse. If the catalogue is unreadable the picker is
   // empty, and the queue above still reports the real state.
   const items = itemsOrEmpty(itemsResult);
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  const itemLabels = new Map(items.map((item) => [item.id, item.title]));
 
   return (
     <div className="space-y-6 p-6">
@@ -55,7 +63,7 @@ export default async function LibraryHoldsPage() {
         </Button>
       </div>
 
-      <PlaceHoldForm items={items} />
+      <PlaceHoldForm items={items} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>
@@ -80,10 +88,15 @@ export default async function LibraryHoldsPage() {
                   data-testid="library-hold-row"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    {hold.status} · position {hold.position}
+                    {resolveEntityLabel(hold.itemId, itemLabels, 'Title')} · {hold.status} ·
+                    position {hold.position}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    item {hold.itemId.slice(0, 8)}
+                    {resolveEntityLabel(
+                      hold.studentId ?? hold.patronUserId,
+                      studentLabels,
+                      hold.studentId ? 'Student' : 'Patron',
+                    )}
                     {hold.expiresAt ? ` · expires ${hold.expiresAt.slice(0, 10)}` : ''}
                   </p>
                 </li>

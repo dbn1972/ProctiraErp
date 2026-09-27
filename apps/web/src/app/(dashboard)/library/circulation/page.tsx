@@ -5,13 +5,17 @@ import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryItems } from '@/lib/api/library';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { CirculationDesk } from '../_components/circulation-desk';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryCirculationPage() {
   const session = await requireSession();
-  const itemsResult = await listLibraryItems();
+  const [itemsResult, studentOptions] = await Promise.all([
+    listLibraryItems(),
+    loadStudentOptions(),
+  ]);
 
   /**
    * A failed catalogue read degrades the desk, it does not disable it.
@@ -45,7 +49,11 @@ export default async function LibraryCirculationPage() {
           copy={await getListFailureCopy()}
         />
       ) : null}
-      <CirculationDesk items={items} patronUserId={session.user.sub} />
+      <CirculationDesk
+        items={items}
+        patronUserId={session.user.sub}
+        studentOptions={studentOptions}
+      />
     </div>
   );
 }

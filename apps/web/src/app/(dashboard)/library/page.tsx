@@ -2,7 +2,6 @@
  * Library catalog (Server Component).
  */
 import Link from 'next/link';
-
 import {
   Button,
   Card,
@@ -12,21 +11,22 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { getTranslations } from 'next-intl/server';
-
 import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryItems } from '@/lib/api/library';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LibraryClearanceForm } from './_components/clearance-form';
 import { IsbnImportForm } from './_components/isbn-import-form';
 import { NewLibraryItemForm } from './_components/new-item-form';
-
 export const dynamic = 'force-dynamic';
-
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const [t, itemsResult] = await Promise.all([getTranslations('library'), listLibraryItems()]);
-
+  const [t, itemsResult, studentOptions] = await Promise.all([
+    getTranslations('library'),
+    listLibraryItems(),
+    loadStudentOptions(),
+  ]);
   /**
    * The catalogue list can fail without the page being useless.
    *
@@ -38,7 +38,6 @@ export default async function LibraryCatalogPage() {
   const failure = itemsResult.ok ? null : itemsResult;
   const items = itemsResult.ok ? itemsResult.items : [];
   const failureCopy = failure ? await getListFailureCopy() : undefined;
-
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -64,11 +63,9 @@ export default async function LibraryCatalogPage() {
           </Button>
         </div>
       </div>
-
       <NewLibraryItemForm />
       <IsbnImportForm />
-      <LibraryClearanceForm />
-
+      <LibraryClearanceForm studentOptions={studentOptions} />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t('catalog')}</CardTitle>

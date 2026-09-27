@@ -27,8 +27,14 @@ export default async function StudentLibraryPage({
     listLibraryHolds({ studentId: session.user.sub }),
   ]);
 
-  // Same reasoning as the parent portal: the student's own loans and holds are the record
-  // that matters, and "no loans" is not a safe thing to show when nobody actually looked.
+  /**
+   * Same reasoning as the parent portal: the student's own loans and holds are the record
+   * that matters, and "no loans" is not a safe thing to show when nobody actually looked.
+   *
+   * Two separate early returns rather than one combined `failed` check: TypeScript cannot
+   * correlate a third variable back to the two results, so the combined form left both
+   * still unnarrowed and `.items` unreachable.
+   */
   const failureFrame = (failure: ListFailure) => (
     <AcademicFrame
       title="Library"
@@ -49,6 +55,8 @@ export default async function StudentLibraryPage({
 
   const loans = loansResult.items;
   const holds = holdsResult.items;
+  // The catalogue search is secondary here: a failure shows no results rather than hiding
+  // the student's own records, which are the reason they opened this page.
   const items = itemsResult.ok ? itemsResult.items : [];
 
   return (

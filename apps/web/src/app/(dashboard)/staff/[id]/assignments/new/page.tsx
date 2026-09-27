@@ -21,6 +21,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { workloadBand } from '@/lib/status-label';
 import { listInstitutions } from '@/lib/api/institutions';
 import { getStaff, listStaffAssignments } from '@/lib/api/staff';
 import {
@@ -88,7 +89,7 @@ function WorkloadCard({
                   nearCap ? 'text-amber-600 dark:text-amber-400' : 'text-foreground',
                 )}
               >
-                {totalPct}%
+                {workloadBand(totalPct)} · {totalPct}%
               </span>
             </div>
           </div>

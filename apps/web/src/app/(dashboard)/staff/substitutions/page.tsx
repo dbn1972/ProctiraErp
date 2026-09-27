@@ -9,13 +9,19 @@ import { ArrowLeft, Users } from 'lucide-react';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { SubstitutionCreateForm } from '@/components/timetable/substitution-create-form';
 import { listMeetings, listSubstitutions } from '@/lib/api/timetable';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
 const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default async function StaffSubstitutionsPage() {
-  const [subsResult, meetingsResult] = await Promise.all([listSubstitutions(), listMeetings()]);
+  const [subsResult, meetingsResult, staffLabels] = await Promise.all([
+    listSubstitutions(),
+    listMeetings(),
+    loadStaffLabelMap(),
+  ]);
 
   const apiError = !subsResult.ok
     ? subsResult.error
@@ -28,7 +34,7 @@ export default async function StaffSubstitutionsPage() {
 
   const meetingOptions = meetings.map((m) => ({
     id: m.id,
-    label: `${DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} · section ${m.sectionId.slice(0, 8)}… · staff ${m.staffId.slice(0, 8)}…`,
+    label: `${DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek} · ${resolveEntityLabel(m.sectionId, {}, 'Section')} · ${resolveEntityLabel(m.staffId, staffLabels, 'Staff')}`,
   }));
 
   return (
@@ -68,7 +74,7 @@ export default async function StaffSubstitutionsPage() {
               {apiError}
               {!subsResult.ok &&
                 subsResult.code === 'TIMETABLE_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql.'}
+                ' Timetable storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>
@@ -104,14 +110,14 @@ export default async function StaffSubstitutionsPage() {
                       {substitutions.map((s) => (
                         <tr key={s.id} className="border-b border-border/60">
                           <td className="px-4 py-3 tabular-nums">{s.substitutionDate}</td>
-                          <td className="px-4 py-3 font-mono text-xs">
-                            {s.sectionMeetingId.slice(0, 8)}…
+                          <td className="px-4 py-3 text-xs">
+                            {resolveEntityLabel(s.sectionMeetingId, {}, 'Meeting')}
                           </td>
-                          <td className="px-4 py-3 font-mono text-xs">
-                            {s.originalStaffId.slice(0, 8)}…
+                          <td className="px-4 py-3 text-xs">
+                            {resolveEntityLabel(s.originalStaffId, staffLabels, 'Staff')}
                           </td>
-                          <td className="px-4 py-3 font-mono text-xs">
-                            {s.substituteStaffId.slice(0, 8)}…
+                          <td className="px-4 py-3 text-xs">
+                            {resolveEntityLabel(s.substituteStaffId, staffLabels, 'Staff')}
                           </td>
                           <td className="px-4 py-3 text-muted-foreground">{s.reason ?? '—'}</td>
                           <td className="px-4 py-3 text-xs">{s.status}</td>

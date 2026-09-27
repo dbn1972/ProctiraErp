@@ -13,12 +13,18 @@ import {
   Input,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { createAllergyAction } from '../actions';
 
 const SEVERITIES = ['mild', 'moderate', 'severe', 'life-threatening'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function CreateAllergyForm() {
+export function CreateAllergyForm({
+  studentOptions = [],
+}: {
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -35,7 +41,11 @@ export function CreateAllergyForm() {
     const diagnosedDate = String(fd.get('diagnosedDate') ?? '').trim();
 
     if (!UUID_RE.test(studentId)) {
-      setError('Student ID must be a valid UUID.');
+      setError(
+        studentOptions.length === 0
+          ? 'Student directory is empty — add students before recording an allergy.'
+          : 'Select a student.',
+      );
       return;
     }
     if (!allergyType || !description) {
@@ -70,9 +80,13 @@ export function CreateAllergyForm() {
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit} data-testid="create-allergy-form">
-          <FormField label="Student ID" htmlFor="studentId">
-            <Input id="studentId" name="studentId" required className="min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="studentId"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <FormField label="Allergy type" htmlFor="allergyType">
             <Input
               id="allergyType"

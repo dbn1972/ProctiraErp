@@ -19,6 +19,12 @@ interface ScaffoldModeBannerProps {
   source?: ScaffoldDataSource;
   /** Force-show for write scaffolds that never hit a live API yet. */
   force?: boolean;
+  /**
+   * Override the default "Scaffold / demo mode" title. Use this for callers where the
+   * underlying data is real (not a demo/scaffold feature) and the banner instead reflects a
+   * transient or access condition, e.g. the gateway being temporarily unreachable.
+   */
+  title?: string;
 }
 
 /**
@@ -33,6 +39,7 @@ export function ScaffoldModeBanner({
   className = 'mb-6',
   source,
   force = false,
+  title,
 }: ScaffoldModeBannerProps) {
   if (!force && source !== 'scaffold') return null;
 
@@ -45,7 +52,7 @@ export function ScaffoldModeBanner({
       role="status"
     >
       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-      <AlertTitle>Scaffold / demo mode — {surface}</AlertTitle>
+      <AlertTitle>{title ?? `Scaffold / demo mode — ${surface}`}</AlertTitle>
       <AlertDescription>
         {detail ??
           'Live Insights APIs are not connected in this environment. Forms validate client-side; submits stay demo-only until the gateway is wired.'}

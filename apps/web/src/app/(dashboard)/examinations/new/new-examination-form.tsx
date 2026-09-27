@@ -204,15 +204,10 @@ export function NewExaminationForm({
                   </SelectContent>
                 </Select>
               ) : (
-                <Input
-                  id="exam-period"
-                  name="academicPeriodId"
-                  value={values.academicPeriodId}
-                  onChange={(e) => patchRoot('academicPeriodId', e.target.value)}
-                  placeholder="UUID v4 of the academic period (gateway offline)"
-                  aria-invalid={Boolean(errors.academicPeriodId)}
-                  data-testid="examination-academic-period"
-                />
+                <p className="text-sm text-muted-foreground" role="status">
+                  Academic periods could not be loaded. Refresh the page or try again when the
+                  service is available — do not paste identifiers here.
+                </p>
               )}
             </FormField>
 
@@ -343,15 +338,9 @@ export function NewExaminationForm({
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Input
-                      id="center-institution"
-                      value={center.institutionId}
-                      onChange={(e) =>
-                        patchRoot('centers', [{ ...center, institutionId: e.target.value }])
-                      }
-                      placeholder="Institution UUID v4"
-                      data-testid="examination-center-institution"
-                    />
+                    <p className="text-sm text-muted-foreground" role="status">
+                      Institutions could not be loaded. Refresh or try again later.
+                    </p>
                   )}
                 </FormField>
                 <FormField

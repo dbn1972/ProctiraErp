@@ -63,7 +63,7 @@ export function GradeEntryForm({
           if (!result.ok) {
             setError(
               result.code === 'GRADEBOOK_SCHEMA_MISSING'
-                ? `${result.error} (apply db/sql/003_sis_timetable_schedule_schema.sql)`
+                ? `${result.error} Gradebook storage is not set up yet. Contact your administrator.`
                 : result.error,
             );
             return;

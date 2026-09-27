@@ -29,11 +29,14 @@ import {
   registerCandidateAction,
   type ActionState,
 } from '@/app/(dashboard)/examinations/actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type {
   Examination,
   ExaminationDocumentType,
   ExaminationSubject,
 } from '@/lib/api/examinations';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { useHydrated } from '@/hooks/useHydrated';
 import { marksCsvTemplate, parseMarksCsv } from '@/lib/examinations/marks-csv';
 
@@ -51,7 +54,13 @@ function Feedback({ state }: { state: ActionState | null }) {
 
 const REGISTRABLE: ReadonlySet<Examination['status']> = new Set(['DRAFT', 'SCHEDULED', 'OPEN']);
 
-export function RegisterCandidateDialog({ examination }: { examination: Examination }) {
+export function RegisterCandidateDialog({
+  examination,
+  studentOptions = [],
+}: {
+  examination: Examination;
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
@@ -105,16 +114,13 @@ export function RegisterCandidateDialog({ examination }: { examination: Examinat
                   {field}: {message}
                 </p>
               ))}
-            <div className="space-y-1.5">
-              <Label htmlFor="candidate-student">Student ID</Label>
-              <Input
-                id="candidate-student"
-                name="studentId"
-                required
-                placeholder="Student UUID"
-                pattern="[0-9a-fA-F-]{36}"
-              />
-            </div>
+            <EntitySearchSelect
+              id="candidate-student"
+              name="studentId"
+              label="Student"
+              options={studentOptions}
+              required
+            />
             <div className="space-y-1.5">
               <Label htmlFor="candidate-center">Centre</Label>
               <select
@@ -178,6 +184,7 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
   const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [text, setText] = useState('');
   const [state, setState] = useState<ActionState | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -205,7 +212,10 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
     startTransition(async () => {
       const res = await publishResultsAction(examination.id);
       setState(res);
-      if (res.status === 'success') router.refresh();
+      if (res.status === 'success') {
+        setPublishConfirmOpen(false);
+        router.refresh();
+      }
     });
   };
 
@@ -238,7 +248,7 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
         </Button>
         <Button
           size="sm"
-          onClick={publish}
+          onClick={() => setPublishConfirmOpen(true)}
           disabled={!canPublish || isPending}
           title={
             published
@@ -258,6 +268,16 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
           {published ? 'Published' : 'Publish results'}
         </Button>
       </div>
+      <ConfirmActionDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+        title="Publish examination results?"
+        description="Publishing locks marks and makes them visible to parents and students. This cannot be undone from this screen."
+        confirmLabel="Publish results"
+        pending={isPending}
+        onConfirm={publish}
+        testId="publish-results-confirm"
+      />
       <Feedback state={state} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent data-hydrated="true" className="max-w-2xl">

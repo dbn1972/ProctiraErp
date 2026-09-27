@@ -1,8 +1,7 @@
-import { useTranslations } from 'next-intl';
-
+import { ApplySchoolHeading } from '@/components/registration/apply-school-heading';
 import { ConfigurationState } from '@/components/registration/configuration-state';
 import { PersonalInfoForm } from '@/components/registration/personal-info-form';
-import { loadFormConfiguration } from '@/lib/server';
+import { loadFormConfiguration, lookupInstitutionName } from '@/lib/server';
 
 interface PageProps {
   params: Promise<{ institutionType: string }>;
@@ -24,9 +23,10 @@ export default async function ApplyPersonalPage({ params, searchParams }: PagePr
   }
 
   const customFields = result.configuration.fields.filter((field) => field.type !== 'file');
+  const institutionName = await lookupInstitutionName(result.configuration.institutionId);
   return (
     <div className="space-y-6">
-      <ApplyHeader institutionType={institutionType} />
+      <ApplySchoolHeading institutionType={institutionType} institutionName={institutionName} />
       <PersonalInfoForm
         institutionType={institutionType}
         institutionId={result.configuration.institutionId}
@@ -34,19 +34,6 @@ export default async function ApplyPersonalPage({ params, searchParams }: PagePr
         formConfigurationVersion={result.configuration.version}
         customFields={customFields}
       />
-    </div>
-  );
-}
-
-function ApplyHeader({ institutionType }: { institutionType: string }) {
-  const t = useTranslations('registration');
-  return (
-    <div className="text-center">
-      <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">
-        {institutionType}
-      </p>
-      <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-gray-900">{t('title')}</h1>
-      <p className="mt-2 text-sm text-gray-600">{t('subtitle')}</p>
     </div>
   );
 }

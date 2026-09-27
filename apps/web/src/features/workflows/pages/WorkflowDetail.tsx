@@ -16,6 +16,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { humanizeStatus } from '@/lib/status-label';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -137,6 +140,7 @@ export default function WorkflowDetail() {
   const [transitionError, setTransitionError] = useState<string | null>(null);
   const [transitionSuccess, setTransitionSuccess] = useState<string | null>(null);
   const [comments, setComments] = useState('');
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!instanceId) return;
@@ -283,7 +287,8 @@ export default function WorkflowDetail() {
           <h1 className="text-2xl font-semibold">{definition.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {formatEntityType(instance.entityType)} •{' '}
-            {(instance.metadata?.entityLabel as string) || instance.entityId}
+            {(instance.metadata?.entityLabel as string) ||
+              resolveEntityLabel(instance.entityId, {}, formatEntityType(instance.entityType))}
           </p>
         </div>
         <span
@@ -295,7 +300,7 @@ export default function WorkflowDetail() {
                 : 'bg-gray-100 text-gray-800'
           }`}
         >
-          {instance.status}
+          {humanizeStatus(instance.status)}
         </span>
       </div>
 
@@ -318,7 +323,8 @@ export default function WorkflowDetail() {
                   >
                     <div className="font-semibold">{state.name}</div>
                     <div className="text-xs opacity-75 mt-0.5">
-                      {state.assigneeType}: {state.assigneeId}
+                      {humanizeStatus(state.type)} · {state.assigneeType}:{' '}
+                      {resolveEntityLabel(state.assigneeId, {}, 'Assignee')}
                     </div>
                   </div>
                   {index < definition.states.length - 1 && (
@@ -345,8 +351,11 @@ export default function WorkflowDetail() {
               <dd className="mt-1">{formatEntityType(instance.entityType)}</dd>
             </div>
             <div>
-              <dt className="font-medium text-muted-foreground">Entity ID</dt>
-              <dd className="mt-1 font-mono text-xs">{instance.entityId}</dd>
+              <dt className="font-medium text-muted-foreground">Subject</dt>
+              <dd className="mt-1">
+                {(instance.metadata?.entityLabel as string) ||
+                  resolveEntityLabel(instance.entityId, {}, formatEntityType(instance.entityType))}
+              </dd>
             </div>
             {instance.metadata &&
               Object.entries(instance.metadata)
@@ -416,16 +425,33 @@ export default function WorkflowDetail() {
                 return (
                   <button
                     key={transition.id}
-                    onClick={() => handleTransition(transition.action)}
+                    onClick={() => setPendingAction(transition.action)}
                     disabled={isTransitioning}
                     className={buttonClass}
-                    aria-label={`${transition.action} — transition to ${getStateName(transition.toStateId)}`}
+                    aria-label={`${humanizeStatus(transition.action)} — transition to ${getStateName(transition.toStateId)}`}
                   >
-                    {isTransitioning ? 'Processing…' : transition.action}
+                    {isTransitioning ? 'Processing…' : humanizeStatus(transition.action)}
                   </button>
                 );
               })}
             </div>
+            <ConfirmActionDialog
+              open={pendingAction !== null}
+              onOpenChange={(open) => {
+                if (!open) setPendingAction(null);
+              }}
+              title={`${humanizeStatus(pendingAction)} this request?`}
+              description="This decision is recorded on the workflow. Cancel if you opened this by mistake."
+              confirmLabel={humanizeStatus(pendingAction)}
+              destructive={pendingAction?.toLowerCase().includes('reject') ?? false}
+              pending={isTransitioning}
+              onConfirm={() => {
+                const action = pendingAction;
+                setPendingAction(null);
+                if (action) void handleTransition(action);
+              }}
+              testId="workflow-transition-confirm"
+            />
 
             {/* Transition feedback */}
             {transitionError && (

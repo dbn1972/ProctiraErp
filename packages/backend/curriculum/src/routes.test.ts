@@ -108,5 +108,42 @@ describe('curriculum routes', () => {
     });
   });
 
-});
+  describe('SEC-2 tenant resolution', () => {
+    it('rejects a request that only supplies x-tenant-id via header (no user.tenantId, no request.tenantId)', async () => {
+      await app.close();
+      app = Fastify({ logger: false });
+      // Deliberately do NOT set request.tenantId here (unlike the outer beforeEach),
+      // to simulate a request that never went through a trusted tenant-resolution hook.
+      app.decorateRequest('user', undefined);
+      app.addHook('onRequest', async (request) => {
+        (request as typeof request & { user: { sub: string; roles: string[] } }).user = {
+          sub: 'test-user',
+          roles: ['teacher'],
+        };
+      });
+      await app.register(curriculumPlugin, {
+        store: new InMemoryCurriculumStore(),
+        prefix: '/curriculum',
+      });
+      await app.ready();
 
+      const response = await app.inject({
+        method: 'POST',
+        url: '/curriculum/units',
+        headers: { 'x-tenant-id': TENANT },
+        payload: {
+          subjectId: SUBJECT,
+          gradeId: GRADE,
+          academicPeriodId: PERIOD,
+          code: 'NS',
+          name: 'Number systems',
+        },
+      });
+
+      // Must NOT resolve a tenant from the header and proceed (201) or leak
+      // via any other success path; it must fail the tenant-context check.
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toMatchObject({ code: 'UNAUTHORIZED' });
+    });
+  });
+});

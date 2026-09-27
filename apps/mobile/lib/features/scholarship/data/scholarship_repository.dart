@@ -60,11 +60,29 @@ class ScholarshipProgram {
         'isOpen': isOpen,
       };
 
-  /// Days remaining until deadline. Null if no deadline.
+  /// Days remaining until deadline. Null if no deadline or it cannot be parsed.
   int? get daysUntilDeadline {
-    if (deadline == null) return null;
-    final DateTime dl = DateTime.parse(deadline!);
+    final String? raw = deadline;
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    final DateTime? dl = DateTime.tryParse(raw);
+    if (dl == null) {
+      return null;
+    }
     return dl.difference(DateTime.now()).inDays;
+  }
+
+  /// Closed programs and deadlines that have already passed cannot be applied to.
+  bool get acceptsApplications {
+    if (!isOpen) {
+      return false;
+    }
+    final int? days = daysUntilDeadline;
+    if (days == null) {
+      return true;
+    }
+    return days >= 0;
   }
 }
 
@@ -172,6 +190,22 @@ class ScholarshipRepository {
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
+
+  /// One program, including closed rows, or null when it is not in the catalog.
+  Future<ScholarshipProgram?> findProgram(String programId) async {
+    final String id = programId.trim();
+    if (id.isEmpty) {
+      return null;
+    }
+    final List<ScholarshipProgram> programs =
+        await getPrograms(openOnly: false);
+    for (final ScholarshipProgram program in programs) {
+      if (program.id == id) {
+        return program;
+      }
+    }
+    return null;
+  }
 
   /// Fetch available scholarship programs.
   Future<List<ScholarshipProgram>> getPrograms({

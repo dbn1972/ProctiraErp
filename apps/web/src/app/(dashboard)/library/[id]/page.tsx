@@ -12,6 +12,8 @@ import {
 
 import { requireSession } from '@/lib/auth/server';
 import { getLibraryItem } from '@/lib/api/library';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { PlaceHoldForm } from '../_components/place-hold-form';
 
 export const dynamic = 'force-dynamic';
@@ -19,8 +21,9 @@ export const dynamic = 'force-dynamic';
 export default async function LibraryTitlePage({ params }: { params: Promise<{ id: string }> }) {
   await requireSession();
   const { id } = await params;
-  const item = await getLibraryItem(id);
+  const [item, studentOptions] = await Promise.all([getLibraryItem(id), loadStudentOptions()]);
   if (!item) notFound();
+  const studentLabels = new Map(studentOptions.map((o) => [o.id, o.label]));
 
   return (
     <div className="space-y-6 p-6">
@@ -68,7 +71,7 @@ export default async function LibraryTitlePage({ params }: { params: Promise<{ i
         </CardContent>
       </Card>
 
-      <PlaceHoldForm items={[item]} defaultItemId={item.id} />
+      <PlaceHoldForm items={[item]} defaultItemId={item.id} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>
@@ -94,11 +97,15 @@ export default async function LibraryTitlePage({ params }: { params: Promise<{ i
                   data-hold-status={hold.status}
                 >
                   <p className="text-sm font-medium text-foreground">
-                    {hold.status} · position {hold.position}
+                    {resolveEntityLabel(
+                      hold.studentId ?? hold.patronUserId,
+                      studentLabels,
+                      hold.studentId ? 'Student' : 'Patron',
+                    )}{' '}
+                    · {hold.status} · position {hold.position}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {hold.studentId ?? hold.patronUserId ?? 'patron'}
-                    {hold.expiresAt ? ` · expires ${hold.expiresAt.slice(0, 10)}` : ''}
+                    {hold.expiresAt ? `expires ${hold.expiresAt.slice(0, 10)}` : 'No expiry set'}
                   </p>
                 </li>
               ))}

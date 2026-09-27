@@ -12,10 +12,7 @@ export const metadata: Metadata = {
   alternates: { canonical: '/terms' },
 };
 
-/**
- * Boilerplate Terms of Service. Operators must replace placeholders and
- * insert their commercial terms before public launch.
- */
+/** Public terms for the ProctiraERP website. */
 export default function TermsPage() {
   return (
     <>
@@ -27,7 +24,7 @@ export default function TermsPage() {
       <section className="container py-16">
         <div className="mx-auto mb-8 flex max-w-3xl items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-medium text-primary">
           <CalendarClock aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
-          Effective date set by the operator — review and update before public launch.
+          Last reviewed: 26 September 2026. We will post material updates on this page.
         </div>
         <LegalProse>
           <p>
@@ -74,8 +71,8 @@ export default function TermsPage() {
           <p>
             The Services are provided &ldquo;as is&rdquo; and &ldquo;as available&rdquo; without
             warranties of any kind, either express or implied, to the maximum extent permitted by
-            law. Tenants and operators are responsible for configuring the platform appropriately
-            for their users.
+            law. Institution deployments are covered by that institution&apos;s own agreement, not
+            by these website terms.
           </p>
 
           <h2>Limitation of liability</h2>
@@ -92,9 +89,10 @@ export default function TermsPage() {
 
           <h2>Governing law</h2>
           <p>
-            These Terms are governed by the laws of the jurisdiction in which the operator of these
-            Services is established, without regard to conflict-of-laws principles. Operators must
-            replace this section with the applicable jurisdiction.
+            These Terms are governed by the laws of England and Wales, without regard to
+            conflict-of-laws principles. Courts in that jurisdiction have exclusive venue for
+            disputes arising from these Terms, except where mandatory consumer protections require
+            otherwise.
           </p>
 
           <h2>Changes to these Terms</h2>

@@ -7,6 +7,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords, listVaccinations } from '@/lib/api/health';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +21,7 @@ export default async function HealthVaccinationsPage() {
       </p>
     );
   }
-  const rows = await listVaccinations();
+  const [rows, studentLabels] = await Promise.all([listVaccinations(), loadStudentLabelMap()]);
 
   return (
     <div className="space-y-6 p-6">
@@ -55,7 +57,7 @@ export default async function HealthVaccinationsPage() {
                 <li key={r.id} className="flex flex-wrap justify-between gap-2 py-3">
                   <div>
                     <Link href={`/health/${r.studentId}`} className="font-medium hover:underline">
-                      {r.studentId.slice(0, 8)}…
+                      {resolveEntityLabel(r.studentId, studentLabels, 'Student')}
                     </Link>
                     <p className="text-xs text-muted-foreground">
                       {r.vaccineName}

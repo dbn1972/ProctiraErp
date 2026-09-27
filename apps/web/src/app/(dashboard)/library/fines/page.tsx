@@ -13,13 +13,18 @@ import { requireSession } from '@/lib/auth/server';
 import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
 import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
 import { listLibraryFines } from '@/lib/api/library';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 import { MarkPaidButton } from '../_components/mark-paid-button';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryFinesPage() {
   await requireSession();
-  const finesResult = await listLibraryFines();
+  const [finesResult, studentLabels] = await Promise.all([
+    listLibraryFines(),
+    loadStudentLabelMap(),
+  ]);
 
   // "No fines yet" is good news a bursar may act on. Showing it because the read was denied
   // would say the ledger is clear when nobody actually looked.
@@ -81,10 +86,11 @@ export default async function LibraryFinesPage() {
                 >
                   <div>
                     <p className="text-sm font-medium text-foreground">
+                      {resolveEntityLabel(fine.studentId, studentLabels, 'Student')} ·{' '}
                       {fine.amountCents} cents · {fine.status}
                     </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      loan {fine.loanId.slice(0, 8)} · {fine.overdueDays} overdue day
+                      {resolveEntityLabel(fine.loanId, {}, 'Loan')} · {fine.overdueDays} overdue day
                       {fine.overdueDays === 1 ? '' : 's'}
                     </p>
                   </div>

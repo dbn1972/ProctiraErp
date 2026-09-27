@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { createTenant, tenantAction, type TenantLifecycleAction } from '@/lib/api/tenants';
 import { requireRole } from '@/lib/auth/server';
+import { HOSTING_REGION_VALUES } from '@/lib/hosting-regions';
 
 const createTenantSchema = z.object({
   name: z.string().min(2).max(120),
@@ -16,7 +17,7 @@ const createTenantSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Lowercase letters, digits, and hyphens only.'),
   contactEmail: z.string().email(),
   plan: z.enum(['pilot', 'standard', 'enterprise']),
-  region: z.string().min(2).max(60),
+  region: z.enum(HOSTING_REGION_VALUES, { error: 'Select a hosting region.' }),
 });
 
 export interface CreateTenantState {
