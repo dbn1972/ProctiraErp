@@ -98,7 +98,16 @@ test.describe('Platform surfaces — inventory smoke (ungated)', () => {
     test(`${surface.id} renders its shell with a session (offline-tolerant)`, async ({ page }) => {
       await setupFakeTenantSession(page);
       await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
-      await expect(page.getByTestId(surface.testId)).toBeVisible();
+      // `next start` briefly streams an unhydrated duplicate outside <main>
+      // during the client swap, sometimes more than once before settling.
+      // `toPass` retries the whole count+visibility pair rather than
+      // assuming one oscillation, since `toBeVisible()` alone throws
+      // immediately on a strict-mode (multiple-match) violation.
+      const surfaceEl = page.getByTestId(surface.testId);
+      await expect(async () => {
+        await expect(surfaceEl).toHaveCount(1, { timeout: 2_000 });
+        await expect(surfaceEl).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
       await expect(page.getByRole('heading', { level: 1, name: surface.heading })).toBeVisible();
       await expect(page.getByRole('form', { name: /^Filter/ })).toBeVisible();
     });
@@ -155,7 +164,11 @@ test.describe('Platform surfaces — live gateway (E2E_BACKEND_READY)', () => {
 
     for (const surface of SURFACES) {
       await page.goto(surface.path, { waitUntil: 'domcontentloaded' });
-      await expect(page.getByTestId(surface.testId)).toBeVisible();
+      const surfaceEl = page.getByTestId(surface.testId);
+      await expect(async () => {
+        await expect(surfaceEl).toHaveCount(1, { timeout: 2_000 });
+        await expect(surfaceEl).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 20_000 });
       await expect(page.getByTestId('scaffold-mode-banner')).toHaveCount(0);
       await expect(page.getByTestId('platform-forbidden-notice')).toHaveCount(0);
       await expect(page.getByTestId('platform-error-notice')).toHaveCount(0);

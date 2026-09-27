@@ -58,9 +58,28 @@ async function ensureGrade(request: APIRequestContext): Promise<{ id: string; co
   return { id: (await res.json()).id as string, code };
 }
 
+/**
+ * Waits for the streaming duplicate to clear, then for hydration, tolerating
+ * more than one oscillation of the race described below.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` (`<div id="S:...">`) while the hydrated tree is already mounted
+ * inside `<main>` — two nodes with the same test id, byte-identical, for one
+ * render frame. On a slower project (observed on `tablet`'s iPad emulation)
+ * that duplicate does not always clear in a single pass: `toHaveCount(1)` can
+ * resolve, and then a later poll inside the following `toHaveAttribute` call
+ * catches a second, later duplicate before the attribute settles. Retrying
+ * the whole `toHaveCount` → `toHaveAttribute` pair, rather than only the
+ * attribute check, survives more than one oscillation instead of assuming
+ * exactly one.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -77,11 +96,15 @@ test.describe('Academics setup — pages render (ungated)', () => {
 
   test('/institutions/[id]/grades and /classes expose Add controls', async ({ page }) => {
     await page.goto(`/institutions/${INSTITUTION_A}/grades`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('add-grade')).toBeVisible();
+    await hydrated(page, 'add-grade');
     await page.goto(`/institutions/${INSTITUTION_A}/classes`, { waitUntil: 'domcontentloaded' });
     // Mobile hydration can leave the server button beside the client one.
-    // The interactive control is the hydrated instance.
-    await expect(page.locator('[data-testid="add-section"][data-hydrated="true"]')).toBeVisible();
+    // Retry the hydrated instance the same way `hydrated()` retries a single test id.
+    const addSection = page.locator('[data-testid="add-section"][data-hydrated="true"]');
+    await expect(async () => {
+      await expect(addSection).toHaveCount(1, { timeout: 2_000 });
+      await expect(addSection).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 });
 
