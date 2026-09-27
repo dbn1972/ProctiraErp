@@ -17,6 +17,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  Input,
+  Label,
   Table,
   TableBody,
   TableCell,
@@ -28,7 +30,6 @@ import { DocumentTitle } from '@/components/DocumentTitle';
 import { readParam, type SearchParams } from '@/components/platform/PlatformSurfaceState';
 import { exportDsarPackage } from '@/lib/api/platform.server';
 import { EmptyState } from '@/components/page';
-import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
 
@@ -102,17 +103,39 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
             className="flex flex-col gap-3 sm:flex-row sm:items-end"
             aria-label="DSAR lookup"
           >
-            <div className="flex-1" data-testid="dsar-subject">
-              <EntitySearchSelect
+            <div className="flex-1 space-y-1.5" data-testid="dsar-subject">
+              <Label htmlFor="dsar-subject-id">Subject</Label>
+              {/*
+               * A free-text input with directory suggestions, not a directory-only picker.
+               *
+               * A prior revision swapped this for `EntitySearchSelect`, a `<select>` that
+               * only offers ids already in the student/staff directory. DSAR is not a
+               * "pick a known person" workflow — the gateway resolves *any* string as
+               * either the affected entity or the acting user
+               * (`GET /audit-logs/dsar/:subjectId` has no directory lookup of its own), so
+               * that changed the page from "look up this audit subject" to "look up this
+               * student or staff member", silently losing every other actor type: system
+               * users, service accounts, or any entity id the audit trail happens to
+               * reference that isn't a student or staff record. `<datalist>` keeps the
+               * directory as a convenience — start typing a name and matching students or
+               * staff suggest — without narrowing what can actually be submitted.
+               */}
+              <Input
                 id="dsar-subject-id"
                 name="subjectId"
-                label="Subject"
-                options={subjectOptions}
-                defaultValue={subjectId ?? ''}
                 required
-                placeholder="Search students or staff…"
-                emptyMessage="Student and staff directories are not loaded. Add people before building a DSAR package."
+                defaultValue={subjectId ?? ''}
+                placeholder="Student / staff / user id"
+                list={subjectOptions.length > 0 ? 'dsar-subject-options' : undefined}
+                data-testid="dsar-subject-input"
               />
+              {subjectOptions.length > 0 ? (
+                <datalist id="dsar-subject-options">
+                  {subjectOptions.map((option) => (
+                    <option key={option.id} value={option.id} label={option.label} />
+                  ))}
+                </datalist>
+              ) : null}
             </div>
             <button
               type="submit"

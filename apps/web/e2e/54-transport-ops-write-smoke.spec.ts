@@ -47,9 +47,23 @@ async function postOk(
   return res.json();
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -68,10 +82,17 @@ test.describe('Transport ops — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
+  const HYDRATED_TESTID: Record<string, string> = {
+    '/transport/attendance': 'transport-attendance-form',
+    '/transport/alerts': 'transport-alert-rule-form',
+    '/transport/fees': 'transport-fee-form',
+  };
+
   for (const path of ['/transport/attendance', '/transport/alerts', '/transport/fees'] as const) {
     test(`${path} renders with a heading`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'domcontentloaded' });
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await hydrated(page, HYDRATED_TESTID[path]!);
     });
   }
 });
