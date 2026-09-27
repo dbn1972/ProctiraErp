@@ -2,6 +2,12 @@
  * Staff + parent fees client — `/fees` on the gateway (G-903).
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import {
+  classifyListFailure,
+  fetchList,
+  type ListFailureKind,
+  type ListResult,
+} from './list-result';
 
 export interface FeePlan {
   id: string;
@@ -146,12 +152,20 @@ function throwIfMissing<T>(
   return result.data;
 }
 
+export function listFeePlansResult(): Promise<ListResult<FeePlan>> {
+  return fetchList<FeePlan>('/fees/plans', { next: { revalidate: 0 } });
+}
+
 export async function listFeePlans(): Promise<FeePlan[]> {
-  const result = await gatewayFetch<{ data: FeePlan[] }>('/fees/plans', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listFeePlansResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load fee plans',
+    });
+  }
+  return result.items;
 }
 
 export async function createFeePlan(input: CreateFeePlanInput): Promise<FeePlan> {
@@ -159,20 +173,32 @@ export async function createFeePlan(input: CreateFeePlanInput): Promise<FeePlan>
   return throwIfMissing(result, 'Failed to create fee plan');
 }
 
+export async function listInvoicesResult(
+  scope: 'parent' | 'staff' = 'staff',
+  filters: { studentId?: string } = {},
+): Promise<ListResult<FeeInvoice>> {
+  const qs = scope === 'parent' ? '?scope=parent' : '';
+  const result = await fetchList<FeeInvoice>(`/fees/invoices${qs}`, { next: { revalidate: 0 } });
+  if (!result.ok || !filters.studentId) return result;
+  return {
+    ...result,
+    items: result.items.filter((inv) => inv.studentId === filters.studentId),
+  };
+}
+
 export async function listInvoices(
   scope: 'parent' | 'staff' = 'staff',
   filters: { studentId?: string } = {},
 ): Promise<FeeInvoice[]> {
-  const qs = scope === 'parent' ? '?scope=parent' : '';
-  const result = await gatewayFetch<{ data: FeeInvoice[] }>(`/fees/invoices${qs}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  const invoices = result.data?.data ?? [];
-  if (filters.studentId) {
-    return invoices.filter((inv) => inv.studentId === filters.studentId);
+  const result = await listInvoicesResult(scope, filters);
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load invoices',
+    });
   }
-  return invoices;
+  return result.items;
 }
 
 export async function createInvoice(input: CreateInvoiceInput): Promise<FeeInvoice> {
@@ -180,21 +206,39 @@ export async function createInvoice(input: CreateInvoiceInput): Promise<FeeInvoi
   return throwIfMissing(result, 'Failed to create invoice');
 }
 
-export async function listReceipts(scope: 'parent' | 'staff' = 'staff'): Promise<FeeReceipt[]> {
+export function listReceiptsResult(
+  scope: 'parent' | 'staff' = 'staff',
+): Promise<ListResult<FeeReceipt>> {
   const qs = scope === 'parent' ? '?scope=parent' : '';
-  const result = await gatewayFetch<{ data: FeeReceipt[] }>(`/fees/receipts${qs}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<FeeReceipt>(`/fees/receipts${qs}`, { next: { revalidate: 0 } });
+}
+
+export async function listReceipts(scope: 'parent' | 'staff' = 'staff'): Promise<FeeReceipt[]> {
+  const result = await listReceiptsResult(scope);
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load receipts',
+    });
+  }
+  return result.items;
+}
+
+export function listFeeStructuresResult(): Promise<ListResult<FeeStructure>> {
+  return fetchList<FeeStructure>('/fees/structures', { next: { revalidate: 0 } });
 }
 
 export async function listFeeStructures(): Promise<FeeStructure[]> {
-  const result = await gatewayFetch<{ data: FeeStructure[] }>('/fees/structures', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listFeeStructuresResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load fee structures',
+    });
+  }
+  return result.items;
 }
 
 export async function createFeeStructure(input: CreateFeeStructureInput): Promise<FeeStructure> {
@@ -216,12 +260,22 @@ export async function generateInstalments(
   return throwIfMissing(result, 'Failed to generate instalments').data;
 }
 
+export function listInstalmentsResult(structureId: string): Promise<ListResult<FeeInstalment>> {
+  return fetchList<FeeInstalment>(`/fees/structures/${structureId}/instalments`, {
+    next: { revalidate: 0 },
+  });
+}
+
 export async function listInstalments(structureId: string): Promise<FeeInstalment[]> {
-  const result = await gatewayFetch<{ data: FeeInstalment[] }>(
-    `/fees/structures/${structureId}/instalments`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return result.data?.data ?? [];
+  const result = await listInstalmentsResult(structureId);
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load instalments',
+    });
+  }
+  return result.items;
 }
 
 export async function bulkInvoiceStructure(
@@ -262,19 +316,41 @@ export async function refundInvoice(
   return throwIfMissing(result, 'Failed to record refund');
 }
 
-export async function fetchDuesReport(): Promise<DuesReport> {
+export type DuesReportResult =
+  { ok: true; report: DuesReport } | { ok: false; kind: ListFailureKind; status: number };
+
+export async function fetchDuesReportResult(): Promise<DuesReportResult> {
   const result = await gatewayFetch<DuesReport>('/fees/reports/dues', {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return (
-    result.data ?? {
-      asOf: new Date().toISOString(),
-      byClass: [],
-      byStatus: [],
-      overdue: [],
+  if (!result.ok || !result.data) {
+    if (result.ok) {
+      return {
+        ok: true,
+        report: {
+          asOf: new Date().toISOString(),
+          byClass: [],
+          byStatus: [],
+          overdue: [],
+        },
+      };
     }
-  );
+    return { ok: false, kind: classifyListFailure(result.status), status: result.status };
+  }
+  return { ok: true, report: result.data };
+}
+
+export async function fetchDuesReport(): Promise<DuesReport> {
+  const result = await fetchDuesReportResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load the dues report',
+    });
+  }
+  return result.report;
 }
 
 export async function importReconciliation(

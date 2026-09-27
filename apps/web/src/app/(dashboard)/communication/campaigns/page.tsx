@@ -10,7 +10,8 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listCampaigns } from '@/lib/api/communication';
+import { listCampaignsResult } from '@/lib/api/communication';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 
 import { SendCampaignButton } from '../_components/send-campaign-button';
 
@@ -18,7 +19,27 @@ export const dynamic = 'force-dynamic';
 
 export default async function CommunicationCampaignsPage() {
   await requireSession();
-  const campaigns = await listCampaigns();
+  const result = await listCampaignsResult();
+
+  if (!result.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Campaigns</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Create and send multi-channel school outreach.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={result.kind}
+          status={result.status}
+          returnTo="/communication/campaigns"
+        />
+      </div>
+    );
+  }
+
+  const campaigns = result.items;
 
   return (
     <div className="space-y-6 p-6">

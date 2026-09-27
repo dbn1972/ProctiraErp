@@ -58,7 +58,8 @@ test.describe('Platform Admin — break-glass / plugin write validation (ungated
     await page.goto('/break-glass');
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/break-glass access/i);
 
-    await page.locator('#targetTenantId').fill('tnt_001');
+    await page.getByRole('combobox', { name: /target tenant/i }).click();
+    await page.getByRole('option', { name: /Platform/i }).click();
     await page.locator('#justification').fill('too short');
     await page.getByRole('button', { name: /submit for approval/i }).click();
 

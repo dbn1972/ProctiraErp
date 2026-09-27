@@ -62,7 +62,7 @@ class OpenEmisApp extends StatelessWidget {
                 primaryColor: primaryColor,
                 secondaryColor: secondaryColor,
               ),
-              themeMode: ThemeMode.system,
+              themeMode: tenantProvider.themeMode,
               routerConfig: routerFactory.config,
               localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
                 AppLocalizations.delegate,

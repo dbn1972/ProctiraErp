@@ -5,6 +5,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 import {
   CreateLearningOutcomeSchema,
   CreateLessonPlanSchema,
@@ -12,7 +13,6 @@ import {
   MarkTaughtSchema,
 } from './schemas.js';
 import type { CurriculumService } from './service.js';
-import { enforceCurriculumRouteAccess } from './curriculum-http-guard.js';
 
 export interface CurriculumRoutesOptions {
   service: CurriculumService;
@@ -20,12 +20,13 @@ export interface CurriculumRoutesOptions {
 }
 
 function tenantOf(request: FastifyRequest): string | null {
+  // SEC-2: `x-tenant-id` is a client-supplied header and must never be trusted as a
+  // tenant source. The gateway overwrites it with the JWT-verified tenant before
+  // proxying (see apps/api-gateway/src/plugins/service-router.ts), but this package
+  // has no standalone boot path, so there is no legitimate case where tenant identity
+  // should fall back to it. Resolve strictly from server-verified sources.
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
-  return (
-    user?.tenantId ??
-    (request as FastifyRequest & { tenantId?: string }).tenantId ??
-    ((request.headers['x-tenant-id'] as string | undefined) || null)
-  );
+  return user?.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
 function actorId(request: FastifyRequest): string | null {
@@ -44,7 +45,6 @@ export async function registerCurriculumRoutes(
   fastify: FastifyInstance,
   options: CurriculumRoutesOptions,
 ): Promise<void> {
-  
   // W1-SEC-02: package-level RBAC (clears deferred curriculum inventory residual).
   fastify.addHook('preHandler', async (request, reply) => {
     if (!enforceCurriculumRouteAccess(request, reply)) {

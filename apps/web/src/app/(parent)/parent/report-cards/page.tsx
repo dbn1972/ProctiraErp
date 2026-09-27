@@ -1,6 +1,8 @@
 import { requireSession } from '@/lib/auth/server';
-import { getChildReportCards, listChildren } from '@/lib/api/parent-portal';
+import { getChildReportCards, listChildrenResult } from '@/lib/api/parent-portal';
+import { humanizeStatus } from '@/lib/status-label';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +13,24 @@ export default async function ParentReportCardsPage({
 }) {
   await requireSession();
   const params = await searchParams;
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="Report cards"
+        description="Subject lines from completed report cards."
+        testId="parent-report-cards"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No report cards to show."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
   const child = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
@@ -51,9 +70,15 @@ export default async function ParentReportCardsPage({
     >
       <div className="space-y-8">
         {cards.map((card) => (
-          <section key={card.id} className="space-y-3" aria-label={`Report card ${card.status}`}>
+          <section
+            key={card.id}
+            className="space-y-3"
+            aria-label={`Report card ${humanizeStatus(card.status)}`}
+          >
             <div>
-              <p className="text-sm font-medium text-foreground">Report card · {card.status}</p>
+              <p className="text-sm font-medium text-foreground">
+                Report card · {humanizeStatus(card.status)}
+              </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {card.completedAt
                   ? `Completed ${new Date(card.completedAt).toLocaleDateString()}`

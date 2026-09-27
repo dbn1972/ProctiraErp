@@ -15,6 +15,7 @@ import {
   Input,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import {
   checkoutLibraryItemAction,
   renewLibraryLoanAction,
@@ -22,13 +23,16 @@ import {
 } from '../../campus-actions';
 import { checkoutBarcodeAction, returnBarcodeAction } from '../../campus-ops-actions';
 import type { LibraryItem } from '@/lib/api/library';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 export function CirculationDesk({
   items,
   patronUserId,
+  studentOptions = [],
 }: {
   items: LibraryItem[];
   patronUserId: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -167,9 +171,13 @@ export function CirculationDesk({
                 ))}
               </select>
             </FormField>
-            <FormField id="checkout-student" label="Student id (optional)">
-              <Input id="checkout-student" name="studentId" className="h-11 min-h-11" />
-            </FormField>
+            <EntitySearchSelect
+              id="checkout-student"
+              name="studentId"
+              label="Student (optional)"
+              options={studentOptions}
+              placeholder="Search student by name or code…"
+            />
             <FormField id="checkout-due" label="Due date">
               <Input id="checkout-due" name="dueAt" type="date" className="h-11 min-h-11" />
             </FormField>

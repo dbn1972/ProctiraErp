@@ -80,6 +80,11 @@ interface SubjectOption {
   code?: string;
 }
 
+interface StudentOption {
+  id: string;
+  label: string;
+}
+
 interface AcademicPeriodOption {
   id: string;
   name: string;
@@ -92,6 +97,8 @@ interface ResultsEntryGridProps {
   subjects?: SubjectOption[];
   /** Academic periods for the picker. */
   academicPeriods?: AcademicPeriodOption[];
+  /** Student directory for the row picker (replaces raw UUID entry). */
+  studentOptions?: StudentOption[];
   items: ItemMeta[];
   existingResults: ExistingResult[];
   scheme: SchemeMeta | null;
@@ -154,6 +161,7 @@ export function ResultsEntryGrid({
   defaultAcademicPeriodId = '',
   subjects = [],
   academicPeriods = [],
+  studentOptions = [],
   items,
   existingResults,
   scheme,
@@ -263,11 +271,11 @@ export function ResultsEntryGrid({
 
     for (const row of rows) {
       if (!row.studentId.trim()) {
-        rowErrors.set(row.id, 'Student UUID is required');
+        rowErrors.set(row.id, 'Student is required');
         continue;
       }
       if (!UUID_REGEX.test(row.studentId)) {
-        rowErrors.set(row.id, 'Student UUID is not a valid UUID');
+        rowErrors.set(row.id, 'Student selection is invalid');
         continue;
       }
 
@@ -312,7 +320,7 @@ export function ResultsEntryGrid({
     if (!subjectId || !academicPeriodId) {
       setServerState({
         status: 'error',
-        message: 'Subject and academic period UUIDs are required.',
+        message: 'Choose a subject and an academic period.',
       });
       return;
     }
@@ -413,7 +421,7 @@ export function ResultsEntryGrid({
         errors.push({
           row,
           field: 'studentId',
-          message: 'Invalid UUID',
+          message: 'Student id is not a recognised directory id',
           value: studentId,
           severity: 'error',
         });
@@ -452,7 +460,7 @@ export function ResultsEntryGrid({
 
   async function confirmImport(file: File): Promise<{ success: number; failed: number }> {
     if (!subjectId || !academicPeriodId) {
-      throw new Error('Subject and academic period UUIDs are required.');
+      throw new Error('Choose a subject and an academic period.');
     }
     const text = await file.text();
     const lines = text
@@ -610,7 +618,7 @@ export function ResultsEntryGrid({
             <Table aria-label="Result entry grid">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[260px]">Student UUID</TableHead>
+                  <TableHead className="min-w-[260px]">Student</TableHead>
                   {items.map((it) => (
                     <TableHead key={it.id} className="min-w-[120px]">
                       {it.name}
@@ -626,12 +634,28 @@ export function ResultsEntryGrid({
                 {rows.map((row) => (
                   <TableRow key={row.id} aria-invalid={!!row.rowError}>
                     <TableCell>
-                      <Input
-                        aria-label={`Student UUID ${row.id}`}
-                        value={row.studentId}
-                        onChange={(e) => updateRow(row.id, { studentId: e.target.value })}
-                        className="font-mono text-xs"
-                      />
+                      {studentOptions.length > 0 ? (
+                        <select
+                          aria-label={`Student for row ${row.id}`}
+                          value={row.studentId}
+                          onChange={(e) => updateRow(row.id, { studentId: e.target.value })}
+                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Select student…</option>
+                          {row.studentId && !studentOptions.some((s) => s.id === row.studentId) ? (
+                            <option value={row.studentId}>Previously selected student</option>
+                          ) : null}
+                          {studentOptions.map((student) => (
+                            <option key={student.id} value={student.id}>
+                              {student.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm text-muted-foreground" role="status">
+                          Student directory is unavailable. Add students before entering results.
+                        </p>
+                      )}
                       {row.rowError && (
                         <p className="mt-1 text-xs text-[hsl(var(--destructive))]" role="alert">
                           {row.rowError}
@@ -678,7 +702,7 @@ export function ResultsEntryGrid({
             acceptedFileTypes={['.csv', '.xlsx']}
             maxFileSize={10 * 1024 * 1024}
             targetFields={[
-              { name: 'studentId', label: 'Student UUID', required: true },
+              { name: 'studentId', label: 'Student', required: true },
               ...items.map((i) => ({
                 name: i.name,
                 label: i.name,

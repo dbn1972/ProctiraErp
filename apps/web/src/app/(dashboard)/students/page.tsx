@@ -28,6 +28,7 @@ import {
 } from '@proctira/ui/components';
 import { EmptyState } from '@/components/page';
 import { cn } from '@/lib/utils';
+import { attendanceBand } from '@/lib/status-label';
 
 import { StudentListFilters as Filters } from './_components/student-list-filters';
 import { StudentListPagination } from './_components/student-list-pagination';
@@ -410,7 +411,9 @@ function AttendanceBar({ pct }: { pct: number }) {
       >
         <div className={cn('h-full rounded-full', barColor)} style={{ width: `${pct}%` }} />
       </div>
-      <span className={cn('text-xs font-semibold tabular-nums', textColor)}>{pct}%</span>
+      <span className={cn('text-xs font-semibold tabular-nums', textColor)}>
+        {attendanceBand(pct)} · {pct}%
+      </span>
     </div>
   );
 }

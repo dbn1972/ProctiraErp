@@ -52,31 +52,35 @@ class ScholarshipState extends Equatable {
     this.status = ScholarshipStatus.initial,
     this.programs = const <ScholarshipProgram>[],
     this.applications = const <ScholarshipApplication>[],
+    this.studentId = '',
     this.errorMessage,
   });
 
   final ScholarshipStatus status;
   final List<ScholarshipProgram> programs;
   final List<ScholarshipApplication> applications;
+  final String studentId;
   final String? errorMessage;
 
   ScholarshipState copyWith({
     ScholarshipStatus? status,
     List<ScholarshipProgram>? programs,
     List<ScholarshipApplication>? applications,
+    String? studentId,
     String? errorMessage,
   }) {
     return ScholarshipState(
       status: status ?? this.status,
       programs: programs ?? this.programs,
       applications: applications ?? this.applications,
+      studentId: studentId ?? this.studentId,
       errorMessage: errorMessage,
     );
   }
 
   @override
   List<Object?> get props =>
-      <Object?>[status, programs, applications, errorMessage];
+      <Object?>[status, programs, applications, studentId, errorMessage];
 }
 
 // --- Bloc ---
@@ -117,7 +121,20 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
     ScholarshipApplicationsRequested event,
     Emitter<ScholarshipState> emit,
   ) async {
-    emit(state.copyWith(status: ScholarshipStatus.loading));
+    if (event.studentId.trim().isEmpty) {
+      emit(state.copyWith(
+        status: ScholarshipStatus.error,
+        studentId: '',
+        applications: const <ScholarshipApplication>[],
+        errorMessage: 'Choose a student to view scholarship applications.',
+      ));
+      return;
+    }
+
+    emit(state.copyWith(
+      status: ScholarshipStatus.loading,
+      studentId: event.studentId,
+    ));
 
     try {
       final List<ScholarshipApplication> applications =
@@ -138,9 +155,28 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
     ScholarshipApplicationSubmitted event,
     Emitter<ScholarshipState> emit,
   ) async {
+    if (event.studentId.trim().isEmpty) {
+      emit(state.copyWith(
+        status: ScholarshipStatus.error,
+        errorMessage: 'Choose a student before submitting an application.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(status: ScholarshipStatus.submitting));
 
     try {
+      final ScholarshipProgram? program =
+          await _repository.findProgram(event.programId);
+      if (program == null || !program.acceptsApplications) {
+        emit(state.copyWith(
+          status: ScholarshipStatus.error,
+          errorMessage:
+              'This scholarship is closed or the deadline has passed.',
+        ));
+        return;
+      }
+
       await _repository.submitApplication(
         programId: event.programId,
         studentId: event.studentId,

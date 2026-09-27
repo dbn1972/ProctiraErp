@@ -90,6 +90,16 @@ class ExaminationBloc extends Bloc<ExaminationEvent, ExaminationState> {
     ExaminationListRequested event,
     Emitter<ExaminationState> emit,
   ) async {
+    if (event.studentId.trim().isEmpty) {
+      emit(state.copyWith(
+        status: ExaminationStatus.error,
+        studentId: '',
+        examinations: const <Examination>[],
+        errorMessage: 'Choose a student to view examinations.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(
       status: ExaminationStatus.loading,
       studentId: event.studentId,
@@ -115,6 +125,16 @@ class ExaminationBloc extends Bloc<ExaminationEvent, ExaminationState> {
     ExaminationResultsRequested event,
     Emitter<ExaminationState> emit,
   ) async {
+    if (event.studentId.trim().isEmpty) {
+      emit(state.copyWith(
+        status: ExaminationStatus.error,
+        studentId: '',
+        results: const <ExaminationResult>[],
+        errorMessage: 'Choose a student to view examination results.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(
       status: ExaminationStatus.loading,
       studentId: event.studentId,

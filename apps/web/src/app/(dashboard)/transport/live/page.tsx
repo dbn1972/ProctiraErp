@@ -1,5 +1,6 @@
 import { requireSession } from '@/lib/auth/server';
 import { listTransportVehicles } from '@/lib/api/transport';
+import { resolveEntityLabel } from '@/lib/entity-label';
 import { getLiveMap } from '@/lib/transport/api';
 import { GpsDeviceForms } from '../_components/gps-device-forms';
 import { LiveMapRefresher, LiveMapSvg } from '../_components/live-map';
@@ -9,6 +10,12 @@ export const dynamic = 'force-dynamic';
 export default async function TransportLivePage() {
   await requireSession();
   const [live, vehicles] = await Promise.all([getLiveMap(), listTransportVehicles()]);
+  const vehicleLabels = new Map(
+    vehicles.flatMap((vehicle) => {
+      const registration = vehicle.registrationNumber?.trim();
+      return registration ? [[vehicle.id, registration] as const] : [];
+    }),
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -23,8 +30,8 @@ export default async function TransportLivePage() {
       <ul className="text-sm text-muted-foreground" role="list">
         {live.vehicles.map((v) => (
           <li key={v.vehicleId} data-testid="transport-live-bus">
-            {v.registrationNumber ?? v.vehicleId.slice(0, 8)} · {v.latitude.toFixed(4)},{' '}
-            {v.longitude.toFixed(4)} ·{' '}
+            {v.registrationNumber ?? resolveEntityLabel(v.vehicleId, vehicleLabels, 'Vehicle')} ·{' '}
+            {v.latitude.toFixed(4)}, {v.longitude.toFixed(4)} ·{' '}
             <a
               href={v.osmUrl}
               className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"

@@ -94,7 +94,7 @@ export default async function BellSchedulesPage(props: PageProps) {
               {apiError}
               {!schedulesResult.ok &&
                 schedulesResult.code === 'TIMETABLE_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql on Postgres.'}
+                ' Timetable storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>

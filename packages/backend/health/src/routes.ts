@@ -21,16 +21,14 @@
  * - 12.4: Access control
  * - 12.5: Screening programs
  */
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { AppError } from '@proctira/common';
-import {
-  appendAuditEntryOnClient,
-  toCreateAuditLogInput,
-} from '@proctira/backend-audit';
+import type { PgQueryable } from '@proctira/database';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { isPgPhiEnabled } from './pg-phi-store.js';
 import type { HealthService, HealthAccessContext } from './health-service.js';
+import { isPgPhiEnabled } from './pg-phi-store.js';
 import {
   CreateMeasurementSchema,
   UpdateMeasurementSchema,
@@ -86,15 +84,24 @@ function getAccessContext(request: FastifyRequest): HealthAccessContext {
 const MUTATION_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
 
 function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
-  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[
-    MUTATION_AUDIT_COMMITTED
-  ] = true;
+  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[MUTATION_AUDIT_COMMITTED] =
+    true;
 }
 
 function buildPhiWriteAuditBinder(
   request: FastifyRequest,
   tenantId: string,
-  opts: { path: string; regulated: string; idField: string },
+  opts: {
+    path: string;
+    regulated: string;
+    idField: string;
+    /**
+     * W1-SEC: defaults to 'CREATE' so every pre-existing call site (which
+     * never passed this) keeps recording exactly what it always recorded.
+     * Update/delete call sites pass 'UPDATE'/'DELETE' explicitly below.
+     */
+    operation?: 'CREATE' | 'UPDATE' | 'DELETE';
+  },
 ) {
   if (!isPgPhiEnabled()) return undefined;
   const access = getAccessContext(request);
@@ -102,17 +109,14 @@ function buildPhiWriteAuditBinder(
     request as FastifyRequest & { user?: { sub?: string; displayName?: string; email?: string } }
   ).user;
   return {
-    appendAuditInTxn: async (
-      client: import('@proctira/database').PgQueryable,
-      entity: { id: string },
-    ) => {
+    appendAuditInTxn: async (client: PgQueryable, entity: { id: string }) => {
       await appendAuditEntryOnClient(
         client,
         toCreateAuditLogInput({
           tenantId,
           entityType: 'health_record',
           entityId: entity.id,
-          operation: 'CREATE',
+          operation: opts.operation ?? 'CREATE',
           userId: user?.sub ?? access.userId ?? 'anonymous',
           userName: user?.displayName ?? user?.email ?? user?.sub ?? access.userId ?? 'anonymous',
           ipAddress: request.ip,
@@ -134,51 +138,81 @@ function buildPhiWriteAuditBinder(
   };
 }
 
-function buildMeasurementAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildMeasurementAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/measurements',
     regulated: 'health.measurement',
     idField: 'measurementId',
+    operation,
   });
 }
 
-function buildAllergyAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildAllergyAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/allergies',
     regulated: 'health.allergy',
     idField: 'allergyId',
+    operation,
   });
 }
 
-function buildConditionAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildConditionAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/conditions',
     regulated: 'health.condition',
     idField: 'conditionId',
+    operation,
   });
 }
 
-function buildVaccinationAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildVaccinationAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/vaccinations',
     regulated: 'health.vaccination',
     idField: 'vaccinationId',
+    operation,
   });
 }
 
-function buildInsuranceAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildInsuranceAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/insurance',
     regulated: 'health.insurance',
     idField: 'insuranceId',
+    operation,
   });
 }
 
-function buildScreeningProgramAuditBinder(request: FastifyRequest, tenantId: string) {
+function buildScreeningProgramAuditBinder(
+  request: FastifyRequest,
+  tenantId: string,
+  operation?: 'CREATE' | 'UPDATE' | 'DELETE',
+) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/screening-programs',
     regulated: 'health.screening_program',
     idField: 'screeningProgramId',
+    operation,
   });
 }
 
@@ -197,7 +231,6 @@ function buildCounsellingSessionAuditBinder(request: FastifyRequest, tenantId: s
     idField: 'counsellingSessionId',
   });
 }
-
 
 function buildAssessmentAuditBinder(request: FastifyRequest, tenantId: string) {
   return buildPhiWriteAuditBinder(request, tenantId, {
@@ -231,7 +264,6 @@ function buildAccommodationPlanAuditBinder(request: FastifyRequest, tenantId: st
   });
 }
 
-
 function buildBreakGlassAuditBinder(request: FastifyRequest, tenantId: string) {
   return buildPhiWriteAuditBinder(request, tenantId, {
     path: '/api/v1/health/break-glass',
@@ -239,7 +271,6 @@ function buildBreakGlassAuditBinder(request: FastifyRequest, tenantId: string) {
     idField: 'breakGlassId',
   });
 }
-
 
 function sendError(reply: FastifyReply, error: unknown) {
   if (error instanceof AppError) {
@@ -352,6 +383,7 @@ export async function registerHealthRoutes(
           params.data.id,
           body.data,
           getAccessContext(request),
+          buildMeasurementAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
       } catch (error) {
@@ -379,7 +411,12 @@ export async function registerHealthRoutes(
           statusCode: 400,
         });
       try {
-        await healthService.deleteMeasurement(tenantId, params.data.id, getAccessContext(request));
+        await healthService.deleteMeasurement(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+          buildMeasurementAuditBinder(request, tenantId, 'DELETE'),
+        );
         return reply.status(204).send();
       } catch (error) {
         return sendError(reply, error);
@@ -477,12 +514,45 @@ export async function registerHealthRoutes(
         params.data.id,
         body.data,
         getAccessContext(request),
+        buildAllergyAuditBinder(request, tenantId, 'UPDATE'),
       );
       return reply.status(200).send(entity);
     } catch (error) {
       return sendError(reply, error);
     }
   });
+
+  fastify.delete(
+    `${prefix}/allergies/:id`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success)
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      const tenantId = getTenantId(request);
+      if (!tenantId)
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      try {
+        await healthService.deleteAllergy(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+          buildAllergyAuditBinder(request, tenantId, 'DELETE'),
+        );
+        return reply.status(204).send();
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 
   // ─── Conditions ───────────────────────────────────────────────────────
 
@@ -574,12 +644,45 @@ export async function registerHealthRoutes(
         params.data.id,
         body.data,
         getAccessContext(request),
+        buildConditionAuditBinder(request, tenantId, 'UPDATE'),
       );
       return reply.status(200).send(entity);
     } catch (error) {
       return sendError(reply, error);
     }
   });
+
+  fastify.delete(
+    `${prefix}/conditions/:id`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success)
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      const tenantId = getTenantId(request);
+      if (!tenantId)
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      try {
+        await healthService.deleteCondition(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+          buildConditionAuditBinder(request, tenantId, 'DELETE'),
+        );
+        return reply.status(204).send();
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 
   // ─── Vaccinations ─────────────────────────────────────────────────────
 
@@ -689,8 +792,41 @@ export async function registerHealthRoutes(
           params.data.id,
           body.data,
           getAccessContext(request),
+          buildVaccinationAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  fastify.delete(
+    `${prefix}/vaccinations/:id`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success)
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      const tenantId = getTenantId(request);
+      if (!tenantId)
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      try {
+        await healthService.deleteVaccination(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+          buildVaccinationAuditBinder(request, tenantId, 'DELETE'),
+        );
+        return reply.status(204).send();
       } catch (error) {
         return sendError(reply, error);
       }
@@ -787,12 +923,45 @@ export async function registerHealthRoutes(
         params.data.id,
         body.data,
         getAccessContext(request),
+        buildInsuranceAuditBinder(request, tenantId, 'UPDATE'),
       );
       return reply.status(200).send(entity);
     } catch (error) {
       return sendError(reply, error);
     }
   });
+
+  fastify.delete(
+    `${prefix}/insurance/:id`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success)
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      const tenantId = getTenantId(request);
+      if (!tenantId)
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      try {
+        await healthService.deleteInsurance(
+          tenantId,
+          params.data.id,
+          getAccessContext(request),
+          buildInsuranceAuditBinder(request, tenantId, 'DELETE'),
+        );
+        return reply.status(204).send();
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 
   // ─── Special Needs Assessments ────────────────────────────────────────
 
@@ -1363,8 +1532,41 @@ export async function registerHealthRoutes(
           tenantId,
           params.data.id,
           body.data,
+          buildScreeningProgramAuditBinder(request, tenantId, 'UPDATE'),
         );
         return reply.status(200).send(entity);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
+  /** W1-SEC: screening programs had no delete route anywhere in this API. */
+  fastify.delete(
+    `${prefix}/screening-programs/:id`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const params = validate(UuidParamsSchema, request.params);
+      if (!params.success)
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid ID',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      const tenantId = getTenantId(request);
+      if (!tenantId)
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      try {
+        await healthService.deleteScreeningProgram(
+          tenantId,
+          params.data.id,
+          buildScreeningProgramAuditBinder(request, tenantId, 'DELETE'),
+        );
+        return reply.status(204).send();
       } catch (error) {
         return sendError(reply, error);
       }

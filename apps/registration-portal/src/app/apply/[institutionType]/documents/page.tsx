@@ -1,6 +1,7 @@
+import { ApplySchoolHeading } from '@/components/registration/apply-school-heading';
 import { ConfigurationState } from '@/components/registration/configuration-state';
 import { DocumentsStep } from '@/components/registration/documents-step';
-import { loadFormConfiguration } from '@/lib/server';
+import { loadFormConfiguration, lookupInstitutionName } from '@/lib/server';
 
 interface PageProps {
   params: Promise<{ institutionType: string }>;
@@ -21,8 +22,10 @@ export default async function ApplyDocumentsPage({ params, searchParams }: PageP
     return <ConfigurationState status={result.status} retryHref={retryHref} />;
   }
 
+  const institutionName = await lookupInstitutionName(result.configuration.institutionId);
   return (
     <div className="space-y-6">
+      <ApplySchoolHeading institutionType={institutionType} institutionName={institutionName} />
       <DocumentsStep
         institutionType={institutionType}
         institutionId={result.configuration.institutionId}

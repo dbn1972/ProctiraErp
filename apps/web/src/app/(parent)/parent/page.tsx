@@ -13,13 +13,37 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listChildren } from '@/lib/api/parent-portal';
+import { listChildrenResult } from '@/lib/api/parent-portal';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { humanizeStatus } from '@/lib/status-label';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ParentHomePage() {
   await requireSession();
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Stay connected with your school — attendance, grades, timetable, homework, messages,
+            permission requests, and fees for your children.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={childrenResult.kind}
+          status={childrenResult.status}
+          returnTo="/parent"
+        />
+      </div>
+    );
+  }
+  const children = childrenResult.items;
+  const studentLabels = await loadStudentLabelsForIds(children.map((child) => child.studentId));
 
   return (
     <div className="space-y-6" data-testid="parent-home">
@@ -50,10 +74,10 @@ export default async function ParentHomePage() {
               {children.map((child) => (
                 <li key={child.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">
-                    Student {child.studentId.slice(0, 8)}…
+                    {resolveEntityLabel(child.studentId, studentLabels, 'Child')}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {child.relationship} · {child.status}
+                    {humanizeStatus(child.relationship)} · {humanizeStatus(child.status)}
                   </p>
                 </li>
               ))}
@@ -111,7 +135,7 @@ export default async function ParentHomePage() {
               <FileText className="h-4 w-4" aria-hidden="true" />
               Offers
             </CardTitle>
-            <CardDescription>Admission offers and sandbox fee accept</CardDescription>
+            <CardDescription>Admission offers and fee acceptance</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline" className="min-h-12">

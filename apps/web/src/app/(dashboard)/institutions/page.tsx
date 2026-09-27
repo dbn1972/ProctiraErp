@@ -15,7 +15,7 @@
  * - Inline filter bar (no Card wrapper)
  * - Table: school cell (icon + name + UDISE code mono), Block, Type tag,
  *   Students (dash if not in type), Staff, Attendance bar, Status pill,
- *   icon-button actions (Eye/Pencil/MoreVertical)
+ *   icon-button actions (Eye/Pencil)
  */
 import Link from 'next/link';
 import {
@@ -24,7 +24,6 @@ import {
   Eye,
   GraduationCap,
   Map,
-  MoreVertical,
   Pencil,
   Plus,
   School,
@@ -44,6 +43,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { attendanceBand } from '@/lib/status-label';
 import { InstitutionsFilters } from '@/components/institutions/institutions-filters';
 import { PaginationControls } from '@/components/institutions/pagination-controls';
 import { ApiClientError, listInstitutions } from '@/lib/institutions/api';
@@ -136,7 +136,9 @@ function AttendanceBar({ pct }: { pct: number | null }) {
           aria-label={`Attendance: ${pct}%`}
         />
       </div>
-      <span className={cn('text-xs font-semibold tabular-nums', textCls)}>{pct}%</span>
+      <span className={cn('text-xs font-semibold tabular-nums', textCls)}>
+        {attendanceBand(pct, 80)} · {pct}%
+      </span>
     </div>
   );
 }
@@ -272,9 +274,6 @@ function InstitutionRow({ institution, areaName }: { institution: Institution; a
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
-            <MoreVertical className="h-4 w-4" aria-hidden="true" />
-          </Button>
         </div>
       </TableCell>
     </TableRow>
@@ -361,14 +360,14 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           iconBg="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
           label="Students enrolled"
           value="—"
-          foot="Connect enrollment API for live data"
+          foot="Enrollment totals not available yet"
         />
         <KpiCard
           icon={CheckCircle2}
           iconBg="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
           label="Reporting today"
           value="—"
-          foot="Connect reporting API for live data"
+          foot="Attendance reporting not available yet"
         />
       </div>
 

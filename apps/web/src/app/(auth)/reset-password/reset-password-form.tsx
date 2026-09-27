@@ -54,6 +54,7 @@ export function ResetPasswordForm(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const tokenReady = token.trim().length > 0;
   const grade = gradePassword(password);
   const passwordDetails = useMemo(() => scorePasswordDetails(password), [password]);
 
@@ -118,87 +119,98 @@ export function ResetPasswordForm(): JSX.Element {
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">{t('createNewPasswordSubtitle')}</p>
 
-      {error && (
+      {!tokenReady || error ? (
         <Alert variant="destructive" className="mt-5">
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{error ?? t('resetTokenMissing')}</AlertDescription>
         </Alert>
+      ) : null}
+
+      {tokenReady ? (
+        <form onSubmit={handleSubmit} className="mt-7 space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="password">{t('newPassword')}</Label>
+            <div className="relative">
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                disabled={isSubmitting}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={MIN_PASSWORD_LENGTH}
+                className="h-12 min-h-12 pe-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            </div>
+            {password && (
+              <PasswordStrengthMeter
+                grade={grade}
+                rules={meterRules}
+                ratingLabel={ratingLabel(grade.rating)}
+              />
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="confirmation">{t('confirmPassword')}</Label>
+            <div className="relative">
+              <Input
+                id="confirmation"
+                name="confirmation"
+                type={showConfirmation ? 'text' : 'password'}
+                autoComplete="new-password"
+                required
+                disabled={isSubmitting}
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                minLength={MIN_PASSWORD_LENGTH}
+                className="h-12 min-h-12 pe-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmation((v) => !v)}
+                className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                aria-label={showConfirmation ? t('hidePassword') : t('showPassword')}
+                tabIndex={-1}
+              >
+                {showConfirmation ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+            {isSubmitting ? t('saving') : t('updatePassword')}
+          </Button>
+        </form>
+      ) : (
+        <p className="mt-6">
+          <Link
+            href="/forgot-password"
+            className="inline-flex min-h-12 items-center text-sm font-medium text-primary hover:underline"
+          >
+            {t('sendResetLink')}
+          </Link>
+        </p>
       )}
-
-      <form onSubmit={handleSubmit} className="mt-7 space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="password">{t('newPassword')}</Label>
-          <div className="relative">
-            <Input
-              id="password"
-              name="password"
-              type={showPassword ? 'text' : 'password'}
-              autoComplete="new-password"
-              required
-              disabled={isSubmitting}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              minLength={MIN_PASSWORD_LENGTH}
-              className="h-12 min-h-12 pe-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-              aria-label={showPassword ? t('hidePassword') : t('showPassword')}
-              tabIndex={-1}
-            >
-              {showPassword ? (
-                <EyeOff className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4" aria-hidden="true" />
-              )}
-            </button>
-          </div>
-          {password && (
-            <PasswordStrengthMeter
-              grade={grade}
-              rules={meterRules}
-              ratingLabel={ratingLabel(grade.rating)}
-            />
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="confirmation">{t('confirmPassword')}</Label>
-          <div className="relative">
-            <Input
-              id="confirmation"
-              name="confirmation"
-              type={showConfirmation ? 'text' : 'password'}
-              autoComplete="new-password"
-              required
-              disabled={isSubmitting}
-              value={confirmation}
-              onChange={(e) => setConfirmation(e.target.value)}
-              minLength={MIN_PASSWORD_LENGTH}
-              className="h-12 min-h-12 pe-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmation((v) => !v)}
-              className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-              aria-label={showConfirmation ? t('hidePassword') : t('showPassword')}
-              tabIndex={-1}
-            >
-              {showConfirmation ? (
-                <EyeOff className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Eye className="h-4 w-4" aria-hidden="true" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-          {isSubmitting ? t('saving') : t('updatePassword')}
-        </Button>
-      </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
         <Link

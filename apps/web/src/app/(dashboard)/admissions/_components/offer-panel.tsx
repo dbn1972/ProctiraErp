@@ -14,6 +14,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { AdmissionOffer, ApplicationBundle } from '@/lib/api/admissions';
 import {
@@ -181,6 +182,9 @@ function OfferRow({
   onDecline: () => void;
   onAccept: (paymentRef: string) => void;
 }) {
+  const [confirm, setConfirm] = useState<'send' | 'accept' | 'decline' | null>(null);
+  const [paymentRef, setPaymentRef] = useState('SANDBOX-PAY');
+
   return (
     <li
       className="rounded-md border border-border p-3"
@@ -200,7 +204,7 @@ function OfferRow({
             size="sm"
             data-testid="send-offer"
             disabled={!hydrated || pending}
-            onClick={onSend}
+            onClick={() => setConfirm('send')}
           >
             Send
           </Button>
@@ -212,7 +216,8 @@ function OfferRow({
             onSubmit={(event) => {
               event.preventDefault();
               const fd = new FormData(event.currentTarget);
-              onAccept(String(fd.get('paymentRef') ?? ''));
+              setPaymentRef(String(fd.get('paymentRef') ?? ''));
+              setConfirm('accept');
             }}
           >
             <FormField id={`pay-${offer.id}`} label="Payment ref">
@@ -242,12 +247,58 @@ function OfferRow({
             variant="outline"
             data-testid="decline-offer"
             disabled={!hydrated || pending}
-            onClick={onDecline}
+            onClick={() => setConfirm('decline')}
           >
             Decline
           </Button>
         ) : null}
       </div>
+      <ConfirmActionDialog
+        open={confirm === 'send'}
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null);
+        }}
+        title="Send this offer?"
+        description="Sending notifies the family and moves the offer out of draft. Confirm the fee and class before continuing."
+        confirmLabel="Send offer"
+        pending={pending}
+        onConfirm={() => {
+          setConfirm(null);
+          onSend();
+        }}
+        testId={`send-offer-confirm-${offer.id}`}
+      />
+      <ConfirmActionDialog
+        open={confirm === 'accept'}
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null);
+        }}
+        title="Accept offer and enrol?"
+        description={`Acceptance enrols the student for ${offer.feeAmount} ${offer.feeCurrency} and cannot be undone from this screen.`}
+        confirmLabel="Accept & enrol"
+        pending={pending}
+        onConfirm={() => {
+          setConfirm(null);
+          onAccept(paymentRef);
+        }}
+        testId={`accept-offer-confirm-${offer.id}`}
+      />
+      <ConfirmActionDialog
+        open={confirm === 'decline'}
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null);
+        }}
+        title="Decline this offer?"
+        description="Declining closes the offer. The family will need a new offer if you change your mind."
+        confirmLabel="Decline offer"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          setConfirm(null);
+          onDecline();
+        }}
+        testId={`decline-offer-confirm-${offer.id}`}
+      />
       <p className="sr-only">{applicationId}</p>
     </li>
   );

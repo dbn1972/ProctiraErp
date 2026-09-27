@@ -2,6 +2,9 @@
  * Public-website site helpers.
  */
 
+/** Canonical source repository. Marketing copy must not invent a different org. */
+export const SOURCE_REPOSITORY_URL = 'https://github.com/dbn1972/ProctiraErp';
+
 /**
  * Login lives on the main web app, not this marketing surface.
  * Prefer `NEXT_PUBLIC_WEB_APP_URL` (no trailing slash). Falls back to

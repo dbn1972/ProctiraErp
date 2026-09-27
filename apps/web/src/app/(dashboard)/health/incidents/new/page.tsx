@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords } from '@/lib/api/health';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { CreateNurseIncidentForm } from '../../_components/create-nurse-incident-form';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export default async function NewIncidentPage() {
   if (!canAccessHealthRecords(session.user.roles ?? [])) {
     return <p className="p-6 text-sm">You need a health role.</p>;
   }
+  const studentOptions = await loadStudentOptions();
   return (
     <div className="space-y-4 p-6">
       <Button asChild variant="ghost" size="sm">
@@ -22,7 +24,7 @@ export default async function NewIncidentPage() {
         </Link>
       </Button>
       <h1 className="text-2xl font-semibold">Log nurse visit</h1>
-      <CreateNurseIncidentForm />
+      <CreateNurseIncidentForm studentOptions={studentOptions} />
     </div>
   );
 }

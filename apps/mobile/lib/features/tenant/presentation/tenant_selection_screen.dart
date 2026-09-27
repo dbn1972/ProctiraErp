@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/tenant/tenant_provider.dart';
@@ -19,6 +20,14 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 
   @override
+  void initState() {
+    super.initState();
+    final TenantProvider tenant = getIt<TenantProvider>();
+    _tenantIdCtrl.text = tenant.tenantId ?? '';
+    _tenantNameCtrl.text = tenant.displayName ?? '';
+  }
+
+  @override
   void dispose() {
     _tenantIdCtrl.dispose();
     _tenantNameCtrl.dispose();
@@ -35,6 +44,10 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
           ? null
           : _tenantNameCtrl.text.trim(),
     );
+    if (!mounted) {
+      return;
+    }
+    context.go('/');
   }
 
   @override
@@ -121,7 +134,12 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _onContinue,
-                    child: const Text('Continue'),
+                    child: Text(
+                      GoRouterState.of(context).uri.queryParameters['switch'] ==
+                              '1'
+                          ? 'Switch workspace'
+                          : 'Continue',
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Card(

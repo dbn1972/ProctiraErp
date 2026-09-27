@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Building2, CircleDot, Eye, PauseCircle, Plus, Clock } from 'lucide-react';
+import { Building2, CircleDot, PauseCircle, Plus, Clock } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
@@ -95,9 +95,7 @@ export default async function TenantsPage({
                 <TableHead>Region</TableHead>
                 <TableHead className="text-end">Active users</TableHead>
                 <TableHead>Created</TableHead>
-                <TableHead className="w-12">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -109,7 +107,7 @@ export default async function TenantsPage({
                 </TableRow>
               )}
               {tenants.map((tenant) => (
-                <TableRow key={tenant.id} className="group">
+                <TableRow key={tenant.id}>
                   <TableCell>
                     <Link
                       href={`/tenants/${tenant.id}`}
@@ -133,14 +131,9 @@ export default async function TenantsPage({
                     {formatDate(tenant.createdAt)}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                    >
+                    <Button asChild variant="outline" size="sm">
                       <Link href={`/tenants/${tenant.id}`} aria-label={`View ${tenant.name}`}>
-                        <Eye className="h-4 w-4" />
+                        View
                       </Link>
                     </Button>
                   </TableCell>

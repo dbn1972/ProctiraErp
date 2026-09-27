@@ -88,7 +88,10 @@
     "institutionRequiredTitle": "Select a school first",
     "retryConfiguration": "Try again",
     "chooseInstitution": "Choose a school",
-    "fixFieldErrors": "Please fix the highlighted fields before submitting."
+    "fixFieldErrors": "Please fix the highlighted fields before submitting.",
+    "trackingMissingTitle": "This browser does not have your tracking number",
+    "trackingMissingBody": "If you saved the number, open Track and enter it with the student's date of birth. If you did not save it, contact the school's admissions office. This page cannot recover the number.",
+    "schoolNameUnavailable": "School name could not be loaded"
   },
   "documents": {
     "title": "Upload Documents",
@@ -151,6 +154,31 @@
     "statusApproved": "Approved",
     "statusRejected": "Rejected",
     "statusWaitlisted": "Waitlisted"
+  },
+  "errors": {
+    "validation": "Some details need to be corrected before we can continue.",
+    "unavailable": "The registration service is unavailable. Please try again shortly.",
+    "contextMissing": "We could not match this registration to a school. Choose a school and try again.",
+    "unknown": "Something went wrong. Please try again."
+  },
+  "legal": {
+    "privacyTitle": "Privacy notice",
+    "privacyLead": "This notice is for families using this portal to apply to a school. It describes the application details you submit here. The school or education authority runs the portal for its own admissions. It is not a notice for a demonstration system.",
+    "privacyCollectTitle": "What you submit",
+    "privacyCollect": "The portal collects the application details you enter, such as the student's name and date of birth, guardian contact details, uploaded documents, and the tracking number issued for that application.",
+    "privacyUseTitle": "How it is used",
+    "privacyUse": "The school uses that information to receive, review, and respond to the application. Status checks ask for the tracking number and date of birth so the date is not placed in the page address.",
+    "privacyContact": "To ask about a child's information, contact the admissions office of the school you applied to.",
+    "termsTitle": "Terms of use",
+    "termsLead": "These terms cover use of this registration portal to apply to a school. They do not describe a demonstration tenant and they do not replace any agreement you have with the school.",
+    "termsUseTitle": "Your application",
+    "termsUse": "Submit information that is accurate to the best of your knowledge. Use a tracking number only for the application it belongs to.",
+    "termsSchoolTitle": "The school's decision",
+    "termsSchool": "The school decides whether to offer a place. Submitting an application is a request, not an enrolment.",
+    "contactTitle": "Contact the school",
+    "contactLead": "Questions about an application, a document, or a decision go to the admissions office of the school you are applying to. This portal does not publish a separate help desk.",
+    "contactTrackTitle": "If you have a tracking number",
+    "contactTrack": "If you saved a tracking number, use Track application together with the student's date of birth."
   },
   "footer": {
     "copyright": "© {year} ProctiraERP. All rights reserved.",

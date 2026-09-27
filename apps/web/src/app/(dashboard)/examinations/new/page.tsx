@@ -24,7 +24,7 @@ export default async function NewExaminationPage() {
     <div className="space-y-6">
       <PageHeader
         title="Schedule examination"
-        description="Creates via POST /examinations — name, code, academic period, window, subject, centre, and grading scheme (Requirement 10.1 / 10.7)."
+        description="Define an examination with subjects, centres, grading scheme, and a start date at least seven days ahead."
       />
       <NewExaminationForm
         institutions={institutions.map((i) => ({

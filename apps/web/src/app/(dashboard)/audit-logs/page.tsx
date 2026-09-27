@@ -41,6 +41,7 @@ import {
 } from '@/lib/api/platform.server';
 import { RetentionPolicyForm } from '@/components/audit/audit-integrity-panel';
 import { EmptyState } from '@/components/page';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -327,11 +328,17 @@ function EntryRow({ entry }: { entry: AuditLogEntry }) {
       </TableCell>
       <TableCell>
         <p className="font-semibold text-foreground">{entry.entityType}</p>
-        <p className="font-mono text-[11px] text-muted-foreground">{entry.entityId}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {resolveEntityLabel(entry.entityId, {}, entry.entityType || 'Record')}
+        </p>
       </TableCell>
       <TableCell>
-        <p className="text-foreground">{entry.userName}</p>
-        <p className="font-mono text-[11px] text-muted-foreground">{entry.userId}</p>
+        <p className="text-foreground">{entry.userName || 'Unknown actor'}</p>
+        {entry.userId ? (
+          <p className="text-[11px] text-muted-foreground">
+            {resolveEntityLabel(entry.userId, {}, 'User')}
+          </p>
+        ) : null}
       </TableCell>
       <TableCell className="font-mono text-xs">{entry.ipAddress ?? '—'}</TableCell>
       <TableCell className="pe-4">

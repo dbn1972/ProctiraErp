@@ -13,7 +13,7 @@
  *
  *   2. **Persistence.** `setMode` writes to
  *      `localStorage[${brand.shortName}-theme]`. The brand short name is
- *      read from `useBrand()` when wrapped in a `<BrandConfigProvider>`;
+ *      read from the brand context when wrapped in a `<BrandConfigProvider>`;
  *      otherwise the storage key falls back to `proctira-theme` so a
  *      single browser can host multiple tenants without collision
  *      (Requirement 36 AC 2).
@@ -42,7 +42,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useBrand } from './BrandConfigProvider';
+import { useOptionalBrand } from './BrandConfigProvider';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -154,25 +154,33 @@ function applyResolvedTheme(resolved: ResolvedTheme): void {
  * Resolve the storage key to use:
  *   1. Explicit `storageKey` prop wins.
  *   2. Otherwise `${brand.shortName ?? brand.slug}-theme` from
- *      `useBrand()` when available.
+ *      the brand context when available.
  *   3. Otherwise the `proctira-theme` fallback.
  *
- * Reading `useBrand()` is wrapped in a try/catch so the ThemeProvider can
- * be mounted standalone (e.g. in Storybook, in error boundaries, in tests).
+ * Uses `useOptionalBrand()` so the ThemeProvider stays mountable outside a
+ * `<BrandConfigProvider>` (Storybook, isolated unit tests, error boundaries) without
+ * calling hooks conditionally.
+ *
+ * This previously called `useBrand()` inside a `try/catch`, which eslint reported as
+ * `react-hooks/rules-of-hooks` — a hard error, not a warning. The intent was right and the
+ * mechanism was wrong: `useBrand` *throws* when its context is absent, so catching the throw
+ * puts a hook call inside a `try`, and the rule does not care that the throw is deliberate.
+ * The hazard is real rather than stylistic — if the hook throws partway through a render, the
+ * hooks already registered for that component stay registered while the rest do not, so the
+ * order can differ between renders.
+ *
+ * `useOptionalBrand()` exists for exactly this case and returns `undefined` instead of
+ * throwing. `LanguageProvider`'s identical `useResolvedStorageKey` already used it; this one
+ * was never migrated, so two sibling providers solved the same problem two different ways.
  */
 function useResolvedStorageKey(override?: string): string {
-  // Try to consume the brand context. If no provider is in scope React
-  // simply returns `undefined` from `useContext` — the provider's hook
-  // throws in that case, so we trap it to keep ThemeProvider standalone-safe.
-  let brandShortName: string | undefined;
-  try {
-    const { brand } = useBrand();
-    // The `Brand` interface in BrandConfigProvider exposes `slug` today;
-    // future tenants may add an explicit `shortName` field. Either works.
-    brandShortName = (brand as { shortName?: string }).shortName ?? brand.slug ?? undefined;
-  } catch {
-    brandShortName = undefined;
-  }
+  const brandCtx = useOptionalBrand();
+  // The `Brand` interface exposes `slug` today; future tenants may add an explicit
+  // `shortName` field. Either works.
+  const brandShortName =
+    (brandCtx?.brand as { shortName?: string } | undefined)?.shortName ??
+    brandCtx?.brand?.slug ??
+    undefined;
 
   return useMemo(() => {
     if (override) return override;

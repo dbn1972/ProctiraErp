@@ -180,7 +180,25 @@ function StateStepper({ states, currentStateId, completedStateIds }: StateSteppe
               ) : null}
             </div>
             <div className="space-y-0.5 pt-1">
-              <p className="text-sm font-medium text-[hsl(var(--foreground))]">{state.label}</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-[hsl(var(--foreground))]">{state.label}</p>
+                <Badge
+                  variant={
+                    status === 'completed'
+                      ? 'success'
+                      : status === 'current'
+                        ? 'default'
+                        : 'secondary'
+                  }
+                  className="text-[10px]"
+                >
+                  {status === 'completed'
+                    ? 'Completed'
+                    : status === 'current'
+                      ? 'Current'
+                      : 'Upcoming'}
+                </Badge>
+              </div>
               {state.description ? (
                 <p className="text-xs text-[hsl(var(--muted-foreground))]">{state.description}</p>
               ) : null}

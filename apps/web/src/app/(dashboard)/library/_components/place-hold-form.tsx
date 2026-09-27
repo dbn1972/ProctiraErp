@@ -12,18 +12,21 @@ import {
   CardHeader,
   CardTitle,
   FormField,
-  Input,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { placeHoldAction } from '../../campus-ops-actions';
 import type { LibraryItem } from '@/lib/api/library';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 export function PlaceHoldForm({
   items,
   defaultItemId,
+  studentOptions = [],
 }: {
   items: LibraryItem[];
   defaultItemId?: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -36,9 +39,12 @@ export function PlaceHoldForm({
     const fd = new FormData(event.currentTarget);
     const itemId = String(fd.get('itemId') ?? '').trim();
     const studentId = String(fd.get('studentId') ?? '').trim();
-    const patronUserId = String(fd.get('patronUserId') ?? '').trim();
     if (!itemId) {
       setError('Select a title.');
+      return;
+    }
+    if (!studentId) {
+      setError('Select a student.');
       return;
     }
     startTransition(async () => {
@@ -46,8 +52,7 @@ export function PlaceHoldForm({
       setMessage(null);
       const result = await placeHoldAction({
         itemId,
-        studentId: studentId || undefined,
-        patronUserId: patronUserId || undefined,
+        studentId,
       });
       if (result.status === 'error') {
         setError(result.message ?? 'Hold failed');
@@ -90,12 +95,14 @@ export function PlaceHoldForm({
               ))}
             </select>
           </FormField>
-          <FormField id="hold-student" label="Student id">
-            <Input id="hold-student" name="studentId" className="h-11 min-h-11" />
-          </FormField>
-          <FormField id="hold-patron" label="Patron user id">
-            <Input id="hold-patron" name="patronUserId" className="h-11 min-h-11" />
-          </FormField>
+          <EntitySearchSelect
+            id="hold-student"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+            placeholder="Search student by name or code…"
+          />
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}
@@ -106,7 +113,11 @@ export function PlaceHoldForm({
               {message}
             </p>
           ) : null}
-          <Button type="submit" disabled={pending} className="min-h-11">
+          <Button
+            type="submit"
+            disabled={pending || studentOptions.length === 0}
+            className="min-h-11"
+          >
             {pending ? 'Queuing…' : 'Place hold'}
           </Button>
         </form>

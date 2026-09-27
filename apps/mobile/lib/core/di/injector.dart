@@ -21,6 +21,7 @@ import '../router/app_router.dart';
 import '../storage/cache_crypto.dart';
 import '../storage/database.dart';
 import '../storage/secure_storage.dart';
+import '../student/selected_student_store.dart';
 import '../sync/connectivity_monitor.dart';
 import '../sync/sync_dispatcher.dart';
 import '../sync/sync_engine.dart';
@@ -66,6 +67,11 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   final TenantProvider tenantProvider = TenantProvider(secureStorage);
   await tenantProvider.bootstrap();
   getIt.registerSingleton<TenantProvider>(tenantProvider);
+
+  final SelectedStudentStore selectedStudent =
+      SelectedStudentStore(secureStorage);
+  await selectedStudent.bootstrap();
+  getIt.registerSingleton<SelectedStudentStore>(selectedStudent);
 
   getIt.registerSingleton<LocalAuthentication>(LocalAuthentication());
   getIt.registerLazySingleton<BiometricService>(
@@ -278,6 +284,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     secureStorage: secureStorage,
     database: database,
     authApi: getIt<AuthApi>(),
+    selectedStudent: selectedStudent,
   );
   getIt.registerSingleton<AuthBloc>(authBloc);
 

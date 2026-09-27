@@ -16,9 +16,12 @@ interface OAuthCallbackPageProps {
  * This indirection lets the OAuth provider's "Authorized redirect URI" be a
  * stable, user-readable path that does not include `/api/...`.
  */
-export default function OAuthCallbackPage({ searchParams }: OAuthCallbackPageProps): JSX.Element {
+export default async function OAuthCallbackPage({
+  searchParams,
+}: OAuthCallbackPageProps): Promise<never> {
+  const resolved = await searchParams;
   const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
+  for (const [key, value] of Object.entries(resolved)) {
     if (typeof value === 'string') {
       params.set(key, value);
     } else if (Array.isArray(value) && value.length > 0) {

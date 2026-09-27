@@ -28,11 +28,11 @@ import { DocumentTitle } from '@/components/DocumentTitle';
 import { readParam, type SearchParams } from '@/components/platform/PlatformSurfaceState';
 import { exportDsarPackage } from '@/lib/api/platform.server';
 import { EmptyState } from '@/components/page';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
-
-const INPUT_CLASS =
-  'h-9 w-full rounded-md border border-input bg-background px-3 font-mono text-sm text-foreground';
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -47,6 +47,18 @@ function formatTimestamp(iso: string): string {
 export default async function DsarPage(props: { searchParams?: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
   const subjectId = readParam(searchParams, 'subjectId')?.trim();
+  const [studentOptions, staffOptions] = await Promise.all([
+    loadStudentOptions(),
+    loadStaffOptions(),
+  ]);
+  const subjectOptions = [
+    ...studentOptions,
+    ...staffOptions.map((option) => ({
+      ...option,
+      label: option.label.startsWith('Staff') ? option.label : `Staff · ${option.label}`,
+    })),
+  ];
+  const subjectLabels = new Map(subjectOptions.map((option) => [option.id, option.label]));
   const result = subjectId ? await exportDsarPackage(subjectId) : null;
   const pack = result?.data ?? null;
 
@@ -90,17 +102,18 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
             className="flex flex-col gap-3 sm:flex-row sm:items-end"
             aria-label="DSAR lookup"
           >
-            <label className="flex flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground">
-              Subject id
-              <input
+            <div className="flex-1" data-testid="dsar-subject">
+              <EntitySearchSelect
+                id="dsar-subject-id"
                 name="subjectId"
-                required
+                label="Subject"
+                options={subjectOptions}
                 defaultValue={subjectId ?? ''}
-                placeholder="Student / staff / user id"
-                className={INPUT_CLASS}
-                data-testid="dsar-subject"
+                required
+                placeholder="Search students or staff…"
+                emptyMessage="Student and staff directories are not loaded. Add people before building a DSAR package."
               />
-            </label>
+            </div>
             <button
               type="submit"
               className="h-9 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
@@ -127,7 +140,7 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
         <Card className="overflow-hidden" data-testid="dsar-package">
           <CardHeader>
             <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-              Package for <span className="font-mono text-sm">{pack.subjectId}</span>
+              Package for {resolveEntityLabel(pack.subjectId, subjectLabels, 'Subject')}
               <Badge variant="secondary">{pack.entryCount.toLocaleString()} entries</Badge>
               {pack.truncated ? <Badge variant="destructive">truncated</Badge> : null}
             </CardTitle>
@@ -164,14 +177,18 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
                       </TableCell>
                       <TableCell>
                         <p className="font-semibold text-foreground">{entry.entityType}</p>
-                        <p className="font-mono text-[11px] text-muted-foreground">
-                          {entry.entityId}
+                        <p className="text-[11px] text-muted-foreground">
+                          {resolveEntityLabel(
+                            entry.entityId,
+                            subjectLabels,
+                            entry.entityType || 'Record',
+                          )}
                         </p>
                       </TableCell>
                       <TableCell>
                         <p className="text-foreground">{entry.userName}</p>
-                        <p className="font-mono text-[11px] text-muted-foreground">
-                          {entry.userId}
+                        <p className="text-[11px] text-muted-foreground">
+                          {resolveEntityLabel(entry.userId, subjectLabels, 'User')}
                         </p>
                       </TableCell>
                       <TableCell className="pe-4">

@@ -1,8 +1,6 @@
 import Link from 'next/link';
-import { Eye } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -120,9 +118,7 @@ export default async function PluginsPage() {
                 <TableHead>Category</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Submitted</TableHead>
-                <TableHead className="w-12">
-                  <span className="sr-only">Actions</span>
-                </TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -134,7 +130,7 @@ export default async function PluginsPage() {
                 </TableRow>
               )}
               {reviewed.map((plugin) => (
-                <TableRow key={plugin.id} className="group">
+                <TableRow key={plugin.id}>
                   <TableCell>
                     <Link
                       href={`/plugins/${plugin.id}`}
@@ -153,14 +149,9 @@ export default async function PluginsPage() {
                     {formatDate(plugin.submittedAt)}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      asChild
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-                    >
+                    <Button asChild variant="outline" size="sm">
                       <Link href={`/plugins/${plugin.id}`} aria-label={`View ${plugin.name}`}>
-                        <Eye className="h-4 w-4" />
+                        View
                       </Link>
                     </Button>
                   </TableCell>
