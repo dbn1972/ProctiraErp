@@ -97,11 +97,22 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     page,
     request,
   }) => {
-    const subject = `dsar-${Date.now().toString(36)}`;
+    const lastName = `Dsar${Date.now().toString(36)}`;
+    const createdStudent = await request.post(`${GATEWAY_URL}/api/v1/students`, {
+      headers: headers(),
+      data: {
+        firstName: 'Audit',
+        lastName,
+        dateOfBirth: '2010-05-05',
+        gender: 'female',
+      },
+    });
+    expect(createdStudent.status(), await createdStudent.text()).toBe(201);
+    const subject = (await createdStudent.json()).id as string;
     const created = await request.post(`${GATEWAY_URL}/api/v1/audit-logs`, {
       headers: headers(),
       data: {
-        entityType: 'staff',
+        entityType: 'student',
         entityId: subject,
         operation: 'CREATE',
         beforeValues: null,
@@ -111,7 +122,8 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     expect(created.status(), await created.text()).toBe(201);
 
     await page.goto('/audit-logs/dsar', { waitUntil: 'domcontentloaded' });
-    await page.getByTestId('dsar-subject').fill(subject);
+    await page.getByLabel('Subject search').fill(lastName);
+    await page.locator('#dsar-subject-id').selectOption(subject);
     await page.getByTestId('dsar-run').click();
     await expect(page.getByTestId('dsar-package')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('dsar-row')).toHaveCount(1);

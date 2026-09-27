@@ -79,7 +79,9 @@ test.describe('Academics setup — pages render (ungated)', () => {
     await page.goto(`/institutions/${INSTITUTION_A}/grades`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('add-grade')).toBeVisible();
     await page.goto(`/institutions/${INSTITUTION_A}/classes`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('add-section')).toBeVisible();
+    // Mobile hydration can leave the server button beside the client one.
+    // The interactive control is the hydrated instance.
+    await expect(page.locator('[data-testid="add-section"][data-hydrated="true"]')).toBeVisible();
   });
 });
 
@@ -120,11 +122,13 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
   test('Add grade dialog creates a grade from the UI', async ({ page }) => {
     await page.goto(`/institutions/${INSTITUTION_A}/grades`, { waitUntil: 'domcontentloaded' });
     await (await hydrated(page, 'add-grade')).click();
+    const dialog = page.getByRole('dialog');
     const code = `UI${Date.now().toString(36).slice(-4).toUpperCase()}`;
-    await page.getByLabel('Name').fill(`Grade ${code}`);
-    await page.getByLabel('Code').fill(code);
-    await page.getByLabel('Order').fill('9');
-    await page.getByRole('button', { name: /create grade/i }).click();
+    await dialog.getByLabel('Name').fill(`Grade ${code}`);
+    await dialog.getByLabel('Code').fill(code);
+    await dialog.getByLabel('Order').fill('9');
+    await dialog.getByRole('button', { name: /create grade/i }).click();
+    await expect(dialog).toBeHidden({ timeout: 15_000 });
     await expect(page.getByText(`Grade ${code}`)).toBeVisible({ timeout: 15_000 });
   });
 

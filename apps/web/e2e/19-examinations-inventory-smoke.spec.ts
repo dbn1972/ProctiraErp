@@ -84,15 +84,20 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     await expect(page.getByText('Subject name is required', { exact: true })).toBeVisible();
     await expect(page.getByText('Center name is required', { exact: true })).toBeVisible();
 
-    // Period Select pre-fills when periods load; UUID prompt only on offline input fallback.
+    // Period control is a select when periods load. Offline, the form explains
+    // that periods could not be loaded instead of offering a UUID paste field.
     const periodControl = page.getByTestId('examination-academic-period');
-    const periodTag = await periodControl.evaluate((el) => el.tagName.toLowerCase());
-    if (periodTag === 'input') {
-      await periodControl.fill('');
-      await page.getByTestId('examination-create-submit').click();
-      await expect(page.getByText('UUID is required').first()).toBeVisible();
+    if ((await periodControl.count()) === 0) {
+      await expect(page.getByText(/academic periods could not be loaded/i)).toBeVisible();
     } else {
-      await expect(periodControl).toBeVisible();
+      const periodTag = await periodControl.evaluate((el) => el.tagName.toLowerCase());
+      if (periodTag === 'input') {
+        await periodControl.fill('');
+        await page.getByTestId('examination-create-submit').click();
+        await expect(page.getByText('UUID is required').first()).toBeVisible();
+      } else {
+        await expect(periodControl).toBeVisible();
+      }
     }
   });
 
@@ -106,18 +111,22 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     await page.locator('#exam-name').fill('Mid-term Assessment');
     await page.locator('#exam-code').fill(`MTA-${Date.now()}`);
     const periodControl = page.getByTestId('examination-academic-period');
-    const periodTag = await periodControl.evaluate((el) => el.tagName.toLowerCase());
-    if (periodTag === 'input') {
-      await periodControl.fill(PERIOD_ID);
+    if ((await periodControl.count()) === 0) {
+      await expect(page.getByText(/academic periods could not be loaded/i)).toBeVisible();
     } else {
-      const current = await periodControl.textContent();
-      if (!current || /select academic period/i.test(current)) {
-        await periodControl.click();
-        const option = page.getByRole('option').first();
-        if (await option.count()) {
-          await option.click();
-        } else {
-          await page.keyboard.press('Escape');
+      const periodTag = await periodControl.evaluate((el) => el.tagName.toLowerCase());
+      if (periodTag === 'input') {
+        await periodControl.fill(PERIOD_ID);
+      } else {
+        const current = await periodControl.textContent();
+        if (!current || /select academic period/i.test(current)) {
+          await periodControl.click();
+          const option = page.getByRole('option').first();
+          if (await option.count()) {
+            await option.click();
+          } else {
+            await page.keyboard.press('Escape');
+          }
         }
       }
     }
@@ -127,12 +136,25 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     await page.getByTestId('examination-center-code').fill('CTR-A');
 
     const institutionControl = page.getByTestId('examination-center-institution');
-    const tag = await institutionControl.evaluate((el) => el.tagName.toLowerCase());
-    if (tag === 'input') {
-      await institutionControl.fill(INSTITUTION_ID);
+    const institutionMissing = (await institutionControl.count()) === 0;
+    if (!institutionMissing) {
+      const tag = await institutionControl.evaluate((el) => el.tagName.toLowerCase());
+      if (tag === 'input') {
+        await institutionControl.fill(INSTITUTION_ID);
+      }
     }
 
+    const periodMissing = (await periodControl.count()) === 0;
     await page.getByTestId('examination-create-submit').click();
+
+    // Offline, the period and institution pickers are replaced by status
+    // text. Submit stays on the page and surfaces "UUID is required"
+    // instead of posting or showing a demo-success banner.
+    if (periodMissing || institutionMissing) {
+      await expect(page.getByText('UUID is required').first()).toBeVisible();
+      await expect(page.getByTestId('examination-create-demo-ack')).toHaveCount(0);
+      return;
+    }
 
     await Promise.race([
       page.waitForURL(/\/examinations\/[0-9a-f-]{36}/i, { timeout: 20_000 }),

@@ -38,6 +38,14 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    // CI Integration Tests serve `next start`, so the client bundle is
+    // production and registers `/sw.js`. That worker re-fetches API GETs
+    // from the service worker, which bypasses `page.route()`. The public
+    // tracking success mock then never runs (the axe checkpoint gives the
+    // worker time to claim the page) and the UI shows "not found". No spec
+    // asserts service-worker behavior; block registration so network mocks
+    // stay deterministic under the production server.
+    serviceWorkers: 'block',
   },
   // `pnpm test:e2e` only installs Chromium. Keep the full matrix available
   // locally via PLAYWRIGHT_ALL_BROWSERS=1; CI stays Chromium-only so we
