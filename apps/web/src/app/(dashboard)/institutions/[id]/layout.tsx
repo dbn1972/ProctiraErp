@@ -15,25 +15,11 @@ import { cn } from '@/lib/utils';
 import { InstitutionTabs } from '@/components/institutions/institution-tabs';
 import { ApiClientError, getInstitution } from '@/lib/institutions/api';
 import type { Institution } from '@/lib/institutions/types';
-import {
-  loadAreaOptions,
-  loadOwnershipOptions,
-  loadSectorOptions,
-  loadTypeOptions,
-} from '@/lib/institutions/lookups';
+import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 
 interface InstitutionLayoutProps {
   params: Promise<{ id: string }>;
   children: React.ReactNode;
-}
-
-function nameFor(options: { id: string; name: string }[], id: string): string {
-  return (
-    options
-      .find((o) => o.id === id)
-      ?.name.replace(/^(—\s)+/, '')
-      .trim() ?? ''
-  );
 }
 
 function readStr(cd: Record<string, unknown> | null | undefined, key: string): string {
@@ -49,16 +35,11 @@ export default async function InstitutionLayout({ params, children }: Institutio
     notFound();
   }
 
-  const [areas, types, sectors, ownerships] = await Promise.all([
-    loadAreaOptions(),
-    loadTypeOptions(),
-    loadSectorOptions(),
-    loadOwnershipOptions(),
-  ]);
+  const [areas, types] = await Promise.all([loadAreaOptions(), loadTypeOptions()]);
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
-  const areaName = nameFor(areas, institution.areaId);
-  const typeName = nameFor(types, institution.typeId);
+  const areaName = resolveLookupLabel(areas, institution.areaId);
+  const typeName = resolveLookupLabel(types, institution.typeId);
   const medium = readStr(cd, 'medium');
   const isActive = institution.status === 'ACTIVE';
 
