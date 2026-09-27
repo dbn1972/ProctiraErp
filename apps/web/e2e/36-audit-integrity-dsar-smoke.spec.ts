@@ -111,7 +111,7 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
     expect(created.status(), await created.text()).toBe(201);
 
     await page.goto('/audit-logs/dsar', { waitUntil: 'domcontentloaded' });
-    await page.getByTestId('dsar-subject').fill(subject);
+    await page.getByTestId('dsar-subject-input').fill(subject);
     await page.getByTestId('dsar-run').click();
     await expect(page.getByTestId('dsar-package')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('dsar-row')).toHaveCount(1);
