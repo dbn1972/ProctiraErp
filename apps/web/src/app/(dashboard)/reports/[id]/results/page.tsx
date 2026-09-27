@@ -26,6 +26,7 @@ import {
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { cn } from '@/lib/utils';
 import { getReportTemplate, listReportRuns, type ReportRun } from '@/lib/api/reports';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -59,7 +60,7 @@ export default async function ReportResultsPage(props: PageProps) {
             Report results
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Template unavailable for id <code className="font-mono text-xs">{params.id}</code>.
+            This report template was not found. Open the catalog and pick a report by name.
           </p>
         </div>
         <ScaffoldModeBanner
@@ -146,7 +147,7 @@ export default async function ReportResultsPage(props: PageProps) {
           <CardTitle className="text-base">Past runs</CardTitle>
           <CardDescription>Reports generated for this template.</CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="overflow-x-auto p-0">
           {runs.length === 0 ? (
             <p className="px-6 py-10 text-center text-sm text-muted-foreground">
               No results yet for this template.
@@ -171,7 +172,7 @@ export default async function ReportResultsPage(props: PageProps) {
                     <TableCell className="font-semibold text-foreground">
                       {run.generatedAt}
                     </TableCell>
-                    <TableCell>{run.generatedBy}</TableCell>
+                    <TableCell>{resolveEntityLabel(run.generatedBy, {}, 'Person')}</TableCell>
                     <TableCell className="font-mono text-xs">{run.format}</TableCell>
                     <TableCell className="text-end tabular-nums">{run.fileSizeKb} KB</TableCell>
                     <TableCell>
