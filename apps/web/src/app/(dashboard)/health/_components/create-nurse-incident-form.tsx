@@ -14,7 +14,8 @@ import {
 } from '@proctira/ui/components';
 
 import type { EntityLabelOption } from '@/lib/entity-label';
-import { HealthStudentSelect } from './health-directory-select';
+import { HealthSchoolSelect, HealthStudentSelect } from './health-directory-select';
+import { nurseIncidentInstitutionError } from './nurse-incident-institution';
 import { createNurseIncidentAction } from '../actions';
 
 const SEVERITIES = ['low', 'medium', 'high', 'critical'] as const;
@@ -22,10 +23,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 export function CreateNurseIncidentForm({
   studentOptionsJson = '[]',
+  institutionOptionsJson = '[]',
 }: {
   studentOptionsJson?: string;
+  institutionOptionsJson?: string;
 }) {
   const studentOptions: EntityLabelOption[] = JSON.parse(studentOptionsJson) as EntityLabelOption[];
+  const institutionOptions: EntityLabelOption[] = JSON.parse(
+    institutionOptionsJson,
+  ) as EntityLabelOption[];
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -34,7 +40,7 @@ export function CreateNurseIncidentForm({
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const studentId = String(fd.get('studentId') ?? '').trim();
-    const institutionId = '';
+    const institutionId = String(fd.get('institutionId') ?? '').trim();
     const incidentAt = String(fd.get('incidentAt') ?? '').trim();
     const category = String(fd.get('category') ?? '').trim();
     const severity = String(fd.get('severity') ?? 'low').trim();
@@ -49,6 +55,14 @@ export function CreateNurseIncidentForm({
       );
       return;
     }
+    const institutionError = nurseIncidentInstitutionError(
+      institutionId,
+      institutionOptions.length,
+    );
+    if (institutionError) {
+      setError(institutionError);
+      return;
+    }
     if (!incidentAt || !category || !reportedBy) {
       setError('Incident time, category, and reporter are required.');
       return;
@@ -58,7 +72,7 @@ export function CreateNurseIncidentForm({
       setError(null);
       const result = await createNurseIncidentAction({
         studentId,
-        institutionId: institutionId || undefined,
+        institutionId,
         incidentAt: new Date(incidentAt).toISOString(),
         category,
         severity: severity as (typeof SEVERITIES)[number],
@@ -82,6 +96,7 @@ export function CreateNurseIncidentForm({
       <CardContent>
         <form className="space-y-4" onSubmit={onSubmit} data-testid="create-incident-form">
           <HealthStudentSelect options={studentOptions} />
+          <HealthSchoolSelect options={institutionOptions} />
           <FormField label="Incident time" htmlFor="incidentAt">
             <Input
               id="incidentAt"

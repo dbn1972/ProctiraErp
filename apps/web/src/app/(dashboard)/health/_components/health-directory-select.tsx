@@ -46,6 +46,46 @@ export function HealthStudentSelect({
   );
 }
 
+export function HealthSchoolSelect({
+  options,
+  id = 'institutionId',
+  name = 'institutionId',
+  label = 'School',
+}: {
+  options: EntityLabelOption[];
+  id?: string;
+  name?: string;
+  label?: string;
+}) {
+  if (options.length === 0) {
+    return (
+      <FormField label={label} htmlFor={id}>
+        <p
+          id={id}
+          data-testid={`${id}-empty`}
+          className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
+          role="status"
+        >
+          No schools loaded. Add a school under Institutions, then return here.
+        </p>
+      </FormField>
+    );
+  }
+
+  return (
+    <FormField label={label} htmlFor={id}>
+      <select id={id} name={name} required className={SELECT_CLASS}>
+        <option value="">Select a school…</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </FormField>
+  );
+}
+
 export function HealthStaffSelect({
   options,
   id = 'counsellorId',

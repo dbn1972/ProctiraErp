@@ -3,9 +3,10 @@
  * Uses an explicit page size (20) so gateway validation never rejects the request
  * and the client does not silently render an empty picker.
  */
+import { listInstitutions } from '@/lib/api/institutions';
 import { listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
-import { formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
+import { formatCodeNameLabel, formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 const HEALTH_DIRECTORY_PAGE_SIZE = 20;
 
@@ -15,6 +16,15 @@ export async function loadHealthStudentOptions(): Promise<EntityLabelOption[]> {
     id: student.id,
     label: formatPersonLabel(student.firstName, student.lastName, student.nationalId),
     searchText: `${student.firstName} ${student.lastName} ${student.nationalId ?? ''}`,
+  }));
+}
+
+export async function loadHealthInstitutionOptions(): Promise<EntityLabelOption[]> {
+  const rows = await listInstitutions({ pageSize: HEALTH_DIRECTORY_PAGE_SIZE });
+  return rows.map((row) => ({
+    id: row.id,
+    label: formatCodeNameLabel(row.code, row.name) || row.name,
+    searchText: `${row.code} ${row.name}`,
   }));
 }
 
