@@ -5,10 +5,12 @@ import { useState, useTransition } from 'react';
 
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { createLessonAction } from '../depth-actions';
+import { SchoolField } from './school-field';
 
-export function LessonForm() {
+export function LessonForm({ schools = [] }: { schools?: EntityLabelOption[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -43,10 +45,7 @@ export function LessonForm() {
         <Label htmlFor="lesson-title">Title</Label>
         <Input id="lesson-title" name="title" required className="h-11" />
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="lesson-school">School ID</Label>
-        <Input id="lesson-school" name="institutionId" required className="h-11" />
-      </div>
+      <SchoolField id="lesson-school" schools={schools} required />
       <div className="space-y-1">
         <Label htmlFor="lesson-subject">Subject</Label>
         <Input id="lesson-subject" name="subject" className="h-11" />

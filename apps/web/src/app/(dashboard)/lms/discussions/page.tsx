@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
 import { getDiscussion, listDiscussions } from '@/lib/api/lms';
+import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
 
 import { DiscussionCreateForm, DiscussionModeration } from '../_components/discussion-forms';
@@ -12,7 +13,7 @@ import { LmsSubnav } from '../_components/lms-subnav';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsDiscussionsPage() {
-  const listed = await listDiscussions();
+  const [listed, schools] = await Promise.all([listDiscussions(), loadInstitutionOptions()]);
   const threads = await Promise.all(
     listed.map(async (thread) => (await getDiscussion(thread.id)) ?? thread),
   );
@@ -32,7 +33,7 @@ export default async function LmsDiscussionsPage() {
           <CardTitle>New thread</CardTitle>
         </CardHeader>
         <CardContent>
-          <DiscussionCreateForm />
+          <DiscussionCreateForm schools={schools} />
         </CardContent>
       </Card>
       {threads.length === 0 ? (

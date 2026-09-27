@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import {
@@ -170,5 +170,36 @@ describe('<CrossBoardTransferDashboard>', () => {
     expect(approve.disabled).toBe(true);
     expect(reject.disabled).toBe(true);
     expect(info.disabled).toBe(true);
+  });
+
+  it('shows an unavailable state instead of mock transfer data', async () => {
+    useCrossBoardTransferDataMock.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error('Cross-board transfer endpoint pending workflow detail view'),
+    });
+
+    await renderPage();
+
+    expect(screen.getByTestId('cross-board-transfer-unavailable')).toBeTruthy();
+    expect(screen.queryByText(/Maharashtra State Board School/)).toBeNull();
+    expect(screen.queryByTestId('cross-board-transfer-approve-button')).toBeNull();
+  });
+
+  it('asks for confirmation before recording a rejection', async () => {
+    useCrossBoardTransferDataMock.mockReturnValue({
+      data: CROSS_BOARD_TRANSFER_MOCK,
+      isLoading: false,
+      error: null,
+    });
+
+    await renderPage();
+
+    fireEvent.click(screen.getByTestId('cross-board-transfer-reject-button'));
+    expect(screen.queryByTestId('cross-board-transfer-actions-status')).toBeNull();
+    fireEvent.click(screen.getByTestId('cross-board-transfer-reject-confirm'));
+    expect(screen.getByTestId('cross-board-transfer-actions-status').textContent).toContain(
+      'Rejection',
+    );
   });
 });
