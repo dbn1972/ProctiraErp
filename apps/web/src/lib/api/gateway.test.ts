@@ -93,6 +93,25 @@ describe('gatewayFetch', () => {
     expect(result.error?.code).toBe('VALIDATION_ERROR');
   });
 
+  it('turns revalidate 0 into cache no-store so the Data Cache cannot serve a stale plan', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const { gatewayFetch } = await import('./gateway');
+    await gatewayFetch('/lms/pal/students/stu/plan', {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    });
+
+    const call = fetchMock.mock.calls[0]!;
+    expect(call[1]?.cache).toBe('no-store');
+    expect(call[1]).not.toHaveProperty('next');
+  });
+
   it('encodes JSON body and content type when given json option', async () => {
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ id: 'abc' }), {

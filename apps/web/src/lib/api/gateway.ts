@@ -100,6 +100,14 @@ export async function gatewayFetch<T>(
   if (init.next) {
     fetchInit.next = init.next;
   }
+  // `next: { revalidate: 0 }` still opts into the Data Cache. That cache key
+  // ignores Authorization, so a stale or anonymous body can be reused after
+  // a write (Spiral PAL plan lookup). Treat revalidate 0 as no-store and
+  // drop `next` so it cannot override `cache`.
+  if (init.next?.revalidate === 0) {
+    fetchInit.cache = 'no-store';
+    delete fetchInit.next;
+  }
 
   let response: Response;
   try {
