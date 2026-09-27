@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 
-import { defineConfig } from '@playwright/test';
+import { defineConfig, type PlaywrightTestConfig } from '@playwright/test';
 
 import { resolveProjects } from './e2e/qa-matrix';
 import { resolveWebServerCommand } from './e2e/web-server-command';
@@ -18,6 +18,14 @@ import { resolveWebServerCommand } from './e2e/web-server-command';
 const PORT = process.env.PORT ?? '3001';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
+function ciReporter(): PlaywrightTestConfig['reporter'] {
+  if (!process.env.CI) return 'list';
+  if (process.env.PLAYWRIGHT_SHARD) {
+    return [['list'], ['html', { open: 'never' }], ['blob']];
+  }
+  return [['list'], ['html', { open: 'never' }]];
+}
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: /.*\.spec\.ts/,
@@ -32,13 +40,24 @@ export default defineConfig({
   // condition.
   timeout: process.env.CI ? 90_000 : 30_000,
   expect: { timeout: process.env.CI ? 20_000 : 5_000 },
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
+  // PLAYWRIGHT_SHARD (CI live gate) adds the blob reporter. Default blob names
+  // include the shard index (`report-1.zip` …) so the aggregate job can merge
+  // them. Other CI jobs leave the env unset and stay on list + html.
+  reporter: ciReporter(),
   use: {
     baseURL: BASE_URL,
     headless: true,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    // CI Integration Tests serve `next start`, so the client bundle is
+    // production and registers `/sw.js`. That worker re-fetches API GETs
+    // from the service worker, which bypasses `page.route()`. The public
+    // tracking success mock then never runs (the axe checkpoint gives the
+    // worker time to claim the page) and the UI shows "not found". No spec
+    // asserts service-worker behavior; block registration so network mocks
+    // stay deterministic under the production server.
+    serviceWorkers: 'block',
   },
   // The Volume 12 §3 test-environment matrix lives in `./e2e/qa-matrix.ts` as data, and
   // `e2e/55-responsive-layout.spec.ts` asserts every class the specification names

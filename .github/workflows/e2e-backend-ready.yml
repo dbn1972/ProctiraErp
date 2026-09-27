@@ -5,6 +5,16 @@
 # then invokes tools/scripts/run-e2e-backend-ready.sh which starts api-gateway
 # and runs Playwright live write-smokes with E2E_BACKEND_READY=1.
 #
+# Sharding: the chromium PR/nightly set is ~43 minutes of Playwright (run
+# 36284769618 finished in 42.7 min; run 36305756098 was cancelled at the 45
+# minute job timeout still inside a11y-axe, before 44-students-360). Setup
+# before the harness on that run was ~2 minutes. Four shards each run the
+# full stack and `playwright test --shard=i/4` so every spec still runs.
+# The matrix legs are NOT the required check. The aggregator job keeps the
+# exact name `E2E backend-ready live gate (G-401 / G-706)` so branch
+# protection still matches. CI Aggregate does not depend on this workflow.
+# Shard count is 4 — keep the matrix and E2E_SHARD_TOTAL in sync.
+#
 # Modes:
 #   pull_request  — HARD gate (E2E_REQUIRE_LIVE=1): gateway must come up and the
 #                   PR spec set must pass; a red job blocks the PR.
@@ -58,6 +68,8 @@ env:
   JWT_SECRET: dev-secret-change-in-production
   E2E_GATEWAY_URL: http://127.0.0.1:3000
   NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:3000
+  # Must match jobs.e2e-backend-ready-shard.strategy.matrix.shard length.
+  E2E_SHARD_TOTAL: '4'
   # PR gate: HS256-cookie live smokes that need only Postgres + gateway.
   # G-722: PR gate includes authenticated axe matrix (a11y-axe) + 17c smoke.
   # Volume 12 §5 / §13: `55-responsive-layout` is the responsive-smoke exit criterion.
@@ -152,10 +164,14 @@ permissions:
   contents: read
 
 jobs:
-  e2e-backend-ready:
-    name: E2E backend-ready live gate (G-401 / G-706)
+  e2e-backend-ready-shard:
+    name: E2E backend-ready shard ${{ matrix.shard }}/${{ strategy.job-total }}
     timeout-minutes: 45
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     # Hard-fail Playwright when it actually runs (no continue-on-error).
     # Scaffolding skip path exits 0 from the harness with a clear summary.
     services:
@@ -246,8 +262,10 @@ jobs:
           MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
           ARTIFACT_DIR: /opt/cursor/artifacts/multi-board-onboard
 
+      # Same certification on every shard (each runner has its own database).
+      # One canonical artifact name so existing consumers stay stable.
       - name: Upload multi-board certify artifacts (G-408)
-        if: always()
+        if: always() && matrix.shard == 1
         uses: actions/upload-artifact@v7
         with:
           name: multi-board-onboard
@@ -310,16 +328,126 @@ jobs:
           E2E_REQUIRE_LIVE: ${{ steps.mode.outputs.require_live }}
           # Volume 12 §10 — nightly/dispatch only. See the "Select spec set" step.
           E2E_THEME_MATRIX: ${{ steps.mode.outputs.theme_matrix == '1' && '1' || '' }}
+          PLAYWRIGHT_SHARD: ${{ matrix.shard }}/${{ strategy.job-total }}
           CI: true
 
-      - name: Upload Playwright report
+      - name: Upload shard Playwright report
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-backend-ready-report
+          name: e2e-backend-ready-report-shard-${{ matrix.shard }}
           path: |
             apps/web/playwright-report/
             apps/web/test-results/
+            apps/web/blob-report/
             .e2e-gateway.log
           retention-days: 14
           if-no-files-found: ignore
+
+      - name: Upload shard blob report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-backend-ready-blob-${{ matrix.shard }}
+          path: apps/web/blob-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # Required check name is unchanged. Matrix leg names must not reuse it:
+  # branch protection matches the job name string, and CI Aggregate does not
+  # list this workflow.
+  e2e-backend-ready:
+    name: E2E backend-ready live gate (G-401 / G-706)
+    needs: e2e-backend-ready-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Download shard blob reports
+        id: blobs
+        continue-on-error: true
+        uses: actions/download-artifact@v7
+        with:
+          pattern: e2e-backend-ready-blob-*
+          path: all-blob-reports
+          merge-multiple: true
+
+      - name: Install web package
+        if: steps.blobs.outcome == 'success'
+        run: pnpm install --frozen-lockfile --filter @proctira/web...
+
+      - name: Merge Playwright blob reports
+        id: merge
+        if: steps.blobs.outcome == 'success'
+        run: |
+          set -euo pipefail
+          mkdir -p blob-flat
+          mapfile -t zips < <(find all-blob-reports -type f -name '*.zip' | sort)
+          echo "blob zips: ${#zips[@]}"
+          for z in "${zips[@]}"; do
+            base="$(basename "$z")"
+            if [[ -e "blob-flat/$base" ]]; then
+              echo "error: duplicate blob name $base" >&2
+              exit 1
+            fi
+            cp "$z" "blob-flat/$base"
+          done
+          if [[ "${#zips[@]}" -ne "$E2E_SHARD_TOTAL" ]]; then
+            echo "error: expected $E2E_SHARD_TOTAL blob reports, found ${#zips[@]}" >&2
+            exit 1
+          fi
+          pnpm --filter @proctira/web exec playwright merge-reports --reporter=html "$GITHUB_WORKSPACE/blob-flat"
+        env:
+          E2E_SHARD_TOTAL: ${{ env.E2E_SHARD_TOTAL }}
+
+      - name: Upload merged Playwright report
+        if: steps.merge.outcome == 'success'
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-backend-ready-report
+          path: apps/web/playwright-report/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Require every shard and the merged report
+        if: always()
+        env:
+          SHARD_RESULT: ${{ needs.e2e-backend-ready-shard.result }}
+          SKIP_STACK: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_stack }}
+          BLOBS_OUTCOME: ${{ steps.blobs.outcome }}
+          MERGE_OUTCOME: ${{ steps.merge.outcome }}
+          E2E_SHARD_TOTAL: ${{ env.E2E_SHARD_TOTAL }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## G-401 / G-706 shard aggregate"
+            echo ""
+            echo "- Shard matrix result: \`$SHARD_RESULT\`"
+            echo "- Expected shards: \`$E2E_SHARD_TOTAL\`"
+            echo "- Blob download: \`$BLOBS_OUTCOME\`"
+            echo "- Report merge: \`$MERGE_OUTCOME\`"
+            echo "- Skip stack: \`$SKIP_STACK\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$SHARD_RESULT" != "success" ]]; then
+            echo "error: E2E backend-ready shards result is $SHARD_RESULT (expected success)" >&2
+            exit 1
+          fi
+          if [[ "$SKIP_STACK" == "true" ]]; then
+            echo "skip_stack dispatch: shards succeeded; no Playwright report expected"
+            exit 0
+          fi
+          if [[ "$BLOBS_OUTCOME" != "success" || "$MERGE_OUTCOME" != "success" ]]; then
+            echo "error: shard jobs succeeded but blob merge did not (blobs=$BLOBS_OUTCOME merge=$MERGE_OUTCOME)" >&2
+            exit 1
+          fi

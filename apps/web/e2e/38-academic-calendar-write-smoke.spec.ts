@@ -344,8 +344,8 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
     );
     expect(await before.json()).toEqual([]);
 
-    page.once('dialog', (dialog) => void dialog.accept());
     await page.getByTestId('rollover-execute').click();
+    await page.getByTestId('academic-period-rollover-confirm-confirm').click();
     await expect(summary).toHaveAttribute('data-dry-run', 'false', { timeout: 15_000 });
     await expect(page.getByTestId('rollover-classes')).toHaveText('1');
 
