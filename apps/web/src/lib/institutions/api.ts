@@ -316,6 +316,7 @@ export async function listGrades(): Promise<Grade[]> {
     const result = await gatewayFetch<Grade[]>('/grades', {
       method: 'GET',
       throwOnError: true,
+      cache: 'no-store',
     });
     return unwrap(result, []);
   } catch (error) {
