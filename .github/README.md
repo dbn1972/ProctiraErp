@@ -29,7 +29,12 @@ rows (`tools/e2e/seed-e2e-tenants.sql`), then
 `E2E_BACKEND_READY=1` Playwright live write-smokes with `E2E_REQUIRE_LIVE=1`:
 a gateway that never becomes healthy or any failing spec turns the PR red.
 PRs run the curated `PR_SPECS` set; the nightly run adds the remaining live
-write smokes. All live specs authenticate with HS256 cookies (`JWT_SECRET`);
+write smokes. The suite is sharded (`--shard=i/4`): each leg repeats Postgres,
+Redis, migrate/SQL, and the gateway, and Playwright splits the same spec list.
+Blob reports are merged by the job named
+`E2E backend-ready live gate (G-401 / G-706)` — that name is the required
+check; the shard legs are not. `CI Aggregate` does not depend on this
+workflow. All live specs authenticate with HS256 cookies (`JWT_SECRET`);
 no IdP secrets are required.
 
 ### `release.yml` — Release (Container Image Build & Push)

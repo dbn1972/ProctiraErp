@@ -29,7 +29,7 @@ script is a single `.mjs` file with no compile step so it runs without
 | `pnpm check:migration-timeouts` | `check-migration-timeouts.mjs`  | W1-DATA-17: wrappers + post-baseline DDL hazard scan + waiver + recovery contract. |
 | `pnpm check:migration-lock-recovery` | `migration-lock-recovery-drill.mjs` | W1-DATA-17 COMPLETE: live lock_timeout fail → resume drill (needs DATABASE_URL). |
 | (CI / local)               | `migration-ddl-hazard-waiver.json` | W1-DATA-17 COMPLETE: baseline cutover + maintenance-window waivers for long-lock DDL. |
-| (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset.                  |
+| (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset. Optional `PLAYWRIGHT_SHARD=i/n`. |
 | (CI / local)               | `helm-template-check.sh`             | P0-12 / G-501: lint + `helm template` for `proctira-service` + `proctira-platform` (deploy path parity). |
 
 ## `check:brand-strings` (task 57.4 / Design M)
