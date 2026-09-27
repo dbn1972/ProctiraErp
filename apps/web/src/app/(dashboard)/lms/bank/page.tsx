@@ -4,6 +4,7 @@
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
 import { listBankQuestions, type QuestionType } from '@/lib/api/lms';
+import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
 
 import { BankItemForm } from '../_components/bank-item-form';
@@ -29,7 +30,10 @@ export default async function LmsBankPage({
     typeParam === 'essay'
       ? (typeParam as QuestionType)
       : undefined;
-  const items = await listBankQuestions({ subject, gradeLevel, tags, questionType });
+  const [items, schools] = await Promise.all([
+    listBankQuestions({ subject, gradeLevel, tags, questionType }),
+    loadInstitutionOptions(),
+  ]);
   return (
     <section className="space-y-6" aria-labelledby="lms-bank-heading">
       <div>
@@ -88,7 +92,7 @@ export default async function LmsBankPage({
           <CardTitle>New bank item</CardTitle>
         </CardHeader>
         <CardContent>
-          <BankItemForm />
+          <BankItemForm schools={schools} />
         </CardContent>
       </Card>
       {items.length === 0 ? (

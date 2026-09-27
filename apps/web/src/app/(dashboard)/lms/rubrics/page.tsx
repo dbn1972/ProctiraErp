@@ -4,6 +4,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
 import { listRubrics } from '@/lib/api/lms';
+import { loadInstitutionOptions } from '@/lib/load-entity-labels';
 import { EmptyState } from '@/components/page';
 
 import { LmsSubnav } from '../_components/lms-subnav';
@@ -12,7 +13,7 @@ import { RubricForm } from '../_components/rubric-form';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsRubricsPage() {
-  const items = await listRubrics();
+  const [items, schools] = await Promise.all([listRubrics(), loadInstitutionOptions()]);
   return (
     <section className="space-y-6" aria-labelledby="lms-rubrics-heading">
       <div>
@@ -29,7 +30,7 @@ export default async function LmsRubricsPage() {
           <CardTitle>New rubric</CardTitle>
         </CardHeader>
         <CardContent>
-          <RubricForm />
+          <RubricForm schools={schools} />
         </CardContent>
       </Card>
       {items.length === 0 ? (

@@ -5,10 +5,12 @@ import { useState, useTransition } from 'react';
 
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { createBankItemAction } from '../depth-actions';
+import { SchoolField } from './school-field';
 
-export function BankItemForm() {
+export function BankItemForm({ schools = [] }: { schools?: EntityLabelOption[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -26,11 +28,7 @@ export function BankItemForm() {
         gradeLevel: String(form.get('gradeLevel') ?? ''),
         tags: String(form.get('tags') ?? ''),
         questionType: String(form.get('questionType') ?? 'mcq') as
-          | 'mcq'
-          | 'msq'
-          | 'numeric'
-          | 'match'
-          | 'essay',
+          'mcq' | 'msq' | 'numeric' | 'match' | 'essay',
         difficulty: String(form.get('difficulty') ?? 'medium') as 'easy' | 'medium' | 'hard',
         prompt: String(form.get('prompt') ?? ''),
         options: String(form.get('options') ?? ''),
@@ -62,10 +60,7 @@ export function BankItemForm() {
         <Label htmlFor="bank-subject">Subject</Label>
         <Input id="bank-subject" name="subject" required className="h-11" />
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="bank-institution">School ID</Label>
-        <Input id="bank-institution" name="institutionId" required className="h-11" />
-      </div>
+      <SchoolField id="bank-institution" schools={schools} required />
       <div className="space-y-1">
         <Label htmlFor="bank-grade">Grade</Label>
         <Input id="bank-grade" name="gradeLevel" placeholder="7" className="h-11" />

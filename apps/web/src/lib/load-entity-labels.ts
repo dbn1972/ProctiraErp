@@ -2,10 +2,20 @@
  * Server-side helpers to resolve person/entity ids to human labels for list UIs.
  * Prefer these over truncating UUIDs as primary copy (UX_FINDINGS Wave 2 / 3).
  */
+import { listInstitutions } from '@/lib/api/institutions';
 import { listStaff } from '@/lib/api/staff';
 import { getStudent, listStudents } from '@/lib/api/students';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
-import { formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
+import { formatCodeNameLabel, formatPersonLabel, type EntityLabelOption } from '@/lib/entity-label';
+
+export async function loadInstitutionOptions(): Promise<EntityLabelOption[]> {
+  const rows = await listInstitutions({ pageSize: MAX_API_PAGE_SIZE }).catch(() => []);
+  return rows.map((row) => ({
+    id: row.id,
+    label: formatCodeNameLabel(row.code, row.name) || row.name,
+    searchText: `${row.code} ${row.name}`,
+  }));
+}
 
 export async function loadStudentOptions(): Promise<EntityLabelOption[]> {
   const result = await listStudents({ pageSize: MAX_API_PAGE_SIZE }).catch(() => ({

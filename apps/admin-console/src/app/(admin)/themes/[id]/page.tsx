@@ -6,13 +6,11 @@ import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Textarea } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { getTheme } from '@/lib/api/themes';
 import { requireRole } from '@/lib/auth/server';
 import { formatDateTime } from '@/lib/utils';
 
-import { themeDecisionAction } from '../actions';
+import { ThemeDecisionForm } from './theme-decision-form';
 
 export default async function ThemeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -76,28 +74,7 @@ export default async function ThemeDetailPage({ params }: { params: Promise<{ id
             <CardDescription>Reviewer notes are recorded with the decision.</CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={themeDecisionAction} className="space-y-3">
-              <input type="hidden" name="id" value={theme.id} />
-              <div className="space-y-1.5">
-                <Label htmlFor="reviewer-notes">Reviewer notes</Label>
-                <Textarea
-                  id="reviewer-notes"
-                  name="reason"
-                  required
-                  minLength={10}
-                  aria-label="Reviewer notes"
-                  placeholder="What did you check before this decision?"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button type="submit" name="action" value="approve">
-                  Approve
-                </Button>
-                <Button type="submit" name="action" value="reject" variant="destructive">
-                  Reject
-                </Button>
-              </div>
-            </form>
+            <ThemeDecisionForm themeId={theme.id} />
           </CardContent>
         </Card>
       </div>
