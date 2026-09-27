@@ -44,13 +44,26 @@ test.describe('Audit integrity — pages render (ungated)', () => {
   test('/audit-logs renders with the DSAR link', async ({ page }) => {
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'Audit logs' })).toBeVisible();
-    await expect(page.getByTestId('dsar-link')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const dsarLink = page.getByTestId('dsar-link');
+    await expect(async () => {
+      await expect(dsarLink).toHaveCount(1, { timeout: 2_000 });
+      await expect(dsarLink).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/audit-logs/dsar renders the lookup form', async ({ page }) => {
     await page.goto('/audit-logs/dsar', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1, name: 'DSAR export' })).toBeVisible();
-    await expect(page.getByTestId('dsar-subject')).toBeVisible();
+    const dsarSubject = page.getByTestId('dsar-subject');
+    await expect(async () => {
+      await expect(dsarSubject).toHaveCount(1, { timeout: 2_000 });
+      await expect(dsarSubject).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 });
 
@@ -126,9 +139,16 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
 
   test('retention policy saves from the UI and is readable via API', async ({ page, request }) => {
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('retention-form')).toHaveAttribute('data-hydrated', 'true', {
-      timeout: 20_000,
-    });
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const retentionForm = page.getByTestId('retention-form');
+    await expect(async () => {
+      await expect(retentionForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(retentionForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByLabel('Retain for (months)').fill('36');
     await page.getByTestId('save-retention').click();
     await expect(page.getByTestId('retention-feedback')).toHaveText(/saved/i, { timeout: 15_000 });

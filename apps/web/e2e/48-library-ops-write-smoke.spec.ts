@@ -37,9 +37,23 @@ function stamp() {
   return Date.now().toString(36).slice(-6).toUpperCase();
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -51,21 +65,31 @@ test.describe('Library ops — pages render (ungated)', () => {
   test('/library renders catalog actions', async ({ page }) => {
     await page.goto('/library', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('library-item-form')).toBeVisible();
     await hydrated(page, 'library-item-form');
   });
 
   test('/library/opac renders the read-only search', async ({ page }) => {
     await page.goto('/library/opac', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /opac/i })).toBeVisible();
-    await expect(page.getByTestId('library-opac-form')).toBeVisible();
+    await hydrated(page, 'library-opac-form');
   });
 
   test('/library/circulation exposes barcode scan fields', async ({ page }) => {
     await page.goto('/library/circulation', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: /circulation/i })).toBeVisible();
-    await expect(page.getByTestId('library-checkout-barcode')).toBeVisible();
-    await expect(page.getByTestId('library-return-barcode')).toBeVisible();
+    await hydrated(page, 'library-checkout-form');
+    // Neither barcode input carries its own `data-hydrated` marker, so guard
+    // against the same streaming duplicate with the count+visibility pair.
+    const checkoutBarcode = page.getByTestId('library-checkout-barcode');
+    await expect(async () => {
+      await expect(checkoutBarcode).toHaveCount(1, { timeout: 2_000 });
+      await expect(checkoutBarcode).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+    const returnBarcode = page.getByTestId('library-return-barcode');
+    await expect(async () => {
+      await expect(returnBarcode).toHaveCount(1, { timeout: 2_000 });
+      await expect(returnBarcode).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   });
 
   test('/library/holds and /library/fines render', async ({ page }) => {
