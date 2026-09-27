@@ -15,6 +15,7 @@ import {
   listExaminationCandidates,
 } from '@/lib/api/examinations';
 import { loadStaffOptions, loadStudentOptions } from '@/lib/load-entity-labels';
+import { examinationCandidateLabel } from '@/lib/ux/display-references';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -49,7 +50,7 @@ export default async function ExaminationOpsPage(props: PageProps) {
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
   const candidateOptions = candidates.map((candidate) => ({
     id: candidate.id,
-    label: studentLabels.get(candidate.studentId) || `Candidate ${candidate.id.slice(0, 8)}`,
+    label: examinationCandidateLabel(studentLabels.get(candidate.studentId)),
     searchText: candidate.studentId,
   }));
   const candidateLabels = new Map(candidateOptions.map((option) => [option.id, option.label]));

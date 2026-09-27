@@ -7,6 +7,7 @@ import { Button, FormField, Input } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { ParentAdmissionOffer } from '@/lib/api/parent-portal';
+import { offerFeeInvoiceStatus } from '@/lib/ux/display-references';
 import { acceptGuardianOfferAction } from '../../../parent-actions';
 
 function formatFee(amount: number, currency: string): string {
@@ -109,9 +110,7 @@ export function OfferFeeLine({ offer }: { offer: ParentAdmissionOffer }) {
   return (
     <p className="mt-0.5 text-xs text-muted-foreground">
       {formatFee(offer.feeAmount, offer.feeCurrency)}
-      {offer.offerFeeInvoiceId
-        ? ` · Invoice ${offer.offerFeeInvoiceId.slice(0, 8)}…`
-        : ' · No invoice yet'}
+      {` · ${offerFeeInvoiceStatus(offer.offerFeeInvoiceId)}`}
       {offer.expiresAt ? ` · expires ${new Date(offer.expiresAt).toLocaleDateString()}` : ''}
     </p>
   );
