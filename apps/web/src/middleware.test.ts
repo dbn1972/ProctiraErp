@@ -316,6 +316,62 @@ describe('API CSRF gate (G-719)', () => {
   });
 });
 
+describe('institution bare detail redirect', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('sends /institutions/:id to /overview and leaves other institution routes', async () => {
+    const { institutionBareDetailRedirect } = await import('./middleware');
+    const id = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+    expect(institutionBareDetailRedirect(`/institutions/${id}`)).toBe(
+      `/institutions/${id}/overview`,
+    );
+    expect(institutionBareDetailRedirect('/institutions/new')).toBeNull();
+    expect(institutionBareDetailRedirect('/institutions')).toBeNull();
+    expect(institutionBareDetailRedirect(`/institutions/${id}/overview`)).toBeNull();
+    expect(institutionBareDetailRedirect(`/institutions/${id}/classes`)).toBeNull();
+    expect(institutionBareDetailRedirect('/institutions/new/overview')).toBeNull();
+  });
+
+  it('307s GET /institutions/:id before any tenant fetch', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const { NextRequest } = await import('next/server');
+    const { middleware } = await import('./middleware');
+    const id = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+    const req = new NextRequest(`https://app.proctira.io/institutions/${id}?tab=1`, {
+      headers: { host: 'app.proctira.io' },
+    });
+    const res = await middleware(req);
+    expect(res.status).toBe(307);
+    expect(res.headers.get('location')).toBe(
+      `https://app.proctira.io/institutions/${id}/overview?tab=1`,
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not rewrite /institutions/new into an overview redirect', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+      }),
+    );
+    const { NextRequest } = await import('next/server');
+    const { middleware, clearTenantConfigCache } = await import('./middleware');
+    clearTenantConfigCache();
+    const req = new NextRequest('https://app.proctira.io/institutions/new', {
+      headers: { host: 'app.proctira.io' },
+    });
+    const res = await middleware(req);
+    const location = res.headers.get('location') ?? '';
+    expect(location).not.toContain('/institutions/new/overview');
+    expect(location).toContain('/login');
+  });
+});
+
 describe('G-904 portal role bounce', () => {
   it('sends a student-only JWT from /parent to /student', async () => {
     const { portalRoleRedirect, jwtRoleIds, isStudentOnlyRoles } = await import('./middleware');

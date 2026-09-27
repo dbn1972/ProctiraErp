@@ -299,11 +299,13 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
       const response = await page.goto(path, { waitUntil: 'domcontentloaded' });
       expect(response?.status(), `${path} must resolve (seeded institution)`).toBeLessThan(400);
       if (suffix === '') {
-        // The bare detail route `redirect()`s to /overview after the layout
-        // shell has streamed; settle on the final URL before scanning so the
-        // client-side hop cannot tear down axe's execution context.
+        // Middleware 307s the bare detail route to /overview before the
+        // institution layout fetches. Settle on the committed URL (not the
+        // overview document `load`, which waits on those fetches) so axe does
+        // not run against an in-flight hop.
         await page.waitForURL(`**/institutions/${E2E_INSTITUTION_ID}/overview`, {
           timeout: 20_000,
+          waitUntil: 'commit',
         });
       }
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
