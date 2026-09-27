@@ -31,7 +31,11 @@
     --accent: 174 62% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    /* 45% lightness, not 51% — the shared Alert `destructive` variant renders this as
+     * text on its own 10%-alpha tint; 51% measured 4.13:1 against WCAG 2.1 AA's 4.5:1
+     * floor. See apps/web/src/styles/globals.css for the full contrast math (same
+     * @proctira/ui/components Alert, same token pair, same fix). */
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 38%;

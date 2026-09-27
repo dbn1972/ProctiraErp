@@ -152,6 +152,7 @@ test.describe('Scholarship decision — live chain (E2E_BACKEND_READY)', () => {
     await hydrated(page, 'decision-form');
     await page.getByTestId('decision-comment').fill('Income certificate and marksheet verified');
     await page.getByTestId('decision-approve').click();
+    await page.getByTestId('scholarship-approve-confirm-confirm').click();
 
     await expect(page.getByTestId('decision-record')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('application-status')).toHaveText('Approved');
@@ -195,6 +196,7 @@ test.describe('Scholarship decision — live chain (E2E_BACKEND_READY)', () => {
     await hydrated(page, 'decision-form');
     await page.getByTestId('decision-comment').fill('Family income above threshold');
     await page.getByTestId('decision-reject').click();
+    await page.getByTestId('scholarship-reject-confirm-confirm').click();
 
     await expect(page.getByTestId('application-status')).toHaveText('Rejected', {
       timeout: 20_000,
