@@ -34,15 +34,18 @@ export default async function FeesStructuresPage() {
   }));
   return (
     <div className="space-y-6 p-6">
-      {!structuresResult.ok ? (
-        <ListLoadFailure
-          kind={structuresResult.kind}
-          status={structuresResult.status}
-          returnTo="/fees/structures"
-        />
-      ) : null}
       <StructuresWorkspace
         structures={structuresResult.ok ? structuresResult.items : []}
+        listFailed={!structuresResult.ok}
+        failure={
+          structuresResult.ok ? null : (
+            <ListLoadFailure
+              kind={structuresResult.kind}
+              status={structuresResult.status}
+              returnTo="/fees/structures"
+            />
+          )
+        }
         classOptions={classOptions}
         gradeOptions={gradeOptions}
         studentOptions={studentOptions}
