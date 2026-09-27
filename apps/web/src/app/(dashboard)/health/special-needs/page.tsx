@@ -128,7 +128,13 @@ export default async function SpecialNeedsPage() {
               : 'Track accommodations and individualized education plans (IEPs).'}
           </p>
         </div>
-        <Button size="sm" variant="outline" disabled aria-disabled="true">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled
+          aria-disabled="true"
+          title="Adding to the register is not available on this screen yet."
+        >
           <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
           Add to register
         </Button>
