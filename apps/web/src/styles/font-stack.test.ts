@@ -93,16 +93,22 @@ describe('Font stack — system-font fallback (Task 55.3, Requirement 39.3)', ()
 });
 
 describe('Font loading — Inter loaded with font-display: swap (Requirement 39.4)', () => {
-  it('layout.tsx loads Inter via next/font/google with display: swap', () => {
+  it('layout.tsx loads self-hosted Inter via next/font/local with display: swap', () => {
     const layoutPath = resolve(__dirname, '../app/layout.tsx');
     const layout = readFileSync(layoutPath, 'utf8');
 
-    // next/font/google self-hosts the font and emits a preloaded
-    // <link rel="preload" as="font" ...> plus an @font-face rule with
-    // font-display: swap. Verifying we use the loader with display:'swap'
-    // is the source-of-truth for Requirement 39.4 in the App Router.
-    expect(layout).toMatch(/from\s+['"]next\/font\/google['"]/);
-    expect(layout).toMatch(/Inter\s*\(\s*\{[\s\S]*?display:\s*['"]swap['"]/);
+    // next/font/local emits a preloaded <link rel="preload" as="font"> plus
+    // an @font-face rule with font-display: swap, and does not call
+    // fonts.googleapis.com at build time. display:'swap' is the
+    // source-of-truth for Requirement 39.4 in the App Router.
+    expect(layout).toMatch(/from\s+['"]next\/font\/local['"]/);
+    expect(layout).not.toMatch(/next\/font\/google/);
+    expect(layout).toMatch(/localFont\s*\(\s*\{[\s\S]*?display:\s*['"]swap['"]/);
+    expect(layout).toMatch(/weight:\s*['"]400['"]/);
+    expect(layout).toMatch(/weight:\s*['"]500['"]/);
+    expect(layout).toMatch(/weight:\s*['"]600['"]/);
+    expect(layout).toMatch(/weight:\s*['"]700['"]/);
+    expect(layout).toMatch(/variable:\s*['"]--font-inter['"]/);
 
     // The loader's CSS variable must be wired onto <html> so Tailwind's
     // font-sans can resolve to Inter once it has loaded.

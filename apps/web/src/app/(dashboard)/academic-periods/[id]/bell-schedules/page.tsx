@@ -14,6 +14,7 @@ import {
 import { listInstitutions } from '@/lib/api/institutions';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listBellSchedules, listPeriods } from '@/lib/api/timetable';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,12 +26,14 @@ export default async function BellSchedulesPage(props: PageProps) {
   const params = await props.params;
   const academicPeriodId = params.id;
 
-  let periodName = academicPeriodId;
+  let periodName = resolveEntityLabel(academicPeriodId, {}, 'Academic period');
   try {
     const periods = await listAcademicPeriods();
-    periodName = periods.find((p) => p.id === academicPeriodId)?.name ?? academicPeriodId;
+    periodName =
+      periods.find((p) => p.id === academicPeriodId)?.name ??
+      resolveEntityLabel(academicPeriodId, {}, 'Academic period');
   } catch {
-    // Keep UUID label when academic-period service is unavailable.
+    periodName = resolveEntityLabel(academicPeriodId, {}, 'Academic period');
   }
 
   let defaultInstitutionId = '';

@@ -16,6 +16,10 @@ import {
   listInstitutionGrades,
 } from '@/lib/api/institutions';
 import {
+  listAcademicPeriods as listTenantAcademicPeriods,
+  listGrades as listTenantGrades,
+} from '@/lib/institutions/api';
+import {
   addStudentDiscipline,
   addStudentSibling,
   bulkUpdateEnrollmentStatus,
@@ -442,26 +446,47 @@ export async function removeStudentDisciplineAction(
 
 /* ----------------------------------------------------- Lookup helpers */
 
-/** Fetch grades for an institution. Used by the transfer form. */
+/**
+ * Grades for an enrollment or transfer form.
+ * Institution-scoped `/grades` is not mounted; Sunrise (and other tenants)
+ * store grades on the tenant-wide list. Use that when the institution call
+ * is empty so the grade control is not stuck disabled.
+ */
 export async function getInstitutionGradesAction(
   institutionId: string,
 ): Promise<{ id: string; name: string }[]> {
   if (!institutionId) return [];
   try {
     const grades = await listInstitutionGrades(institutionId);
+    if (grades.length > 0) return grades.map((g) => ({ id: g.id, name: g.name }));
+  } catch {
+    // Fall through to the tenant-wide list.
+  }
+  try {
+    const grades = await listTenantGrades();
     return grades.map((g) => ({ id: g.id, name: g.name }));
   } catch {
     return [];
   }
 }
 
-/** Fetch academic periods for an institution. Used by the transfer form. */
+/**
+ * Academic periods for an enrollment or transfer form.
+ * Same fallback as grades: the institution-nested route 404s, while
+ * `GET /academic-periods` returns the tenant year (AY 2026-27 at Sunrise).
+ */
 export async function getInstitutionPeriodsAction(
   institutionId: string,
 ): Promise<{ id: string; name: string }[]> {
   if (!institutionId) return [];
   try {
     const periods = await listAcademicPeriods(institutionId);
+    if (periods.length > 0) return periods.map((p) => ({ id: p.id, name: p.name }));
+  } catch {
+    // Fall through to the tenant-wide list.
+  }
+  try {
+    const periods = await listTenantAcademicPeriods();
     return periods.map((p) => ({ id: p.id, name: p.name }));
   } catch {
     return [];

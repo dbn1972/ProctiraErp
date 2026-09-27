@@ -63,6 +63,7 @@ async function postOk(
 interface ExamFixture {
   examId: string;
   studentId: string;
+  /** Primary label on Candidates / Results tabs (directory name, not raw UUID). */
   studentLabel: string;
   subjectIds: string[];
   centerId: string;

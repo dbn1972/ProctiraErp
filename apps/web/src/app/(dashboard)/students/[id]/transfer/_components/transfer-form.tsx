@@ -41,6 +41,8 @@ interface ActiveEnrollment {
   institutionId: string;
   gradeId: string;
   academicPeriodId: string;
+  /** School and class/section. Never the enrollment UUID. */
+  label: string;
 }
 
 interface InstitutionLite {
@@ -241,7 +243,7 @@ export function TransferForm({
           <SelectContent>
             {activeEnrollments.map((enrollment) => (
               <SelectItem key={enrollment.id} value={enrollment.id}>
-                Institution {enrollment.institutionId} · Grade {enrollment.gradeId}
+                {enrollment.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -368,9 +370,7 @@ export function TransferForm({
       >
         <Select
           value={watch('destinationClassId')}
-          onValueChange={(value) =>
-            setValue('destinationClassId', value, { shouldValidate: true })
-          }
+          onValueChange={(value) => setValue('destinationClassId', value, { shouldValidate: true })}
           disabled={
             !destinationInstitutionId ||
             !destinationGradeId ||

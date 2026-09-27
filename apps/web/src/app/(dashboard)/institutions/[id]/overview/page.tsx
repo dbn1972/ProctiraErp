@@ -29,7 +29,7 @@ import {
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { getInfrastructureHierarchy, getInstitution } from '@/lib/institutions/api';
-import { loadAreaOptions, loadTypeOptions } from '@/lib/institutions/lookups';
+import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 import { listStudents } from '@/lib/api/students';
 import { listStaff } from '@/lib/api/staff';
 import { calculateAttendancePercentage } from '@/lib/api/attendance';
@@ -39,15 +39,6 @@ interface OverviewPageProps {
 }
 
 /* ──────────────────────────────── helpers ── */
-
-function nameFor(options: { id: string; name: string }[], id: string): string {
-  return (
-    options
-      .find((o) => o.id === id)
-      ?.name.replace(/^(—\s)+/, '')
-      .trim() ?? ''
-  );
-}
 
 function readStr(cd: Record<string, unknown> | null | undefined, key: string): string {
   const v = cd?.[key];
@@ -282,8 +273,8 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
   const institution = institutionResult;
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
-  const areaName = nameFor(areas, institution.areaId);
-  const typeName = nameFor(types, institution.typeId);
+  const areaName = resolveLookupLabel(areas, institution.areaId);
+  const typeName = resolveLookupLabel(types, institution.typeId);
 
   const endDate = new Date();
   const startDate = new Date();

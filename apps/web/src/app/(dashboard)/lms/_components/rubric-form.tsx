@@ -5,10 +5,12 @@ import { useState, useTransition } from 'react';
 
 import { Button, Input, Label } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { createRubricAction } from '../depth-actions';
+import { SchoolField } from './school-field';
 
-export function RubricForm() {
+export function RubricForm({ schools = [] }: { schools?: EntityLabelOption[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -42,10 +44,7 @@ export function RubricForm() {
         <Label htmlFor="rubric-name">Name</Label>
         <Input id="rubric-name" name="name" required className="h-11" />
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="rubric-school">School ID</Label>
-        <Input id="rubric-school" name="institutionId" required className="h-11" />
-      </div>
+      <SchoolField id="rubric-school" schools={schools} required />
       <div className="space-y-1">
         <Label htmlFor="rubric-criterion">First criterion</Label>
         <Input id="rubric-criterion" name="criterionName" required className="h-11" />

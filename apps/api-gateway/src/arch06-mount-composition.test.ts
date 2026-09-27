@@ -66,6 +66,11 @@ const PREFIX_PROBES: Record<string, { method: string; url: string }> = {
   '/parent-portal': { method: 'GET', url: '/api/v1/parent-portal/children' },
   '/developer': { method: 'GET', url: '/api/v1/developer/keys' },
   '/enrollments': { method: 'GET', url: '/api/v1/enrollments' },
+  '/transfers': {
+    method: 'GET',
+    url: '/api/v1/transfers/00000000-0000-4000-8000-000000000001',
+  },
+  '/areas': { method: 'GET', url: '/api/v1/areas/tree' },
   '/fees': { method: 'GET', url: '/api/v1/fees/invoices' },
   '/admissions': { method: 'GET', url: '/api/v1/admissions/applications' },
   '/registrations': { method: 'GET', url: '/api/v1/registrations' },

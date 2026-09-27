@@ -62,6 +62,18 @@ export interface TransferRecordEntity {
 }
 
 /**
+ * Transfer row plus display names for the cross-board dashboard.
+ * Names are null when the joined student or institution row is missing.
+ */
+export interface TransferRecordDetail extends TransferRecordEntity {
+  studentName: string | null;
+  sourceInstitutionName: string | null;
+  sourceBoardName: string | null;
+  destinationInstitutionName: string | null;
+  destinationBoardName: string | null;
+}
+
+/**
  * Filter options for listing enrollments.
  */
 export interface EnrollmentFilter {
@@ -154,6 +166,9 @@ export interface EnrollmentRepository {
 
   /** Get transfer records for a student */
   getTransferRecords(tenantId: string, studentId: string): Promise<TransferRecordEntity[]>;
+
+  /** Load one transfer in the caller's tenant. Null when the id is absent or belongs to another tenant. */
+  getTransferById(tenantId: string, transferId: string): Promise<TransferRecordDetail | null>;
 
   /** Look up an institution by ID (for transfer validation) */
   findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null>;

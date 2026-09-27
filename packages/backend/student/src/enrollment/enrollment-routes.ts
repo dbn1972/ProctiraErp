@@ -9,6 +9,7 @@
  * POST   /enrollments/transfer           - Transfer a student between institutions
  * GET    /enrollments/student/:studentId/history   - Get enrollment history for a student
  * GET    /enrollments/student/:studentId/transfers - Get transfer records for a student
+ * GET    /transfers/:transferId                    - One transfer for the caller tenant
  *
  * Requirements: 6.2, 6.3, 6.4
  */
@@ -19,6 +20,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type {
   EnrollmentEntity,
   EnrollmentHistoryEntity,
+  TransferRecordDetail,
   TransferRecordEntity,
 } from './enrollment-repository.js';
 import type { EnrollmentService } from './enrollment-service.js';
@@ -29,6 +31,7 @@ import {
   StudentTransferSchema,
   EnrollmentParamsSchema,
   StudentParamsSchema,
+  TransferParamsSchema,
   type CreateEnrollmentInput,
   type UpdateEnrollmentStatusInput,
   type BulkUpdateEnrollmentStatusInput,
@@ -36,6 +39,7 @@ import {
   type EnrollmentParams,
   type StudentParams,
   type EnrollmentListQuery,
+  type TransferParams,
 } from './schemas.js';
 
 /**
@@ -463,4 +467,98 @@ export async function registerEnrollmentRoutes(
       });
     },
   );
+
+  /**
+   * GET /transfers/:transferId
+   * Dashboard view of one transfer. Scoped to the request tenant: another
+   * tenant's id returns 404, the same as a missing record.
+   */
+  fastify.get(
+    '/transfers/:transferId',
+    async function transferByIdHandler(
+      request: FastifyRequest<{ Params: TransferParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(TransferParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid transfer ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const record = await enrollmentService.getTransferById(
+          tenantId,
+          paramsResult.data.transferId,
+        );
+        return reply.status(200).send(formatTransferDetail(record));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+}
+
+function labelOr(value: string | null, fallback: string): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
+/**
+ * Shape consumed by the cross-board transfer dashboard.
+ * Approval, equivalency, and document lists stay empty: those steps are not
+ * stored on `transfer_records`.
+ */
+function formatTransferDetail(record: TransferRecordDetail) {
+  const sourceBoard = labelOr(record.sourceBoardName, '');
+  const destinationBoard = labelOr(record.destinationBoardName, '');
+  const transferType =
+    sourceBoard && destinationBoard
+      ? sourceBoard === destinationBoard
+        ? 'SAME_BOARD'
+        : 'CROSS_BOARD'
+      : 'INSTITUTION_TRANSFER';
+
+  return {
+    transferId: record.id,
+    studentId: record.studentId,
+    studentName: labelOr(record.studentName, 'Student'),
+    transferType,
+    reason: record.reason,
+    requestedAt: record.createdAt.toISOString(),
+    source: {
+      id: record.sourceInstitutionId,
+      name: labelOr(record.sourceInstitutionName, 'Source institution'),
+      board: sourceBoard || 'Board not recorded',
+    },
+    destination: {
+      id: record.destinationInstitutionId,
+      name: labelOr(record.destinationInstitutionName, 'Destination institution'),
+      board: destinationBoard || 'Board not recorded',
+    },
+    states: [
+      { id: 'initiated', label: 'Initiated' },
+      { id: 'completed', label: 'Recorded' },
+    ],
+    currentStateId: 'completed',
+    completedStateIds: ['initiated', 'completed'],
+    approvals: [],
+    equivalency: [],
+    documents: [],
+  };
 }

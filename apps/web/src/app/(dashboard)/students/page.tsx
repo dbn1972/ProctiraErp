@@ -13,7 +13,12 @@ import Link from 'next/link';
 import { Plus, Upload, Eye, Pencil, MoreVertical } from 'lucide-react';
 
 import { listInstitutions } from '@/lib/api/institutions';
-import { listStudents, type Student, type StudentListFilters } from '@/lib/api/students';
+import {
+  listStudents,
+  type EnrollmentEntry,
+  type Student,
+  type StudentListFilters,
+} from '@/lib/api/students';
 import {
   Badge,
   Button,
@@ -34,6 +39,16 @@ import { StudentListFilters as Filters } from './_components/student-list-filter
 import { StudentListPagination } from './_components/student-list-pagination';
 import { StudentStatusTabs } from './_components/student-status-tabs';
 import { StudentsBulkGraduateBar } from './_components/students-bulk-graduate-bar';
+import {
+  loadActiveEnrollments,
+  loadPlacementDirectories,
+} from './_components/load-student-placement';
+import {
+  classSectionLabel,
+  institutionLabel,
+  studentDisplayName,
+  type PlacementDirectories,
+} from './_components/student-placement-label';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
 
 export const dynamic = 'force-dynamic';
@@ -148,14 +163,19 @@ export default async function StudentListPage(props: PageProps) {
   // always `[]` and the cast is what stopped the compiler from saying so. Removing
   // the cast keeps the behaviour identical and makes the gap visible in the types.
   //
-  // Grades are exposed per institution at `/institutions/{id}/grades`
-  // (`listInstitutionGrades`). Deriving options from it is deliberately NOT done
-  // here: it is one request per institution, and against the current data every one
-  // returns zero rows, so an N+1 would buy nothing. Wire it up together with a
-  // tenant-wide grades endpoint, or once the seed actually populates grades —
-  // the demo tenant currently has 1 grade for 3,000 students, which is why the
-  // Grade/Section columns render "—".
+  // Grade filter options stay empty on purpose. GET /students does not filter
+  // by gradeId, so a populated dropdown would look like it filtered the page
+  // when the API ignores the parameter. The Grade / Section column below is
+  // resolved from each row's enrollment class, not from this dropdown.
   const grades: { id: string; name: string }[] = [];
+
+  const enrollmentByStudent = await loadActiveEnrollments(
+    studentsResponse.data.map((student) => student.id),
+  );
+  const directories = await loadPlacementDirectories(
+    [...enrollmentByStudent.values()].map((enrollment) => enrollment?.institutionId),
+    institutions.map((institution) => ({ id: institution.id, name: institution.name })),
+  );
 
   const totalAll = studentsResponse.meta.totalItems;
 
@@ -256,7 +276,15 @@ export default async function StudentListPage(props: PageProps) {
                   </TableHeader>
                   <TableBody>
                     {studentsResponse.data.map((student) => (
-                      <StudentRow key={student.id} student={student} />
+                      <StudentRow
+                        key={student.id}
+                        student={student}
+                        placement={rowPlacement(
+                          student,
+                          enrollmentByStudent.get(student.id) ?? null,
+                          directories,
+                        )}
+                      />
                     ))}
                   </TableBody>
                 </Table>
@@ -280,10 +308,38 @@ export default async function StudentListPage(props: PageProps) {
 
 /* --------------------------------------------------------------- row */
 
-function StudentRow({ student }: { student: Student }) {
+function rowPlacement(
+  student: Student,
+  enrollment: EnrollmentEntry | null,
+  directories: PlacementDirectories,
+): { name: string; classSection: string; institution: string } {
+  const cd = student.customData ?? {};
+  return {
+    name: studentDisplayName(student.firstName, student.lastName),
+    classSection: classSectionLabel({
+      classId: enrollment?.classId,
+      gradeId: enrollment?.gradeId,
+      customGradeSection: readStr(cd, 'gradeSection') || readStr(cd, 'grade'),
+      directories,
+    }),
+    institution: institutionLabel({
+      institutionId: enrollment?.institutionId,
+      customName: readStr(cd, 'institutionName') || readStr(cd, 'institution'),
+      directories,
+    }),
+  };
+}
+
+function StudentRow({
+  student,
+  placement,
+}: {
+  student: Student;
+  placement: { name: string; classSection: string; institution: string };
+}) {
   const cd = student.customData ?? {};
   const initials = `${student.firstName[0] ?? ''}${student.lastName[0] ?? ''}`.toUpperCase();
-  const fullName = `${student.firstName} ${student.lastName}`;
+  const fullName = placement.name;
   const palette = avatarPalette(fullName);
 
   const genderInitial = student.gender ? student.gender[0]?.toUpperCase() : null;
@@ -294,8 +350,8 @@ function StudentRow({ student }: { student: Student }) {
   if (dob) subParts.push(dob);
   if (admNo) subParts.push(`Adm. ${admNo}`);
 
-  const gradeSection = readStr(cd, 'gradeSection') || readStr(cd, 'grade') || '—';
-  const institution = readStr(cd, 'institutionName') || readStr(cd, 'institution') || '—';
+  const gradeSection = placement.classSection;
+  const institution = placement.institution;
   const attendance = readNum(cd, 'attendance') ?? readNum(cd, 'attendanceRate');
   const enrollStatus = readStr(cd, 'enrollmentStatus') || 'ENROLLED';
 
@@ -318,6 +374,7 @@ function StudentRow({ student }: { student: Student }) {
             <Link
               href={`/students/${student.id}`}
               className="block truncate font-medium text-foreground hover:text-primary hover:underline"
+              data-testid="student-row-name"
             >
               {fullName}
             </Link>
@@ -334,10 +391,14 @@ function StudentRow({ student }: { student: Student }) {
       </TableCell>
 
       {/* Grade / Section */}
-      <TableCell className="text-sm">{gradeSection}</TableCell>
+      <TableCell className="text-sm" data-testid="student-class-section">
+        {gradeSection}
+      </TableCell>
 
       {/* Institution */}
-      <TableCell className="max-w-[180px] truncate text-sm">{institution}</TableCell>
+      <TableCell className="max-w-[180px] truncate text-sm" data-testid="student-institution">
+        {institution}
+      </TableCell>
 
       {/* Attendance */}
       <TableCell>

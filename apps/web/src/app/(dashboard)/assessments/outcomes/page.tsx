@@ -43,7 +43,8 @@ export default async function AssessmentOutcomesPage(props: PageProps) {
             Learning outcomes
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Curriculum outcomes per subject. Link these IDs on assessment items.
+            Curriculum outcomes for each subject. Add them here, then attach them when you define
+            assessment items.
           </p>
         </div>
       </div>

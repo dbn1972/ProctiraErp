@@ -291,7 +291,10 @@ export async function getStudentPlan(
 ): Promise<SpiralPlan | null> {
   const result = await gatewayFetch<SpiralPlan>(
     `/lms/pal/students/${studentId}/plan${toQuery(query)}`,
-    { throwOnError: false, next: { revalidate: 0 } },
+    // no-store: the plan changes as soon as a practice attempt is recorded.
+    // revalidate: 0 still enters the Data Cache (Authorization is not part
+    // of the key), which hid a just-created plan from the PAL lookup UI.
+    { throwOnError: false, cache: 'no-store' },
   );
   return result.data ?? null;
 }
@@ -302,7 +305,7 @@ export async function getStudentProgress(
 ): Promise<StudentProgress | null> {
   const result = await gatewayFetch<StudentProgress>(
     `/lms/pal/students/${studentId}/progress${toQuery(query)}`,
-    { throwOnError: false, next: { revalidate: 0 } },
+    { throwOnError: false, cache: 'no-store' },
   );
   return result.data ?? null;
 }

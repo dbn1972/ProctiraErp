@@ -89,3 +89,19 @@ export async function loadInstitutionFormLookups() {
   ]);
   return { areas, types, sectors, ownerships };
 }
+
+/**
+ * Resolve a lookup id to a human label. Falls back to a title-cased slug when the
+ * institution API returns codes like `school` / `private` instead of lookup UUIDs.
+ */
+export function resolveLookupLabel(options: LookupOption[], id: string): string {
+  const matched = options.find((o) => o.id === id);
+  if (matched) {
+    return matched.name.replace(/^(—\s)+/, '').trim();
+  }
+  if (!id) return '';
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return '';
+  }
+  return id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' ');
+}
