@@ -20,8 +20,10 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { MeritList } from '@/lib/api/admissions';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import { resolveQuotaFromForm } from '@/lib/admissions/quota-categories';
 import { generateMeritListAction, setPlacementScoresAction } from '../../admissions-actions';
 import { QuotaCategoryField } from './quota-category-field';
@@ -39,11 +41,13 @@ export function MeritPanel({
   institutions,
   periods,
   grades,
+  applications = [],
 }: {
   list: MeritList | null;
   institutions: Option[];
   periods: Option[];
   grades: Option[];
+  applications?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -116,16 +120,15 @@ export function MeritPanel({
                 });
               }}
             >
-              <FormField id="merit-app-id" label="Application ID" required>
-                <Input
-                  id="merit-app-id"
-                  name="applicationId"
-                  data-testid="merit-application-id"
-                  placeholder="Application reference from admissions detail"
-                  required
-                  disabled={!hydrated || pending}
-                />
-              </FormField>
+              <EntitySearchSelect
+                id="merit-application-id"
+                name="applicationId"
+                label="Application"
+                options={applications}
+                required
+                placeholder="Search applicants by name…"
+                emptyMessage="No applications are loaded. Submit an application, then return here."
+              />
               <FormField id="merit-score-period" label="Period" required>
                 <select
                   id="merit-score-period"

@@ -59,3 +59,18 @@ export function resolveEntityLabel(
 export function toLabelMap(options: EntityLabelOption[]): Map<string, string> {
   return new Map(options.map((o) => [o.id, o.label]));
 }
+
+/**
+ * Directory name for an id, or a fixed missing label.
+ * Unlike {@link resolveEntityLabel}, a miss never falls back to a truncated id.
+ */
+export function directoryLabel(
+  id: string | null | undefined,
+  labels: Map<string, string> | Record<string, string>,
+  missingLabel: string,
+): string {
+  if (!id) return missingLabel;
+  const map = labels instanceof Map ? labels : new Map(Object.entries(labels));
+  const hit = map.get(id)?.trim();
+  return hit ? hit : missingLabel;
+}

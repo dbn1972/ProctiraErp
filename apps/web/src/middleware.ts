@@ -322,6 +322,25 @@ export function portalRoleRedirect(
   return null;
 }
 
+/**
+ * Bare `/institutions/:id` has no screen of its own — it should land on the
+ * overview tab. `redirect()` in `[id]/page.tsx` does not run until
+ * `[id]/layout.tsx` finishes `getInstitution` and the lookup fetches. Once
+ * that layout has started streaming, Next sends a client navigation instead
+ * of an HTTP redirect. That hop aborts the in-flight document
+ * (`net::ERR_ABORTED`) and can miss a 20s `waitForURL`.
+ *
+ * Returning the overview path here lets middleware emit a 307 before any RSC
+ * render or gateway read. `/institutions/new` is the register form.
+ */
+export function institutionBareDetailRedirect(pathname: string): string | null {
+  const match = /^\/institutions\/([^/]+)$/.exec(pathname);
+  if (!match) return null;
+  const id = match[1];
+  if (!id || id === 'new') return null;
+  return `/institutions/${id}/overview`;
+}
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 /**
@@ -344,6 +363,17 @@ export async function middleware(request: NextRequest) {
   // pass straight through — tenant/auth handling lives in the handlers.
   if (pathname.startsWith('/api')) {
     return handleApiRequest(request);
+  }
+
+  // Before tenant lookup and auth so the hop does not wait on gateway I/O.
+  // The follow-up request to /overview runs the full middleware.
+  if (request.method === 'GET' || request.method === 'HEAD') {
+    const overviewPath = institutionBareDetailRedirect(pathname);
+    if (overviewPath) {
+      const url = request.nextUrl.clone();
+      url.pathname = overviewPath;
+      return NextResponse.redirect(url);
+    }
   }
 
   const response = NextResponse.next();

@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -83,6 +84,9 @@ export default function ScholarshipReviewQueue() {
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | ''>('submitted');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [confirm, setConfirm] = useState<
+    { kind: 'bulk'; action: 'approve' | 'reject' } | { kind: 'reject'; id: string } | null
+  >(null);
 
   const fetchApplications = useCallback(async () => {
     setLoading(true);
@@ -206,14 +210,16 @@ export default function ScholarshipReviewQueue() {
               {selectedIds.size} selected
             </span>
             <button
-              onClick={() => handleBulkAction('approve')}
+              type="button"
+              onClick={() => setConfirm({ kind: 'bulk', action: 'approve' })}
               disabled={bulkProcessing}
               className="rounded-md bg-green-600 text-white px-3 py-1.5 text-sm disabled:opacity-50"
             >
               {bulkProcessing ? 'Processing…' : 'Bulk Approve'}
             </button>
             <button
-              onClick={() => handleBulkAction('reject')}
+              type="button"
+              onClick={() => setConfirm({ kind: 'bulk', action: 'reject' })}
               disabled={bulkProcessing}
               className="rounded-md bg-red-600 text-white px-3 py-1.5 text-sm disabled:opacity-50"
             >
@@ -323,7 +329,8 @@ export default function ScholarshipReviewQueue() {
                               Approve
                             </button>
                             <button
-                              onClick={() => handleSingleAction(app.id, 'reject')}
+                              type="button"
+                              onClick={() => setConfirm({ kind: 'reject', id: app.id })}
                               className="rounded px-2 py-1 text-xs bg-red-100 text-red-700 hover:bg-red-200"
                               aria-label={`Reject application ${app.id}`}
                             >
@@ -340,6 +347,57 @@ export default function ScholarshipReviewQueue() {
           </table>
         </div>
       )}
+
+      <ConfirmActionDialog
+        open={confirm?.kind === 'bulk' && confirm.action === 'approve'}
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null);
+        }}
+        title="Approve the selected applications?"
+        description={`This approves ${selectedIds.size} scholarship application(s). Confirm only after the review notes are complete.`}
+        confirmLabel="Approve selected"
+        pending={bulkProcessing}
+        onConfirm={() => {
+          const action = confirm?.kind === 'bulk' ? confirm.action : null;
+          setConfirm(null);
+          if (action === 'approve') void handleBulkAction('approve');
+        }}
+        testId="scholarship-bulk-approve"
+      />
+      <ConfirmActionDialog
+        open={confirm?.kind === 'bulk' && confirm.action === 'reject'}
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null);
+        }}
+        title="Reject the selected applications?"
+        description={`This rejects ${selectedIds.size} scholarship application(s). Applicants will see the decision as rejected.`}
+        confirmLabel="Reject selected"
+        destructive
+        pending={bulkProcessing}
+        onConfirm={() => {
+          const action = confirm?.kind === 'bulk' ? confirm.action : null;
+          setConfirm(null);
+          if (action === 'reject') void handleBulkAction('reject');
+        }}
+        testId="scholarship-bulk-reject"
+      />
+      <ConfirmActionDialog
+        open={confirm?.kind === 'reject'}
+        onOpenChange={(open) => {
+          if (!open) setConfirm(null);
+        }}
+        title="Reject this application?"
+        description="The applicant will be marked rejected. Confirm only if the review is finished."
+        confirmLabel="Reject application"
+        destructive
+        pending={bulkProcessing}
+        onConfirm={() => {
+          const id = confirm?.kind === 'reject' ? confirm.id : null;
+          setConfirm(null);
+          if (id) void handleSingleAction(id, 'reject');
+        }}
+        testId="scholarship-reject"
+      />
 
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (

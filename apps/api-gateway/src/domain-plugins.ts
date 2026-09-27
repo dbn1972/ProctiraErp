@@ -90,7 +90,11 @@ import {
   healthPlugin,
 } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
-import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import {
+  createAreaHierarchyDb,
+  createInstitutionRepository,
+  institutionPlugin,
+} from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import {
@@ -528,7 +532,7 @@ function createAdmissionsEnrolOnAccept() {
 const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'student',
-    proxyPrefixes: ['/students', '/enrollments'],
+    proxyPrefixes: ['/students', '/enrollments', '/transfers'],
     register: async (scope) => {
       // Prisma (+ optional Redis cache) when DATABASE_URL is set, else in-memory.
       // Reads RLS-safely via withTenantTransaction using the request's tenantId.
@@ -562,6 +566,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     // subjects / infrastructure) are served by the same plugin.
     proxyPrefixes: [
       '/institutions',
+      '/areas',
       '/academic-periods',
       '/grades',
       '/classes',
@@ -614,6 +619,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const pgPool = getSharedPgPool();
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),
+        areaHierarchyDb: createAreaHierarchyDb(),
         prefix: '/institutions',
         academics: true,
         rolloverExtras: {

@@ -419,4 +419,71 @@ describe('Enrollment Routes', () => {
       expect(body.data[0].reason).toBe('Family relocation');
     });
   });
+
+  describe('GET /transfers/:transferId', () => {
+    it('returns institution names and does not reveal another tenant row', async () => {
+      const sourceId = uuid();
+      const destinationId = uuid();
+      repository.addInstitution(sourceId, TENANT_ID, 'active', {
+        name: 'Sunrise School',
+        boardName: 'CBSE',
+      });
+      repository.addInstitution(destinationId, TENANT_ID, 'active', {
+        name: 'Harbour School',
+        boardName: 'State Board',
+      });
+      repository.addStudentName(STUDENT_ID, TENANT_ID, 'Asha Rao');
+
+      const transferId = uuid();
+      await repository.createTransferRecord({
+        id: transferId,
+        tenantId: TENANT_ID,
+        studentId: STUDENT_ID,
+        sourceInstitutionId: sourceId,
+        sourceEnrollmentId: uuid(),
+        destinationInstitutionId: destinationId,
+        destinationEnrollmentId: uuid(),
+        transferDate: new Date('2024-03-01T00:00:00.000Z'),
+        reason: 'Family relocation',
+      });
+
+      const otherTenantId = uuid();
+      const otherTransferId = uuid();
+      await repository.createTransferRecord({
+        id: otherTransferId,
+        tenantId: otherTenantId,
+        studentId: uuid(),
+        sourceInstitutionId: uuid(),
+        sourceEnrollmentId: uuid(),
+        destinationInstitutionId: uuid(),
+        destinationEnrollmentId: uuid(),
+        transferDate: new Date('2024-04-01T00:00:00.000Z'),
+        reason: 'Other tenant',
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/transfers/${transferId}`,
+      });
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body) as {
+        studentName: string;
+        transferType: string;
+        source: { name: string };
+        destination: { name: string };
+        approvals: unknown[];
+      };
+      expect(body.studentName).toBe('Asha Rao');
+      expect(body.source.name).toBe('Sunrise School');
+      expect(body.destination.name).toBe('Harbour School');
+      expect(body.transferType).toBe('CROSS_BOARD');
+      expect(body.approvals).toEqual([]);
+
+      const hidden = await app.inject({
+        method: 'GET',
+        url: `/transfers/${otherTransferId}`,
+      });
+      expect(hidden.statusCode).toBe(404);
+    });
+  });
 });

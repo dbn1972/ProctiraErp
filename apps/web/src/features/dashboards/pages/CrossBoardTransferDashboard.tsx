@@ -14,12 +14,12 @@
  *   - Document upload checklist via `<TaskChecklist>`.
  *   - Approver action buttons: Approve / Reject / Request More Info.
  *     Buttons are disabled unless `currentApprover` matches the
- *     active approval step's id (server-enforced; client only
- *     reflects the mocked field today).
+ *     active approval step's id. Approve and reject ask for a second
+ *     confirmation before recording a local decision.
  *
- * Data flow: the page consumes `useCrossBoardTransferData(transferId)`
- * which today returns a deterministic mock; task 60.3 swaps that hook
- * to call `/api/v1/transfers/:id`. Page rendering does not change.
+ * Data flow: `useCrossBoardTransferData(transferId)` calls
+ * `/api/v1/transfers/:id`. That endpoint is not shipped. The page
+ * shows an unavailable state instead of mock transfer data.
  */
 
 import { useState } from 'react';
@@ -54,6 +54,7 @@ import {
 } from '@proctira/ui-components';
 import { TaskChecklist, type ChecklistTask } from '@proctira/ui-dashboards';
 
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useCrossBoardTransferData } from '../api';
 import type {
   CrossBoardTransferData,
@@ -357,9 +358,11 @@ interface ApproverActionsProps {
 function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
   const announce = useAnnounce();
   const [decision, setDecision] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<'Approval' | 'Rejection' | null>(null);
 
   const fire = (choice: string) => {
     setDecision(choice);
+    setConfirm(null);
     announce(`${choice} recorded${activeStepName ? ` for ${activeStepName}` : ''}`);
   };
 
@@ -376,7 +379,7 @@ function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
       <CardContent className="flex flex-col gap-2">
         <Button
           disabled={!enabled}
-          onClick={() => fire('Approval')}
+          onClick={() => setConfirm('Approval')}
           data-testid="cross-board-transfer-approve-button"
         >
           <CheckCircle2 className="me-2 h-4 w-4" aria-hidden="true" />
@@ -385,7 +388,7 @@ function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
         <Button
           variant="outline"
           disabled={!enabled}
-          onClick={() => fire('Rejection')}
+          onClick={() => setConfirm('Rejection')}
           data-testid="cross-board-transfer-reject-button"
         >
           Reject
@@ -398,6 +401,29 @@ function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
         >
           Request More Info
         </Button>
+        <ConfirmActionDialog
+          open={confirm === 'Approval'}
+          onOpenChange={(open) => {
+            if (!open) setConfirm(null);
+          }}
+          title="Approve this transfer?"
+          description="Approve moves the transfer to the next step. There is no transfer decision API yet, so this confirmation only records the choice on this screen."
+          confirmLabel="Approve transfer"
+          onConfirm={() => fire('Approval')}
+          testId="cross-board-transfer-approve"
+        />
+        <ConfirmActionDialog
+          open={confirm === 'Rejection'}
+          onOpenChange={(open) => {
+            if (!open) setConfirm(null);
+          }}
+          title="Reject this transfer?"
+          description="Reject stops the transfer. There is no transfer decision API yet, so this confirmation only records the choice on this screen."
+          confirmLabel="Reject transfer"
+          destructive
+          onConfirm={() => fire('Rejection')}
+          testId="cross-board-transfer-reject"
+        />
         {decision ? (
           <p
             className="text-xs text-[hsl(var(--muted-foreground))]"
@@ -426,14 +452,35 @@ function HeaderSkeleton() {
 
 export default function CrossBoardTransferDashboard() {
   const params = useParams<{ transferId?: string }>();
-  const { data, isLoading } = useCrossBoardTransferData(params.transferId);
+  const { data, isLoading, error } = useCrossBoardTransferData(params.transferId);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <div className="space-y-6 p-6" data-testid="cross-board-transfer-dashboard">
         <HeaderSkeleton />
         <Skeleton className="h-32 w-full rounded-md" />
         <Skeleton className="h-64 w-full rounded-md" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="space-y-4 p-6" data-testid="cross-board-transfer-dashboard">
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">
+            Cross-Board Transfer
+          </h1>
+        </header>
+        <Card data-testid="cross-board-transfer-unavailable">
+          <CardHeader>
+            <CardTitle>Transfer detail unavailable</CardTitle>
+            <CardDescription>
+              The transfer service has not published this record. Approve and reject stay off until
+              a live transfer can be loaded. No sample transfer is shown in its place.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     );
   }

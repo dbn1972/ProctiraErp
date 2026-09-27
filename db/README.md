@@ -194,7 +194,12 @@ so runtime cannot mutate rows or disable guards even if connected with broad DML
 backfill of every ISSUED row, `VALIDATE CONSTRAINT` on the authenticity CHECK,
 and `transcript_signing_keys` (rotated KMS/PKI refs). App signing uses
 `TRANSCRIPT_SIGNING_SECRET` + `TRANSCRIPT_SIGNING_KMS_KEY_REF` only — never
-`JWT_SECRET` / board-export secrets. See `docs/audits/DATA_W1_DATA_08_COMPLETE.md`.
+`JWT_SECRET` / board-export secrets, and never a private key committed to the
+repo. Production refuses issuance (HTTP 503 `TRANSCRIPT_SIGNING_KEY_MISSING`)
+when either variable is missing. Local, development, test, and CI generate one
+ephemeral in-memory HMAC key per process when `TRANSCRIPT_SIGNING_SECRET` is
+unset (`kmsKeyRef=dev:ephemeral-in-memory`, warning log, key bytes not logged).
+See `.env.example` and `docs/audits/DATA_W1_DATA_08_COMPLETE.md`.
 
 ## Enrollment / grade audit completeness (W1-DATA-14)
 

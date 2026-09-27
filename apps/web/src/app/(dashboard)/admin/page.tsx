@@ -10,10 +10,15 @@ import { ChevronRight } from 'lucide-react';
 
 import { Card, CardContent } from '@proctira/ui/components';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
+import { getTenantSettings } from '@/lib/api/admin.server';
 
 import { ADMIN_SECTIONS, PLATFORM_SECTIONS, type AdminSection } from './admin-sections';
 
-export default function AdminLandingPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function AdminLandingPage() {
+  const { source } = await getTenantSettings();
+
   return (
     <section aria-labelledby="admin-heading" className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -27,11 +32,13 @@ export default function AdminLandingPage() {
         </div>
       </div>
 
-      <ScaffoldModeBanner
-        force
-        surface="Administration (ops stub)"
-        detail="This console is an ops stub / UI scaffold — not a live billing, plugin marketplace, or control-plane console. Nested lists stay empty when tenant admin APIs are offline rather than inventing accounts, plans, or plugin installs."
-      />
+      {source === 'scaffold' ? (
+        <ScaffoldModeBanner
+          source="scaffold"
+          surface="Administration"
+          detail="Users, roles, permissions, and school settings stay empty when the school admin API is offline. This page does not invent accounts."
+        />
+      ) : null}
 
       <SectionGrid sections={ADMIN_SECTIONS} label="Tenant administration" />
 

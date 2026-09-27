@@ -33,6 +33,7 @@ import type { ClassSection } from '@/lib/institutions/types';
 
 import { AssignmentForm } from '../../../_components/assignment-form';
 import { MAX_API_PAGE_SIZE } from '@/lib/api/pagination';
+import { formatCodeNameLabel, resolveEntityLabel } from '@/lib/entity-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +47,8 @@ interface PageProps {
 function WorkloadCard({
   assignments,
   staffName,
+  classLabels,
+  subjectLabels,
 }: {
   assignments: {
     id: string;
@@ -55,6 +58,8 @@ function WorkloadCard({
     allocationPercentage: number;
   }[];
   staffName: string;
+  classLabels: Map<string, string>;
+  subjectLabels: Map<string, string>;
 }) {
   const active = assignments.filter((a) => a.status === 'ACTIVE');
   const totalPct = active.reduce((sum, a) => sum + a.allocationPercentage, 0);
@@ -74,7 +79,8 @@ function WorkloadCard({
             {active.map((a) => (
               <div key={a.id} className="flex items-center justify-between text-xs">
                 <span className="truncate text-muted-foreground">
-                  {a.classId.slice(0, 20)} — {a.subjectId.slice(0, 16)}
+                  {resolveEntityLabel(a.classId, classLabels, 'Class')} —{' '}
+                  {resolveEntityLabel(a.subjectId, subjectLabels, 'Subject')}
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">
                   {a.allocationPercentage}%
@@ -174,6 +180,19 @@ export default async function NewAssignmentPage(props: PageProps) {
       : Promise.resolve<ClassSection[]>([]),
   ]);
 
+  const assignmentInstitutionIds = [
+    ...new Set(
+      assignments
+        .map((row) => row.institutionId)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  const extraClassLists = await Promise.all(
+    assignmentInstitutionIds
+      .filter((id) => id !== institutionId)
+      .map((id) => listClassesByInstitution(id).catch(() => [] as ClassSection[])),
+  );
+
   // Soft-render when the profile API is unavailable so client validation still works.
   const staffId = staff?.id ?? params.id;
   const fullName = staff ? `${staff.firstName} ${staff.lastName}` : 'this staff member';
@@ -190,6 +209,21 @@ export default async function NewAssignmentPage(props: PageProps) {
       ? (classes as { data: ClassSection[] }).data
       : [];
   const institutionRows = Array.isArray(institutions) ? institutions : [];
+
+  const allClassRows = [
+    ...classRows,
+    ...extraClassLists.flatMap((list) =>
+      Array.isArray(list)
+        ? list
+        : Array.isArray((list as { data?: ClassSection[] } | null)?.data)
+          ? (list as { data: ClassSection[] }).data
+          : [],
+    ),
+  ];
+  const classLabels = new Map(allClassRows.map((row) => [row.id, row.name]));
+  const subjectLabels = new Map(
+    subjectRows.map((row) => [row.id, formatCodeNameLabel(row.code, row.name) || row.name]),
+  );
 
   return (
     <section aria-labelledby="new-assignment-heading" className="space-y-6">
@@ -250,7 +284,12 @@ export default async function NewAssignmentPage(props: PageProps) {
 
         {/* ── Sidebar ── */}
         <aside className="flex flex-col gap-5" aria-label="Assignment context sidebar">
-          <WorkloadCard assignments={assignments} staffName={fullName} />
+          <WorkloadCard
+            assignments={assignments}
+            staffName={fullName}
+            classLabels={classLabels}
+            subjectLabels={subjectLabels}
+          />
           <SectionCoverageCard />
         </aside>
       </div>

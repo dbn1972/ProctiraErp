@@ -17,14 +17,19 @@ import {
 import { upsertTripAttendanceAction } from '../actions';
 import type { TransportRoute, StudentAssignment } from '@/lib/api/transport';
 import type { TripAttendanceRow } from '@/lib/transport/api';
+import { transportAssignmentLabel } from './attendance-labels';
 
 export function AttendancePanel({
   routes,
   assignments,
   trip,
+  studentLabels = {},
+  routeLabels = {},
 }: {
   routes: TransportRoute[];
   assignments: StudentAssignment[];
+  studentLabels?: Record<string, string>;
+  routeLabels?: Record<string, string>;
   trip: {
     data: TripAttendanceRow[];
     summary: { boarded: number; alighted: number; absent: number; unmarked: number };
@@ -118,7 +123,7 @@ export function AttendancePanel({
               </option>
               {assignments.map((a) => (
                 <option key={a.id} value={a.studentId}>
-                  {a.studentId.slice(0, 8)} · route {a.routeId.slice(0, 8)}
+                  {transportAssignmentLabel(a.studentId, a.routeId, studentLabels, routeLabels)}
                 </option>
               ))}
             </select>

@@ -5,6 +5,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 
+import { inMemoryAreaHierarchyDb } from '@proctira/backend-institution';
+import type { GeographicArea } from '@proctira/database';
+
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 import { actionForMethod, createGatewayRbacRegistry, resourceForApiPath } from './rbac-registry.js';
@@ -80,6 +83,10 @@ describe('rbac-registry helpers', () => {
     expect(resourceForApiPath('/api/v1/lms/assignments')).toBe('lms');
     expect(resourceForApiPath('/api/v1/parent-portal/children')).toBe('parent');
     expect(resourceForApiPath('/api/v1/student-portal/me/attendance')).toBe('student-portal');
+    expect(resourceForApiPath('/api/v1/areas/tree')).toBe('institution');
+    expect(resourceForApiPath('/api/v1/transfers/00000000-0000-4000-8000-000000000001')).toBe(
+      'student',
+    );
     expect(resourceForApiPath('/api/v1/tenants')).toBe('platform');
     expect(resourceForApiPath('/api/v1/auth/login')).toBeUndefined();
     expect(resourceForApiPath('/health')).toBeUndefined();
@@ -302,9 +309,7 @@ describe('G-101 gateway RBAC enforcement', () => {
     });
     expect(deniedMutating.statusCode).toBe(403);
     // W1-SEC-02: mutating unmapped paths fail closed on missing inventory guard.
-    expect(deniedMutating.json().message).toMatch(
-      /inventory-declared|default-deny/i,
-    );
+    expect(deniedMutating.json().message).toMatch(/inventory-declared|default-deny/i);
 
     const deniedRead = await app.inject({
       method: 'GET',
@@ -765,5 +770,96 @@ describe('G-104 platform-admin role gate', () => {
     });
 
     expect(response.statusCode).toBe(200);
+  });
+
+  it('lets institution readers load area labels and hides another tenant', async () => {
+    const tenantA = '550e8400-e29b-41d4-a716-446655440000';
+    const tenantB = '550e8400-e29b-41d4-a716-446655440099';
+    const memory = inMemoryAreaHierarchyDb();
+    expect(memory, 'areas tree test requires the in-memory client').toBeDefined();
+    const area = (tenantId: string, name: string, id: string): GeographicArea => ({
+      id,
+      tenantId,
+      name,
+      code: id.slice(0, 8),
+      level: 0,
+      parentId: null,
+      path: '',
+      lft: 1,
+      rgt: 2,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      deletedAt: null,
+    });
+    memory!.seed(area(tenantA, 'Tenant A district', '770e8400-e29b-41d4-a716-4466554400a1'));
+    memory!.seed(area(tenantB, 'Tenant B district', '770e8400-e29b-41d4-a716-4466554400b1'));
+
+    const teacher = app.jwt.sign(
+      createTestJwtPayload({
+        tenantId: tenantA,
+        roles: [{ roleId: 'teacher', roleName: 'Teacher', areaId: null }],
+      }),
+    );
+    const teacherTree = await app.inject({
+      method: 'GET',
+      url: '/api/v1/areas/tree',
+      headers: { authorization: `Bearer ${teacher}` },
+    });
+    expect(teacherTree.statusCode).toBe(200);
+    const teacherNames = JSON.stringify(teacherTree.json());
+    expect(teacherNames).toContain('Tenant A district');
+    expect(teacherNames).not.toContain('Tenant B district');
+
+    const otherTenant = app.jwt.sign(
+      createTestJwtPayload({
+        tenantId: tenantB,
+        roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+      }),
+    );
+    const otherTree = await app.inject({
+      method: 'GET',
+      url: '/api/v1/areas/tree',
+      headers: { authorization: `Bearer ${otherTenant}` },
+    });
+    expect(otherTree.statusCode).toBe(200);
+    const otherNames = JSON.stringify(otherTree.json());
+    expect(otherNames).toContain('Tenant B district');
+    expect(otherNames).not.toContain('Tenant A district');
+
+    const parent = app.jwt.sign(
+      createTestJwtPayload({
+        tenantId: tenantA,
+        roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+      }),
+    );
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/api/v1/areas/tree',
+      headers: { authorization: `Bearer ${parent}` },
+    });
+    expect(denied.statusCode).toBe(403);
+
+    const anon = await app.inject({ method: 'GET', url: '/api/v1/areas/tree' });
+    expect(anon.statusCode).toBe(401);
+
+    const missingTransfer = await app.inject({
+      method: 'GET',
+      url: '/api/v1/transfers/00000000-0000-4000-8000-000000000099',
+      headers: { authorization: `Bearer ${teacher}` },
+    });
+    expect(missingTransfer.statusCode).toBe(404);
+
+    const hr = app.jwt.sign(
+      createTestJwtPayload({
+        tenantId: tenantA,
+        roles: [{ roleId: 'hr_officer', roleName: 'Hr Officer', areaId: null }],
+      }),
+    );
+    const hrDenied = await app.inject({
+      method: 'GET',
+      url: '/api/v1/transfers/00000000-0000-4000-8000-000000000099',
+      headers: { authorization: `Bearer ${hr}` },
+    });
+    expect(hrDenied.statusCode).toBe(403);
   });
 });

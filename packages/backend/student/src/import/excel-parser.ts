@@ -12,6 +12,84 @@
 import type { ImportStudentRow } from './types.js';
 
 /**
+ * Structural slice of an ExcelJS workbook used by the import parser.
+ * Kept local so call sites do not depend on a specific exceljs export shape.
+ */
+export interface ExcelWorkbookLike {
+  xlsx: {
+    load(data: unknown): Promise<unknown>;
+    writeBuffer(): Promise<ArrayBuffer>;
+  };
+  worksheets: ExcelWorksheetLike[];
+  addWorksheet(name: string): ExcelWorksheetLike & {
+    addRow(values: unknown[]): ExcelRowLike;
+  };
+}
+
+interface ExcelWorksheetLike {
+  getRow(rowNumber: number): ExcelRowLike;
+  rowCount: number;
+}
+
+interface ExcelRowLike {
+  eachCell(
+    opts: { includeEmpty: true },
+    cb: (cell: { value: unknown }, colNumber: number) => void,
+  ): void;
+  getCell(col: number): { value: unknown };
+}
+
+type WorkbookConstructor = new () => ExcelWorkbookLike;
+
+/**
+ * exceljs is CommonJS (`module.exports = { Workbook }`). Under this package's
+ * ESM loader (Node `import()` and Vitest), the constructor may sit on the
+ * namespace, on `.default`, or one more `.default` inside `Workbook`.
+ * `new namespace.Workbook` then throws `ExcelJS.Workbook is not a constructor`.
+ */
+export function resolveExcelWorkbookConstructor(moduleNamespace: unknown): WorkbookConstructor {
+  const candidates = collectWorkbookCandidates(moduleNamespace);
+  for (const candidate of candidates) {
+    const ctor = unwrapConstructor(candidate);
+    if (ctor) return ctor;
+  }
+  throw new Error(
+    'exceljs did not export a Workbook constructor. The package is CommonJS; ' +
+      'dynamic import() can nest Workbook under .default. Check the exceljs install ' +
+      'and the module loader interop.',
+  );
+}
+
+function collectWorkbookCandidates(moduleNamespace: unknown): unknown[] {
+  const record = asRecord(moduleNamespace);
+  const fromDefault = asRecord(record?.default);
+  const fromNestedDefault = asRecord(fromDefault?.default);
+  return [record?.Workbook, fromDefault?.Workbook, fromNestedDefault?.Workbook, record?.default];
+}
+
+function unwrapConstructor(value: unknown, depth = 0): WorkbookConstructor | null {
+  if (depth > 5 || value == null) return null;
+  if (typeof value === 'function') return value as WorkbookConstructor;
+  const record = asRecord(value);
+  if (!record || !('default' in record)) return null;
+  return unwrapConstructor(record.default, depth + 1);
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value && (typeof value === 'object' || typeof value === 'function')) {
+    return value as Record<string, unknown>;
+  }
+  return null;
+}
+
+/** Load exceljs and return a workbook instance that is safe to construct. */
+export async function createExcelWorkbook(): Promise<ExcelWorkbookLike> {
+  const imported = await import('exceljs');
+  const Workbook = resolveExcelWorkbookConstructor(imported);
+  return new Workbook();
+}
+
+/**
  * Expected column headers in the import template.
  * Column order matters for mapping.
  */
@@ -47,10 +125,8 @@ export interface ParseResult {
  * @returns Parsed rows and any header-level errors
  */
 export async function parseExcelBuffer(buffer: Buffer): Promise<ParseResult> {
-  // Dynamic import of exceljs to support environments where it may not be available
-  const ExcelJS = await import('exceljs');
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  const workbook = await createExcelWorkbook();
+  await workbook.xlsx.load(buffer);
 
   const worksheet = workbook.worksheets[0];
   if (!worksheet) {

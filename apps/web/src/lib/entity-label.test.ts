@@ -7,6 +7,7 @@ import {
   formatCodeNameLabel,
   formatPersonLabel,
   isUuidLike,
+  directoryLabel,
   resolveEntityLabel,
   toLabelMap,
 } from './entity-label';
@@ -35,5 +36,13 @@ describe('entity-label', () => {
   it('builds label maps from options', () => {
     const map = toLabelMap([{ id: 'a', label: 'A · Alpha' }]);
     expect(map.get('a')).toBe('A · Alpha');
+  });
+
+  it('uses a fixed missing label instead of a truncated id', () => {
+    const id = '33333333-3333-4333-8333-333333333333';
+    expect(directoryLabel(id, {}, 'Unknown class')).toBe('Unknown class');
+    expect(directoryLabel(null, {}, 'Unknown class')).toBe('Unknown class');
+    expect(directoryLabel(id, { [id]: 'Grade 7' }, 'Unknown class')).toBe('Grade 7');
+    expect(directoryLabel('x', new Map([['x', '  ']]), 'Unknown route')).toBe('Unknown route');
   });
 });

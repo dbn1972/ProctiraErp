@@ -116,7 +116,12 @@ describe('G-910 tenant admin console routes', () => {
   it('returns default settings, validates, and persists PUT per tenant', async () => {
     const defaults = await app.inject({ method: 'GET', url: '/tenant/settings' });
     expect(defaults.statusCode).toBe(200);
-    expect(defaults.json()).toMatchObject({ tenantId: TENANT, defaultLocale: 'en' });
+    expect(defaults.json()).toMatchObject({
+      tenantId: TENANT,
+      defaultLocale: 'en',
+      slug: null,
+      directoryName: null,
+    });
 
     const invalid = await app.inject({
       method: 'PUT',
@@ -144,5 +149,27 @@ describe('G-910 tenant admin console routes', () => {
     tenantHeader = OTHER;
     const other = await app.inject({ method: 'GET', url: '/tenant/settings' });
     expect(other.json().displayName).not.toBe('Springfield Board');
+  });
+
+  it('attaches the school directory name and slug when a loader is provided', async () => {
+    const directoryApp = Fastify();
+    directoryApp.decorateRequest('tenantId', '');
+    directoryApp.addHook('onRequest', async (request) => {
+      (request as unknown as { tenantId: string }).tenantId = TENANT;
+    });
+    await registerTenantSettingsRoutes(directoryApp, {
+      store: new InMemoryTenantSettingsStore(),
+      prefix: '/tenant',
+      loadDirectory: async () => ({ name: 'Sunrise Public School', slug: 'sunrise-public-school' }),
+    });
+    await directoryApp.ready();
+    const res = await directoryApp.inject({ method: 'GET', url: '/tenant/settings' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({
+      displayName: 'ProctiraERP',
+      directoryName: 'Sunrise Public School',
+      slug: 'sunrise-public-school',
+    });
+    await directoryApp.close();
   });
 });

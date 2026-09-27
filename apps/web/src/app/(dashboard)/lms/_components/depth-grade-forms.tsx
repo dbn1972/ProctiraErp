@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button, Input, Label } from '@proctira/ui/components';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { LmsRubric } from '@/lib/api/lms';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import { gradeWithRubricAction, uploadLmsFileAction } from '../depth-actions';
 
@@ -14,11 +16,14 @@ export function RubricGradeForm({
   submissionId,
   questionId,
   rubric,
+  criterionOptions = [],
 }: {
   assignmentId: string;
   submissionId: string;
   questionId?: string;
   rubric?: LmsRubric | null;
+  /** Criteria from the school rubric directory when this assignment has none attached. */
+  criterionOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -63,68 +68,90 @@ export function RubricGradeForm({
       data-hydrated={hydrated ? 'true' : 'false'}
     >
       {criteria.length > 0 ? (
-        <table className="w-full text-sm" data-testid="lms-rubric-grid">
-          <thead>
-            <tr>
-              <th className="p-2 text-start">Criterion</th>
-              {criteria[0]?.levels.map((level) => (
-                <th key={level.label} className="p-2 text-start">
-                  {level.label}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm" data-testid="lms-rubric-grid">
+            <caption className="sr-only">Rubric criteria and performance levels</caption>
+            <thead>
+              <tr>
+                <th scope="col" className="p-2 text-start">
+                  Criterion
                 </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {criteria.map((criterion) => (
-              <tr key={criterion.id}>
-                <td className="p-2 font-medium">
-                  {criterion.name}{' '}
-                  <span className="text-muted-foreground">({criterion.maxPoints})</span>
-                </td>
-                {criterion.levels.map((level, index) => (
-                  <td key={`${criterion.id}-${index}`} className="p-2">
-                    <label className="flex min-h-11 items-center gap-2">
-                      <input
-                        type="radio"
-                        name={`crit-${submissionId}-${criterion.id}`}
-                        required
-                        checked={levels[criterion.id]?.levelIndex === index}
-                        onChange={() =>
-                          setLevels((prev) => ({
-                            ...prev,
-                            [criterion.id]: { levelIndex: index, points: level.points },
-                          }))
-                        }
-                      />
-                      {level.points}
-                    </label>
-                  </td>
+                {criteria[0]?.levels.map((level) => (
+                  <th key={level.label} scope="col" className="p-2 text-start">
+                    {level.label} ({level.points} points)
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {criteria.map((criterion) => (
+                <tr key={criterion.id}>
+                  <th scope="row" className="p-2 text-start font-medium">
+                    {criterion.name}{' '}
+                    <span className="text-muted-foreground">({criterion.maxPoints})</span>
+                  </th>
+                  {criterion.levels.map((level, index) => (
+                    <td key={`${criterion.id}-${index}`} className="p-2">
+                      <label className="flex min-h-11 items-center gap-2">
+                        <input
+                          type="radio"
+                          name={`crit-${submissionId}-${criterion.id}`}
+                          required
+                          checked={levels[criterion.id]?.levelIndex === index}
+                          aria-label={`${criterion.name}, ${level.label}, ${level.points} points`}
+                          onChange={() =>
+                            setLevels((prev) => ({
+                              ...prev,
+                              [criterion.id]: { levelIndex: index, points: level.points },
+                            }))
+                          }
+                        />
+                        <span>{level.label}</span>
+                        <span className="text-muted-foreground">{level.points}</span>
+                      </label>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <div className="flex flex-wrap gap-2">
-          <Label htmlFor={`crit-${submissionId}`} className="sr-only">
-            Criterion ID
-          </Label>
-          <Input
+        <div className="space-y-2">
+          <EntitySearchSelect
             id={`crit-${submissionId}`}
             name="criterionId"
-            placeholder="Criterion ID"
-            className="h-11 w-48"
+            label="Criterion"
+            options={criterionOptions}
             required
+            placeholder="Search criteria by name…"
+            emptyMessage="No rubric criteria are loaded for this assignment. Attach a rubric before scoring."
           />
-          <Input
-            name="points"
-            type="number"
-            min={0}
-            placeholder="Points"
-            className="h-11 w-24"
-            required
-          />
-          <Input name="levelIndex" type="number" min={0} defaultValue={0} className="h-11 w-20" />
+          <div className="flex flex-wrap gap-2">
+            <div className="space-y-1">
+              <Label htmlFor={`points-${submissionId}`}>Points</Label>
+              <Input
+                id={`points-${submissionId}`}
+                name="points"
+                type="number"
+                min={0}
+                placeholder="Points"
+                className="h-11 w-24"
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor={`level-${submissionId}`}>Level</Label>
+              <Input
+                id={`level-${submissionId}`}
+                name="levelIndex"
+                type="number"
+                min={0}
+                defaultValue={0}
+                className="h-11 w-24"
+              />
+            </div>
+          </div>
         </div>
       )}
       <Button type="submit" size="sm" disabled={pending} aria-busy={pending}>

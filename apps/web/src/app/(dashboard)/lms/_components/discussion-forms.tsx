@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react';
 
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 import {
   createDiscussionAction,
@@ -13,8 +14,9 @@ import {
   lockDiscussionAction,
   pinPostAction,
 } from '../depth-actions';
+import { SchoolField } from './school-field';
 
-export function DiscussionCreateForm() {
+export function DiscussionCreateForm({ schools = [] }: { schools?: EntityLabelOption[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -49,10 +51,7 @@ export function DiscussionCreateForm() {
         <Label htmlFor="disc-title">Title</Label>
         <Input id="disc-title" name="title" required className="h-11" />
       </div>
-      <div className="space-y-1">
-        <Label htmlFor="disc-school">School ID (optional)</Label>
-        <Input id="disc-school" name="institutionId" className="h-11" />
-      </div>
+      <SchoolField id="disc-school" schools={schools} />
       <Button type="submit" disabled={pending} aria-busy={pending}>
         Open thread
       </Button>

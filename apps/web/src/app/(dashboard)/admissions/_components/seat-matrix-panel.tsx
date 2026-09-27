@@ -21,6 +21,7 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { SeatMatrixRow } from '@/lib/api/admissions';
+import { directoryLabel } from '@/lib/entity-label';
 import { formatQuotaLabel, resolveQuotaFromForm } from '@/lib/admissions/quota-categories';
 import { upsertSeatMatrixAction } from '../../admissions-actions';
 import { QuotaCategoryField } from './quota-category-field';
@@ -30,8 +31,12 @@ interface Option {
   name: string;
 }
 
-function nameOf(options: Option[], id: string): string {
-  return options.find((row) => row.id === id)?.name ?? id.slice(0, 8);
+function nameOf(options: Option[], id: string, missingLabel: string): string {
+  return directoryLabel(
+    id,
+    Object.fromEntries(options.map((row) => [row.id, row.name])),
+    missingLabel,
+  );
 }
 
 export function SeatMatrixPanel({
@@ -222,9 +227,11 @@ export function SeatMatrixPanel({
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.id} data-testid="seat-row" data-quota={row.quota}>
-                    <TableCell>{nameOf(institutions, row.institutionId)}</TableCell>
-                    <TableCell>{nameOf(periods, row.academicPeriodId)}</TableCell>
-                    <TableCell>{nameOf(grades, row.gradeId)}</TableCell>
+                    <TableCell>
+                      {nameOf(institutions, row.institutionId, 'Unknown institution')}
+                    </TableCell>
+                    <TableCell>{nameOf(periods, row.academicPeriodId, 'Unknown period')}</TableCell>
+                    <TableCell>{nameOf(grades, row.gradeId, 'Unknown class')}</TableCell>
                     <TableCell>
                       <span className="font-medium">{formatQuotaLabel(row.quota)}</span>
                       {formatQuotaLabel(row.quota) !== row.quota ? (

@@ -26,7 +26,6 @@ import {
   BOARD_ADMIN_DASHBOARD_MOCK,
   BOARD_COMPARISON_MOCK,
   COUNTRY_DASHBOARD_MOCK,
-  CROSS_BOARD_TRANSFER_MOCK,
   STATE_DASHBOARD_MOCK,
 } from './mockData';
 import type {
@@ -139,14 +138,42 @@ export function useBoardComparisonData(
 /**
  * `GET /api/v1/transfers/:id`
  *
- * Fetches the cross-board transfer detail. Falls back to mock data
- * since this endpoint depends on the workflow detail view (not yet shipped).
+ * Loads the tenant-scoped transfer. A missing or failed response is
+ * surfaced as `error`. The deterministic mock payload is not substituted.
  */
 export function useCrossBoardTransferData(
   transferId?: string,
 ): DashboardQueryResult<CrossBoardTransferData> {
-  return useApiQuery(
-    (signal) => fetchCrossBoardTransfer(transferId, signal),
-    CROSS_BOARD_TRANSFER_MOCK,
-  );
+  const [data, setData] = useState<CrossBoardTransferData | undefined>(undefined);
+  const [error, setError] = useState<Error | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+    setIsLoading(true);
+
+    void (async () => {
+      try {
+        const result = await fetchCrossBoardTransfer(transferId, controller.signal);
+        if (!cancelled) {
+          setData(result);
+          setError(null);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setData(undefined);
+        setError(err instanceof Error ? err : new Error('Cross-board transfer unavailable'));
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [transferId]);
+
+  return { data, isLoading, error };
 }
