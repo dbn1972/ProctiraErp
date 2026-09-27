@@ -36,10 +36,16 @@ test.describe('Communication — client validation (ungated)', () => {
 
   test('/communication/campaigns/new rejects empty name client-side', async ({ page }) => {
     await page.goto('/communication/campaigns/new', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('communication-campaign-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const campaignForm = page.getByTestId('communication-campaign-form');
+    await expect(async () => {
+      await expect(campaignForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(campaignForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: /create campaign/i }).click();
     await expect(page.getByText(/name is required/i)).toBeVisible();
   });
@@ -57,10 +63,11 @@ test.describe('Communication — live campaign create (E2E_BACKEND_READY)', () =
 
   test('creates a draft campaign via live API', async ({ page }) => {
     await page.goto('/communication/campaigns/new', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('communication-campaign-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    const campaignForm2 = page.getByTestId('communication-campaign-form');
+    await expect(async () => {
+      await expect(campaignForm2).toHaveCount(1, { timeout: 2_000 });
+      await expect(campaignForm2).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     const name = `E2E campaign ${Date.now()}`;
     await page.getByLabel(/^name/i).fill(name);
@@ -81,7 +88,11 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
   test('drafts an emergency blast that awaits dual confirm', async ({ page }) => {
     await setupGatewayTenantSession(page, { sub: 'officer-a' });
     await page.goto('/communication/emergency', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('emergency-blast-form')).toHaveAttribute('data-hydrated', 'true');
+    const blastForm = page.getByTestId('emergency-blast-form');
+    await expect(async () => {
+      await expect(blastForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(blastForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     const reason = `E2E emergency ${Date.now()}`;
     await page.getByLabel(/^reason/i).fill(reason);
