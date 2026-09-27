@@ -41,6 +41,11 @@ function backendGate(changes) {
   );
 }
 
+/** Ungated Playwright lives in Integration Tests, including web-only diffs. */
+function integrationGate(changes) {
+  return backendGate(changes) || truthy(changes.frontendChanged);
+}
+
 function secondaryAppsGate(changes) {
   // W1-OPS-12: only when secondary Next apps (or the e2e harness) change.
   // Do not key on broad shared/docs — keeps CI cost bounded.
@@ -92,7 +97,7 @@ export function evaluate({ changes, results }) {
     {
       job: 'integration-test',
       result: results.integrationTest,
-      requiredWhen: () => backendGate(changes),
+      requiredWhen: () => integrationGate(changes),
     },
     { job: 'dod-checks', result: results.dodChecks, requiredWhen: () => codeChanged(changes) },
     {

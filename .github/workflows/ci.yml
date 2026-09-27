@@ -657,7 +657,11 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     needs: [build, detect-changes]
-    if: needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true' || needs.detect-changes.outputs.infra-changed == 'true'
+    # Frontend is included so the ungated Playwright matrix (chromium,
+    # mobile-chrome, tablet) actually runs. Web-only commits used to skip this
+    # job via the backend/shared/infra filter, so main could go green while
+    # shared e2e specs were red.
+    if: needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true' || needs.detect-changes.outputs.infra-changed == 'true' || needs.detect-changes.outputs.has-frontend-changes == 'true'
     services:
       postgres:
         image: postgres:16-alpine
