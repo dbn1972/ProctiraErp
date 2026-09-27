@@ -11,6 +11,7 @@ import '../core/theme/app_theme.dart';
 import '../features/assessment/data/assessment_repository.dart';
 import '../features/examination/data/examination_repository.dart';
 import '../features/health/data/health_repository.dart';
+import '../features/parent_portal/data/parent_portal_repository.dart';
 import '../features/scholarship/data/scholarship_repository.dart';
 
 /// Tenant-aware MaterialApp wrapper.
@@ -39,6 +40,9 @@ class OpenEmisApp extends StatelessWidget {
         ),
         RepositoryProvider<AssessmentRepository>.value(
           value: getIt<AssessmentRepository>(),
+        ),
+        RepositoryProvider<ParentPortalRepository>.value(
+          value: getIt<ParentPortalRepository>(),
         ),
       ],
       child: MultiBlocProvider(
