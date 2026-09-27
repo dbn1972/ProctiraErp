@@ -138,9 +138,8 @@ export function useBoardComparisonData(
 /**
  * `GET /api/v1/transfers/:id`
  *
- * The gateway does not publish this view yet (`fetchCrossBoardTransfer`
- * throws NOT_IMPLEMENTED). This hook surfaces that error. It does not
- * substitute the deterministic mock payload.
+ * Loads the tenant-scoped transfer. A missing or failed response is
+ * surfaced as `error`. The deterministic mock payload is not substituted.
  */
 export function useCrossBoardTransferData(
   transferId?: string,
