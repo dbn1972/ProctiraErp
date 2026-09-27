@@ -21,12 +21,13 @@ export function HealthStudentSelect({
     return (
       <FormField label={label} htmlFor={id}>
         <p
+          id={id}
+          data-testid={`${id}-empty`}
           className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
           role="status"
         >
           No students loaded for this school. Add students in People, then return here.
         </p>
-        <input type="hidden" id={id} name={name} value="" />
       </FormField>
     );
   }
@@ -60,12 +61,13 @@ export function HealthStaffSelect({
     return (
       <FormField label={label} htmlFor={id}>
         <p
+          id={id}
+          data-testid={`${id}-empty`}
           className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
           role="status"
         >
           No staff loaded for this school. Add staff in People, then return here.
         </p>
-        <input type="hidden" id={id} name={name} value="" />
       </FormField>
     );
   }
