@@ -69,7 +69,9 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await page.getByLabel(/case notes/i).fill('Initial notes');
     await page.getByRole('button', { name: /schedule session/i }).click();
 
-    await expect(page.getByTestId('counselling-session-error')).toContainText(/select a student/i);
+    await expect(page.getByTestId('counselling-session-error')).toContainText(
+      /student directory is empty/i,
+    );
   });
 });
 
