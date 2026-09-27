@@ -223,9 +223,12 @@ export const POST_HOC_MUTATION_AUDIT_WAIVERS = [
   },
   {
     prefix: '/api/v1/health',
-    count: 22,
+    count: 27,
     reason:
-      'PHI beyond measurements: allergies, conditions, vaccinations, insurance, counselling, break-glass',
+      'PHI beyond measurements: allergies, conditions, vaccinations, insurance, counselling, ' +
+      'break-glass (22), plus 5 delete endpoints added for allergies, conditions, ' +
+      'vaccinations, insurance and screening-programs (#389, closing the update/delete audit ' +
+      'gap those records previously had)',
   },
   {
     prefix: '/api/v1/fees',

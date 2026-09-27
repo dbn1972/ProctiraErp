@@ -3,8 +3,10 @@
  *
  * `SEC_W1_SEC_10_COMPLETE.md` described this residual in prose: "other regulated mutations
  * (allergies, privacy, billing, student, scholarship, …)". Enumerating the routes the gateway
- * actually registers tells a sharper story — **166 of 170** security-sensitive mutating routes
+ * actually registers tells a sharper story — **171 of 175** security-sensitive mutating routes
  * are audited post-hoc, and 4 are atomic. The "…" was carrying almost the whole finding.
+ * (166 of 170 at the time this test was written; #389 added 5 post-hoc-audited delete
+ * endpoints to close a PHI update/delete gap, which is why both numbers moved together.)
  *
  * These tests do not make anything atomic. They make the residual **bounded**:
  *
@@ -122,8 +124,11 @@ describe('V15-16 post-hoc mutation-audit residual is bounded', () => {
 
     // Not a ratchet on purpose: these are exact, so both making a route atomic and adding a
     // new sensitive route force a visible edit here rather than sliding under a threshold.
+    // 170 -> 175 (#389): closing the PHI update/delete audit gap added 5 delete endpoints
+    // (allergies, conditions, vaccinations, insurance, screening-programs) — all post-hoc,
+    // none atomic, so postHoc moves with them and atomic does not.
     expect({ sensitive: sensitive.length, atomic: atomic.length, postHoc: postHoc.length }).toEqual(
-      { sensitive: 170, atomic: 4, postHoc: 166 },
+      { sensitive: 175, atomic: 4, postHoc: 171 },
     );
 
     // Every post-hoc route is covered by the waiver list — the same property as the gate
