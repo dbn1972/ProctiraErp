@@ -2,6 +2,7 @@
  * Library service client — catalog and overdues.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
 
 export interface LibraryItem {
   id: string;
@@ -50,12 +51,12 @@ export interface CreateLibraryItemInput {
   copies?: number;
 }
 
+export async function listLibraryItemsResult(): Promise<ListResult<LibraryItem>> {
+  return fetchList<LibraryItem>('/library/items', { next: { revalidate: 0 } });
+}
+
 export async function listLibraryItems(): Promise<LibraryItem[]> {
-  const result = await gatewayFetch<{ data: LibraryItem[] }>('/library/items', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listLibraryItemsResult());
 }
 
 export async function createLibraryItem(input: CreateLibraryItemInput): Promise<LibraryItem> {
@@ -73,12 +74,12 @@ export async function createLibraryItem(input: CreateLibraryItemInput): Promise<
   return result.data;
 }
 
+export async function listLibraryOverduesResult(): Promise<ListResult<LibraryLoan>> {
+  return fetchList<LibraryLoan>('/library/overdues', { next: { revalidate: 0 } });
+}
+
 export async function listLibraryOverdues(): Promise<LibraryLoan[]> {
-  const result = await gatewayFetch<{ data: LibraryLoan[] }>('/library/overdues', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listLibraryOverduesResult());
 }
 
 export async function checkoutLibraryItem(input: {
@@ -210,28 +211,44 @@ export async function importLibraryIsbn(isbn: string, copies?: number): Promise<
   return result.data;
 }
 
-export async function searchLibraryOpac(q: string): Promise<LibraryItem[]> {
+export async function searchLibraryOpacResult(q: string): Promise<ListResult<LibraryItem>> {
   const query = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
-  const result = await gatewayFetch<{ data: LibraryItem[] }>(`/library/opac/search${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<LibraryItem>(`/library/opac/search${query}`, { next: { revalidate: 0 } });
+}
+
+export async function searchLibraryOpac(q: string): Promise<LibraryItem[]> {
+  return itemsOrEmpty(await searchLibraryOpacResult(q));
+}
+
+export async function listLibraryLoansResult(opts?: {
+  studentId?: string;
+  patronUserId?: string;
+}): Promise<ListResult<LibraryLoan>> {
+  const params = new URLSearchParams();
+  if (opts?.studentId) params.set('studentId', opts.studentId);
+  if (opts?.patronUserId) params.set('patronUserId', opts.patronUserId);
+  const suffix = params.size ? `?${params.toString()}` : '';
+  return fetchList<LibraryLoan>(`/library/loans${suffix}`, { next: { revalidate: 0 } });
 }
 
 export async function listLibraryLoans(opts?: {
   studentId?: string;
   patronUserId?: string;
 }): Promise<LibraryLoan[]> {
+  return itemsOrEmpty(await listLibraryLoansResult(opts));
+}
+
+export async function listLibraryHoldsResult(opts?: {
+  itemId?: string;
+  studentId?: string;
+  patronUserId?: string;
+}): Promise<ListResult<LibraryHold>> {
   const params = new URLSearchParams();
+  if (opts?.itemId) params.set('itemId', opts.itemId);
   if (opts?.studentId) params.set('studentId', opts.studentId);
   if (opts?.patronUserId) params.set('patronUserId', opts.patronUserId);
   const suffix = params.size ? `?${params.toString()}` : '';
-  const result = await gatewayFetch<{ data: LibraryLoan[] }>(`/library/loans${suffix}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<LibraryHold>(`/library/holds${suffix}`, { next: { revalidate: 0 } });
 }
 
 export async function listLibraryHolds(opts?: {
@@ -239,16 +256,7 @@ export async function listLibraryHolds(opts?: {
   studentId?: string;
   patronUserId?: string;
 }): Promise<LibraryHold[]> {
-  const params = new URLSearchParams();
-  if (opts?.itemId) params.set('itemId', opts.itemId);
-  if (opts?.studentId) params.set('studentId', opts.studentId);
-  if (opts?.patronUserId) params.set('patronUserId', opts.patronUserId);
-  const suffix = params.size ? `?${params.toString()}` : '';
-  const result = await gatewayFetch<{ data: LibraryHold[] }>(`/library/holds${suffix}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listLibraryHoldsResult(opts));
 }
 
 export async function placeLibraryHold(input: {

@@ -241,6 +241,9 @@ export class PgPhiStore {
     id: string,
     tenantId: string,
     data: Partial<HealthMeasurementEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity | null> {
     await this.ensureSchema();
     const existing = await this.findMeasurementById(id, tenantId);
@@ -255,31 +258,37 @@ export class PgPhiStore {
       updatedAt: new Date(),
     };
     const scope = await this.phiScope(tenantId, merged.studentId);
-    const result = await this.query(
-      tenantId,
-      `UPDATE health_measurements SET
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE health_measurements SET
         measured_on=$3::date, height=$4, weight=$5, bmi=$6,
         blood_pressure_systolic=$7, blood_pressure_diastolic=$8, heart_rate=$9,
         vision_left=$10, vision_right=$11, notes=$12, updated_at=$13
       WHERE id=$1 AND tenant_id=$2 RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.date,
-        merged.height,
-        merged.weight,
-        merged.bmi,
-        merged.bloodPressureSystolic,
-        merged.bloodPressureDiastolic,
-        merged.heartRate,
-        merged.visionLeft,
-        merged.visionRight,
-        encryptPhi(merged.notes, scope),
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapMeasurement(result.rows[0] as Record<string, unknown>);
+        [
+          id,
+          tenantId,
+          merged.date,
+          merged.height,
+          merged.weight,
+          merged.bmi,
+          merged.bloodPressureSystolic,
+          merged.bloodPressureDiastolic,
+          merged.heartRate,
+          merged.visionLeft,
+          merged.visionRight,
+          encryptPhi(merged.notes, scope),
+          merged.updatedAt,
+        ],
+      );
+      if (!result.rows[0]) return null;
+      const entity = mapMeasurement(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async findMeasurementById(id: string, tenantId: string): Promise<HealthMeasurementEntity | null> {
@@ -310,14 +319,29 @@ export class PgPhiStore {
     );
   }
 
-  async deleteMeasurement(id: string, tenantId: string): Promise<boolean> {
+  async deleteMeasurement(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(
-      tenantId,
-      `DELETE FROM health_measurements WHERE id=$1 AND tenant_id=$2`,
-      [id, tenantId],
-    );
-    return (result.rowCount ?? 0) > 0;
+    const existing = options?.appendAuditInTxn
+      ? await this.findMeasurementById(id, tenantId)
+      : null;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = (await client.query(
+        `DELETE FROM health_measurements WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      )) as unknown as pg.QueryResult;
+      const deleted = (result.rowCount ?? 0) > 0;
+      // W1-SEC-10: PHI delete + audit share one COMMIT.
+      if (deleted && existing && options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, existing);
+      }
+      return deleted;
+    });
   }
 
   async createAllergy(
@@ -361,6 +385,9 @@ export class PgPhiStore {
     id: string,
     tenantId: string,
     data: Partial<AllergyEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
   ): Promise<AllergyEntity | null> {
     await this.ensureSchema();
     const existing = await this.findAllergyById(id, tenantId);
@@ -375,26 +402,32 @@ export class PgPhiStore {
       updatedAt: new Date(),
     };
     const scope = await this.phiScope(tenantId, merged.studentId);
-    const result = await this.query(
-      tenantId,
-      `UPDATE health_allergies SET
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE health_allergies SET
         allergy_type=$3, description=$4, severity=$5, reaction=$6, treatment=$7,
         diagnosed_date=$8::date, updated_at=$9
       WHERE id=$1 AND tenant_id=$2 RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.allergyType,
-        encryptPhi(merged.description, scope),
-        merged.severity,
-        encryptPhi(merged.reaction, scope),
-        encryptPhi(merged.treatment, scope),
-        merged.diagnosedDate,
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapAllergy(result.rows[0] as Record<string, unknown>);
+        [
+          id,
+          tenantId,
+          merged.allergyType,
+          encryptPhi(merged.description, scope),
+          merged.severity,
+          encryptPhi(merged.reaction, scope),
+          encryptPhi(merged.treatment, scope),
+          merged.diagnosedDate,
+          merged.updatedAt,
+        ],
+      );
+      if (!result.rows[0]) return null;
+      const entity = mapAllergy(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async findAllergyById(id: string, tenantId: string): Promise<AllergyEntity | null> {
@@ -436,14 +469,27 @@ export class PgPhiStore {
     return result.rows.map((r) => mapAllergy(r as Record<string, unknown>));
   }
 
-  async deleteAllergy(id: string, tenantId: string): Promise<boolean> {
+  async deleteAllergy(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(
-      tenantId,
-      `DELETE FROM health_allergies WHERE id=$1 AND tenant_id=$2`,
-      [id, tenantId],
-    );
-    return (result.rowCount ?? 0) > 0;
+    const existing = options?.appendAuditInTxn ? await this.findAllergyById(id, tenantId) : null;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = (await client.query(
+        `DELETE FROM health_allergies WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      )) as unknown as pg.QueryResult;
+      const deleted = (result.rowCount ?? 0) > 0;
+      // W1-SEC-10: PHI delete + audit share one COMMIT.
+      if (deleted && existing && options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, existing);
+      }
+      return deleted;
+    });
   }
 
   async createCondition(
@@ -489,6 +535,9 @@ export class PgPhiStore {
     id: string,
     tenantId: string,
     data: Partial<HealthConditionEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity | null> {
     await this.ensureSchema();
     const existing = await this.findConditionById(id, tenantId);
@@ -503,27 +552,33 @@ export class PgPhiStore {
       updatedAt: new Date(),
     };
     const scope = await this.phiScope(tenantId, merged.studentId);
-    const result = await this.query(
-      tenantId,
-      `UPDATE health_conditions SET
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE health_conditions SET
         condition_name=$3, condition_type=$4, diagnosed_date=$5::date, status=$6,
         treatment=$7, medication=$8, notes=$9, updated_at=$10
       WHERE id=$1 AND tenant_id=$2 RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.conditionName,
-        merged.conditionType,
-        merged.diagnosedDate,
-        merged.status,
-        encryptPhi(merged.treatment, scope),
-        encryptPhi(merged.medication, scope),
-        encryptPhi(merged.notes, scope),
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapCondition(result.rows[0] as Record<string, unknown>);
+        [
+          id,
+          tenantId,
+          merged.conditionName,
+          merged.conditionType,
+          merged.diagnosedDate,
+          merged.status,
+          encryptPhi(merged.treatment, scope),
+          encryptPhi(merged.medication, scope),
+          encryptPhi(merged.notes, scope),
+          merged.updatedAt,
+        ],
+      );
+      if (!result.rows[0]) return null;
+      const entity = mapCondition(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async findConditionById(id: string, tenantId: string): Promise<HealthConditionEntity | null> {
@@ -565,14 +620,27 @@ export class PgPhiStore {
     return result.rows.map((r) => mapCondition(r as Record<string, unknown>));
   }
 
-  async deleteCondition(id: string, tenantId: string): Promise<boolean> {
+  async deleteCondition(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(
-      tenantId,
-      `DELETE FROM health_conditions WHERE id=$1 AND tenant_id=$2`,
-      [id, tenantId],
-    );
-    return (result.rowCount ?? 0) > 0;
+    const existing = options?.appendAuditInTxn ? await this.findConditionById(id, tenantId) : null;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = (await client.query(
+        `DELETE FROM health_conditions WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      )) as unknown as pg.QueryResult;
+      const deleted = (result.rowCount ?? 0) > 0;
+      // W1-SEC-10: PHI delete + audit share one COMMIT.
+      if (deleted && existing && options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, existing);
+      }
+      return deleted;
+    });
   }
 
   async createVaccination(
@@ -618,6 +686,9 @@ export class PgPhiStore {
     id: string,
     tenantId: string,
     data: Partial<VaccinationEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
   ): Promise<VaccinationEntity | null> {
     await this.ensureSchema();
     const existing = await this.findVaccinationById(id, tenantId);
@@ -632,27 +703,33 @@ export class PgPhiStore {
       updatedAt: new Date(),
     };
     const scope = await this.phiScope(tenantId, merged.studentId);
-    const result = await this.query(
-      tenantId,
-      `UPDATE health_vaccinations SET
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE health_vaccinations SET
         vaccine_name=$3, dose_number=$4, date_administered=$5::date, administered_by=$6,
         batch_number=$7, next_due_date=$8::date, notes=$9, updated_at=$10
       WHERE id=$1 AND tenant_id=$2 RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.vaccineName,
-        merged.doseNumber,
-        merged.dateAdministered,
-        merged.administeredBy,
-        merged.batchNumber,
-        merged.nextDueDate,
-        encryptPhi(merged.notes, scope),
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapVaccination(result.rows[0] as Record<string, unknown>);
+        [
+          id,
+          tenantId,
+          merged.vaccineName,
+          merged.doseNumber,
+          merged.dateAdministered,
+          merged.administeredBy,
+          merged.batchNumber,
+          merged.nextDueDate,
+          encryptPhi(merged.notes, scope),
+          merged.updatedAt,
+        ],
+      );
+      if (!result.rows[0]) return null;
+      const entity = mapVaccination(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: PHI write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async findVaccinationById(id: string, tenantId: string): Promise<VaccinationEntity | null> {
@@ -694,14 +771,29 @@ export class PgPhiStore {
     return result.rows.map((r) => mapVaccination(r as Record<string, unknown>));
   }
 
-  async deleteVaccination(id: string, tenantId: string): Promise<boolean> {
+  async deleteVaccination(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(
-      tenantId,
-      `DELETE FROM health_vaccinations WHERE id=$1 AND tenant_id=$2`,
-      [id, tenantId],
-    );
-    return (result.rowCount ?? 0) > 0;
+    const existing = options?.appendAuditInTxn
+      ? await this.findVaccinationById(id, tenantId)
+      : null;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = (await client.query(
+        `DELETE FROM health_vaccinations WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      )) as unknown as pg.QueryResult;
+      const deleted = (result.rowCount ?? 0) > 0;
+      // W1-SEC-10: PHI delete + audit share one COMMIT.
+      if (deleted && existing && options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, existing);
+      }
+      return deleted;
+    });
   }
 
   async createInsurance(
@@ -745,6 +837,9 @@ export class PgPhiStore {
     id: string,
     tenantId: string,
     data: Partial<InsuranceEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
   ): Promise<InsuranceEntity | null> {
     await this.ensureSchema();
     const existing = await this.findInsuranceById(id, tenantId);
@@ -759,26 +854,32 @@ export class PgPhiStore {
       updatedAt: new Date(),
     };
     const scope = await this.phiScope(tenantId, merged.studentId);
-    const result = await this.query(
-      tenantId,
-      `UPDATE health_insurance SET
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE health_insurance SET
         provider=$3, policy_number=$4, coverage_type=$5, start_date=$6::date,
         end_date=$7::date, notes=$8, updated_at=$9
       WHERE id=$1 AND tenant_id=$2 RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.provider,
-        encryptPhi(merged.policyNumber, scope),
-        merged.coverageType,
-        merged.startDate,
-        merged.endDate,
-        encryptPhi(merged.notes, scope),
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapInsurance(result.rows[0] as Record<string, unknown>);
+        [
+          id,
+          tenantId,
+          merged.provider,
+          encryptPhi(merged.policyNumber, scope),
+          merged.coverageType,
+          merged.startDate,
+          merged.endDate,
+          encryptPhi(merged.notes, scope),
+          merged.updatedAt,
+        ],
+      );
+      if (!result.rows[0]) return null;
+      const entity = mapInsurance(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: insurance write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
   }
 
   async findInsuranceById(id: string, tenantId: string): Promise<InsuranceEntity | null> {
@@ -809,14 +910,27 @@ export class PgPhiStore {
     );
   }
 
-  async deleteInsurance(id: string, tenantId: string): Promise<boolean> {
+  async deleteInsurance(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(
-      tenantId,
-      `DELETE FROM health_insurance WHERE id=$1 AND tenant_id=$2`,
-      [id, tenantId],
-    );
-    return (result.rowCount ?? 0) > 0;
+    const existing = options?.appendAuditInTxn ? await this.findInsuranceById(id, tenantId) : null;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = (await client.query(
+        `DELETE FROM health_insurance WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      )) as unknown as pg.QueryResult;
+      const deleted = (result.rowCount ?? 0) > 0;
+      // W1-SEC-10: insurance delete + audit share one COMMIT.
+      if (deleted && existing && options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, existing);
+      }
+      return deleted;
+    });
   }
 
   async createScreeningProgram(
@@ -860,6 +974,9 @@ export class PgPhiStore {
     id: string,
     tenantId: string,
     data: Partial<ScreeningProgramEntity>,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity | null> {
     await this.ensureSchema();
     const existing = await this.findScreeningProgramById(id, tenantId);
@@ -872,27 +989,63 @@ export class PgPhiStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(
-      tenantId,
-      `UPDATE health_screening_programs SET
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE health_screening_programs SET
         name=$3, description=$4, grade_level=$5, academic_period_id=$6,
         assessment_types=$7, scheduled_date=$8::date, status=$9, updated_at=$10
       WHERE id=$1 AND tenant_id=$2 RETURNING *`,
-      [
-        id,
-        tenantId,
-        merged.name,
-        merged.description,
-        merged.gradeLevel,
-        merged.academicPeriodId,
-        merged.assessmentTypes,
-        merged.scheduledDate,
-        merged.status,
-        merged.updatedAt,
-      ],
-    );
-    if (!result.rows[0]) return null;
-    return mapScreening(result.rows[0] as Record<string, unknown>);
+        [
+          id,
+          tenantId,
+          merged.name,
+          merged.description,
+          merged.gradeLevel,
+          merged.academicPeriodId,
+          merged.assessmentTypes,
+          merged.scheduledDate,
+          merged.status,
+          merged.updatedAt,
+        ],
+      );
+      if (!result.rows[0]) return null;
+      const entity = mapScreening(result.rows[0] as Record<string, unknown>);
+      // W1-SEC-10: screening write + audit share one COMMIT.
+      if (options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, entity);
+      }
+      return entity;
+    });
+  }
+
+  /**
+   * W1-SEC: screening programs previously had no delete path anywhere in this
+   * store — mirrors deleteInsurance's shape (no studentId scope, since
+   * screening programs are tenant-wide, not student-scoped).
+   */
+  async deleteScreeningProgram(
+    id: string,
+    tenantId: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    await this.ensureSchema();
+    const existing = options?.appendAuditInTxn
+      ? await this.findScreeningProgramById(id, tenantId)
+      : null;
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const result = (await client.query(
+        `DELETE FROM health_screening_programs WHERE id=$1 AND tenant_id=$2`,
+        [id, tenantId],
+      )) as unknown as pg.QueryResult;
+      const deleted = (result.rowCount ?? 0) > 0;
+      // W1-SEC-10: screening delete + audit share one COMMIT.
+      if (deleted && existing && options?.appendAuditInTxn) {
+        await options.appendAuditInTxn(client, existing);
+      }
+      return deleted;
+    });
   }
 
   async findScreeningProgramById(

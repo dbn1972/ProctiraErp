@@ -12,8 +12,8 @@ class ParentFeesScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'View open invoices and pay via sandbox '
-            '`POST /parent-portal/fees/invoices/:id/pay`.',
+            'Fee invoices are not available in this app build yet. '
+            'Use the parent web portal to view and pay invoices.',
             textAlign: TextAlign.center,
           ),
         ),

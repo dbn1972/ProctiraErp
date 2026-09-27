@@ -10,14 +10,44 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { listLibraryHolds, listLibraryItems } from '@/lib/api/library';
+import { listLibraryHoldsResult, listLibraryItemsResult } from '@/lib/api/library';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { PlaceHoldForm } from '../_components/place-hold-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryHoldsPage() {
   await requireSession();
-  const [items, holds] = await Promise.all([listLibraryItems(), listLibraryHolds()]);
+  const [itemsResult, holdsResult, studentOptions] = await Promise.all([
+    listLibraryItemsResult(),
+    listLibraryHoldsResult(),
+    loadStudentOptions(),
+  ]);
+
+  if (!holdsResult.ok) {
+    return (
+      <div className="space-y-6 p-6">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Holds</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            FIFO reservation queue. Returning a copy promotes the next patron.
+          </p>
+        </div>
+        <ListLoadFailure
+          kind={holdsResult.kind}
+          status={holdsResult.status}
+          returnTo="/library/holds"
+        />
+      </div>
+    );
+  }
+
+  const items = itemsResult.ok ? itemsResult.items : [];
+  const holds = holdsResult.items;
+  const studentLabels = new Map(studentOptions.map((o) => [o.id, o.label]));
+  const itemLabels = new Map(items.map((item) => [item.id, item.title]));
 
   return (
     <div className="space-y-6 p-6">
@@ -33,7 +63,15 @@ export default async function LibraryHoldsPage() {
         </Button>
       </div>
 
-      <PlaceHoldForm items={items} />
+      {itemsResult.ok ? (
+        <PlaceHoldForm items={items} studentOptions={studentOptions} />
+      ) : (
+        <ListLoadFailure
+          kind={itemsResult.kind}
+          status={itemsResult.status}
+          returnTo="/library/holds"
+        />
+      )}
 
       <Card>
         <CardHeader>
@@ -58,10 +96,15 @@ export default async function LibraryHoldsPage() {
                   data-testid="library-hold-row"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    {hold.status} · position {hold.position}
+                    {resolveEntityLabel(hold.itemId, itemLabels, 'Title')} · {hold.status} ·
+                    position {hold.position}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    item {hold.itemId.slice(0, 8)}
+                    {resolveEntityLabel(
+                      hold.studentId ?? hold.patronUserId,
+                      studentLabels,
+                      hold.studentId ? 'Student' : 'Patron',
+                    )}
                     {hold.expiresAt ? ` · expires ${hold.expiresAt.slice(0, 10)}` : ''}
                   </p>
                 </li>

@@ -2,6 +2,7 @@
  * Parent portal service client.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, type ListResult } from './list-result';
 
 export interface ParentChildLink {
   id: string;
@@ -402,6 +403,10 @@ export async function getSelfPalPlan() {
   return fetchAcademic<{ data: PalPlanItem[]; meta: AcademicMeta }>('/student-portal/me/pal');
 }
 
+export function listChildrenResult(): Promise<ListResult<ParentChildLink>> {
+  return fetchList<ParentChildLink>('/parent-portal/children', { next: { revalidate: 0 } });
+}
+
 export async function listChildren(): Promise<ParentChildLink[]> {
   const result = await gatewayFetch<{ data: ParentChildLink[] }>('/parent-portal/children', {
     throwOnError: false,
@@ -425,12 +430,20 @@ export async function linkChild(input: LinkChildInput): Promise<ParentChildLink>
   return result.data;
 }
 
+export function listThreadsResult(): Promise<ListResult<MessageThread>> {
+  return fetchList<MessageThread>('/parent-portal/messages/threads', { next: { revalidate: 0 } });
+}
+
 export async function listThreads(): Promise<MessageThread[]> {
-  const result = await gatewayFetch<{ data: MessageThread[] }>('/parent-portal/messages/threads', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listThreadsResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load conversations',
+    });
+  }
+  return result.items;
 }
 
 export async function createThread(
@@ -453,15 +466,22 @@ export async function createThread(
   return result.data;
 }
 
+export function listMessagesResult(threadId: string): Promise<ListResult<Message>> {
+  return fetchList<Message>(`/parent-portal/messages/threads/${threadId}/messages`, {
+    next: { revalidate: 0 },
+  });
+}
+
 export async function listMessages(threadId: string): Promise<Message[]> {
-  const result = await gatewayFetch<{ data: Message[] }>(
-    `/parent-portal/messages/threads/${threadId}/messages`,
-    {
-      throwOnError: false,
-      next: { revalidate: 0 },
-    },
-  );
-  return result.data?.data ?? [];
+  const result = await listMessagesResult(threadId);
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load messages',
+    });
+  }
+  return result.items;
 }
 
 export async function replyToThread(threadId: string, body: string): Promise<Message> {
@@ -482,12 +502,20 @@ export async function replyToThread(threadId: string, body: string): Promise<Mes
   return result.data;
 }
 
+export function listConsentsResult(): Promise<ListResult<ConsentRequest>> {
+  return fetchList<ConsentRequest>('/parent-portal/consents', { next: { revalidate: 0 } });
+}
+
 export async function listConsents(): Promise<ConsentRequest[]> {
-  const result = await gatewayFetch<{ data: ConsentRequest[] }>('/parent-portal/consents', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  const result = await listConsentsResult();
+  if (!result.ok) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.kind,
+      message: 'Failed to load consent requests',
+    });
+  }
+  return result.items;
 }
 
 export async function decideConsent(

@@ -4,12 +4,25 @@
 import Link from 'next/link';
 
 import { requireSession } from '@/lib/auth/server';
+import { listInvoicesResult } from '@/lib/api/fees';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { ScholarshipNettingForm } from '../_components/scholarship-netting-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function FeesScholarshipNettingPage() {
   await requireSession();
+  const [studentOptions, invoicesResult] = await Promise.all([
+    loadStudentOptions(),
+    listInvoicesResult('staff'),
+  ]);
+  const invoiceOptions = invoicesResult.ok
+    ? invoicesResult.items.map((invoice) => ({
+        id: invoice.id,
+        label: invoice.invoiceNumber?.trim() || invoice.title || 'Invoice',
+        searchText: `${invoice.title} ${invoice.invoiceNumber ?? ''} ${invoice.status}`,
+      }))
+    : [];
 
   return (
     <div className="space-y-6 p-6">
@@ -29,7 +42,11 @@ export default async function FeesScholarshipNettingPage() {
           Scholarships module for that. Not a Blackbaud Tuition complete claim.
         </p>
       </div>
-      <ScholarshipNettingForm />
+      <ScholarshipNettingForm
+        studentOptions={studentOptions}
+        invoiceOptions={invoiceOptions}
+        invoiceDirectoryFailed={!invoicesResult.ok}
+      />
     </div>
   );
 }

@@ -2,6 +2,10 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/auth/auth_bloc.dart';
+import '../../../core/di/injector.dart';
+import '../../../core/storage/secure_storage.dart';
+
 // --- Events ---
 
 abstract class ProfileEvent extends Equatable {
@@ -129,15 +133,22 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ) async {
     emit(state.copyWith(status: ProfileStatus.loading));
 
-    // In a real app, this would fetch from secure storage / API.
-    // For now, emit a loaded state with placeholder data.
+    final SecureStorage storage = getIt<SecureStorage>();
+    final AuthState auth = getIt<AuthBloc>().state;
+    final String? storedId = await storage.readUserId();
+    final String? email = await storage.readUserEmail();
+    final String? displayName = await storage.readUserDisplayName();
+    final String userId = auth.userId ?? storedId ?? '';
+
     emit(state.copyWith(
       status: ProfileStatus.loaded,
-      displayName: 'User',
-      email: '',
+      displayName: (displayName != null && displayName.isNotEmpty)
+          ? displayName
+          : (email != null && email.isNotEmpty ? email : 'Signed-in user'),
+      email: email ?? '',
       phone: '',
-      userId: '',
-      role: 'parent',
+      userId: userId,
+      role: '',
     ));
   }
 
@@ -162,8 +173,18 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(status: ProfileStatus.saving));
 
     try {
-      // In a real app, persist to API + local storage.
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+      // Profile edit is device-local until a user-profile write API ships.
+      final SecureStorage storage = getIt<SecureStorage>();
+      final String userId = state.userId.isNotEmpty
+          ? state.userId
+          : (await storage.readUserId() ?? '');
+      if (userId.isNotEmpty) {
+        await storage.writeUserProfile(
+          userId: userId,
+          email: event.email ?? state.email,
+          displayName: event.displayName ?? state.displayName,
+        );
+      }
 
       emit(state.copyWith(
         status: ProfileStatus.loaded,

@@ -20,20 +20,26 @@ import { breakGlassDecisionAction } from '../actions';
 interface ApprovalActionsProps {
   id: string;
   status: BreakGlassStatus;
+  /** False when the signed-in operator filed this request. */
+  canApprove?: boolean;
 }
 
-export function ApprovalActions({ id, status }: ApprovalActionsProps) {
+export function ApprovalActions({ id, status, canApprove = true }: ApprovalActionsProps) {
   if (status === 'pending_approval') {
     return (
-      <div className="flex gap-2">
-        <DecisionDialog
-          id={id}
-          decision="approve"
-          label="Approve"
-          tone="default"
-          title="Approve break-glass request"
-          description="Granting elevated access. Add a justification — recorded with your operator identity."
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        {canApprove ? (
+          <DecisionDialog
+            id={id}
+            decision="approve"
+            label="Approve"
+            tone="default"
+            title="Approve break-glass request"
+            description="Granting elevated access. Add a justification — recorded with your operator identity."
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">You cannot approve your own request.</p>
+        )}
         <DecisionDialog
           id={id}
           decision="deny"

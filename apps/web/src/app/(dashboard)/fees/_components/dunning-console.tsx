@@ -25,6 +25,9 @@ import type {
   ReminderSuppression,
   SendRemindersResult,
 } from '@/lib/api/fees';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
+import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 function formatMoney(cents: number, currency = 'INR'): string {
   return `${currency} ${(cents / 100).toFixed(2)}`;
@@ -36,12 +39,16 @@ export function DunningConsole({
   suppressions,
   audits,
   honestyNote,
+  studentLabels = {},
+  studentOptions = [],
 }: {
   overdue: OverdueReminderRow[];
   asOf: string;
   suppressions: ReminderSuppression[];
   audits: ReminderSendAudit[];
   honestyNote: string;
+  studentLabels?: Record<string, string>;
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const hydrated = useHydrated();
@@ -55,11 +62,28 @@ export function DunningConsole({
   const [error, setError] = useState<string | null>(null);
   const [sendResult, setSendResult] = useState<SendRemindersResult | null>(null);
   const [pending, startTransition] = useTransition();
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [removeSuppressionId, setRemoveSuppressionId] = useState<string | null>(null);
 
   const selectable = useMemo(
     () => overdue.filter((row) => !row.suppressed).map((row) => row.invoiceId),
     [overdue],
   );
+  const invoiceOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: EntityLabelOption[] = [];
+    for (const row of overdue) {
+      if (seen.has(row.invoiceId)) continue;
+      seen.add(row.invoiceId);
+      const number = row.invoiceNumber?.trim();
+      options.push({
+        id: row.invoiceId,
+        label: number || resolveEntityLabel(row.invoiceId, {}, 'Invoice'),
+        searchText: `${number ?? ''} ${row.studentId}`,
+      });
+    }
+    return options;
+  }, [overdue]);
 
   function toggleInvoice(invoiceId: string) {
     setSelected((prev) =>
@@ -88,6 +112,7 @@ export function DunningConsole({
       }
       setSendResult(result.data);
       setSelected([]);
+      setConfirmSend(false);
       router.refresh();
     });
   }
@@ -119,6 +144,7 @@ export function DunningConsole({
         setError(result.error);
         return;
       }
+      setRemoveSuppressionId(null);
       router.refresh();
     });
   }
@@ -213,7 +239,7 @@ export function DunningConsole({
                 </FormField>
                 <Button
                   type="button"
-                  onClick={onSend}
+                  onClick={() => setConfirmSend(true)}
                   disabled={
                     !hydrated ||
                     pending ||
@@ -251,10 +277,11 @@ export function DunningConsole({
                           />
                         </td>
                         <td className="py-2 pr-2">
-                          <code className="text-xs">{row.invoiceNumber ?? row.invoiceId}</code>
+                          {row.invoiceNumber?.trim() ||
+                            resolveEntityLabel(row.invoiceId, {}, 'Invoice')}
                         </td>
                         <td className="py-2 pr-2">
-                          <code className="text-xs">{row.studentId}</code>
+                          {resolveEntityLabel(row.studentId, studentLabels, 'Student')}
                         </td>
                         <td className="py-2 pr-2">{formatMoney(row.amountCents, row.currency)}</td>
                         <td className="py-2 pr-2">{row.overdueDays}d</td>
@@ -287,7 +314,7 @@ export function DunningConsole({
             <ul className="space-y-1 text-sm">
               {sendResult.results.map((row, index) => (
                 <li key={`${row.invoiceId}-${row.channel}-${index}`}>
-                  <code className="text-xs">{row.invoiceId.slice(0, 8)}</code> · {row.channel}
+                  {resolveEntityLabel(row.invoiceId, {}, 'Invoice')} · {row.channel}
                   {row.messageId
                     ? ` · ${row.messageId}`
                     : ` · skipped (${row.skippedReason ?? 'unknown'})`}
@@ -313,12 +340,20 @@ export function DunningConsole({
               aria-busy={pending}
               data-testid="dunning-suppression-form"
             >
-              <FormField id="sup-student" label="Student UUID">
-                <Input id="sup-student" name="studentId" disabled={!hydrated || pending} />
-              </FormField>
-              <FormField id="sup-invoice" label="Invoice UUID">
-                <Input id="sup-invoice" name="invoiceId" disabled={!hydrated || pending} />
-              </FormField>
+              <EntitySearchSelect
+                id="sup-student"
+                name="studentId"
+                label="Student (optional)"
+                options={studentOptions}
+              />
+              <EntitySearchSelect
+                id="sup-invoice"
+                name="invoiceId"
+                label="Invoice (optional)"
+                options={invoiceOptions}
+                placeholder="Search invoices…"
+                emptyMessage="No overdue invoices are loaded. You can still suppress by student."
+              />
               <FormField id="sup-reason" label="Reason" required>
                 <Input id="sup-reason" name="reason" required disabled={!hydrated || pending} />
               </FormField>
@@ -342,9 +377,11 @@ export function DunningConsole({
                     <div>
                       <p>{row.reason}</p>
                       <p className="text-xs text-muted-foreground">
-                        {row.studentId ? `student ${row.studentId}` : null}
+                        {row.studentId
+                          ? resolveEntityLabel(row.studentId, studentLabels, 'Student')
+                          : null}
                         {row.studentId && row.invoiceId ? ' · ' : null}
-                        {row.invoiceId ? `invoice ${row.invoiceId}` : null}
+                        {row.invoiceId ? resolveEntityLabel(row.invoiceId, {}, 'Invoice') : null}
                       </p>
                     </div>
                     <Button
@@ -352,7 +389,7 @@ export function DunningConsole({
                       variant="outline"
                       size="sm"
                       disabled={!hydrated || pending}
-                      onClick={() => onRemoveSuppression(row.id)}
+                      onClick={() => setRemoveSuppressionId(row.id)}
                     >
                       Remove
                     </Button>
@@ -383,8 +420,8 @@ export function DunningConsole({
                       {row.channel} · <code className="text-xs">{row.messageId}</code>
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(row.createdAt).toLocaleString()} · invoice{' '}
-                      <code className="text-xs">{row.invoiceId}</code>
+                      {new Date(row.createdAt).toLocaleString()} ·{' '}
+                      {resolveEntityLabel(row.invoiceId, {}, 'Invoice')}
                     </p>
                   </li>
                 ))}
@@ -393,6 +430,29 @@ export function DunningConsole({
           </CardContent>
         </Card>
       </div>
+      <ConfirmActionDialog
+        open={confirmSend}
+        onOpenChange={setConfirmSend}
+        title="Send fee reminders?"
+        description={`Sandbox reminders will be queued for ${selected.length} selected invoice${selected.length === 1 ? '' : 's'}. Confirm channels and selection before sending.`}
+        confirmLabel="Send reminders"
+        pending={pending}
+        onConfirm={onSend}
+        testId="dunning-send-confirm"
+      />
+      <ConfirmActionDialog
+        open={Boolean(removeSuppressionId)}
+        onOpenChange={(open) => !open && setRemoveSuppressionId(null)}
+        title="Remove this suppression?"
+        description="The student or invoice will start receiving dunning reminders again."
+        confirmLabel="Remove suppression"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          if (removeSuppressionId) onRemoveSuppression(removeSuppressionId);
+        }}
+        testId="dunning-remove-suppression-confirm"
+      />
     </div>
   );
 }

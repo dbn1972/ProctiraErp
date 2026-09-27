@@ -3,7 +3,11 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans, listInvoices } from '@/lib/api/fees';
+import { listFeePlansResult, listInvoicesResult } from '@/lib/api/fees';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { humanizeStatus } from '@/lib/status-label';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { NewInvoiceForm } from '../_components/new-invoice-form';
 import { ConcessionDialog } from '../_components/concession-dialog';
 import { PayInvoiceStaffButton } from '../_components/pay-invoice-staff-button';
@@ -18,7 +22,15 @@ export const dynamic = 'force-dynamic';
 export default async function FeesInvoicesPage() {
   await requireSession();
   const locale = await getLocale();
-  const [plans, invoices] = await Promise.all([listFeePlans(), listInvoices('staff')]);
+  const [plansResult, invoicesResult, studentOptions] = await Promise.all([
+    listFeePlansResult(),
+    listInvoicesResult('staff'),
+    loadStudentOptions(),
+  ]);
+  const plans = plansResult.ok ? plansResult.items : [];
+  const invoices = invoicesResult.ok ? invoicesResult.items : [];
+  const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
+  const planLabels = new Map(plans.map((plan) => [plan.id, plan.name]));
 
   return (
     <div className="space-y-6 p-6">
@@ -29,17 +41,27 @@ export default async function FeesInvoicesPage() {
         </p>
       </div>
 
-      <NewInvoiceForm plans={plans} />
+      <NewInvoiceForm plans={plans} studentOptions={studentOptions} />
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Invoices</CardTitle>
           <CardDescription>
-            {invoices.length === 0 ? 'No invoices yet.' : `${invoices.length} invoice(s).`}
+            {!invoicesResult.ok
+              ? 'Invoices could not be loaded.'
+              : invoices.length === 0
+                ? 'No invoices yet.'
+                : `${invoices.length} invoice(s).`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {invoices.length === 0 ? (
+          {!invoicesResult.ok ? (
+            <ListLoadFailure
+              kind={invoicesResult.kind}
+              status={invoicesResult.status}
+              returnTo="/fees/invoices"
+            />
+          ) : invoices.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               Issue an invoice from a plan or ad-hoc amount.
             </p>
@@ -53,10 +75,13 @@ export default async function FeesInvoicesPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{invoice.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {formatAmount(invoice.amountCents, invoice.currency, locale)} · Student{' '}
-                    {invoice.studentId.slice(0, 8)}… · {invoice.status}
+                    {formatAmount(invoice.amountCents, invoice.currency, locale)} ·{' '}
+                    {resolveEntityLabel(invoice.studentId, studentLabels, 'Student')} ·{' '}
+                    {humanizeStatus(invoice.status)}
                     {invoice.invoiceNumber ? ` · ${invoice.invoiceNumber}` : ''}
-                    {invoice.planId ? ` · plan ${invoice.planId.slice(0, 8)}…` : ''}
+                    {invoice.planId
+                      ? ` · ${resolveEntityLabel(invoice.planId, planLabels, 'Plan')}`
+                      : ''}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {invoice.status === 'open' ? (

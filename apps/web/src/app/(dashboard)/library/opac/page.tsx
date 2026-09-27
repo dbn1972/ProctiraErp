@@ -10,7 +10,8 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { searchLibraryOpac } from '@/lib/api/library';
+import { searchLibraryOpacResult } from '@/lib/api/library';
+import { ListLoadFailure } from '@/components/route-state/list-load-failure';
 import { OpacSearchForm } from '../_components/opac-search-form';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export default async function LibraryOpacPage({
   await requireSession();
   const { q = '' } = await searchParams;
   const query = q.trim();
-  const items = query ? await searchLibraryOpac(query) : [];
+  const result = query ? await searchLibraryOpacResult(query) : null;
 
   return (
     <div className="space-y-6 p-6">
@@ -45,15 +46,21 @@ export default async function LibraryOpacPage({
         <CardHeader>
           <CardTitle className="text-base">Results</CardTitle>
           <CardDescription>
-            {query
-              ? items.length === 0
-                ? 'No titles match this search.'
-                : `${items.length} title${items.length === 1 ? '' : 's'}.`
-              : 'Enter a title, author, ISBN, or barcode.'}
+            {result && !result.ok
+              ? 'Catalogue search could not be completed.'
+              : query
+                ? result && result.ok && result.items.length === 0
+                  ? 'No titles match this search.'
+                  : result && result.ok
+                    ? `${result.items.length} title${result.items.length === 1 ? '' : 's'}.`
+                    : 'Enter a title, author, ISBN, or barcode.'
+                : 'Enter a title, author, ISBN, or barcode.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
+          {result && !result.ok ? (
+            <ListLoadFailure kind={result.kind} status={result.status} returnTo="/library/opac" />
+          ) : !result || result.items.length === 0 ? (
             <p
               className="text-sm text-muted-foreground"
               role="status"
@@ -63,7 +70,7 @@ export default async function LibraryOpacPage({
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
-              {items.map((item) => (
+              {result.items.map((item) => (
                 <li
                   key={item.id}
                   className="py-3 first:pt-0 last:pb-0"

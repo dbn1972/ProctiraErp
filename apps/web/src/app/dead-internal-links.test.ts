@@ -63,8 +63,8 @@ const APP_DIR = __dirname;
  *
  * This exclusion is only honest while the components stay unrouted. Routing a page that
  * renders `<MarketingLayout>` would publish all 45, which is exactly why the `/legal/*`
- * pages added alongside this file use `LegalDocumentChrome` instead. The assertion below
- * pins that: if any route starts rendering this chrome, the guard fails.
+ * pages use `LegalDocumentChrome` and `/track` uses `PublicTrackHeader`. The assertion
+ * below pins that: if any route starts rendering this chrome, the guard fails.
  */
 const UNROUTED_MARKETING_COMPONENTS = [
   'features/marketing/',
@@ -204,11 +204,6 @@ describe('internal links resolve to a route', () => {
       // Has no `page.tsx` beneath it, so it renders for no route. Removing the group or
       // adding a page is what would make its chrome live.
       '(marketing)/layout.tsx',
-      // Pre-existing and reachable: `/track` is routed under this group, so the marketing
-      // *header*'s dead links (5 nav targets) are already published to anonymous
-      // applicants. Not introduced here and not fixed here — recorded so it is a known
-      // entry rather than an unnoticed one.
-      '(public)/layout.tsx',
     ]);
   });
 

@@ -180,6 +180,30 @@ export async function verifyMfa(mfaToken: string, code: string): Promise<SignInR
   }
 }
 
+/** Resend an SMS MFA challenge (no-op for authenticator-app challenges). */
+export async function resendMfa(mfaToken: string): Promise<SignInResult> {
+  try {
+    const response = await fetch(AUTH_ENDPOINTS.RESEND_MFA, {
+      method: 'POST',
+      credentials: 'include',
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ mfaToken }),
+    });
+    const data: { message?: string } = await safeJson(response);
+    if (response.ok) {
+      return { success: true, message: data.message ?? 'Code resent.' };
+    }
+    return {
+      success: false,
+      message:
+        data.message ||
+        'Unable to resend a code for this sign-in method. Use your authenticator app, or sign in again.',
+    };
+  } catch {
+    return { success: false, message: 'Network error. Please try again.' };
+  }
+}
+
 /**
  * Performs a token refresh by calling the refresh route handler.
  * The refresh token is sent automatically via httpOnly cookie.
@@ -220,7 +244,7 @@ export async function fetchSession(
       signal: options.signal,
       cache: 'no-store',
     });
-    const data = (await safeJson(response)) as ClientSessionSnapshot;
+    const data = await safeJson<ClientSessionSnapshot>(response);
     return {
       authenticated: Boolean(data.authenticated),
       user: data.user ?? null,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -15,9 +15,12 @@ import {
 } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 import {
   addMessMenuAction,
   createMessPlanAction,
+  loadStudentDirectoryAction,
   subscribeMessAction,
 } from '../../campus-ops-actions';
 import type { Hostel, HostelMessPlan } from '@/lib/api/hostel';
@@ -31,6 +34,25 @@ export function MessOpsForms({ hostels, plans }: { hostels: Hostel[]; plans: Hos
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [studentOptions, setStudentOptions] = useState<EntityLabelOption[]>([]);
+  const [directoryReady, setDirectoryReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadStudentDirectoryAction()
+      .then((options) => {
+        if (!cancelled) setStudentOptions(options);
+      })
+      .catch(() => {
+        if (!cancelled) setStudentOptions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setDirectoryReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function onCreatePlan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -250,14 +272,29 @@ export function MessOpsForms({ hostels, plans }: { hostels: Hostel[]; plans: Hos
                 ))}
               </select>
             </FormField>
-            <FormField id="sub-student" label="Student UUID" required>
-              <Input id="sub-student" name="studentId" className="h-11 min-h-11" />
-            </FormField>
+            {directoryReady ? (
+              <EntitySearchSelect
+                id="sub-student"
+                name="studentId"
+                label="Student"
+                options={studentOptions}
+                required
+                emptyMessage="Student directory is not loaded. Add students before subscribing a resident."
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground" role="status">
+                Loading the student directory…
+              </p>
+            )}
             <FormField id="sub-start" label="Start date" required>
               <Input id="sub-start" name="startDate" type="date" className="h-11 min-h-11" />
             </FormField>
             <div className="md:col-span-3">
-              <Button type="submit" disabled={pending} className="min-h-11">
+              <Button
+                type="submit"
+                disabled={pending || !directoryReady || studentOptions.length === 0}
+                className="min-h-11"
+              >
                 {pending ? 'Saving…' : 'Subscribe'}
               </Button>
             </div>

@@ -18,6 +18,8 @@
 import { useCallback, useEffect, useReducer } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { resolveEntityLabel } from '@/lib/entity-label';
+
 import {
   Alert,
   AlertDescription,
@@ -358,7 +360,7 @@ export default function AuditViewer(): JSX.Element {
                       <TableCell>
                         <span className="font-mono text-xs">{entry.entityType}</span>
                         <span className="text-muted-foreground text-xs ml-1">
-                          ({entry.entityId.slice(0, 8)}…)
+                          ({resolveEntityLabel(entry.entityId, {}, entry.entityType || 'Record')})
                         </span>
                       </TableCell>
                       <TableCell>

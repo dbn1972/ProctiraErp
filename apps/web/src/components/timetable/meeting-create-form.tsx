@@ -83,13 +83,9 @@ export function MeetingCreateForm(props: {
             ))}
           </select>
         ) : (
-          <input
-            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-            required
-            placeholder="Section UUID"
-          />
+          <p className="text-sm text-muted-foreground" role="status">
+            No sections are available yet. Create a section first, then add meetings.
+          </p>
         )}
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -108,13 +104,9 @@ export function MeetingCreateForm(props: {
             ))}
           </select>
         ) : (
-          <input
-            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
-            value={staffId}
-            onChange={(e) => setStaffId(e.target.value)}
-            required
-            placeholder="Search staff directory unavailable — enter id"
-          />
+          <p className="text-sm text-muted-foreground" role="status">
+            Staff directory is unavailable. Try again when the directory loads.
+          </p>
         )}
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -162,7 +154,16 @@ export function MeetingCreateForm(props: {
         </select>
       </label>
       <div className="flex items-end">
-        <Button type="submit" size="sm" disabled={pending} className="w-full">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={
+            pending ||
+            !(props.sectionOptions && props.sectionOptions.length > 0) ||
+            !(props.staffOptions && props.staffOptions.length > 0)
+          }
+          className="w-full"
+        >
           {pending ? 'Saving…' : 'Add meeting'}
         </Button>
       </div>

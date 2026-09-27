@@ -3,13 +3,17 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import type { ParentChildLink } from '@/lib/api/parent-portal';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 export function ChildSwitcher({
   childrenLinks,
   selectedId,
+  studentLabels = {},
 }: {
   childrenLinks: ParentChildLink[];
   selectedId: string;
+  /** Map of studentId → display name when known. */
+  studentLabels?: Record<string, string>;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -32,7 +36,7 @@ export function ChildSwitcher({
       >
         {childrenLinks.map((link) => (
           <option key={link.id} value={link.studentId}>
-            Student {link.studentId.slice(0, 8)}…
+            {resolveEntityLabel(link.studentId, studentLabels, 'Child')}
           </option>
         ))}
       </select>

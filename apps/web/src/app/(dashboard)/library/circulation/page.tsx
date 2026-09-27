@@ -3,13 +3,14 @@ import Link from 'next/link';
 import { Button } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryItems } from '@/lib/api/library';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { CirculationDesk } from '../_components/circulation-desk';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryCirculationPage() {
   const session = await requireSession();
-  const items = await listLibraryItems();
+  const [items, studentOptions] = await Promise.all([listLibraryItems(), loadStudentOptions()]);
 
   return (
     <div className="space-y-6 p-6">
@@ -24,7 +25,11 @@ export default async function LibraryCirculationPage() {
           <Link href="/library">Back to library</Link>
         </Button>
       </div>
-      <CirculationDesk items={items} patronUserId={session.user.sub} />
+      <CirculationDesk
+        items={items}
+        patronUserId={session.user.sub}
+        studentOptions={studentOptions}
+      />
     </div>
   );
 }

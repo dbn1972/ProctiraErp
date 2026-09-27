@@ -2,6 +2,7 @@
  * Communication service client — campaigns and emergency blasts.
  */
 import { GatewayError, gatewayFetch } from './gateway';
+import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
 
 export interface CommunicationCampaign {
   id: string;
@@ -54,12 +55,12 @@ export interface CreateEmergencyBlastInput {
   createdBy?: string;
 }
 
+export async function listCampaignsResult(): Promise<ListResult<CommunicationCampaign>> {
+  return fetchList<CommunicationCampaign>('/communication/campaigns', { next: { revalidate: 0 } });
+}
+
 export async function listCampaigns(): Promise<CommunicationCampaign[]> {
-  const result = await gatewayFetch<{ data: CommunicationCampaign[] }>('/communication/campaigns', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return itemsOrEmpty(await listCampaignsResult());
 }
 
 export async function createCampaign(input: CreateCampaignInput): Promise<CommunicationCampaign> {

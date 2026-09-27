@@ -27,7 +27,7 @@ export default async function HostelFeesPage() {
             Hostel fee structures
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Room type × term amounts. Fees consumes GET `/hostel/fee-structures/summary`.
+            Room type and term amounts used when assigning beds.
           </p>
         </div>
         <Button asChild variant="outline">

@@ -68,7 +68,16 @@ test.describe('Insights & System — write validation (ungated)', () => {
     // Mobile shell also renders an h1 brand title — target the page heading by name.
     await expect(page.getByRole('heading', { name: 'New report', exact: true })).toBeVisible();
     await expect(page.getByTestId('scaffold-mode-banner')).toBeVisible();
-    await expect(page.getByTestId('report-builder-form')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const reportForm = page.getByTestId('report-builder-form');
+    await expect(async () => {
+      await expect(reportForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(reportForm).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.getByRole('button', { name: /generate report/i }).click();
     await expect(page.getByTestId('report-builder-error')).toContainText(

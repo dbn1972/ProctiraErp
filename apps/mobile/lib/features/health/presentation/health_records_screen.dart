@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/student/student_route.dart';
+import '../../students/presentation/student_picker.dart';
 import '../bloc/health_bloc.dart';
 import '../data/health_repository.dart';
 
@@ -15,15 +17,21 @@ class HealthRecordsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<HealthBloc>(
-      create: (BuildContext context) {
-        final HealthBloc bloc = HealthBloc(
-          repository: context.read<HealthRepository>(),
-        );
-        bloc.add(HealthRecordsRequested(studentId: studentId));
-        return bloc;
-      },
-      child: const _HealthRecordsView(),
+    final String id = studentId.trim();
+    return StudentRequiredGate(
+      studentId: id,
+      title: 'Health records',
+      locationFor: (String picked) => withStudentQuery('/health', picked),
+      child: BlocProvider<HealthBloc>(
+        create: (BuildContext context) {
+          final HealthBloc bloc = HealthBloc(
+            repository: context.read<HealthRepository>(),
+          );
+          bloc.add(HealthRecordsRequested(studentId: id));
+          return bloc;
+        },
+        child: const _HealthRecordsView(),
+      ),
     );
   }
 }

@@ -4,6 +4,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords, listNurseIncidents } from '@/lib/api/health';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +14,7 @@ export default async function HealthIncidentsPage() {
   if (!canAccessHealthRecords(session.user.roles ?? [])) {
     return <p className="p-6 text-sm">You need a health role.</p>;
   }
-  const rows = await listNurseIncidents();
+  const [rows, studentLabels] = await Promise.all([listNurseIncidents(), loadStudentLabelMap()]);
 
   return (
     <div className="space-y-6 p-6">
@@ -50,8 +52,8 @@ export default async function HealthIncidentsPage() {
                     {r.category} · {r.severity}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {r.incidentAt.slice(0, 16).replace('T', ' ')} · student{' '}
-                    {r.studentId.slice(0, 8)}… · {r.reportedBy}
+                    {r.incidentAt.slice(0, 16).replace('T', ' ')} ·{' '}
+                    {resolveEntityLabel(r.studentId, studentLabels, 'Student')} · {r.reportedBy}
                   </p>
                 </li>
               ))}

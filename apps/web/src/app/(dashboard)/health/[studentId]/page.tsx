@@ -121,9 +121,11 @@ export default async function HealthRecordPage(props: PageProps) {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button size="sm">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Record screening
+          <Button asChild size="sm">
+            <Link href="/health/screenings">
+              <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Screening programs
+            </Link>
           </Button>
         </div>
       </div>
@@ -268,7 +270,10 @@ export default async function HealthRecordPage(props: PageProps) {
               <CardTitle className="text-base">Actions</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-2">
-              <Button className="w-full justify-center">Edit record</Button>
+              <p className="text-sm text-muted-foreground" role="status">
+                Profile edits are recorded from vaccinations, allergies, and nurse visits — there is
+                no separate edit form for this summary.
+              </p>
               <Button asChild variant="outline" className="w-full justify-center">
                 <Link href="/health">Back to records</Link>
               </Button>

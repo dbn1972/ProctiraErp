@@ -1,9 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -52,15 +60,25 @@ export function TenantLifecycleActions({ tenantId, status }: Props) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {actions.map((action) => (
-          <ActionButton
-            key={action.value}
-            value={action.value}
-            label={action.label}
-            tone={action.tone}
-            disabled={reason.trim().length < 10}
-          />
-        ))}
+        {actions.map((action) =>
+          action.value === 'decommission' || action.value === 'offboard' ? (
+            <ConfirmedActionButton
+              key={action.value}
+              value={action.value}
+              label={action.label}
+              tone={action.tone}
+              disabled={reason.trim().length < 10}
+            />
+          ) : (
+            <ActionButton
+              key={action.value}
+              value={action.value}
+              label={action.label}
+              tone={action.tone}
+              disabled={reason.trim().length < 10}
+            />
+          ),
+        )}
       </div>
     </form>
   );
@@ -91,6 +109,74 @@ function availableActions(status: TenantStatus): ActionDef[] {
     default:
       return [];
   }
+}
+
+const CONFIRM_COPY: Record<'decommission' | 'offboard', { title: string; description: string }> = {
+  decommission: {
+    title: 'Decommission this tenant?',
+    description:
+      'Decommission starts offboarding and removes active access. The justification above is stored on the audit log. This is a separate confirmation from the reason length check.',
+  },
+  offboard: {
+    title: 'Permanently offboard this tenant?',
+    description:
+      'Offboard deletes the tenant record. This cannot be undone from the console. The justification above is stored on the audit log.',
+  },
+};
+
+function ConfirmedActionButton({
+  value,
+  label,
+  tone,
+  disabled,
+}: {
+  value: 'decommission' | 'offboard';
+  label: string;
+  tone: 'default' | 'destructive' | 'outline';
+  disabled: boolean;
+}) {
+  const { pending } = useFormStatus();
+  const [open, setOpen] = useState(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const copy = CONFIRM_COPY[value];
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant={tone}
+        disabled={pending || disabled}
+        onClick={() => setOpen(true)}
+      >
+        {label}
+      </Button>
+      <button
+        ref={submitRef}
+        type="submit"
+        name="action"
+        value={value}
+        className="hidden"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{copy.title}</DialogTitle>
+            <DialogDescription>{copy.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" variant={tone} onClick={() => submitRef.current?.click()}>
+              Confirm {label.toLowerCase()}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 function ActionButton({

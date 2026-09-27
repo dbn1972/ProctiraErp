@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proc
 
 import { ChildSwitcher } from './child-switcher';
 import type { ParentChildLink } from '@/lib/api/parent-portal';
+import { loadStudentLabelsForIds } from '@/lib/load-entity-labels';
 
 export function pickChild(
   links: ParentChildLink[],
@@ -19,7 +20,7 @@ export function firstSearchParam(value: string | string[] | undefined): string |
   return value;
 }
 
-export function AcademicFrame({
+export async function AcademicFrame({
   title,
   description,
   childrenLinks,
@@ -42,6 +43,13 @@ export function AcademicFrame({
   children: React.ReactNode;
   testId: string;
 }) {
+  const studentLabels =
+    childrenLinks && childrenLinks.length > 0
+      ? Object.fromEntries(
+          await loadStudentLabelsForIds(childrenLinks.map((link) => link.studentId)),
+        )
+      : {};
+
   return (
     <div className="space-y-6" data-testid={testId}>
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -50,7 +58,11 @@ export function AcademicFrame({
           <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         {childrenLinks && selectedId ? (
-          <ChildSwitcher childrenLinks={childrenLinks} selectedId={selectedId} />
+          <ChildSwitcher
+            childrenLinks={childrenLinks}
+            selectedId={selectedId}
+            studentLabels={studentLabels}
+          />
         ) : null}
       </div>
 

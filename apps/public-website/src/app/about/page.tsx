@@ -5,6 +5,7 @@ import { Accessibility, Code2, Globe, Heart, Layers, ShieldCheck, Sparkles } fro
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SOURCE_REPOSITORY_URL } from '@/lib/site';
 
 export const dynamic = 'force-static';
 
@@ -149,7 +150,12 @@ export default function AboutPage() {
         <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-border bg-primary p-8 text-primary-foreground shadow-lg">
           <div className="flex flex-wrap items-center gap-3">
             <Code2 aria-hidden="true" className="h-6 w-6" />
-            <span className="font-mono text-lg font-bold">proctira / proctira-erp</span>
+            <a
+              href={SOURCE_REPOSITORY_URL}
+              className="font-mono text-lg font-bold underline-offset-4 hover:underline"
+            >
+              dbn1972 / ProctiraErp
+            </a>
             <span className="ml-auto rounded-full bg-primary-foreground/10 px-3 py-1 text-xs font-semibold">
               Apache-2.0
             </span>

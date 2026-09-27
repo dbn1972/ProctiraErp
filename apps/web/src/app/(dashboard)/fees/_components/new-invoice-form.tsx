@@ -15,12 +15,20 @@ import {
 } from '@proctira/ui/components';
 import { majorUnitsToCents } from '@proctira/common';
 
-import { createInvoiceAction } from '../../fees-actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import type { FeePlan } from '@/lib/api/fees';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { createInvoiceAction } from '../../fees-actions';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewInvoiceForm({ plans }: { plans: FeePlan[] }) {
+export function NewInvoiceForm({
+  plans,
+  studentOptions = [],
+}: {
+  plans: FeePlan[];
+  studentOptions?: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -40,7 +48,11 @@ export function NewInvoiceForm({ plans }: { plans: FeePlan[] }) {
     const amountRupees = amountRupeesRaw === '' ? undefined : Number(amountRupeesRaw);
 
     if (!UUID_RE.test(studentId)) {
-      setError('Student must be a UUID v4 value.');
+      setError(
+        studentOptions.length === 0
+          ? 'Student directory is empty — add students before issuing an invoice.'
+          : 'Select a student.',
+      );
       return;
     }
     if (!planId && (!title || amountRupees === undefined || !Number.isFinite(amountRupees))) {
@@ -85,9 +97,13 @@ export function NewInvoiceForm({ plans }: { plans: FeePlan[] }) {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4" aria-busy={pending}>
-          <FormField id="invoice-student" label="Student UUID" required>
-            <Input id="invoice-student" name="studentId" required disabled={!hydrated || pending} />
-          </FormField>
+          <EntitySearchSelect
+            id="invoice-student"
+            name="studentId"
+            label="Student"
+            options={studentOptions}
+            required
+          />
           <FormField id="invoice-plan" label="Fee plan (optional)">
             <select
               id="invoice-plan"
@@ -124,7 +140,7 @@ export function NewInvoiceForm({ plans }: { plans: FeePlan[] }) {
               {error}
             </p>
           ) : null}
-          <Button type="submit" disabled={!hydrated || pending}>
+          <Button type="submit" disabled={!hydrated || pending || studentOptions.length === 0}>
             {pending ? 'Issuing…' : 'Issue invoice'}
           </Button>
         </form>

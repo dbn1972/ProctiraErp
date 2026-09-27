@@ -9,7 +9,9 @@ import { FileBarChart, Plus, Play } from 'lucide-react';
 import { Badge, Button, Card, CardContent } from '@proctira/ui/components';
 import { EmptyState } from '@/components/page';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
+import { listGradebookBoards } from '@/lib/api/gradebook';
 import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
+import { formatCodeNameLabel } from '@/lib/entity-label';
 
 import { BoardSummaryPanel } from './_components/board-summary-panel';
 import { CatalogueGeneratePanel } from './_components/catalogue-generate-panel';
@@ -17,7 +19,18 @@ import { CatalogueGeneratePanel } from './_components/catalogue-generate-panel';
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
-  const { templates, source } = await listReportTemplates();
+  const [{ templates, source }, boards] = await Promise.all([
+    listReportTemplates(),
+    listGradebookBoards(),
+  ]);
+
+  const boardOptions = boards.ok
+    ? boards.data.map((board) => ({
+        id: board.id,
+        label: formatCodeNameLabel(board.code, board.name),
+        searchText: `${board.code} ${board.name}`,
+      }))
+    : [];
 
   const grouped = groupByModule(templates);
   const moduleCount = grouped.length;
@@ -94,7 +107,7 @@ export default async function ReportsPage() {
 
       {templates.length > 0 ? <CatalogueGeneratePanel templates={templates} /> : null}
 
-      <BoardSummaryPanel />
+      <BoardSummaryPanel boardOptions={boardOptions} />
     </section>
   );
 }

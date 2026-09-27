@@ -10,17 +10,7 @@
  */
 import Link from 'next/link';
 import { getTranslations } from 'next-intl/server';
-import {
-  Award,
-  Clock,
-  Eye,
-  FileText,
-  MoreVertical,
-  Pencil,
-  Plus,
-  Users,
-  Wallet,
-} from 'lucide-react';
+import { Award, Clock, Eye, FileText, Pencil, Plus, Users, Wallet } from 'lucide-react';
 
 import {
   Button,
@@ -265,11 +255,10 @@ function ProgramsTable({ items, t }: { items: ScholarshipProgram[]; t: Scholarsh
                     <Eye className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label={t('edit')}>
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label={t('more')}>
-                  <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
+                  <Link href={`/scholarships/programs/${program.id}/edit`} aria-label={t('edit')}>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </Link>
                 </Button>
               </div>
             </TableCell>

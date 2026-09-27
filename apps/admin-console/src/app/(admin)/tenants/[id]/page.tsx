@@ -194,8 +194,11 @@ export default async function TenantDetailPage({
                       <div className="text-xs text-muted-foreground italic">{entry.reason}</div>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatDateTime(entry.timestamp)}
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <StatusBadge status={entry.outcome} />
+                    <div className="text-xs text-muted-foreground">
+                      {formatDateTime(entry.timestamp)}
+                    </div>
                   </div>
                 </div>
               ))}

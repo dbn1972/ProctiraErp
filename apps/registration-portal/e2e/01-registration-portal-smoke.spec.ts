@@ -48,8 +48,16 @@ test.describe('Registration Portal — public surfaces', () => {
 test.describe('Registration Portal — live backend', () => {
   test.skip(!BACKEND_READY, 'E2E_BACKEND_READY is not set; skipping live registration e2e.');
 
-  test('status lookup with wrong DOB stays not-found', async ({ page }) => {
-    await page.goto('/track/REG-AAAAAAAA?dob=2000-01-01');
-    await expect(page.getByText(/not found|no application/i).first()).toBeVisible();
+  test('status lookup posts the date of birth instead of putting it on the URL', async ({
+    page,
+  }) => {
+    await page.goto('/track');
+    await page.getByLabel(/tracking number/i).fill('REG-AAAAAAAA');
+    await page.getByLabel(/date of birth|dob/i).fill('2000-01-01');
+    await page.getByRole('button', { name: /check status|consultar|consulter|التحقق/i }).click();
+    await expect(page).not.toHaveURL(/[?&]dob=/);
+    await expect(
+      page.getByText(/not found|no application|aucune demande|لم يتم العثور/i).first(),
+    ).toBeVisible();
   });
 });

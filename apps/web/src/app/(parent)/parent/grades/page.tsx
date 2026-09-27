@@ -1,6 +1,8 @@
 import { requireSession } from '@/lib/auth/server';
-import { getChildGrades, listChildren } from '@/lib/api/parent-portal';
+import { getChildGrades, listChildrenResult } from '@/lib/api/parent-portal';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+import { childListFrame } from '../_components/children-load-state';
+import { humanizeStatus } from '@/lib/status-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,7 +13,24 @@ export default async function ParentGradesPage({
 }) {
   await requireSession();
   const params = await searchParams;
-  const children = await listChildren();
+  const childrenResult = await listChildrenResult();
+  if (!childrenResult.ok) {
+    const frame = childListFrame(childrenResult.kind);
+    return (
+      <AcademicFrame
+        title="Grades"
+        description="Published marks and report cards for your child."
+        testId="parent-grades"
+        status={frame.status}
+        errorMessage={frame.errorMessage}
+        emptyMessage="No grades to show."
+        hasRows={false}
+      >
+        {null}
+      </AcademicFrame>
+    );
+  }
+  const children = childrenResult.items;
   const child = pickChild(children, firstSearchParam(params.studentId));
 
   if (!child) {
@@ -59,7 +78,9 @@ export default async function ParentGradesPage({
                   {grade.assessmentCode ?? 'Assessment'} ·{' '}
                   {grade.letterGrade ?? grade.numericScore ?? '—'}
                 </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{grade.workflowStatus}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {humanizeStatus(grade.workflowStatus)}
+                </p>
               </li>
             ))}
           </ul>
@@ -69,7 +90,9 @@ export default async function ParentGradesPage({
             {reportCards.map((card) => (
               <li key={card.id} className="py-3 first:pt-0 last:pb-0">
                 <p className="text-sm font-medium text-foreground">Report card</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{card.status}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {humanizeStatus(card.status)}
+                </p>
               </li>
             ))}
           </ul>

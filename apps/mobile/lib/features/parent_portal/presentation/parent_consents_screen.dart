@@ -12,8 +12,8 @@ class ParentConsentsScreen extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Approve or deny photo, medical, and trip consent requests via '
-            '`/parent-portal/consents`.',
+            'Consent requests are not available in this app build yet. '
+            'Use the parent web portal to approve or deny photo, medical, and trip requests.',
             textAlign: TextAlign.center,
           ),
         ),

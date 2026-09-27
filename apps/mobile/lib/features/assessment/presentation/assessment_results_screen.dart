@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/student/student_route.dart';
+import '../../students/presentation/student_picker.dart';
 import '../bloc/assessment_bloc.dart';
 import '../data/assessment_repository.dart';
 
@@ -20,15 +22,21 @@ class AssessmentResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<AssessmentBloc>(
-      create: (BuildContext context) {
-        final AssessmentBloc bloc = AssessmentBloc(
-          repository: context.read<AssessmentRepository>(),
-        );
-        bloc.add(AssessmentResultsRequested(studentId: studentId));
-        return bloc;
-      },
-      child: const _AssessmentResultsView(),
+    final String id = studentId.trim();
+    return StudentRequiredGate(
+      studentId: id,
+      title: 'Assessment results',
+      locationFor: (String picked) => withStudentQuery('/assessments', picked),
+      child: BlocProvider<AssessmentBloc>(
+        create: (BuildContext context) {
+          final AssessmentBloc bloc = AssessmentBloc(
+            repository: context.read<AssessmentRepository>(),
+          );
+          bloc.add(AssessmentResultsRequested(studentId: id));
+          return bloc;
+        },
+        child: const _AssessmentResultsView(),
+      ),
     );
   }
 }

@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -336,7 +337,8 @@ export default function WorkflowInbox() {
                 return (
                   <tr key={item.id} className="border-b hover:bg-muted/30">
                     <td className="px-4 py-3 font-medium">
-                      {(item.metadata?.entityLabel as string) || item.entityId}
+                      {(item.metadata?.entityLabel as string) ||
+                        resolveEntityLabel(item.entityId, {}, formatEntityType(item.entityType))}
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {formatEntityType(item.entityType)}

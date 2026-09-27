@@ -57,12 +57,16 @@ test.describe('Insights — live write proofs (E2E_BACKEND_READY)', () => {
     await page.goto('/reports/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/new report/i);
     await expect(page.getByTestId('scaffold-mode-banner')).toHaveCount(0);
-    await expect(page.getByTestId('report-builder-form')).toHaveAttribute(
-      'data-live-generate',
-      'true',
-    );
-    // Wait for React to attach handlers before driving the select.
-    await expect(page.getByTestId('report-builder-form')).toHaveAttribute('data-hydrated', 'true');
+    const reportForm = page.getByTestId('report-builder-form');
+    await expect(reportForm).toHaveAttribute('data-live-generate', 'true');
+    // Wait for React to attach handlers before driving the select. `next
+    // start` briefly streams an unhydrated duplicate outside <main> during
+    // the client swap, sometimes more than once before settling, so retry
+    // the whole count+attribute pair rather than assuming one oscillation.
+    await expect(async () => {
+      await expect(reportForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(reportForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.locator('#report-template').selectOption('tpl-enrolment-summary');
     await page.locator('#filter-academicPeriodId').fill('2025-26');
@@ -74,7 +78,11 @@ test.describe('Insights — live write proofs (E2E_BACKEND_READY)', () => {
     await page.goto('/data-warehouse/import', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/import data/i);
     await expect(page.getByTestId('scaffold-mode-banner')).toHaveCount(0);
-    await expect(page.getByTestId('import-source-forms')).toHaveAttribute('data-hydrated', 'true');
+    const importForm = page.getByTestId('import-source-forms');
+    await expect(async () => {
+      await expect(importForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(importForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.setInputFiles('input[aria-label="Upload CSV file"]', {
       name: 'students.csv',

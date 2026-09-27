@@ -88,7 +88,10 @@
     "institutionRequiredTitle": "Selecciona primero una escuela",
     "retryConfiguration": "Reintentar",
     "chooseInstitution": "Elegir una escuela",
-    "fixFieldErrors": "Corrige los campos resaltados antes de enviar."
+    "fixFieldErrors": "Corrige los campos resaltados antes de enviar.",
+    "trackingMissingTitle": "Este navegador no tiene tu número de seguimiento",
+    "trackingMissingBody": "Si lo guardaste, abre Seguimiento e introdúcelo con la fecha de nacimiento del estudiante. Si no lo guardaste, contacta la oficina de admisiones de la escuela. Esta página no puede recuperarlo.",
+    "schoolNameUnavailable": "No se pudo cargar el nombre de la escuela"
   },
   "documents": {
     "title": "Subir documentos",
@@ -151,6 +154,31 @@
     "statusApproved": "Aprobada",
     "statusRejected": "Rechazada",
     "statusWaitlisted": "En lista de espera"
+  },
+  "errors": {
+    "validation": "Hay datos que corregir antes de continuar.",
+    "unavailable": "El servicio de inscripción no está disponible. Inténtalo de nuevo en unos minutos.",
+    "contextMissing": "No pudimos asociar esta inscripción a una escuela. Elige una escuela e inténtalo de nuevo.",
+    "unknown": "Algo salió mal. Inténtalo de nuevo."
+  },
+  "legal": {
+    "privacyTitle": "Aviso de privacidad",
+    "privacyLead": "Este aviso es para las familias que usan este portal para solicitar plaza en una escuela. Describe los datos de la solicitud que envías aquí. La escuela o la autoridad educativa opera el portal para sus propias admisiones. No es un aviso de un sistema de demostración.",
+    "privacyCollectTitle": "Qué envías",
+    "privacyCollect": "El portal recoge los datos que introduces, como el nombre y la fecha de nacimiento del estudiante, el contacto del tutor, los documentos y el número de seguimiento de esa solicitud.",
+    "privacyUseTitle": "Cómo se usan",
+    "privacyUse": "La escuela usa esa información para recibir, revisar y responder a la solicitud. La consulta de estado pide el número de seguimiento y la fecha de nacimiento para que la fecha no quede en la dirección de la página.",
+    "privacyContact": "Para preguntar por la información de un niño, contacta la oficina de admisiones de la escuela a la que solicitaste.",
+    "termsTitle": "Condiciones de uso",
+    "termsLead": "Estas condiciones cubren el uso de este portal para solicitar plaza en una escuela. No describen un entorno de demostración y no sustituyen el acuerdo que tengas con la escuela.",
+    "termsUseTitle": "Tu solicitud",
+    "termsUse": "Envía información correcta según tu leal saber. Usa un número de seguimiento solo para la solicitud a la que pertenece.",
+    "termsSchoolTitle": "Decisión de la escuela",
+    "termsSchool": "La escuela decide si ofrece una plaza. Enviar una solicitud es una petición, no una matrícula.",
+    "contactTitle": "Contactar con la escuela",
+    "contactLead": "Las preguntas sobre una solicitud, un documento o una decisión van a la oficina de admisiones de la escuela. Este portal no publica un servicio de ayuda aparte.",
+    "contactTrackTitle": "Si tienes un número de seguimiento",
+    "contactTrack": "Si guardaste un número de seguimiento, usa Seguimiento junto con la fecha de nacimiento del estudiante."
   },
   "footer": {
     "copyright": "© {year} ProctiraERP. Todos los derechos reservados.",

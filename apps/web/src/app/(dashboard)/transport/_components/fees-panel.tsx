@@ -16,6 +16,8 @@ import {
 import { majorUnitsToCents } from '@proctira/common';
 
 import { createTransportFeeStructureAction } from '../actions';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { humanizeStatus } from '@/lib/status-label';
 import type { TransportRoute } from '@/lib/api/transport';
 import type { RouteStop, TransportFeeBand } from '@/lib/transport/api';
 
@@ -213,9 +215,11 @@ export function FeesPanel({
                   className="py-3 first:pt-0 last:pb-0"
                   data-testid="transport-fee-link"
                 >
-                  <p className="text-sm font-medium">{link.status}</p>
+                  <p className="text-sm font-medium">{humanizeStatus(link.status)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {link.feesInvoiceId ? `invoice ${link.feesInvoiceId.slice(0, 8)}` : link.reason}
+                    {link.feesInvoiceId
+                      ? resolveEntityLabel(link.feesInvoiceId, {}, 'Invoice')
+                      : link.reason}
                   </p>
                 </li>
               ))}

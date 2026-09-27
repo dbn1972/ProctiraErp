@@ -83,10 +83,25 @@ export type InstitutionScopeDecision =
   | { action: 'inject'; institutionId: string }
   | { action: 'deny'; institutionId: string };
 
+/**
+ * HTTP methods for which defaulting a missing institutionId to the caller's
+ * primary institution is meaningful. GET/HEAD list handlers read
+ * `query.institutionId` as a filter; no mutating-method route handler in this
+ * repo reads it (writes are keyed by `:id` params or take their target
+ * institution from the request body), so injecting a default there would be
+ * dead data at best, and a value nobody actually supplied at worst.
+ */
+const INSTITUTION_INJECT_METHODS = new Set(['GET', 'HEAD']);
+
+export function isInstitutionInjectionMethod(method: string | undefined): boolean {
+  return !!method && INSTITUTION_INJECT_METHODS.has(method.toUpperCase());
+}
+
 export function decideInstitutionScope(
   user: InstitutionScopeUser | null | undefined,
   urlPath: string,
   institutionId: string | undefined,
+  method?: string,
 ): InstitutionScopeDecision {
   if (!isSchoolBound(user)) return { action: 'allow' };
   const segment = firstPathSegment(urlPath);
@@ -97,6 +112,7 @@ export function decideInstitutionScope(
       ? { action: 'allow' }
       : { action: 'deny', institutionId };
   }
+  if (!isInstitutionInjectionMethod(method)) return { action: 'allow' };
   const primary = allowed[0];
   return primary ? { action: 'inject', institutionId: primary } : { action: 'allow' };
 }

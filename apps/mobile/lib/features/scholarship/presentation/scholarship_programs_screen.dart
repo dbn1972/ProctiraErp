@@ -1,14 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/student/student_route.dart';
+import '../../students/data/student_repository.dart';
+import '../../students/presentation/student_picker.dart';
 import '../bloc/scholarship_bloc.dart';
 import '../data/scholarship_repository.dart';
 
 /// Screen to browse available scholarship programs.
 class ScholarshipProgramsScreen extends StatelessWidget {
-  const ScholarshipProgramsScreen({super.key});
+  const ScholarshipProgramsScreen({super.key, this.studentId = ''});
+
+  final String studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -20,13 +27,15 @@ class ScholarshipProgramsScreen extends StatelessWidget {
         bloc.add(const ScholarshipProgramsRequested());
         return bloc;
       },
-      child: const _ProgramsView(),
+      child: _ProgramsView(studentId: studentId),
     );
   }
 }
 
 class _ProgramsView extends StatelessWidget {
-  const _ProgramsView();
+  const _ProgramsView({required this.studentId});
+
+  final String studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +51,9 @@ class _ProgramsView extends StatelessWidget {
             child: IconButton(
               icon: const Icon(Icons.assignment_outlined),
               tooltip: 'My Applications',
-              onPressed: () => context.push('/scholarships/status'),
+              onPressed: () => context.push(
+                withStudentQuery('/scholarships/status', studentId),
+              ),
             ),
           ),
         ],
@@ -68,7 +79,10 @@ class _ProgramsView extends StatelessWidget {
               if (state.programs.isEmpty) {
                 return const _EmptyView();
               }
-              return _ProgramsList(programs: state.programs);
+              return _ProgramsList(
+                programs: state.programs,
+                studentId: studentId,
+              );
           }
         },
       ),
@@ -77,9 +91,10 @@ class _ProgramsView extends StatelessWidget {
 }
 
 class _ProgramsList extends StatelessWidget {
-  const _ProgramsList({required this.programs});
+  const _ProgramsList({required this.programs, required this.studentId});
 
   final List<ScholarshipProgram> programs;
+  final String studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +114,7 @@ class _ProgramsList extends StatelessWidget {
         final ScholarshipProgram program = programs[index - 1];
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: _ProgramCard(program: program),
+          child: _ProgramCard(program: program, studentId: studentId),
         );
       },
     );
@@ -107,9 +122,35 @@ class _ProgramsList extends StatelessWidget {
 }
 
 class _ProgramCard extends StatelessWidget {
-  const _ProgramCard({required this.program});
+  const _ProgramCard({required this.program, required this.studentId});
 
   final ScholarshipProgram program;
+  final String studentId;
+
+  Future<void> _open(BuildContext context) async {
+    if (!program.acceptsApplications) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This scholarship is closed or the deadline has passed.',
+          ),
+        ),
+      );
+      return;
+    }
+    String id = studentId.trim();
+    if (id.isEmpty) {
+      final CachedStudent? picked = await showStudentPicker(context);
+      if (picked == null || !context.mounted) {
+        return;
+      }
+      id = picked.id;
+    }
+    if (!context.mounted) {
+      return;
+    }
+    context.push(withStudentQuery('/scholarships/apply/${program.id}', id));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,7 +160,8 @@ class _ProgramCard extends StatelessWidget {
     final bool passed = daysLeft != null && daysLeft < 0;
 
     // Status chip derived from real model fields.
-    final ({Color color, String label}) chip = !program.isOpen
+    final bool closed = !program.acceptsApplications;
+    final ({Color color, String label}) chip = closed
         ? (color: const Color(0xFF64748B), label: 'Closed')
         : urgent
             ? (color: const Color(0xFFF59E0B), label: 'Closing soon')
@@ -143,7 +185,7 @@ class _ProgramCard extends StatelessWidget {
       child: Card(
         child: InkWell(
           onTap: () {
-            context.push('/scholarships/apply/${program.id}');
+            unawaited(_open(context));
           },
           child: Padding(
             padding: const EdgeInsets.all(14),

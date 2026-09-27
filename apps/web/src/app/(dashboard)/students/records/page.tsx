@@ -52,7 +52,7 @@ export default async function StudentRecordsPage(props: PageProps) {
               {apiError}
               {transcriptsResult.ok === false &&
                 transcriptsResult.code === 'GRADEBOOK_SCHEMA_MISSING' &&
-                ' — apply db/sql/003_sis_timetable_schedule_schema.sql.'}
+                ' Transcript storage is not set up for this environment yet. Contact your administrator.'}
             </p>
           </CardContent>
         </Card>

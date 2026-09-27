@@ -8,6 +8,15 @@ import type { PageMeta, PlatformListResult } from '@/lib/api/platform.server';
 interface PlatformSurfaceStateProps {
   surface: string;
   result: Pick<PlatformListResult<unknown>, 'source' | 'access' | 'errorCode'>;
+  /**
+   * Override the scaffold banner's title for surfaces where the underlying data is real and
+   * the banner reflects a transient condition (gateway unreachable), not a demo/scaffold
+   * feature. Deliberately opt-in per caller rather than applied to every consumer of this
+   * component: some `PlatformSurfaceState` surfaces are still a genuine product-scope question
+   * (see docs/audits/GAP_CLOSURE_TASKLIST_20260925.md, UX-2's explicit "do not touch" list),
+   * so the default "Scaffold / demo mode" title is preserved unless a caller opts in here.
+   */
+  scaffoldTitle?: string;
 }
 
 /**
@@ -16,12 +25,17 @@ interface PlatformSurfaceStateProps {
  * - 403 → explicit "platform administrator required" notice
  * - other gateway error → error alert with the gateway code
  */
-export function PlatformSurfaceState({ surface, result }: PlatformSurfaceStateProps) {
+export function PlatformSurfaceState({
+  surface,
+  result,
+  scaffoldTitle,
+}: PlatformSurfaceStateProps) {
   if (result.source === 'scaffold') {
     return (
       <ScaffoldModeBanner
         source="scaffold"
         surface={surface}
+        title={scaffoldTitle}
         detail={`The gateway is not reachable from this environment, so the ${surface.toLowerCase()} list stays empty instead of showing fixtures.`}
       />
     );

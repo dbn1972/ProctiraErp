@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { GatewayError } from '@/lib/api/gateway';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 import {
   addHostelMessMenuItem,
   createHostelFeeStructure,
@@ -352,4 +354,9 @@ export async function recordHostelAttendanceAction(input: {
   } catch (error) {
     return fail(error, 'Failed to record attendance');
   }
+}
+
+/** Directory for mess subscribe — names, not a UUID paste field. */
+export async function loadStudentDirectoryAction(): Promise<EntityLabelOption[]> {
+  return loadStudentOptions();
 }

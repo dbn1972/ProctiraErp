@@ -65,6 +65,8 @@ class _LoginScreenState extends State<LoginScreen> {
             userId: result.userId,
             accessToken: result.accessToken,
             refreshToken: result.refreshToken,
+            email: result.email,
+            displayName: result.displayName,
           ));
     } on ApiException catch (error) {
       if (mounted) {
@@ -113,9 +115,11 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     context.read<AuthBloc>().add(AuthLoggedIn(
-          userId: 'biometric-user',
+          userId: (await storage.readUserId()) ?? 'biometric-user',
           accessToken: access,
           refreshToken: refresh,
+          email: await storage.readUserEmail(),
+          displayName: await storage.readUserDisplayName(),
         ));
   }
 

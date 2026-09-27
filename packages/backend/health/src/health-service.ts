@@ -431,11 +431,14 @@ export class HealthService {
     id: string,
     input: UpdateMeasurementInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
   ): Promise<HealthMeasurementEntity> {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateMeasurement(id, tenantId, input);
+    const updated = await this.repository.updateMeasurement(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Measurement with id '${id}' not found`);
     return updated;
   }
@@ -478,11 +481,14 @@ export class HealthService {
     tenantId: string,
     id: string,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthMeasurementEntity) => Promise<void>;
+    },
   ): Promise<void> {
     const existing = await this.repository.findMeasurementById(id, tenantId);
     if (!existing) throw new NotFoundError(`Measurement with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    await this.repository.deleteMeasurement(id, tenantId);
+    await this.repository.deleteMeasurement(id, tenantId, options);
   }
 
   // ─── Allergies ──────────────────────────────────────────────────────────
@@ -515,13 +521,31 @@ export class HealthService {
     id: string,
     input: UpdateAllergyInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
   ): Promise<AllergyEntity> {
     const existing = await this.repository.findAllergyById(id, tenantId);
     if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateAllergy(id, tenantId, input);
+    const updated = await this.repository.updateAllergy(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Allergy with id '${id}' not found`);
     return updated;
+  }
+
+  /** W1-SEC: allergies had no delete path in the service layer at all. */
+  async deleteAllergy(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: AllergyEntity) => Promise<void>;
+    },
+  ): Promise<void> {
+    const existing = await this.repository.findAllergyById(id, tenantId);
+    if (!existing) throw new NotFoundError(`Allergy with id '${id}' not found`);
+    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.repository.deleteAllergy(id, tenantId, options);
   }
 
   async listAllergies(
@@ -572,13 +596,31 @@ export class HealthService {
     id: string,
     input: UpdateConditionInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
   ): Promise<HealthConditionEntity> {
     const existing = await this.repository.findConditionById(id, tenantId);
     if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateCondition(id, tenantId, input);
+    const updated = await this.repository.updateCondition(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Condition with id '${id}' not found`);
     return updated;
+  }
+
+  /** W1-SEC: conditions had no delete path in the service layer at all. */
+  async deleteCondition(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: HealthConditionEntity) => Promise<void>;
+    },
+  ): Promise<void> {
+    const existing = await this.repository.findConditionById(id, tenantId);
+    if (!existing) throw new NotFoundError(`Condition with id '${id}' not found`);
+    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.repository.deleteCondition(id, tenantId, options);
   }
 
   async listConditions(
@@ -629,13 +671,31 @@ export class HealthService {
     id: string,
     input: UpdateVaccinationInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
   ): Promise<VaccinationEntity> {
     const existing = await this.repository.findVaccinationById(id, tenantId);
     if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateVaccination(id, tenantId, input);
+    const updated = await this.repository.updateVaccination(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Vaccination with id '${id}' not found`);
     return updated;
+  }
+
+  /** W1-SEC: vaccinations had no delete path in the service layer at all. */
+  async deleteVaccination(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: VaccinationEntity) => Promise<void>;
+    },
+  ): Promise<void> {
+    const existing = await this.repository.findVaccinationById(id, tenantId);
+    if (!existing) throw new NotFoundError(`Vaccination with id '${id}' not found`);
+    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.repository.deleteVaccination(id, tenantId, options);
   }
 
   async listVaccinations(
@@ -698,13 +758,31 @@ export class HealthService {
     id: string,
     input: UpdateInsuranceInput,
     accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
   ): Promise<InsuranceEntity> {
     const existing = await this.repository.findInsuranceById(id, tenantId);
     if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
     await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
-    const updated = await this.repository.updateInsurance(id, tenantId, input);
+    const updated = await this.repository.updateInsurance(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Insurance with id '${id}' not found`);
     return updated;
+  }
+
+  /** W1-SEC: insurance had no delete path in the service layer at all. */
+  async deleteInsurance(
+    tenantId: string,
+    id: string,
+    accessContext: HealthAccessContext,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: InsuranceEntity) => Promise<void>;
+    },
+  ): Promise<void> {
+    const existing = await this.repository.findInsuranceById(id, tenantId);
+    if (!existing) throw new NotFoundError(`Insurance with id '${id}' not found`);
+    await this.assertHealthAccess(accessContext, existing.studentId, tenantId);
+    await this.repository.deleteInsurance(id, tenantId, options);
   }
 
   async listInsurance(
@@ -1037,12 +1115,28 @@ export class HealthService {
     tenantId: string,
     id: string,
     input: UpdateScreeningProgramInput,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
   ): Promise<ScreeningProgramEntity> {
     const existing = await this.repository.findScreeningProgramById(id, tenantId);
     if (!existing) throw new NotFoundError(`Screening program with id '${id}' not found`);
-    const updated = await this.repository.updateScreeningProgram(id, tenantId, input);
+    const updated = await this.repository.updateScreeningProgram(id, tenantId, input, options);
     if (!updated) throw new NotFoundError(`Screening program with id '${id}' not found`);
     return updated;
+  }
+
+  /** W1-SEC: screening programs had no delete path anywhere in this stack. */
+  async deleteScreeningProgram(
+    tenantId: string,
+    id: string,
+    options?: {
+      appendAuditInTxn?: (client: PgQueryable, entity: ScreeningProgramEntity) => Promise<void>;
+    },
+  ): Promise<void> {
+    const existing = await this.repository.findScreeningProgramById(id, tenantId);
+    if (!existing) throw new NotFoundError(`Screening program with id '${id}' not found`);
+    await this.repository.deleteScreeningProgram(id, tenantId, options);
   }
 
   async getScreeningProgram(tenantId: string, id: string): Promise<ScreeningProgramEntity> {

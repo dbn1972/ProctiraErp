@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button, FormField, Input } from '@proctira/ui/components';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 
 import { ackCircularAction, sendCircularAction } from '../actions';
@@ -22,8 +23,9 @@ export function CircularAckPanel({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [confirmSend, setConfirmSend] = useState(false);
 
-  function onSend() {
+  function onConfirmSend() {
     startTransition(async () => {
       setError(null);
       const result = await sendCircularAction(circularId);
@@ -32,6 +34,7 @@ export function CircularAckPanel({
         return;
       }
       setMessage(result.message ?? 'Sent');
+      setConfirmSend(false);
       router.refresh();
     });
   }
@@ -61,10 +64,20 @@ export function CircularAckPanel({
         Status {status} · ack rate {Math.round(ackRate * 100)}%
       </p>
       {status !== 'sent' ? (
-        <Button type="button" onClick={onSend} disabled={!hydrated || pending}>
+        <Button type="button" onClick={() => setConfirmSend(true)} disabled={!hydrated || pending}>
           {pending ? 'Sending…' : 'Send circular'}
         </Button>
       ) : null}
+      <ConfirmActionDialog
+        open={confirmSend}
+        onOpenChange={setConfirmSend}
+        title="Send this circular?"
+        description="Recipients will receive the circular and acknowledgement tracking will start. Confirm the audience before sending."
+        confirmLabel="Send circular"
+        pending={pending}
+        onConfirm={onConfirmSend}
+        testId="send-circular-confirm"
+      />
       <form onSubmit={onAck} className="flex flex-wrap items-end gap-2">
         <FormField id="ack-recipient" label="Recipient id">
           <Input id="ack-recipient" name="recipientId" required disabled={!hydrated || pending} />

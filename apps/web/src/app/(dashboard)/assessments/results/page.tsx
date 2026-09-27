@@ -19,6 +19,7 @@ import {
 import { getAssessmentItems, getStudentResults, listGradingSchemes } from '@/lib/api/assessments';
 import { listAcademicPeriods, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
+import { loadStudentOptions } from '@/lib/load-entity-labels';
 
 import { ResultsEntryGrid } from '../_components/results-entry-grid';
 
@@ -41,17 +42,19 @@ export default async function AssessmentResultsPage(props: PageProps) {
   const subjectId = readStringParam(searchParams, 'subjectId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
 
-  const [schemesResponse, subjects, academicPeriods, items, results] = await Promise.all([
-    listGradingSchemes({ pageSize: 100 }),
-    listSubjects().catch(() => [] as SubjectSummary[]),
-    listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
-    subjectId && academicPeriodId
-      ? getAssessmentItems(subjectId, academicPeriodId)
-      : Promise.resolve(null),
-    subjectId && academicPeriodId
-      ? getStudentResults(subjectId, academicPeriodId)
-      : Promise.resolve([]),
-  ]);
+  const [schemesResponse, subjects, academicPeriods, studentOptions, items, results] =
+    await Promise.all([
+      listGradingSchemes({ pageSize: 100 }),
+      listSubjects().catch(() => [] as SubjectSummary[]),
+      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+      loadStudentOptions(),
+      subjectId && academicPeriodId
+        ? getAssessmentItems(subjectId, academicPeriodId)
+        : Promise.resolve(null),
+      subjectId && academicPeriodId
+        ? getStudentResults(subjectId, academicPeriodId)
+        : Promise.resolve([]),
+    ]);
 
   const schemeForSubject = items?.gradingSchemeId
     ? (schemesResponse.data.find((s) => s.id === items.gradingSchemeId) ?? null)
@@ -97,6 +100,7 @@ export default async function AssessmentResultsPage(props: PageProps) {
               id: p.id,
               name: p.name,
             }))}
+            studentOptions={studentOptions.map((s) => ({ id: s.id, label: s.label }))}
             items={
               items?.items.map((it) => ({
                 id: it.id,

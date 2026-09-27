@@ -28,17 +28,17 @@ const SERVICES = [
   },
   {
     name: 'SMS notifications',
-    detail: 'Guardian alerts & OTP delivery',
+    detail: 'No probe configured — not an uptime claim',
     probeKey: null,
   },
   {
     name: 'DBT integration',
-    detail: 'Disbursal & reconciliation',
+    detail: 'No probe configured — not an uptime claim',
     probeKey: null,
   },
   {
     name: 'Reports engine',
-    detail: 'Exports, PDFs & data files',
+    detail: 'No probe configured — not an uptime claim',
     probeKey: null,
   },
 ];
@@ -173,6 +173,10 @@ export default async function StatusPage() {
             </tbody>
           </table>
         </div>
+        <p className="mx-auto mt-4 max-w-3xl text-sm text-muted-foreground">
+          Rows marked Unknown — not monitored are listed so the gap is visible. They are not
+          measured on this page, and a healthy probe above them does not mean those services are up.
+        </p>
       </section>
 
       <section
@@ -264,7 +268,7 @@ function StatusPill({ state }: { state: ProbeState }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground">
       <span aria-hidden="true" className="h-2 w-2 rounded-full bg-muted-foreground/60" />
-      Not monitored
+      Unknown — not monitored
     </span>
   );
 }

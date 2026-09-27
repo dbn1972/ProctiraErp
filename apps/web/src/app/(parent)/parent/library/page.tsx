@@ -1,10 +1,30 @@
 import { requireSession } from '@/lib/auth/server';
 import { listChildren } from '@/lib/api/parent-portal';
-import { listLibraryHolds, listLibraryLoans, searchLibraryOpac } from '@/lib/api/library';
+import {
+  listLibraryHoldsResult,
+  listLibraryLoansResult,
+  searchLibraryOpacResult,
+} from '@/lib/api/library';
+import type { ListFailureKind, ListResult } from '@/lib/api/list-result';
 import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
 import { Button, FormField, Input } from '@proctira/ui/components';
 
 export const dynamic = 'force-dynamic';
+
+function firstFailure(
+  ...results: ListResult<unknown>[]
+): { kind: ListFailureKind; status: number } | null {
+  for (const result of results) {
+    if (!result.ok) return { kind: result.kind, status: result.status };
+  }
+  return null;
+}
+
+function frameStatusFromKind(kind: ListFailureKind | null): 'ok' | 'forbidden' | 'error' {
+  if (!kind) return 'ok';
+  if (kind === 'denied' || kind === 'unauthenticated') return 'forbidden';
+  return 'error';
+}
 
 export default async function ParentLibraryPage({
   searchParams,
@@ -32,11 +52,16 @@ export default async function ParentLibraryPage({
     );
   }
 
-  const [items, loans, holds] = await Promise.all([
-    searchLibraryOpac(q),
-    listLibraryLoans({ studentId: child.studentId }),
-    listLibraryHolds({ studentId: child.studentId }),
+  const [itemsResult, loansResult, holdsResult] = await Promise.all([
+    searchLibraryOpacResult(q),
+    listLibraryLoansResult({ studentId: child.studentId }),
+    listLibraryHoldsResult({ studentId: child.studentId }),
   ]);
+  const failure = firstFailure(itemsResult, loansResult, holdsResult);
+  const status = frameStatusFromKind(failure?.kind ?? null);
+  const items = itemsResult.ok ? itemsResult.items : [];
+  const loans = loansResult.ok ? loansResult.items : [];
+  const holds = holdsResult.ok ? holdsResult.items : [];
 
   return (
     <AcademicFrame
@@ -45,7 +70,16 @@ export default async function ParentLibraryPage({
       testId="parent-library"
       childrenLinks={children}
       selectedId={child.studentId}
-      status="ok"
+      status={status}
+      errorMessage={
+        failure
+          ? failure.kind === 'unavailable'
+            ? 'The library service is temporarily unavailable. Try again later.'
+            : failure.kind === 'missing'
+              ? 'Library records are not available for this school yet.'
+              : undefined
+          : undefined
+      }
       emptyMessage="No titles match this search."
       hasRows
     >

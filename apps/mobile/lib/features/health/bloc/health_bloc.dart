@@ -71,6 +71,16 @@ class HealthBloc extends Bloc<HealthEvent, HealthState> {
     HealthRecordsRequested event,
     Emitter<HealthState> emit,
   ) async {
+    if (event.studentId.trim().isEmpty) {
+      emit(state.copyWith(
+        status: HealthStatus.error,
+        studentId: '',
+        records: const HealthRecords(),
+        errorMessage: 'Choose a student to view health records.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(
       status: HealthStatus.loading,
       studentId: event.studentId,
