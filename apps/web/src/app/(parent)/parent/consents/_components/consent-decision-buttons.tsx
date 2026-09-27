@@ -78,7 +78,7 @@ export function ConsentDecisionButtons({
           if (!open) setConfirmDecision(null);
         }}
         title="Deny this consent?"
-        description="Denying is recorded immediately and leaves pending status. A mis-tap cannot be undone from this portal."
+        description="Denying records your decision immediately. A mis-tap cannot be undone from this portal."
         confirmLabel="Deny consent"
         destructive
         pending={pending}
