@@ -35,7 +35,15 @@
     --accent-foreground: 0 0% 100%;
 
     /* Destructive */
-    --destructive: 0 72% 51%;
+    /* 45% lightness — the Alert `destructive` variant renders this as text on its own
+     * 10%-alpha tint (`bg-destructive/10` composited over white): 51% measured 4.13:1
+     * against WCAG 2.1 AA's 4.5:1 floor for normal text (axe, /reset-password). 45% is
+     * 4.96:1 on that same composited background, with headroom above the 4.5:1 line for
+     * anti-aliasing/rounding, matching the margin already used for --muted-foreground
+     * above. Every other destructive-token consumer (Form/FormField text-on-background,
+     * Button/Badge white-on-fill) was already comfortably at or above 4.5:1 at 51% and
+     * only gets a larger margin at 45%. */
+    --destructive: 0 72% 45%;
     --destructive-foreground: 0 0% 100%;
 
     /* Borders, inputs, focus */
