@@ -18,6 +18,10 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { channelLabel } from '@/lib/communication/channel-label';
+
 import { createCampaignAction, previewAudienceAction } from '../actions';
 
 const CHANNELS = ['email', 'sms', 'push', 'in_app'] as const;
@@ -28,7 +32,15 @@ const SCOPES = [
   { value: 'route', label: 'Transport route' },
 ] as const;
 
-export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
+export function NewCampaignForm({
+  createdBy,
+  hostelOptions,
+  routeOptions,
+}: {
+  createdBy?: string;
+  hostelOptions: EntityLabelOption[];
+  routeOptions: EntityLabelOption[];
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -148,9 +160,9 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
                   <Checkbox
                     checked={channels.includes(channel)}
                     onCheckedChange={(value) => toggleChannel(channel, value === true)}
-                    aria-label={channel}
+                    aria-label={channelLabel(channel)}
                   />
-                  <span>{channel}</span>
+                  <span>{channelLabel(channel)}</span>
                 </label>
               ))}
             </div>
@@ -176,14 +188,22 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
             </FormField>
           ) : null}
           {scope === 'hostel' ? (
-            <FormField id="campaign-hostel" label="Hostel UUID (optional)">
-              <Input id="campaign-hostel" name="hostelId" className="h-11 min-h-11" />
-            </FormField>
+            <EntitySearchSelect
+              id="campaign-hostel"
+              name="hostelId"
+              label="Hostel"
+              options={hostelOptions}
+              emptyMessage="No hostels yet. Create one under Hostel, or leave this audience for the whole tenant."
+            />
           ) : null}
           {scope === 'route' ? (
-            <FormField id="campaign-route" label="Route UUID (optional)">
-              <Input id="campaign-route" name="routeId" className="h-11 min-h-11" />
-            </FormField>
+            <EntitySearchSelect
+              id="campaign-route"
+              name="routeId"
+              label="Route"
+              options={routeOptions}
+              emptyMessage="No transport routes yet. Create one under Transport, or leave this audience for the whole tenant."
+            />
           ) : null}
           <FormField id="campaign-body" label="Message body">
             <Textarea

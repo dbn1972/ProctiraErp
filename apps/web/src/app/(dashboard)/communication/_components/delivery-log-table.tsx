@@ -6,10 +6,17 @@ import { useState, useTransition } from 'react';
 import { Button } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { DeliveryLogEntry } from '@/lib/api/communication';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 import { retryDeliveryAction } from '../actions';
 
-export function DeliveryLogTable({ rows }: { rows: DeliveryLogEntry[] }) {
+export function DeliveryLogTable({
+  rows,
+  recipientLabels = {},
+}: {
+  rows: DeliveryLogEntry[];
+  recipientLabels?: Record<string, string>;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -58,7 +65,8 @@ export function DeliveryLogTable({ rows }: { rows: DeliveryLogEntry[] }) {
           >
             <div>
               <p className="text-sm font-medium text-foreground">
-                {row.channel} · {row.status} · {row.recipientId}
+                {row.channel} · {row.status} ·{' '}
+                {resolveEntityLabel(row.recipientId, recipientLabels, 'Recipient')}
               </p>
               <p className="text-xs text-muted-foreground">
                 {row.sourceType}

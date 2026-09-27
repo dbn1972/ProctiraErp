@@ -8,6 +8,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listDeliveryLogs } from '@/lib/api/communication';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
 
 import { DeliveryLogTable } from '../_components/delivery-log-table';
 
@@ -30,10 +31,15 @@ export default async function DeliveryLogPage(props: PageProps) {
   const searchParams = await props.searchParams;
   const channel = readStr(searchParams, 'channel');
   const status = readStr(searchParams, 'status');
-  const rows = await listDeliveryLogs({
-    channel: channel || undefined,
-    status: status || undefined,
-  });
+  const [rows, studentLabels, staffLabels] = await Promise.all([
+    listDeliveryLogs({
+      channel: channel || undefined,
+      status: status || undefined,
+    }),
+    loadStudentLabelMap(),
+    loadStaffLabelMap(),
+  ]);
+  const recipientLabels = Object.fromEntries([...studentLabels, ...staffLabels]);
 
   return (
     <div className="space-y-6 p-6">
@@ -77,11 +83,11 @@ export default async function DeliveryLogPage(props: PageProps) {
                 <option value="failed">failed</option>
               </select>
             </label>
-            <Button type="submit" variant="outline" size="sm">
+            <Button type="submit" variant="outline" size="sm" className="min-h-11">
               Apply
             </Button>
           </form>
-          <DeliveryLogTable rows={rows} />
+          <DeliveryLogTable rows={rows} recipientLabels={recipientLabels} />
         </CardContent>
       </Card>
     </div>

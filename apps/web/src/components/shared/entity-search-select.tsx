@@ -20,6 +20,7 @@ export function EntitySearchSelect({
   placeholder = 'Search by code or name…',
   emptyMessage = 'No directory entries loaded. Add students or staff first, or try again when the directory API is available.',
   className,
+  onValueChange,
 }: {
   id: string;
   name: string;
@@ -31,6 +32,8 @@ export function EntitySearchSelect({
   /** Shown instead of a paste field when the directory is empty. */
   emptyMessage?: string;
   className?: string;
+  /** Fired when the chosen id changes. The select `name` still submits the id. */
+  onValueChange?: (id: string) => void;
 }) {
   const [query, setQuery] = useState('');
   const [value, setValue] = useState(defaultValue);
@@ -76,7 +79,10 @@ export function EntitySearchSelect({
             name={name}
             required={required}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              onValueChange?.(e.target.value);
+            }}
             className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           >
             <option value="">{selectedLabel ? `Selected: ${selectedLabel}` : 'Select…'}</option>

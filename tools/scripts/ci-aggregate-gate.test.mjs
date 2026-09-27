@@ -220,7 +220,8 @@ test('frontend-only changes require bundle and lighthouse jobs', () => {
   const report = evaluate({ changes, results });
   assert.equal(report.ok, false);
   assert.ok(report.unprovenSkips.some((item) => item.job === 'bundle-budget'));
-  assert.ok(report.provenSkips.some((item) => item.job === 'integration-test'));
+  // Ungated Playwright is this job; a web-only diff must not proven-skip it.
+  assert.ok(report.unprovenSkips.some((item) => item.job === 'integration-test'));
 });
 
 test('db/tools via shared filter: skipped tenant-isolation is unproven', () => {

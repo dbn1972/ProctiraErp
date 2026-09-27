@@ -15,9 +15,13 @@ import {
   Input,
   Textarea,
 } from '@proctira/ui/components';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
+import type { EntityLabelOption } from '@/lib/entity-label';
+import { channelLabel } from '@/lib/communication/channel-label';
 
 import { createCircularAction } from '../actions';
+import { PersonMultiSelect } from './person-multi-select';
 
 const CHANNELS = ['in_app', 'email', 'sms', 'whatsapp'] as const;
 const AUDIENCES = [
@@ -27,37 +31,55 @@ const AUDIENCES = [
   { value: 'institution', label: 'Institution' },
 ] as const;
 
-export function NewCircularForm({ createdBy }: { createdBy?: string }) {
+export function NewCircularForm({
+  createdBy,
+  people,
+  roleOptions,
+  classOptions,
+  institutionOptions,
+}: {
+  createdBy?: string;
+  people: EntityLabelOption[];
+  roleOptions: EntityLabelOption[];
+  classOptions: EntityLabelOption[];
+  institutionOptions: EntityLabelOption[];
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [channels, setChannels] = useState<string[]>(['in_app', 'whatsapp']);
   const [requiresAck, setRequiresAck] = useState(true);
+  const [audienceType, setAudienceType] = useState<(typeof AUDIENCES)[number]['value']>('all');
+
+  const audienceOptions =
+    audienceType === 'roles'
+      ? roleOptions
+      : audienceType === 'classes'
+        ? classOptions
+        : audienceType === 'institution'
+          ? institutionOptions
+          : [];
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
-    const audienceType = String(fd.get('audienceType') ?? 'all') as
-      | 'all'
-      | 'roles'
-      | 'classes'
-      | 'institution';
-    const audienceIds = String(fd.get('audienceIds') ?? '')
-      .split(',')
-      .map((s) => s.trim())
+    const recipientIds = fd
+      .getAll('recipientIds')
+      .map((value) => String(value).trim())
       .filter(Boolean);
-    const recipientIds = String(fd.get('recipientIds') ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const audienceId = String(fd.get('audienceIds') ?? '').trim();
+    if (recipientIds.length === 0) {
+      setError('Add at least one recipient by name before creating the circular.');
+      return;
+    }
     startTransition(async () => {
       setError(null);
       const result = await createCircularAction({
         title: String(fd.get('title') ?? '').trim(),
         body: String(fd.get('body') ?? '').trim(),
         audienceType,
-        audienceIds: audienceIds.length ? audienceIds : undefined,
+        audienceIds: audienceType === 'all' || !audienceId ? undefined : [audienceId],
         recipientIds,
         requiresAck,
         channels,
@@ -77,8 +99,8 @@ export function NewCircularForm({ createdBy }: { createdBy?: string }) {
       <CardHeader>
         <CardTitle className="text-base">New circular</CardTitle>
         <CardDescription>
-          WhatsApp uses the sandbox adapter (no live provider). Recipients listed here get ack rows
-          when acknowledgement is required.
+          WhatsApp uses the sandbox adapter (no live provider). Recipients you add get
+          acknowledgement rows when acknowledgement is required.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -99,7 +121,10 @@ export function NewCircularForm({ createdBy }: { createdBy?: string }) {
               id="circ-audience"
               name="audienceType"
               className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-              defaultValue="all"
+              value={audienceType}
+              onChange={(event) =>
+                setAudienceType(event.target.value as (typeof AUDIENCES)[number]['value'])
+              }
               disabled={!hydrated || pending}
             >
               {AUDIENCES.map((item) => (
@@ -109,36 +134,44 @@ export function NewCircularForm({ createdBy }: { createdBy?: string }) {
               ))}
             </select>
           </FormField>
-          <FormField id="circ-audience-ids" label="Audience ids (comma-separated)">
-            <Input id="circ-audience-ids" name="audienceIds" disabled={!hydrated || pending} />
-          </FormField>
-          <FormField id="circ-recipients" label="Recipient ids (comma-separated)" required>
-            <Input
-              id="circ-recipients"
-              name="recipientIds"
-              required
-              disabled={!hydrated || pending}
+          {audienceType !== 'all' ? (
+            <EntitySearchSelect
+              key={audienceType}
+              id="circ-audience-target"
+              name="audienceIds"
+              label={
+                audienceType === 'roles' ? 'Role' : audienceType === 'classes' ? 'Class' : 'School'
+              }
+              options={audienceOptions}
+              emptyMessage="No matching records loaded for this audience."
             />
-          </FormField>
+          ) : null}
+          <PersonMultiSelect
+            id="circ-recipients"
+            name="recipientIds"
+            label="Recipients"
+            options={people}
+          />
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Channels</legend>
             {CHANNELS.map((channel) => (
-              <label key={channel} className="flex items-center gap-2 text-sm">
+              <label key={channel} className="flex min-h-11 items-center gap-2 text-sm">
                 <Checkbox
                   checked={channels.includes(channel)}
                   onCheckedChange={(checked) => {
                     setChannels((prev) => {
                       if (checked) return prev.includes(channel) ? prev : [...prev, channel];
-                      return prev.filter((c) => c !== channel);
+                      return prev.filter((item) => item !== channel);
                     });
                   }}
                   disabled={!hydrated || pending}
+                  aria-label={channelLabel(channel)}
                 />
-                {channel}
+                {channelLabel(channel)}
               </label>
             ))}
           </fieldset>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex min-h-11 items-center gap-2 text-sm">
             <Checkbox
               checked={requiresAck}
               onCheckedChange={(checked) => setRequiresAck(Boolean(checked))}
@@ -151,7 +184,7 @@ export function NewCircularForm({ createdBy }: { createdBy?: string }) {
               {error}
             </p>
           ) : null}
-          <Button type="submit" disabled={!hydrated || pending}>
+          <Button type="submit" className="min-h-11" disabled={!hydrated || pending}>
             {pending ? 'Saving…' : 'Create circular'}
           </Button>
         </form>

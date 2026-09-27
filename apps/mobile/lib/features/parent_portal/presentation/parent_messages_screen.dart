@@ -1,23 +1,44 @@
 import 'package:flutter/material.dart';
 
-/// Parent messaging list shell — threads API not wired on mobile yet.
+import '../data/parent_portal_models.dart';
+import '../data/parent_portal_repository.dart';
+import 'parent_resource_screen.dart';
+
+/// Parent message threads for the selected child.
 class ParentMessagesScreen extends StatelessWidget {
-  const ParentMessagesScreen({super.key});
+  const ParentMessagesScreen({super.key, this.studentId, this.repository});
+
+  final String? studentId;
+  final ParentPortalRepository? repository;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Messages')),
-      body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'School message threads are not available in this app build yet. '
-            'Use the parent web portal to read and send messages.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
+    return ParentResourceScreen(
+      title: 'Messages',
+      studentId: studentId,
+      repository: repository,
+      emptyMessage: 'No messages for this child yet.',
+      load: (ParentPortalRepository repo, String id) async {
+        final List<ParentMessageThread> threads =
+            await repo.listThreads(studentId: id);
+        return threads
+            .map(
+              (ParentMessageThread thread) => ParentPortalRow(
+                title: thread.subject,
+                subtitle: _label(thread.status),
+              ),
+            )
+            .toList(growable: false);
+      },
     );
   }
+}
+
+String _label(String raw) {
+  final String text = raw.trim();
+  if (text.isEmpty) {
+    return 'Open';
+  }
+  final String spaced = text.replaceAll('_', ' ');
+  return spaced[0].toUpperCase() + spaced.substring(1);
 }

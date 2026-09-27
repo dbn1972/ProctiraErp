@@ -103,7 +103,11 @@ test.describe('Insights & System — inventory smoke (ungated)', () => {
       await expect(heading).toHaveText(route.heading);
 
       if (route.path !== '/track') {
-        await expect(page.getByTestId('scaffold-mode-banner')).toBeVisible();
+        // The banner is also inside React's hidden suspense template (`div#S:*`)
+        // until `$RC` reveals it into <main>. That template is not visible.
+        await expect(
+          page.getByTestId('scaffold-mode-banner').filter({ visible: true }),
+        ).toBeVisible();
       }
     });
   }

@@ -11,6 +11,8 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { getCircular } from '@/lib/api/communication';
+import { loadStaffLabelMap, loadStudentLabelMap } from '@/lib/load-entity-labels';
+import { resolveEntityLabel } from '@/lib/entity-label';
 
 import { CircularAckPanel } from '../../_components/circular-ack-panel';
 
@@ -23,8 +25,13 @@ interface PageProps {
 export default async function CircularDetailPage(props: PageProps) {
   await requireSession();
   const { id } = await props.params;
-  const circular = await getCircular(id);
+  const [circular, studentLabels, staffLabels] = await Promise.all([
+    getCircular(id),
+    loadStudentLabelMap(),
+    loadStaffLabelMap(),
+  ]);
   if (!circular) notFound();
+  const recipientLabels = new Map([...studentLabels, ...staffLabels]);
 
   return (
     <div className="space-y-6 p-6">
@@ -58,8 +65,9 @@ export default async function CircularDetailPage(props: PageProps) {
           <ul className="divide-y divide-border" role="list">
             {circular.acks.map((ack) => (
               <li key={ack.id} className="py-2 text-sm" data-testid="circular-ack-row">
-                {ack.recipientLabel || ack.recipientId} ·{' '}
-                {ack.acknowledgedAt ? `acked ${ack.acknowledgedAt}` : 'pending'}
+                {ack.recipientLabel ||
+                  resolveEntityLabel(ack.recipientId, recipientLabels, 'Recipient')}{' '}
+                · {ack.acknowledgedAt ? `acked ${ack.acknowledgedAt}` : 'pending'}
               </li>
             ))}
           </ul>

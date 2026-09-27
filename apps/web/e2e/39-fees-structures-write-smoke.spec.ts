@@ -69,11 +69,16 @@ test.describe('Fee structures — pages render (ungated)', () => {
   test('/fees renders with the structures and reports actions', async ({ page }) => {
     await page.goto('/fees', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-    await expect(page.getByTestId('open-structures')).toBeVisible();
-    await expect(page.getByTestId('open-reports')).toBeVisible();
-    await expect(page.getByTestId('open-reconciliation')).toBeVisible();
-    await expect(page.getByTestId('open-scholarship-netting')).toBeVisible();
-    await expect(page.getByTestId('open-dunning')).toBeVisible();
+    // React streams the finished server page into a hidden `div#S:*` template
+    // and moves it into <main> on reveal (`$RC` / `$RV`). Until that move
+    // finishes the same test id exists twice; the template is `hidden` and
+    // not what a user sees. Assert the revealed node.
+    const visible = (testId: string) => page.getByTestId(testId).filter({ visible: true });
+    await expect(visible('open-structures')).toBeVisible();
+    await expect(visible('open-reports')).toBeVisible();
+    await expect(visible('open-reconciliation')).toBeVisible();
+    await expect(visible('open-scholarship-netting')).toBeVisible();
+    await expect(visible('open-dunning')).toBeVisible();
   });
 
   test('/fees/structures renders with the New structure action', async ({ page }) => {
@@ -184,7 +189,8 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     // The select defaults to the first structure in the list; other specs and
     // earlier runs leave structures behind, so pin ours explicitly.
     await page.locator('#bi-structure').selectOption(structure.id);
-    await page.locator('#bi-students').selectOption(STUDENT_A);
+    // `#bi-students` is the comma-separated id field. The directory picker is `#bi-students-pick`.
+    await page.locator('#bi-students').fill(STUDENT_A);
     await page.getByTestId('submit-bulk-invoice').click();
     await page.getByTestId('bulk-invoice-confirm-confirm').click();
     await expect(page.getByTestId('bulk-invoice-result')).toHaveAttribute('data-created', '1', {

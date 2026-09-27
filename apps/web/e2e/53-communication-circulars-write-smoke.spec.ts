@@ -82,6 +82,8 @@ test.describe('Communication circulars — pages render (ungated)', () => {
   test('/communication/circulars/new hydrates the form', async ({ page }) => {
     await page.goto('/communication/circulars/new', { waitUntil: 'domcontentloaded' });
     await hydrated(page, 'communication-circular-form');
+    await expect(page.getByRole('button', { name: 'Add recipient' })).toBeVisible();
+    await expect(page.getByText(/recipient ids/i)).toHaveCount(0);
   });
 
   test('/communication/delivery renders the delivery log', async ({ page }) => {

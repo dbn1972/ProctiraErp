@@ -42,6 +42,8 @@ export function StructuresWorkspace({
   classOptions = [],
   gradeOptions = [],
   studentOptions = [],
+  listFailed = false,
+  failure = null,
 }: {
   structures: FeeStructure[];
   /** Server-rendered page heading (h1 + description) so the page owns its h1. */
@@ -49,6 +51,10 @@ export function StructuresWorkspace({
   classOptions?: EntityLabelOption[];
   gradeOptions?: EntityLabelOption[];
   studentOptions?: EntityLabelOption[];
+  /** List call failed. Do not describe that as an empty catalogue. */
+  listFailed?: boolean;
+  /** Shown under the heading, after the New structure action. */
+  failure?: ReactNode;
 }) {
   const locale = useLocale();
   const router = useRouter();
@@ -129,6 +135,8 @@ export function StructuresWorkspace({
           New structure
         </Button>
       </div>
+
+      {failure}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -281,11 +289,19 @@ export function StructuresWorkspace({
         <CardHeader>
           <CardTitle className="text-base">Structures</CardTitle>
           <CardDescription>
-            {structures.length === 0 ? 'No structures yet.' : `${structures.length} structure(s).`}
+            {listFailed
+              ? 'The structure list did not load.'
+              : structures.length === 0
+                ? 'No structures yet.'
+                : `${structures.length} structure(s).`}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {structures.length === 0 ? (
+          {listFailed ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Reload the page after the service is back. New structure stays available.
+            </p>
+          ) : structures.length === 0 ? (
             <p
               className="text-sm text-muted-foreground"
               role="status"
@@ -344,53 +360,58 @@ function StudentMultiAdd({
   options: EntityLabelOption[];
   disabled?: boolean;
 }) {
-  const [selected, setSelected] = useState<string[]>([]);
+  const [raw, setRaw] = useState('');
   const [pick, setPick] = useState('');
-
-  if (options.length === 0) {
-    return (
-      <div className="space-y-1.5 sm:col-span-2">
-        <label htmlFor={id} className="text-sm font-medium text-foreground">
-          Students (optional)
-        </label>
-        <input type="hidden" id={id} name={name} value="" />
-        <p
-          className="rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground"
-          role="status"
-        >
-          Student directory is not loaded. Leave this blank to invoice by class, or try again when
-          the directory is available.
-        </p>
-      </div>
-    );
-  }
-
+  const selected = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
   const remaining = options.filter((option) => !selected.includes(option.id));
+
+  function addId(value: string) {
+    if (!value || selected.includes(value)) return;
+    setRaw([...selected, value].join(','));
+  }
 
   return (
     <div className="space-y-1.5 sm:col-span-2">
       <label htmlFor={id} className="text-sm font-medium text-foreground">
         Students (optional)
       </label>
-      <input type="hidden" name={name} value={selected.join(',')} />
-      <select
+      <input
         id={id}
-        value={pick}
+        name={name}
+        value={raw}
         disabled={disabled}
-        onChange={(event) => {
-          const value = event.target.value;
-          setPick('');
-          if (value && !selected.includes(value)) setSelected((prev) => [...prev, value]);
-        }}
+        onChange={(event) => setRaw(event.target.value)}
+        placeholder="Student ids, comma-separated"
         className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-      >
-        <option value="">Add a student…</option>
-        {remaining.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      />
+      {options.length === 0 ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          Student directory is not loaded. Type ids, or leave this blank to invoice by class.
+        </p>
+      ) : (
+        <select
+          id={`${id}-pick`}
+          aria-label="Add a student from the directory"
+          value={pick}
+          disabled={disabled}
+          onChange={(event) => {
+            const value = event.target.value;
+            setPick('');
+            addId(value);
+          }}
+          className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        >
+          <option value="">Add a student…</option>
+          {remaining.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      )}
       {selected.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           Leave empty to invoice every student in the selected class.
@@ -402,11 +423,11 @@ function StudentMultiAdd({
               key={studentId}
               className="inline-flex items-center gap-2 rounded-full bg-muted px-2 py-1 text-xs"
             >
-              {options.find((option) => option.id === studentId)?.label ?? 'Student'}
+              {options.find((option) => option.id === studentId)?.label ?? studentId}
               <button
                 type="button"
                 className="font-semibold text-muted-foreground"
-                onClick={() => setSelected((prev) => prev.filter((id) => id !== studentId))}
+                onClick={() => setRaw(selected.filter((value) => value !== studentId).join(','))}
               >
                 Remove
               </button>

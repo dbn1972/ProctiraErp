@@ -123,6 +123,11 @@ export default async function AssessmentsPage(props: PageProps) {
         <p className="mt-1">
           <Link
             href="/assessments/report-cards"
+            // The hub click must commit `/assessments/report-cards` even when a
+            // prefetched RSC payload is still sitting in a hidden stream slot.
+            // A fresh navigation hits the segment `loading.tsx` and updates the
+            // URL before the report-cards server render finishes.
+            prefetch={false}
             className="font-medium text-primary underline-offset-4 hover:underline"
             data-testid="assess-moderation-report-cards-link"
           >
