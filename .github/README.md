@@ -135,12 +135,12 @@ For coarser-grained decisions (e.g., skip integration tests if only frontend cha
 
 **W1-OPS-05:** the fail-closed `CI Aggregate (Required)` job proves skips against these filters. Matrix gate: `node tools/scripts/check-ci-path-filters.mjs` (also run from `ci-aggregate`).
 
-| Path | Filter buckets | Required validation (high level) |
-| --- | --- | --- |
-| `db/**` | backend + shared | integration (apply-sql) + always-on SQL gates + code chain |
-| `tools/**` | shared | code chain + tool/always-on gates |
-| `docs/**` | shared | code chain (no silent skip) |
-| `infrastructure/**` (+ Docker/compose) | infra | code chain + integration |
+| Path                                   | Filter buckets   | Required validation (high level)                           |
+| -------------------------------------- | ---------------- | ---------------------------------------------------------- |
+| `db/**`                                | backend + shared | integration (apply-sql) + always-on SQL gates + code chain |
+| `tools/**`                             | shared           | code chain + tool/always-on gates                          |
+| `docs/**`                              | shared           | code chain (no silent skip)                                |
+| `infrastructure/**` (+ Docker/compose) | infra            | code chain + integration                                   |
 
 ### 3. Service-level Detection (Deploy)
 
@@ -217,7 +217,6 @@ pnpm turbo run typecheck --filter="...[${BASE}]"
 pnpm turbo run test --filter="...[${BASE}]"
 pnpm turbo run build --filter="...[${BASE}]"
 ```
-
 
 To enable remote caching locally:
 

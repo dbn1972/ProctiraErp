@@ -11,31 +11,31 @@ Copy of `docs/audits/templates/ENTERPRISE_RELEASE_OPS_CHECKLIST.md`.
 
 ## 1. Pre-merge
 
-| Check                                               | Pass | Evidence |
-| --------------------------------------------------- | ---- | -------- |
-| Tip CI all required checks SUCCESS on **this** SHA  | ☐    | Not claimed here. Merge only after `CI Aggregate (Required)` and `E2E backend-ready live gate (G-401 / G-706)` are SUCCESS on the same tip. |
+| Check                                               | Pass | Evidence                                                                                                                                                                                                   |
+| --------------------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tip CI all required checks SUCCESS on **this** SHA  | ☐    | Not claimed here. Merge only after `CI Aggregate (Required)` and `E2E backend-ready live gate (G-401 / G-706)` are SUCCESS on the same tip.                                                                |
 | Migrations listed + apply order                     | ☑    | No schema change. The gate still runs Prisma migrate deploy, then `tools/scripts/apply-sql.sh` (`APPLY_STRICT_FKS=1`, `APPLY_SEEDS=1`), then the multi-board onboard script, on each shard's own Postgres. |
-| External providers: sandbox honesty or live secrets | ☑    | Unchanged. HS256 cookies (`JWT_SECRET`), local Postgres and Redis. No live IdP. |
-| Feature flags / kill switches (if any)              | ☑    | None. `PLAYWRIGHT_SHARD` is set only by the shard jobs. |
-| Deploy path understood (or N/A docs-only)           | ☑    | Workflow-only. No image deploy. |
-| No secrets / large binary dumps in commit           | ☑    | Workflow, harness, Playwright reporter config, docs. |
-| Scoreboard / audits updated                         | ☑    | This note. No product score claim. |
+| External providers: sandbox honesty or live secrets | ☑    | Unchanged. HS256 cookies (`JWT_SECRET`), local Postgres and Redis. No live IdP.                                                                                                                            |
+| Feature flags / kill switches (if any)              | ☑    | None. `PLAYWRIGHT_SHARD` is set only by the shard jobs.                                                                                                                                                    |
+| Deploy path understood (or N/A docs-only)           | ☑    | Workflow-only. No image deploy.                                                                                                                                                                            |
+| No secrets / large binary dumps in commit           | ☑    | Workflow, harness, Playwright reporter config, docs.                                                                                                                                                       |
+| Scoreboard / audits updated                         | ☑    | This note. No product score claim.                                                                                                                                                                         |
 
 ## 2. Merge
 
-| Action                               | Done |
-| ------------------------------------ | ---- |
-| PR ready (not stale draft)           | ☐    |
+| Action                               | Done                                                                   |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| PR ready (not stale draft)           | ☐                                                                      |
 | Merge strategy noted (squash/rebase) | ☐ Squash, only when both required checks above are SUCCESS on the tip. |
-| Main tip CI watched after merge      | ☐    |
+| Main tip CI watched after merge      | ☐                                                                      |
 
 ## 3. Rollback
 
-| Scenario        | Plan / owner |
-| --------------- | ------------ |
+| Scenario        | Plan / owner                                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | App regression  | Revert the squash commit. The previous single job is the workflow on `main` before this change. No data migration to reverse. |
-| Bad migration   | N/A — no migration in this slice. |
-| Provider outage | N/A — no provider change. Gate still fails closed if the gateway does not become healthy. |
+| Bad migration   | N/A — no migration in this slice.                                                                                             |
+| Provider outage | N/A — no provider change. Gate still fails closed if the gateway does not become healthy.                                     |
 
 ## 4. Sign-off
 
