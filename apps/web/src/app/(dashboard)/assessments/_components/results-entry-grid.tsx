@@ -631,61 +631,67 @@ export function ResultsEntryGrid({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id} aria-invalid={!!row.rowError}>
-                    <TableCell>
-                      {studentOptions.length > 0 ? (
-                        <select
-                          aria-label={`Student for row ${row.id}`}
-                          value={row.studentId}
-                          onChange={(e) => updateRow(row.id, { studentId: e.target.value })}
-                          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                        >
-                          <option value="">Select student…</option>
-                          {row.studentId && !studentOptions.some((s) => s.id === row.studentId) ? (
-                            <option value={row.studentId}>Previously selected student</option>
-                          ) : null}
-                          {studentOptions.map((student) => (
-                            <option key={student.id} value={student.id}>
-                              {student.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <p className="text-sm text-muted-foreground" role="status">
-                          Student directory is unavailable. Add students before entering results.
-                        </p>
-                      )}
-                      {row.rowError && (
-                        <p className="mt-1 text-xs text-[hsl(var(--destructive))]" role="alert">
-                          {row.rowError}
-                        </p>
-                      )}
-                    </TableCell>
-                    {items.map((it) => (
-                      <TableCell key={it.id}>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          aria-label={`${it.name} score for ${row.studentId || 'unnamed student'}`}
-                          value={row.scores[it.id] ?? ''}
-                          onChange={(e) => updateScore(row.id, it.id, e.target.value)}
-                        />
+                {rows.map((row) => {
+                  const studentLabel =
+                    studentOptions.find((student) => student.id === row.studentId)?.label ??
+                    'unnamed student';
+                  return (
+                    <TableRow key={row.id} aria-invalid={!!row.rowError}>
+                      <TableCell>
+                        {studentOptions.length > 0 ? (
+                          <select
+                            aria-label={`Student, ${studentLabel}`}
+                            value={row.studentId}
+                            onChange={(e) => updateRow(row.id, { studentId: e.target.value })}
+                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="">Select student…</option>
+                            {row.studentId &&
+                            !studentOptions.some((s) => s.id === row.studentId) ? (
+                              <option value={row.studentId}>Previously selected student</option>
+                            ) : null}
+                            {studentOptions.map((student) => (
+                              <option key={student.id} value={student.id}>
+                                {student.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="text-sm text-muted-foreground" role="status">
+                            Student directory is unavailable. Add students before entering results.
+                          </p>
+                        )}
+                        {row.rowError && (
+                          <p className="mt-1 text-xs text-[hsl(var(--destructive))]" role="alert">
+                            {row.rowError}
+                          </p>
+                        )}
                       </TableCell>
-                    ))}
-                    <TableCell className="text-end">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeRow(row.id)}
-                        aria-label={`Remove row for student ${row.studentId || 'unnamed'}`}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      {items.map((it) => (
+                        <TableCell key={it.id}>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            aria-label={`${it.name} score for ${studentLabel}`}
+                            value={row.scores[it.id] ?? ''}
+                            onChange={(e) => updateScore(row.id, it.id, e.target.value)}
+                          />
+                        </TableCell>
+                      ))}
+                      <TableCell className="text-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeRow(row.id)}
+                          aria-label={`Remove row for ${studentLabel}`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
