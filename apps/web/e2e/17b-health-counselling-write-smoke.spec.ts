@@ -53,10 +53,16 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await expect(
       page.getByRole('heading', { name: /schedule counselling session/i }),
     ).toBeVisible();
-    await expect(page.getByTestId('counselling-session-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const counsellingForm = page.getByTestId('counselling-session-form');
+    await expect(async () => {
+      await expect(counsellingForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(counsellingForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.getByLabel(/student id/i).fill('not-a-uuid');
     await page.getByLabel(/counsellor id/i).fill('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1');

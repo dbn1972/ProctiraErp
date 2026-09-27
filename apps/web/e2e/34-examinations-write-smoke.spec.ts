@@ -63,6 +63,7 @@ async function postOk(
 interface ExamFixture {
   examId: string;
   studentId: string;
+  studentLabel: string;
   subjectIds: string[];
   centerId: string;
 }
@@ -164,14 +165,29 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
   return {
     examId: exam.id as string,
     studentId: student.id as string,
+    studentLabel: `Exam Candidate ${stamp}`,
     subjectIds: (exam.subjects as Array<{ id: string }>).map((s) => s.id),
     centerId: (exam.centers as Array<{ id: string }>)[0]!.id,
   };
 }
 
+/**
+ * Waits for exactly one `[data-testid=testId]` node before checking hydration.
+ *
+ * `next start` streams SSR HTML. During the client swap, the streamed
+ * fragment can briefly sit outside `<main>` as a direct sibling under
+ * `<body>` while the hydrated tree is already mounted inside `<main>` — two
+ * nodes with the same test id, byte-identical, for one render frame.
+ * `toHaveAttribute` does not retry past a Playwright strict-mode violation
+ * (throws immediately on multiple matches), so wait on `toHaveCount(1)`
+ * first — that assertion DOES retry until the transient duplicate clears.
+ */
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
-  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  await expect(async () => {
+    await expect(el).toHaveCount(1, { timeout: 2_000 });
+    await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   return el;
 }
 
@@ -203,7 +219,16 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
 
     // Candidates tab: empty, then the registration row.
     await page.goto(`/examinations/${fx.examId}/candidates`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('register-candidate')).toBeVisible();
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+visibility pair rather than assuming
+    // one oscillation, since `toBeVisible()` alone throws immediately on a
+    // strict-mode (multiple-match) violation.
+    const registerCandidate = page.getByTestId('register-candidate');
+    await expect(async () => {
+      await expect(registerCandidate).toHaveCount(1, { timeout: 2_000 });
+      await expect(registerCandidate).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByText(/no candidates registered yet/i)).toBeVisible();
 
     await postOk(
@@ -213,7 +238,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
       201,
     );
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(fx.studentId)).toBeVisible();
+    await expect(page.getByText(fx.studentLabel)).toBeVisible();
     await expect(page.getByText(/registered/i).first()).toBeVisible();
 
     // Admit cards while SCHEDULED (candidates resolved from registrations).
@@ -243,8 +268,12 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
       200,
     );
     await page.goto(`/examinations/${fx.examId}/results`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('publish-results')).toBeVisible();
-    await expect(page.getByText(fx.studentId)).toBeVisible();
+    const publishResults = page.getByTestId('publish-results');
+    await expect(async () => {
+      await expect(publishResults).toHaveCount(1, { timeout: 2_000 });
+      await expect(publishResults).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+    await expect(page.getByText(fx.studentLabel)).toBeVisible();
     await expect(page.getByText('PENDING').first()).toBeVisible();
 
     // Publish (IN_PROGRESS → publish) from the UI and verify grades render.
@@ -255,6 +284,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
     expect(moved.status(), await moved.text()).toBe(200);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await (await hydrated(page, 'publish-results')).click();
+    await page.getByTestId('publish-results-confirm-confirm').click();
     await expect(page.getByText('PUBLISHED').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('A', { exact: true }).first()).toBeVisible();
 

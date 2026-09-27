@@ -73,14 +73,26 @@ test.describe('LMS — client validation (ungated)', () => {
   test('/lms/assignments/new rejects an empty form client-side', async ({ page }) => {
     await page.goto('/lms/assignments/new', { waitUntil: 'domcontentloaded' });
     const form = page.getByTestId('lms-assignment-form');
-    await expect(form).toHaveAttribute('data-hydrated', 'true');
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    await expect(async () => {
+      await expect(form).toHaveCount(1, { timeout: 2_000 });
+      await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: /save draft/i }).click();
     await expect(page.getByText(/this field is required/i).first()).toBeVisible();
   });
 
   test('quiz kind reveals the question builder and enforces two options', async ({ page }) => {
     await page.goto('/lms/assignments/new?kind=quiz', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByTestId('lms-assignment-form')).toHaveAttribute('data-hydrated', 'true');
+    const quizForm = page.getByTestId('lms-assignment-form');
+    await expect(async () => {
+      await expect(quizForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(quizForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('quiz-question')).toHaveCount(1);
     await page.getByRole('button', { name: /add question/i }).click();
     await expect(page.getByTestId('quiz-question')).toHaveCount(2);
@@ -100,7 +112,10 @@ test.describe('LMS — client validation (ungated)', () => {
   test('/lms/pal rejects an invalid learner id client-side', async ({ page }) => {
     await page.goto('/lms/pal', { waitUntil: 'domcontentloaded' });
     const form = page.getByTestId('pal-lookup-form');
-    await expect(form).toHaveAttribute('data-hydrated', 'true');
+    await expect(async () => {
+      await expect(form).toHaveCount(1, { timeout: 2_000 });
+      await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     const input = form.locator('input');
     if ((await input.count()) > 0) {
       await input.fill('not-a-uuid');
@@ -159,11 +174,18 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
 
     await page.goto(`/lms/assignments/${id}`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/^draft$/i).first()).toBeVisible();
-    await expect(page.getByTestId('lms-lifecycle')).toHaveAttribute('data-hydrated', 'true');
+    const lifecycle = page.getByTestId('lms-lifecycle');
+    await expect(async () => {
+      await expect(lifecycle).toHaveCount(1, { timeout: 2_000 });
+      await expect(lifecycle).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: /^publish$/i }).click();
     await expect(page.getByText(/^published$/i).first()).toBeVisible({ timeout: 15_000 });
 
-    await expect(page.getByTestId('lms-lifecycle')).toHaveAttribute('data-hydrated', 'true');
+    await expect(async () => {
+      await expect(lifecycle).toHaveCount(1, { timeout: 2_000 });
+      await expect(lifecycle).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('button', { name: /^close$/i }).click();
     await page.getByRole('button', { name: /close now/i }).click();
     await expect(page.getByText(/^closed$/i).first()).toBeVisible({ timeout: 15_000 });
@@ -200,7 +222,10 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
 
     // Teacher override via the inline grade form (FR-LMS-013).
     const gradeForm = row.getByTestId('lms-grade-form');
-    await expect(gradeForm).toHaveAttribute('data-hydrated', 'true');
+    await expect(async () => {
+      await expect(gradeForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(gradeForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await gradeForm.getByLabel(/^score$/i).fill('2');
     await gradeForm.getByLabel(/feedback/i).fill('Reviewed by teacher');
     await gradeForm.getByRole('button', { name: /save grade/i }).click();
@@ -286,7 +311,10 @@ test.describe('LMS — live authoring, grading and Spiral PAL (E2E_BACKEND_READY
     await page.goto('/lms/pal', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     const form = page.getByTestId('pal-lookup-form');
-    await expect(form).toHaveAttribute('data-hydrated', 'true');
+    await expect(async () => {
+      await expect(form).toHaveCount(1, { timeout: 2_000 });
+      await expect(form).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     const input = form.locator('input');
     if ((await input.count()) > 0) {
       await input.fill(STUDENT_ID);

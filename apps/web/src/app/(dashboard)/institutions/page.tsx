@@ -201,8 +201,7 @@ function InstitutionRow({
   const palette = schoolAvatar(institution.name);
   // customData is not in the Institution type — use graceful fallbacks
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
-  const typeName =
-    (typeof cd['typeName'] === 'string' ? cd['typeName'] : '') || typeLabel;
+  const typeName = (typeof cd['typeName'] === 'string' ? cd['typeName'] : '') || typeLabel;
   const studentCount = typeof cd['studentCount'] === 'number' ? cd['studentCount'] : null;
   const staffCount = typeof cd['staffCount'] === 'number' ? cd['staffCount'] : null;
   const attendance = typeof cd['attendance'] === 'number' ? cd['attendance'] : null;

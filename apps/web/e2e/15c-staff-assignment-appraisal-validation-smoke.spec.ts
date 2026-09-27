@@ -21,10 +21,16 @@ test.describe('Staff assignment / appraisal validation — ungated', () => {
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByRole('heading', { name: /new teaching assignment/i })).toBeVisible();
-    await expect(page.getByTestId('staff-assignment-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    // `next start` briefly streams an unhydrated duplicate outside <main>
+    // during the client swap, sometimes more than once before settling.
+    // `toPass` retries the whole count+attribute pair rather than assuming
+    // one oscillation, since `toHaveAttribute` alone does not retry past a
+    // strict-mode (multiple-match) violation.
+    const assignmentForm = page.getByTestId('staff-assignment-form');
+    await expect(async () => {
+      await expect(assignmentForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(assignmentForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.locator('#role').fill('');
     await page.getByRole('button', { name: /create assignment/i }).click();
@@ -39,7 +45,11 @@ test.describe('Staff assignment / appraisal validation — ungated', () => {
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByRole('heading', { name: /new appraisal/i })).toBeVisible();
-    await expect(page.getByTestId('staff-appraisal-form')).toHaveAttribute('data-hydrated', 'true');
+    const appraisalForm = page.getByTestId('staff-appraisal-form');
+    await expect(async () => {
+      await expect(appraisalForm).toHaveCount(1, { timeout: 2_000 });
+      await expect(appraisalForm).toHaveAttribute('data-hydrated', 'true', { timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
 
     await page.locator('#appraisalDate').fill('');
     const scoreInput = page.locator('#scores\\.0\\.score');
