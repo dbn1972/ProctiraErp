@@ -157,6 +157,16 @@ export const StudentParamsSchema = Type.Object({
 
 export type StudentParams = Static<typeof StudentParamsSchema>;
 
+/** Schema for GET /transfers/:transferId */
+export const TransferParamsSchema = Type.Object({
+  transferId: Type.String({
+    pattern: UuidPattern,
+    description: 'Transfer record UUID',
+  }),
+});
+
+export type TransferParams = Static<typeof TransferParamsSchema>;
+
 /**
  * Schema for enrollment list query parameters.
  */

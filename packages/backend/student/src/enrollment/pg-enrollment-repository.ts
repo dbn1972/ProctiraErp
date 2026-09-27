@@ -15,6 +15,7 @@ import type {
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
+  TransferRecordDetail,
   TransferRecordEntity,
 } from './enrollment-repository.js';
 
@@ -47,9 +48,7 @@ async function bindEnrollmentHistoryGucs(
 function mapActiveEnrollmentConflict(err: unknown): never | void {
   const pgErr = err as { code?: string; constraint?: string };
   if (pgErr.code === '23505' && String(pgErr.constraint ?? '').includes(ACTIVE_ENROLLMENT_UNIQUE)) {
-    throw new ConflictError(
-      'Student already has an active enrollment for this academic period',
-    );
+    throw new ConflictError('Student already has an active enrollment for this academic period');
   }
 }
 
@@ -300,9 +299,7 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
         `SELECT tenant_id FROM enrollments WHERE id = $1 LIMIT 1`,
         [enrollmentId],
       );
-      return String(
-        (tenantRow.rows[0] as { tenant_id?: unknown } | undefined)?.tenant_id ?? '',
-      );
+      return String((tenantRow.rows[0] as { tenant_id?: unknown } | undefined)?.tenant_id ?? '');
     });
     if (!tenantId) return [];
     return this.withTenant(tenantId, async (client) => {
@@ -347,6 +344,51 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
         [tenantId, studentId],
       );
       return result.rows.map((r) => mapTransfer(r as Record<string, unknown>));
+    });
+  }
+
+  async getTransferById(
+    tenantId: string,
+    transferId: string,
+  ): Promise<TransferRecordDetail | null> {
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT t.*,
+                NULLIF(btrim(concat_ws(' ', s.first_name, s.last_name)), '') AS student_name,
+                src.name AS source_institution_name,
+                sb.name AS source_board_name,
+                dst.name AS destination_institution_name,
+                db.name AS destination_board_name
+           FROM transfer_records t
+           LEFT JOIN students s
+             ON s.id = t.student_id AND s.tenant_id = t.tenant_id AND s.deleted_at IS NULL
+           LEFT JOIN institutions src
+             ON src.id = t.source_institution_id AND src.tenant_id = t.tenant_id AND src.deleted_at IS NULL
+           LEFT JOIN boards sb
+             ON sb.id = src.board_id AND sb.tenant_id = t.tenant_id AND sb.deleted_at IS NULL
+           LEFT JOIN institutions dst
+             ON dst.id = t.destination_institution_id AND dst.tenant_id = t.tenant_id AND dst.deleted_at IS NULL
+           LEFT JOIN boards db
+             ON db.id = dst.board_id AND db.tenant_id = t.tenant_id AND db.deleted_at IS NULL
+          WHERE t.tenant_id = $1 AND t.id = $2
+          LIMIT 1`,
+        [tenantId, transferId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      if (!row) return null;
+      return {
+        ...mapTransfer(row),
+        studentName: row.student_name == null ? null : String(row.student_name),
+        sourceInstitutionName:
+          row.source_institution_name == null ? null : String(row.source_institution_name),
+        sourceBoardName: row.source_board_name == null ? null : String(row.source_board_name),
+        destinationInstitutionName:
+          row.destination_institution_name == null
+            ? null
+            : String(row.destination_institution_name),
+        destinationBoardName:
+          row.destination_board_name == null ? null : String(row.destination_board_name),
+      };
     });
   }
 

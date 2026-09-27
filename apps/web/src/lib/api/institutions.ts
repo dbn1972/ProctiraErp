@@ -3,7 +3,7 @@
  * Only the subset required by the student transfer flow and list filters is implemented.
  */
 import { gatewayFetch } from './gateway';
-import { clampPageSize, MAX_API_PAGE_SIZE } from './pagination';
+import { clampPageSize } from './pagination';
 
 export interface InstitutionSummary {
   id: string;
@@ -120,41 +120,30 @@ export async function listInstitutionClasses(
   return payload.data ?? [];
 }
 
-/**
- * NOTE: this endpoint does not exist.
- *
- * Area routes come from `registerAreaHierarchyRoutes` as /areas/tree, /areas/:areaId,
- * /areas/:areaId/descendants … — there is no collection `GET /areas`. The gateway
- * also mounts institutionPlugin without `areaHierarchyDb`
- * (apps/api-gateway/src/domain-plugins.ts), so those routes are not registered at
- * all and this request falls through to `GET /institutions/:id` with id='areas'.
- *
- * It therefore returns [] at any pageSize, which is why the area pickers on
- * /students/[id]/enroll and /students/[id]/transfer are permanently empty. The
- * pageSize on this call is irrelevant; the missing endpoint is the real gap.
- */
-/**
- * NOTE: this endpoint does not exist, and the pageSize on it is irrelevant.
- *
- * Area routes come from `registerAreaHierarchyRoutes` as `/areas/tree`,
- * `/areas/:areaId`, `/areas/:areaId/descendants` — there is no collection
- * `GET /areas`. The gateway also mounts `institutionPlugin` without
- * `areaHierarchyDb` (`apps/api-gateway/src/domain-plugins.ts`), so those routes are
- * not registered at all and this request falls through to `GET /institutions/:id`
- * with `id='areas'`.
- *
- * It returns `[]` at any pageSize, which is why the area pickers on
- * `/students/[id]/enroll` and `/students/[id]/transfer` are permanently empty. The
- * missing endpoint is the real gap; this call site is not the fix.
- */
+function flattenAreaTree(nodes: AreaNode[]): AreaNode[] {
+  const flat: AreaNode[] = [];
+  const walk = (list: AreaNode[]) => {
+    for (const node of list) {
+      flat.push({
+        id: node.id,
+        name: node.name,
+        parentId: node.parentId,
+        level: node.level,
+      });
+      if (node.children?.length) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return flat;
+}
+
+/** Institution area labels from `GET /areas/tree`, flattened for pickers. */
 export async function listAreas(): Promise<AreaNode[]> {
-  const result = await gatewayFetch<{ data: AreaNode[] }>(
-    `/institutions/areas?pageSize=${MAX_API_PAGE_SIZE}`,
-    {
-      method: 'GET',
-      throwOnError: false,
-      next: { revalidate: 60 },
-    },
-  );
-  return result.ok && result.data ? (result.data.data ?? []) : [];
+  const result = await gatewayFetch<AreaNode[]>(`/areas/tree`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 60 },
+  });
+  if (!result.ok || !result.data) return [];
+  return flattenAreaTree(Array.isArray(result.data) ? result.data : []);
 }
