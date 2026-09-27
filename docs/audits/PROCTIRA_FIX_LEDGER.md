@@ -50,11 +50,11 @@ Generated 26 Sep 2026 from `proctira-design/graph/gaps.json` (static UI→API→
 - **Done-when:** _(fill in: PR link · test names · command output · trace metrics before → after)_
 
 ### A2-005 · Disposition package `audit` (10 handlers)
-- **Status:** OPEN
+- **Status:** WONT_FIX (stale finding — package is genuinely mounted; the gap-scan tool had the same `explicitMounts` parsing bug documented in A1-001/A1-002, now fixed)
 - **Evidence:** gaps.routes_unmounted → pkg=audit
 - **Detail:** Handlers: POST ${prefix} (routes.ts); POST ${prefix}/batch (routes.ts); GET ${prefix} (routes.ts); GET ${prefix}/retention (routes.ts); PUT ${prefix}/retention (routes.ts); POST ${prefix}/archival/execute (routes.ts); GET ${prefix}/archival/candidates (routes.ts); GET ${prefix}/chain/verify (routes.ts); GET ${prefix}/dsar/:subjectId (routes.ts); GET ${prefix}/:id (routes.ts)
-- **How to close:** Write disposition in docs/audits/UNMOUNTED_PACKAGES.md: MOUNT (add registrar in apps/api-gateway/src/domain-plugins.ts + mount test + authz test), SUPERSEDED (name the gateway *-ui-plugin that serves the UI; mark package README deprecated), or PARK (owner + wave). Do not delete code.
-- **Done-when:** _(fill in: PR link · test names · command output · trace metrics before → after)_
+- **How to close:** N/A — not a real unmounted package. `auditPlugin` is registered at `apps/api-gateway/src/app.ts:787-789` with `prefix: '/api/v1/audit-logs'` (a comment on the line above explains the prefix was chosen to avoid clashing with a platform-admin UI stub at `GET /api/v1/audit`). All 10 handlers listed above are the same `auditPlugin` route table already proven live in A1-001/A1-002 (`PUT`/`GET .../retention`, `POST .../archival/execute` returned real 200s with persisted data via `app.inject()` against the built gateway).
+- **Done-when:** Same root cause and same tool fix as A1-001/A1-002 (PR #415, commit `3af2ebbb`): `explicitMounts`'s regex crossed statement boundaries and its result never reached `pkgPrefixMap`, so the tool attributed `auditPlugin`'s `app.register()` call to the wrong prefix and then reported the whole `audit` package as unmounted (0 real prefix resolved → all 10 of its handlers counted as orphaned in `routes_unmounted`). Re-run with the fixed tool: `routes_unmounted` 117 → 107, with `audit`'s 10 handlers no longer appearing in that list. Verified independently for this entry specifically (not just inherited from A1-001/A1-002): `grep -n "auditPlugin\|/api/v1/audit" apps/api-gateway/src/app.ts` confirms the registration and prefix directly. No application code change needed or made.
 
 ### A2-006 · Disposition package `custom-field` (8 handlers)
 - **Status:** OPEN
