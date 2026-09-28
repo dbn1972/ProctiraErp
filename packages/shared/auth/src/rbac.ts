@@ -337,6 +337,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'report', action: 'manage' },
       { resource: 'workflow', action: 'manage' },
       { resource: 'user', action: 'manage' },
+      { resource: 'dashboard-preview', action: 'manage' },
     ],
   },
   {
@@ -350,6 +351,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'assessment', action: 'manage' },
       { resource: 'attendance', action: 'manage' },
       { resource: 'report', action: 'read' },
+      { resource: 'dashboard-preview', action: 'manage' },
     ],
   },
   {

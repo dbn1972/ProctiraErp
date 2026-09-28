@@ -112,6 +112,15 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     };
   }
 
+  async countUnreadNotifications(tenantId: string, userId: string): Promise<number> {
+    return this.notifications.filter(
+      (n) =>
+        n.tenantId === tenantId &&
+        n.recipientUserId === userId &&
+        (n.status === 'sent' || n.status === 'delivered'),
+    ).length;
+  }
+
   async getRetryableNotifications(tenantId: string): Promise<NotificationEntity[]> {
     return this.notifications
       .filter(

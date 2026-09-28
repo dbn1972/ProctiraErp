@@ -12,6 +12,7 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
+import type { CacheClient } from '@proctira/cache';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -53,6 +54,11 @@ export interface NotificationPluginOptions {
   queuePublisher?: NotificationQueuePublisher;
   /** Service configuration overrides */
   config?: Partial<NotificationServiceConfig>;
+  /**
+   * Optional Redis read-through cache for `countUnreadNotifications` (Task 3.5).
+   * Omitted → direct repository query on every call, unchanged from today.
+   */
+  cache?: CacheClient;
   /** Route prefix for notifications (default: '/notifications') */
   prefix?: string;
 }
@@ -81,6 +87,7 @@ export const notificationPlugin = fp(
       smsSender = createSmsSenderFromEnv(),
       queuePublisher,
       config,
+      cache,
       prefix = '/notifications',
     } = options;
 
@@ -93,6 +100,7 @@ export const notificationPlugin = fp(
       smsSender,
       queuePublisher,
       config,
+      cache,
     );
 
     // Decorate fastify with the notification service

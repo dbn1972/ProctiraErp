@@ -44,6 +44,8 @@ export interface WorkflowApproval {
   stepName: string;
   requestedAt: string;
   requestedBy: string;
+  /** Approval taxonomy, e.g. `'transfer' | 'leave'`; absent = uncategorized. */
+  category?: string;
 }
 
 export interface CreateWorkflowDefinitionInput {

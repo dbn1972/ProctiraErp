@@ -43,6 +43,7 @@ export type {
 
 export {
   authUserFromTokenPayload,
+  primaryRoleFromTokenPayload,
   rolesFromTokenPayload,
   scopeFromTokenPayload,
   normaliseAuthRole,

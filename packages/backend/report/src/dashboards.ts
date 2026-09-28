@@ -1,3 +1,5 @@
+import type { CacheClient } from '@proctira/cache';
+import { tenantKey } from '@proctira/cache';
 import { AppError, ErrorCode } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
@@ -30,19 +32,29 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
     title: 'Principal dashboard',
     cards: [
       {
-        id: 'principal-enrolment',
-        title: 'School enrolment',
-        value: '—',
-        hint: 'Active enrolments',
-      },
-      {
         id: 'principal-attendance',
         title: 'Today attendance',
         value: '—',
-        hint: 'Campus present %',
+        hint: 'Campus present % (today)',
       },
-      { id: 'principal-dues', title: 'Open fee dues', value: '—', hint: 'Open + overdue invoices' },
-      { id: 'principal-students', title: 'Students', value: '—', hint: 'Active student records' },
+      {
+        id: 'principal-fees-month',
+        title: 'Fees collected this month',
+        value: '—',
+        hint: 'Succeeded payments this month',
+      },
+      {
+        id: 'principal-admissions-pending',
+        title: 'Pending admissions',
+        value: '—',
+        hint: 'Applications pending or under review',
+      },
+      {
+        id: 'principal-health-incidents',
+        title: 'Open health incidents',
+        value: '—',
+        hint: 'Nurse incidents still open',
+      },
     ],
   },
   teacher: {
@@ -231,6 +243,14 @@ export interface DashboardAggregates {
   openInvoices: number;
   feesCollectedCents: number;
   linkedChildren: number;
+  /** Present-share for `student_attendance` rows dated today only (server-local CURRENT_DATE). */
+  todayAttendancePercent: number | null;
+  /** Sum of `succeeded` `parent_fee_payments.amount_cents` paid since the start of the current month. Amount only — no target/percentage (see design §4). */
+  feeCollectedThisMonthCents: number;
+  /** Count of `admission_applications` rows with status `pending` or `under_review`. */
+  pendingAdmissionsCount: number;
+  /** Count of `health_nurse_incidents` rows with `status = 'open'`. */
+  openHealthIncidentsCount: number;
 }
 
 const DEMO_AGGREGATES: DashboardAggregates = {
@@ -241,9 +261,16 @@ const DEMO_AGGREGATES: DashboardAggregates = {
   openInvoices: 4,
   feesCollectedCents: 1_250_000,
   linkedChildren: 2,
+  todayAttendancePercent: 94.2,
+  feeCollectedThisMonthCents: 420_000,
+  pendingAdmissionsCount: 5,
+  openHealthIncidentsCount: 2,
 };
 
-export async function loadDashboardAggregates(tenantId: string): Promise<DashboardAggregates> {
+/** TTL for the cached principal dashboard aggregates (seconds). */
+const AGGREGATES_TTL_SECONDS = 90;
+
+async function computeAggregates(tenantId: string): Promise<DashboardAggregates> {
   const pool = getSharedPgPool();
   if (!pool) return { ...DEMO_AGGREGATES };
   try {
@@ -261,6 +288,7 @@ export async function loadDashboardAggregates(tenantId: string): Promise<Dashboa
           )
         : 0;
       let attendancePercent: number | null = null;
+      let todayAttendancePercent: number | null = null;
       if (await relationExists(client, 'student_attendance')) {
         const present = await count(
           client,
@@ -268,6 +296,17 @@ export async function loadDashboardAggregates(tenantId: string): Promise<Dashboa
         );
         const total = await count(client, `SELECT COUNT(*)::int AS n FROM student_attendance`);
         attendancePercent = total > 0 ? Math.round((present / total) * 1000) / 10 : null;
+
+        const presentToday = await count(
+          client,
+          `SELECT COUNT(*)::int AS n FROM student_attendance WHERE date = CURRENT_DATE AND status IN ('PRESENT','LATE','present','late')`,
+        );
+        const totalToday = await count(
+          client,
+          `SELECT COUNT(*)::int AS n FROM student_attendance WHERE date = CURRENT_DATE`,
+        );
+        todayAttendancePercent =
+          totalToday > 0 ? Math.round((presentToday / totalToday) * 1000) / 10 : null;
       }
       const openInvoices = (await relationExists(client, 'parent_fee_invoices'))
         ? await count(
@@ -276,10 +315,15 @@ export async function loadDashboardAggregates(tenantId: string): Promise<Dashboa
           )
         : 0;
       let feesCollectedCents = 0;
+      let feeCollectedThisMonthCents = 0;
       if (await relationExists(client, 'parent_fee_payments')) {
         feesCollectedCents = await count(
           client,
           `SELECT COALESCE(SUM(amount_cents),0)::int AS n FROM parent_fee_payments WHERE status IN ('succeeded','paid','SUCCESS')`,
+        );
+        feeCollectedThisMonthCents = await count(
+          client,
+          `SELECT COALESCE(SUM(amount_cents),0)::int AS n FROM parent_fee_payments WHERE status='succeeded' AND paid_at >= date_trunc('month', CURRENT_DATE)`,
         );
       }
       const linkedChildren = (await relationExists(client, 'parent_child_links'))
@@ -287,6 +331,18 @@ export async function loadDashboardAggregates(tenantId: string): Promise<Dashboa
         : students > 0
           ? Math.min(students, 2)
           : 0;
+      const pendingAdmissionsCount = (await relationExists(client, 'admission_applications'))
+        ? await count(
+            client,
+            `SELECT COUNT(*)::int AS n FROM admission_applications WHERE status IN ('pending','under_review')`,
+          )
+        : 0;
+      const openHealthIncidentsCount = (await relationExists(client, 'health_nurse_incidents'))
+        ? await count(
+            client,
+            `SELECT COUNT(*)::int AS n FROM health_nurse_incidents WHERE status = 'open'`,
+          )
+        : 0;
       if (schools + students + enrolments + openInvoices === 0 && attendancePercent == null) {
         return { ...DEMO_AGGREGATES };
       }
@@ -298,11 +354,35 @@ export async function loadDashboardAggregates(tenantId: string): Promise<Dashboa
         openInvoices,
         feesCollectedCents,
         linkedChildren,
+        todayAttendancePercent,
+        feeCollectedThisMonthCents,
+        pendingAdmissionsCount,
+        openHealthIncidentsCount,
       };
     });
   } catch {
     return { ...DEMO_AGGREGATES };
   }
+}
+
+/**
+ * Loads the principal dashboard aggregates, optionally through a Redis
+ * read-through cache. When `cache` is omitted (no `REDIS_URL` configured),
+ * this runs the direct query exactly as it always has — no new required
+ * dependency. When present, wraps `computeAggregates` behind a 90-second
+ * tenant-scoped cache key, following the same `CacheClient.getOrSet` pattern
+ * as `CachedInstitutionRepository`.
+ */
+export async function loadDashboardAggregates(
+  tenantId: string,
+  cache?: CacheClient,
+): Promise<DashboardAggregates> {
+  if (!cache) return computeAggregates(tenantId);
+  return cache.getOrSet(
+    tenantKey(tenantId, 'dashboard-aggregates', 'principal'),
+    () => computeAggregates(tenantId),
+    AGGREGATES_TTL_SECONDS,
+  );
 }
 
 function fmtCount(n: number): string {
@@ -335,10 +415,10 @@ export function valuesForRole(
       };
     case 'principal':
       return {
-        'principal-enrolment': fmtCount(agg.enrolments),
-        'principal-attendance': fmtPct(agg.attendancePercent),
-        'principal-dues': fmtCount(agg.openInvoices),
-        'principal-students': fmtCount(agg.students),
+        'principal-attendance': fmtPct(agg.todayAttendancePercent),
+        'principal-fees-month': fmtMoney(agg.feeCollectedThisMonthCents),
+        'principal-admissions-pending': fmtCount(agg.pendingAdmissionsCount),
+        'principal-health-incidents': fmtCount(agg.openHealthIncidentsCount),
       };
     case 'teacher':
       return {

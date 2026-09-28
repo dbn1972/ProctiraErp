@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -169,12 +170,33 @@ export const navItems = [
 
 type IconName = (typeof navItems)[number]['icon'];
 
+export interface SidebarProps {
+  /**
+   * Pre-rendered tenant/school identity block (Requirement 1), e.g.
+   * `<TenantIdentityBlock studentCount={n} />` already resolved by a
+   * Server Component ancestor.
+   *
+   * `Sidebar` is a Client Component, so it cannot import or invoke the
+   * async Server Component `TenantIdentityBlock` itself — Next.js App
+   * Router only allows a Server Component's already-rendered output to
+   * cross the server/client boundary as a prop (the same rule that
+   * governs `children`). The caller (`DashboardLayout`) resolves the
+   * block server-side and passes the resulting element down through
+   * `AppShell` → `DesktopShell` → `Sidebar`.
+   *
+   * `undefined`/`null` when the caller has no slot content (e.g. tenant
+   * settings were unavailable) — the sidebar renders nothing in that
+   * case and stays fully functional otherwise (Req 1 AC3).
+   */
+  tenantIdentitySlot?: ReactNode;
+}
+
 /**
  * Sidebar navigation component (Design System v2.0).
  * Deep-navy chrome with per-module stroke icons and an active rail.
  * Supports RTL layout automatically via CSS dir attribute.
  */
-export function Sidebar() {
+export function Sidebar({ tenantIdentitySlot }: SidebarProps = {}) {
   const t = useTranslations('nav');
   const pathname = usePathname();
   const { user } = useAuth();
@@ -203,6 +225,11 @@ export function Sidebar() {
           <span className="text-[var(--color-primary-400)]">ERP</span>
         </Link>
       </div>
+
+      {/* Tenant/school identity block (Requirement 1) — server-rendered
+          slot passed down from DashboardLayout; renders nothing when
+          unavailable. */}
+      {tenantIdentitySlot}
 
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main navigation">

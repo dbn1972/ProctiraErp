@@ -253,6 +253,18 @@ export class HybridNotificationRepository implements NotificationRepository {
     });
   }
 
+  async countUnreadNotifications(tenantId: string, userId: string): Promise<number> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT COUNT(*)::int AS n FROM notifications
+         WHERE tenant_id = $1 AND recipient_user_id = $2 AND status IN ('sent','delivered')`,
+        [tenantId, userId],
+      );
+      return Number((result.rows[0] as { n: number }).n);
+    });
+  }
+
   async getRetryableNotifications(tenantId: string): Promise<NotificationEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {

@@ -170,6 +170,21 @@ export function toUiInstance(
   };
 }
 
+/**
+ * Approval category taxonomy (Req 5 AC3): derived only from subject types that
+ * correspond to real, existing workflow definitions — `student_transfer` and
+ * `staff_leave` today (`workflow-ui-seed.ts`). Returns `undefined` for every
+ * other subject type, including ones that don't map to a real definition
+ * (e.g. `'fees'`, `'examination'` instances created ad hoc through
+ * `/workflow-engine/instances`) — no category should be introduced without a
+ * corresponding real workflow definition.
+ */
+export function subjectTypeToCategory(subjectType: string): string | undefined {
+  if (subjectType === 'student_transfer') return 'transfer';
+  if (subjectType === 'staff_leave') return 'leave';
+  return undefined;
+}
+
 export function toUiApproval(
   instance: WorkflowInstanceEntity,
   definition: WorkflowDefinitionEntity | undefined,
@@ -186,6 +201,7 @@ export function toUiApproval(
     stepName: stateName(definition, instance.currentStateId),
     requestedAt: (last?.timestamp ?? instance.updatedAt).toISOString(),
     requestedBy: last?.actorId ?? meta(instance, 'initiatedBy') ?? 'system',
+    category: meta(instance, 'category'),
   };
 }
 
@@ -312,6 +328,7 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
           action: APPROVE,
           timestamp: new Date(new Date(inst.initiatedAt).getTime() + (i + 1) * 3_600_000),
         }));
+      const category = subjectTypeToCategory(inst.subjectType);
       await this.repository.createInstance({
         id: inst.id,
         tenantId: inst.tenantId,
@@ -320,7 +337,15 @@ export class EngineBackedWorkflowUiStore implements WorkflowUiStore {
         entityId: inst.subjectId,
         currentStateId,
         status: active ? 'ACTIVE' : 'COMPLETED',
-        metadata: { initiatedBy: inst.initiatedBy, initiatedAt: inst.initiatedAt },
+        metadata: {
+          initiatedBy: inst.initiatedBy,
+          initiatedAt: inst.initiatedAt,
+          // Omit the key entirely when unmapped, rather than writing
+          // `category: undefined` — `meta()` already treats a missing key
+          // and a non-string value the same way, but this keeps the stored
+          // metadata itself free of any literal "undefined".
+          ...(category ? { category } : {}),
+        },
         approvals,
       });
     }

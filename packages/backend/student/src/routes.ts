@@ -318,6 +318,8 @@ export async function registerStudentRoutes(
             gender: query.gender,
             search: query.search,
             institutionId: query.institutionId,
+            createdAfter: query.createdAfter,
+            createdBefore: query.createdBefore,
           },
           { page, pageSize, sortBy, sortOrder },
         );

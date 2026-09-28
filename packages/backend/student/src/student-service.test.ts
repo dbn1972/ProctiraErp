@@ -12,7 +12,7 @@
  * - Custom data (JSONB) support
  * - Contacts, guardians, identity documents management
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 
 import { InMemoryStudentRepository } from './in-memory-repository.js';
@@ -396,6 +396,53 @@ describe('StudentService', () => {
       expect(result.data).toHaveLength(0);
       expect(result.meta.totalItems).toBe(0);
       expect(result.meta.totalPages).toBe(0);
+    });
+
+    // principal-dashboard-parity Task 13.2 (Req 3.2): the dashboard's "N new
+    // this term" subtext counts students created within an academic period's
+    // date bounds via this filter, instead of fetching the full roster.
+    it('should filter by createdAfter/createdBefore (inclusive date range)', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2024-01-10T00:00:00.000Z'));
+        await service.create(TENANT_ID, validCreateInput({ firstName: 'Before' }));
+
+        vi.setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
+        await service.create(TENANT_ID, validCreateInput({ firstName: 'Within' }));
+
+        vi.setSystemTime(new Date('2024-12-31T23:59:59.000Z'));
+        await service.create(TENANT_ID, validCreateInput({ firstName: 'After' }));
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const result = await service.list(
+        TENANT_ID,
+        { createdAfter: '2024-06-01', createdBefore: '2024-06-30' },
+        { page: 1, pageSize: 20 },
+      );
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].firstName).toBe('Within');
+    });
+
+    it('createdBefore includes the entire end date (boundary inclusive)', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date('2024-06-30T23:00:00.000Z'));
+        await service.create(TENANT_ID, validCreateInput({ firstName: 'LateOnBoundary' }));
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const result = await service.list(
+        TENANT_ID,
+        { createdBefore: '2024-06-30' },
+        { page: 1, pageSize: 20 },
+      );
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0].firstName).toBe('LateOnBoundary');
     });
   });
 

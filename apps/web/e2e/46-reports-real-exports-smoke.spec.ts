@@ -144,7 +144,7 @@ test.describe('Reports catalogue — live chain (E2E_BACKEND_READY)', () => {
     await page.goto('/reports/dashboard', { waitUntil: 'domcontentloaded' });
     await hydrated(page, 'role-dashboard');
     await expect(page.getByTestId('role-dashboard')).toHaveAttribute('data-role', 'principal');
-    await expect(page.getByTestId('dashboard-card-principal-enrolment')).toBeVisible();
+    await expect(page.getByTestId('dashboard-card-principal-attendance')).toBeVisible();
 
     await setupGatewayTenantSession(page, {
       sub: 'e2e-teacher',
@@ -156,7 +156,7 @@ test.describe('Reports catalogue — live chain (E2E_BACKEND_READY)', () => {
     await hydrated(page, 'role-dashboard');
     await expect(page.getByTestId('role-dashboard')).toHaveAttribute('data-role', 'teacher');
     await expect(page.getByTestId('dashboard-card-teacher-students')).toBeVisible();
-    await expect(page.getByTestId('dashboard-card-principal-enrolment')).toHaveCount(0);
+    await expect(page.getByTestId('dashboard-card-principal-attendance')).toHaveCount(0);
   });
 
   test('tenant B cannot download tenant A artifacts', async ({ request }) => {

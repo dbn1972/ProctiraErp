@@ -26,3 +26,14 @@ export async function listUserNotifications(userId: string): Promise<InboxNotifi
   );
   return result.data?.data ?? [];
 }
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const result = await gatewayFetch<{ count: number }>(
+    `/notifications/user/${encodeURIComponent(userId)}/unread-count`,
+    {
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
+  return result.data?.count ?? 0;
+}

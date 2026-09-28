@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
+import type { CacheClient } from '@proctira/cache';
 import { NotFoundError, ValidationError } from '@proctira/common';
 
 import type { ReportBlobStore } from './blob-store.js';
@@ -57,12 +58,15 @@ export interface GenerateResult {
 
 export class CatalogueService {
   private readonly delivery: ScheduleDeliveryPort;
+  private readonly cache?: CacheClient;
 
   constructor(
     private readonly store: ReportStore,
     private readonly blobs: ReportBlobStore,
+    cache?: CacheClient,
     delivery?: ScheduleDeliveryPort,
   ) {
+    this.cache = cache;
     this.delivery = delivery ?? new InMemoryScheduleDelivery();
   }
 
@@ -295,7 +299,7 @@ export class CatalogueService {
     queryRole?: string | null,
   ): Promise<RoleDashboard> {
     const role = resolveDashboardRole(roles, queryRole);
-    const agg = await loadDashboardAggregates(tenantId);
+    const agg = await loadDashboardAggregates(tenantId, this.cache);
     return buildRoleDashboard(role, valuesForRole(role, agg));
   }
 

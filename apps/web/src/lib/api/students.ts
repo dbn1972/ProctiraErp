@@ -82,6 +82,16 @@ export interface StudentListFilters {
   status?: 'ENROLLED' | 'TRANSFERRED' | 'WITHDRAWN' | 'GRADUATED' | 'ALL';
   sortBy?: 'firstName' | 'lastName' | 'dateOfBirth' | 'createdAt';
   sortOrder?: 'asc' | 'desc';
+  /**
+   * Narrow date-range filter on `createdAt` (inclusive), `YYYY-MM-DD`.
+   * Backed by the student-service's `GET /students` query params of the same
+   * name — used by the dashboard's "N new this term" subtext to count
+   * students created within an academic period's bounds server-side, rather
+   * than fetching the full roster client-side (principal-dashboard-parity,
+   * Req 3.2).
+   */
+  createdAfter?: string;
+  createdBefore?: string;
 }
 
 export interface CreateStudentInput {
@@ -222,6 +232,12 @@ function toQuery(filters: StudentListFilters): string {
   if (filters.institutionId) params.set('institutionId', filters.institutionId);
   if (filters.gradeId) params.set('gradeId', filters.gradeId);
   if (filters.status && filters.status !== 'ALL') params.set('status', filters.status);
+  // createdAfter/createdBefore ARE natively supported by the student-service's
+  // GET /students handler (see `StudentFilter.createdAfter/createdBefore` in
+  // `packages/backend/student/src/student-repository.ts`) — unlike
+  // institutionId/gradeId/status above, this is not a hopeful passthrough.
+  if (filters.createdAfter) params.set('createdAfter', filters.createdAfter);
+  if (filters.createdBefore) params.set('createdBefore', filters.createdBefore);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }

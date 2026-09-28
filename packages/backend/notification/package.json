@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@proctira/cache": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/events": "workspace:*",

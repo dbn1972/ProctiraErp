@@ -52,6 +52,7 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `(gateway) workflow-ui` | Yes | `/workflows` | Engine repositories (db/sql/025 when `DATABASE_URL`; else in-memory) | Yes | Registrar `workflow`. G-924: served by `EngineBackedWorkflowUiStore` — same store as `/workflow-engine`; UI approvals are engine transitions with audit (dual-engine gap closed). |
 | `backend/workflow` | Yes | `/workflow-engine` | Postgres when `DATABASE_URL` (`025`; else in-memory) | Yes | Registrar `workflow-engine` (G-715): definitions, instances, transitions + append-only audit, cases. |
 | `backend/etl` | Yes | `/pipelines` | Raw pg `046` (else in-memory) | Yes (report) | Wave 10 Option C thin un-park. `data-warehouse` package remains PARKED (insights owns `/data-warehouse`). |
+| `(gateway) dashboard-preview-ui` | Yes | `/dashboard-preview` | n/a (stateless audit-anchor routes) | Yes | Registrar `dashboard-preview` (Task 9.2, `principal-dashboard-parity`). No database, no domain state — exists only so the global mutation-audit `onSend` hook (G-105) has a real `/api/v1/*` mutation to audit for the `Dashboard-Preview-State` cookie set/clear, which `apps/web` (Task 9.1) owns entirely on its own side. RBAC resource `dashboard-preview` via `PATH_RESOURCE_MAP`, requiring `dashboard-preview:manage` (Task 6). |
 
 ## Unmounted / PARKED (G-605, G-924, W1-ARCH-05)
 
@@ -110,6 +111,7 @@ Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` 
 | `registration`           | `backend/registration`                                     |
 | `developer`              | `backend/developer-portal`                                 |
 | `privacy`                | `backend/privacy` (W1-ARCH-05 / W1-SEC-06)                 |
+| `dashboard-preview`      | `(gateway) dashboard-preview-ui` (Task 9.2, stateless audit-anchor) |
 
 ## Maintenance
 

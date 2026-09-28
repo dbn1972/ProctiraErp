@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Sidebar } from './sidebar';
-import { Header } from './header';
+import { Header, type HeaderIdentity } from './header';
 import { Breadcrumbs } from './breadcrumbs';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -25,16 +25,32 @@ import { CommandPalette } from '@/components/CommandPalette';
  * chrome remains mounted and the user can click Retry to recover
  * (Property F-9, Requirement 24.x / 38.7).
  */
-export function DesktopShell({ children }: { children: React.ReactNode }) {
+export interface DesktopShellProps {
+  children: React.ReactNode;
+  /**
+   * Server-rendered tenant/school identity block (Requirement 1),
+   * threaded down from `DashboardLayout` through `<AppShell>` and
+   * forwarded to `<Sidebar>` unchanged — see `SidebarProps.tenantIdentitySlot`.
+   */
+  tenantIdentitySlot?: React.ReactNode;
+  /**
+   * Real session identity (Requirement 2, Task 12.1), threaded down from
+   * `DashboardLayout` through `<AppShell>` and forwarded to `<Header>`
+   * unchanged — see `HeaderProps.identity`.
+   */
+  headerIdentity?: HeaderIdentity;
+}
+
+export function DesktopShell({ children, tenantIdentitySlot, headerIdentity }: DesktopShellProps) {
   return (
     <div className="flex h-screen overflow-hidden" data-shell="desktop">
       {/* Sidebar Navigation */}
-      <Sidebar />
+      <Sidebar tenantIdentitySlot={tenantIdentitySlot} />
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         {/* Top Header */}
-        <Header />
+        <Header identity={headerIdentity} />
 
         {/* Breadcrumbs + Page Content */}
         <main className="flex-1 overflow-y-auto p-6">

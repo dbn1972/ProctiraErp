@@ -83,6 +83,10 @@ const PREFIX_PROBES: Record<string, { method: string; url: string }> = {
     method: 'GET',
     url: '/api/v1/institution-subjects',
   },
+  // Task 9.2 (principal-dashboard-parity): `dashboard-preview` only exposes
+  // POST/DELETE (no GET) — see `domain-plugins.ts`'s `dashboard-preview`
+  // registrar. Probe with POST like every other write-only mount below.
+  '/dashboard-preview': { method: 'POST', url: '/api/v1/dashboard-preview' },
 };
 
 function config(): GatewayConfig {
