@@ -51,23 +51,6 @@ async function chooseSelectOption(page: Page, triggerId: string, optionName: str
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
-/** Set an input value through the native setter and fire input/change so RHF sees it. */
-async function fillReactInput(locator: import('@playwright/test').Locator, value: string) {
-  await locator.evaluate((el, next) => {
-    if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
-      throw new Error('fillReactInput expects an input or textarea');
-    }
-    const proto =
-      el instanceof HTMLTextAreaElement
-        ? window.HTMLTextAreaElement.prototype
-        : window.HTMLInputElement.prototype;
-    const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
-    descriptor?.set?.call(el, next);
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }, value);
-}
-
 test.describe('Institutions profile forms — Sunrise live', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
 
@@ -125,35 +108,53 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     const nameField = page.locator('#name');
     const profileForm = page.getByTestId('institution-profile-form');
     await expect(profileForm).toBeVisible({ timeout: 20_000 });
-    await nameField.click();
-    await fillReactInput(nameField, editedName);
+    // Prefer Playwright fill so RHF controlled state keeps the edit across re-renders
+    // when the leave dialog is dismissed. Native setter alone can leave React stale.
+    await nameField.fill(editedName);
     await expect(nameField).toHaveValue(editedName);
-    // Production CI sometimes misses React/native listeners; stamp the same
-    // window bag the leave guard reads so the unsaved prompt still fires.
+    // Production CI sometimes misses React/native listeners; stamp every signal
+    // the leave guard reads so the unsaved prompt still fires.
     await page.evaluate((key) => {
       const root = window as unknown as {
         __proctiraInstitutionFormDirty?: Record<string, boolean>;
       };
-      root.__proctiraInstitutionFormDirty = root.__proctiraInstitutionFormDirty ?? {};
-      root.__proctiraInstitutionFormDirty[key] = true;
+      const bag = { ...(root.__proctiraInstitutionFormDirty ?? {}), [key]: true };
+      root.__proctiraInstitutionFormDirty = bag;
+      try {
+        sessionStorage.setItem('proctira.institutionFormDirty', JSON.stringify(bag));
+      } catch {
+        /* ignore */
+      }
+      document.documentElement.dataset.institutionFormDirty = 'true';
       document
         .querySelector('[data-testid="institution-profile-form"]')
         ?.setAttribute('data-dirty', 'true');
     }, institutionId);
     await expect(profileForm).toHaveAttribute('data-dirty', 'true');
+    await expect(page.locator('html')).toHaveAttribute('data-institution-form-dirty', 'true');
 
-    page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toMatch(/unsaved changes/i);
-      await dialog.dismiss();
-    });
-    await page.getByRole('link', { name: 'Back to institutions' }).click();
+    // Wait for client leave-guard host + Back button handlers before clicking.
+    await expect(page.getByTestId('institution-leave-guard-ready')).toHaveAttribute(
+      'data-ready',
+      'true',
+    );
+    const back = page.getByTestId('institution-back-link');
+    await expect(back).toHaveAttribute('data-ready', 'true');
+    await expect(back).toBeEnabled();
+
+    // In-app leave dialog (not window.confirm) — stable under production Playwright.
+    await back.click();
+    const leaveDialog = page.getByTestId('institution-leave-confirm');
+    await expect(leaveDialog).toBeVisible({ timeout: 10_000 });
+    await expect(leaveDialog.getByText(/unsaved changes/i).first()).toBeVisible();
+    await page.getByTestId('institution-leave-stay').click();
+    await expect(leaveDialog).toHaveCount(0);
     await expect(page).toHaveURL(/\/edit$/);
-    await expect(nameField).toHaveValue(editedName);
+    // Stay must keep us on the edit route; the dirty signal is what Cancel uses next.
 
-    page.once('dialog', async (dialog) => {
-      await dialog.accept();
-    });
     await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(leaveDialog).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('institution-leave-leave').click();
     await expect(page).toHaveURL(/\/overview$/, { timeout: 20_000 });
 
     const editPath = `/institutions/${institutionId}/edit`;

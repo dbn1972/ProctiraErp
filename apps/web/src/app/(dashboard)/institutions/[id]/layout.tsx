@@ -6,14 +6,13 @@
  * actions) and tab navigation. Lookup IDs are resolved to human-readable
  * names so no raw UUIDs are shown to users.
  */
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, School } from 'lucide-react';
+import { School } from 'lucide-react';
 
-import { Button } from '@proctira/ui/components';
 import { InstitutionScopeRegistrar } from '@/lib/institutions/institution-scope';
 import { cn } from '@/lib/utils';
+import { InstitutionDetailLeaveChrome } from '@/components/institutions/institution-detail-leave-chrome';
 import {
   InstitutionGatewayDown,
   InstitutionHeroActions,
@@ -84,17 +83,7 @@ export default async function InstitutionLayout({ params, children }: Institutio
       <InstitutionScopeRegistrar id={institution.id} areaLabel={areaName || null} />
       {/* ── Hero head ── */}
       <div className="flex flex-col gap-2">
-        <Button
-          asChild
-          variant="ghost"
-          size="sm"
-          className="-ms-2 w-fit !h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2 !text-xs"
-        >
-          <Link href="/institutions">
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            Back to institutions
-          </Link>
-        </Button>
+        <InstitutionDetailLeaveChrome />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">

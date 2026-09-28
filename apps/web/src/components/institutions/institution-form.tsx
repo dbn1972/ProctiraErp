@@ -30,6 +30,14 @@ import {
 import { coordinateMapPreview } from '@/lib/institutions/load-state';
 import { institutionFormSchema, type InstitutionFormValues } from '@/lib/institutions/validation';
 import type { Institution } from '@/lib/institutions/types';
+import {
+  anyInstitutionFormDirty,
+  clearAllInstitutionFormDirty,
+  readWindowDirty,
+  requestLeaveConfirm,
+  writeWindowDirty,
+} from '@/components/institutions/institution-unsaved-guard';
+import { InstitutionLeaveConfirmHost } from '@/components/institutions/institution-leave-confirm-host';
 
 interface SelectOption {
   id: string;
@@ -47,22 +55,6 @@ export interface InstitutionFormProps {
 }
 
 const PLACEHOLDER_UUID = '';
-const WINDOW_DIRTY_BAG = '__proctiraInstitutionFormDirty';
-
-function readWindowDirty(formKey: string): boolean {
-  if (typeof window === 'undefined') return false;
-  const bag = (window as unknown as Record<string, Record<string, boolean>>)[WINDOW_DIRTY_BAG];
-  return Boolean(bag?.[formKey]);
-}
-
-function writeWindowDirty(formKey: string, dirty: boolean): void {
-  if (typeof window === 'undefined') return;
-  const root = window as unknown as Record<string, Record<string, boolean>>;
-  const bag = root[WINDOW_DIRTY_BAG] ?? {};
-  if (dirty) bag[formKey] = true;
-  else delete bag[formKey];
-  root[WINDOW_DIRTY_BAG] = bag;
-}
 
 function applyServerFieldErrors<T extends Record<string, unknown>>(
   setError: ReturnType<typeof useForm<T>>['setError'],
@@ -136,10 +128,13 @@ export function InstitutionForm({
 
   const clearDirty = () => {
     writeWindowDirty(formKey, false);
+    clearAllInstitutionFormDirty();
     isDirtyRef.current = false;
     formRef.current?.setAttribute('data-dirty', 'false');
     setHasUnsavedChanges(false);
   };
+  const clearDirtyRef = useRef(clearDirty);
+  clearDirtyRef.current = clearDirty;
 
   useLayoutEffect(() => {
     if (readWindowDirty(formKey)) {
@@ -162,13 +157,13 @@ export function InstitutionForm({
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!isDirtyRef.current && !readWindowDirty(formKey)) return;
+      if (!isDirtyRef.current && !anyInstitutionFormDirty()) return;
       event.preventDefault();
       event.returnValue = '';
     };
     const onClick = (event: MouseEvent) => {
-      // Re-read window bag — remounts can leave isDirtyRef false while edits remain.
-      if (!isDirtyRef.current && !readWindowDirty(formKey)) return;
+      // Re-read bag + data-dirty — remounts can leave isDirtyRef false while edits remain.
+      if (!isDirtyRef.current && !anyInstitutionFormDirty()) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const anchor = target.closest('a');
@@ -176,11 +171,14 @@ export function InstitutionForm({
       if (anchor.target === '_blank' || anchor.hasAttribute('download')) return;
       const href = anchor.getAttribute('href');
       if (!href || href.startsWith('#')) return;
-      const ok = window.confirm('You have unsaved changes. Leave without saving?');
-      if (!ok) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
+      // Stop the navigation now; navigate only after the in-app dialog confirms.
+      event.preventDefault();
+      event.stopPropagation();
+      void requestLeaveConfirm().then((ok) => {
+        if (!ok) return;
+        clearDirty();
+        router.push(href);
+      });
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     document.addEventListener('click', onClick, true);
@@ -188,7 +186,7 @@ export function InstitutionForm({
       window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('click', onClick, true);
     };
-  }, [formKey]);
+  }, [formKey, router]);
 
   const areaId = watch('areaId');
   const typeId = watch('typeId');
@@ -204,10 +202,11 @@ export function InstitutionForm({
   };
 
   const cancel = () => {
-    const dirty = isDirty || hasUnsavedChanges || readWindowDirty(formKey);
-    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
-    clearDirty();
-    router.push(leaveHref);
+    void (async () => {
+      if (!(await requestLeaveConfirm())) return;
+      clearDirty();
+      router.push(leaveHref);
+    })();
   };
 
   const onSubmit = handleSubmit((values) => {
@@ -243,6 +242,7 @@ export function InstitutionForm({
 
   return (
     <div className="space-y-8" data-dirty={formIsDirty ? 'true' : 'false'}>
+      <InstitutionLeaveConfirmHost />
       <form
         ref={formRef}
         onSubmit={(event) => {
