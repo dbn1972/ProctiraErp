@@ -81,7 +81,7 @@ Each new field follows the exact `relationExists()` guard already used for every
 - `pendingAdmissionsCount`: `SELECT COUNT(*) FROM admission_applications WHERE status IN ('pending','under_review')` (the real table name, confirmed in `packages/backend/registration/src/pg-registration-repository.ts` — not `registrations`) (Req 4 AC4).
 - `openHealthIncidentsCount`: `SELECT COUNT(*) FROM health_nurse_incidents WHERE status = 'open'`, depending on the new `status` column below (Req 4 AC5, AC6).
 
-New migration `db/sql/103_health_nurse_incident_status.sql` (102 is the current highest numbered file):
+New migration `db/sql/107_health_nurse_incident_status.sql` (102 is the current highest numbered file):
 
 ```sql
 -- Wave: principal-dashboard-parity — adds a status field to nurse incidents
@@ -232,7 +232,7 @@ export interface WorkflowApproval {
 ```
 
 ```sql
--- db/sql/103_health_nurse_incident_status.sql — additive column
+-- db/sql/107_health_nurse_incident_status.sql — additive column
 ALTER TABLE health_nurse_incidents
   ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'open'
     CHECK (status IN ('open', 'closed'));
@@ -300,7 +300,7 @@ Revised at Task 9.2 (see §6's "Audit" note above): automatic expiry is excluded
 ## Testing Strategy
 
 - **Backend unit tests**: `packages/backend/report/src/dashboards.test.ts`-style coverage for each new `DashboardAggregates` field, including the `relationExists()`-false branch (table absent → default) and the demo-fallback branch, mirroring the existing test style in `catalogue-service.test.ts`.
-- **Migration test**: apply `103_health_nurse_incident_status.sql` against a fixture DB, assert existing rows get `status='open'`, assert the CHECK constraint rejects invalid values, assert RLS still isolates by tenant.
+- **Migration test**: apply `107_health_nurse_incident_status.sql` against a fixture DB, assert existing rows get `status='open'`, assert the CHECK constraint rejects invalid values, assert RLS still isolates by tenant.
 - **RBAC test**: extend `packages/shared/auth/src/rbac.ts`'s existing test coverage to assert `admin`/`principal` carry `dashboard-preview:manage` and that `teacher`/`staff`/`guardian` do not.
 - **Preview-state integration test**: a Playwright/integration test asserting (a) a user without the permission never sees the switcher and a hand-crafted cookie has no effect on their rendered page, (b) each of the five states renders its documented presentation, (c) the state auto-clears after the 30-minute window, (d) setting/clearing writes an `audit_log_entries` row.
 - **Approval categorization test**: assert `toUiApproval()` surfaces `metadata.category` when present and omits it otherwise, and that the UI's fallback Badge renders for absent categories.

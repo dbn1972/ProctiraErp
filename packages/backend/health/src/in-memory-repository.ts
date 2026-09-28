@@ -785,7 +785,7 @@ export class InMemoryHealthRepository implements HealthRepository {
     },
   ): Promise<NurseIncidentEntity> {
     const now = new Date();
-    // Mirrors db/sql/103_health_nurse_incident_status.sql's `DEFAULT 'open'` so
+    // Mirrors db/sql/107_health_nurse_incident_status.sql's `DEFAULT 'open'` so
     // test/dev parity holds when a caller omits status (Req 4.6, 7.5).
     const entity: NurseIncidentEntity = {
       ...data,

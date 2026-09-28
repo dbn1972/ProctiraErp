@@ -56,7 +56,7 @@ This plan implements the 7 requirements in `requirements.md` per the design in `
 ## Tasks
 
 - [x] 1. Add `status` column migration for nurse incidents
-  - Create `db/sql/103_health_nurse_incident_status.sql` adding `status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed'))` to `health_nurse_incidents` via `ADD COLUMN IF NOT EXISTS`, idempotent per `tools/scripts/apply-sql.sh` conventions
+  - Create `db/sql/107_health_nurse_incident_status.sql` adding `status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','closed'))` to `health_nurse_incidents` via `ADD COLUMN IF NOT EXISTS`, idempotent per `tools/scripts/apply-sql.sh` conventions
   - Leave the existing `tenant_isolation` RLS policy untouched
   - Update `NurseIncidentRecord` (`apps/web/src/lib/api/health.ts`) and the backend incident type to include the new optional/defaulted `status` field, additively
   - _Requirements: 4.5, 4.6, 7.3, 7.5, 7.6_
