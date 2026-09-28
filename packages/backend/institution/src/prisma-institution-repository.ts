@@ -256,7 +256,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           ]);
 
       return {
-        data: (rows as InstitutionRow[]).map(toEntity),
+        data: rows.map(toEntity),
         meta: {
           page,
           pageSize,

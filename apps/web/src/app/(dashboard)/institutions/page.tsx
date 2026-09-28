@@ -546,7 +546,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
             ) : (
               <>
                 <ul className="divide-y md:hidden" data-testid="institutions-cards">
-                  {listResult.data.data.map((institution, index) => (
+                  {listResult.data.data.map((institution) => (
                     <li key={institution.id} className="p-4">
                       <InstitutionMobileCard
                         institution={institution}
@@ -582,7 +582,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {listResult.data.data.map((institution, index) => (
+                      {listResult.data.data.map((institution) => (
                         <InstitutionRow
                           key={institution.id}
                           institution={institution}
