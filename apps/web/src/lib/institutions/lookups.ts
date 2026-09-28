@@ -105,5 +105,8 @@ export function resolveLookupLabel(options: LookupOption[], id: string): string 
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return '';
   }
+  // Stored labels such as "Pre-Primary" already contain capitals or spaces.
+  // Slugs such as "school" and "pre-primary" are title-cased.
+  if (/[A-Z]/.test(id.slice(1)) || /\s/.test(id)) return id.trim();
   return id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' ');
 }
