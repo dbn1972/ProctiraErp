@@ -4,7 +4,7 @@
 
 ## Schema
 
-`db/sql/104_cross_board_transfer_workflow.sql`
+`db/sql/105_cross_board_transfer_workflow.sql`
 
 - `transfer_records.workflow_status` with check constraint
 - Completed rows must keep `destination_enrollment_id`

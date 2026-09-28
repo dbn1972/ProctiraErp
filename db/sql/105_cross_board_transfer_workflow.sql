@@ -132,5 +132,5 @@ CREATE POLICY grade_equivalency_rules_tenant ON grade_equivalency_rules
   WITH CHECK (tenant_id::text = app_tenant_id());
 
 INSERT INTO schema_migrations (filename)
-VALUES ('104_cross_board_transfer_workflow.sql')
+VALUES ('105_cross_board_transfer_workflow.sql')
 ON CONFLICT (filename) DO NOTHING;

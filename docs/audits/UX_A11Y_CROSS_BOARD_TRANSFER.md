@@ -18,6 +18,23 @@
 - Errors use `role="alert"` on the detail page.
 - Loading region sets `aria-busy`.
 
+## Captures
+
+Production build (`next build` then `next start`), signed in, Postgres-backed:
+
+- `docs/audits/captures/cross-board-transfer/desktop-pending-approvals.png`
+- `docs/audits/captures/cross-board-transfer/desktop-detail-timeline.png`
+- `docs/audits/captures/cross-board-transfer/desktop-equivalency-editor.png`
+- `docs/audits/captures/cross-board-transfer/desktop-empty.png`
+- `docs/audits/captures/cross-board-transfer/desktop-error.png`
+- `docs/audits/captures/cross-board-transfer/mobile-pending-approvals.png`
+- `docs/audits/captures/cross-board-transfer/mobile-detail-timeline.png`
+- `docs/audits/captures/cross-board-transfer/mobile-equivalency-editor.png`
+- `docs/audits/captures/cross-board-transfer/mobile-empty.png`
+- `docs/audits/captures/cross-board-transfer/mobile-error.png`
+
+Viewed: pending list shows Aarav and Diya by name; Diya's timeline lists review and reject comments; equivalency shows the CBSE→ICSE Mathematics row and the admin form; tenant B shows "No pending approvals"; a missing id shows "Transfer workflow unavailable". Mobile frames keep the same headings without horizontal overflow of the primary actions.
+
 ## Disposition
 
-Design review from captures: **PARTIAL**. Keyboard and screen-reader behavior were implemented to the patterns above and covered by unit tests of labels, not by a recorded assistive-tech pass (**EXTERNALLY_UNVERIFIED** for a full WCAG audit).
+Visual review of that capture set: **FULLY_CLOSED**. A full keyboard-only and screen-reader pass was not recorded (**EXTERNALLY_UNVERIFIED**).

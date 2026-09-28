@@ -2,7 +2,7 @@
 -- Tenant 00000000-0000-4000-8000-00000000a501 is CBSE (board a521, school a551).
 -- Adds an ICSE school and a Maharashtra state-board school, equivalency rules,
 -- one SUBMITTED transfer (Aarav Mehta → ICSE) and one APPROVED transfer (Diya Sharma → state).
--- Idempotent. Does not delete students. Run after 006 and migration 104:
+-- Idempotent. Does not delete students. Run after 006 and migration 105:
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/007_cross_board_transfer_workflow.sql
 
 \set ON_ERROR_STOP on

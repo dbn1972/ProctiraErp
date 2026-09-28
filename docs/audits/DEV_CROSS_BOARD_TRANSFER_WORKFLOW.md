@@ -9,7 +9,7 @@ See `docs/audits/PRODUCT_CROSS_BOARD_TRANSFER.md`.
 
 ## Domain
 
-- Migration `db/sql/104_cross_board_transfer_workflow.sql`
+- Migration `db/sql/105_cross_board_transfer_workflow.sql` (104 is scholarship application documents on the parallel branch)
 - States enforced in `packages/backend/student/src/transfers/state-machine.ts`
 - Completion updates `enrollments` and writes `transactional_outbox` + `audit_log_entries` in one `withPgTenant` transaction (`pg-store.ts`)
 - Legacy `POST /enrollments/transfer` still records an immediate completed move

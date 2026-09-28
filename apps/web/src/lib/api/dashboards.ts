@@ -542,6 +542,16 @@ export async function fetchPendingTransferApprovals(
   });
 }
 
+export async function postTransferCreate(
+  body: Record<string, string>,
+): Promise<CrossBoardTransferData> {
+  return browserGatewayFetch<CrossBoardTransferData>('/transfers', {
+    method: 'POST',
+    json: body,
+    sameOrigin: true,
+  });
+}
+
 export async function postTransferDecision(
   transferId: string,
   action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete',

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import {
   Button,
@@ -15,6 +16,7 @@ import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import {
   fetchCrossBoardTransfer,
   fetchPendingTransferApprovals,
+  postTransferCreate,
   postTransferDecision,
 } from '@/lib/api/dashboards';
 import { browserGatewayFetch } from '@/lib/api/browser-gateway';
@@ -28,6 +30,7 @@ import { transferPartyLabel } from './transfer-labels';
 type Mode = { kind: 'list' } | { kind: 'detail'; transferId: string };
 
 export function TransferWorkflowClient({ mode }: { mode: Mode }) {
+  const router = useRouter();
   const [pending, setPending] = useState<PendingTransferApproval[] | null>(null);
   const [detail, setDetail] = useState<CrossBoardTransferData | null>(null);
   const [rules, setRules] = useState<Array<Record<string, string>>>([]);
@@ -152,7 +155,8 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
             ))}
           </ul>
         )}
-        <Card>
+        <RequestTransferForm onCreated={(transferId) => router.push(`/transfers/${transferId}`)} />
+        <Card data-testid="transfer-equivalency-editor">
           <CardHeader>
             <CardTitle>Grade equivalency</CardTitle>
             <CardDescription>
@@ -379,6 +383,84 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
         </label>
       </ConfirmActionDialog>
     </div>
+  );
+}
+
+function RequestTransferForm({ onCreated }: { onCreated: (transferId: string) => void }) {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Request a transfer</CardTitle>
+        <CardDescription>
+          Saves a draft at the requesting school. Submit it from the transfer page.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form
+          className="grid gap-3 md:grid-cols-2"
+          data-testid="transfer-request-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const body = Object.fromEntries(
+              [...form.entries()].map(([key, value]) => [key, String(value)]),
+            );
+            setBusy(true);
+            setError(null);
+            void postTransferCreate(body)
+              .then((created) => onCreated(created.transferId))
+              .catch((err: unknown) => {
+                setError(err instanceof Error ? err.message : 'Could not save the draft');
+              })
+              .finally(() => setBusy(false));
+          }}
+        >
+          {(
+            [
+              ['studentId', 'Student'],
+              ['sourceEnrollmentId', 'Source enrollment'],
+              ['sourceInstitutionId', 'Requesting school'],
+              ['destinationInstitutionId', 'Receiving school'],
+              ['destinationGradeId', 'Destination grade'],
+              ['destinationClassId', 'Destination class'],
+              ['academicPeriodId', 'Academic period'],
+            ] as const
+          ).map(([name, label]) => (
+            <label key={name} className="text-sm">
+              {label}
+              <input name={name} required className="mt-1 w-full rounded border p-2" />
+            </label>
+          ))}
+          <label className="text-sm">
+            Transfer date
+            <input
+              name="transferDate"
+              type="date"
+              required
+              defaultValue="2026-09-28"
+              className="mt-1 w-full rounded border p-2"
+            />
+          </label>
+          <label className="text-sm md:col-span-2">
+            Reason
+            <textarea name="reason" required className="mt-1 w-full rounded border p-2" />
+          </label>
+          <div className="md:col-span-2">
+            <Button type="submit" disabled={busy}>
+              Save draft
+            </Button>
+            {error ? (
+              <p role="alert" className="mt-2 text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
 
