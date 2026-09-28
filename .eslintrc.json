@@ -95,6 +95,12 @@
       }
     },
     {
+      "files": ["apps/web/e2e/**/*.ts", "apps/web/playwright.config.ts"],
+      "parserOptions": {
+        "project": "./apps/web/tsconfig.playwright.json"
+      }
+    },
+    {
       "files": ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"],
       "rules": {
         "@typescript-eslint/no-unsafe-assignment": "off",

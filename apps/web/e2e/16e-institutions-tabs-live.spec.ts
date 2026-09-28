@@ -11,6 +11,7 @@ const expect = playwrightExpect.configure({ timeout: 20_000 });
 
 import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
+import { cleanupSunriseE2E } from './helpers/sunrise-e2e-cleanup';
 
 const BACKEND_READY = process.env.E2E_BACKEND_READY === '1';
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
@@ -23,6 +24,12 @@ const CAPTURES = join(process.cwd(), '../../docs/audits/captures/institutions-ta
 test.describe('Institution detail tabs — Sunrise live', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
   test.setTimeout(300_000);
+  test.beforeAll(() => {
+    cleanupSunriseE2E();
+  });
+  test.afterAll(() => {
+    cleanupSunriseE2E();
+  });
 
   test.beforeEach(async ({ page }) => {
     await setupGatewayTenantSession(page, {
@@ -51,8 +58,34 @@ test.describe('Institution detail tabs — Sunrise live', () => {
   });
 });
 
+async function waitForShell(page: Page, width: number) {
+  await expect(page.getByTestId('header-user-skeleton')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /Mayur Vihar/ })).toBeVisible();
+  if (width >= 768) {
+    if (width < 1024) {
+      await page.getByRole('button', { name: 'Open navigation menu' }).click();
+    }
+    await expect(page.getByTestId('tenant-switcher-skeleton')).toHaveCount(0);
+    await expect(page.getByTestId('tenant-switcher')).toContainText('Delhi East');
+    await expect(page.getByTestId('tenant-switcher')).toContainText('1,240');
+    const crumb = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumb).toContainText('Mayur Vihar');
+    await expect(crumb).not.toContainText('00000000');
+    if (width < 1024) {
+      await page.getByRole('button', { name: 'Close navigation menu' }).click();
+      await expect(page.getByRole('button', { name: 'Close navigation menu' })).toHaveCount(0);
+      const drawer = page.locator('[data-shell="desktop"] > div').first();
+      await expect(drawer).toHaveAttribute('aria-hidden', 'true');
+      await expect
+        .poll(async () => drawer.evaluate((el) => Math.round(el.getBoundingClientRect().right)))
+        .toBeLessThanOrEqual(0);
+    }
+  }
+}
+
 async function shoot(page: Page, name: string, width: number) {
   await page.setViewportSize({ width, height: width < 500 ? 844 : 900 });
+  await waitForShell(page, width);
   const scroll = page.locator('[data-shell-scroll="page"]');
   await scroll.evaluate((el) => {
     el.scrollTop = 0;
@@ -62,10 +95,10 @@ async function shoot(page: Page, name: string, width: number) {
       const root = document.querySelector<HTMLElement>(
         '[data-testid="institution-gradebook"], [data-testid="institution-curriculum"], [data-testid="institution-infrastructure"]',
       );
-      return !root || root.offsetHeight > 400;
+      return Boolean(root && root.offsetHeight > 400);
     },
     undefined,
-    { timeout: 5_000 },
+    { timeout: 15_000 },
   );
   const scrollHeight = await scroll.evaluate((el) => el.scrollHeight);
   const chrome = width < 500 ? 160 : 80;
@@ -76,6 +109,12 @@ async function shoot(page: Page, name: string, width: number) {
   await scroll.evaluate((el) => {
     el.scrollTop = 0;
   });
+  if (width >= 768 && width < 1024) {
+    const drawer = page.locator('[data-shell="desktop"] > div').first();
+    await expect
+      .poll(async () => drawer.evaluate((el) => Math.round(el.getBoundingClientRect().right)))
+      .toBeLessThanOrEqual(0);
+  }
   await page.screenshot({
     path: join(CAPTURES, `${name}-${width}.png`),
     fullPage: true,
@@ -111,7 +150,12 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
   await expect(root).toContainText('Aarav Mehta');
   await expect(root).not.toContainText('db/sql');
   await expect(root).not.toContainText('db/seeds');
+  await expect(root.getByText(/^E2E/)).toHaveCount(0);
+  await waitForShell(page, 1440);
   await runAxe(page);
+  await shoot(page, 'gradebook', 1440);
+  await shoot(page, 'gradebook', 834);
+  await shoot(page, 'gradebook', 390);
 
   const picker = page.locator('#gb-section');
   const labels = await picker.locator('option').allTextContents();
@@ -173,10 +217,6 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
     page.getByTestId('grade-entry-row').filter({ hasText: assessmentCode }).first(),
   ).toContainText('Draft');
 
-  await shoot(page, 'gradebook', 1440);
-  await shoot(page, 'gradebook', 834);
-  await shoot(page, 'gradebook', 390);
-
   await page.goto(
     `/institutions/${MAYUR}/gradebook/report-cards/892236cc-f3d8-5458-8770-6ee2b83c47be`,
     { waitUntil: 'domcontentloaded' },
@@ -200,7 +240,21 @@ async function exerciseCurriculum(
   await waitHydrated(page, 'curriculum-panel');
   await expect(root).toContainText('Number systems');
   await expect(root).toContainText('M9.1');
+  await expect(page.getByTestId('curriculum-apply-scope')).toHaveCount(0);
+  await waitForShell(page, 1440);
   await runAxe(page);
+  await shoot(page, 'curriculum', 1440);
+  await shoot(page, 'curriculum', 834);
+  await shoot(page, 'curriculum', 390);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const grade = page.getByTestId('curriculum-grade').filter({ visible: true });
+  await grade.selectOption({ label: '8 — Class 8' });
+  await expect(page).toHaveURL(/gradeId=00000000-0000-4000-8000-00000000a541/);
+  await expect(page).not.toHaveURL(new RegExp(`gradeId=${GRADE9}`));
+  await grade.selectOption({ label: '9 — Class 9' });
+  await expect(page).toHaveURL(new RegExp(`gradeId=${GRADE9}`));
+  await waitHydrated(page, 'curriculum-panel');
 
   await page.locator('#unit-code').fill('U1');
   await page.locator('#unit-name').fill('Duplicate number systems');
@@ -257,10 +311,6 @@ async function exerciseCurriculum(
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
   await expect(page.getByText(outcome)).toHaveCount(0);
-
-  await shoot(page, 'curriculum', 1440);
-  await shoot(page, 'curriculum', 834);
-  await shoot(page, 'curriculum', 390);
 }
 
 async function exerciseInfrastructure(page: Page, roomName: string, repair: string) {
@@ -271,7 +321,15 @@ async function exerciseInfrastructure(page: Page, roomName: string, repair: stri
   await waitHydrated(page, 'facility-editor');
   await expect(root).toContainText('Room 204');
   await expect(root).toContainText('Chemistry lab L2');
+  await expect(root).not.toContainText('Declared');
+  await expect(root).toContainText('Ceiling tiles loose above the rear row');
+  await expect(page.getByTestId('repair-request-list')).toContainText('Room 204');
+  await expect(page.getByTestId('repair-request-list')).toContainText('open');
+  await waitForShell(page, 1440);
   await runAxe(page);
+  await shoot(page, 'infrastructure', 1440);
+  await shoot(page, 'infrastructure', 834);
+  await shoot(page, 'infrastructure', 390);
 
   await page.getByRole('link', { name: 'Room 204' }).click();
   await expect(page).toHaveURL(/#facility-/);
@@ -308,8 +366,4 @@ async function exerciseInfrastructure(page: Page, roomName: string, repair: stri
   const download = await downloadPromise;
   expect(await download.failure()).toBeNull();
   expect(download.suggestedFilename()).toMatch(/\.csv$/);
-
-  await shoot(page, 'infrastructure', 1440);
-  await shoot(page, 'infrastructure', 834);
-  await shoot(page, 'infrastructure', 390);
 }
