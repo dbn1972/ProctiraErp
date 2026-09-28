@@ -10,7 +10,10 @@ import { Card, CardContent } from '@proctira/ui/components';
 import { SectionCreateForm } from '@/components/timetable/section-create-form';
 import { SectionPublishControls } from '@/components/timetable/section-roster-controls';
 import { listAcademicPeriods } from '@/lib/institutions/api';
-import { listRooms, listScheduleConflicts, listSections } from '@/lib/api/timetable';
+import { getStaff, listStaff } from '@/lib/api/staff';
+import { listBellSchedules, listPeriods, listRooms, listScheduleConflicts, listSections } from '@/lib/api/timetable';
+import { formatPersonLabel } from '@/lib/entity-label';
+import { conflictReasonLabel, formatScheduleConflict } from '@/lib/timetable/conflict-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,14 +59,42 @@ export default async function InstitutionSchedulePage(props: PageProps) {
     label: `${r.code} · ${r.name}`,
   }));
   const roomLabel = new Map(roomOptions.map((r) => [r.id, r.label]));
+  const staffResult = await listStaff({ page: 1, pageSize: 100 }).catch(() => null);
+  const staffLabel = new Map(
+    (staffResult?.data ?? []).map((person) => [
+      person.id,
+      formatPersonLabel(person.firstName, person.lastName, person.position),
+    ]),
+  );
+  const periodLabel = new Map<string, string>();
+  const schedules = await listBellSchedules({ institutionId });
+  for (const schedule of schedules.ok ? schedules.data : []) {
+    const periods = await listPeriods(schedule.id);
+    if (!periods.ok) continue;
+    for (const period of periods.data) {
+      periodLabel.set(period.id, `${schedule.name} · ${period.name}`);
+    }
+  }
+  const sectionLabel = new Map(sections.map((section) => [section.id, section.name]));
+  for (const conflict of conflicts) {
+    if (conflict.staffId && !staffLabel.has(conflict.staffId)) {
+      const person = await getStaff(conflict.staffId).catch(() => null);
+      if (person) {
+        staffLabel.set(
+          person.id,
+          formatPersonLabel(person.firstName, person.lastName, person.position),
+        );
+      }
+    }
+  }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="institution-schedule">
       <div>
         <h2 className="text-lg font-bold tracking-tight text-foreground">Master schedule</h2>
         <p className="text-sm text-muted-foreground">
           Course sections, room assignment, rostering, and draft → published workflow. Room and
-          teacher clashes return HTTP 409.
+          teacher clashes are blocked.
         </p>
       </div>
 
@@ -88,17 +119,20 @@ export default async function InstitutionSchedulePage(props: PageProps) {
                 <p className="text-sm text-muted-foreground">
                   Conflict engine surface — resolve room/teacher/class double-books before publish.
                 </p>
-                <ul className="space-y-1 text-sm">
+                <ul className="space-y-2 text-sm">
                   {conflicts.slice(0, 12).map((c, idx) => (
-                    <li key={`${c.againstMeetingId}-${c.reason}-${idx}`}>
-                      <span className="font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
-                        {c.reason}
+                    <li key={`${c.againstMeetingId}-${c.reason}-${idx}`} className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                        {conflictReasonLabel(c.reason)}
                       </span>
-                      {' · '}
-                      day {c.dayOfWeek}
-                      {c.staffId ? ' · staff conflict' : ''}
-                      {c.roomId ? ' · room conflict' : ''}
-                      {!c.staffId && !c.roomId ? ' · period conflict' : ''}
+                      <span>
+                        {formatScheduleConflict(c, {
+                          staff: staffLabel,
+                          room: roomLabel,
+                          period: periodLabel,
+                          section: sectionLabel,
+                        })}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -119,6 +153,13 @@ export default async function InstitutionSchedulePage(props: PageProps) {
 
           <Card className="overflow-hidden">
             <CardContent className="p-0">
+              <div className="border-b border-border px-6 py-4">
+                <h3 className="text-base font-semibold">Sections</h3>
+                <p className="text-sm text-muted-foreground">
+                  {sections.length} {sections.length === 1 ? 'section' : 'sections'}
+                  {academicPeriodId ? ' · active academic period' : ''}
+                </p>
+              </div>
               {sections.length === 0 ? (
                 <p className="px-6 py-8 text-center text-sm text-muted-foreground">
                   No sections yet. Create a draft section, add meetings on the Timetable tab, then
@@ -155,7 +196,23 @@ export default async function InstitutionSchedulePage(props: PageProps) {
                               : '—'}
                           </td>
                           <td className="px-4 py-3 tabular-nums">{section.capacity}</td>
-                          <td className="px-4 py-3 text-xs">{section.status}</td>
+                          <td className="px-4 py-3 text-xs">
+                            <span
+                              className={
+                                section.status === 'PUBLISHED'
+                                  ? 'inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700'
+                                  : 'inline-flex rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-800'
+                              }
+                            >
+                              {section.status === 'PUBLISHED'
+                                ? 'Published'
+                                : section.status === 'DRAFT'
+                                  ? 'Draft'
+                                  : section.status === 'ARCHIVED'
+                                    ? 'Archived'
+                                    : section.status}
+                            </span>
+                          </td>
                           <td className="px-4 py-3">
                             <SectionPublishControls
                               institutionId={institutionId}
