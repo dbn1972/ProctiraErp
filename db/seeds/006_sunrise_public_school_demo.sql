@@ -2153,6 +2153,20 @@ SET parent_id = EXCLUDED.parent_id,
     description = EXCLUDED.description,
     updated_at = now();
 
+INSERT INTO institution_repair_requests (
+  id, tenant_id, institution_id, infrastructure_id, summary, status, created_at
+)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-repair-r204'),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r204'),
+  'Ceiling tiles loose above the rear row',
+  'open',
+  TIMESTAMPTZ '2026-09-22 15:20:00+05:30'
+)
+ON CONFLICT (id) DO NOTHING;
+
 -- Merit scholarship for Aarav Mehta. Document bytes are the canonical
 -- placeholder PDF (sha256 7856c8e9…); write them with
 --   node db/seeds/write-sunrise-scholarship-placeholders.mjs
