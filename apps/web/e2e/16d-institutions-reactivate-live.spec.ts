@@ -13,7 +13,8 @@ import { setupGatewayTenantSession } from './fixtures/fake-session';
 const BACKEND_READY = process.env.E2E_BACKEND_READY === '1';
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
 const AREA_EAST = '00000000-0000-4000-8000-00000000a511';
-const THROWAWAY_ID = '00000000-0000-4000-8000-00000000a5e2';
+// Keep clear of 006 seed ids (fee plans / scholarship application …a5e2+).
+const THROWAWAY_ID = '00000000-0000-4000-8000-00000000a5f8';
 
 function psql(sql: string): void {
   const databaseUrl = process.env.DATABASE_URL;
@@ -45,9 +46,8 @@ COMMIT;
 }
 
 function insertThrowawaySchool(): void {
-  // CI applies migrations but not db/seeds/006. The parent rows are the same
-  // fixed ids as that seed, inserted only when missing so a seeded Sunrise
-  // database is left unchanged.
+  // Harness also applies db/seeds/006. Parent rows use the same fixed ids and
+  // insert only when missing so a seeded Sunrise database is left unchanged.
   psql(
     withTenant(`
 INSERT INTO tenants (id, name, slug, config, status)

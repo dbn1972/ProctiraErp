@@ -72,6 +72,9 @@ export function InstitutionForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  // Explicit flag — RHF isDirty alone misses Playwright fill / some controlled
+  // updates under React 19, which left data-dirty="false" after a name edit.
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const form = useForm<InstitutionFormValues>({
     resolver: zodResolver(institutionFormSchema),
@@ -100,8 +103,9 @@ export function InstitutionForm({
   } = form;
 
   const leaveHref = initialValue ? `/institutions/${initialValue.id}/overview` : '/institutions';
-  const isDirtyRef = useRef(isDirty);
-  isDirtyRef.current = isDirty;
+  const formIsDirty = isDirty || hasUnsavedChanges;
+  const isDirtyRef = useRef(formIsDirty);
+  isDirtyRef.current = formIsDirty;
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -140,12 +144,17 @@ export function InstitutionForm({
   const longitude = watch('longitude');
   const mapHref = coordinateMapPreview(latitude, longitude);
 
+  const markDirty = () => {
+    setHasUnsavedChanges(true);
+  };
+
   const selectValue = (field: 'areaId' | 'typeId' | 'sectorId' | 'ownershipId', value: string) => {
     setValue(field, value, { shouldValidate: true, shouldDirty: true });
+    markDirty();
   };
 
   const cancel = () => {
-    if (isDirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    if (formIsDirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
     router.push(leaveHref);
   };
 
@@ -180,14 +189,14 @@ export function InstitutionForm({
   });
 
   return (
-    <div className="space-y-8" data-dirty={isDirty ? 'true' : 'false'}>
+    <div className="space-y-8" data-dirty={formIsDirty ? 'true' : 'false'}>
       <form
         onSubmit={(event) => {
           void onSubmit(event);
         }}
         className="space-y-8"
         data-testid="institution-profile-form"
-        data-dirty={isDirty ? 'true' : 'false'}
+        data-dirty={formIsDirty ? 'true' : 'false'}
       >
         {serverError && (
           <div
@@ -214,9 +223,17 @@ export function InstitutionForm({
                 aria-invalid={errors.name ? 'true' : 'false'}
                 aria-describedby={errors.name ? 'name-error' : undefined}
                 value={watch('name')}
-                onChange={(event) =>
-                  setValue('name', event.target.value, { shouldDirty: true, shouldValidate: true })
-                }
+                onChange={(event) => {
+                  setValue('name', event.target.value, { shouldDirty: true, shouldValidate: true });
+                  markDirty();
+                }}
+                onInput={(event) => {
+                  setValue('name', event.currentTarget.value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                  markDirty();
+                }}
                 onBlur={() => void form.trigger('name')}
               />
               {errors.name && (
@@ -238,9 +255,17 @@ export function InstitutionForm({
                 aria-invalid={errors.code ? 'true' : 'false'}
                 aria-describedby={errors.code ? 'code-error' : 'code-hint'}
                 value={watch('code')}
-                onChange={(event) =>
-                  setValue('code', event.target.value, { shouldDirty: true, shouldValidate: true })
-                }
+                onChange={(event) => {
+                  setValue('code', event.target.value, { shouldDirty: true, shouldValidate: true });
+                  markDirty();
+                }}
+                onInput={(event) => {
+                  setValue('code', event.currentTarget.value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                  markDirty();
+                }}
                 onBlur={() => void form.trigger('code')}
               />
               <p id="code-hint" className="text-xs text-muted-foreground">

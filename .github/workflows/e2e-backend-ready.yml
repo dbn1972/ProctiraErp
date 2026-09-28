@@ -308,6 +308,7 @@ jobs:
           bash tools/scripts/run-e2e-backend-ready.sh "${ARGS[@]}"
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
           REDIS_URL: ${{ env.REDIS_URL }}
           JWT_SECRET: ${{ env.JWT_SECRET }}
           E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}

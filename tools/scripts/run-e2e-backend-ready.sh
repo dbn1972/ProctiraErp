@@ -142,6 +142,24 @@ if [[ "${E2E_SKIP_TENANT_SEED:-0}" != "1" ]]; then
   fi
 fi
 
+# Institutions detail / profile live specs (16d, 16f) need the Sunrise Mayur
+# Vihar directory (named classes, KPIs, schedule). apply-sql.sh does not load
+# db/seeds/*.sql — apply 006 here with the migrator URL when present so RLS
+# and owner privileges match CI's schema apply step.
+if [[ "${E2E_SKIP_SUNRISE_SEED:-0}" != "1" ]]; then
+  if command -v psql >/dev/null 2>&1; then
+    SUNRISE_SEED_URL="${MIGRATOR_DATABASE_URL:-$DATABASE_URL}"
+    echo "==> Seeding Sunrise demo (db/seeds/006_sunrise_public_school_demo.sql)"
+    psql "$SUNRISE_SEED_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/db/seeds/006_sunrise_public_school_demo.sql"
+  else
+    echo "warn: psql not on PATH — skipping Sunrise demo seed (set E2E_SKIP_SUNRISE_SEED=1 to silence)" >&2
+    if [[ "${E2E_REQUIRE_LIVE:-0}" == "1" ]]; then
+      echo "error: E2E_REQUIRE_LIVE=1 needs psql to seed Sunrise demo fixtures" >&2
+      exit 1
+    fi
+  fi
+fi
+
 # A stale gateway on the port would make the health check pass against code
 # that is not the checkout under test — refuse rather than report a false pass.
 if curl -fsS --max-time 2 "${GATEWAY_URL}/health" >/dev/null 2>&1; then
