@@ -5,6 +5,8 @@
  * Callers open this before the server action so a mis-tap cannot publish, pay,
  * approve, or decline without an explicit second step.
  */
+import type { ReactNode } from 'react';
+
 import {
   Button,
   Dialog,
@@ -29,6 +31,8 @@ export interface ConfirmActionDialogProps {
   onConfirm: () => void;
   /** Optional test id prefix; buttons get `${testId}-confirm` / `${testId}-cancel`. */
   testId?: string;
+  /** Extra fields (for example a required reason) rendered above the actions. */
+  children?: ReactNode;
 }
 
 export function ConfirmActionDialog({
@@ -42,6 +46,7 @@ export function ConfirmActionDialog({
   pending = false,
   onConfirm,
   testId = 'confirm-action',
+  children,
 }: ConfirmActionDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -50,6 +55,7 @@ export function ConfirmActionDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        {children}
         <DialogFooter>
           <Button
             type="button"

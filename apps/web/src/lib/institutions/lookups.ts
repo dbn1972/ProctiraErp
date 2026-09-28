@@ -58,13 +58,15 @@ function flattenAreas(nodes: AreaNode[], depth = 0): LookupOption[] {
  * Loads area options for filter UIs and form selects. Falls back to static
  * options if the backend area-tree endpoint is unavailable.
  */
-export async function loadAreaOptions(): Promise<LookupOption[]> {
+export async function loadAreaOptions(options?: { fallback?: boolean }): Promise<LookupOption[]> {
+  const useFallback = options?.fallback !== false;
   try {
     const tree = await listAreaTree();
     const flat = flattenAreas(tree);
-    return flat.length > 0 ? flat : FALLBACK_AREAS;
+    if (flat.length > 0) return flat;
+    return useFallback ? FALLBACK_AREAS : [];
   } catch {
-    return FALLBACK_AREAS;
+    return useFallback ? FALLBACK_AREAS : [];
   }
 }
 
@@ -103,5 +105,8 @@ export function resolveLookupLabel(options: LookupOption[], id: string): string 
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return '';
   }
+  // Stored labels such as "Pre-Primary" already contain capitals or spaces.
+  // Slugs such as "school" and "pre-primary" are title-cased.
+  if (/[A-Z]/.test(id.slice(1)) || /\s/.test(id)) return id.trim();
   return id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_]/g, ' ');
 }

@@ -148,6 +148,7 @@ import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
+import { registerInstitutionDirectoryRoutes } from './institution-directory.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
@@ -663,6 +664,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             : undefined,
         },
       });
+      registerInstitutionDirectoryRoutes(scope);
     },
   },
   {

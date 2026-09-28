@@ -16,6 +16,12 @@ export interface NavPermissionItem {
   requiredRoleSubstrings?: readonly string[];
   /** Hide from users whose roles match any of these substrings. */
   hideForRoleSubstrings?: readonly string[];
+  /**
+   * Show the item when the session role matches, even if permission claims
+   * are absent. The session DTO does not currently carry permission grants;
+   * server RBAC still enforces the route.
+   */
+  allowRoleSubstrings?: readonly string[];
 }
 
 export function roleHaystack(roles: readonly string[] | undefined): string {
@@ -55,6 +61,10 @@ export function filterNavItemsByAccess<T extends NavPermissionItem>(
   return items.filter((item) => {
     if (isHiddenForRole(haystack, item.hideForRoleSubstrings)) return false;
     if (!matchesRoleGate(haystack, item.requiredRoleSubstrings)) return false;
-    return hasAllPermissions(userPermissions, item.requiredPermissions);
+    const permitted = hasAllPermissions(userPermissions, item.requiredPermissions);
+    const roleAllowed = (item.allowRoleSubstrings ?? []).some((needle) =>
+      haystack.includes(needle.toLowerCase()),
+    );
+    return permitted || roleAllowed;
   });
 }

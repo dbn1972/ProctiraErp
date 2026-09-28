@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
+import { formatPageLabel, formatShowingRange } from '@/lib/institutions/directory-presentation';
 
 export interface PaginationControlsProps {
   page: number;
@@ -37,41 +38,33 @@ export function PaginationControls({
     router.push(query ? `${pathname}?${query}` : pathname);
   };
 
-  const start = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, totalItems);
-
   return (
-    <nav
-      className="flex items-center justify-between gap-4 rounded-lg border bg-card p-3 text-sm"
-      aria-label="Pagination"
-    >
+    <nav className="flex items-center justify-between gap-4 text-sm" aria-label="Pagination">
       <p className="text-muted-foreground" aria-live="polite">
-        {totalItems === 0 ? 'No results' : `Showing ${start}-${end} of ${totalItems}`}
+        {formatShowingRange(page, pageSize, totalItems)}
       </p>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1">
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 min-h-6 min-w-6"
           onClick={() => goTo(page - 1)}
           disabled={page <= 1}
           aria-label="Previous page"
         >
           <ChevronLeft className="h-4 w-4" />
-          Previous
         </Button>
-        <span className="px-2 text-muted-foreground">
-          Page {page} of {Math.max(totalPages, 1)}
-        </span>
+        <span className="px-2 text-muted-foreground">{formatPageLabel(page, totalPages)}</span>
         <Button
           type="button"
-          variant="outline"
-          size="sm"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 min-h-6 min-w-6"
           onClick={() => goTo(page + 1)}
-          disabled={page >= totalPages}
+          disabled={page >= totalPages || totalPages <= 1}
           aria-label="Next page"
         >
-          Next
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>

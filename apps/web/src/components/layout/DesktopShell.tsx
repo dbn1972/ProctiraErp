@@ -27,17 +27,18 @@ import { CommandPalette } from '@/components/CommandPalette';
  */
 export function DesktopShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-screen overflow-hidden" data-shell="desktop">
-      {/* Sidebar Navigation */}
+    <div className="flex h-dvh min-h-0 overflow-hidden" data-shell="desktop">
+      {/* Sidebar Navigation — stretches to the shell, which is the viewport. */}
       <Sidebar />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Header */}
+      {/* Main Content Area. Header is a sibling of the scroller so it cannot cover the page. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <Header />
 
-        {/* Breadcrumbs + Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main
+          data-shell-scroll="page"
+          className="touch-controls relative z-0 min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 sm:px-6"
+        >
           <Breadcrumbs />
           <PageErrorBoundary>
             <div className="mt-4">{children}</div>
