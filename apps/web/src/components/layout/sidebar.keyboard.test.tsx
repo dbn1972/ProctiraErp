@@ -60,7 +60,7 @@ vi.mock('next-intl', () => ({
 
 
 vi.mock('@/lib/api/browser-gateway', () => ({
-  browserGatewayFetch: vi.fn().mockRejectedValue(new Error('offline')),
+  browserGatewayFetch: () => new Promise(() => undefined),
 }));
 
 vi.mock('@/providers/AuthProvider', () => ({

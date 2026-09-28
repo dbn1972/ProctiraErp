@@ -96,7 +96,7 @@ export function InstitutionsFilters({
           </Label>
           <div className="relative">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <Input
@@ -105,7 +105,7 @@ export function InstitutionsFilters({
               placeholder="Search by name or code"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              className="h-10 pl-9"
+              className="h-10 ps-9"
               disabled={isPending}
             />
           </div>

@@ -6,9 +6,8 @@
  * Missing tables or no database return nulls — never fabricated counts.
  * Board labels come only from `boards`, never from geographic area names.
  */
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 export interface InstitutionDirectorySchool {
   studentCount: number | null;
@@ -244,7 +243,7 @@ export async function loadInstitutionDirectoryContext(
   return context;
 }
 
-export async function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): Promise<void> {
+export function registerInstitutionDirectoryRoutes(fastify: FastifyInstance): void {
   fastify.get(
     '/institutions/directory-context',
     async function directoryContextHandler(request: FastifyRequest, reply: FastifyReply) {

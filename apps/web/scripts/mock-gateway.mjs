@@ -213,6 +213,122 @@ function dashboard() {
   };
 }
 
+const SUNRISE_AREAS = [
+  { id: '10000000-0000-4000-8000-0000000000e1', tenantId: TENANT, name: 'Delhi East', code: 'DE', level: 1, parentId: null, path: '/de', children: [] },
+  { id: '10000000-0000-4000-8000-0000000000e2', tenantId: TENANT, name: 'Delhi North', code: 'DN', level: 1, parentId: null, path: '/dn', children: [] },
+  { id: '10000000-0000-4000-8000-0000000000e3', tenantId: TENANT, name: 'Delhi South', code: 'DS', level: 1, parentId: null, path: '/ds', children: [] },
+];
+
+const SUNRISE_SCHOOLS = [
+  ['20000000-0000-4000-8000-000000000001', 'Sunrise Public School – Mayur Vihar', '07040108417', SUNRISE_AREAS[0].id, 'Senior Secondary', 'ACTIVE', 1240, 84, 94],
+  ['20000000-0000-4000-8000-000000000002', 'Sunrise Public School – Preet Vihar', '07040100522', SUNRISE_AREAS[0].id, 'Secondary', 'ACTIVE', 860, 58, 91],
+  ['20000000-0000-4000-8000-000000000003', 'Sunrise Junior Wing – Patparganj', '07040100618', SUNRISE_AREAS[0].id, 'Primary', 'ACTIVE', 410, 27, 88],
+  ['20000000-0000-4000-8000-000000000004', 'Sunrise Public School – Rohini Sector 9', '07040100731', SUNRISE_AREAS[1].id, 'Senior Secondary', 'ACTIVE', 1105, 76, 76],
+  ['20000000-0000-4000-8000-000000000005', 'Sunrise Pre-Primary – Vasundhara Enclave', '07040100844', SUNRISE_AREAS[0].id, 'Pre-Primary', 'INACTIVE', 0, 0, null],
+].map(([id, name, code, areaId, typeId, status, students, staff, attendance]) => ({
+  id,
+  name,
+  code,
+  areaId,
+  typeId,
+  sectorId: '00000000-0000-4000-8000-000000000020',
+  ownershipId: '00000000-0000-4000-8000-000000000030',
+  status,
+  latitude: null,
+  longitude: null,
+  address: null,
+  contactPhone: null,
+  contactEmail: null,
+  deactivationReason: status === 'INACTIVE' ? 'Pre-primary wing paused' : null,
+  createdAt: ISO,
+  updatedAt: ISO,
+  students,
+  staff,
+  attendance,
+}));
+
+function sunriseDirectory(url) {
+  const path = url.pathname.replace(/^\/api\/v1/, '').replace(/\/+$/, '');
+  const delay = Number(process.env.SUNRISE_DELAY_MS ?? 0);
+  if (delay > 0 && path === '/institutions') {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
+  }
+  if (path === '/tenant/branding') {
+    return {
+      status: 200,
+      body: {
+        name: 'Sunrise Public School',
+        shortName: 'sunrise',
+        slug: 'sunrise',
+        primary_color: 'hsl(226, 71%, 45%)',
+        accent_color: 'hsl(174, 62%, 40%)',
+        logo: { url: '/logo.svg', alt: 'Sunrise Public School' },
+        favicon: '/favicon.ico',
+        login_background: '',
+        document_title_template: '{page} | {brand}',
+      },
+    };
+  }
+  if (path === '/areas/tree') return { status: 200, body: SUNRISE_AREAS };
+  if (path === '/institutions/directory-context') {
+    const schools = {};
+    let students = 0;
+    for (const school of SUNRISE_SCHOOLS) {
+      if (school.status === 'INACTIVE') continue;
+      students += school.students;
+      schools[school.id] = {
+        studentCount: school.students,
+        staffCount: school.staff,
+        attendancePercent: school.attendance,
+      };
+    }
+    return {
+      status: 200,
+      body: {
+        organizationName: 'Sunrise Public School',
+        boardLabel: 'CBSE',
+        studentsEnrolled: students,
+        reportingToday: SUNRISE_SCHOOLS.filter((school) => school.attendance !== null).length,
+        studentsAvailable: true,
+        staffAvailable: true,
+        attendanceAvailable: true,
+        schools,
+      },
+    };
+  }
+  if (path === '/institutions') {
+    if (url.searchParams.get('search') === '__error__') {
+      return { status: 500, body: { code: 'UPSTREAM_ERROR', message: 'The institution service is currently unavailable.' } };
+    }
+    let rows = SUNRISE_SCHOOLS.map(({ students, staff, attendance, ...school }) => school);
+    const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
+    const areaId = url.searchParams.get('areaId');
+    const status = url.searchParams.get('status');
+    if (search) {
+      rows = rows.filter((row) => row.name.toLowerCase().includes(search) || row.code.toLowerCase().includes(search));
+    }
+    if (areaId) rows = rows.filter((row) => row.areaId === areaId);
+    if (status) rows = rows.filter((row) => row.status === status);
+    const page = Math.max(1, Number(url.searchParams.get('page') ?? 1));
+    const pageSize = Math.max(1, Number(url.searchParams.get('pageSize') ?? 20));
+    const start = (page - 1) * pageSize;
+    const slice = rows.slice(start, start + pageSize);
+    return {
+      status: 200,
+      body: {
+        data: slice,
+        meta: {
+          page,
+          pageSize,
+          totalItems: rows.length,
+          totalPages: Math.max(1, Math.ceil(rows.length / pageSize)),
+        },
+      },
+    };
+  }
+  return null;
+}
+
 function json(res, status, body) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
@@ -230,6 +346,11 @@ const server = createServer((req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   let p = url.pathname.replace(/^\/api\/v1/, '').replace(/\/+$/, '');
   if (p === '') p = '/';
+
+  if (process.env.SUNRISE_DIRECTORY === '1') {
+    const sunrise = sunriseDirectory(url);
+    if (sunrise) return json(res, sunrise.status, sunrise.body);
+  }
 
   // Dashboards
   if (p.startsWith('/dashboards')) return json(res, 200, dashboard());
