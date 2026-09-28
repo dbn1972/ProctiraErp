@@ -36,6 +36,7 @@ Copy of `docs/audits/templates/ENTERPRISE_MOBILE_FLUTTER_CHECKLIST.md`.
 | `institutionId` comes from `students_cache`. If the student row has no school id, upload fails with a visible error.                                           | Mobile | User must open the student list once so the cache is filled.        |
 | Device-farm PNGs and an on-device upload journey are waived (2026-09-28).                                                                                      | Mobile | Camera and file-picker plugins are not exercised on a handset here. |
 | This client is not mobile parity with the web reviewer queue (verify/reject stays on web).                                                                     | Mobile | Applicants upload; reviewers stay on the web queue.                 |
+| Upload slots stay hidden until GET /api/v1/scholarships/document-downloads is a real route (401 or 400). A 404 keeps submit-without-files.                     | Mobile | After the document API ships, the same probe shows the slots.       |
 
 ## 4. Sign-off
 
