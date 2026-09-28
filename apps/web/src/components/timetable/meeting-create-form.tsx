@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Plus } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
 
@@ -242,7 +243,14 @@ export function MeetingCreateForm(props: {
           }
           className="w-full"
         >
-          {pending ? 'Saving…' : 'Add meeting'}
+          {pending ? (
+            'Saving…'
+          ) : (
+            <>
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              Add meeting
+            </>
+          )}
         </Button>
       </div>
       {publishedLocked && (
