@@ -8,7 +8,7 @@
  */
 import { AlertTriangle, Building, Home, Layers, Map as MapIcon } from 'lucide-react';
 
-import { gatewayFetch } from '@/lib/api/gateway';
+import { fetchList } from '@/lib/api/list-result';
 import { FacilityEditor } from '@/components/institutions/facility-editor';
 import { VerificationReportButton } from '@/components/institutions/verification-report-button';
 import { LogRepairRequestForm } from '@/components/institutions/log-repair-request-form';
@@ -165,14 +165,14 @@ function countRepairs(hierarchy: InfrastructureHierarchy): number {
 export default async function InstitutionInfrastructurePage(props: InfrastructurePageProps) {
   const params = await props.params;
   const result = await loadHierarchy(params.id);
-  const repairsResult = await gatewayFetch<{
-    data: Array<{ id: string; summary: string; infrastructureId: string }>;
+  const repairsList = await fetchList<{
+    id: string;
+    summary: string;
+    infrastructureId: string;
   }>(`/infrastructure/repair-requests?institutionId=${encodeURIComponent(params.id)}`, {
     method: 'GET',
-    throwOnError: false,
     cache: 'no-store',
   });
-  const openRepairs = repairsResult.ok ? (repairsResult.data?.data ?? []) : [];
   const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
 
   return (
@@ -224,12 +224,17 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                 targets={repairTargets(result.hierarchy as InfrastructureHierarchy)}
               />
             ) : null}
-            {openRepairs.length > 0 ? (
+            {repairsList.ok && repairsList.items.length > 0 ? (
               <ul className="mt-2 space-y-1 text-sm" data-testid="repair-request-list">
-                {openRepairs.map((row) => (
+                {repairsList.items.map((row) => (
                   <li key={row.id}>{row.summary}</li>
                 ))}
               </ul>
+            ) : null}
+            {!repairsList.ok ? (
+              <p className="mt-2 text-sm" role="alert" data-testid="repair-request-error">
+                Repair requests could not be loaded.
+              </p>
             ) : null}
           </div>
         </div>
