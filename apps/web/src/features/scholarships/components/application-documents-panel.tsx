@@ -170,7 +170,6 @@ export function ApplicationDocumentsPanel({
                     disabled={pending}
                     data-testid={`document-reject-${row.id}`}
                     onClick={() => {
-                      setReason('');
                       setRejectId(row.id);
                     }}
                   >
