@@ -80,10 +80,11 @@ export function ApplicationDocumentsPanel({
     setError(null);
     setPending(true);
     try {
-      await scholarshipBrowserFetch(
-        `/applications/${applicationId}/documents/${id}/verify`,
-        { method: 'POST', json: {}, apiRoot },
-      );
+      await scholarshipBrowserFetch(`/applications/${applicationId}/documents/${id}/verify`, {
+        method: 'POST',
+        json: {},
+        apiRoot,
+      });
       await load();
     } catch (err) {
       setError(err instanceof BrowserGatewayError ? err.message : 'Could not verify the document');
@@ -97,10 +98,11 @@ export function ApplicationDocumentsPanel({
     setPending(true);
     setError(null);
     try {
-      await scholarshipBrowserFetch(
-        `/applications/${applicationId}/documents/${rejectId}/reject`,
-        { method: 'POST', json: { reason }, apiRoot },
-      );
+      await scholarshipBrowserFetch(`/applications/${applicationId}/documents/${rejectId}/reject`, {
+        method: 'POST',
+        json: { reason },
+        apiRoot,
+      });
       setRejectId(null);
       setReason('');
       await load();
