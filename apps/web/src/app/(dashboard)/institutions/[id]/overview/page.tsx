@@ -28,11 +28,12 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { getInfrastructureHierarchy, getInstitution } from '@/lib/institutions/api';
+import {
+  ApiClientError,
+  getInstitution,
+  getInstitutionOverview,
+} from '@/lib/institutions/api';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
-import { listStudents } from '@/lib/api/students';
-import { listStaff } from '@/lib/api/staff';
-import { calculateAttendancePercentage } from '@/lib/api/attendance';
 
 interface OverviewPageProps {
   params: Promise<{ id: string }>;
@@ -45,11 +46,6 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
   return typeof v === 'string' ? v : '';
 }
 
-function readNum(cd: Record<string, unknown> | null | undefined, key: string): number | null {
-  const v = cd?.[key];
-  return typeof v === 'number' ? v : null;
-}
-
 /* ──────────────────────────────── KPI card ── */
 
 interface KpiCardProps {
@@ -59,9 +55,10 @@ interface KpiCardProps {
   value: number | string | null;
   suffix?: string;
   foot?: string;
+  retryHref: string;
 }
 
-function KpiCard({ icon: Icon, iconBg, label, value, suffix, foot }: KpiCardProps) {
+function KpiCard({ icon: Icon, iconBg, label, value, suffix, foot, retryHref }: KpiCardProps) {
   const hasValue = value !== null && value !== '';
   return (
     <Card>
@@ -77,11 +74,16 @@ function KpiCard({ icon: Icon, iconBg, label, value, suffix, foot }: KpiCardProp
         </div>
         {hasValue ? (
           <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">
-            {typeof value === 'number' ? value.toLocaleString() : value}
+            {typeof value === 'number' ? value.toLocaleString('en-IN') : value}
             {suffix && <span className="text-lg font-bold text-muted-foreground">{suffix}</span>}
           </p>
         ) : (
-          <p className="text-sm font-medium text-muted-foreground">Currently unavailable</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            Currently unavailable.{' '}
+            <Link href={retryHref} className="underline underline-offset-4">
+              Retry
+            </Link>
+          </p>
         )}
         {foot && hasValue && <p className="mt-1 text-xs text-muted-foreground">{foot}</p>}
       </CardContent>
@@ -99,9 +101,11 @@ interface GradeEnrollment {
 function EnrollmentByGrade({
   data,
   institutionId,
+  unavailable,
 }: {
   data: GradeEnrollment[];
   institutionId: string;
+  unavailable: boolean;
 }) {
   const max = data.reduce((m, d) => Math.max(m, d.count), 0) || 1;
   const total = data.reduce((s, d) => s + d.count, 0);
@@ -125,15 +129,17 @@ function EnrollmentByGrade({
       </CardHeader>
       <CardContent className="pb-5">
         {data.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            Enrollment data is currently unavailable for this institution.
+          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="enrollment-empty">
+            {unavailable
+              ? 'Enrollment data is currently unavailable for this institution.'
+              : 'No students are enrolled in this institution yet.'}
           </p>
         ) : (
           <div className="space-y-1">
             {data.map((row) => (
               <div
                 key={row.grade}
-                className="grid grid-cols-[48px_1fr_48px] items-center gap-3 py-1"
+                className="grid grid-cols-[72px_1fr_48px] items-center gap-3 py-1"
               >
                 <span className="text-sm font-semibold text-muted-foreground">{row.grade}</span>
                 <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
@@ -145,7 +151,7 @@ function EnrollmentByGrade({
                   />
                 </div>
                 <span className="text-end text-sm font-bold tabular-nums">
-                  {row.count.toLocaleString()}
+                  {row.count.toLocaleString('en-IN')}
                 </span>
               </div>
             ))}
@@ -275,65 +281,38 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
   const areaName = resolveLookupLabel(areas, institution.areaId);
   const typeName = resolveLookupLabel(types, institution.typeId);
+  const retryHref = `/institutions/${institution.id}/overview`;
 
-  const endDate = new Date();
-  const startDate = new Date();
-  startDate.setUTCDate(endDate.getUTCDate() - 30);
-  const toIso = (d: Date) => d.toISOString().slice(0, 10);
+  let overviewError: string | null = null;
+  const snapshot = await getInstitutionOverview(institution.id).catch((error: unknown) => {
+    overviewError =
+      error instanceof ApiClientError
+        ? error.message
+        : 'Institution details are currently unavailable.';
+    return null;
+  });
 
-  const [studentsRes, staffRes, hierarchy, attendanceRes] = await Promise.all([
-    listStudents({ institutionId: institution.id, pageSize: 1 }).catch(() => null),
-    listStaff({ institutionId: institution.id, pageSize: 1 }).catch(() => null),
-    getInfrastructureHierarchy(institution.id).catch(() => null),
-    calculateAttendancePercentage({
-      scope: 'institution',
-      institutionId: institution.id,
-      startDate: toIso(startDate),
-      endDate: toIso(endDate),
-    }).catch(() => null),
-  ]);
+  const studentCount = snapshot?.studentsAvailable ? snapshot.students : null;
+  const staffCount = snapshot?.staffAvailable ? snapshot.staff : null;
+  const attendance = snapshot?.attendanceAvailable ? snapshot.attendancePercent : null;
+  const classrooms = snapshot?.classroomsAvailable ? snapshot.classrooms : null;
 
-  const studentCount = studentsRes?.meta?.totalItems ?? readNum(cd, 'studentCount');
-  const staffCount = staffRes?.meta?.totalItems ?? readNum(cd, 'staffCount');
-  const attendance =
-    attendanceRes && Number.isFinite(attendanceRes.attendancePercentage)
-      ? Math.round(attendanceRes.attendancePercentage)
-      : readNum(cd, 'attendance');
-  let classrooms: number | null = null;
-  if (hierarchy?.lands?.length) {
-    classrooms = hierarchy.lands.reduce(
-      (sum, land) =>
-        sum +
-        land.buildings.reduce(
-          (bSum, building) =>
-            bSum + building.floors.reduce((fSum, floor) => fSum + floor.rooms.length, 0),
-          0,
-        ),
-      0,
-    );
-  } else {
-    classrooms = readNum(cd, 'classroomCount');
-  }
-
-  const rawEnroll = cd['enrollmentByGrade'];
-  const enrollment: GradeEnrollment[] = Array.isArray(rawEnroll)
-    ? (rawEnroll as GradeEnrollment[]).filter(
-        (e) => e && typeof e.grade === 'string' && typeof e.count === 'number',
-      )
+  const enrollment: GradeEnrollment[] = snapshot?.enrollmentAvailable
+    ? snapshot.enrollmentByGrade.map((row) => ({
+        grade: row.name || row.code,
+        count: row.count,
+      }))
     : [];
 
-  const rawActivity = cd['recentActivity'];
-  const activity: ActivityItem[] = Array.isArray(rawActivity)
-    ? (rawActivity as ActivityItem[]).filter((a) => a && typeof a.title === 'string')
-    : [];
+  const activity: ActivityItem[] = snapshot?.activityAvailable ? snapshot.activity : [];
 
-  const medium = readStr(cd, 'medium');
-  const established = readStr(cd, 'established') || (readNum(cd, 'established')?.toString() ?? '');
-  const shift = readStr(cd, 'shift');
-  const headmaster = readStr(cd, 'headmaster');
+  const medium = snapshot?.facts.medium || readStr(cd, 'medium');
+  const established = snapshot?.facts.established || readStr(cd, 'established');
+  const shift = snapshot?.facts.shift || readStr(cd, 'shift');
+  const headmaster = snapshot?.facts.headmaster || readStr(cd, 'headmaster');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="institution-overview">
       {institution.status === 'INACTIVE' && (
         <div
           role="alert"
@@ -351,6 +330,18 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
         </div>
       )}
 
+      {overviewError && (
+        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+          <p className="font-medium">Service unavailable</p>
+          <p className="mt-1 text-muted-foreground">
+            {overviewError}{' '}
+            <Link href={retryHref} className="font-semibold underline underline-offset-4">
+              Retry
+            </Link>
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* ── Main column ── */}
         <div className="space-y-6">
@@ -361,12 +352,14 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
               iconBg="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
               label="Students"
               value={studentCount}
+              retryHref={retryHref}
             />
             <KpiCard
               icon={Users}
               iconBg="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
               label="Staff"
               value={staffCount}
+              retryHref={retryHref}
             />
             <KpiCard
               icon={TrendingUp}
@@ -374,16 +367,22 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
               label="Attendance"
               value={attendance}
               suffix={attendance !== null ? '%' : undefined}
+              retryHref={retryHref}
             />
             <KpiCard
               icon={Grid3x3}
               iconBg="bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400"
               label="Classrooms"
               value={classrooms}
+              retryHref={retryHref}
             />
           </div>
 
-          <EnrollmentByGrade data={enrollment} institutionId={institution.id} />
+          <EnrollmentByGrade
+            data={enrollment}
+            institutionId={institution.id}
+            unavailable={!snapshot?.enrollmentAvailable}
+          />
           <RecentActivity items={activity} />
         </div>
 

@@ -365,6 +365,28 @@ export async function createClassSection(input: CreateClassSectionInput): Promis
   }
 }
 
+export async function updateClassSection(
+  id: string,
+  input: {
+    classTeacherStaffId?: string | null;
+    roomName?: string | null;
+    name?: string;
+    capacity?: number;
+  },
+): Promise<ClassSection> {
+  try {
+    const result = await gatewayFetch<ClassSection>(`/classes/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      json: input,
+      throwOnError: true,
+      cache: 'no-store',
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 export async function listClassesByInstitution(
   institutionId: string,
   academicPeriodId?: string,
@@ -378,6 +400,40 @@ export async function listClassesByInstitution(
   } catch (error) {
     rethrowAsApiError(error);
   }
+}
+
+export interface InstitutionOverviewSnapshot {
+  students: number | null;
+  staff: number | null;
+  attendancePercent: number | null;
+  classrooms: number | null;
+  studentsAvailable: boolean;
+  staffAvailable: boolean;
+  attendanceAvailable: boolean;
+  classroomsAvailable: boolean;
+  enrollmentAvailable: boolean;
+  activityAvailable: boolean;
+  enrollmentByGrade: { gradeId: string; code: string; name: string; count: number }[];
+  activity: { title: string; meta: string; tone: 'green' | 'amber' | 'brand' }[];
+  facts: { medium: string; established: string; shift: string; headmaster: string };
+}
+
+export async function getInstitutionOverview(
+  institutionId: string,
+): Promise<InstitutionOverviewSnapshot | null> {
+  const result = await gatewayFetch<InstitutionOverviewSnapshot>(
+    `/institutions/${encodeURIComponent(institutionId)}/overview`,
+    { method: 'GET', throwOnError: false, cache: 'no-store' },
+  );
+  if (result.status === 404) return null;
+  if (!result.ok || !result.data) {
+    throw new ApiClientError({
+      code: result.error?.code ?? 'SERVICE_UNAVAILABLE',
+      message: result.error?.message ?? 'Institution details are currently unavailable.',
+      statusCode: result.status,
+    });
+  }
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------
