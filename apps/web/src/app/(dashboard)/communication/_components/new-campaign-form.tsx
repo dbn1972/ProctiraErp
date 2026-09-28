@@ -122,7 +122,10 @@ export function NewCampaignForm({
         setError(result.message ?? 'Failed to create campaign');
         return;
       }
-      router.push('/communication/campaigns');
+      // A bare push reuses the prefetched /communication/campaigns payload from
+      // the Cancel link, which was fetched before this campaign existed.
+      const created = result.id ? `?created=${encodeURIComponent(result.id)}` : '';
+      router.push(`/communication/campaigns${created}`);
       router.refresh();
     });
   }

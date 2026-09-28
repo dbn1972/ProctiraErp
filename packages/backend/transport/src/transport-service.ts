@@ -58,6 +58,14 @@ import type {
 export const GPS_LIVE_HONESTY_NOTE =
   'Live map uses last ingested ping per vehicle projected onto an inline SVG (no MapLibre/Leaflet). Each marker links to OpenStreetMap. GPS ingest requires a tenant JWT plus X-Transport-Device-Key; anonymous device-only ingest is not enabled because FORCE RLS needs app.tenant_id.';
 
+function isForeignKeyViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: string }).code === '23503'
+  );
+}
+
 export const TRANSPORT_FEE_PENDING_NOTE =
   'FeesService was not injected; a pending transport_fee_links row was recorded instead of an invoice.';
 
@@ -571,7 +579,15 @@ export class TransportService {
       isActive: true,
     };
 
-    const created = await this.repository.createStudentAssignment(assignment);
+    let created: StudentRouteAssignmentEntity;
+    try {
+      created = await this.repository.createStudentAssignment(assignment);
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw new NotFoundError(`Student with id '${input.studentId}' not found`);
+      }
+      throw error;
+    }
     await this.linkTransportFee(tenantId, actorId, created);
     return created;
   }
