@@ -8,6 +8,7 @@ import {
   rowMetrics,
   typeChipLabel,
 } from './directory-presentation';
+import { resolveLookupLabel } from './lookups';
 
 describe('institutions directory presentation', () => {
   it('colours attendance by the design thresholds', () => {
@@ -56,5 +57,12 @@ describe('institutions directory presentation', () => {
     expect(typeChipLabel('00000000-0000-4000-8000-000000000011', names)).toBe('Secondary');
     expect(typeChipLabel('00000000-0000-4000-8000-000000000099', names)).toBe('');
     expect(typeChipLabel('Senior Secondary', names)).toBe('Senior Secondary');
+  });
+
+  it('keeps stored type labels and title-cases slugs', () => {
+    expect(resolveLookupLabel([], 'Pre-Primary')).toBe('Pre-Primary');
+    expect(resolveLookupLabel([], 'Senior Secondary')).toBe('Senior Secondary');
+    expect(resolveLookupLabel([], 'school')).toBe('School');
+    expect(resolveLookupLabel([], 'pre-primary')).toBe('Pre primary');
   });
 });

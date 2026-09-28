@@ -224,7 +224,8 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const where: Record<string, unknown> = { tenantId, deletedAt: null };
       if (filter.areaId) where.areaId = filter.areaId;
-      if (filter.status) where.status = filter.status;
+      // Seeds store `active` / `inactive`; the domain filter uses ACTIVE / INACTIVE.
+      if (filter.status) where.status = { equals: filter.status, mode: 'insensitive' };
       if (filter.search) {
         where.OR = [
           { name: { contains: filter.search, mode: 'insensitive' } },
