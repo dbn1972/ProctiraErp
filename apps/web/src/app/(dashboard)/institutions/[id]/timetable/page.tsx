@@ -266,7 +266,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                   </Link>
                   <Link
                     href={query({ view: 'list' })}
-                    className={`border-l border-border px-3 py-1.5 text-xs font-semibold ${view === 'list' ? 'bg-blue-50 text-blue-800' : 'text-muted-foreground'}`}
+                    className={`border-s border-border px-3 py-1.5 text-xs font-semibold ${view === 'list' ? 'bg-blue-50 text-blue-800' : 'text-muted-foreground'}`}
                     aria-current={view === 'list' ? 'page' : undefined}
                   >
                     List
@@ -307,7 +307,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[40rem] text-sm" aria-label="Meetings">
                       <thead>
-                        <tr className="border-b border-border text-left text-muted-foreground">
+                        <tr className="border-b border-border text-start text-muted-foreground">
                           <th className="px-2 py-2 font-medium">Day</th>
                           <th className="px-2 py-2 font-medium">Period</th>
                           <th className="px-2 py-2 font-medium">Section</th>

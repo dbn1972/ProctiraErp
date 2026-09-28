@@ -161,7 +161,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[36rem] text-sm" aria-label="Affected periods">
                       <thead>
-                        <tr className="border-b border-border text-left text-muted-foreground">
+                        <tr className="border-b border-border text-start text-muted-foreground">
                           <th className="px-6 py-2 font-medium">Period</th>
                           <th className="px-4 py-2 font-medium">Section</th>
                           <th className="px-4 py-2 font-medium">Room</th>
@@ -234,7 +234,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[36rem] text-sm" aria-label="Recent substitutions">
                 <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
+                  <tr className="border-b border-border text-start text-muted-foreground">
                     <th className="px-6 py-2 font-medium">Date</th>
                     <th className="px-4 py-2 font-medium">Meeting</th>
                     <th className="px-4 py-2 font-medium">Substitute</th>

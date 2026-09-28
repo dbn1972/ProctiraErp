@@ -4,7 +4,7 @@
  *   bell_schedules, bell_periods, section_meetings, substitutions, rooms, sections
  */
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import { TimetableSchemaMissingError, TimetableVersionConflictError } from './timetable-errors.js';
 import type {

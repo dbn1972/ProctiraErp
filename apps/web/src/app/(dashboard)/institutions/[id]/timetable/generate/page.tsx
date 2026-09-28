@@ -107,7 +107,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[36rem] text-sm" aria-label="Generation jobs">
                 <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
+                  <tr className="border-b border-border text-start text-muted-foreground">
                     <th className="py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium">Result</th>
                     <th className="px-3 py-2 font-medium">Run at</th>
@@ -129,7 +129,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
                       </td>
                       <td className="px-3 py-2">{job.finishedAt ?? job.createdAt}</td>
                       <td className="px-3 py-2">{job.requestedBy ?? '—'}</td>
-                      <td className="py-2 text-right">
+                      <td className="py-2 text-end">
                         {job.status === 'done' ? (
                           <Link
                             href={`/institutions/${institutionId}/timetable`}

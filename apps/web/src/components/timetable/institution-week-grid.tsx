@@ -75,13 +75,13 @@ export function InstitutionWeekGrid(props: {
         >
           <thead>
             <tr>
-              <th className="w-24 px-1 py-1 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              <th className="w-24 px-1 py-1 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                 Period
               </th>
               {DAYS.map((day) => (
                 <th
                   key={day.value}
-                  className="px-1 py-1 text-left text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                  className="px-1 py-1 text-start text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                 >
                   {day.label}
                 </th>
@@ -91,7 +91,7 @@ export function InstitutionWeekGrid(props: {
           <tbody>
             {props.periods.map((period) => (
               <tr key={period.id}>
-                <th scope="row" className="px-1 py-1 text-left align-top font-bold">
+                <th scope="row" className="px-1 py-1 text-start align-top font-bold">
                   {period.label}
                   <span className="mt-0.5 block text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
                     {period.time}
@@ -127,7 +127,7 @@ export function InstitutionWeekGrid(props: {
                     <td key={day.value} className="p-0 align-top">
                       <button
                         type="button"
-                        className={`min-h-[52px] w-full rounded-md border px-2 py-1.5 text-left ${TONE[meeting.tone] ?? TONE.c5}`}
+                        className={`min-h-[52px] w-full rounded-md border px-2 py-1.5 text-start ${TONE[meeting.tone] ?? TONE.c5}`}
                         onClick={() => {
                           setError(null);
                           setSelected(meeting);
