@@ -22,8 +22,8 @@ import {
   type ScholarshipDocumentStore,
 } from './document-store.js';
 import { institutionIdForStudent } from './parent-links.js';
-import type { ScholarshipRepository } from './scholarship-repository.js';
 import { CreateApplicationSchema } from './schemas.js';
+import type { ScholarshipRepository } from './scholarship-repository.js';
 import { ScholarshipService } from './scholarship-service.js';
 
 export interface ParentScholarshipRouteOptions {
@@ -45,8 +45,17 @@ async function actorFor(request: FastifyRequest, tenantId: string, resolve?: Par
   return actor;
 }
 
+const APPLICANT_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function ownedIds(actor: ReturnType<typeof actorFromRequest>): string[] {
-  return [...new Set([actor.userId, actor.studentId, ...actor.linkedStudentIds].filter(Boolean))] as string[];
+  return [
+    ...new Set(
+      [actor.userId, actor.studentId, ...actor.linkedStudentIds].filter(
+        (id): id is string => typeof id === 'string' && APPLICANT_UUID.test(id),
+      ),
+    ),
+  ];
 }
 
 export async function registerParentScholarshipRoutes(

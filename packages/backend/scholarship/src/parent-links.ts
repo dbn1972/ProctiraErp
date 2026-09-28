@@ -41,7 +41,8 @@ export async function institutionIdForStudent(
           LIMIT 1`,
         [studentId],
       );
-      const id = result.rows[0]?.institution_id;
+      const row = result.rows[0] as { institution_id?: unknown } | undefined;
+      const id = row?.institution_id;
       return typeof id === 'string' ? id : null;
     });
   } catch {
