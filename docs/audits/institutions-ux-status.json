@@ -1,0 +1,422 @@
+{
+  "tip": "774eb8f776fa823ac6f89216eb09633b139c2b9e",
+  "note": "Seeded from the coordinator map, then checked against origin/main 774eb8f7. Items still open on that tip stay NOT_DONE until a later commit on this branch proves them.",
+  "parity": {
+    "list.html": "Visual parity not recaptured on this tip. Functional: apps/web/e2e/16b-institutions-directory-ui.spec.ts, 16c-institutions-directory-live.spec.ts.",
+    "detail.html": "Redirect is middleware 307 (middleware.test.ts). No separate visual capture. Functional coverage is the overview hop in a11y-axe.spec.ts.",
+    "detail-classes.html": "Captures exist under docs/audits/captures/institutions-detail/classes-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-curriculum.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-edit.html": "Prototype still shows hero actions; product fix is pending on this branch. No new capture yet.",
+    "detail-gradebook.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-grades.html": "Captures under docs/audits/captures/institutions-detail/grades-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-infrastructure.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-overview.html": "Captures under docs/audits/captures/institutions-detail/overview-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-schedule.html": "Captures under docs/audits/captures/institutions-detail/schedule-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-schedule-section.html": "Captures under docs/audits/captures/institutions-detail/schedule-section-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-timetable.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "detail-timetable-generate.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "detail-timetable-substitutions.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "new.html": "Product fix pending on this branch. No new capture yet."
+  },
+  "findings": [
+    {
+      "id": "list.html#1",
+      "status": "DONE",
+      "ownerPr": "#465/#468",
+      "evidence": "institutions/page.tsx KPI values come from loadInstitutionDirectory; null renders Currently unavailable. Residual foot copy still says Connect enrollment API — disposition PARTIAL until that foot is replaced.",
+      "disposition": "PARTIAL"
+    },
+    {
+      "id": "list.html#2",
+      "status": "DONE",
+      "ownerPr": "#465/#468",
+      "evidence": "institutions/page.tsx InstitutionRow uses directory.schools metrics (directory.ts), not customData. directory-presentation.test.ts rowMetrics.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "list.html#3",
+      "status": "DONE",
+      "ownerPr": "#472",
+      "evidence": "institution-row-actions.tsx menu deactivates and reactivates. institution-reactivate.test.tsx and reactivate-action.test.ts. #472 is on origin/main 774eb8f7.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "list.html#4",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "AttendanceBar in institutions/page.tsx renders colour plus a bare percent. attendanceTone exists; no band word is shown.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail.html#1",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "middleware institutionBareDetailRedirect avoids the bare-URL hop (middleware.test.ts) but layout.tsx and overview/page.tsx both call getInstitution without React cache.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail.html#2",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "layout.tsx unavailableInstitution sets status ACTIVE and the hero paints a green Active pill.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-classes.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "class-section-controls.tsx AssignClassSectionButton writes classTeacherStaffId and roomName. 16d expects Neha Verma and Room 201. Room assignment is present in the same dialog.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "classes/page.tsx Open roster href is /students?institutionId&gradeId. students/page.tsx applies both filters. Not the attendance marker.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "ClassPeriodFilter in class-section-controls.tsx; classes page filters by academicPeriodId.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#4",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "academics-create-dialogs.tsx renders #add-section-blocked text, not a title-only tooltip.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-curriculum.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-curriculum.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-curriculum.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-curriculum.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-edit.html#1",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "edit/page.tsx still renders under the detail layout hero and InstitutionTabs.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-edit.html#2",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "institution-form.tsx has no deactivate or reactivate control. List menu and header reactivate exist elsewhere.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-edit.html#3",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "Cancel calls router.back() with no dirty check.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-grades.html#1",
+      "status": "DONE",
+      "ownerPr": "#467/#469",
+      "evidence": "grades/page.tsx UtilizationBar checks pct >= 100 before pct >= 95. status-label.test.ts utilizationBand(100) is Over capacity.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-grades.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "grades/page.tsx headers are Grade, Sections, Capacity, Utilization, View. The link column is View.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-grades.html#3",
+      "status": "DONE",
+      "ownerPr": "#469",
+      "evidence": "Utilization uses getInstitutionOverview enrollmentByGrade, not grade.customData. utilization.test.ts.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-grades.html#4",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "grades/page.tsx copy: Grades are shared across the organisation. Adding one here makes it available to every school.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-infrastructure.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-infrastructure.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-infrastructure.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-infrastructure.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-overview.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "overview/page.tsx reads enrollmentByGrade and activity from getInstitutionOverview, not institution.customData.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-overview.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "layout.tsx School report href is /institutions/${id}/overview/report. 16d clicks it and expects the report route.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-overview.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "KpiCard renders Currently unavailable with a Retry link when a KPI value is null.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-overview.html#4",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "overview/page.tsx awaits getInstitution then getInstitutionOverview. loading.tsx has per-card skeletons but the page does not stream them while the second call runs. Layout also awaits the overview snapshot.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-schedule.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "schedule/page.tsx uses formatScheduleConflict with staff, room, and period labels. 16d expects Period 3 and Neha Verma.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "section-roster-controls.tsx ConfirmActionDialog title Unpublish this section? 16d expects Published and Unpublish to draft.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "schedule/page.tsx subtitle is Room and teacher clashes are blocked. The HTTP 409 sentence is gone.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#4",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "SectionCreateForm is always mounted inside the Create section card.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-schedule-section.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "WithdrawStudentButton opens ConfirmActionDialog. 16d opens withdraw-student and cancels.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule-section.html#2",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "Bulk form maps admission tokens via searchText and names failures, but the visible label is still Bulk assign (student ids). Placeholder falls back to Admission numbers. Status left NOT_DONE until the label matches.",
+      "disposition": "PARTIAL"
+    },
+    {
+      "id": "detail-schedule-section.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "schedule/[sectionId]/page.tsx renders Enrolled/Withdrawn pills and en-IN dates, not raw ENROLLED or ISO strings.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule-section.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "Meetings edit/remove is in the timetable PR (bc-eaa0a317). Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "new.html#1",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "institution-form.tsx is one grid with no Identity / Classification / Location headings.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "new.html#2",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "new/page.tsx still says the school will appear once approved. createInstitutionAction creates it immediately.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "new.html#3",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "The field label is Code, with no UDISE hint.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "new.html#4",
+      "status": "NOT_DONE",
+      "ownerPr": "this branch",
+      "evidence": "Latitude and longitude are bare number inputs. Leaflet exists only in apps/registration-portal, not apps/web.",
+      "disposition": "OPEN"
+    }
+  ]
+}
