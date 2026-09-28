@@ -63,7 +63,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
 
   const sections = (sectionsResult.ok ? sectionsResult.data : [])
     .slice()
-    .sort((a, b) => a.code.localeCompare(b.code));
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
   const rooms = roomsResult.ok ? roomsResult.data : [];
   const conflicts = conflictsResult.ok ? conflictsResult.data : [];
   const roomOptions = rooms.map((r) => ({
