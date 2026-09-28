@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/storage/database.dart';
@@ -19,6 +20,7 @@ class ScholarshipProgram {
     this.deadline,
     this.applicationUrl,
     this.isOpen = true,
+    this.requiredDocuments = const <String>[],
   });
 
   final String id;
@@ -31,6 +33,7 @@ class ScholarshipProgram {
   final String? deadline;
   final String? applicationUrl;
   final bool isOpen;
+  final List<String> requiredDocuments;
 
   factory ScholarshipProgram.fromJson(Map<String, dynamic> json) {
     return ScholarshipProgram(
@@ -44,7 +47,19 @@ class ScholarshipProgram {
       deadline: json['deadline'] as String?,
       applicationUrl: json['applicationUrl'] as String?,
       isOpen: json['isOpen'] as bool? ?? true,
+      requiredDocuments: _requiredDocuments(json),
     );
+  }
+
+  static List<String> _requiredDocuments(Map<String, dynamic> json) {
+    final Object? eligibility = json['eligibility'];
+    final Object? raw = eligibility is Map
+        ? eligibility['requiredDocuments']
+        : json['requiredDocuments'];
+    if (raw is! List) {
+      return const <String>[];
+    }
+    return raw.whereType<String>().toList(growable: false);
   }
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -58,6 +73,7 @@ class ScholarshipProgram {
         'deadline': deadline,
         'applicationUrl': applicationUrl,
         'isOpen': isOpen,
+        'requiredDocuments': requiredDocuments,
       };
 
   /// Days remaining until deadline. Null if no deadline or it cannot be parsed.
@@ -234,6 +250,87 @@ class ScholarshipRepository {
     }
   }
 
+  /// School id cached for this student, when the student list has been synced.
+  Future<String?> institutionIdForStudent(String studentId) async {
+    final String tenantId = _requireTenantId();
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.query(
+      'students_cache',
+      columns: <String>['institution_id'],
+      where: 'tenant_id = ? AND id = ?',
+      whereArgs: <Object>[tenantId, studentId],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    final Object? value = rows.first['institution_id'];
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
+  }
+
+  /// Draft application so files can be uploaded before required-doc checks.
+  Future<String> createDraftApplication({
+    required String programId,
+    required String studentId,
+    required String institutionId,
+    String? personalStatement,
+    double? familyIncome,
+  }) async {
+    final Response<dynamic> response = await _dio.post(
+      '/api/v1/scholarships/applications',
+      data: <String, dynamic>{
+        'programId': programId,
+        'applicantId': studentId,
+        'institutionId': institutionId,
+        'academicRecords': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'institutionName': 'Current school',
+            'educationLevel': 'secondary',
+          },
+        ],
+        'financialInfo': <String, dynamic>{
+          'familyIncome': ?familyIncome,
+        },
+        'documents': <Map<String, dynamic>>[],
+        'asDraft': true,
+        'personalStatement': ?personalStatement,
+      },
+    );
+    return _applicationIdFromResponse(response.data);
+  }
+
+  /// Multipart upload of one supporting document. [onSendProgress] is byte counts.
+  Future<void> uploadApplicationDocument({
+    required String applicationId,
+    required String documentType,
+    required List<int> bytes,
+    required String filename,
+    required String mimeType,
+    void Function(int sent, int total)? onSendProgress,
+  }) async {
+    final FormData form = FormData.fromMap(<String, dynamic>{
+      'documentType': documentType,
+      'file': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
+        contentType: MediaType.parse(mimeType),
+      ),
+    });
+    await _dio.post(
+      '/api/v1/scholarships/applications/$applicationId/documents',
+      data: form,
+      onSendProgress: onSendProgress,
+    );
+  }
+
+  /// Finalize a draft after required documents are on the application.
+  Future<void> finalizeApplication(String applicationId) async {
+    await _dio.post('/api/v1/scholarships/applications/$applicationId/submit');
+  }
+
   /// Submit a scholarship application.
   Future<ScholarshipApplication> submitApplication({
     required String programId,
@@ -367,6 +464,16 @@ class ScholarshipRepository {
           jsonDecode(row['payload'] as String) as Map<String, dynamic>;
       return ScholarshipApplication.fromJson(json);
     }).toList(growable: false);
+  }
+
+  String _applicationIdFromResponse(Object? data) {
+    if (data is Map && data['id'] is String) {
+      return data['id'] as String;
+    }
+    if (data is Map && data['data'] is Map && data['data']['id'] is String) {
+      return data['data']['id'] as String;
+    }
+    throw StateError('The draft application did not return an id.');
   }
 
   String _requireTenantId() {
