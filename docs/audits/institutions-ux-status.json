@@ -1,6 +1,6 @@
 {
-  "tip": "8b5049c7005de51f831cbd950f5d51ab19d61e11",
-  "note": "Institutions timetable/tabs leftovers closed. #478/#480/#484/#485 merged; residual polish (generate Back to grid, subject select, switcher wrap, CBSE scale seed, period label, prod captures) on tip 8b5049c7. Specs: 16e timetable + 16e tabs (chromium). Captures institutions-timetable/ + institutions-tabs/ on next start (no Next N badge).",
+  "tip": "d0c018258056cb62af4720348c8036466b22eba6",
+  "note": "Institutions timetable/tabs leftovers closed. #478/#480/#484/#485 merged; residual polish on tip d0c018258056cb62af4720348c8036466b22eba6. Specs: 16e timetable + 16e tabs (chromium). Captures institutions-timetable/ + institutions-tabs/ on next start (no Next N badge). CI re-trigger after Actions queue stall.",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
     "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
@@ -163,7 +163,7 @@
       "id": "detail-gradebook.html#4",
       "status": "DONE",
       "ownerPr": "#480 + this PR",
-      "evidence": "Save message is Grade saved for <name>; report jobs show status · student · term. CBSE-9PT scale seeded in 006 so Report card form renders (not the missing-scale copy).",
+      "evidence": "Save message is Grade saved for <name>; report jobs show status \u00b7 student \u00b7 term. CBSE-9PT scale seeded in 006 so Report card form renders (not the missing-scale copy).",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -226,14 +226,14 @@
       "id": "detail-overview.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1–10 bars.",
+      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1\u201310 bars.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "16d clicks School report → /overview/report. Captures overview-*-live.png.",
+      "evidence": "16d clicks School report \u2192 /overview/report. Captures overview-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -303,7 +303,7 @@
       "id": "detail-schedule-section.html#4",
       "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "Meeting add/remove and draft delete live on /institutions/[id]/timetable (#478). 16e-institutions-timetable-write-smoke.spec.ts exercised Free→Add meeting and delete.",
+      "evidence": "Meeting add/remove and draft delete live on /institutions/[id]/timetable (#478). 16e-institutions-timetable-write-smoke.spec.ts exercised Free\u2192Add meeting and delete.",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -331,7 +331,7 @@
       "id": "detail-timetable.html#4",
       "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "MeetingCreateForm uses section/staff/room selects with human labels; 16e selects G9B-HIN · Class 9-B Hindi (Draft).",
+      "evidence": "MeetingCreateForm uses section/staff/room selects with human labels; 16e selects G9B-HIN \u00b7 Class 9-B Hindi (Draft).",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -373,7 +373,7 @@
       "id": "detail-timetable-substitutions.html#2",
       "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "meetingOptions label day · period time · section · teacher via resolveEntityLabel (substitutions/page.tsx).",
+      "evidence": "meetingOptions label day \u00b7 period time \u00b7 section \u00b7 teacher via resolveEntityLabel (substitutions/page.tsx).",
       "disposition": "FULLY_CLOSED"
     },
     {
