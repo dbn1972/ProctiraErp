@@ -116,16 +116,6 @@ function toResponse(record: InfrastructureRecord): InfrastructureResponse {
 }
 
 /**
- * Expected parent type for each infrastructure type in the hierarchy.
- */
-const PARENT_TYPE_MAP: Record<string, InfrastructureTypeValue | null> = {
-  [InfrastructureType.LAND]: null,
-  [InfrastructureType.BUILDING]: InfrastructureType.LAND,
-  [InfrastructureType.FLOOR]: InfrastructureType.BUILDING,
-  [InfrastructureType.ROOM]: InfrastructureType.FLOOR,
-};
-
-/**
  * Child type for each infrastructure type.
  */
 const CHILD_TYPE_MAP: Record<string, InfrastructureTypeValue | null> = {
