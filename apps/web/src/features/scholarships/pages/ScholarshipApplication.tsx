@@ -18,7 +18,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
+
+import {
+  DocumentUploadSlots,
+  type UploadedScholarshipDocument,
+} from '../components/document-upload-slots';
+import { missingRequiredDocuments } from '../document-upload';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -94,13 +100,15 @@ export default function ScholarshipApplication() {
   ]);
   const [financialInfo, setFinancialInfo] = useState<FinancialInfo>({});
   const [documents, setDocuments] = useState<ApplicationDocument[]>([]);
+  const [uploaded, setUploaded] = useState<UploadedScholarshipDocument[]>([]);
+  const [draftApplicationId, setDraftApplicationId] = useState<string | null>(null);
   const [personalStatement, setPersonalStatement] = useState('');
 
   // Fetch open programs
   const fetchPrograms = useCallback(async () => {
     setLoadingPrograms(true);
     try {
-      const result = await browserGatewayFetch<{ data: ScholarshipProgramSummary[] }>(
+      const result = await scholarshipBrowserFetch<{ data: ScholarshipProgramSummary[] }>(
         '/scholarships/programs?status=open&pageSize=50',
       );
       setPrograms(result.data);
@@ -117,11 +125,46 @@ export default function ScholarshipApplication() {
 
   const currentStepIndex = STEPS.findIndex((s) => s.key === currentStep);
 
-  const goNext = () => {
-    const nextIndex = currentStepIndex + 1;
-    if (nextIndex < STEPS.length) {
-      setCurrentStep(STEPS[nextIndex]!.key);
+  const ensureDraft = async (): Promise<string | null> => {
+    if (draftApplicationId) return draftApplicationId;
+    const records = academicRecords.filter((r) => r.institutionName && r.educationLevel);
+    if (!selectedProgramId || records.length === 0) {
+      setSubmitError('Add at least one academic record before uploading documents.');
+      return null;
     }
+    const created = await scholarshipBrowserFetch<{ id: string }>('/scholarships/applications', {
+      method: 'POST',
+      json: {
+        programId: selectedProgramId,
+        applicantId: '00000000-0000-4000-8000-000000000000',
+        institutionId: '00000000-0000-4000-8000-000000000000',
+        academicRecords: records,
+        financialInfo,
+        documents: [],
+        asDraft: true,
+        personalStatement: personalStatement || undefined,
+      },
+    });
+    setDraftApplicationId(created.id);
+    return created.id;
+  };
+
+  const goNext = () => {
+    const next = STEPS[currentStepIndex + 1];
+    if (!next) return;
+    if (next.key === 'documents') {
+      void ensureDraft()
+        .then((id) => {
+          if (id) setCurrentStep('documents');
+        })
+        .catch((err: unknown) => {
+          setSubmitError(
+            err instanceof BrowserGatewayError ? err.message : 'Could not start the draft',
+          );
+        });
+      return;
+    }
+    setCurrentStep(next.key);
   };
 
   const goBack = () => {
@@ -134,18 +177,28 @@ export default function ScholarshipApplication() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
+    const program = programs.find((item) => item.id === selectedProgramId);
+    const required = program?.eligibility.requiredDocuments ?? [];
+    const missing = missingRequiredDocuments(
+      required,
+      uploaded.map((doc) => doc.documentType),
+    );
+    if (missing.length > 0) {
+      setSubmitError(
+        `Missing required documents: ${missing.join(', ')}. Upload each file before submitting.`,
+      );
+      setSubmitting(false);
+      return;
+    }
     try {
-      await browserGatewayFetch<unknown>('/scholarships/applications', {
+      const draftId = draftApplicationId ?? (await ensureDraft());
+      if (!draftId) {
+        setSubmitting(false);
+        return;
+      }
+      await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${draftId}/submit`, {
         method: 'POST',
-        json: {
-          programId: selectedProgramId,
-          applicantId: '00000000-0000-4000-8000-000000000000', // Placeholder — resolved from auth context
-          institutionId: '00000000-0000-4000-8000-000000000000', // Placeholder — resolved from auth context
-          academicRecords: academicRecords.filter((r) => r.institutionName && r.educationLevel),
-          financialInfo,
-          documents,
-          personalStatement: personalStatement || undefined,
-        },
+        json: {},
       });
       setSubmitSuccess(true);
     } catch (err) {
@@ -162,9 +215,9 @@ export default function ScholarshipApplication() {
   // Success state
   if (submitSuccess) {
     return (
-      <div className="p-6 max-w-2xl mx-auto text-center space-y-4">
+      <div className="text-center space-y-4">
         <div className="text-4xl">🎉</div>
-        <h1 className="text-2xl font-semibold">Application Submitted</h1>
+        <h2 className="text-2xl font-semibold">Application Submitted</h2>
         <p className="text-muted-foreground">
           Your scholarship application has been submitted and is now under review. You can track its
           status from the application status page.
@@ -174,9 +227,7 @@ export default function ScholarshipApplication() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-semibold">Apply for Scholarship</h1>
-
+    <div className="space-y-6">
       {/* Step indicator */}
       <nav aria-label="Application steps" className="flex gap-1">
         {STEPS.map((step, idx) => (
@@ -424,36 +475,48 @@ export default function ScholarshipApplication() {
           <div className="space-y-4">
             <h2 className="text-lg font-medium">Supporting Documents</h2>
             <p className="text-sm text-muted-foreground">
-              Upload required documents such as transcripts, ID, and recommendation letters.
+              Upload each required file. PDF, JPEG, and PNG up to 10 MB.
             </p>
-            {documents.length > 0 && (
-              <ul className="space-y-2">
-                {documents.map((doc, idx) => (
-                  <li
-                    key={idx}
-                    className="flex items-center justify-between rounded-md border p-3 text-sm"
-                  >
-                    <div>
-                      <span className="font-medium">{doc.documentType}</span>
-                      <span className="text-muted-foreground ml-2">{doc.fileName}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setDocuments(documents.filter((_, i) => i !== idx))}
-                      className="text-xs text-destructive hover:underline"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-              <p>Document upload integration pending file storage wiring.</p>
-              <p className="text-xs mt-1">
-                Supported types: transcript, national_id, recommendation_letter, income_certificate
+            {submitError && currentStep === 'documents' ? (
+              <p role="alert" className="text-sm text-destructive">
+                {submitError}
               </p>
-            </div>
+            ) : null}
+            {draftApplicationId ? (
+              <DocumentUploadSlots
+                applicationId={draftApplicationId}
+                types={
+                  programs.find((item) => item.id === selectedProgramId)?.eligibility
+                    .requiredDocuments ?? ['income_certificate', 'marksheet', 'id_proof']
+                }
+                requiredTypes={
+                  programs.find((item) => item.id === selectedProgramId)?.eligibility
+                    .requiredDocuments ?? []
+                }
+                documents={uploaded}
+                onUploaded={(doc) => {
+                  setUploaded((current) => [
+                    ...current.filter((item) => item.documentType !== doc.documentType),
+                    doc,
+                  ]);
+                  setDocuments((current) => [
+                    ...current.filter((item) => item.documentType !== doc.documentType),
+                    {
+                      documentType: doc.documentType,
+                      fileName: doc.originalFilename,
+                      fileUrl: `scholarship-document:${doc.id}`,
+                      fileSize: doc.sizeBytes,
+                    },
+                  ]);
+                }}
+                onRemoved={(id) => {
+                  setUploaded((current) => current.filter((item) => item.id !== id));
+                  setDocuments((current) => current.filter((item) => !item.fileUrl.endsWith(id)));
+                }}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">Preparing the draft application…</p>
+            )}
           </div>
         )}
 

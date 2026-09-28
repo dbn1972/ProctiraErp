@@ -103,6 +103,22 @@ describe('tenantPlugin', () => {
     expect(publicResponse.statusCode).toBe(200);
   });
 
+  it('should skip an exact excluded path when the request has a query string', async () => {
+    await app.register(tenantPlugin, {
+      excludePaths: ['/api/v1/scholarships/document-downloads'],
+    });
+
+    app.get('/api/v1/scholarships/document-downloads', async () => {
+      return { ok: true };
+    });
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/scholarships/document-downloads?token=abc',
+    });
+    expect(response.statusCode).toBe(200);
+  });
+
   it('should return 401 when tenant cannot be resolved', async () => {
     await app.register(tenantPlugin, {
       getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
