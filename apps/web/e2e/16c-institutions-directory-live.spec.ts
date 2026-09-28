@@ -72,59 +72,67 @@ test.describe('Institutions directory — Sunrise live', () => {
     await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /UX review/i })).toHaveCount(0);
 
-    await expect(page.getByText('07040100417')).toBeVisible();
-    await expect(page.getByText('6 schools · profiles, classes, and infrastructure')).toBeVisible();
-    await expect(page.getByText('Showing 1–6 of 6')).toBeVisible();
-    await expect(page.getByText('Page 1 of 1')).toBeVisible();
+    const directoryTable = page.getByRole('table', { name: 'Institutions' });
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
+    await expect(
+      page.getByText('6 schools · profiles, classes, and infrastructure').filter({ visible: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Showing 1–6 of 6').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Page 1 of 1').filter({ visible: true })).toBeVisible();
 
     const studentsKpi = page
       .getByText('Students enrolled')
-      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
+      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]')
+      .filter({ visible: true });
     await expect(studentsKpi).toContainText('3,615');
     const reportingKpi = page
       .getByText('Reporting today')
-      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
+      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]')
+      .filter({ visible: true });
     await expect(reportingKpi).toContainText('4');
 
-    const mayur = page.getByRole('row', { name: /Mayur Vihar/ });
+    const mayur = directoryTable.getByRole('row', { name: /Mayur Vihar/ });
     await expect(mayur).toContainText('1,240');
     await expect(mayur).toContainText('84');
     await expect(mayur).toContainText('94%');
     await expect(mayur).toContainText('Delhi East');
     await expect(mayur).toContainText('Senior Secondary');
-    const rohini = page.getByRole('row', { name: /Rohini Sector 9/ });
+    const rohini = directoryTable.getByRole('row', { name: /Rohini Sector 9/ });
     await expect(rohini).toContainText('76%');
     await expect(rohini).toContainText('Delhi North');
-    const patparganj = page.getByRole('row', { name: /Patparganj/ });
+    const patparganj = directoryTable.getByRole('row', { name: /Patparganj/ });
     await expect(patparganj).toContainText('88%');
 
     const switcher = page.getByTestId('tenant-switcher').filter({ visible: true });
     await expect(switcher).toContainText('CBSE');
     await expect(switcher).not.toContainText('Board:');
 
-    await page.getByRole('searchbox', { name: 'Search' }).fill('zzzz-no-match');
-    await page.getByRole('button', { name: 'Search', exact: true }).click();
+    const searchBox = page.getByRole('searchbox', { name: 'Search' });
+    await searchBox.fill('zzzz-no-match');
+    await searchBox.press('Enter');
     await expect(page).toHaveURL(/search=zzzz-no-match/);
     await expect(page.getByTestId('institutions-empty').filter({ visible: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Clear' }).click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Clear all filters' }).click();
     await expect(page).not.toHaveURL(/search=/);
-    await expect(page.getByText('07040100417')).toBeVisible();
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
 
-    await page.locator('#filter-area').click();
+    await page.locator('#filter-area').filter({ visible: true }).click();
     await page.getByRole('option', { name: 'Delhi East' }).click();
     await expect(page).toHaveURL(new RegExp(`areaId=${AREA_EAST}`));
-    await expect(page.getByText('07040100417')).toBeVisible();
-    await expect(page.getByText('07040200731')).toHaveCount(0);
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
+    await expect(directoryTable.getByText('07040200731')).toHaveCount(0);
 
-    await page.locator('#filter-status').click();
+    await page.locator('#filter-status').filter({ visible: true }).click();
     await page.getByRole('option', { name: 'Inactive' }).click();
     await expect(page).toHaveURL(/status=INACTIVE/);
-    await expect(page.getByText('07040100844')).toBeVisible();
-    const inactive = page.getByRole('row', { name: /Vasundhara Enclave/ });
+    await expect(directoryTable.getByText('07040100844')).toBeVisible();
+    const inactive = directoryTable.getByRole('row', { name: /Vasundhara Enclave/ });
     await expect(inactive.getByText('—').first()).toBeVisible();
 
-    await page.getByRole('button', { name: 'Clear' }).click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Clear all filters' }).click();
     await expect(page).not.toHaveURL(/status=/);
     await expect(page).not.toHaveURL(/areaId=/);
 
@@ -140,9 +148,9 @@ test.describe('Institutions directory — Sunrise live', () => {
     await page.getByLabel('Reason').fill('Screen review throwaway');
     await page.getByTestId(`deactivate-${THROWAWAY_ID}-confirm`).focus();
     await page.keyboard.press('Enter');
-    const throwawayRow = page.getByRole('row', { name: /Throwaway Wing/ });
+    const throwawayRow = directoryTable.getByRole('row', { name: /Throwaway Wing/ });
     await expect(throwawayRow).toContainText('Inactive');
-    await expect(page.getByText('07040100417')).toBeVisible();
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
   });
 
   test('page 2 renders when more than one page of schools exists', async ({ page }) => {
@@ -176,8 +184,10 @@ COMMIT;
       roles: [{ roleId: 'principal', roleName: 'Principal', areaId: null }],
     });
     await page.goto('/institutions?page=2', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText('Page 2 of 2')).toBeVisible();
-    await expect(page.getByText('Showing 21–25 of 25')).toBeVisible();
-    await expect(page.locator('tbody tr')).toHaveCount(5);
+    await expect(page.getByText('Page 2 of 2').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Showing 21–25 of 25').filter({ visible: true })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Institutions' }).locator('tbody tr')).toHaveCount(
+      5,
+    );
   });
 });

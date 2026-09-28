@@ -56,8 +56,14 @@ export function InstitutionsFilters({
     mutate(params);
     params.delete('page');
     const query = params.toString();
+    // App Router `router.push(pathname)` keeps the current query string.
+    // A cleared filter set has to navigate without that query.
+    if (!query) {
+      window.location.assign(pathname);
+      return;
+    }
     startTransition(() => {
-      router.push(query ? `${pathname}?${query}` : pathname);
+      router.push(`${pathname}?${query}`);
     });
   };
 

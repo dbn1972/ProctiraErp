@@ -18,7 +18,7 @@
     --popover-foreground: 222 47% 11%;
 
     /* Primary — prototype brand-600 #2256C3 (design/prototype/shared/tokens.css) */
-    --primary: 217 70% 45%;
+    --primary: 221 70% 45%;
     --primary-foreground: 0 0% 100%;
 
     /* Secondary — soft slate */
@@ -49,7 +49,7 @@
     /* Borders, inputs, focus */
     --border: 214 32% 91%;
     --input: 213 27% 84%;
-    --ring: 217 70% 45%;
+    --ring: 221 70% 45%;
 
     /* Radius — v2.0 (10px base) */
     --radius: 0.625rem;
@@ -96,7 +96,7 @@
     --popover: 221 46% 12%;
     --popover-foreground: 220 36% 93%;
 
-    --primary: 217 66% 60%;
+    --primary: 220 67% 60%;
     --primary-foreground: 242 47% 14%;
 
     --secondary: 221 45% 16%;
@@ -113,7 +113,7 @@
 
     --border: 221 40% 23%;
     --input: 221 40% 23%;
-    --ring: 217 66% 60%;
+    --ring: 220 67% 60%;
   }
 
   /* RTL-specific adjustments — keep the system-font fallback first and
