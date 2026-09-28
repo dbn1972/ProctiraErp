@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 
 import { runAxe } from './helpers/axe';
 
+// CI baseline probe: comment-only change so `turbo run test:e2e --filter='...[base]'`
+// selects @proctira/web and actually runs this suite. Revert with the branch.
 /**
  * E2E for the public Application Tracking page (Task 51.4 / Requirement 16.6, 16.11).
  *
