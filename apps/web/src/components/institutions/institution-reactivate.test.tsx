@@ -29,12 +29,11 @@ function openOverflowMenu() {
 describe('institution reactivate UI', () => {
   beforeEach(() => {
     if (!('ResizeObserver' in globalThis)) {
-      (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-        class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        } as unknown as typeof ResizeObserver;
+      (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
     }
     Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
     Element.prototype.setPointerCapture = Element.prototype.setPointerCapture ?? (() => {});

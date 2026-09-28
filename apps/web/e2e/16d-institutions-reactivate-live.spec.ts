@@ -20,7 +20,16 @@ function psql(sql: string): void {
   if (!databaseUrl) {
     throw new Error('DATABASE_URL is required for the throwaway school');
   }
-  execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-c', sql], { stdio: 'pipe' });
+  try {
+    execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-c', sql], {
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+  } catch (error) {
+    const failed = error as { stderr?: string; stdout?: string };
+    const detail = [failed.stderr, failed.stdout].filter(Boolean).join('\n');
+    throw new Error(detail || 'psql failed while preparing the throwaway school');
+  }
 }
 
 function withTenant(body: string): string {
@@ -36,8 +45,43 @@ COMMIT;
 }
 
 function insertThrowawaySchool(): void {
+  // CI applies migrations but not db/seeds/006. The parent rows are the same
+  // fixed ids as that seed, inserted only when missing so a seeded Sunrise
+  // database is left unchanged.
   psql(
     withTenant(`
+INSERT INTO tenants (id, name, slug, config, status)
+VALUES (
+  '${SUNRISE}',
+  'Sunrise Public School',
+  'sunrise-public-school',
+  '{"locale":"en-IN","timezone":"Asia/Kolkata","currency":"INR"}'::jsonb,
+  'active'
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO geographic_areas (id, tenant_id, name, code, level, parent_id, path, lft, rgt)
+VALUES (
+  '${AREA_EAST}',
+  '${SUNRISE}',
+  'Delhi East',
+  'DL-EAST',
+  1,
+  NULL,
+  'DL-EAST',
+  1,
+  2
+) ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO boards (id, tenant_id, name, code, type, status)
+VALUES (
+  '00000000-0000-4000-8000-00000000a521',
+  '${SUNRISE}',
+  'Central Board of Secondary Education',
+  'CBSE',
+  'NATIONAL',
+  'active'
+) ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO institutions (
   id, tenant_id, name, code, board_id, area_id, type, sector, ownership, status
 ) VALUES (
@@ -80,7 +124,9 @@ test.describe('Institutions reactivate — Sunrise live', () => {
     deleteThrowawaySchool();
   });
 
-  test('deactivates a throwaway school, reactivates it from the keyboard, then reactivates again from the detail header', async ({ page }) => {
+  test('deactivates a throwaway school, reactivates it from the keyboard, then reactivates again from the detail header', async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     await setupGatewayTenantSession(page, {
       sub: 'priya-sharma',

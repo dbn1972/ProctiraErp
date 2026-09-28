@@ -9,14 +9,8 @@
  * - 5.3: Validate required fields, unique code, unique name within area
  * - 5.4: Return structured error response on validation failure
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-  EntityStatus,
-} from '@proctira/common';
-import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, EntityStatus } from '@proctira/common';
+import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {

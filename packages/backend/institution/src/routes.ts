@@ -18,7 +18,6 @@ import {
   UpdateInstitutionSchema,
   DeactivateInstitutionSchema,
   ReactivateInstitutionSchema,
-  InstitutionListQuerySchema,
   InstitutionParamsSchema,
   type CreateInstitutionInput,
   type UpdateInstitutionInput,
@@ -411,7 +410,7 @@ export async function registerInstitutionRoutes(
       }
 
       // Parse query with defaults (query params come as strings)
-      const query = request.query as InstitutionListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'name';
