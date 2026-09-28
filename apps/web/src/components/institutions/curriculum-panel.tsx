@@ -149,7 +149,7 @@ export function CurriculumPanel({
             <option value="">Select</option>
             {periods.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.code} — {p.name}
+                {p.name?.trim() || p.code}
               </option>
             ))}
           </select>

@@ -55,6 +55,7 @@ describe('institutions directory presentation', () => {
 
   it('scopes the switcher to the open institution board, area, and enrolment', () => {
     // Area stays an area. The prototype's "Board: Delhi East" is not copied.
+    // Enrolment wraps onto its own line so the sidebar never truncates.
     const copy = formatInstitutionSwitcher({
       organizationName: 'Sunrise Public School',
       boardLabel: 'CBSE',
@@ -62,7 +63,7 @@ describe('institutions directory presentation', () => {
       studentCount: 1240,
     });
     expect(copy.title).toBe('Sunrise Public School');
-    expect(copy.lines).toEqual(['CBSE · Delhi East · 1,240 students']);
+    expect(copy.lines).toEqual(['CBSE · Delhi East', '1,240 students']);
     expect(copy.lines.join('')).not.toContain('Board:');
   });
 

@@ -9,7 +9,7 @@ import { Button, Card, CardContent } from '@proctira/ui/components';
 import { AcademicPeriodSelect } from '@/components/timetable/academic-period-select';
 import { TimetableGenerateForm } from '@/components/timetable/generate-form';
 import { formatCodeNameLabel, formatPersonLabel } from '@/lib/entity-label';
-import { listAcademicPeriods } from '@/lib/institutions/api';
+import { listAcademicPeriods, listSubjects } from '@/lib/institutions/api';
 import { listStaff } from '@/lib/api/staff';
 import { listBellSchedules, listGenerationJobs, listSections } from '@/lib/api/timetable';
 
@@ -53,7 +53,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
     academicPeriodId = '';
   }
 
-  const [schedulesResult, sectionsResult, staffResult, jobsResult] = await Promise.all([
+  const [schedulesResult, sectionsResult, staffResult, jobsResult, subjects] = await Promise.all([
     listBellSchedules({ institutionId }),
     listSections({ institutionId, academicPeriodId: academicPeriodId || undefined }),
     (async () => {
@@ -69,6 +69,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
       return { data: rows };
     })(),
     listGenerationJobs({ institutionId }),
+    listSubjects().catch(() => [] as Awaited<ReturnType<typeof listSubjects>>),
   ]);
 
   const schedules = schedulesResult.ok ? schedulesResult.data : [];
@@ -82,26 +83,30 @@ export default async function TimetableGeneratePage(props: PageProps) {
     id: s.id,
     label: formatPersonLabel(s.firstName, s.lastName, s.position),
   }));
+  const subjectOptions = subjects.map((subject) => ({
+    id: subject.id,
+    label: formatCodeNameLabel(subject.code, subject.name),
+  }));
 
   return (
     <div className="space-y-4" data-testid="timetable-generate-page" data-hydrated="true">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h2 className="text-lg font-bold tracking-tight text-foreground">Generate timetable</h2>
           <p className="text-sm text-muted-foreground">
             Places each section&apos;s weekly periods onto the bell schedule. A teacher or room that
             is already booked is left unassigned, and nothing is saved until you confirm.
           </p>
-          {academicPeriods.length > 0 ? (
-            <div className="mt-3">
-              <AcademicPeriodSelect value={academicPeriodId} options={academicPeriods} />
-            </div>
-          ) : null}
         </div>
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="outline" size="sm" className="shrink-0">
           <Link href={`/institutions/${institutionId}/timetable`}>Back to grid</Link>
         </Button>
       </div>
+      {academicPeriods.length > 0 ? (
+        <div>
+          <AcademicPeriodSelect value={academicPeriodId} options={academicPeriods} />
+        </div>
+      ) : null}
 
       <Card>
         <CardContent className="space-y-4 p-6">
@@ -132,6 +137,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
               }))}
               sectionOptions={sectionOptions}
               staffOptions={staffOptions}
+              subjectOptions={subjectOptions}
             />
           )}
         </CardContent>

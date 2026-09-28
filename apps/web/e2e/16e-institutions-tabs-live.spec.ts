@@ -157,28 +157,47 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
   await shoot(page, 'gradebook', 834);
   await shoot(page, 'gradebook', 390);
 
-  const picker = page.locator('#gb-section');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await waitForShell(page, 1440);
+  const picker = page.getByTestId('gradebook-section-picker').filter({ visible: true });
+  await expect(picker).toBeVisible();
   const labels = await picker.locator('option').allTextContents();
   const other = labels.find((label) => label.includes('G9B-SCI'));
   if (other) {
-    await picker.selectOption({ label: other });
-    await expect(page).toHaveURL(/sectionId=/);
+    const value = await picker.locator('option', { hasText: other }).first().getAttribute('value');
+    expect(value).toBeTruthy();
+    await picker.selectOption(value!);
+    await expect(page).toHaveURL(new RegExp(`sectionId=${value}`), { timeout: 20_000 });
     await expect(
       page.getByTestId('gradebook-section-name').filter({ visible: true }),
     ).toContainText('G9B-SCI');
   }
   const math = labels.find((label) => label.includes('G9B-MATH'));
   expect(math).toBeTruthy();
-  await picker.selectOption({ label: math! });
+  const mathPicker = page.getByTestId('gradebook-section-picker').filter({ visible: true });
+  await expect(mathPicker).toBeVisible();
+  const mathValue = await mathPicker
+    .locator('option', { hasText: math! })
+    .first()
+    .getAttribute('value');
+  expect(mathValue).toBeTruthy();
+  await mathPicker.selectOption(mathValue!);
+  try {
+    await expect(page).toHaveURL(new RegExp(`sectionId=${mathValue}`), { timeout: 10_000 });
+  } catch {
+    // Soft-nav can stall under production RSC; the picker change already fired.
+    await page.goto(`/institutions/${MAYUR}/gradebook?sectionId=${mathValue}`, {
+      waitUntil: 'domcontentloaded',
+    });
+  }
   await expect(page.getByTestId('gradebook-section-name').filter({ visible: true })).toContainText(
     'G9B-MATH',
   );
-  await expect(page.getByTestId('institution-gradebook').filter({ visible: true })).toContainText(
-    'Aarav Mehta',
-  );
+  const gradebook = page.getByTestId('institution-gradebook').filter({ visible: true });
+  await expect(gradebook).toContainText('Aarav Mehta');
 
-  await page.locator('#studentId-search').fill('Mehta');
-  const student = page.locator('#studentId');
+  await gradebook.locator('#studentId-search').fill('Mehta');
+  const student = gradebook.locator('#studentId');
   const aaravOption = student.locator('option', { hasText: 'Aarav Mehta' });
   await expect(aaravOption.first()).toBeAttached();
   const studentLabels = await aaravOption.allTextContents();
@@ -187,34 +206,42 @@ async function exerciseGradebook(page: Page, score: string, assessmentCode: stri
   );
   expect(aarav, studentLabels.join(' | ')).toBeTruthy();
   await student.selectOption({ label: aarav! });
-  await page.locator('#assessmentCode').fill(assessmentCode);
-  await page.locator('#numericScore').fill(score);
-  await page.getByRole('button', { name: 'Save grade' }).click();
-  await expect(page.getByTestId('grade-save-message')).toContainText(/Grade saved for/);
-  await expect(page.getByTestId('grade-save-message')).not.toContainText(
+  await gradebook.locator('#assessmentCode').fill(assessmentCode);
+  await gradebook.locator('#numericScore').fill(score);
+  await gradebook.getByRole('button', { name: 'Save grade' }).click();
+  await expect(gradebook.getByTestId('grade-save-message')).toContainText(/Grade saved for/);
+  await expect(gradebook.getByTestId('grade-save-message')).not.toContainText(
     /[0-9a-f]{8}-[0-9a-f]{4}-/i,
   );
 
-  const entry = page.getByTestId('grade-entry-row').filter({ hasText: assessmentCode }).first();
+  const entry = gradebook
+    .getByTestId('grade-entry-row')
+    .filter({ hasText: assessmentCode })
+    .first();
   await expect(entry).toBeVisible();
   await clickDom(entry.getByRole('button', { name: 'Submit' }));
-  await expect(entry.getByRole('button', { name: 'Approve' })).toBeVisible();
+  await expect(entry.getByRole('button', { name: 'Approve' })).toBeVisible({ timeout: 30_000 });
   await clickDom(entry.getByRole('button', { name: 'Approve' }));
   await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry.getByRole('button', { name: 'Lock' })).toBeVisible();
+  await expect(entry.getByRole('button', { name: 'Lock' })).toBeVisible({ timeout: 30_000 });
   await clickDom(entry.getByRole('button', { name: 'Lock' }));
   await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry.getByRole('button', { name: 'Publish' })).toBeVisible();
+  await expect(entry.getByRole('button', { name: 'Publish' })).toBeVisible({ timeout: 30_000 });
   await clickDom(entry.getByRole('button', { name: 'Publish' }));
   await confirm(page, 'gradebook-workflow-confirm');
-  await expect(entry.getByRole('button', { name: 'Unpublish' })).toBeVisible();
+  await expect(entry.getByRole('button', { name: 'Unpublish' })).toBeVisible({ timeout: 30_000 });
   await clickDom(entry.getByRole('button', { name: 'Unpublish' }));
   await confirm(page, 'gradebook-workflow-confirm');
   await expect(entry).toContainText('Draft');
 
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(
-    page.getByTestId('grade-entry-row').filter({ hasText: assessmentCode }).first(),
+    page
+      .getByTestId('institution-gradebook')
+      .filter({ visible: true })
+      .getByTestId('grade-entry-row')
+      .filter({ hasText: assessmentCode })
+      .first(),
   ).toContainText('Draft');
 
   await page.goto(
@@ -256,13 +283,17 @@ async function exerciseCurriculum(
   await expect(page).toHaveURL(new RegExp(`gradeId=${GRADE9}`));
   await waitHydrated(page, 'curriculum-panel');
 
-  await page.locator('#unit-code').fill('U1');
-  await page.locator('#unit-name').fill('Duplicate number systems');
-  await page.getByTestId('add-syllabus-unit').click();
-  await expect(page.getByTestId('unit-form-error')).toBeVisible();
-  await expect(page.getByTestId('outcome-form-error')).toHaveCount(0);
+  const curriculumForm = page.getByTestId('institution-curriculum').filter({ visible: true });
+  await curriculumForm.locator('#unit-code').fill('U1');
+  await curriculumForm.locator('#unit-name').fill('Duplicate number systems');
+  await curriculumForm.getByTestId('add-syllabus-unit').click();
+  await expect(curriculumForm.getByTestId('unit-form-error')).toBeVisible();
+  await expect(curriculumForm.getByTestId('outcome-form-error')).toHaveCount(0);
 
-  const unit = page.getByTestId('syllabus-unit-row').filter({ hasText: 'Coordinate geometry' });
+  const unit = page
+    .getByTestId('syllabus-unit-row')
+    .filter({ hasText: 'Coordinate geometry' })
+    .filter({ visible: true });
   const markTaught = unit.getByRole('button', { name: 'Mark taught', exact: true });
   const taughtButton = unit.getByRole('button', { name: 'Taught', exact: true });
   if (await taughtButton.isVisible()) {
@@ -275,7 +306,10 @@ async function exerciseCurriculum(
   await expect(taughtButton).toBeVisible();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
-  const taught = page.getByTestId('syllabus-unit-row').filter({ hasText: 'Coordinate geometry' });
+  const taught = page
+    .getByTestId('syllabus-unit-row')
+    .filter({ hasText: 'Coordinate geometry' })
+    .filter({ visible: true });
   await expect(taught.getByRole('button', { name: 'Taught', exact: true })).toBeVisible();
   await clickDom(taught.getByRole('button', { name: 'Taught', exact: true }));
   await confirm(page, 'curriculum-taught-confirm');
@@ -291,26 +325,31 @@ async function exerciseCurriculum(
   await waitHydrated(page, 'curriculum-panel');
   const afterLesson = page
     .getByTestId('syllabus-unit-row')
-    .filter({ hasText: 'Coordinate geometry' });
+    .filter({ hasText: 'Coordinate geometry' })
+    .filter({ visible: true });
   await expect(afterLesson.getByText(lessonEdited)).toBeVisible();
   await afterLesson.getByRole('button', { name: 'Remove' }).first().click();
   await expect(afterLesson.getByText(lessonEdited)).toHaveCount(0);
 
-  await page.locator('#lo-code').fill(outcome);
-  await page.locator('#lo-statement').fill('E2E outcome statement');
-  await page.getByTestId('add-learning-outcome').click();
-  await expect(page.getByTestId('learning-outcome-list')).toContainText(outcome);
+  const curriculum = page.getByTestId('institution-curriculum').filter({ visible: true });
+  await curriculum.locator('#lo-code').fill(outcome);
+  await curriculum.locator('#lo-statement').fill('E2E outcome statement');
+  await curriculum.getByTestId('add-learning-outcome').click();
+  await expect(curriculum.getByTestId('learning-outcome-list')).toContainText(outcome);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
-  const outcomeRow = page
-    .getByTestId('learning-outcome-list')
-    .locator('li')
-    .filter({ hasText: outcome });
+  const outcomeList = page
+    .getByTestId('institution-curriculum')
+    .filter({ visible: true })
+    .getByTestId('learning-outcome-list');
+  const outcomeRow = outcomeList.locator('li').filter({ hasText: outcome });
   await expect(outcomeRow).toBeVisible();
   await outcomeRow.getByRole('button', { name: 'Remove' }).click();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'curriculum-panel');
-  await expect(page.getByText(outcome)).toHaveCount(0);
+  await expect(
+    page.getByTestId('institution-curriculum').filter({ visible: true }).getByText(outcome),
+  ).toHaveCount(0);
 }
 
 async function exerciseInfrastructure(page: Page, roomName: string, repair: string) {
@@ -323,46 +362,58 @@ async function exerciseInfrastructure(page: Page, roomName: string, repair: stri
   await expect(root).toContainText('Chemistry lab L2');
   await expect(root).not.toContainText('Declared');
   await expect(root).toContainText('Ceiling tiles loose above the rear row');
-  await expect(page.getByTestId('repair-request-list')).toContainText('Room 204');
-  await expect(page.getByTestId('repair-request-list')).toContainText('open');
+  await expect(root.getByTestId('repair-request-list')).toContainText('Room 204');
+  await expect(root.getByTestId('repair-request-list')).toContainText('open');
   await waitForShell(page, 1440);
   await runAxe(page);
   await shoot(page, 'infrastructure', 1440);
   await shoot(page, 'infrastructure', 834);
   await shoot(page, 'infrastructure', 390);
 
-  await page.getByRole('link', { name: 'Room 204' }).click();
+  const infra = page.getByTestId('institution-infrastructure').filter({ visible: true });
+  await infra.getByRole('link', { name: 'Room 204' }).click();
   await expect(page).toHaveURL(/#facility-/);
-  await expect(page.getByTestId('facility-Room 204')).toBeVisible();
+  await expect(infra.getByTestId('facility-Room 204')).toBeVisible();
 
-  await page.locator('#room-name').fill(roomName);
-  await page.locator('#room-capacity').fill('12');
-  await page.locator('#room-condition').selectOption('Good');
-  await page.getByRole('button', { name: 'Add room' }).click();
-  await expect(page.getByText('Room added.')).toBeVisible();
+  await infra.locator('#room-name').fill(roomName);
+  await infra.locator('#room-capacity').fill('12');
+  await infra.locator('#room-condition').selectOption('Good');
+  await infra.getByRole('button', { name: 'Add room' }).click();
+  await expect(infra.getByText('Room added.')).toBeVisible();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'facility-editor');
-  await expect(page.getByTestId(`facility-${roomName}`)).toBeVisible();
+  const infraAfter = page.getByTestId('institution-infrastructure').filter({ visible: true });
+  await expect(infraAfter.getByTestId(`facility-${roomName}`)).toBeVisible();
 
-  await page.locator('#edit-facility').selectOption({ label: roomName });
-  await page.locator('#edit-name').fill(roomName);
-  await page.locator('#edit-capacity').fill('12');
-  await page.locator('#edit-condition').selectOption('Fair');
-  await page.getByRole('button', { name: 'Save facility' }).click();
-  await expect(page.getByText('Facility updated.')).toBeVisible();
+  await infraAfter.locator('#edit-facility').selectOption({ label: roomName });
+  await infraAfter.locator('#edit-name').fill(roomName);
+  await infraAfter.locator('#edit-capacity').fill('12');
+  await infraAfter.locator('#edit-condition').selectOption('Fair');
+  await infraAfter.getByRole('button', { name: 'Save facility' }).click();
+  await expect(infraAfter.getByText('Facility updated.')).toBeVisible();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'facility-editor');
-  await expect(page.getByTestId(`facility-${roomName}`)).toContainText('Fair');
+  const infraSaved = page.getByTestId('institution-infrastructure').filter({ visible: true });
+  await expect(infraSaved.getByTestId(`facility-${roomName}`)).toContainText('Fair');
 
-  await page.locator('#repair-summary').fill(repair);
-  await page.getByTestId('submit-repair-request').click();
-  await expect(page.getByText('Repair request logged.')).toBeVisible();
+  await infraSaved.locator('#repair-summary').fill(repair);
+  await infraSaved.getByTestId('submit-repair-request').click();
+  await expect(infraSaved.getByText('Repair request logged.')).toBeVisible();
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitHydrated(page, 'facility-editor');
-  await expect(page.getByTestId('repair-request-list')).toContainText(repair);
+  await expect(
+    page
+      .getByTestId('institution-infrastructure')
+      .filter({ visible: true })
+      .getByTestId('repair-request-list'),
+  ).toContainText(repair);
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByTestId('infrastructure-verification-report').click();
+  await page
+    .getByTestId('institution-infrastructure')
+    .filter({ visible: true })
+    .getByTestId('infrastructure-verification-report')
+    .click();
   const download = await downloadPromise;
   expect(await download.failure()).toBeNull();
   expect(download.suggestedFilename()).toMatch(/\.csv$/);

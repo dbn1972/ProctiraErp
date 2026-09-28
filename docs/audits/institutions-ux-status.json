@@ -1,21 +1,21 @@
 {
-  "tip": "ae3b16ce",
-  "note": "LIVE: 16d+16f with native dirty listeners + fillReactInput; harness seeds 006; axe 14/14.",
+  "tip": "this-pr",
+  "note": "Institutions timetable/tabs leftovers closed. #478/#480/#484/#485 merged; residual polish (generate Back to grid, subject select, switcher wrap, CBSE scale seed, period label, prod captures) on this PR. Specs: 16e timetable + 16e tabs. Captures institutions-timetable/ + institutions-tabs/ on next start.",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
     "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
     "detail-classes.html": "Live captures classes-*-live.png + 16d passed on tip.",
-    "detail-curriculum.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-curriculum.html": "Merged #480/#484. Period select shows name only (AY 2026-27). Captures institutions-tabs/curriculum-{1440,834,390}.png on prod build; 16e tabs + axe.",
     "detail-edit.html": "Edit chrome hidden; 16f passed; captures institutions-edit/form-*-live.png.",
-    "detail-gradebook.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-gradebook.html": "Merged #480/#484. CBSE grading scale seeded in 006 (report card form). Captures institutions-tabs/gradebook-{1440,834,390}.png on prod build; 16e tabs + axe.",
     "detail-grades.html": "Live captures grades-*-live.png + 16d passed on tip.",
-    "detail-infrastructure.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-infrastructure.html": "Merged #480/#484. Captures institutions-tabs/infrastructure-{1440,834,390}.png on prod build; 16e tabs + axe.",
     "detail-overview.html": "Live captures overview-*-live.png + 16d passed on tip.",
     "detail-schedule.html": "Live captures schedule-*-live.png + 16d passed on tip.",
-    "detail-schedule-section.html": "16d passed on tip. Captures schedule-section-* from prior pack retained.",
-    "detail-timetable.html": "IN_PROGRESS in PR #478. Not edited here.",
-    "detail-timetable-generate.html": "IN_PROGRESS in PR #478. Not edited here.",
-    "detail-timetable-substitutions.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "detail-schedule-section.html": "16d passed; meetings edit/remove on Timetable tab via #478. Captures schedule-section-* retained.",
+    "detail-timetable.html": "Merged #478. Week grid + named meetings. Captures institutions-timetable/timetable-*-live.png on prod build; 16e timetable + axe.",
+    "detail-timetable-generate.html": "Merged #478 + this PR (Back to grid top-right, subject select from /subjects). Captures institutions-timetable/generate-*-live.png on prod build; 16e timetable + axe.",
+    "detail-timetable-substitutions.html": "Merged #478. Named staff/slots. Captures institutions-timetable/substitutions-*-live.png on prod build; 16e timetable + axe.",
     "new.html": "16f passed; captures institutions-new/form-*-live.png."
   },
   "findings": [
@@ -91,31 +91,31 @@
     },
     {
       "id": "detail-curriculum.html#1",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "Per-form error regions (unit-form-error / outcome-form-error); 16e asserts duplicate unit error stays local.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-curriculum.html#2",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "Mark taught / Taught toggle with ConfirmActionDialog; 16e unmarks then marks Coordinate geometry.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-curriculum.html#3",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480 + this PR",
+      "evidence": "Scope selects apply on change (no Apply scope button; 16e asserts count 0). Period option shows name only (AY 2026-27).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-curriculum.html#4",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480/#484",
+      "evidence": "Lesson edit/remove and outcome remove in curriculum-panel; listLessonPlansForUnits batch fetch. 16e edits lesson and removes outcome.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-edit.html#1",
@@ -140,31 +140,31 @@
     },
     {
       "id": "detail-gradebook.html#1",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "humanGradebookError strips db/sql/db/seeds paths; 16e asserts page does not contain db/sql or db/seeds.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-gradebook.html#2",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "ConfirmActionDialog on Approve/Lock/Publish/Unpublish; 16e confirms each transition.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-gradebook.html#3",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "GradebookSectionSwitcher picker present; 16e switches G9B-SCI then back to G9B-MATH.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-gradebook.html#4",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480 + this PR",
+      "evidence": "Save message is Grade saved for <name>; report jobs show status · student · term. CBSE-9PT scale seeded in 006 so Report card form renders (not the missing-scale copy).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-grades.html#1",
@@ -196,44 +196,44 @@
     },
     {
       "id": "detail-infrastructure.html#1",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "FacilityEditor add land/building/room + LogRepairRequestForm; 16e adds room and repair request.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-infrastructure.html#2",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "Condition constrained via schema check + UI select (migration 106); unknown free-text path removed for writes.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-infrastructure.html#3",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "Repair banner links/highlights flagged nodes; 16e + captures institutions-tabs/infrastructure-*.png.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-infrastructure.html#4",
-      "status": "IN_PROGRESS",
-      "ownerPr": "bc-009de6bb",
-      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#480",
+      "evidence": "VerificationReportButton with pending/error feedback; route under /api/institutions/[id]/infrastructure/report.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1\u201310 bars.",
+      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1–10 bars.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "16d clicks School report \u2192 /overview/report. Captures overview-*-live.png.",
+      "evidence": "16d clicks School report → /overview/report. Captures overview-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -301,94 +301,94 @@
     },
     {
       "id": "detail-schedule-section.html#4",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "Meetings edit/remove is in the timetable PR (bc-eaa0a317). Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "Meeting add/remove and draft delete live on /institutions/[id]/timetable (#478). 16e-institutions-timetable-write-smoke.spec.ts exercised Free→Add meeting and delete.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable.html#1",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "InstitutionWeekGrid on timetable page; captures institutions-timetable/timetable-*-live.png; 16e timetable expects week grid + Break + Free.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable.html#2",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "16e asserts SCREEN STATE count 0; live subtitle describes weekly meetings without developer mock commentary.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable.html#3",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "Periods sorted by startTime then name in page.tsx; list view shows chronological period labels.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable.html#4",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "MeetingCreateForm uses section/staff/room selects with human labels; 16e selects G9B-HIN · Class 9-B Hindi (Draft).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-generate.html#1",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "Recent jobs table shows status, assigned/clashes, run-at, run-by, and View grid link (generate/page.tsx).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-generate.html#2",
-      "status": "IN_PROGRESS",
-      "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#478 + this PR",
+      "evidence": "Subtitle explains placement onto the bell schedule and that nothing saves until confirm. Back to grid sits top-right beside the title.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-generate.html#3",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "Bell schedule <select> in generate-form.tsx; options from listBellSchedules.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-generate.html#4",
-      "status": "IN_PROGRESS",
-      "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "status": "DONE",
+      "ownerPr": "#478 + this PR",
+      "evidence": "ConfirmActionDialog before write; preview without saving. Subject reference is a select of /subjects ids (default Mathematics).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-substitutions.html#1",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "SubstitutionCreateForm uses staff select options; 16e covers absence + substitute assignment.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-substitutions.html#2",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "meetingOptions label day · period time · section · teacher via resolveEntityLabel (substitutions/page.tsx).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-substitutions.html#3",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "Affected periods listed after Mark absent with cover status; TeacherAbsenceForm + listAffectedPeriods.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-timetable-substitutions.html#4",
-      "status": "IN_PROGRESS",
+      "status": "DONE",
       "ownerPr": "#478",
-      "evidence": "PR #478. Not edited here.",
-      "disposition": "OPEN"
+      "evidence": "Recent substitutions render en-IN dates and named teachers/sections, not truncated UUIDs.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "new.html#1",

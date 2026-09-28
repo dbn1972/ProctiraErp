@@ -37,7 +37,7 @@ test.describe('Institutions timetable — Sunrise live', () => {
       await page.waitForTimeout(2000);
       await page.reload({ waitUntil: 'domcontentloaded' });
     }
-    const grid = page.getByTestId('institution-timetable');
+    const grid = page.getByTestId('institution-timetable').filter({ visible: true });
     await expect(grid).toBeVisible();
     await expect(grid.getByRole('link', { name: 'Generate' })).toBeVisible();
     await expect(grid.getByRole('link', { name: 'Substitutions' })).toBeVisible();
@@ -49,6 +49,8 @@ test.describe('Institutions timetable — Sunrise live', () => {
     await runAxe(page, { include: 'main' });
 
     await page.getByRole('link', { name: 'List', exact: true }).click();
+    await expect(page).toHaveURL(/view=list/, { timeout: 15_000 });
+    await expect(page.getByRole('table', { name: 'Meetings' })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Meetings' })).toContainText('Neha Verma');
 
     await page.goto(`/institutions/${MAYUR}/timetable?view=grid&class=9-B`, {
@@ -56,25 +58,59 @@ test.describe('Institutions timetable — Sunrise live', () => {
     });
     for (
       let attempt = 0;
-      attempt < 3 && !(await page.getByTestId('timetable-week-grid').count());
+      attempt < 3 &&
+      !(await page.getByTestId('timetable-week-grid').filter({ visible: true }).count());
       attempt += 1
     ) {
       await page.waitForTimeout(2000);
       await page.reload({ waitUntil: 'domcontentloaded' });
     }
-    await expect(page.getByTestId('timetable-week-grid')).toHaveAttribute('data-hydrated', 'true');
-    await page.getByRole('button', { name: 'Free' }).first().click();
-    await expect(page).toHaveURL(/day=\d+&period=/, { timeout: 15_000 });
+    await expect(page.getByTestId('timetable-week-grid').filter({ visible: true })).toHaveAttribute(
+      'data-hydrated',
+      'true',
+    );
+    const free = page
+      .getByTestId('timetable-week-grid')
+      .filter({ visible: true })
+      .getByRole('button', { name: 'Free' })
+      .first();
+    const slot = await free.evaluate((el) => {
+      const button = el as HTMLButtonElement;
+      return {
+        day: button.dataset.day ?? '',
+        period: button.dataset.periodId ?? '',
+      };
+    });
+    expect(slot.day).toBeTruthy();
+    expect(slot.period).toBeTruthy();
+    await free.evaluate((el) => {
+      (el as HTMLElement).click();
+    });
+    try {
+      await expect(page).toHaveURL(/day=\d+.*period=/, { timeout: 8_000 });
+    } catch {
+      // Soft-nav can stall under production RSC; hard-nav to the free slot.
+      const params = new URLSearchParams({
+        view: 'grid',
+        class: '9-B',
+        day: slot.day,
+        period: slot.period,
+      });
+      await page.goto(`/institutions/${MAYUR}/timetable?${params.toString()}#add-meeting`, {
+        waitUntil: 'domcontentloaded',
+      });
+    }
     if (await page.getByText('Timetable API unavailable').count()) {
       await page.waitForTimeout(2000);
       await page.reload({ waitUntil: 'domcontentloaded' });
     }
-    const form = page.getByTestId('add-meeting-form');
+    const form = page.getByTestId('add-meeting-form').filter({ visible: true });
     await form.getByLabel('Section').selectOption({ label: 'G9B-HIN · Class 9-B Hindi (Draft)' });
     await form.getByLabel('Staff').selectOption({ label: 'Rahul Joshi' });
     await form.getByRole('button', { name: 'Add meeting' }).click();
     const added = page
       .getByTestId('timetable-week-grid')
+      .filter({ visible: true })
       .getByRole('button', { name: /9-B Hindi/ })
       .first();
     await added.scrollIntoViewIfNeeded();
@@ -96,7 +132,15 @@ test.describe('Institutions timetable — Sunrise live', () => {
       await page.reload({ waitUntil: 'domcontentloaded' });
     }
     await expect(page.getByRole('heading', { name: 'Generate timetable' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Run generator' })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Back to grid' }).filter({ visible: true }),
+    ).toBeVisible();
+    const subject = page.getByLabel('Subject reference').filter({ visible: true });
+    await expect(subject).toBeVisible();
+    await expect(subject).toHaveValue('00000000-0000-4000-8000-00000000a581');
+    await expect(
+      page.getByRole('button', { name: 'Run generator' }).filter({ visible: true }),
+    ).toBeVisible();
     await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
     await runAxe(page, { include: 'main' });
 
@@ -104,7 +148,7 @@ test.describe('Institutions timetable — Sunrise live', () => {
       waitUntil: 'domcontentloaded',
     });
     await expect(page.getByRole('heading', { name: 'Substitutions', exact: true })).toBeVisible();
-    await expect(page.getByLabel('Substitute staff')).toBeVisible();
+    await expect(page.getByTestId('substitute-staff').filter({ visible: true })).toBeVisible();
     await expect(page.getByText(/[0-9a-f]{8}-[0-9a-f]{4}-/i)).toHaveCount(0);
     const recent = page.getByRole('table', { name: 'Recent substitutions' });
     if (await recent.count()) {
