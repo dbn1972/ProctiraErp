@@ -47,6 +47,10 @@ VALUES
   ('00000000-0000-4000-8000-000000000099', '00000000-0000-4000-8000-000000000001', 'Parent',  'Portal', DATE '2012-01-01', 'unspecified', '{"e2e":true}'::jsonb),
   ('00000000-0000-4000-8000-0000000000aa', '00000000-0000-4000-8000-000000000001', 'Fees',    'Student', DATE '2012-01-02', 'unspecified', '{"e2e":true}'::jsonb),
   ('00000000-0000-4000-8000-000000000094', '00000000-0000-4000-8000-000000000001', 'Library', 'Hold', DATE '2012-01-03', 'unspecified', '{"e2e":true}'::jsonb),
+  -- …096 is also an E2E tenant id above. The overlap smoke posts this UUID as
+  -- student_id; 073's transport_student_assignments FK rejects a missing student
+  -- with a 500. Keep a real student row on tenant A.
+  ('00000000-0000-4000-8000-000000000096', '00000000-0000-4000-8000-000000000001', 'Transport', 'Overlap', DATE '2012-01-06', 'unspecified', '{"e2e":true}'::jsonb),
   ('c4018ef3-2454-4ee0-b904-22add0d1c596', '00000000-0000-4000-8000-000000000001', 'LMS', 'Learner', DATE '2012-01-04', 'unspecified', '{"e2e":true}'::jsonb),
   ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', '00000000-0000-4000-8000-000000000001', 'LMS', 'Essay', DATE '2012-01-05', 'unspecified', '{"e2e":true}'::jsonb)
 ON CONFLICT (id) DO UPDATE
