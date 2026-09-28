@@ -17,11 +17,35 @@ ALTER TABLE institution_infrastructure
 
 ALTER TABLE institution_infrastructure
   ADD CONSTRAINT institution_infrastructure_condition_check
-  CHECK (condition IN ('Good', 'Fair', 'Needs repair', 'Unknown'));
+  CHECK (condition IN ('Good', 'Fair', 'Needs repair', 'Unknown')) NOT VALID;
+
+-- VALIDATE scans under FORCE ROW LEVEL SECURITY see zero rows when app.tenant_id
+-- is unset. Lift FORCE for the scan and restore it in the same transaction.
+DO $validate_institution_condition$
+DECLARE
+  was_forced boolean;
+BEGIN
+  SELECT relforcerowsecurity
+    INTO was_forced
+    FROM pg_class
+   WHERE oid = 'public.institution_infrastructure'::regclass;
+
+  IF was_forced THEN
+    ALTER TABLE institution_infrastructure NO FORCE ROW LEVEL SECURITY;
+  END IF;
+
+  ALTER TABLE institution_infrastructure
+    VALIDATE CONSTRAINT institution_infrastructure_condition_check;
+
+  IF was_forced THEN
+    ALTER TABLE institution_infrastructure FORCE ROW LEVEL SECURITY;
+  END IF;
+END
+$validate_institution_condition$;
 
 CREATE TABLE IF NOT EXISTS institution_repair_requests (
   id UUID PRIMARY KEY,
-  tenant_id UUID NOT NULL,
+  tenant_id UUID NOT NULL REFERENCES tenants(id),
   institution_id UUID NOT NULL,
   infrastructure_id UUID NOT NULL REFERENCES institution_infrastructure(id) ON DELETE CASCADE,
   summary TEXT NOT NULL,

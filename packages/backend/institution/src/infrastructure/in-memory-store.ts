@@ -6,6 +6,7 @@
  *
  * @module infrastructure/in-memory-store
  */
+import type { InfrastructureTypeValue } from './schemas.js';
 import type {
   InfrastructureStore,
   InfrastructureRecord,
@@ -13,7 +14,6 @@ import type {
   ConditionOptionRecord,
   RepairRequestRecord,
 } from './service.js';
-import type { InfrastructureTypeValue } from './schemas.js';
 
 /**
  * In-memory implementation of InfrastructureStore for testing.
