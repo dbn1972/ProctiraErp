@@ -19,10 +19,10 @@ import {
   InMemoryScholarshipDocumentStore,
   type ScholarshipDocumentStore,
 } from './document-store.js';
+import { registerScholarshipRoutes } from './routes.js';
 import type { ScholarshipRepository } from './scholarship-repository.js';
 import { ScholarshipService } from './scholarship-service.js';
 import type { WorkflowEngineClient, ScholarshipServiceOptions } from './scholarship-service.js';
-import { registerScholarshipRoutes } from './routes.js';
 
 /**
  * Options for the scholarship plugin.

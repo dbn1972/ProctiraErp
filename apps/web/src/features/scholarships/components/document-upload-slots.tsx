@@ -132,10 +132,10 @@ function Slot({
       {existing ? (
         <p className="mt-2 text-sm">
           <span className="font-medium">{existing.originalFilename}</span>
-          <span className="ml-2 text-muted-foreground">{existing.verificationStatus}</span>
+          <span className="ms-2 text-muted-foreground">{existing.verificationStatus}</span>
           <button
             type="button"
-            className="ml-3 text-xs text-destructive underline"
+            className="ms-3 text-xs text-destructive underline"
             onClick={() => {
               void scholarshipBrowserFetch(
                 `/scholarships/applications/${applicationId}/documents/${existing.id}`,

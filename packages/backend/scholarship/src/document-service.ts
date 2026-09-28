@@ -5,13 +5,13 @@ import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/com
 import { v4 as uuidv4 } from 'uuid';
 
 import type { ScholarshipActor } from './document-access.js';
+import type { ScholarshipDocumentBlobStore } from './document-blob-store.js';
 import {
   assertDocumentBytes,
   sanitizeFilename,
   sha256Hex,
   signDocumentDownloadToken,
 } from './document-bytes.js';
-import type { ScholarshipDocumentBlobStore } from './document-blob-store.js';
 import type {
   ScholarshipApplicationDocument,
   ScholarshipDocumentAudit,

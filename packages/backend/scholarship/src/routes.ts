@@ -35,8 +35,6 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { authorizeApplicationCreate } from './document-routes.js';
-import { requireScholarshipAction } from './scholarship-http-guard.js';
-import type { ScholarshipService } from './scholarship-service.js';
 import {
   CreateScholarshipProgramSchema,
   UpdateScholarshipProgramSchema,
@@ -44,9 +42,7 @@ import {
   CreateDisbursementSchema,
   UpdateDisbursementSchema,
   RecipientComplianceSchema,
-  UtilizationReportQuerySchema,
   ScholarshipParamsSchema,
-  ScholarshipListQuerySchema,
   ApplicationDecisionSchema,
   type ApplicationDecisionInput,
   type CreateScholarshipProgramInput,
@@ -56,9 +52,39 @@ import {
   type UpdateDisbursementInput,
   type RecipientComplianceInput,
   type UtilizationReportQuery,
-  type ScholarshipParams,
   type ScholarshipListQuery,
+  type ScholarshipParams,
 } from './schemas.js';
+import { requireScholarshipAction } from './scholarship-http-guard.js';
+import type {
+  ApplicationStatus,
+  PaymentStatus,
+  ProgramStatus,
+} from './scholarship-repository.js';
+import type { ScholarshipService } from './scholarship-service.js';
+
+const PROGRAM_STATUSES = ['draft', 'open', 'closed', 'archived'] as const;
+const APPLICATION_STATUSES = [
+  'draft',
+  'submitted',
+  'under_review',
+  'approved',
+  'rejected',
+  'withdrawn',
+] as const;
+const PAYMENT_STATUSES = ['scheduled', 'processing', 'paid', 'failed', 'cancelled'] as const;
+
+function programStatus(value: string | undefined): ProgramStatus | undefined {
+  return PROGRAM_STATUSES.find((status) => status === value);
+}
+
+function applicationStatus(value: string | undefined): ApplicationStatus | undefined {
+  return APPLICATION_STATUSES.find((status) => status === value);
+}
+
+function disbursementStatus(value: string | undefined): PaymentStatus | undefined {
+  return PAYMENT_STATUSES.find((status) => status === value);
+}
 
 /**
  * Options for registering scholarship routes.
@@ -230,7 +256,7 @@ export async function registerScholarshipRoutes(
         });
       }
 
-      const query = request.query as ScholarshipListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
       const sortBy = query.sortBy ?? 'createdAt';
@@ -238,7 +264,7 @@ export async function registerScholarshipRoutes(
 
       const result = await scholarshipService.listPrograms(
         tenantId,
-        { status: query.status as any, search: query.search },
+        { status: programStatus(query.status), search: query.search },
         { page, pageSize, sortBy, sortOrder },
       );
 
@@ -440,7 +466,7 @@ export async function registerScholarshipRoutes(
           programId: query.programId,
           applicantId: query.applicantId,
           institutionId: query.institutionId,
-          status: query.status as any,
+          status: applicationStatus(query.status),
           areaId: query.areaId,
           gender: query.gender,
         },
@@ -777,7 +803,7 @@ export async function registerScholarshipRoutes(
         tenantId,
         {
           applicationId: query.applicationId,
-          paymentStatus: query.paymentStatus as any,
+          paymentStatus: disbursementStatus(query.paymentStatus),
         },
         { page, pageSize, sortBy, sortOrder },
       );
@@ -950,7 +976,7 @@ export async function registerScholarshipRoutes(
         });
       }
 
-      const query = request.query as UtilizationReportQuery;
+      const query = request.query;
       const report = await scholarshipService.getUtilizationReport(tenantId, query);
 
       return reply.status(200).send({
