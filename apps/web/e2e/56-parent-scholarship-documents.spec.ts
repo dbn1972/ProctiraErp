@@ -3,13 +3,12 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { setupGatewayTenantSession } from './fixtures/fake-session';
+import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
 const AARAV = '00000000-0000-4000-8000-00000000a5b1';
 const DIYA = '00000000-0000-4000-8000-00000000a5b2';
 const INSTITUTION = '00000000-0000-4000-8000-00000000a551';
-const PROGRAM = '00000000-0000-4000-8000-00000000a5e1';
 const GATEWAY =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
@@ -44,12 +43,13 @@ test.describe('Parent scholarships', () => {
       'X-Tenant-ID': SUNRISE,
       'Content-Type': 'application/json',
     };
+    const programId = await openProgram(request);
     const draft = await request.post(
       `${GATEWAY}/api/v1/parent-portal/scholarships/applications`,
       {
         headers,
         data: {
-          programId: PROGRAM,
+          programId,
           applicantId: AARAV,
           institutionId: INSTITUTION,
           academicRecords: [{ institutionName: 'Sunrise Public School', educationLevel: 'secondary', gpa: 3.6 }],
@@ -67,7 +67,7 @@ test.describe('Parent scholarships', () => {
       {
         headers,
         data: {
-          programId: PROGRAM,
+          programId,
           applicantId: DIYA,
           institutionId: INSTITUTION,
           academicRecords: [{ institutionName: 'Sunrise Public School', educationLevel: 'secondary' }],
@@ -105,6 +105,41 @@ test.describe('Parent scholarships', () => {
     await expect(page.getByTestId(`parent-application-${applicationId}`)).toBeVisible();
   });
 });
+
+async function openProgram(request: import('@playwright/test').APIRequestContext): Promise<string> {
+  const admin = createSignedJwt({
+    sub: 'e2e-admin',
+    email: 'admin@sunrise.test',
+    displayName: 'Sunrise Admin',
+    tenantId: SUNRISE,
+    roles: [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }],
+  });
+  const headers = {
+    Authorization: `Bearer ${admin}`,
+    'X-Tenant-ID': SUNRISE,
+    'Content-Type': 'application/json',
+  };
+  const created = await request.post(`${GATEWAY}/api/v1/scholarships/programs`, {
+    headers,
+    data: {
+      name: `Parent docs ${Date.now().toString(36)}`,
+      applicationStartDate: '2020-01-01',
+      applicationEndDate: '2099-12-31',
+      totalSlots: 5,
+      amountPerRecipient: 10000,
+      currency: 'INR',
+      eligibility: { requiredDocuments: ['income_certificate'] },
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const programId = (await created.json()).id as string;
+  const opened = await request.put(`${GATEWAY}/api/v1/scholarships/programs/${programId}`, {
+    headers,
+    data: { status: 'open' },
+  });
+  expect(opened.status(), await opened.text()).toBe(200);
+  return programId;
+}
 
 async function sessionToken(page: import('@playwright/test').Page): Promise<string> {
   const cookies = await page.context().cookies();
