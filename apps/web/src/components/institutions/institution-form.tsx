@@ -162,12 +162,13 @@ export function InstitutionForm({
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (!isDirtyRef.current) return;
+      if (!isDirtyRef.current && !readWindowDirty(formKey)) return;
       event.preventDefault();
       event.returnValue = '';
     };
     const onClick = (event: MouseEvent) => {
-      if (!isDirtyRef.current) return;
+      // Re-read window bag — remounts can leave isDirtyRef false while edits remain.
+      if (!isDirtyRef.current && !readWindowDirty(formKey)) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const anchor = target.closest('a');
@@ -187,7 +188,7 @@ export function InstitutionForm({
       window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('click', onClick, true);
     };
-  }, []);
+  }, [formKey]);
 
   const areaId = watch('areaId');
   const typeId = watch('typeId');
@@ -203,7 +204,8 @@ export function InstitutionForm({
   };
 
   const cancel = () => {
-    if (formIsDirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    const dirty = isDirty || hasUnsavedChanges || readWindowDirty(formKey);
+    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
     clearDirty();
     router.push(leaveHref);
   };

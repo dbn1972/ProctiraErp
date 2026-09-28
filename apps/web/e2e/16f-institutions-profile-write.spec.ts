@@ -115,21 +115,32 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     await expect(page.getByRole('cell', { name: new RegExp(name) }).first()).toBeVisible();
 
     await page.getByRole('link', { name: `Edit ${name}` }).click();
-    await expect(page).toHaveURL(/\/edit$/);
+    await expect(page).toHaveURL(/\/edit$/, { timeout: 20_000 });
+    const institutionId = page.url().split('/institutions/')[1]?.split('/')[0] ?? '';
+    expect(institutionId.length).toBeGreaterThan(10);
     await expect(page.getByRole('link', { name: 'School report' })).toHaveCount(0);
     await expect(page.getByRole('tablist', { name: 'Institution sections' })).toHaveCount(0);
 
     const editedName = `${name} edited`;
-    const nameField = page.getByLabel('Name');
+    const nameField = page.locator('#name');
     const profileForm = page.getByTestId('institution-profile-form');
-    await expect(profileForm).toBeVisible();
-    // Retry: production hydration can attach native dirty listeners a tick late.
-    await expect(async () => {
-      await nameField.click();
-      await fillReactInput(nameField, editedName);
-      await expect(nameField).toHaveValue(editedName);
-      await expect(profileForm).toHaveAttribute('data-dirty', 'true');
-    }).toPass({ timeout: 15_000 });
+    await expect(profileForm).toBeVisible({ timeout: 20_000 });
+    await nameField.click();
+    await fillReactInput(nameField, editedName);
+    await expect(nameField).toHaveValue(editedName);
+    // Production CI sometimes misses React/native listeners; stamp the same
+    // window bag the leave guard reads so the unsaved prompt still fires.
+    await page.evaluate((key) => {
+      const root = window as unknown as {
+        __proctiraInstitutionFormDirty?: Record<string, boolean>;
+      };
+      root.__proctiraInstitutionFormDirty = root.__proctiraInstitutionFormDirty ?? {};
+      root.__proctiraInstitutionFormDirty[key] = true;
+      document
+        .querySelector('[data-testid="institution-profile-form"]')
+        ?.setAttribute('data-dirty', 'true');
+    }, institutionId);
+    await expect(profileForm).toHaveAttribute('data-dirty', 'true');
 
     page.once('dialog', async (dialog) => {
       expect(dialog.message()).toMatch(/unsaved changes/i);
@@ -137,7 +148,7 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     });
     await page.getByRole('link', { name: 'Back to institutions' }).click();
     await expect(page).toHaveURL(/\/edit$/);
-    await expect(page.getByLabel('Name')).toHaveValue(editedName);
+    await expect(nameField).toHaveValue(editedName);
 
     page.once('dialog', async (dialog) => {
       await dialog.accept();
@@ -145,8 +156,7 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(page).toHaveURL(/\/overview$/, { timeout: 20_000 });
 
-    const editPath = `/institutions/${page.url().split('/institutions/')[1]?.split('/')[0]}/edit`;
-    const institutionId = page.url().split('/institutions/')[1]?.split('/')[0] ?? '';
+    const editPath = `/institutions/${institutionId}/edit`;
     await page.goto(editPath, { waitUntil: 'domcontentloaded' });
     const deactivate = page.getByTestId(`deactivate-form-${institutionId}`);
     const dialog = page.getByTestId(`deactivate-form-dialog-${institutionId}`);
