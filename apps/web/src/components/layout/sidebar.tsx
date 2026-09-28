@@ -277,7 +277,7 @@ export function Sidebar() {
             return (
               <li key={item.key}>
                 {showGroup ? (
-                  <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                     {group}
                   </p>
                 ) : null}
