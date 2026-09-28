@@ -13,6 +13,7 @@ import {
   createAcademicPeriod,
   createCalendarEvent,
   createClassSection,
+  updateClassSection,
   createGrade,
   createInstitution,
   deactivateInstitution,
@@ -26,6 +27,7 @@ import type { CreateAcademicPeriodInput, RolloverSummary } from './types';
 import {
   academicPeriodFormSchema,
   calendarEventFormSchema,
+  assignClassSectionSchema,
   classSectionFormSchema,
   gradeFormSchema,
   institutionFormSchema,
@@ -33,6 +35,7 @@ import {
   type AcademicPeriodFormParsed,
   type AcademicPeriodFormValues,
   type CalendarEventFormValues,
+  type AssignClassSectionValues,
   type ClassSectionFormValues,
   type GradeFormValues,
   type InstitutionFormValues,
@@ -45,8 +48,7 @@ export interface FieldError {
 }
 
 export type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: FieldError[] };
+  { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
 function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldError[] {
   return Object.entries(errors).flatMap(([field, messages]) =>
@@ -299,6 +301,25 @@ export async function createGradeAction(
     const grade = await createGrade(parsed.data);
     revalidatePath('/institutions', 'layout');
     return { success: true, data: { id: grade.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function assignClassSectionAction(
+  values: AssignClassSectionValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = assignClassSectionSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed' };
+  }
+  try {
+    const section = await updateClassSection(parsed.data.classId, {
+      classTeacherStaffId: parsed.data.classTeacherStaffId || null,
+      roomName: parsed.data.roomName.trim() || null,
+    });
+    revalidatePath(`/institutions/${parsed.data.institutionId}/classes`);
+    return { success: true, data: { id: section.id } };
   } catch (error) {
     return toActionError(error);
   }

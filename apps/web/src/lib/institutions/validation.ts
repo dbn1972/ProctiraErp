@@ -141,3 +141,11 @@ export const classSectionFormSchema = z.object({
     .transform((v) => (v === '' || v === undefined ? undefined : v)),
 });
 export type ClassSectionFormValues = z.input<typeof classSectionFormSchema>;
+
+export const assignClassSectionSchema = z.object({
+  institutionId: z.string().uuid(),
+  classId: z.string().uuid(),
+  classTeacherStaffId: z.union([z.string().uuid(), z.literal('')]),
+  roomName: z.string().max(120),
+});
+export type AssignClassSectionValues = z.input<typeof assignClassSectionSchema>;

@@ -135,11 +135,18 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
     });
     expect(section.status(), await section.text()).toBe(201);
 
-    await page.goto(`/institutions/${INSTITUTION_A}/classes`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(`${grade.code} · ${sectionName}`)).toBeVisible();
+    // Classes defaults to the senior band (codes 9–12) and the active period.
+    // This section is a fresh grade code on the period just created.
+    await page.goto(`/institutions/${INSTITUTION_A}/classes?grade=all&period=${periodId}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      page.getByText(`${grade.code} · ${sectionName}`).filter({ visible: true }),
+    ).toBeVisible();
 
     await page.goto(`/institutions/${INSTITUTION_A}/grades`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByText(`Grade ${grade.code}`)).toBeVisible();
+    // `next start` can briefly stream a second copy of the row outside <main>.
+    await expect(page.getByText(`Grade ${grade.code}`).filter({ visible: true })).toBeVisible();
   });
 
   test('Add grade dialog creates a grade from the UI', async ({ page }) => {

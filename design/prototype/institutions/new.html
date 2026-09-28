@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Register institution · Proctira ERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+.states { display:flex; align-items:center; gap:10px; margin:0 0 16px; flex-wrap:wrap; }
+.states .states-label { font-size: var(--fs-2xs); font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--text-3); }
+.states .tabs { margin:0; border-bottom:0; gap:4px; }
+.states .tab { padding:5px 10px; font-size: var(--fs-xs); border:1px solid var(--border); border-radius: var(--r-full); margin:0; }
+.states .tab.active { background: var(--brand-50); border-color: var(--brand-200); color: var(--brand-700); }
+.hero { display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.hero .hero-icon { width:56px; height:56px; border-radius:14px; flex-shrink:0; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow: var(--sh-sm); }
+.hero .hero-icon svg { width:26px; height:26px; }
+.hero .hero-text { flex:1; min-width:220px; }
+.hero .hero-title { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.hero .hero-title h1 { margin:0; font-size: var(--fs-2xl); font-weight:800; letter-spacing:-.02em; }
+.hero .hero-meta { margin:4px 0 0; color: var(--text-2); font-size: var(--fs-sm); display:flex; gap:6px; flex-wrap:wrap; }
+.hero .hero-meta .dot { opacity:.5; }
+.hero .hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.back { display:inline-flex; align-items:center; gap:6px; font-size: var(--fs-sm); color: var(--text-2); text-decoration:none; margin-bottom:10px; font-weight:500; }
+.back svg { width:15px; height:15px; } .back:hover { color: var(--text); }
+.sec-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.sec-head h2 { margin:0; font-size: var(--fs-lg); font-weight:700; letter-spacing:-.01em; }
+.sec-head p { margin:2px 0 0; font-size: var(--fs-sm); color: var(--text-2); max-width:70ch; }
+.sec-head .sec-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.stack { display:flex; flex-direction:column; gap:20px; }
+.chip { display:inline-flex; align-items:center; justify-content:center; min-width:64px; padding:3px 10px; border-radius: var(--r-sm); background: var(--brand-50); color: var(--brand-700); font-weight:700; font-size: var(--fs-sm); letter-spacing:.02em; }
+.grade-box { width:40px; height:40px; border-radius: var(--r-md); background: var(--brand-50); color: var(--brand-700); font-weight:800; display:inline-flex; align-items:center; justify-content:center; font-size: var(--fs-md); flex-shrink:0; }
+.bar { display:flex; align-items:center; gap:8px; } .bar .progress { width:96px; flex-shrink:0; } .bar b { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.bar.green b { color: var(--green-700); } .bar.amber b { color: var(--amber-700); } .bar.red b { color: var(--red-700); }
+.hbar { display:grid; grid-template-columns:48px 1fr 48px; align-items:center; gap:12px; padding:4px 0; font-size: var(--fs-sm); }
+.hbar .progress { height:10px; } .hbar .lbl { font-weight:600; color: var(--text-2); } .hbar .val { text-align:right; font-weight:700; font-variant-numeric: tabular-nums; }
+.dialog { max-width:560px; width:100%; border:1px solid var(--border); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--sh-lg); overflow:hidden; }
+.dialog .dlg-head { padding:18px 22px 6px; } .dialog .dlg-head h3 { margin:0; font-size: var(--fs-lg); font-weight:700; } .dialog .dlg-head p { margin:4px 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+.dialog .dlg-body { padding:14px 22px; } .dialog .dlg-foot { padding:14px 22px 18px; display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.dialog-stage { padding:24px; background: color-mix(in srgb, var(--navy-900) 35%, transparent); border-radius: var(--r-lg); display:flex; justify-content:center; }
+.tree { display:flex; flex-direction:column; gap:12px; }
+.tree .node { border:1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); padding:12px 14px; }
+.tree .node-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.tree .node-row svg { width:16px; height:16px; color: var(--text-3); flex-shrink:0; }
+.tree .node-row .n-title { font-weight:600; font-size: var(--fs-sm); } .tree .node-row .n-desc { color: var(--text-3); font-size: var(--fs-xs); }
+.tree .node-row .n-right { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.tree .children { margin:10px 0 0 8px; padding-left:14px; border-left:2px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+.tree .children .children { border-left-width:1px; }
+.seg { display:inline-flex; border:1px solid var(--border-strong); border-radius: var(--r-md); overflow:hidden; }
+.seg button { border:0; background: var(--surface); color: var(--text-2); font: 600 11px var(--font-sans); padding:6px 9px; cursor:pointer; border-right:1px solid var(--border); white-space:nowrap; }
+.seg button:last-child { border-right:0; }
+.seg button.on.p { background: var(--green-50); color: var(--green-700); } .seg button.on.a { background: var(--red-50); color: var(--red-700); }
+.seg button.on.l { background: var(--amber-50); color: var(--amber-700); } .seg button.on.e { background: var(--sky-50); color: var(--sky-700); } .seg button.on.d { background: var(--violet-50); color: var(--violet-600); }
+.count-chips { display:flex; gap:8px; flex-wrap:wrap; }
+.count-chip { display:inline-flex; align-items:center; gap:6px; font-size: var(--fs-xs); font-weight:600; padding:4px 10px; border-radius: var(--r-full); background: var(--bg-subtle); color: var(--text-2); }
+.count-chip i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.tt-wrap { overflow-x:auto; }
+.tt { border-collapse:separate; border-spacing:4px; min-width:760px; width:100%; font-size: var(--fs-xs); }
+.tt th { font-size: var(--fs-2xs); font-weight:700; text-transform:uppercase; letter-spacing:.06em; color: var(--text-3); padding:4px 6px; text-align:left; }
+.tt th.time { width:96px; white-space:nowrap; }
+.tt td { vertical-align:top; padding:0; height:56px; }
+.tt .slot { height:100%; border-radius: var(--r-sm); padding:6px 8px; background: var(--bg-subtle); border:1px solid var(--border); min-height:52px; }
+.tt .slot b { display:block; font-size: var(--fs-xs); } .tt .slot span { display:block; color: var(--text-3); font-size: var(--fs-2xs); }
+.tt .slot.c1 { background: var(--brand-50); border-color: var(--brand-200); } .tt .slot.c2 { background: var(--teal-50); } .tt .slot.c3 { background: var(--amber-50); } .tt .slot.c4 { background: var(--violet-50); } .tt .slot.c5 { background: var(--sky-50); }
+.tt .slot.free { background:transparent; border-style:dashed; color: var(--text-3); display:flex; align-items:center; justify-content:center; }
+.tt .slot.brk { background: repeating-linear-gradient(135deg, var(--bg-subtle) 0 6px, var(--surface) 6px 12px); color: var(--text-3); display:flex; align-items:center; justify-content:center; font-weight:600; }
+.msg { font-size: var(--fs-sm); padding:10px 12px; border-radius: var(--r-md); background: var(--bg-subtle); color: var(--text-2); }
+.list-plain { list-style:none; margin:0; padding:0; } .list-plain li { padding:10px 0; border-bottom:1px solid var(--border); font-size: var(--fs-sm); display:flex; gap:10px; align-items:center; flex-wrap:wrap; } .list-plain li:last-child { border-bottom:0; }
+.rec { display:flex; align-items:center; gap:6px; font-size: var(--fs-xs); color: var(--text-3); }
+.card .table-wrap .table { min-width:640px; } .table.mw { min-width: var(--mw); }
+.form-grid.cols-3 { grid-template-columns: repeat(3,1fr); } .form-grid.cols-4 { grid-template-columns: repeat(4,1fr); } .form-grid.cols-5 { grid-template-columns: 2fr 2fr 1fr 1fr 1fr; }
+.entity-picker .ep-value, .entity-picker .ep-meta { display:block; }
+.kpi-grid.kpi-6 { grid-template-columns: repeat(6,1fr); }
+@media (max-width:1023px) { .kpi-grid.kpi-6 { grid-template-columns: repeat(3,1fr); } }
+@media (max-width:767px) { .card-head { flex-wrap:wrap; } .card-head .spacer { flex-wrap:wrap; margin-left:0; width:100%; } .kpi-grid.kpi-6 { grid-template-columns: repeat(2,1fr); } }
+.sr-only { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+@media (max-width:1023px) { .form-grid.cols-3, .form-grid.cols-4, .form-grid.cols-5 { grid-template-columns: repeat(2, 1fr) !important; } }
+@media (max-width:767px) { .card .table-wrap .table, .table.mw { min-width:0; } .hbar { grid-template-columns:40px 1fr 40px; } .dl { grid-template-columns: 110px 1fr; } .tt { min-width:640px; } .form-grid.cols-3, .form-grid.cols-4, .form-grid.cols-5 { grid-template-columns: 1fr !important; } .dialog-stage { padding:12px; } }
+</style>
+</head>
+<body data-portal="web" data-active="institutions">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+      <div class="breadcrumbs"><a href="../dashboard/home.html">Home</a><span class="sep">/</span><a href="list.html">Institutions</a><span class="sep">/</span><span class="current">Register institution</span></div>
+<div class="page-head"><div class="ph-text"><h1 class="page-title">Register institution</h1><p class="page-sub">Create a new school profile with its UDISE identity, location, and administration details. It will appear on the district roster once approved.</p></div><div class="page-actions"><a class="btn btn-ghost" href="list.html" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to list</a></div></div>
+<div data-tabscope><div class="states"><span class="states-label">Screen state</span><div class="tabs" role="tablist" aria-label="Screen states"><button type="button" class="tab active" data-tab="filled" role="tab" aria-selected="true">Form</button><button type="button" class="tab" data-tab="error" role="tab" aria-selected="false">Validation errors</button><button type="button" class="tab" data-tab="saving" role="tab" aria-selected="false">Submitting</button><button type="button" class="tab" data-tab="loading" role="tab" aria-selected="false">Loading lookups</button></div></div><div data-panel="filled"><div class="card" style="max-width:860px"><div class="card-head"><div><h3>Institution profile</h3><div class="sub">Identity, location, classification, and contact details. Fields marked * are required.</div></div></div><div class="card-pad"><form class="form-grid" aria-label="Institution profile">
+<div class="form-section-title">Identity</div>
+<div class="field"><label for="name">Name<span class="req">*</span></label><input class="input" id="name" name="name" type="text" value="" placeholder="Sunrise Public School – Mayur Vihar" ></div>
+<div class="field"><label for="code">Code<span class="req">*</span></label><input class="input mono" id="code" name="code" type="text" value="" placeholder="UDISE code, e.g. 07040100417" ><span class="hint">Must be unique across the tenant</span></div>
+<div class="form-section-title">Classification</div>
+<div class="field"><label for="areaId">Area<span class="req">*</span></label><select class="select" id="areaId" name="areaId" ><option value="">Select an area</option><option value="1">Delhi East</option><option value="2">Delhi North</option><option value="3">Delhi South</option></select></div>
+<div class="field"><label for="typeId">Type<span class="req">*</span></label><select class="select" id="typeId" name="typeId" ><option value="">Select a type</option><option value="1">Senior Secondary</option><option value="2">Secondary</option><option value="3">Primary</option><option value="4">Pre-Primary</option></select></div>
+<div class="field"><label for="sectorId">Sector<span class="req">*</span></label><select class="select" id="sectorId" name="sectorId" ><option value="">Select a sector</option><option value="1">Private unaided</option><option value="2">Government</option><option value="3">Aided</option></select></div>
+<div class="field"><label for="ownershipId">Ownership<span class="req">*</span></label><select class="select" id="ownershipId" name="ownershipId" ><option value="">Select an ownership</option><option value="1">Sunrise Education Trust</option><option value="2">Society</option><option value="3">Individual</option></select></div>
+<div class="form-section-title">Location &amp; contact</div>
+<div class="field span-2"><label for="address">Address</label><textarea class="input" id="address" name="address" rows="3" placeholder="Street, locality, city, PIN" ></textarea></div>
+<div class="field"><label for="contactPhone">Contact phone</label><input class="input" id="contactPhone" name="contactPhone" type="tel" value="" placeholder="+91 …" ></div>
+<div class="field"><label for="contactEmail">Contact email</label><input class="input" id="contactEmail" name="contactEmail" type="email" value="" placeholder="office@school.edu.in" ></div>
+<div class="field"><label for="latitude">Latitude</label><input class="input" id="latitude" name="latitude" type="number" value="" placeholder="28.6072" ><span class="hint">Decimal degrees</span></div>
+<div class="field"><label for="longitude">Longitude</label><input class="input" id="longitude" name="longitude" type="number" value="" placeholder="77.2965" ></div>
+<div class="span-2 flex g8" style="justify-content:flex-end;margin-top:6px"><button type="button" class="btn btn-secondary" >Cancel</button><button type="button" class="btn btn-primary" >Create institution</button></div>
+</form></div></div></div><div data-panel="error" hidden><div class="card" style="max-width:860px"><div class="card-head"><div><h3>Institution profile</h3><div class="sub">Server and field errors from createInstitutionAction</div></div></div><div class="card-pad"><form class="form-grid" aria-label="Institution profile with errors"><div class="span-2 alert error" role="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div class="a-body">Institution code already exists in this tenant.</div></div>
+<div class="field"><label for="e-name-error">Name<span class="req">*</span></label><input class="input" id="e-name-error" name="e-name" type="text" value="Sunrise Public School – Preet Vihar" placeholder="" ></div>
+<div class="field"><label for="e-code-error">Code<span class="req">*</span></label><input class="input invalid mono" id="e-code-error" name="e-code" type="text" value="07040100522" placeholder=""  aria-invalid="true"><span class="error-msg">An institution with this code already exists.</span></div>
+<div class="field"><label for="e-area-error">Area<span class="req">*</span></label><select class="select" id="e-area-error" name="e-area" ><option value="">Select an area</option></select><span class="error-msg">Area is required.</span></div>
+<div class="field"><label for="e-type-error">Type<span class="req">*</span></label><select class="select" id="e-type-error" name="e-type" ><option value="">Select a type</option></select><span class="error-msg">Type is required.</span></div>
+<div class="span-2 flex g8" style="justify-content:flex-end"><button type="button" class="btn btn-secondary" >Cancel</button><button type="button" class="btn btn-primary" >Create institution</button></div></form></div></div></div><div data-panel="saving" hidden><div class="card" style="max-width:860px"><div class="card-head"><div><h3>Institution profile</h3><div class="sub">Controls disabled while the Server Action runs</div></div></div><div class="card-pad"><form class="form-grid" aria-label="Submitting"><div class="field"><label for="s-name-saving">Name<span class="req">*</span></label><input class="input" id="s-name-saving" name="s-name" type="text" value="Sunrise Public School – Preet Vihar" placeholder="" disabled></div><div class="field"><label for="s-code-saving">Code<span class="req">*</span></label><input class="input mono" id="s-code-saving" name="s-code" type="text" value="07040100522" placeholder="" disabled></div><div class="span-2 flex g8" style="justify-content:flex-end"><button type="button" class="btn btn-secondary" disabled>Cancel</button><button type="button" class="btn btn-primary" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Creating…</button></div></form></div></div></div><div data-panel="loading" hidden><div class="card" style="max-width:860px"><div class="card-pad" aria-busy="true" aria-label="Loading"><div class="form-grid"><div><div class="skel" style="height:12px;width:30%;margin-bottom:8px"></div><div class="skel" style="height:38px"></div></div><div><div class="skel" style="height:12px;width:30%;margin-bottom:8px"></div><div class="skel" style="height:38px"></div></div><div><div class="skel" style="height:12px;width:30%;margin-bottom:8px"></div><div class="skel" style="height:38px"></div></div><div><div class="skel" style="height:12px;width:30%;margin-bottom:8px"></div><div class="skel" style="height:38px"></div></div><div><div class="skel" style="height:12px;width:30%;margin-bottom:8px"></div><div class="skel" style="height:38px"></div></div><div><div class="skel" style="height:12px;width:30%;margin-bottom:8px"></div><div class="skel" style="height:38px"></div></div></div></div></div></div></div>
+    </main>
+  </div>
+</div>
+<script type="application/json" id="ux-review">{
+ "route": "/institutions/new",
+ "module": "Institutions",
+ "actor": "District admin, Principal",
+ "purpose": "Register a new school profile with identity, classification and contact details.",
+ "primaryAction": "Create institution",
+ "source": "apps/web/src/app/(dashboard)/institutions/new/page.tsx",
+ "states": [
+  "loading (dashboard-level loading.tsx, generic panel)",
+  "error (dashboard-level error.tsx, generic panel)",
+  "server error banner + per-field errors (institution-form.tsx)",
+  "pending/disabled while submitting",
+  "filled"
+ ],
+ "issues": [
+  {
+   "severity": "medium",
+   "text": "institution-form.tsx renders 11 fields in a single unbroken 2-column grid with no section headings (identity / classification / location) — the mockup groups them."
+  },
+  {
+   "severity": "medium",
+   "text": "Page subtitle promises the school \"will appear on the district roster once approved\" but there is no approval workflow: createInstitutionAction creates it as ACTIVE immediately."
+  },
+  {
+   "severity": "medium",
+   "text": "The \"Code\" field has no hint that it is the UDISE code, although the list page and layout treat it as one; vocabulary is inconsistent between screens."
+  },
+  {
+   "severity": "medium",
+   "text": "Latitude/longitude are bare number inputs; no map picker or format hint, and the overview tab silently hides \"View on map\" when they are empty."
+  }
+ ]
+}</script>
+<script src="../shared/app.js"></script>
+</body>
+</html>

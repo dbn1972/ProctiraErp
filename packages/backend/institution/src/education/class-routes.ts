@@ -9,8 +9,8 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { ClassService } from './class-service.js';
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
+import type { ClassService } from './class-service.js';
 
 export interface ClassRoutesOptions {
   service: ClassService;
@@ -25,9 +25,15 @@ function formatClassResponse(cls: {
   academicPeriodId: string;
   name: string;
   capacity: number | null;
+  classTeacherStaffId?: string | null;
+  roomName?: string | null;
+  classTeacher?: { firstName: string; lastName: string } | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
+  const teacher = cls.classTeacher
+    ? `${cls.classTeacher.firstName} ${cls.classTeacher.lastName}`.trim()
+    : null;
   return {
     id: cls.id,
     tenantId: cls.tenantId,
@@ -36,6 +42,9 @@ function formatClassResponse(cls: {
     academicPeriodId: cls.academicPeriodId,
     name: cls.name,
     capacity: cls.capacity,
+    classTeacherStaffId: cls.classTeacherStaffId ?? null,
+    classTeacherName: teacher,
+    roomName: cls.roomName ?? null,
     createdAt: cls.createdAt.toISOString(),
     updatedAt: cls.updatedAt.toISOString(),
   };

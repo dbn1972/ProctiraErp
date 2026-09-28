@@ -13,7 +13,7 @@ import { ArrowLeft, FileText, Pencil, School } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { InstitutionTabs } from '@/components/institutions/institution-tabs';
-import { ApiClientError, getInstitution } from '@/lib/institutions/api';
+import { ApiClientError, getInstitution, getInstitutionOverview } from '@/lib/institutions/api';
 import type { Institution } from '@/lib/institutions/types';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 
@@ -35,12 +35,17 @@ export default async function InstitutionLayout({ params, children }: Institutio
     notFound();
   }
 
-  const [areas, types] = await Promise.all([loadAreaOptions(), loadTypeOptions()]);
+  const [areas, types, overview] = await Promise.all([
+    loadAreaOptions(),
+    loadTypeOptions(),
+    getInstitutionOverview(id).catch(() => null),
+  ]);
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
   const areaName = resolveLookupLabel(areas, institution.areaId);
   const typeName = resolveLookupLabel(types, institution.typeId);
-  const medium = readStr(cd, 'medium');
+  // GET /institutions/:id returns profile fields only. Medium lives in overview facts.
+  const medium = overview?.facts.medium || readStr(cd, 'medium');
   const isActive = institution.status === 'ACTIVE';
 
   // Build the meta line, dropping empty parts.
@@ -115,7 +120,7 @@ export default async function InstitutionLayout({ params, children }: Institutio
               </Link>
             </Button>
             <Button asChild size="sm">
-              <Link href={`/institutions/${institution.id}/overview`}>
+              <Link href={`/institutions/${institution.id}/overview/report`}>
                 <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
                 School report
               </Link>

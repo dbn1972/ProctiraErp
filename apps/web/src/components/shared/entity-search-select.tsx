@@ -21,6 +21,7 @@ export function EntitySearchSelect({
   emptyMessage = 'No directory entries loaded. Add students or staff first, or try again when the directory API is available.',
   className,
   onValueChange,
+  presentation = 'select',
 }: {
   id: string;
   name: string;
@@ -34,6 +35,11 @@ export function EntitySearchSelect({
   className?: string;
   /** Fired when the chosen id changes. The select `name` still submits the id. */
   onValueChange?: (id: string) => void;
+  /**
+   * `select` keeps the native list under the search box.
+   * `combobox` is one field: type to filter, choose a match, submit the id.
+   */
+  presentation?: 'select' | 'combobox';
 }) {
   const [query, setQuery] = useState('');
   const [value, setValue] = useState(defaultValue);
@@ -63,6 +69,54 @@ export function EntitySearchSelect({
           >
             {emptyMessage}
           </p>
+        </div>
+      ) : presentation === 'combobox' ? (
+        <div className="space-y-1.5">
+          <input type="hidden" name={name} value={value} />
+          <Input
+            id={id}
+            value={query}
+            required={required}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setValue('');
+              onValueChange?.('');
+            }}
+            placeholder={placeholder}
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={query.trim().length > 0 && filtered.length > 0}
+            aria-controls={`${id}-listbox`}
+            aria-autocomplete="list"
+          />
+          {query.trim().length > 0 && (
+            <ul
+              id={`${id}-listbox`}
+              role="listbox"
+              className="max-h-48 overflow-auto rounded-md border border-border bg-background"
+            >
+              {filtered.slice(0, 8).map((option) => (
+                <li key={option.id} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={value === option.id}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                    onClick={() => {
+                      setValue(option.id);
+                      setQuery(option.label);
+                      onValueChange?.(option.id);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                </li>
+              ))}
+              {filtered.length === 0 && (
+                <li className="px-3 py-2 text-sm text-muted-foreground">No matches</li>
+              )}
+            </ul>
+          )}
         </div>
       ) : (
         <>

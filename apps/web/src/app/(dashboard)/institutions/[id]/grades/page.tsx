@@ -20,10 +20,16 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { utilizationLabel, utilizationWidth } from '@/lib/institutions/utilization';
 import { cn } from '@/lib/utils';
 import { utilizationBand } from '@/lib/status-label';
 import { AddGradeDialog } from '@/components/institutions/academics-create-dialogs';
-import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
+import {
+  ApiClientError,
+  getInstitutionOverview,
+  listClassesByInstitution,
+  listGrades,
+} from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
 
 interface GradesPageProps {
@@ -34,11 +40,6 @@ interface GradesData {
   grades: Grade[];
   classes: ClassSection[];
   error: string | null;
-}
-
-function readNum(cd: Record<string, unknown> | null | undefined, key: string): number | null {
-  const v = cd?.[key];
-  return typeof v === 'number' ? v : null;
 }
 
 function UtilizationBar({ pct }: { pct: number }) {
@@ -55,17 +56,15 @@ function UtilizationBar({ pct }: { pct: number }) {
       <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
         <div
           className={cn('h-full rounded-full', cls)}
-          style={{ width: `${Math.min(100, pct)}%` }}
+          style={{ width: `${utilizationWidth(pct)}%` }}
           role="progressbar"
-          aria-valuenow={pct}
+          aria-valuenow={Math.min(100, pct)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Utilization ${band}, ${pct}%`}
+          aria-label={pct > 100 ? 'Utilization over capacity' : `Utilization ${band}, ${pct}%`}
         />
       </div>
-      <span className={cn('text-xs font-bold tabular-nums', textCls)}>
-        {band} · {pct}%
-      </span>
+      <span className={cn('text-xs font-bold tabular-nums', textCls)}>{utilizationLabel(pct)}</span>
     </div>
   );
 }
@@ -73,6 +72,10 @@ function UtilizationBar({ pct }: { pct: number }) {
 export default async function InstitutionGradesPage(props: GradesPageProps) {
   const params = await props.params;
   const data = await loadGrades(params.id);
+  const overview = await getInstitutionOverview(params.id).catch(() => null);
+  const enrolledByGrade = new Map(
+    (overview?.enrollmentByGrade ?? []).map((row) => [row.gradeId, row.count]),
+  );
 
   // Compute real per-grade section count + summed capacity.
   const byGrade = new Map<string, { sections: number; capacity: number }>();
@@ -90,7 +93,7 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
   const offeredCount = offered.filter((g) => byGrade.has(g.id)).length;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="institution-grades">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -99,6 +102,10 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
             {data.error
               ? 'Catalog unavailable'
               : `${offered.length} ${offered.length === 1 ? 'grade' : 'grades'} · ${offeredCount} with sections here`}
+          </p>
+          <p className="mt-1 max-w-prose text-xs text-muted-foreground">
+            Grades are shared across the organisation. Adding one here makes it available to every
+            school.
           </p>
         </div>
         <AddGradeDialog />
@@ -124,22 +131,23 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
                   <TableHead className="text-end font-semibold">Sections</TableHead>
                   <TableHead className="text-end font-semibold">Capacity</TableHead>
                   <TableHead className="font-semibold">Utilization</TableHead>
-                  <TableHead className="text-end font-semibold">Sections</TableHead>
+                  <TableHead className="text-end font-semibold">View</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {offered
                   .slice()
-                  .sort(
-                    (a, b) =>
-                      Number(byGrade.has(b.id)) - Number(byGrade.has(a.id)) || a.order - b.order,
-                  )
+                  .sort((a, b) => {
+                    const rank = (grade: Grade) => (grade.code === 'LKG' ? 1000 : grade.order);
+                    return (
+                      Number(byGrade.has(b.id)) - Number(byGrade.has(a.id)) || rank(a) - rank(b)
+                    );
+                  })
                   .map((grade) => {
                     const agg = byGrade.get(grade.id) ?? { sections: 0, capacity: 0 };
-                    const cd =
-                      (grade as unknown as { customData?: Record<string, unknown> }).customData ??
-                      {};
-                    const enrollment = readNum(cd, 'enrollment');
+                    const enrollment = enrolledByGrade.has(grade.id)
+                      ? (enrolledByGrade.get(grade.id) ?? 0)
+                      : null;
                     const utilization =
                       enrollment !== null && agg.capacity > 0
                         ? Math.round((enrollment / agg.capacity) * 100)
