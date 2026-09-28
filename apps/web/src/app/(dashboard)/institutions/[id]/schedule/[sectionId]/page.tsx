@@ -14,8 +14,9 @@ import {
   WithdrawStudentButton,
 } from '@/components/timetable/section-roster-controls';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { listStaff } from '@/lib/api/staff';
-import { listStudents } from '@/lib/api/students';
+import { dayLabel } from '@/lib/timetable/conflict-label';
+import { getStaff, listStaff } from '@/lib/api/staff';
+import { getStudent, listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
 
 export const dynamic = 'force-dynamic';
@@ -65,18 +66,44 @@ export default async function SectionRosterPage(props: PageProps) {
     listBellSchedules({ institutionId }),
   ]);
 
-  const studentOptions = (studentsResult.data ?? []).map((s) => ({
-    id: s.id,
-    label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
-    searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
-  }));
+  const studentName = new Map<string, string>();
+  const studentOptions = (studentsResult.data ?? []).map((s) => {
+    const name = [s.firstName, s.lastName].filter(Boolean).join(' ').trim();
+    if (name) studentName.set(s.id, name);
+    return {
+      id: s.id,
+      label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
+      searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
+    };
+  });
   const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
+  for (const enrollment of enrollments) {
+    if (studentLabel.has(enrollment.studentId)) continue;
+    const student = await getStudent(enrollment.studentId).catch(() => null);
+    if (!student) continue;
+    const name = [student.firstName, student.lastName].filter(Boolean).join(' ').trim();
+    if (name) studentName.set(student.id, name);
+    const label = formatPersonLabel(student.firstName, student.lastName, student.nationalId);
+    studentLabel.set(student.id, label);
+    studentOptions.push({
+      id: student.id,
+      label,
+      searchText: `${student.firstName} ${student.lastName} ${student.nationalId ?? ''}`,
+    });
+  }
   const staffLabel = new Map(
     (staffResult.data ?? []).map((s) => [
       s.id,
       formatPersonLabel(s.firstName, s.lastName, s.position),
     ]),
   );
+  for (const meeting of meetings) {
+    if (!meeting.staffId || staffLabel.has(meeting.staffId)) continue;
+    const person = await getStaff(meeting.staffId).catch(() => null);
+    if (person) {
+      staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName, person.position));
+    }
+  }
   const roomLabel = new Map(
     (roomsResult.ok ? roomsResult.data : []).map((r) => [
       r.id,
@@ -94,7 +121,7 @@ export default async function SectionRosterPage(props: PageProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="institution-schedule-section">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link
@@ -105,8 +132,20 @@ export default async function SectionRosterPage(props: PageProps) {
           </Link>
           <h2 className="mt-2 text-lg font-bold tracking-tight text-foreground">{section.name}</h2>
           <p className="text-sm text-muted-foreground">
-            {section.code} · {section.status}
-            {section.publishedAt ? ` · published ${section.publishedAt.slice(0, 10)}` : ''}
+            <span className="font-mono">{section.code}</span>
+            {' · '}
+            <span
+              className={
+                section.status === 'PUBLISHED'
+                  ? 'inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700'
+                  : 'inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800'
+              }
+            >
+              {section.status === 'PUBLISHED' ? 'Published' : section.status === 'DRAFT' ? 'Draft' : section.status}
+            </span>
+            {section.publishedAt
+              ? ` · published ${new Date(section.publishedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+              : ''}
           </p>
         </div>
         <SectionPublishControls
@@ -118,7 +157,12 @@ export default async function SectionRosterPage(props: PageProps) {
 
       <Card>
         <CardContent className="space-y-3 p-6">
-          <h3 className="text-base font-semibold">Meetings</h3>
+          <div>
+            <h3 className="text-base font-semibold">Meetings</h3>
+            <p className="text-sm text-muted-foreground">
+              {meetings.length} weekly {meetings.length === 1 ? 'meeting' : 'meetings'}
+            </p>
+          </div>
           {meetings.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No meetings yet. Add them on the{' '}
@@ -133,10 +177,13 @@ export default async function SectionRosterPage(props: PageProps) {
           ) : (
             <ul className="space-y-1 text-sm">
               {meetings.map((m) => (
-                <li key={m.id} className="text-sm text-muted-foreground">
-                  day {m.dayOfWeek} · {resolveEntityLabel(m.periodId, periodLabel, 'Period')} ·{' '}
-                  {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : 'no room'} ·{' '}
-                  {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
+                <li key={m.id} className="flex flex-wrap items-baseline gap-2 text-sm">
+                  <b className="w-10">{dayLabel(m.dayOfWeek)}</b>
+                  <span>{resolveEntityLabel(m.periodId, periodLabel, 'Period')}</span>
+                  <span className="text-muted-foreground">
+                    · {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : 'no room'} ·{' '}
+                    {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -181,14 +228,34 @@ export default async function SectionRosterPage(props: PageProps) {
                       <td className="py-2 text-sm">
                         {resolveEntityLabel(e.studentId, studentLabel, 'Student')}
                       </td>
-                      <td className="py-2 text-xs">{e.status}</td>
-                      <td className="py-2 text-xs">{e.enrolledAt}</td>
+                      <td className="py-2 text-xs">
+                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                          {e.status === 'ENROLLED'
+                            ? 'Enrolled'
+                            : e.status === 'WITHDRAWN'
+                              ? 'Withdrawn'
+                              : e.status}
+                        </span>
+                      </td>
+                      <td className="py-2 text-xs">
+                        {e.enrolledAt
+                          ? new Date(e.enrolledAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </td>
                       <td className="py-2 text-right">
                         {e.status === 'ENROLLED' && (
                           <WithdrawStudentButton
                             institutionId={institutionId}
                             sectionId={section.id}
                             studentId={e.studentId}
+                            studentName={
+                              studentName.get(e.studentId) ??
+                              resolveEntityLabel(e.studentId, studentLabel, 'Student')
+                            }
                           />
                         )}
                       </td>
