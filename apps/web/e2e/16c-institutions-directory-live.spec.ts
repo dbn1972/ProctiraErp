@@ -1,8 +1,8 @@
 /**
  * Live Sunrise directory. Requires Postgres seeded with
  * db/seeds/006_sunrise_public_school_demo.sql, the gateway, and
- * E2E_BACKEND_READY=1. The seed has one school, five enrolments, three
- * staff assignments, and no student_attendance rows.
+ * E2E_BACKEND_READY=1. The seed has five Delhi schools. A throwaway school
+ * is inserted here so deactivate does not touch those rows.
  */
 import { execFileSync } from 'node:child_process';
 
@@ -12,7 +12,7 @@ import { setupGatewayTenantSession } from './fixtures/fake-session';
 
 const BACKEND_READY = process.env.E2E_BACKEND_READY === '1';
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
-const AREA_PUNE = '00000000-0000-4000-8000-00000000a511';
+const AREA_EAST = '00000000-0000-4000-8000-00000000a511';
 const THROWAWAY_ID = '00000000-0000-4000-8000-00000000a5e1';
 
 function insertThrowawaySchool(): void {
@@ -37,7 +37,7 @@ INSERT INTO institutions (
   'Throwaway Wing',
   'SPS-TMP-99',
   '00000000-0000-4000-8000-00000000a521',
-  '${AREA_PUNE}',
+  '${AREA_EAST}',
   'school',
   'private',
   'private',
@@ -72,26 +72,31 @@ test.describe('Institutions directory — Sunrise live', () => {
     await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /UX review/i })).toHaveCount(0);
 
-    await expect(page.getByText('SPS-PUN-01')).toBeVisible();
-    await expect(page.getByText('2 schools · profiles, classes, and infrastructure')).toBeVisible();
-    await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
+    await expect(page.getByText('07040100417')).toBeVisible();
+    await expect(page.getByText('6 schools · profiles, classes, and infrastructure')).toBeVisible();
+    await expect(page.getByText('Showing 1–6 of 6')).toBeVisible();
     await expect(page.getByText('Page 1 of 1')).toBeVisible();
 
     const studentsKpi = page
       .getByText('Students enrolled')
       .locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
-    await expect(studentsKpi).toContainText('5');
+    await expect(studentsKpi).toContainText('3,615');
     const reportingKpi = page
       .getByText('Reporting today')
       .locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
-    await expect(reportingKpi).toContainText('0');
+    await expect(reportingKpi).toContainText('4');
 
-    const sunriseRow = page.getByRole('row', { name: /Sunrise Public School/ });
-    await expect(sunriseRow).toContainText('5');
-    await expect(sunriseRow).toContainText('3');
-    await expect(sunriseRow).toContainText('Pune');
-    await expect(sunriseRow).toContainText('School');
-    await expect(sunriseRow.getByText('—').first()).toBeVisible();
+    const mayur = page.getByRole('row', { name: /Mayur Vihar/ });
+    await expect(mayur).toContainText('1,240');
+    await expect(mayur).toContainText('84');
+    await expect(mayur).toContainText('94%');
+    await expect(mayur).toContainText('Delhi East');
+    await expect(mayur).toContainText('Senior Secondary');
+    const rohini = page.getByRole('row', { name: /Rohini Sector 9/ });
+    await expect(rohini).toContainText('76%');
+    await expect(rohini).toContainText('Delhi North');
+    const patparganj = page.getByRole('row', { name: /Patparganj/ });
+    await expect(patparganj).toContainText('88%');
 
     const switcher = page.getByTestId('tenant-switcher').filter({ visible: true });
     await expect(switcher).toContainText('CBSE');
@@ -104,17 +109,20 @@ test.describe('Institutions directory — Sunrise live', () => {
 
     await page.getByRole('button', { name: 'Clear' }).click();
     await expect(page).not.toHaveURL(/search=/);
-    await expect(page.getByText('SPS-PUN-01')).toBeVisible();
+    await expect(page.getByText('07040100417')).toBeVisible();
 
     await page.locator('#filter-area').click();
-    await page.getByRole('option', { name: 'Pune' }).click();
-    await expect(page).toHaveURL(new RegExp(`areaId=${AREA_PUNE}`));
-    await expect(page.getByText('SPS-PUN-01')).toBeVisible();
+    await page.getByRole('option', { name: 'Delhi East' }).click();
+    await expect(page).toHaveURL(new RegExp(`areaId=${AREA_EAST}`));
+    await expect(page.getByText('07040100417')).toBeVisible();
+    await expect(page.getByText('07040200731')).toHaveCount(0);
 
     await page.locator('#filter-status').click();
     await page.getByRole('option', { name: 'Inactive' }).click();
     await expect(page).toHaveURL(/status=INACTIVE/);
-    await expect(page.getByTestId('institutions-empty').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('07040100844')).toBeVisible();
+    const inactive = page.getByRole('row', { name: /Vasundhara Enclave/ });
+    await expect(inactive.getByText('—').first()).toBeVisible();
 
     await page.getByRole('button', { name: 'Clear' }).click();
     await expect(page).not.toHaveURL(/status=/);
@@ -134,7 +142,7 @@ test.describe('Institutions directory — Sunrise live', () => {
     await page.keyboard.press('Enter');
     const throwawayRow = page.getByRole('row', { name: /Throwaway Wing/ });
     await expect(throwawayRow).toContainText('Inactive');
-    await expect(page.getByText('SPS-PUN-01')).toBeVisible();
+    await expect(page.getByText('07040100417')).toBeVisible();
   });
 
   test('page 2 renders when more than one page of schools exists', async ({ page }) => {
@@ -143,7 +151,7 @@ test.describe('Institutions directory — Sunrise live', () => {
     const values = Array.from({ length: 19 }, (_, index) => {
       const n = String(index + 1).padStart(2, '0');
       const id = `00000000-0000-4000-8000-00000000a6${n}`;
-      return `('${id}', '${SUNRISE}', 'Page School ${n}', 'SPS-PG-${n}', '00000000-0000-4000-8000-00000000a521', '${AREA_PUNE}', 'school', 'private', 'private', 'active')`;
+      return `('${id}', '${SUNRISE}', 'Page School ${n}', 'SPS-PG-${n}', '00000000-0000-4000-8000-00000000a521', '${AREA_EAST}', 'school', 'private', 'private', 'active')`;
     }).join(',\n');
     const sql = `
 BEGIN;
@@ -169,7 +177,7 @@ COMMIT;
     });
     await page.goto('/institutions?page=2', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText('Page 2 of 2')).toBeVisible();
-    await expect(page.getByText('Showing 21–21 of 21')).toBeVisible();
-    await expect(page.locator('tbody tr')).toHaveCount(1);
+    await expect(page.getByText('Showing 21–25 of 25')).toBeVisible();
+    await expect(page.locator('tbody tr')).toHaveCount(5);
   });
 });
