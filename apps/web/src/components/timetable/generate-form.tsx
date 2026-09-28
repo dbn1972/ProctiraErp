@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Button } from '@proctira/ui/components';
 
 import { runGenerationJobAction } from '@/app/(dashboard)/timetable-actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 const demandSchema = z.object({
   sectionId: z.string().min(1),
@@ -20,7 +21,7 @@ const demandSchema = z.object({
 export function TimetableGenerateForm(props: {
   institutionId: string;
   academicPeriodId: string;
-  bellScheduleId?: string;
+  bellScheduleOptions: { id: string; label: string }[];
   sectionOptions: { id: string; label: string }[];
   staffOptions: { id: string; label: string }[];
 }) {
@@ -28,13 +29,56 @@ export function TimetableGenerateForm(props: {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [sectionId, setSectionId] = useState(props.sectionOptions[0]?.id ?? '');
   const [staffId, setStaffId] = useState(props.staffOptions[0]?.id ?? '');
+  const [bellScheduleId, setBellScheduleId] = useState(props.bellScheduleOptions[0]?.id ?? '');
   const [subjectId, setSubjectId] = useState('math');
   const [periodsPerWeek, setPeriodsPerWeek] = useState('4');
   const [persistMeetings, setPersistMeetings] = useState(false);
 
-  const canSubmit = Boolean(props.academicPeriodId && sectionId && staffId);
+  const canSubmit = Boolean(props.academicPeriodId && sectionId && staffId && bellScheduleId);
+  const sectionLabel =
+    props.sectionOptions.find((item) => item.id === sectionId)?.label ?? 'the section';
+  const teacherLabel =
+    props.staffOptions.find((item) => item.id === staffId)?.label ?? 'the teacher';
+  const scheduleLabel =
+    props.bellScheduleOptions.find((item) => item.id === bellScheduleId)?.label ??
+    'the bell schedule';
+  const writeSummary = `Write ${periodsPerWeek} period${periodsPerWeek === '1' ? '' : 's'} a week for ${sectionLabel}, taught by ${teacherLabel}, on ${scheduleLabel}. This adds meetings to the live week. Slots that clash with an existing teacher, class, or room are skipped. Preview first if you only want the counts.`;
+
+  function run(persist: boolean) {
+    setError(null);
+    setResult(null);
+    const parsed = demandSchema.safeParse({
+      sectionId,
+      subjectId,
+      staffId,
+      periodsPerWeek: Number(periodsPerWeek),
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? 'Invalid demand');
+      return;
+    }
+    startTransition(async () => {
+      const outcome = await runGenerationJobAction({
+        institutionId: props.institutionId,
+        academicPeriodId: props.academicPeriodId,
+        bellScheduleId,
+        persistMeetings: persist,
+        demands: [parsed.data],
+      });
+      if (!outcome.ok) {
+        setError(outcome.error);
+        return;
+      }
+      setResult(
+        `${persist ? 'Saved' : 'Preview'}: ${outcome.assignedCount ?? 0} slots assigned, ${outcome.clashCount ?? 0} clashes.${persist ? ' Open the week grid to review the new meetings.' : ' Nothing was written to the week.'}`,
+      );
+      if (persist) setConfirmOpen(false);
+      router.refresh();
+    });
+  }
 
   return (
     <form
@@ -42,37 +86,29 @@ export function TimetableGenerateForm(props: {
       data-testid="timetable-generate-form"
       onSubmit={(event) => {
         event.preventDefault();
-        setError(null);
-        setResult(null);
-        const parsed = demandSchema.safeParse({
-          sectionId,
-          subjectId,
-          staffId,
-          periodsPerWeek: Number(periodsPerWeek),
-        });
-        if (!parsed.success) {
-          setError(parsed.error.issues[0]?.message ?? 'Invalid demand');
+        if (persistMeetings) {
+          setConfirmOpen(true);
           return;
         }
-        startTransition(async () => {
-          const outcome = await runGenerationJobAction({
-            institutionId: props.institutionId,
-            academicPeriodId: props.academicPeriodId,
-            bellScheduleId: props.bellScheduleId,
-            persistMeetings,
-            demands: [parsed.data],
-          });
-          if (!outcome.ok) {
-            setError(outcome.error);
-            return;
-          }
-          setResult(
-            `Job ${outcome.id} assigned ${outcome.assignedCount ?? 0} slots with ${outcome.clashCount ?? 0} hard clashes.`,
-          );
-          router.refresh();
-        });
+        run(false);
       }}
     >
+      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        <span className="font-medium">Bell schedule</span>
+        <select
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
+          aria-label="Bell schedule"
+          value={bellScheduleId}
+          onChange={(e) => setBellScheduleId(e.target.value)}
+          required
+        >
+          {props.bellScheduleOptions.map((schedule) => (
+            <option key={schedule.id} value={schedule.id}>
+              {schedule.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Section</span>
         <select
@@ -149,13 +185,27 @@ export function TimetableGenerateForm(props: {
       ) : null}
       {canSubmit ? (
         <Button type="submit" disabled={pending} data-testid="run-generation">
-          {pending ? 'Generating…' : 'Run generator'}
+          {pending ? 'Generating…' : persistMeetings ? 'Write to the week' : 'Run generator'}
         </Button>
       ) : (
         <Button type="button" disabled title="Create a bell schedule, section, and teacher first">
           Run generator
         </Button>
       )}
+      <ConfirmActionDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Write these meetings into the week?"
+        description={writeSummary}
+        confirmLabel="Write to the week"
+        pending={pending}
+        testId="confirm-generate"
+        onConfirm={() => run(true)}
+      >
+        <Button type="button" variant="outline" disabled={pending} onClick={() => run(false)}>
+          Preview without saving
+        </Button>
+      </ConfirmActionDialog>
     </form>
   );
 }

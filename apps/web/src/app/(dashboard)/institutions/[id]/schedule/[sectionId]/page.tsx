@@ -219,6 +219,12 @@ export default async function SectionRosterPage(props: PageProps) {
                     · {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : 'no room'} ·{' '}
                     {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
                   </span>
+                  <Link
+                    href={`/institutions/${institutionId}/timetable?meeting=${m.id}#timetable-week-grid`}
+                    className="font-semibold underline underline-offset-4"
+                  >
+                    Edit or remove
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -252,7 +258,7 @@ export default async function SectionRosterPage(props: PageProps) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
+                  <tr className="border-b border-border text-start text-muted-foreground">
                     <th className="py-2 font-medium">Student</th>
                     <th className="py-2 font-medium">Status</th>
                     <th className="py-2 font-medium">Enrolled</th>
@@ -301,7 +307,7 @@ export default async function SectionRosterPage(props: PageProps) {
                             })
                           : '—'}
                       </td>
-                      <td className="py-2 text-right">
+                      <td className="py-2 text-end">
                         {e.status === 'ENROLLED' && (
                           <WithdrawStudentButton
                             institutionId={institutionId}

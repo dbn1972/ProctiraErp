@@ -1578,6 +1578,212 @@ FROM (
 ON CONFLICT (section_id, student_id) DO UPDATE
 SET status = EXCLUDED.status, enrolled_at = EXCLUDED.enrolled_at, updated_at = now();
 
+-- Class 9-B week grid (prototype detail-timetable): six subjects, a break
+-- row, Saturday half-day free slots, and a few draft meetings. The Neha
+-- double-book that the schedule page calls "Teacher clash" stays on G8C-HIN
+-- vs G9A-MATH (Mon · P3), outside this grid.
+INSERT INTO rooms (id, tenant_id, institution_id, code, name, capacity, room_type, status)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-lab-c1'),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  'LC1',
+  'Lab C1',
+  36,
+  'LAB',
+  'active'
+)
+ON CONFLICT (id) DO UPDATE
+SET code = EXCLUDED.code, name = EXCLUDED.name, updated_at = now();
+
+INSERT INTO bell_periods (
+  id, tenant_id, bell_schedule_id, code, name, period_order, start_time, end_time, is_break
+)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-break'),
+  '00000000-0000-4000-8000-00000000a501',
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-bell-mv'),
+  'BREAK',
+  'Break',
+  7,
+  TIME '10:00',
+  TIME '10:20',
+  TRUE
+)
+ON CONFLICT (bell_schedule_id, code) DO UPDATE
+SET name = EXCLUDED.name,
+    start_time = EXCLUDED.start_time,
+    end_time = EXCLUDED.end_time,
+    is_break = TRUE,
+    updated_at = now();
+
+INSERT INTO sections (
+  id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
+  primary_teacher_id, default_room_id, capacity, status, published_at
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, spec.key),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  '00000000-0000-4000-8000-00000000a531',
+  '00000000-0000-4000-8000-00000000a542',
+  spec.code,
+  spec.name,
+  spec.teacher,
+  spec.room_id,
+  40,
+  'PUBLISHED',
+  TIMESTAMPTZ '2026-09-24 11:00:00+05:30'
+FROM (
+  VALUES
+    ('sunrise-section-g9b-eng', 'G9B-ENG', 'Class 9-B English', '00000000-0000-4000-8000-00000000a595'::uuid, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2')),
+    ('sunrise-section-g9b-sst', 'G9B-SST', 'Class 9-B Social Science', '00000000-0000-4000-8000-00000000a594'::uuid, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2')),
+    ('sunrise-section-g9b-cs', 'G9B-CS', 'Class 9-B Computer Science', '00000000-0000-4000-8000-00000000a591'::uuid, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-lab-c1')),
+    ('sunrise-section-g9b-hin', 'G9B-HIN', 'Class 9-B Hindi', '00000000-0000-4000-8000-00000000a596'::uuid, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'))
+) AS spec(key, code, name, teacher, room_id)
+ON CONFLICT (id) DO UPDATE
+SET code = EXCLUDED.code,
+    name = EXCLUDED.name,
+    primary_teacher_id = EXCLUDED.primary_teacher_id,
+    default_room_id = EXCLUDED.default_room_id,
+    status = EXCLUDED.status,
+    updated_at = now();
+
+UPDATE sections
+SET status = 'DRAFT', published_at = NULL, updated_at = now()
+WHERE id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-hin');
+
+UPDATE sections
+SET status = 'PUBLISHED',
+    published_at = COALESCE(published_at, TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
+    primary_teacher_id = '00000000-0000-4000-8000-00000000a597',
+    default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'),
+    updated_at = now()
+WHERE id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci');
+
+DELETE FROM section_meetings
+WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
+  AND section_id IN (
+    '00000000-0000-4000-8000-00000000a572',
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'),
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'),
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sst'),
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-cs'),
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-hin')
+  );
+
+INSERT INTO section_meetings (
+  id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-grid-' || spec.key),
+  '00000000-0000-4000-8000-00000000a501',
+  spec.section_id,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-' || spec.period::text),
+  spec.day,
+  spec.room_id,
+  spec.teacher,
+  spec.status
+FROM (
+  VALUES
+    ('p1d1', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 1, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'draft'),
+    ('p1d2', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 2, 1, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active'),
+    ('p1d3', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sst'), 3, 1, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a594'::uuid, 'active'),
+    ('p1d4', '00000000-0000-4000-8000-00000000a572'::uuid, 4, 1, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'active'),
+    ('p1d5', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 5, 1, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active'),
+    ('p2d1', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-cs'), 1, 2, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-lab-c1'), '00000000-0000-4000-8000-00000000a591'::uuid, 'active'),
+    ('p2d2', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'), 2, 2, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'), '00000000-0000-4000-8000-00000000a597'::uuid, 'active'),
+    ('p2d3', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-hin'), 3, 2, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a596'::uuid, 'active'),
+    ('p2d4', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-cs'), 4, 2, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-lab-c1'), '00000000-0000-4000-8000-00000000a591'::uuid, 'active'),
+    ('p2d5', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'), 5, 2, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'), '00000000-0000-4000-8000-00000000a597'::uuid, 'active'),
+    ('p2d6', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-hin'), 6, 2, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a596'::uuid, 'active'),
+    ('p3d1', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sst'), 1, 3, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a594'::uuid, 'active'),
+    ('p3d2', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 3, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'active'),
+    ('p3d3', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 3, 3, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active'),
+    ('p3d4', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sst'), 4, 3, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a594'::uuid, 'active'),
+    ('p3d6', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 6, 3, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active'),
+    ('p4d1', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 1, 4, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active'),
+    ('p4d2', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sst'), 2, 4, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a594'::uuid, 'active'),
+    ('p4d3', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 4, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'active'),
+    ('p4d5', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sst'), 5, 4, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a594'::uuid, 'active'),
+    ('p4d6', '00000000-0000-4000-8000-00000000a572'::uuid, 6, 4, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'draft'),
+    ('p5d1', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'), 1, 5, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'), '00000000-0000-4000-8000-00000000a597'::uuid, 'active'),
+    ('p5d2', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-hin'), 2, 5, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a596'::uuid, 'active'),
+    ('p5d3', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-cs'), 3, 5, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-lab-c1'), '00000000-0000-4000-8000-00000000a591'::uuid, 'active'),
+    ('p5d4', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'), 4, 5, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'), '00000000-0000-4000-8000-00000000a597'::uuid, 'active'),
+    ('p5d5', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-hin'), 5, 5, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a596'::uuid, 'draft'),
+    ('p6d1', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 6, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'active'),
+    ('p6d2', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 2, 6, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active'),
+    ('p6d4', '00000000-0000-4000-8000-00000000a572'::uuid, 4, 6, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a593'::uuid, 'draft'),
+    ('p6d5', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-eng'), 5, 6, uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'), '00000000-0000-4000-8000-00000000a595'::uuid, 'active')
+) AS spec(key, section_id, day, period, room_id, teacher, status)
+ON CONFLICT (section_id, bell_period_id, day_of_week) DO UPDATE
+SET room_id = EXCLUDED.room_id,
+    teacher_staff_id = EXCLUDED.teacher_staff_id,
+    status = EXCLUDED.status,
+    deleted_at = NULL,
+    updated_at = now();
+
+-- Keep the schedule-page teacher clash: Neha on G9A-MATH and G8C-HIN, Mon · P3.
+INSERT INTO section_meetings (
+  id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
+)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-clash-g8c'),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a571',
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-3'),
+  1,
+  NULL,
+  '00000000-0000-4000-8000-00000000a593',
+  'active'
+)
+ON CONFLICT (section_id, bell_period_id, day_of_week) DO UPDATE
+SET teacher_staff_id = EXCLUDED.teacher_staff_id, status = 'active', deleted_at = NULL, updated_at = now();
+
+INSERT INTO timetable_teacher_absences (
+  id, tenant_id, institution_id, staff_id, absence_date, reason, created_by
+)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-absence-neha-today'),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  '00000000-0000-4000-8000-00000000a593',
+  CURRENT_DATE,
+  'Sick leave',
+  'priya-sharma'
+)
+ON CONFLICT (id) DO UPDATE
+SET absence_date = EXCLUDED.absence_date, reason = EXCLUDED.reason;
+
+INSERT INTO substitutions (
+  id, tenant_id, section_meeting_id, original_staff_id, substitute_staff_id,
+  substitution_date, reason, status
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-sub-neha-today'),
+  '00000000-0000-4000-8000-00000000a501',
+  m.id,
+  '00000000-0000-4000-8000-00000000a593',
+  '00000000-0000-4000-8000-00000000a594',
+  CURRENT_DATE,
+  'Sick leave',
+  'SCHEDULED'
+FROM section_meetings m
+WHERE m.tenant_id = '00000000-0000-4000-8000-00000000a501'
+  AND m.teacher_staff_id = '00000000-0000-4000-8000-00000000a593'
+  AND m.day_of_week = EXTRACT(ISODOW FROM CURRENT_DATE)::int
+  AND m.deleted_at IS NULL
+  AND m.section_id = '00000000-0000-4000-8000-00000000a572'
+ORDER BY m.bell_period_id
+LIMIT 1
+ON CONFLICT (id) DO UPDATE
+SET section_meeting_id = EXCLUDED.section_meeting_id,
+    substitution_date = EXCLUDED.substitution_date,
+    substitute_staff_id = EXCLUDED.substitute_staff_id,
+    reason = EXCLUDED.reason,
+    status = 'SCHEDULED',
+    updated_at = now();
 
 INSERT INTO audit_log_entries (
   id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
