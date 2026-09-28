@@ -177,6 +177,41 @@ export class InstitutionService {
   }
 
   /**
+   * Reactivate an institution.
+   *
+   * Only INACTIVE → ACTIVE. An already-active institution is a state conflict
+   * (same family as a second deactivate). Clearing `deactivationReason` restores
+   * the school to pickers and enrollment: `EnrollmentService` rejects creates
+   * when status is not ACTIVE, and `isActive` is the shared guard. Deactivate
+   * does not cascade enrollments, staff, or attendance rows, so reactivate
+   * does not rewrite them.
+   *
+   * @throws NotFoundError if institution not found in this tenant
+   * @throws BusinessRuleError if institution is not inactive
+   */
+  async reactivate(tenantId: string, id: string): Promise<InstitutionEntity> {
+    const existing = await this.repository.findById(id, tenantId);
+    if (!existing) {
+      throw new NotFoundError(`Institution with id '${id}' not found`);
+    }
+
+    if (existing.status !== EntityStatus.INACTIVE) {
+      throw new BusinessRuleError('Institution is already active');
+    }
+
+    const updated = await this.repository.update(id, tenantId, {
+      status: EntityStatus.ACTIVE,
+      deactivationReason: null,
+    });
+
+    if (!updated) {
+      throw new NotFoundError(`Institution with id '${id}' not found`);
+    }
+
+    return updated;
+  }
+
+  /**
    * Get a single institution by ID.
    *
    * @throws NotFoundError if institution not found

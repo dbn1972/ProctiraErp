@@ -141,6 +141,16 @@ export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule
     deferredDomainGuard: true,
   },
   {
+    id: 'institution.reactivate',
+    pathPrefix: '/api/v1/institutions',
+    pathSuffix: '/reactivate',
+    resource: 'institution',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'institution.reactivate',
+    deferredDomainGuard: true,
+  },
+  {
     id: 'examination.documents.generate',
     pathPrefix: '/api/v1/examinations',
     resource: 'examination',

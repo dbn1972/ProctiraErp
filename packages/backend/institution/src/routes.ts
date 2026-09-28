@@ -4,6 +4,7 @@
  * POST   /institutions       - Create a new institution
  * PUT    /institutions/:id   - Update an institution
  * POST   /institutions/:id/deactivate - Deactivate an institution
+ * POST   /institutions/:id/reactivate - Reactivate an inactive institution
  * GET    /institutions       - List institutions (paginated, filterable)
  * GET    /institutions/:id   - Get a single institution
  */
@@ -16,11 +17,13 @@ import {
   CreateInstitutionSchema,
   UpdateInstitutionSchema,
   DeactivateInstitutionSchema,
+  ReactivateInstitutionSchema,
   InstitutionListQuerySchema,
   InstitutionParamsSchema,
   type CreateInstitutionInput,
   type UpdateInstitutionInput,
   type DeactivateInstitutionInput,
+  type ReactivateInstitutionInput,
   type InstitutionListQuery,
   type InstitutionParams,
 } from './schemas.js';
@@ -37,6 +40,80 @@ export interface InstitutionRoutesOptions {
 /**
  * Formats an institution entity to the API response shape.
  */
+interface StatusAuditRecorder {
+  recordAudit: (input: {
+    tenantId: string;
+    entityType: string;
+    entityId: string;
+    operation: 'UPDATE';
+    userId: string;
+    userName: string;
+    ipAddress: string;
+    beforeValues: Record<string, unknown>;
+    afterValues: Record<string, unknown>;
+    metadata: Record<string, unknown>;
+  }) => Promise<unknown>;
+}
+
+/**
+ * Persist actor, reason, and before/after status when the gateway audit
+ * service is decorated. Deactivate does not emit an outbox or plugin event,
+ * so reactivate does not either. A missing decorator (package route tests)
+ * skips the write. Audit failure is logged and does not hide the status change.
+ */
+async function recordInstitutionStatusAudit(
+  fastify: FastifyInstance,
+  request: FastifyRequest,
+  input: {
+    tenantId: string;
+    institutionId: string;
+    action: 'institution.deactivate' | 'institution.reactivate';
+    reason: string;
+    beforeStatus: string;
+    afterStatus: string;
+    beforeReason: string | null;
+    afterReason: string | null;
+  },
+): Promise<void> {
+  const audit = (fastify as FastifyInstance & { auditService?: StatusAuditRecorder }).auditService;
+  if (!audit?.recordAudit) return;
+
+  const user = (
+    request as FastifyRequest & {
+      user?: { sub?: string; displayName?: string; email?: string };
+    }
+  ).user;
+  if (!user?.sub) return;
+
+  try {
+    await audit.recordAudit({
+      tenantId: input.tenantId,
+      entityType: 'institution',
+      entityId: input.institutionId,
+      operation: 'UPDATE',
+      userId: user.sub,
+      userName: user.displayName ?? user.email ?? user.sub,
+      ipAddress: request.ip || '0.0.0.0',
+      beforeValues: {
+        status: input.beforeStatus,
+        deactivationReason: input.beforeReason,
+      },
+      afterValues: {
+        status: input.afterStatus,
+        deactivationReason: input.afterReason,
+        reason: input.reason,
+      },
+      metadata: {
+        action: input.action,
+        reason: input.reason,
+        actorId: user.sub,
+      },
+    });
+  } catch (error: unknown) {
+    request.log.error({ err: error, action: input.action }, 'institution status audit failed');
+  }
+}
+
 function formatInstitutionResponse(entity: {
   id: string;
   name: string;
@@ -225,11 +302,85 @@ export async function registerInstitutionRoutes(
       }
 
       try {
+        const before = await institutionService.getById(tenantId, paramsResult.data.id);
         const institution = await institutionService.deactivate(
           tenantId,
           paramsResult.data.id,
           bodyResult.data.reason,
         );
+        await recordInstitutionStatusAudit(fastify, request, {
+          tenantId,
+          institutionId: institution.id,
+          action: 'institution.deactivate',
+          reason: bodyResult.data.reason,
+          beforeStatus: before.status,
+          afterStatus: institution.status,
+          beforeReason: before.deactivationReason,
+          afterReason: institution.deactivationReason,
+        });
+        return reply.status(200).send(formatInstitutionResponse(institution));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /institutions/:id/reactivate
+   * Reactivate an inactive institution (set status to ACTIVE).
+   * Authorized as institution:update, same as deactivate.
+   */
+  fastify.post(
+    `${prefix}/:id/reactivate`,
+    async function reactivateHandler(
+      request: FastifyRequest<{ Params: InstitutionParams; Body: ReactivateInstitutionInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(InstitutionParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid institution ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(ReactivateInstitutionSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const before = await institutionService.getById(tenantId, paramsResult.data.id);
+        const institution = await institutionService.reactivate(tenantId, paramsResult.data.id);
+        await recordInstitutionStatusAudit(fastify, request, {
+          tenantId,
+          institutionId: institution.id,
+          action: 'institution.reactivate',
+          reason: bodyResult.data.reason,
+          beforeStatus: before.status,
+          afterStatus: institution.status,
+          beforeReason: before.deactivationReason,
+          afterReason: institution.deactivationReason,
+        });
         return reply.status(200).send(formatInstitutionResponse(institution));
       } catch (error: unknown) {
         if (error instanceof AppError) {

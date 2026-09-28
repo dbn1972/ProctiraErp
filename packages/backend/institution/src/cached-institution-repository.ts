@@ -3,7 +3,7 @@
  *
  * Wraps any InstitutionRepository implementation with a Redis-backed cache layer.
  * Uses read-through caching for findById and list-by-area queries.
- * Invalidates on create, update, and deactivate operations.
+ * Invalidates on create, update, deactivate, and reactivate (reactivate uses update).
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';

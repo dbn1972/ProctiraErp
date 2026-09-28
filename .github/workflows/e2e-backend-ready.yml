@@ -80,6 +80,7 @@ env:
     e2e/22-parent-portal-smoke.spec.ts
     e2e/21c-campus-comms-write-smoke.spec.ts
     e2e/14c-insights-live-write-smoke.spec.ts
+    e2e/16d-institutions-reactivate-live.spec.ts
     e2e/20c-notifications-prefs-write-smoke.spec.ts
     e2e/25-platform-surfaces-smoke.spec.ts
     e2e/26-lms-write-smoke.spec.ts
@@ -115,6 +116,7 @@ env:
     e2e/22-parent-portal-smoke.spec.ts
     e2e/21c-campus-comms-write-smoke.spec.ts
     e2e/14c-insights-live-write-smoke.spec.ts
+    e2e/16d-institutions-reactivate-live.spec.ts
     e2e/20c-notifications-prefs-write-smoke.spec.ts
     e2e/25-platform-surfaces-smoke.spec.ts
     e2e/26-lms-write-smoke.spec.ts

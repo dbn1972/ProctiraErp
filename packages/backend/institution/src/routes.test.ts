@@ -5,6 +5,7 @@
  * - POST /institutions - Create with validation
  * - PUT /institutions/:id - Update with validation
  * - POST /institutions/:id/deactivate - Deactivation
+ * - POST /institutions/:id/reactivate - Reactivation
  * - GET /institutions - List with pagination/filtering
  * - GET /institutions/:id - Get by ID
  * - Error responses (400, 404, 409, 422)
@@ -365,6 +366,84 @@ describe('Institution Routes', () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe('POST /institutions/:id/reactivate', () => {
+    it('should reactivate an inactive institution and return 200', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/institutions',
+        payload: validCreateBody(),
+      });
+      const created = createResponse.json();
+      await app.inject({
+        method: 'POST',
+        url: `/institutions/${created.id}/deactivate`,
+        payload: { reason: 'Paused for the term' },
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/institutions/${created.id}/reactivate`,
+        payload: { reason: 'Term resumed' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      const json = response.json();
+      expect(json.status).toBe('ACTIVE');
+      expect(json.deactivationReason).toBeNull();
+    });
+
+    it('should return 422 when institution is already active', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/institutions',
+        payload: validCreateBody(),
+      });
+      const created = createResponse.json();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/institutions/${created.id}/reactivate`,
+        payload: { reason: 'Not inactive' },
+      });
+
+      expect(response.statusCode).toBe(422);
+      expect(response.json().code).toBe('BUSINESS_RULE_ERROR');
+    });
+
+    it('should return 404 for an unknown institution', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: `/institutions/${uuid()}/reactivate`,
+        payload: { reason: 'Missing' },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('should return 400 when reason is missing', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/institutions',
+        payload: validCreateBody(),
+      });
+      const created = createResponse.json();
+      await app.inject({
+        method: 'POST',
+        url: `/institutions/${created.id}/deactivate`,
+        payload: { reason: 'Paused' },
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/institutions/${created.id}/reactivate`,
+        payload: {},
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(response.json().code).toBe('VALIDATION_ERROR');
     });
   });
 

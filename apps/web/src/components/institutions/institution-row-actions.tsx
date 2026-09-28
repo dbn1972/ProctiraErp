@@ -15,9 +15,25 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
-import { deactivateInstitutionAction } from '@/lib/institutions/actions';
+import {
+  deactivateInstitutionAction,
+  reactivateInstitutionAction,
+} from '@/lib/institutions/actions';
 
 const iconButtonClass = 'h-8 w-8 min-h-6 min-w-6 p-0 focus-visible:ring-2 focus-visible:ring-ring';
+
+function StatusToast({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <p
+      role="status"
+      data-testid="institution-status-toast"
+      className="fixed bottom-4 end-4 z-50 max-w-sm rounded-md border bg-card px-4 py-3 text-sm font-medium text-foreground shadow-lg"
+    >
+      {message}
+    </p>
+  );
+}
 
 export function InstitutionRowActions({
   id,
@@ -31,10 +47,15 @@ export function InstitutionRowActions({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reactivateOpen, setReactivateOpen] = useState(false);
   const [reason, setReason] = useState('');
+  const [reactivateReason, setReactivateReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [reactivateError, setReactivateError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const canDeactivate = status === 'ACTIVE';
+  const canReactivate = status === 'INACTIVE';
 
   const deactivate = () => {
     const trimmed = reason.trim();
@@ -51,6 +72,27 @@ export function InstitutionRowActions({
       }
       setConfirmOpen(false);
       setReason('');
+      setToast(`${name} is inactive`);
+      router.refresh();
+    });
+  };
+
+  const reactivate = () => {
+    const trimmed = reactivateReason.trim();
+    if (!trimmed) {
+      setReactivateError('A reactivation reason is required');
+      return;
+    }
+    setReactivateError(null);
+    startTransition(async () => {
+      const result = await reactivateInstitutionAction(id, trimmed);
+      if (!result.success) {
+        setReactivateError(result.error);
+        return;
+      }
+      setReactivateOpen(false);
+      setReactivateReason('');
+      setToast(`${name} is active again`);
       router.refresh();
     });
   };
@@ -99,6 +141,17 @@ export function InstitutionRowActions({
               Deactivate school
             </DropdownMenuItem>
           ) : null}
+          {canReactivate ? (
+            <DropdownMenuItem
+              onSelect={(event) => {
+                event.preventDefault();
+                setMenuOpen(false);
+                setReactivateOpen(true);
+              }}
+            >
+              Reactivate
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -126,6 +179,98 @@ export function InstitutionRowActions({
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
       </ConfirmActionDialog>
+
+      <ConfirmActionDialog
+        open={reactivateOpen}
+        onOpenChange={setReactivateOpen}
+        title={`Reactivate ${name}?`}
+        description="The school is marked active. New enrollments are allowed again, and student, staff, and attendance figures return on this list."
+        confirmLabel="Reactivate"
+        pending={pending}
+        onConfirm={reactivate}
+        testId={`reactivate-${id}`}
+      >
+        <div className="space-y-2">
+          <Label htmlFor={`reactivate-reason-${id}`}>Reason</Label>
+          <Textarea
+            id={`reactivate-reason-${id}`}
+            value={reactivateReason}
+            onChange={(event) => setReactivateReason(event.target.value)}
+            required
+            rows={3}
+            placeholder="Why is this school being reactivated?"
+          />
+          {reactivateError ? <p className="text-sm text-destructive">{reactivateError}</p> : null}
+        </div>
+      </ConfirmActionDialog>
+      <StatusToast message={toast} />
     </div>
+  );
+}
+
+/** Detail header control for an inactive school. Deactivate stays on the list menu. */
+export function InstitutionReactivateButton({ id, name }: { id: string; name: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const reactivate = () => {
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setError('A reactivation reason is required');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await reactivateInstitutionAction(id, trimmed);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setOpen(false);
+      setReason('');
+      setToast(`${name} is active again`);
+      router.refresh();
+    });
+  };
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        onClick={() => setOpen(true)}
+        data-testid={`reactivate-header-${id}`}
+      >
+        Reactivate
+      </Button>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Reactivate ${name}?`}
+        description="The school is marked active. New enrollments are allowed again."
+        confirmLabel="Reactivate"
+        pending={pending}
+        onConfirm={reactivate}
+        testId={`reactivate-header-dialog-${id}`}
+      >
+        <div className="space-y-2">
+          <Label htmlFor={`reactivate-header-reason-${id}`}>Reason</Label>
+          <Textarea
+            id={`reactivate-header-reason-${id}`}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            required
+            rows={3}
+            placeholder="Why is this school being reactivated?"
+          />
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        </div>
+      </ConfirmActionDialog>
+      <StatusToast message={toast} />
+    </>
   );
 }

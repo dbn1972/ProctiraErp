@@ -313,6 +313,40 @@ describe('InstitutionService', () => {
     });
   });
 
+  describe('reactivate', () => {
+    it('should reactivate an inactive institution and clear the deactivation reason', async () => {
+      const input = validCreateInput();
+      const created = await service.create(TENANT_ID, input);
+      await service.deactivate(TENANT_ID, created.id, 'Wing paused');
+
+      const reactivated = await service.reactivate(TENANT_ID, created.id);
+
+      expect(reactivated.status).toBe('ACTIVE');
+      expect(reactivated.deactivationReason).toBeNull();
+      expect(await service.isActive(TENANT_ID, created.id)).toBe(true);
+    });
+
+    it('should throw BusinessRuleError when institution is already active', async () => {
+      const created = await service.create(TENANT_ID, validCreateInput());
+
+      await expect(service.reactivate(TENANT_ID, created.id)).rejects.toThrow(BusinessRuleError);
+      await expect(service.reactivate(TENANT_ID, created.id)).rejects.toThrow(
+        'Institution is already active',
+      );
+    });
+
+    it('should throw NotFoundError when institution does not exist', async () => {
+      await expect(service.reactivate(TENANT_ID, uuid())).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw NotFoundError when institution belongs to a different tenant', async () => {
+      const created = await service.create(TENANT_ID, validCreateInput());
+      await service.deactivate(TENANT_ID, created.id, 'Paused');
+
+      await expect(service.reactivate(uuid(), created.id)).rejects.toThrow(NotFoundError);
+    });
+  });
+
   describe('getById', () => {
     it('should return an institution by ID', async () => {
       const input = validCreateInput();
