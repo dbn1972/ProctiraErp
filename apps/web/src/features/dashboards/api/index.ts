@@ -16,6 +16,7 @@ export {
   useBoardAdminDashboardData,
   useBoardComparisonData,
   useCrossBoardTransferData,
+  usePendingTransferApprovals,
 } from './queries';
 export {
   COUNTRY_DASHBOARD_MOCK,

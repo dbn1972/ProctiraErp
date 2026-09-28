@@ -32,6 +32,7 @@ import type {
   BoardRow,
   CountryDashboardData,
   CrossBoardTransferData,
+  PendingTransferApproval,
   DashboardKpi,
   DistrictRanking,
   DistrictRow,
@@ -530,6 +531,23 @@ export async function fetchBoardComparison(
     code: 'NOT_IMPLEMENTED',
     message: 'Board comparison endpoint pending data-warehouse rollup',
   });
+}
+
+export async function fetchPendingTransferApprovals(
+  signal?: AbortSignal,
+): Promise<{ data: PendingTransferApproval[] }> {
+  return browserGatewayFetch<{ data: PendingTransferApproval[] }>('/transfers/pending', { signal });
+}
+
+export async function postTransferDecision(
+  transferId: string,
+  action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete',
+  comment?: string,
+): Promise<CrossBoardTransferData> {
+  return browserGatewayFetch<CrossBoardTransferData>(
+    `/transfers/${encodeURIComponent(transferId)}/${action}`,
+    { method: 'POST', json: comment ? { comment } : {} },
+  );
 }
 
 export async function fetchCrossBoardTransfer(

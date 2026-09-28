@@ -55,7 +55,9 @@ import {
 import { TaskChecklist, type ChecklistTask } from '@proctira/ui-dashboards';
 
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
-import { useCrossBoardTransferData } from '../api';
+import { postTransferDecision } from '@/lib/api/dashboards';
+import { resolveEntityLabel } from '@/lib/entity-label';
+import { useCrossBoardTransferData, usePendingTransferApprovals } from '../api';
 import type {
   CrossBoardTransferData,
   EquivalencyMappingRow,
@@ -259,6 +261,11 @@ function ApprovalList({ approvals }: ApprovalListProps) {
         <CardDescription>Configured approval chain for this transfer</CardDescription>
       </CardHeader>
       <CardContent>
+        {approvals.length === 0 ? (
+          <p className="text-sm text-[hsl(var(--muted-foreground))]" data-testid="cross-board-transfer-approvals-empty">
+            No approval steps recorded yet.
+          </p>
+        ) : null}
         <ul className="space-y-3" data-testid="cross-board-transfer-approvals-list">
           {approvals.map((step) => (
             <li
@@ -314,6 +321,11 @@ function EquivalencyTable({ rows }: EquivalencyTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4}>No grade equivalency rules for this board pair.</TableCell>
+              </TableRow>
+            ) : null}
             {rows.map((row) => (
               <TableRow key={row.id} data-testid={`cross-board-transfer-equivalency-row-${row.id}`}>
                 <TableCell>{row.sourceSubject}</TableCell>
@@ -353,17 +365,48 @@ interface ApproverActionsProps {
   /** Whether the current user is the active approver. */
   enabled: boolean;
   activeStepName?: string;
+  canReject?: boolean;
+  canCancel?: boolean;
+  onApprove?: () => Promise<void>;
+  onReject?: (comment: string) => Promise<void>;
+  onCancel?: (comment: string) => Promise<void>;
 }
 
-function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
+function ApproverActions({
+  enabled,
+  activeStepName,
+  canReject = enabled,
+  canCancel = false,
+  onApprove,
+  onReject,
+  onCancel,
+}: ApproverActionsProps) {
   const announce = useAnnounce();
   const [decision, setDecision] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<'Approval' | 'Rejection' | null>(null);
+  const [confirm, setConfirm] = useState<'Approval' | 'Rejection' | 'Cancel' | null>(null);
+  const [comment, setComment] = useState('');
+  const [pending, setPending] = useState(false);
 
   const fire = (choice: string) => {
     setDecision(choice);
     setConfirm(null);
+    setComment('');
     announce(`${choice} recorded${activeStepName ? ` for ${activeStepName}` : ''}`);
+  };
+
+  const run = async (choice: string, action?: () => Promise<void>) => {
+    setPending(true);
+    try {
+      if (action) await action();
+      fire(choice);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The transfer decision failed';
+      setDecision(message);
+      setConfirm(null);
+      announce(message);
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
@@ -387,7 +430,7 @@ function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
         </Button>
         <Button
           variant="outline"
-          disabled={!enabled}
+          disabled={!canReject}
           onClick={() => setConfirm('Rejection')}
           data-testid="cross-board-transfer-reject-button"
         >
@@ -409,7 +452,8 @@ function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
           title="Approve this transfer?"
           description="Approve moves the transfer to the next step. There is no transfer decision API yet, so this confirmation only records the choice on this screen."
           confirmLabel="Approve transfer"
-          onConfirm={() => fire('Approval')}
+          pending={pending}
+          onConfirm={() => void run('Approval', onApprove)}
           testId="cross-board-transfer-approve"
         />
         <ConfirmActionDialog
@@ -418,12 +462,56 @@ function ApproverActions({ enabled, activeStepName }: ApproverActionsProps) {
             if (!open) setConfirm(null);
           }}
           title="Reject this transfer?"
-          description="Reject stops the transfer. There is no transfer decision API yet, so this confirmation only records the choice on this screen."
+          description="Reject stops the transfer. Add a comment the requesting school can read."
           confirmLabel="Reject transfer"
           destructive
-          onConfirm={() => fire('Rejection')}
+          pending={pending}
+          onConfirm={() => void run('Rejection', onReject ? () => onReject(comment) : undefined)}
           testId="cross-board-transfer-reject"
-        />
+        >
+          <label className="block text-sm" htmlFor="cross-board-transfer-reject-comment">
+            Comment
+            <textarea
+              id="cross-board-transfer-reject-comment"
+              className="mt-1 w-full rounded-md border p-2 text-sm"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              required
+            />
+          </label>
+        </ConfirmActionDialog>
+        {canCancel ? (
+          <Button
+            variant="outline"
+            onClick={() => setConfirm('Cancel')}
+            data-testid="cross-board-transfer-cancel-button"
+          >
+            Cancel transfer
+          </Button>
+        ) : null}
+        <ConfirmActionDialog
+          open={confirm === 'Cancel'}
+          onOpenChange={(open) => {
+            if (!open) setConfirm(null);
+          }}
+          title="Cancel this transfer?"
+          description="Cancel stops the request. A comment is stored on the timeline."
+          confirmLabel="Cancel transfer"
+          destructive
+          pending={pending}
+          onConfirm={() => void run('Cancellation', onCancel ? () => onCancel(comment) : undefined)}
+          testId="cross-board-transfer-cancel"
+        >
+          <label className="block text-sm" htmlFor="cross-board-transfer-cancel-comment">
+            Comment
+            <textarea
+              id="cross-board-transfer-cancel-comment"
+              className="mt-1 w-full rounded-md border p-2 text-sm"
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+            />
+          </label>
+        </ConfirmActionDialog>
         {decision ? (
           <p
             className="text-xs text-[hsl(var(--muted-foreground))]"
@@ -453,6 +541,70 @@ function HeaderSkeleton() {
 export default function CrossBoardTransferDashboard() {
   const params = useParams<{ transferId?: string }>();
   const { data, isLoading, error } = useCrossBoardTransferData(params.transferId);
+  const pending = usePendingTransferApprovals(!params.transferId);
+
+  if (!params.transferId) {
+    return (
+      <div className="space-y-6 p-6" data-testid="cross-board-transfer-dashboard">
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-[hsl(var(--foreground))]">
+            Pending transfer approvals
+          </h1>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">
+            Requests waiting on your school or the tenant.
+          </p>
+        </header>
+        {pending.isLoading ? <HeaderSkeleton /> : null}
+        {pending.error ? (
+          <Card data-testid="cross-board-transfer-pending-error">
+            <CardHeader>
+              <CardTitle>Approvals unavailable</CardTitle>
+              <CardDescription>{pending.error.message}</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
+        {!pending.isLoading && !pending.error && (pending.data?.length ?? 0) === 0 ? (
+          <Card data-testid="cross-board-transfer-pending-empty">
+            <CardHeader>
+              <CardTitle>No pending approvals</CardTitle>
+              <CardDescription>Submitted and in-review transfers will show student and school names here.</CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
+        {(pending.data?.length ?? 0) > 0 ? (
+          <ul className="space-y-3" data-testid="cross-board-transfer-pending-list">
+            {pending.data?.map((row) => {
+              const student = resolveEntityLabel(
+                row.studentId,
+                row.studentName ? { [row.studentId]: row.studentName } : {},
+                'Student',
+              );
+              const source = resolveEntityLabel(
+                row.sourceInstitutionId,
+                row.sourceInstitutionName ? { [row.sourceInstitutionId]: row.sourceInstitutionName } : {},
+                'School',
+              );
+              const destination = resolveEntityLabel(
+                row.destinationInstitutionId,
+                row.destinationInstitutionName
+                  ? { [row.destinationInstitutionId]: row.destinationInstitutionName }
+                  : {},
+                'School',
+              );
+              return (
+                <li key={row.id} className="rounded-md border p-3" data-testid={`pending-transfer-${row.id}`}>
+                  <p className="font-medium">{student}</p>
+                  <p className="text-sm text-[hsl(var(--muted-foreground))]">
+                    {source} → {destination} · {row.status}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -488,8 +640,16 @@ export default function CrossBoardTransferDashboard() {
   const transfer: CrossBoardTransferData = data;
   const activeStep = transfer.approvals.find((s) => s.status === 'current');
   const actionsEnabled = Boolean(
-    activeStep && transfer.currentApprover && transfer.currentApprover === activeStep.id,
+    transfer.capabilities?.canAct ||
+      (activeStep && transfer.currentApprover && transfer.currentApprover === activeStep.id),
   );
+  const reload = async (
+    action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete',
+    comment?: string,
+  ) => {
+    await postTransferDecision(transfer.transferId, action, comment);
+    window.location.assign(`/app/dashboard/cross-board-transfer/${transfer.transferId}`);
+  };
   const currentStepIndex = transfer.states.findIndex((s) => s.id === transfer.currentStateId) + 1;
 
   const documentTasks: ReadonlyArray<ChecklistTask> = transfer.documents.map((doc) => ({
@@ -562,7 +722,62 @@ export default function CrossBoardTransferDashboard() {
       <EquivalencyTable rows={transfer.equivalency} />
 
       {/* Approver actions */}
-      <ApproverActions enabled={actionsEnabled} activeStepName={activeStep?.name} />
+      {transfer.timeline && transfer.timeline.length > 0 ? (
+        <Card data-testid="cross-board-transfer-timeline">
+          <CardHeader>
+            <CardTitle>Decision timeline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ol className="space-y-3">
+              {transfer.timeline.map((event) => (
+                <li key={event.id}>
+                  <p className="text-sm font-medium">
+                    {event.actorName} · {event.decision} · {event.toStatus}
+                  </p>
+                  {event.comment ? <p className="text-sm text-[hsl(var(--muted-foreground))]">{event.comment}</p> : null}
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <ApproverActions
+        enabled={actionsEnabled}
+        activeStepName={activeStep?.name}
+        canReject={transfer.capabilities?.canReject ?? actionsEnabled}
+        canCancel={transfer.capabilities?.canCancel ?? false}
+        onApprove={
+          transfer.capabilities
+            ? async () => {
+                const action = transfer.capabilities?.canSubmit
+                  ? 'submit'
+                  : transfer.capabilities?.canStartReview
+                    ? 'review'
+                    : transfer.capabilities?.canApprove
+                      ? 'approve'
+                      : transfer.capabilities?.canComplete
+                        ? 'complete'
+                        : 'approve';
+                await reload(action);
+              }
+            : undefined
+        }
+        onReject={
+          transfer.capabilities?.canReject
+            ? async (comment) => {
+                await reload('reject', comment);
+              }
+            : undefined
+        }
+        onCancel={
+          transfer.capabilities?.canCancel
+            ? async (comment) => {
+                await reload('cancel', comment);
+              }
+            : undefined
+        }
+      />
     </div>
   );
 }
