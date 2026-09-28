@@ -50,6 +50,7 @@ describe('institutions directory presentation', () => {
   });
 
   it('scopes the switcher to the open institution board, area, and enrolment', () => {
+    // Area stays an area. The prototype's "Board: Delhi East" is not copied.
     const copy = formatInstitutionSwitcher({
       organizationName: 'Sunrise Public School',
       boardLabel: 'CBSE',
