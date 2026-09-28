@@ -6,9 +6,12 @@ import { expect, test } from '@playwright/test';
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
-const AARAV = '00000000-0000-4000-8000-00000000a5b1';
-const DIYA = '00000000-0000-4000-8000-00000000a5b2';
-const INSTITUTION = '00000000-0000-4000-8000-00000000a551';
+/** Seeded by tools/e2e/seed-e2e-tenants.sql. Sunrise is not loaded in the PR gate. */
+const TENANT_A = '00000000-0000-4000-8000-000000000001';
+const LINKED_CHILD = '00000000-0000-4000-8000-000000000099';
+const OTHER_CHILD = '00000000-0000-4000-8000-000000000094';
+const INSTITUTION = '00000000-0000-4000-8000-00000000a101';
+const PARENT_USER = 'parent-e2e-seeded';
 const GATEWAY =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
@@ -37,10 +40,17 @@ test.describe('Parent scholarships', () => {
   test('uploads a document only for the linked child', async ({ page, request }) => {
     test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1');
     test.setTimeout(60_000);
+    await setupGatewayTenantSession(page, {
+      sub: PARENT_USER,
+      email: 'parent.e2e@proctira.test',
+      displayName: 'E2E Parent',
+      tenantId: TENANT_A,
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    });
 
     const headers = {
       Authorization: `Bearer ${await sessionToken(page)}`,
-      'X-Tenant-ID': SUNRISE,
+      'X-Tenant-ID': TENANT_A,
       'Content-Type': 'application/json',
     };
     const programId = await openProgram(request);
@@ -48,7 +58,7 @@ test.describe('Parent scholarships', () => {
       headers,
       data: {
         programId,
-        applicantId: AARAV,
+        applicantId: LINKED_CHILD,
         institutionId: INSTITUTION,
         academicRecords: [
           { institutionName: 'Sunrise Public School', educationLevel: 'secondary', gpa: 3.6 },
@@ -67,7 +77,7 @@ test.describe('Parent scholarships', () => {
         headers,
         data: {
           programId,
-          applicantId: DIYA,
+          applicantId: OTHER_CHILD,
           institutionId: INSTITUTION,
           academicRecords: [
             { institutionName: 'Sunrise Public School', educationLevel: 'secondary' },
@@ -82,7 +92,7 @@ test.describe('Parent scholarships', () => {
     const uploaded = await request.post(
       `${GATEWAY}/api/v1/parent-portal/scholarships/applications/${applicationId}/documents`,
       {
-        headers: { Authorization: headers.Authorization, 'X-Tenant-ID': SUNRISE },
+        headers: { Authorization: headers.Authorization, 'X-Tenant-ID': TENANT_A },
         multipart: {
           documentType: 'income_certificate',
           file: { name: 'income.pdf', mimeType: 'application/pdf', buffer: PDF },
@@ -98,8 +108,8 @@ test.describe('Parent scholarships', () => {
     const applicants = ((await list.json()).data as Array<{ applicantId: string }>).map(
       (row) => row.applicantId,
     );
-    expect(applicants).toContain(AARAV);
-    expect(applicants).not.toContain(DIYA);
+    expect(applicants).toContain(LINKED_CHILD);
+    expect(applicants).not.toContain(OTHER_CHILD);
 
     await page.goto('/parent/scholarships', { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('parent-scholarships')).toBeVisible();
@@ -112,12 +122,12 @@ async function openProgram(request: import('@playwright/test').APIRequestContext
     sub: 'e2e-admin',
     email: 'admin@sunrise.test',
     displayName: 'Sunrise Admin',
-    tenantId: SUNRISE,
+    tenantId: TENANT_A,
     roles: [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }],
   });
   const headers = {
     Authorization: `Bearer ${admin}`,
-    'X-Tenant-ID': SUNRISE,
+    'X-Tenant-ID': TENANT_A,
     'Content-Type': 'application/json',
   };
   const created = await request.post(`${GATEWAY}/api/v1/scholarships/programs`, {
