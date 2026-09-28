@@ -15,7 +15,8 @@ test.describe('Institutions directory UI', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/institutions', { waitUntil: 'domcontentloaded' });
 
-    await expect(page.getByRole('heading', { name: 'Institutions' }).first()).toBeVisible();
+    const heading = page.getByRole('heading', { name: 'Institutions', exact: true });
+    await expect(heading).toBeVisible();
     await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /UX review/i })).toHaveCount(0);
 
@@ -26,7 +27,7 @@ test.describe('Institutions directory UI', () => {
     const header = page.getByTestId('desktop-shell-header').filter({ visible: true });
     await expect(header).toBeVisible();
     const headerBox = await header.boundingBox();
-    const headingBox = await page.getByRole('heading', { name: 'Institutions' }).boundingBox();
+    const headingBox = await heading.boundingBox();
     expect(headerBox).not.toBeNull();
     expect(headingBox).not.toBeNull();
     expect(headingBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height - 1);
