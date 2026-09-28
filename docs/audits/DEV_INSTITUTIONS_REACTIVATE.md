@@ -1,7 +1,7 @@
 # Enterprise module development checklist
 
 **Capability / module:** Institutions — reactivate  
-**Branch / tip:** `cursor/institution-reactivate-d00d`  
+**Branch / tip:** `cursor/institution-reactivate-d00d` (live Playwright passed locally against Sunrise seed; Vasundhara left `inactive`)  
 **Owner / agent:** cloud agent  
 **Date (UTC):** 2026-09-28  
 **Peer parity target:** A registrar can return an inactive school to ACTIVE the same way they deactivated it, with a reason and an audit row.  

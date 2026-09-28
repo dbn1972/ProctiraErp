@@ -16,7 +16,7 @@
 
 | Check | Pass | Evidence |
 | --- | --- | --- |
-| Keyboard | ☑ | Playwright spec focuses the overflow trigger, ArrowDown, Enter, reason field, confirm Enter |
+| Keyboard | ☑ | `e2e/16d-institutions-reactivate-live.spec.ts` passed live: overflow ArrowDown, Enter, reason, confirm Enter. Deactivate then reactivate. |
 | Dialog | ☑ | `ConfirmActionDialog` (Radix Dialog) with cancel and confirm |
 | Toast | ☑ | `role="status"` success message |
 | Screen reader | ☐ | no screen-reader session in this environment — waiver: dialog uses title, description, and a labelled reason field |

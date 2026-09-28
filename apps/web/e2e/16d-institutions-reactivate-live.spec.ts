@@ -81,6 +81,7 @@ test.describe('Institutions reactivate — Sunrise live', () => {
   });
 
   test('deactivates a throwaway school then reactivates it from the keyboard', async ({ page }) => {
+    test.setTimeout(90_000);
     await setupGatewayTenantSession(page, {
       sub: 'priya-sharma',
       email: 'priya.sharma@school.edu',
@@ -101,23 +102,30 @@ test.describe('Institutions reactivate — Sunrise live', () => {
     const schoolsBefore = await schoolsKpi.innerText();
 
     const more = page.getByTestId(`institution-more-${THROWAWAY_ID}`).filter({ visible: true });
-    await more.focus();
-    await page.keyboard.press('ArrowDown');
     const deactivateItem = page.getByRole('menuitem', { name: 'Deactivate school' });
+    // ArrowDown opens the Radix menu only after hydration. Retry until it does.
+    await expect(async () => {
+      await more.focus();
+      await more.press('ArrowDown');
+      await expect(deactivateItem).toBeVisible();
+    }).toPass();
     await deactivateItem.focus();
     await page.keyboard.press('Enter');
     await expect(page.getByTestId(`deactivate-${THROWAWAY_ID}`)).toBeVisible();
     await page.getByLabel('Reason').fill('Screen review throwaway');
     await page.getByTestId(`deactivate-${THROWAWAY_ID}-confirm`).focus();
     await page.keyboard.press('Enter');
+    await expect(page.getByTestId(`deactivate-${THROWAWAY_ID}`)).toBeHidden({ timeout: 30_000 });
 
     const throwawayRow = directoryTable.getByRole('row', { name: /Throwaway Reactivate Wing/ });
     await expect(throwawayRow).toContainText('Inactive');
 
-    await page.getByTestId(`institution-more-${THROWAWAY_ID}`).filter({ visible: true }).focus();
-    await page.keyboard.press('ArrowDown');
     const reactivateItem = page.getByRole('menuitem', { name: 'Reactivate' });
-    await expect(reactivateItem).toBeVisible();
+    await expect(async () => {
+      await more.focus();
+      await more.press('ArrowDown');
+      await expect(reactivateItem).toBeVisible();
+    }).toPass();
     await reactivateItem.focus();
     await page.keyboard.press('Enter');
     const dialog = page.getByTestId(`reactivate-${THROWAWAY_ID}`);
@@ -125,6 +133,7 @@ test.describe('Institutions reactivate — Sunrise live', () => {
     await dialog.getByLabel('Reason').fill('Screen review restored');
     await page.getByTestId(`reactivate-${THROWAWAY_ID}-confirm`).focus();
     await page.keyboard.press('Enter');
+    await expect(page.getByTestId(`reactivate-${THROWAWAY_ID}`)).toBeHidden({ timeout: 30_000 });
 
     await expect(throwawayRow).toContainText('Active');
     await expect(page.getByTestId('institution-status-toast')).toContainText('active again');
