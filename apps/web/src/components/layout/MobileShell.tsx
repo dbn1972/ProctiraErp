@@ -308,7 +308,10 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
       {/* ─── Routed page content (the same outlet `<DesktopShell>` wraps).
             Wrapped in `<PageErrorBoundary>` so render errors inside the page
             do NOT crash the header or bottom tabs (Property F-9). */}
-      <main data-shell-scroll="page" className="touch-controls min-h-0 flex-1 overflow-y-auto p-4 pb-4">
+      <main
+        data-shell-scroll="page"
+        className="touch-controls min-h-0 flex-1 overflow-y-auto p-4 pb-4"
+      >
         <PageErrorBoundary>{children}</PageErrorBoundary>
       </main>
 

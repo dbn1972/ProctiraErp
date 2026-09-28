@@ -13,7 +13,10 @@ export async function GET(): Promise<Response> {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get(AUTH_COOKIES.ACCESS_TOKEN)?.value ?? null;
   if (!accessToken) {
-    return NextResponse.json({ code: 'UNAUTHORIZED', message: 'Authentication required' }, { status: 401 });
+    return NextResponse.json(
+      { code: 'UNAUTHORIZED', message: 'Authentication required' },
+      { status: 401 },
+    );
   }
 
   try {

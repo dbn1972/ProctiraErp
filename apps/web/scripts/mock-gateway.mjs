@@ -49,9 +49,18 @@ function person(i) {
     email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@school.edu`,
     phone: `+91 98${String(10000000 + i * 7).slice(0, 8)}`,
     status: 'ACTIVE',
-    contacts: [{ type: 'phone', value: `+91 98${String(10000000 + i).slice(0, 8)}`, isPrimary: true }],
+    contacts: [
+      { type: 'phone', value: `+91 98${String(10000000 + i).slice(0, 8)}`, isPrimary: true },
+    ],
     guardians: [
-      { id: id2, firstName: 'Rohan', lastName, relationship: 'Father', contactPhone: '+91 9800000000', contactEmail: 'guardian@school.edu' },
+      {
+        id: id2,
+        firstName: 'Rohan',
+        lastName,
+        relationship: 'Father',
+        contactPhone: '+91 9800000000',
+        contactEmail: 'guardian@school.edu',
+      },
     ],
     identityDocuments: [{ type: 'Aadhaar', number: `XXXX-XXXX-${1000 + i}`, issuingCountry: 'IN' }],
     customData: {},
@@ -107,36 +116,93 @@ function genericEntity(resource, idVal, i = 0) {
 function listFor(resource, sub) {
   const key = sub ?? resource;
   if (resource === 'students') return makeList('students', 6, person);
-  if (resource === 'staff') return makeList('staff', 6, (i) => ({ ...person(i), position: pick(['Teacher', 'Principal', 'Clerk'], i), employmentStatus: 'ACTIVE' }));
+  if (resource === 'staff')
+    return makeList('staff', 6, (i) => ({
+      ...person(i),
+      position: pick(['Teacher', 'Principal', 'Clerk'], i),
+      employmentStatus: 'ACTIVE',
+    }));
   if (resource === 'institutions') return makeList('institutions', 6, institution);
-  if (key === 'grades') return makeList('grades', 8, (i) => ({ id: `g${i}`, tenantId: TENANT, name: `Grade ${i + 1}`, code: `G${i + 1}`, order: i + 1 }));
-  if (key === 'classes') return makeList('classes', 6, (i) => ({ id: `c${i}`, tenantId: TENANT, name: `Class ${i + 1}-A`, gradeId: `g${i}`, capacity: 40 }));
-  if (key === 'academic-periods') return makeList('academic-periods', 3, (i) => ({ id: `ap${i}`, tenantId: TENANT, name: `${2024 + i}-${2025 + i}`, code: `AY${2024 + i}`, status: i === 0 ? 'ACTIVE' : 'CLOSED', startDate: `${2024 + i}-04-01`, endDate: `${2025 + i}-03-31` }));
-  if (key === 'enrollments') return makeList('enrollments', 3, (i) => ({ id: `e${i}`, tenantId: TENANT, studentId: FIXED_ID, institutionId: FIXED_ID, gradeId: `g${i}`, status: pick(['ENROLLED', 'TRANSFERRED', 'GRADUATED'], i), enrolledAt: '2024-04-01', academicPeriodId: 'ap0' }));
-  if (key === 'areas') return makeList('areas', 5, (i) => ({ id: `area${i}`, name: pick(['India', 'Delhi', 'Maharashtra', 'Tamil Nadu', 'Kerala'], i), level: i, parentId: i ? `area${i - 1}` : null }));
+  if (key === 'grades')
+    return makeList('grades', 8, (i) => ({
+      id: `g${i}`,
+      tenantId: TENANT,
+      name: `Grade ${i + 1}`,
+      code: `G${i + 1}`,
+      order: i + 1,
+    }));
+  if (key === 'classes')
+    return makeList('classes', 6, (i) => ({
+      id: `c${i}`,
+      tenantId: TENANT,
+      name: `Class ${i + 1}-A`,
+      gradeId: `g${i}`,
+      capacity: 40,
+    }));
+  if (key === 'academic-periods')
+    return makeList('academic-periods', 3, (i) => ({
+      id: `ap${i}`,
+      tenantId: TENANT,
+      name: `${2024 + i}-${2025 + i}`,
+      code: `AY${2024 + i}`,
+      status: i === 0 ? 'ACTIVE' : 'CLOSED',
+      startDate: `${2024 + i}-04-01`,
+      endDate: `${2025 + i}-03-31`,
+    }));
+  if (key === 'enrollments')
+    return makeList('enrollments', 3, (i) => ({
+      id: `e${i}`,
+      tenantId: TENANT,
+      studentId: FIXED_ID,
+      institutionId: FIXED_ID,
+      gradeId: `g${i}`,
+      status: pick(['ENROLLED', 'TRANSFERRED', 'GRADUATED'], i),
+      enrolledAt: '2024-04-01',
+      academicPeriodId: 'ap0',
+    }));
+  if (key === 'areas')
+    return makeList('areas', 5, (i) => ({
+      id: `area${i}`,
+      name: pick(['India', 'Delhi', 'Maharashtra', 'Tamil Nadu', 'Kerala'], i),
+      level: i,
+      parentId: i ? `area${i - 1}` : null,
+    }));
   return makeList(key, 6, (i) => genericEntity(key, i === 0 ? FIXED_ID : `${key}-${i}`, i));
 }
 
 function detailFor(resource, idVal) {
   if (resource === 'students') return person(0);
-  if (resource === 'staff') return { ...person(0), position: 'Teacher', employmentStatus: 'ACTIVE' };
+  if (resource === 'staff')
+    return { ...person(0), position: 'Teacher', employmentStatus: 'ACTIVE' };
   if (resource === 'institutions') return institution(0);
   if (resource === 'programs') {
     return {
       ...genericEntity('programs', idVal, 0),
-      name: 'Merit Scholarship 2025', status: 'ACTIVE',
-      currency: 'INR', awardAmount: 25000, totalSlots: 100,
-      slotsAwarded: 42, applicationsCount: 230, awardsCount: 42,
+      name: 'Merit Scholarship 2025',
+      status: 'ACTIVE',
+      currency: 'INR',
+      awardAmount: 25000,
+      totalSlots: 100,
+      slotsAwarded: 42,
+      applicationsCount: 230,
+      awardsCount: 42,
       eligibility: 'Top 10% by academic merit, household income below threshold.',
     };
   }
   if (resource === 'definitions') {
     return {
       ...genericEntity('definitions', idVal, 0),
-      name: 'Student Transfer Approval', status: 'ACTIVE',
+      name: 'Student Transfer Approval',
+      status: 'ACTIVE',
       steps: [
         { id: 's1', name: 'Principal Review', order: 1, approverRole: 'principal', slaHours: 24 },
-        { id: 's2', name: 'District Officer Approval', order: 2, approverRole: 'district-officer', slaHours: 48 },
+        {
+          id: 's2',
+          name: 'District Officer Approval',
+          order: 2,
+          approverRole: 'district-officer',
+          slaHours: 48,
+        },
         { id: 's3', name: 'Records Update', order: 3, approverRole: 'registrar', slaHours: 12 },
       ],
     };
@@ -144,7 +210,8 @@ function detailFor(resource, idVal) {
   if (resource === 'grading-schemes') {
     return {
       ...genericEntity('grading-schemes', idVal, 0),
-      name: 'CBSE Letter Grades', type: 'LETTER',
+      name: 'CBSE Letter Grades',
+      type: 'LETTER',
       thresholds: [
         { id: 't1', grade: 'A1', minScore: 91, maxScore: 100, label: 'Outstanding' },
         { id: 't2', grade: 'A2', minScore: 81, maxScore: 90, label: 'Excellent' },
@@ -158,40 +225,75 @@ function detailFor(resource, idVal) {
 
 function infrastructureHierarchy() {
   return {
-      lands: [
-        {
-          id: 'land1', name: 'Main Campus Land', area: '5 acres', capacity: 1500,
-          buildings: [
-            {
-              id: 'b1', name: 'Academic Block A', capacity: 800,
-              floors: [
-                { id: 'f1', name: 'Ground Floor', capacity: 400, rooms: [
+    lands: [
+      {
+        id: 'land1',
+        name: 'Main Campus Land',
+        area: '5 acres',
+        capacity: 1500,
+        buildings: [
+          {
+            id: 'b1',
+            name: 'Academic Block A',
+            capacity: 800,
+            floors: [
+              {
+                id: 'f1',
+                name: 'Ground Floor',
+                capacity: 400,
+                rooms: [
                   { id: 'r1', name: 'Room 101', type: 'Classroom', capacity: 40 },
                   { id: 'r2', name: 'Science Lab', type: 'Laboratory', capacity: 30 },
-                ] },
-                { id: 'f2', name: 'First Floor', capacity: 400, rooms: [
+                ],
+              },
+              {
+                id: 'f2',
+                name: 'First Floor',
+                capacity: 400,
+                rooms: [
                   { id: 'r3', name: 'Room 201', type: 'Classroom', capacity: 40 },
                   { id: 'r4', name: 'Library', type: 'Library', capacity: 60 },
-                ] },
-              ],
-            },
-          ],
-        },
-      ],
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
   };
 }
 
 function appraisalTemplates() {
   return [
     {
-      id: FIXED_ID, name: 'Annual Teacher Appraisal', description: 'Yearly performance review.',
-      academicPeriodId: 'ap0', scoreMin: 0, scoreMax: 100,
+      id: FIXED_ID,
+      name: 'Annual Teacher Appraisal',
+      description: 'Yearly performance review.',
+      academicPeriodId: 'ap0',
+      scoreMin: 0,
+      scoreMax: 100,
       criteria: [
-        { name: 'Teaching Effectiveness', description: 'Classroom delivery and outcomes', weight: 40, maxScore: 40 },
-        { name: 'Student Engagement', description: 'Participation and feedback', weight: 30, maxScore: 30 },
-        { name: 'Professional Development', description: 'Training and growth', weight: 30, maxScore: 30 },
+        {
+          name: 'Teaching Effectiveness',
+          description: 'Classroom delivery and outcomes',
+          weight: 40,
+          maxScore: 40,
+        },
+        {
+          name: 'Student Engagement',
+          description: 'Participation and feedback',
+          weight: 30,
+          maxScore: 30,
+        },
+        {
+          name: 'Professional Development',
+          description: 'Training and growth',
+          weight: 30,
+          maxScore: 30,
+        },
       ],
-      createdAt: ISO, updatedAt: ISO,
+      createdAt: ISO,
+      updatedAt: ISO,
     },
   ];
 }
@@ -202,29 +304,152 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 function dashboard() {
   return {
     kpis: [
-      { id: 'institutions', label: 'Institutions', value: '342', delta: '+4', trend: 'up', description: 'Active schools' },
-      { id: 'students', label: 'Students', value: '48,210', delta: '+1.2%', trend: 'up', description: 'Enrolled' },
-      { id: 'staff', label: 'Staff', value: '3,640', delta: '+0.6%', trend: 'up', description: 'Active' },
-      { id: 'attendance', label: 'Attendance', value: '93.4%', delta: '+0.8%', trend: 'up', description: 'This week' },
+      {
+        id: 'institutions',
+        label: 'Institutions',
+        value: '342',
+        delta: '+4',
+        trend: 'up',
+        description: 'Active schools',
+      },
+      {
+        id: 'students',
+        label: 'Students',
+        value: '48,210',
+        delta: '+1.2%',
+        trend: 'up',
+        description: 'Enrolled',
+      },
+      {
+        id: 'staff',
+        label: 'Staff',
+        value: '3,640',
+        delta: '+0.6%',
+        trend: 'up',
+        description: 'Active',
+      },
+      {
+        id: 'attendance',
+        label: 'Attendance',
+        value: '93.4%',
+        delta: '+0.8%',
+        trend: 'up',
+        description: 'This week',
+      },
     ],
-    enrollmentTrend: Array.from({ length: 6 }, (_, i) => ({ period: `M${i + 1}`, value: 40000 + i * 1500 })),
-    boards: makeList('boards', 3, (i) => ({ id: `b${i}`, name: pick(['CBSE', 'ICSE', 'State'], i), schools: 120 - i * 10, students: 18000 - i * 2000, attendancePercent: 92 + i, passRatePercent: 88 + i, pupilTeacherRatio: 24 + i })),
-    states: makeList('states', 4, (i) => ({ id: `s${i}`, name: pick(['Delhi', 'Maharashtra', 'Tamil Nadu', 'Kerala'], i), schools: 90 - i * 5, students: 15000 - i * 1500, attendancePercent: 91 + i, passRatePercent: 87 + i })),
+    enrollmentTrend: Array.from({ length: 6 }, (_, i) => ({
+      period: `M${i + 1}`,
+      value: 40000 + i * 1500,
+    })),
+    boards: makeList('boards', 3, (i) => ({
+      id: `b${i}`,
+      name: pick(['CBSE', 'ICSE', 'State'], i),
+      schools: 120 - i * 10,
+      students: 18000 - i * 2000,
+      attendancePercent: 92 + i,
+      passRatePercent: 88 + i,
+      pupilTeacherRatio: 24 + i,
+    })),
+    states: makeList('states', 4, (i) => ({
+      id: `s${i}`,
+      name: pick(['Delhi', 'Maharashtra', 'Tamil Nadu', 'Kerala'], i),
+      schools: 90 - i * 5,
+      students: 15000 - i * 1500,
+      attendancePercent: 91 + i,
+      passRatePercent: 87 + i,
+    })),
   };
 }
 
 const SUNRISE_AREAS = [
-  { id: '10000000-0000-4000-8000-0000000000e1', tenantId: TENANT, name: 'Delhi East', code: 'DE', level: 1, parentId: null, path: '/de', children: [] },
-  { id: '10000000-0000-4000-8000-0000000000e2', tenantId: TENANT, name: 'Delhi North', code: 'DN', level: 1, parentId: null, path: '/dn', children: [] },
-  { id: '10000000-0000-4000-8000-0000000000e3', tenantId: TENANT, name: 'Delhi South', code: 'DS', level: 1, parentId: null, path: '/ds', children: [] },
+  {
+    id: '10000000-0000-4000-8000-0000000000e1',
+    tenantId: TENANT,
+    name: 'Delhi East',
+    code: 'DE',
+    level: 1,
+    parentId: null,
+    path: '/de',
+    children: [],
+  },
+  {
+    id: '10000000-0000-4000-8000-0000000000e2',
+    tenantId: TENANT,
+    name: 'Delhi North',
+    code: 'DN',
+    level: 1,
+    parentId: null,
+    path: '/dn',
+    children: [],
+  },
+  {
+    id: '10000000-0000-4000-8000-0000000000e3',
+    tenantId: TENANT,
+    name: 'Delhi South',
+    code: 'DS',
+    level: 1,
+    parentId: null,
+    path: '/ds',
+    children: [],
+  },
 ];
 
 const SUNRISE_SCHOOLS = [
-  ['20000000-0000-4000-8000-000000000001', 'Sunrise Public School – Mayur Vihar', '07040108417', SUNRISE_AREAS[0].id, 'Senior Secondary', 'ACTIVE', 1240, 84, 94],
-  ['20000000-0000-4000-8000-000000000002', 'Sunrise Public School – Preet Vihar', '07040100522', SUNRISE_AREAS[0].id, 'Secondary', 'ACTIVE', 860, 58, 91],
-  ['20000000-0000-4000-8000-000000000003', 'Sunrise Junior Wing – Patparganj', '07040100618', SUNRISE_AREAS[0].id, 'Primary', 'ACTIVE', 410, 27, 88],
-  ['20000000-0000-4000-8000-000000000004', 'Sunrise Public School – Rohini Sector 9', '07040100731', SUNRISE_AREAS[1].id, 'Senior Secondary', 'ACTIVE', 1105, 76, 76],
-  ['20000000-0000-4000-8000-000000000005', 'Sunrise Pre-Primary – Vasundhara Enclave', '07040100844', SUNRISE_AREAS[0].id, 'Pre-Primary', 'INACTIVE', 0, 0, null],
+  [
+    '20000000-0000-4000-8000-000000000001',
+    'Sunrise Public School – Mayur Vihar',
+    '07040108417',
+    SUNRISE_AREAS[0].id,
+    'Senior Secondary',
+    'ACTIVE',
+    1240,
+    84,
+    94,
+  ],
+  [
+    '20000000-0000-4000-8000-000000000002',
+    'Sunrise Public School – Preet Vihar',
+    '07040100522',
+    SUNRISE_AREAS[0].id,
+    'Secondary',
+    'ACTIVE',
+    860,
+    58,
+    91,
+  ],
+  [
+    '20000000-0000-4000-8000-000000000003',
+    'Sunrise Junior Wing – Patparganj',
+    '07040100618',
+    SUNRISE_AREAS[0].id,
+    'Primary',
+    'ACTIVE',
+    410,
+    27,
+    88,
+  ],
+  [
+    '20000000-0000-4000-8000-000000000004',
+    'Sunrise Public School – Rohini Sector 9',
+    '07040100731',
+    SUNRISE_AREAS[1].id,
+    'Senior Secondary',
+    'ACTIVE',
+    1105,
+    76,
+    76,
+  ],
+  [
+    '20000000-0000-4000-8000-000000000005',
+    'Sunrise Pre-Primary – Vasundhara Enclave',
+    '07040100844',
+    SUNRISE_AREAS[0].id,
+    'Pre-Primary',
+    'INACTIVE',
+    0,
+    0,
+    null,
+  ],
 ].map(([id, name, code, areaId, typeId, status, students, staff, attendance]) => ({
   id,
   name,
@@ -298,14 +523,22 @@ function sunriseDirectory(url) {
   }
   if (path === '/institutions') {
     if (url.searchParams.get('search') === '__error__') {
-      return { status: 500, body: { code: 'UPSTREAM_ERROR', message: 'The institution service is currently unavailable.' } };
+      return {
+        status: 500,
+        body: {
+          code: 'UPSTREAM_ERROR',
+          message: 'The institution service is currently unavailable.',
+        },
+      };
     }
     let rows = SUNRISE_SCHOOLS.map(({ students, staff, attendance, ...school }) => school);
     const search = (url.searchParams.get('search') ?? '').trim().toLowerCase();
     const areaId = url.searchParams.get('areaId');
     const status = url.searchParams.get('status');
     if (search) {
-      rows = rows.filter((row) => row.name.toLowerCase().includes(search) || row.code.toLowerCase().includes(search));
+      rows = rows.filter(
+        (row) => row.name.toLowerCase().includes(search) || row.code.toLowerCase().includes(search),
+      );
     }
     if (areaId) rows = rows.filter((row) => row.areaId === areaId);
     if (status) rows = rows.filter((row) => row.status === status);
@@ -357,7 +590,17 @@ const server = createServer((req, res) => {
 
   // Health/tenant/theme niceties
   if (p.includes('/tenant/theme') || p === '/tenant/branding') {
-    return json(res, 200, { name: 'ProctiraERP', shortName: 'proctira', slug: 'proctira', primary_color: 'hsl(222,47%,31%)', accent_color: 'hsl(174,62%,40%)', logo: { url: '/logo.svg', alt: 'ProctiraERP' }, favicon: '/favicon.ico', login_background: '', document_title_template: '{page} | {brand}' });
+    return json(res, 200, {
+      name: 'ProctiraERP',
+      shortName: 'proctira',
+      slug: 'proctira',
+      primary_color: 'hsl(222,47%,31%)',
+      accent_color: 'hsl(174,62%,40%)',
+      logo: { url: '/logo.svg', alt: 'ProctiraERP' },
+      favicon: '/favicon.ico',
+      login_background: '',
+      document_title_template: '{page} | {brand}',
+    });
   }
 
   const seg = p.split('/').filter(Boolean); // e.g. ['students','<id>','enrollments']
@@ -366,7 +609,12 @@ const server = createServer((req, res) => {
   const resource = seg[0];
 
   // Staff appraisal templates -> { data: [templates with criteria] }.
-  if (resource === 'staff' && seg[1] === 'appraisals' && seg[2] === 'templates' && seg.length === 3) {
+  if (
+    resource === 'staff' &&
+    seg[1] === 'appraisals' &&
+    seg[2] === 'templates' &&
+    seg.length === 3
+  ) {
     return json(res, 200, { data: appraisalTemplates(), meta: meta(1) });
   }
   // Institution infrastructure hierarchy -> { lands: [...] }.

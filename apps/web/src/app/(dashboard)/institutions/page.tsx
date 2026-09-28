@@ -18,14 +18,7 @@
  *   icon-button actions (Eye/Pencil)
  */
 import Link from 'next/link';
-import {
-  Building2,
-  CheckCircle2,
-  GraduationCap,
-  Map as MapIcon,
-  Plus,
-  School,
-} from 'lucide-react';
+import { Building2, CheckCircle2, GraduationCap, Map as MapIcon, Plus, School } from 'lucide-react';
 
 import {
   Button,
@@ -122,7 +115,8 @@ function KpiCard({ icon: Icon, iconBg, label, value, foot }: KpiCardProps) {
 function AttendanceBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-sm text-muted-foreground">—</span>;
   const tone = attendanceTone(pct);
-  const cls = tone === 'green' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-red-500';
+  const cls =
+    tone === 'green' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-red-500';
   const textCls =
     tone === 'green'
       ? 'text-emerald-700 dark:text-emerald-400'
@@ -208,7 +202,8 @@ function InstitutionRow({
   avatarIndex: number;
 }) {
   const palette =
-    SCHOOL_AVATAR_PALETTES[avatarIndex % SCHOOL_AVATAR_PALETTES.length] ?? SCHOOL_AVATAR_PALETTES[0];
+    SCHOOL_AVATAR_PALETTES[avatarIndex % SCHOOL_AVATAR_PALETTES.length] ??
+    SCHOOL_AVATAR_PALETTES[0];
   const counts = rowMetrics(institution.status, metrics, {
     students: metricsAvailable.students,
     staff: metricsAvailable.staff,

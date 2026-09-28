@@ -30,11 +30,14 @@ export const UNAVAILABLE_DIRECTORY: InstitutionDirectoryContext = {
 
 export async function loadInstitutionDirectory(): Promise<InstitutionDirectoryContext> {
   try {
-    const result = await gatewayFetch<InstitutionDirectoryContext>('/institutions/directory-context', {
-      method: 'GET',
-      throwOnError: true,
-      cache: 'no-store',
-    });
+    const result = await gatewayFetch<InstitutionDirectoryContext>(
+      '/institutions/directory-context',
+      {
+        method: 'GET',
+        throwOnError: true,
+        cache: 'no-store',
+      },
+    );
     if (!result.ok || !result.data) return UNAVAILABLE_DIRECTORY;
     return {
       organizationName: result.data.organizationName ?? null,

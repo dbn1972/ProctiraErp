@@ -58,7 +58,6 @@ vi.mock('next-intl', () => ({
   },
 }));
 
-
 vi.mock('@/lib/institutions/use-directory-context', () => ({
   useDirectoryContext: () => null,
 }));

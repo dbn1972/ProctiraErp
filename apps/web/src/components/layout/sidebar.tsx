@@ -7,7 +7,11 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 
 import { filterNavItemsByAccess, type NavPermissionItem } from './nav-permissions';
-import { formatTenantSwitcher, initialsFromName, navGroupLabel } from '@/lib/institutions/directory-presentation';
+import {
+  formatTenantSwitcher,
+  initialsFromName,
+  navGroupLabel,
+} from '@/lib/institutions/directory-presentation';
 import { useOptionalBrand } from '@/providers/BrandConfigProvider';
 import { useDirectoryContext } from '@/lib/institutions/use-directory-context';
 
@@ -249,7 +253,9 @@ export function Sidebar() {
             {initialsFromName(switcher.title)}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-snug text-white">{switcher.title}</p>
+            <p className="truncate text-sm font-semibold leading-snug text-white">
+              {switcher.title}
+            </p>
             {switcher.lines.map((line) => (
               <p key={line} className="truncate text-[11px] leading-snug text-slate-400">
                 {line}
@@ -292,7 +298,11 @@ export function Sidebar() {
         </ul>
       </nav>
       <div className="mt-auto border-t border-white/10 px-3 py-3">
-        <Link href="/help" className="sidebar-link sidebar-link-inactive" data-testid="sidebar-link-help">
+        <Link
+          href="/help"
+          className="sidebar-link sidebar-link-inactive"
+          data-testid="sidebar-link-help"
+        >
           <span>Help &amp; Support</span>
         </Link>
       </div>

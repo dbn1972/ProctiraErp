@@ -76,11 +76,7 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-async function scalar(
-  client: PgQueryable,
-  sql: string,
-  params: unknown[],
-): Promise<number | null> {
+async function scalar(client: PgQueryable, sql: string, params: unknown[]): Promise<number | null> {
   try {
     const result = await client.query(sql, params);
     const row = result.rows[0] as Record<string, unknown> | undefined;

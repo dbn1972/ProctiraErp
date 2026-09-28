@@ -4,7 +4,12 @@
  */
 export default function InstitutionsLoading() {
   return (
-    <section aria-busy="true" aria-live="polite" data-testid="institutions-loading" className="space-y-6">
+    <section
+      aria-busy="true"
+      aria-live="polite"
+      data-testid="institutions-loading"
+      className="space-y-6"
+    >
       <div className="space-y-2">
         <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
         <div className="h-4 w-72 animate-pulse rounded-md bg-muted" />

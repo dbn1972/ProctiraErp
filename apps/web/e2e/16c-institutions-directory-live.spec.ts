@@ -77,9 +77,13 @@ test.describe('Institutions directory — Sunrise live', () => {
     await expect(page.getByText('Showing 1–2 of 2')).toBeVisible();
     await expect(page.getByText('Page 1 of 1')).toBeVisible();
 
-    const studentsKpi = page.getByText('Students enrolled').locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
+    const studentsKpi = page
+      .getByText('Students enrolled')
+      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
     await expect(studentsKpi).toContainText('5');
-    const reportingKpi = page.getByText('Reporting today').locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
+    const reportingKpi = page
+      .getByText('Reporting today')
+      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]');
     await expect(reportingKpi).toContainText('0');
 
     const sunriseRow = page.getByRole('row', { name: /Sunrise Public School/ });

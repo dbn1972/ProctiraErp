@@ -8,9 +8,9 @@ import {
 
 describe('boardLabelFromRows', () => {
   it('uses the board code and never an area name', () => {
-    expect(boardLabelFromRows([{ code: 'CBSE', name: 'Central Board of Secondary Education' }])).toBe(
-      'CBSE',
-    );
+    expect(
+      boardLabelFromRows([{ code: 'CBSE', name: 'Central Board of Secondary Education' }]),
+    ).toBe('CBSE');
     expect(boardLabelFromRows([])).toBeNull();
   });
 
@@ -67,7 +67,10 @@ describe('loadInstitutionDirectoryContext', () => {
       },
     };
 
-    const context = await loadInstitutionDirectoryContext('00000000-0000-4000-8000-00000000a501', db);
+    const context = await loadInstitutionDirectoryContext(
+      '00000000-0000-4000-8000-00000000a501',
+      db,
+    );
 
     expect(context.organizationName).toBe('Sunrise Public School');
     expect(context.boardLabel).toBe('CBSE');

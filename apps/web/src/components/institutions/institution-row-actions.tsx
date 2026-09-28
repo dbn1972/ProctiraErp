@@ -17,8 +17,7 @@ import {
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { deactivateInstitutionAction } from '@/lib/institutions/actions';
 
-const iconButtonClass =
-  'h-8 w-8 min-h-6 min-w-6 p-0 focus-visible:ring-2 focus-visible:ring-ring';
+const iconButtonClass = 'h-8 w-8 min-h-6 min-w-6 p-0 focus-visible:ring-2 focus-visible:ring-ring';
 
 export function InstitutionRowActions({
   id,
