@@ -89,6 +89,19 @@ test.describe('Institutions detail — Sunrise live', () => {
     await expect(schedule).toBeVisible();
     await expect(schedule.getByText('Published').first()).toBeVisible();
     await expect(schedule.getByText('Class 9-A Mathematics')).toBeVisible();
+    const sectionRows = schedule.locator('tbody tr');
+    await expect(sectionRows.first()).toContainText('G9A-MATH');
+    await expect(sectionRows.last()).toContainText('G8C-HIN');
+    await expect(sectionRows.last()).toContainText('Archived');
+    await expect(
+      schedule.getByRole('button', { name: 'Publish schedule' }).filter({ visible: true }).first(),
+    ).toBeVisible();
+    await expect(
+      schedule
+        .getByRole('button', { name: 'Unpublish to draft' })
+        .filter({ visible: true })
+        .first(),
+    ).toBeVisible();
     await expect(schedule.getByText('Teacher clash', { exact: true })).toBeVisible();
     await expect(schedule.getByText(/Period 3 \(09:20–10:00\)/)).toBeVisible();
     await expect(schedule.getByText('Neha Verma').first()).toBeVisible();
@@ -100,6 +113,9 @@ test.describe('Institutions detail — Sunrise live', () => {
     await expect(section.getByRole('heading', { name: 'Class 9-B Mathematics' })).toBeVisible();
     await expect(section.getByText('G9B-MATH')).toBeVisible();
     await expect(section.getByText('Aarav Mehta')).toBeVisible();
+    await expect(
+      section.getByRole('button', { name: 'Unpublish to draft' }).filter({ visible: true }),
+    ).toBeVisible();
     const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
     await expect(crumbs.getByText('Sunrise Public School – Mayur Vihar')).toBeVisible();
     await expect(crumbs.getByText('Class 9-B Mathematics')).toBeVisible();

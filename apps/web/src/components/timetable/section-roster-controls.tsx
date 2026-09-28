@@ -69,7 +69,7 @@ export function SectionPublishControls(props: {
           run(false);
         }}
       >
-        {pending ? 'Working…' : isPublished ? 'Unpublish' : 'Publish'}
+        {pending ? 'Working…' : isPublished ? 'Unpublish to draft' : 'Publish schedule'}
       </Button>
       <ConfirmActionDialog
         open={confirmOpen}
