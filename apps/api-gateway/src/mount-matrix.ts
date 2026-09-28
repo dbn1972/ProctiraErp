@@ -255,7 +255,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: true,
     notes:
-      'Raw pg (016_scholarships_schema.sql) when DATABASE_URL set; else in-memory + demo seed (G-204).',
+      'Raw pg (016_scholarships_schema.sql + 104_scholarship_application_documents.sql) when DATABASE_URL set; else in-memory + demo seed (G-204). Supporting files use @proctira/storage (S3/MinIO) or local disk.',
     registrarName: 'scholarship',
   },
   {

@@ -206,6 +206,7 @@
     "report_schedules": "dml",
     "rooms": "dml",
     "schema_migrations": "denied",
+    "scholarship_application_documents": "dml",
     "scholarship_applications": "dml",
     "scholarship_compliance_records": "dml",
     "scholarship_disbursements": "dml",

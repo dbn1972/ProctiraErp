@@ -34,6 +34,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { authorizeApplicationCreate } from './document-routes.js';
 import { requireScholarshipAction } from './scholarship-http-guard.js';
 import type { ScholarshipService } from './scholarship-service.js';
 import {
@@ -66,6 +67,8 @@ export interface ScholarshipRoutesOptions {
   scholarshipService: ScholarshipService;
   /** Route prefix (default: '/scholarships') */
   prefix?: string;
+  /** Active parent_child_links for the caller, when Postgres is available. */
+  resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
 }
 
 /**
@@ -97,7 +100,7 @@ export async function registerScholarshipRoutes(
   fastify: FastifyInstance,
   options: ScholarshipRoutesOptions,
 ): Promise<void> {
-  const { scholarshipService, prefix = '/scholarships' } = options;
+  const { scholarshipService, prefix = '/scholarships', resolveLinkedStudentIds } = options;
 
   // ─── Program Routes ────────────────────────────────────────────────────
 
@@ -349,8 +352,6 @@ export async function registerScholarshipRoutes(
       request: FastifyRequest<{ Body: CreateApplicationInput }>,
       reply: FastifyReply,
     ) {
-      if (!requireScholarshipAction(request, reply, 'application.submit')) return;
-
       const result = validate(CreateApplicationSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -368,6 +369,17 @@ export async function registerScholarshipRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
+      }
+
+      if (
+        !(await authorizeApplicationCreate(
+          request,
+          reply,
+          result.data.applicantId,
+          resolveLinkedStudentIds,
+        ))
+      ) {
+        return;
       }
 
       try {

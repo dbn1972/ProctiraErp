@@ -1610,6 +1610,112 @@ FROM (
 ) AS item(n, title, tone, actor, occurred_at)
 ON CONFLICT (id) DO NOTHING;
 
+-- Merit scholarship for Aarav Mehta. Document bytes are the canonical
+-- placeholder PDF (sha256 7856c8e9…); write them with
+--   node db/seeds/write-sunrise-scholarship-placeholders.mjs
+-- Metadata only is stored here so the seed stays free of large binaries.
+INSERT INTO scholarship_programs (
+  id, tenant_id, name, description, application_start_date, application_end_date,
+  total_slots, used_slots, amount_per_recipient, amount_per_recipient_cents, currency,
+  disbursement_frequency, eligibility, status
+)
+VALUES (
+  '00000000-0000-4000-8000-00000000a5e1',
+  '00000000-0000-4000-8000-00000000a501',
+  'Sunrise Merit Award',
+  'Need and merit support for Grade 9. Required files: income certificate, marksheet, ID proof.',
+  DATE '2026-01-01',
+  DATE '2026-12-31',
+  40,
+  1,
+  25000,
+  2500000,
+  'INR',
+  'one_time',
+  '{"minGPA":3.0,"requiredDocuments":["income_certificate","marksheet","id_proof"]}'::jsonb,
+  'open'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO scholarship_applications (
+  id, tenant_id, program_id, applicant_id, institution_id, status,
+  academic_records, financial_info, documents, personal_statement, gender, submitted_at
+)
+VALUES (
+  '00000000-0000-4000-8000-00000000a5e2',
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a5e1',
+  '00000000-0000-4000-8000-00000000a5b1',
+  '00000000-0000-4000-8000-00000000a551',
+  'under_review',
+  '[{"institutionName":"Sunrise Public School – Mayur Vihar","educationLevel":"secondary","gpa":3.6,"yearCompleted":2026}]'::jsonb,
+  '{"familyIncome":180000,"numberOfDependents":2,"employmentStatus":"student"}'::jsonb,
+  '[]'::jsonb,
+  'Aarav is applying for the Sunrise Merit Award.',
+  'male',
+  TIMESTAMPTZ '2026-09-01 10:00:00+05:30'
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO scholarship_application_documents (
+  id, tenant_id, application_id, document_type, object_key, original_filename,
+  mime_type, size_bytes, sha256, uploaded_by, uploaded_at, verification_status,
+  reviewer_id, rejection_reason, reviewed_at
+)
+VALUES
+  (
+    '00000000-0000-4000-8000-00000000a5e3',
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a5e2',
+    'income_certificate',
+    'scholarships/00000000-0000-4000-8000-00000000a5e2/documents/00000000-0000-4000-8000-00000000a5e3',
+    'income-certificate.pdf',
+    'application/pdf',
+    118,
+    '7856c8e9ef203bbcac0d98630035fd1ced46f1bdd446c940d6411e183f6073ec',
+    'parent-mehta',
+    TIMESTAMPTZ '2026-09-01 10:05:00+05:30',
+    'PENDING',
+    NULL,
+    NULL,
+    NULL
+  ),
+  (
+    '00000000-0000-4000-8000-00000000a5e4',
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a5e2',
+    'marksheet',
+    'scholarships/00000000-0000-4000-8000-00000000a5e2/documents/00000000-0000-4000-8000-00000000a5e4',
+    'marksheet.pdf',
+    'application/pdf',
+    118,
+    '7856c8e9ef203bbcac0d98630035fd1ced46f1bdd446c940d6411e183f6073ec',
+    'parent-mehta',
+    TIMESTAMPTZ '2026-09-01 10:06:00+05:30',
+    'VERIFIED',
+    'priya-sharma',
+    NULL,
+    TIMESTAMPTZ '2026-09-02 09:00:00+05:30'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000a5e5',
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a5e2',
+    'id_proof',
+    'scholarships/00000000-0000-4000-8000-00000000a5e2/documents/00000000-0000-4000-8000-00000000a5e5',
+    'id-proof.pdf',
+    'application/pdf',
+    118,
+    '7856c8e9ef203bbcac0d98630035fd1ced46f1bdd446c940d6411e183f6073ec',
+    'parent-mehta',
+    TIMESTAMPTZ '2026-09-01 10:07:00+05:30',
+    'REJECTED',
+    'priya-sharma',
+    'The scan is unreadable. Upload a clearer copy of the school ID.',
+    TIMESTAMPTZ '2026-09-02 09:05:00+05:30'
+  )
+ON CONFLICT (id) DO NOTHING;
+
 DO $$
 DECLARE
   tid CONSTANT uuid := '00000000-0000-4000-8000-00000000a501';
@@ -1627,6 +1733,7 @@ DECLARE
   n_decided int;
   n_named int;
   n_areas int;
+  n_docs int;
   pct int;
 BEGIN
   SELECT count(*) INTO n_institutions
@@ -1652,13 +1759,17 @@ BEGIN
    WHERE tenant_id = tid AND deleted_at IS NULL
      AND code IN ('DL-EAST', 'DL-NORTH', 'DL-SOUTH');
 
+  SELECT count(*) INTO n_docs
+    FROM scholarship_application_documents
+   WHERE tenant_id = tid AND deleted_at IS NULL;
+
   IF n_institutions < 5 OR n_areas < 3 OR n_classes < 6 OR n_sections < 3
      OR n_students < 3615 OR n_staff < 245 OR n_named < 1
      OR n_plans < 3 OR n_invoices < 3 OR n_open < 1 OR n_paid < 1
-     OR n_consents < 2 OR n_pending < 1 OR n_decided < 1 THEN
+     OR n_consents < 2 OR n_pending < 1 OR n_decided < 1 OR n_docs < 3 THEN
     RAISE EXCEPTION
-      'sunrise demo seed incomplete: institutions=% areas=% classes=% sections=% students=% staff=% named=% plans=% invoices=% open=% paid=% consents=% pending=% decided=%',
-      n_institutions, n_areas, n_classes, n_sections, n_students, n_staff, n_named, n_plans, n_invoices, n_open, n_paid, n_consents, n_pending, n_decided;
+      'sunrise demo seed incomplete: institutions=% areas=% classes=% sections=% students=% staff=% named=% plans=% invoices=% open=% paid=% consents=% pending=% decided=% docs=%',
+      n_institutions, n_areas, n_classes, n_sections, n_students, n_staff, n_named, n_plans, n_invoices, n_open, n_paid, n_consents, n_pending, n_decided, n_docs;
   END IF;
 
   FOR pct IN
