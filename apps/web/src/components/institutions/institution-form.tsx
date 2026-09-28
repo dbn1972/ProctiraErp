@@ -194,6 +194,8 @@ export function InstitutionForm({
         onSubmit={(event) => {
           void onSubmit(event);
         }}
+        onInput={markDirty}
+        onChange={markDirty}
         className="space-y-8"
         data-testid="institution-profile-form"
         data-dirty={formIsDirty ? 'true' : 'false'}

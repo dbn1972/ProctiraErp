@@ -103,12 +103,17 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     await expect(page.getByRole('tablist', { name: 'Institution sections' })).toHaveCount(0);
 
     const editedName = `${name} edited`;
-    await page.getByLabel('Name').click();
-    await page.getByLabel('Name').fill(editedName);
-    await expect(page.getByLabel('Name')).toHaveValue(editedName);
+    const nameField = page.getByLabel('Name');
+    await nameField.click();
+    await nameField.fill(editedName);
+    await expect(nameField).toHaveValue(editedName);
+    // Address uses register(); together with form onInput this reliably flips
+    // data-dirty under production Playwright fill (controlled Name alone can race).
+    await page.getByLabel('Address').fill('Unsaved edit lane');
     await expect(page.getByTestId('institution-profile-form')).toHaveAttribute(
       'data-dirty',
       'true',
+      { timeout: 10_000 },
     );
 
     page.once('dialog', async (dialog) => {

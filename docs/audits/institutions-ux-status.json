@@ -1,6 +1,6 @@
 {
-  "tip": "297246d6",
-  "note": "LIVE evidence on tip 297246d6: 16d + 16f + reactivate passed with E2E_BACKEND_READY=1 after harness applies db/seeds/006; captures under docs/audits/captures/institutions-*/; axe institutions routes 14/14 passed.",
+  "tip": "3eda2462",
+  "note": "LIVE evidence: 16d+16f+reactivate passed locally with harness Sunrise seed (006); form onInput/onChange marks data-dirty; captures under docs/audits/captures/institutions-*/; axe institutions 14/14.",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
     "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
@@ -226,14 +226,14 @@
       "id": "detail-overview.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1–10 bars.",
+      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1\u201310 bars.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "16d clicks School report → /overview/report. Captures overview-*-live.png.",
+      "evidence": "16d clicks School report \u2192 /overview/report. Captures overview-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
