@@ -1,5 +1,5 @@
 {
-  "tip": "1d3e4bce",
+  "tip": "26782e4f",
   "note": "LIVE evidence on tip: 16d + 16f passed with E2E_BACKEND_READY=1 against Sunrise seed; captures under docs/audits/captures/institutions-*/; axe institutions routes 14/14 passed.",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
