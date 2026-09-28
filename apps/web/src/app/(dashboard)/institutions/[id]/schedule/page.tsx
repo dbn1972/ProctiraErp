@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 import { Card, CardContent } from '@proctira/ui/components';
 
-import { SectionCreateForm } from '@/components/timetable/section-create-form';
+import { SectionCreatePanel } from '@/components/timetable/section-create-form';
 import { SectionPublishControls } from '@/components/timetable/section-roster-controls';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { getStaff, listStaff } from '@/lib/api/staff';
@@ -156,16 +156,11 @@ export default async function InstitutionSchedulePage(props: PageProps) {
             </Card>
           )}
 
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <h3 className="text-base font-semibold">Create section</h3>
-              <SectionCreateForm
-                institutionId={institutionId}
-                academicPeriodId={academicPeriodId}
-                roomOptions={roomOptions}
-              />
-            </CardContent>
-          </Card>
+          <SectionCreatePanel
+            institutionId={institutionId}
+            academicPeriodId={academicPeriodId}
+            roomOptions={roomOptions}
+          />
 
           <Card className="overflow-hidden">
             <CardContent className="p-0">

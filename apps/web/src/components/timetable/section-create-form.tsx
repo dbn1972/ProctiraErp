@@ -3,9 +3,42 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Button } from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 
 import { createSectionAction } from '@/app/(dashboard)/timetable-actions';
+
+export function SectionCreatePanel(props: {
+  institutionId: string;
+  academicPeriodId: string;
+  roomOptions: { id: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Create section</h3>
+            <p className="text-sm text-muted-foreground">
+              The sections list stays in view until you need a new one.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={open ? 'outline' : 'default'}
+            onClick={() => setOpen((value) => !value)}
+            data-testid="toggle-create-section"
+            aria-expanded={open}
+          >
+            {open ? 'Hide form' : 'Create section'}
+          </Button>
+        </div>
+        {open ? <SectionCreateForm {...props} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function SectionCreateForm(props: {
   institutionId: string;

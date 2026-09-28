@@ -172,15 +172,25 @@ export function SectionBulkEnrollForm(props: {
           }
           byAdmission.set(option.label.toLowerCase(), option.id);
         }
-        const studentIds = raw
+        const tokens = raw
           .split(/[\s,;]+/)
           .map((s) => s.trim())
-          .filter(Boolean)
-          .map((token) => byAdmission.get(token.toLowerCase()) ?? token);
+          .filter(Boolean);
+        const studentIds: string[] = [];
+        const unknown: string[] = [];
+        for (const token of tokens) {
+          const resolved = byAdmission.get(token.toLowerCase());
+          if (resolved) studentIds.push(resolved);
+          else unknown.push(token);
+        }
         setError(null);
         setMessage(null);
+        if (tokens.length === 0) {
+          setError('Enter at least one admission number');
+          return;
+        }
         if (studentIds.length === 0) {
-          setError('Enter at least one student id');
+          setError(`No matching students for ${unknown.join(', ')}`);
           return;
         }
         startTransition(async () => {
@@ -197,13 +207,10 @@ export function SectionBulkEnrollForm(props: {
             const names = new Map(
               (props.studentOptions ?? []).map((option) => [option.id, option.label]),
             );
+            const failedNames = result.failed.map((f) => names.get(f.studentId) ?? f.studentId);
+            const named = [...failedNames, ...unknown];
             const failNote =
-              result.failed.length > 0
-                ? ` · ${result.failed.length} failed (${result.failed
-                    .slice(0, 3)
-                    .map((f) => names.get(f.studentId) ?? 'a student')
-                    .join(', ')})`
-                : '';
+              named.length > 0 ? ` · ${named.length} failed (${named.slice(0, 3).join(', ')})` : '';
             setMessage(`Enrolled ${result.enrolled}${failNote}`);
           }
           event.currentTarget.reset();
@@ -212,8 +219,12 @@ export function SectionBulkEnrollForm(props: {
       }}
     >
       <label className="block text-sm font-medium text-foreground" htmlFor="bulkStudentIds">
-        Bulk assign (student ids, comma or newline separated)
+        Bulk assign by admission number
       </label>
+      <p className="text-xs text-muted-foreground">
+        Paste admission numbers separated by commas or new lines. Unknown numbers are named in the
+        result instead of raw ids.
+      </p>
       <textarea
         id="bulkStudentIds"
         name="studentIds"

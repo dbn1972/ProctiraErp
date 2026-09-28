@@ -1,12 +1,12 @@
 {
-  "tip": "774eb8f776fa823ac6f89216eb09633b139c2b9e",
-  "note": "Seeded from the coordinator map, then checked against origin/main 774eb8f7. Items still open on that tip stay NOT_DONE until a later commit on this branch proves them.",
+  "tip": "pending implementation commit",
+  "note": "DONE items owned by this branch were checked in code and unit tests. Playwright rows marked PARTIAL until the live Sunrise run records a pass.",
   "parity": {
-    "list.html": "Visual parity not recaptured on this tip. Functional: apps/web/e2e/16b-institutions-directory-ui.spec.ts, 16c-institutions-directory-live.spec.ts.",
-    "detail.html": "Redirect is middleware 307 (middleware.test.ts). No separate visual capture. Functional coverage is the overview hop in a11y-axe.spec.ts.",
+    "list.html": "Attendance band word added. Functional: 16b and 16c. New visual capture not taken on this commit.",
+    "detail.html": "Middleware 307 plus React cache. Gateway-down is an error state (16f-institutions-profile-write.spec.ts with E2E_ALLOW_GATEWAY_SIMULATION). Captures pending.",
     "detail-classes.html": "Captures exist under docs/audits/captures/institutions-detail/classes-*. Functional: 16d-institutions-detail-live.spec.ts.",
     "detail-curriculum.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
-    "detail-edit.html": "Prototype still shows hero actions; product fix is pending on this branch. No new capture yet.",
+    "detail-edit.html": "Separate edit chrome (no hero Edit/School report/tabs). Functional e2e 16f-institutions-profile-write.spec.ts when the Sunrise stack is up. Captures pending a production web build.",
     "detail-gradebook.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
     "detail-grades.html": "Captures under docs/audits/captures/institutions-detail/grades-*. Functional: 16d-institutions-detail-live.spec.ts.",
     "detail-infrastructure.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
@@ -16,15 +16,15 @@
     "detail-timetable.html": "IN_PROGRESS in PR #478. Not edited here.",
     "detail-timetable-generate.html": "IN_PROGRESS in PR #478. Not edited here.",
     "detail-timetable-substitutions.html": "IN_PROGRESS in PR #478. Not edited here.",
-    "new.html": "Product fix pending on this branch. No new capture yet."
+    "new.html": "Grouped identity/classification/location, UDISE label, active-on-create copy, coordinate preview link. Functional e2e 16f-institutions-profile-write.spec.ts. Captures pending a production web build."
   },
   "findings": [
     {
       "id": "list.html#1",
       "status": "DONE",
-      "ownerPr": "#465/#468",
-      "evidence": "institutions/page.tsx KPI values come from loadInstitutionDirectory; null renders Currently unavailable. Residual foot copy still says Connect enrollment API — disposition PARTIAL until that foot is replaced.",
-      "disposition": "PARTIAL"
+      "ownerPr": "#465/#468 + this branch",
+      "evidence": "directory.ts supplies studentsEnrolled and reportingToday. Null copy is Currently unavailable / Enrollment totals are not available yet (institutions/page.tsx). Verified by reading the page and directory-presentation.test.ts.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "list.html#2",
@@ -42,24 +42,24 @@
     },
     {
       "id": "list.html#4",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "AttendanceBar in institutions/page.tsx renders colour plus a bare percent. attendanceTone exists; no band word is shown.",
-      "disposition": "OPEN"
+      "evidence": "directoryAttendanceBand in directory-presentation.test.ts (On track / Watch / Low) rendered beside the percent in AttendanceBar.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail.html#1",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "middleware institutionBareDetailRedirect avoids the bare-URL hop (middleware.test.ts) but layout.tsx and overview/page.tsx both call getInstitution without React cache.",
-      "disposition": "OPEN"
+      "evidence": "getCachedInstitution = cache(getInstitution) in request-cache.ts, used by layout, overview, and edit. load-state.test.ts asserts the wrap. Middleware 307 still covers the bare URL (middleware.test.ts).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail.html#2",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "layout.tsx unavailableInstitution sets status ACTIVE and the hero paints a green Active pill.",
-      "disposition": "OPEN"
+      "evidence": "classifyInstitutionLoadError statusCode 0 is gateway-down (load-state.test.ts). Layout renders InstitutionGatewayDown. Playwright 16f-institutions-profile-write.spec.ts gateway down passed on Chromium with E2E_ALLOW_GATEWAY_SIMULATION=1 (no Active pill).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-classes.html#1",
@@ -119,24 +119,24 @@
     },
     {
       "id": "detail-edit.html#1",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "edit/page.tsx still renders under the detail layout hero and InstitutionTabs.",
-      "disposition": "OPEN"
+      "evidence": "InstitutionHeroActions and InstitutionSectionTabs return null on /edit. 16f-institutions-profile-write.spec.ts asserts School report and Institution sections tablist are absent.",
+      "disposition": "PARTIAL"
     },
     {
       "id": "detail-edit.html#2",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "institution-form.tsx has no deactivate or reactivate control. List menu and header reactivate exist elsewhere.",
-      "disposition": "OPEN"
+      "evidence": "InstitutionDeactivateButton and InstitutionReactivateButton on the edit form. #472 reactivate is on main. 16f-institutions-profile-write.spec.ts deactivates from the form.",
+      "disposition": "PARTIAL"
     },
     {
       "id": "detail-edit.html#3",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "Cancel calls router.back() with no dirty check.",
-      "disposition": "OPEN"
+      "evidence": "InstitutionForm confirms on dirty link clicks and Cancel. 16f-institutions-profile-write.spec.ts dismisses the dialog and stays on /edit.",
+      "disposition": "PARTIAL"
     },
     {
       "id": "detail-gradebook.html#1",
@@ -245,10 +245,10 @@
     },
     {
       "id": "detail-overview.html#4",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "overview/page.tsx awaits getInstitution then getInstitutionOverview. loading.tsx has per-card skeletons but the page does not stream them while the second call runs. Layout also awaits the overview snapshot.",
-      "disposition": "OPEN"
+      "evidence": "overview/page.tsx loads institution, lookups, and overview snapshot in one Promise.all via the request cache. overview/loading.tsx renders four KPI skeletons plus chart skeletons. Layout no longer awaits the overview snapshot.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule.html#1",
@@ -273,10 +273,10 @@
     },
     {
       "id": "detail-schedule.html#4",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "SectionCreateForm is always mounted inside the Create section card.",
-      "disposition": "OPEN"
+      "evidence": "SectionCreatePanel keeps SectionCreateForm collapsed behind the Create section button (section-create-form.tsx).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule-section.html#1",
@@ -287,10 +287,10 @@
     },
     {
       "id": "detail-schedule-section.html#2",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "Bulk form maps admission tokens via searchText and names failures, but the visible label is still Bulk assign (student ids). Placeholder falls back to Admission numbers. Status left NOT_DONE until the label matches.",
-      "disposition": "PARTIAL"
+      "evidence": "SectionBulkEnrollForm label is Bulk assign by admission number. Unknown tokens are named; API failures use the student label. Code review of section-roster-controls.tsx.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule-section.html#3",
@@ -392,31 +392,31 @@
     },
     {
       "id": "new.html#1",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "institution-form.tsx is one grid with no Identity / Classification / Location headings.",
-      "disposition": "OPEN"
+      "evidence": "institution-form.tsx sections Identity, Classification, Location and contact. 16f-institutions-profile-write.spec.ts asserts those headings.",
+      "disposition": "PARTIAL"
     },
     {
       "id": "new.html#2",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "new/page.tsx still says the school will appear once approved. createInstitutionAction creates it immediately.",
-      "disposition": "OPEN"
+      "evidence": "new/page.tsx says the school is created active. 16f-institutions-profile-write.spec.ts asserts once approved is absent.",
+      "disposition": "PARTIAL"
     },
     {
       "id": "new.html#3",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "The field label is Code, with no UDISE hint.",
-      "disposition": "OPEN"
+      "evidence": "Label UDISE code plus hint. validation.ts message UDISE code is required.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "new.html#4",
-      "status": "NOT_DONE",
+      "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "Latitude and longitude are bare number inputs. Leaflet exists only in apps/registration-portal, not apps/web.",
-      "disposition": "OPEN"
+      "evidence": "Decimal-degree hints and coordinateMapPreview OpenStreetMap link (load-state.test.ts). Leaflet is only in apps/registration-portal, so the staff form does not embed a picker.",
+      "disposition": "FULLY_CLOSED"
     }
   ]
 }

@@ -9,7 +9,9 @@ import { notFound } from 'next/navigation';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { InstitutionForm } from '@/components/institutions/institution-form';
-import { ApiClientError, getInstitution } from '@/lib/institutions/api';
+import { ApiClientError } from '@/lib/institutions/api';
+import { classifyInstitutionLoadError } from '@/lib/institutions/load-state';
+import { getCachedInstitution } from '@/lib/institutions/request-cache';
 import { loadInstitutionFormLookups } from '@/lib/institutions/lookups';
 
 interface EditInstitutionPageProps {
@@ -29,6 +31,7 @@ export default async function EditInstitutionPage(props: EditInstitutionPageProp
     loadInstitutionOrNotFound(params.id),
     loadInstitutionFormLookups(),
   ]);
+  if (!institution) return null;
 
   return (
     <Card className="max-w-[860px]">
@@ -54,11 +57,12 @@ export default async function EditInstitutionPage(props: EditInstitutionPageProp
 
 async function loadInstitutionOrNotFound(id: string) {
   try {
-    return await getInstitution(id);
+    return await getCachedInstitution(id);
   } catch (error) {
-    if (error instanceof ApiClientError && error.statusCode === 404) {
-      notFound();
-    }
+    if (!(error instanceof ApiClientError)) throw error;
+    const failure = classifyInstitutionLoadError(error);
+    if (failure === 'not-found') notFound();
+    if (failure === 'gateway-down') return null;
     throw error;
   }
 }

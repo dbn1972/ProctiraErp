@@ -208,6 +208,75 @@ export function InstitutionRowActions({
   );
 }
 
+/** Edit-form control. Deactivate stays off the hero while the profile form is open. */
+export function InstitutionDeactivateButton({ id, name }: { id: string; name: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const deactivate = () => {
+    const trimmed = reason.trim();
+    if (!trimmed) {
+      setError('A deactivation reason is required');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await deactivateInstitutionAction(id, trimmed);
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+      setOpen(false);
+      setReason('');
+      setToast(`${name} is inactive`);
+      router.refresh();
+    });
+  };
+
+  return (
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => setOpen(true)}
+        data-testid={`deactivate-form-${id}`}
+      >
+        Deactivate school
+      </Button>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Deactivate ${name}?`}
+        description="The school is marked inactive. You can reactivate it from this form later."
+        confirmLabel="Deactivate"
+        destructive
+        pending={pending}
+        onConfirm={deactivate}
+        testId={`deactivate-form-dialog-${id}`}
+      >
+        <div className="space-y-2">
+          <Label htmlFor={`deactivate-form-reason-${id}`}>Reason</Label>
+          <Textarea
+            id={`deactivate-form-reason-${id}`}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            required
+            rows={3}
+            placeholder="Why is this school being deactivated?"
+          />
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        </div>
+      </ConfirmActionDialog>
+      <StatusToast message={toast} />
+    </>
+  );
+}
+
 /** Detail header control for an inactive school. Deactivate stays on the list menu.
  *  The component stays mounted after refresh so the success toast is not removed
  *  when the server stops rendering the button. */

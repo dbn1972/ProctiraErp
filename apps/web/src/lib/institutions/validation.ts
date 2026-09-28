@@ -37,7 +37,10 @@ const optionalCoordinate = (min: number, max: number, label: string) =>
 
 export const institutionFormSchema = z.object({
   name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or fewer'),
-  code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
+  code: z
+    .string()
+    .min(1, 'UDISE code is required')
+    .max(50, 'UDISE code must be 50 characters or fewer'),
   areaId: uuid('Area'),
   typeId: uuid('Type'),
   sectorId: uuid('Sector'),
