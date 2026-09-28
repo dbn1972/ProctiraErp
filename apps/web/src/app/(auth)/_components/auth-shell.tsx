@@ -36,6 +36,9 @@ const STATS = [
 
 export function AuthShell({ children }: { children: React.ReactNode }): JSX.Element {
   return (
+    // `bg-background`, not `bg-white`: the token is white in light mode, so this is
+    // pixel-identical there, and it stops dark mode painting tokenised near-white
+    // foreground onto a fixed white surface. See `(auth)/layout.tsx` for the measurement.
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       {/* Brand panel — visible on lg+ */}
       <aside

@@ -140,6 +140,18 @@ export function SignUpForm(): JSX.Element {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /**
+   * `data-hydrated` is the repository's convention for "this form's `onSubmit` is
+   * attached" — ~20 dashboard specs already wait on it. The anonymous forms did not carry
+   * it, and the gap is not cosmetic: the form is server-rendered with `noValidate`, so a
+   * click landing before hydration submits nothing at all and no validation message
+   * appears. `55-responsive-layout.spec.ts` raced exactly that way until this marker
+   * existed.
+   */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   // Confirmation-screen state surfaced after a successful submit when the
   // tenant requires email verification.
@@ -324,7 +336,14 @@ export function SignUpForm(): JSX.Element {
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit} noValidate aria-label={t('signUp')} className="space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          aria-label={t('signUp')}
+          className="space-y-5"
+          data-testid="signup-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={fieldIds.fullName}>{t('fullName')}</Label>

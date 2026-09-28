@@ -15,6 +15,8 @@ on:
       - 'apps/web/src/app/(auth)/**'
       - 'apps/web/e2e/24-visual-regression.spec.ts'
       - 'apps/web/e2e/24-visual-regression.spec.ts-snapshots/**'
+      - 'apps/web/e2e/55-responsive-layout.spec.ts'
+      - 'apps/web/e2e/qa-matrix.ts'
       - 'apps/web/playwright.config.ts'
       - '.github/workflows/visual-regression.yml'
   schedule:
@@ -61,6 +63,23 @@ jobs:
             --project=chromium \
             --project=tablet \
             --project=mobile-chrome
+        env:
+          CI: '1'
+          PLAYWRIGHT_ALL_BROWSERS: ''
+
+      # Volume 12 §3.2 — the device-class projects. `tablet-android`, `desktop` and
+      # `desktop-large` carry a `testMatch` narrowed to this one spec (see
+      # `apps/web/e2e/qa-matrix.ts`), so they cost four tests each rather than re-running
+      # the whole web suite. All three are Chromium-engine, so the install above covers
+      # them; no baselines are involved, which is why they are a separate step from the
+      # screenshot run.
+      - name: Run device-class layout checks (Volume 12 §3.2)
+        run: |
+          pnpm --filter @proctira/web exec playwright test \
+            e2e/55-responsive-layout.spec.ts \
+            --project=tablet-android \
+            --project=desktop \
+            --project=desktop-large
         env:
           CI: '1'
           PLAYWRIGHT_ALL_BROWSERS: ''

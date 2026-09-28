@@ -58,6 +58,9 @@ const CATEGORY = [
   [/visual-regression/i, 'visual'],
   [/rtl/i, 'rtl'],
   [/loading-skeleton/i, 'cls'],
+  // Volume 12 §5 — viewport-class layout sweep. Must precede the `functional`
+  // catch-all, which is broad enough to swallow it.
+  [/responsive/i, 'responsive'],
   [
     /write|journey|lms|scholarships|health|workflows|parent|login|attendance|assessment|transfer|bulk/i,
     'functional',
@@ -96,7 +99,7 @@ lines.push(`- Playwright specs: **${specs.length}**`);
 lines.push(`- Pages without any e2e reference: **${uncovered.length}**`);
 lines.push('');
 lines.push(
-  'Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).',
+  'Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `responsive` (Volume 12 §3.1 viewport-class layout sweep), `smoke` (inventory / route resolution).',
 );
 lines.push('');
 for (const [group, groupRows] of [...byGroup.entries()].sort()) {

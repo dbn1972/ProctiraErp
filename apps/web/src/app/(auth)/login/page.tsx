@@ -11,6 +11,11 @@ import { LanguageSelector } from '@/components/LanguageSelector';
  */
 export default function LoginPage() {
   return (
+    // `bg-background`, not `bg-white`. The token resolves to white in light mode, so the
+    // committed visual-regression baselines are unchanged; in dark mode it stops
+    // tokenised near-white text (#e7ebf4) landing on a hardcoded #ffffff surface, which
+    // axe-core measured at 1.19:1. The `bg-white/10` stat cards further down stay as they
+    // are — they are deliberate translucency over the navy hero, paired with `text-white`.
     <div className="flex min-h-screen flex-col bg-background lg:flex-row">
       {/* Hero panel — visible on lg+ */}
       <section
