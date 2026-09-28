@@ -7,8 +7,13 @@ import {
   createLearningOutcomeAction,
   createLessonPlanAction,
   createSyllabusUnitAction,
+  deleteLearningOutcomeAction,
+  deleteLessonPlanAction,
   markUnitTaughtAction,
+  unmarkUnitTaughtAction,
+  updateLessonPlanAction,
 } from '@/app/(dashboard)/institutions/[id]/curriculum/actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import type {
   CoverageSummary,
@@ -51,7 +56,10 @@ export function CurriculumPanel({
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<Record<string, string | null>>({});
+  const [confirmTaught, setConfirmTaught] = useState<{ unitId: string; undo: boolean } | null>(
+    null,
+  );
   const [scope, setScope] = useState({
     subjectId: defaultSubjectId,
     gradeId: defaultGradeId,
@@ -60,12 +68,33 @@ export function CurriculumPanel({
 
   const taught = useMemo(() => new Set(coverageRows.map((c) => c.unitId)), [coverageRows]);
 
-  const applyScope = () => {
+  const pushScope = (next: typeof scope) => {
     const params = new URLSearchParams();
-    if (scope.subjectId) params.set('subjectId', scope.subjectId);
-    if (scope.gradeId) params.set('gradeId', scope.gradeId);
-    if (scope.academicPeriodId) params.set('academicPeriodId', scope.academicPeriodId);
+    if (next.subjectId) params.set('subjectId', next.subjectId);
+    if (next.gradeId) params.set('gradeId', next.gradeId);
+    if (next.academicPeriodId) params.set('academicPeriodId', next.academicPeriodId);
     router.push(`/institutions/${institutionId}/curriculum?${params.toString()}`);
+  };
+
+  const setScopeField = (key: keyof typeof scope, value: string) => {
+    const next = { ...scope, [key]: value };
+    setScope(next);
+    pushScope(next);
+  };
+
+  const runTaught = (unitId: string, undo: boolean) => {
+    setFormError((current) => ({ ...current, [`taught-${unitId}`]: null }));
+    startTransition(async () => {
+      const result = undo
+        ? await unmarkUnitTaughtAction(institutionId, unitId)
+        : await markUnitTaughtAction(institutionId, { unitId });
+      if (!result.ok) {
+        setFormError((current) => ({ ...current, [`taught-${unitId}`]: result.error }));
+        return;
+      }
+      setConfirmTaught(null);
+      router.refresh();
+    });
   };
 
   const percent = coverage?.percent ?? 0;
@@ -83,7 +112,7 @@ export function CurriculumPanel({
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             data-testid="curriculum-subject"
             value={scope.subjectId}
-            onChange={(e) => setScope((s) => ({ ...s, subjectId: e.target.value }))}
+            onChange={(e) => setScopeField('subjectId', e.target.value)}
           >
             <option value="">Select</option>
             {subjects.map((s) => (
@@ -99,7 +128,7 @@ export function CurriculumPanel({
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             data-testid="curriculum-grade"
             value={scope.gradeId}
-            onChange={(e) => setScope((s) => ({ ...s, gradeId: e.target.value }))}
+            onChange={(e) => setScopeField('gradeId', e.target.value)}
           >
             <option value="">Select</option>
             {grades.map((g) => (
@@ -115,7 +144,7 @@ export function CurriculumPanel({
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             data-testid="curriculum-period"
             value={scope.academicPeriodId}
-            onChange={(e) => setScope((s) => ({ ...s, academicPeriodId: e.target.value }))}
+            onChange={(e) => setScopeField('academicPeriodId', e.target.value)}
           >
             <option value="">Select</option>
             {periods.map((p) => (
@@ -130,7 +159,7 @@ export function CurriculumPanel({
             type="button"
             variant="secondary"
             data-testid="curriculum-apply-scope"
-            onClick={applyScope}
+            onClick={() => pushScope(scope)}
           >
             Apply scope
           </Button>
@@ -163,19 +192,14 @@ export function CurriculumPanel({
         </div>
       </div>
 
-      {error ? (
-        <p className="text-sm text-destructive" role="alert" data-testid="curriculum-error">
-          {error}
-        </p>
-      ) : null}
-
       <form
         className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2"
         data-testid="syllabus-unit-form"
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
-          setError(null);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
+          setFormError((current) => ({ ...current, unit: null }));
           startTransition(async () => {
             const result = await createSyllabusUnitAction(institutionId, {
               subjectId: scope.subjectId,
@@ -186,15 +210,24 @@ export function CurriculumPanel({
               notes: String(fd.get('notes') ?? ''),
             });
             if (!result.ok) {
-              setError(result.error);
+              setFormError((current) => ({ ...current, unit: result.error }));
               return;
             }
-            event.currentTarget.reset();
+            form.reset();
             router.refresh();
           });
         }}
       >
         <h3 className="text-sm font-semibold sm:col-span-2">Add syllabus unit</h3>
+        {formError.unit ? (
+          <p
+            className="text-sm text-destructive sm:col-span-2"
+            role="alert"
+            data-testid="unit-form-error"
+          >
+            {formError.unit}
+          </p>
+        ) : null}
         <div className="space-y-1.5">
           <Label htmlFor="unit-code">Code</Label>
           <Input id="unit-code" name="code" required maxLength={50} />
@@ -249,31 +282,80 @@ export function CurriculumPanel({
                     type="button"
                     size="sm"
                     variant={isTaught ? 'secondary' : 'default'}
-                    disabled={pending || isTaught}
+                    disabled={pending}
                     data-testid={`mark-taught-${unit.id}`}
-                    onClick={() => {
-                      setError(null);
-                      startTransition(async () => {
-                        const result = await markUnitTaughtAction(institutionId, {
-                          unitId: unit.id,
-                        });
-                        if (!result.ok) {
-                          setError(result.error);
-                          return;
-                        }
-                        router.refresh();
-                      });
-                    }}
+                    onClick={() => setConfirmTaught({ unitId: unit.id, undo: isTaught })}
                   >
                     {isTaught ? 'Taught' : 'Mark taught'}
                   </Button>
                 </div>
+                {formError[`taught-${unit.id}`] ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {formError[`taught-${unit.id}`]}
+                  </p>
+                ) : null}
                 {plans.length > 0 ? (
                   <ul className="space-y-1 text-sm text-muted-foreground">
                     {plans.map((plan) => (
-                      <li key={plan.id} data-testid="lesson-plan-row">
-                        {plan.title}
-                        {plan.plannedDate ? ` · ${plan.plannedDate}` : ''}
+                      <li
+                        key={plan.id}
+                        data-testid="lesson-plan-row"
+                        className="flex flex-wrap items-center gap-2"
+                      >
+                        <span>
+                          {plan.title}
+                          {plan.plannedDate ? ` · ${plan.plannedDate}` : ''}
+                        </span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={pending}
+                          data-testid={`edit-lesson-${plan.id}`}
+                          onClick={() => {
+                            const title = window.prompt('Lesson title', plan.title);
+                            if (!title?.trim()) return;
+                            startTransition(async () => {
+                              const result = await updateLessonPlanAction(institutionId, {
+                                id: plan.id,
+                                title: title.trim(),
+                                plannedDate: plan.plannedDate ?? '',
+                              });
+                              if (!result.ok) {
+                                setFormError((current) => ({
+                                  ...current,
+                                  [`lesson-${unit.id}`]: result.error,
+                                }));
+                                return;
+                              }
+                              router.refresh();
+                            });
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          disabled={pending}
+                          data-testid={`delete-lesson-${plan.id}`}
+                          onClick={() => {
+                            startTransition(async () => {
+                              const result = await deleteLessonPlanAction(institutionId, plan.id);
+                              if (!result.ok) {
+                                setFormError((current) => ({
+                                  ...current,
+                                  [`lesson-${unit.id}`]: result.error,
+                                }));
+                                return;
+                              }
+                              router.refresh();
+                            });
+                          }}
+                        >
+                          Remove
+                        </Button>
                       </li>
                     ))}
                   </ul>
@@ -285,8 +367,9 @@ export function CurriculumPanel({
                   data-testid={`lesson-plan-form-${unit.id}`}
                   onSubmit={(event) => {
                     event.preventDefault();
-                    const fd = new FormData(event.currentTarget);
-                    setError(null);
+                    const form = event.currentTarget;
+                    const fd = new FormData(form);
+                    setFormError((current) => ({ ...current, [`lesson-${unit.id}`]: null }));
                     startTransition(async () => {
                       const result = await createLessonPlanAction(institutionId, {
                         unitId: unit.id,
@@ -294,14 +377,22 @@ export function CurriculumPanel({
                         plannedDate: String(fd.get('plannedDate') ?? ''),
                       });
                       if (!result.ok) {
-                        setError(result.error);
+                        setFormError((current) => ({
+                          ...current,
+                          [`lesson-${unit.id}`]: result.error,
+                        }));
                         return;
                       }
-                      event.currentTarget.reset();
+                      form.reset();
                       router.refresh();
                     });
                   }}
                 >
+                  {formError[`lesson-${unit.id}`] ? (
+                    <p className="basis-full text-sm text-destructive" role="alert">
+                      {formError[`lesson-${unit.id}`]}
+                    </p>
+                  ) : null}
                   <div className="space-y-1.5">
                     <Label htmlFor={`lp-title-${unit.id}`}>Lesson title</Label>
                     <Input id={`lp-title-${unit.id}`} name="title" required maxLength={255} />
@@ -331,25 +422,52 @@ export function CurriculumPanel({
         data-testid="learning-outcome-form"
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
-          setError(null);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
+          setFormError((current) => ({ ...current, outcome: null }));
           startTransition(async () => {
             const result = await createLearningOutcomeAction(institutionId, {
               subjectId: scope.subjectId,
               gradeId: scope.gradeId,
+              unitId: String(fd.get('unitId') ?? '') || undefined,
               code: String(fd.get('code') ?? ''),
               statement: String(fd.get('statement') ?? ''),
             });
             if (!result.ok) {
-              setError(result.error);
+              setFormError((current) => ({ ...current, outcome: result.error }));
               return;
             }
-            event.currentTarget.reset();
+            form.reset();
             router.refresh();
           });
         }}
       >
         <h3 className="text-sm font-semibold sm:col-span-2">Learning outcomes</h3>
+        {formError.outcome ? (
+          <p
+            className="text-sm text-destructive sm:col-span-2"
+            role="alert"
+            data-testid="outcome-form-error"
+          >
+            {formError.outcome}
+          </p>
+        ) : null}
+        <div className="space-y-1.5">
+          <Label htmlFor="lo-unit">Unit</Label>
+          <select
+            id="lo-unit"
+            name="unitId"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            data-testid="outcome-unit"
+          >
+            <option value="">Not linked</option>
+            {units.map((unit) => (
+              <option key={unit.id} value={unit.id}>
+                {unit.code} · {unit.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="lo-code">Code</Label>
           <Input id="lo-code" name="code" required maxLength={50} />
@@ -372,12 +490,51 @@ export function CurriculumPanel({
       ) : (
         <ul className="space-y-1 text-sm" data-testid="learning-outcome-list">
           {outcomes.map((row) => (
-            <li key={row.id}>
-              <span className="font-medium">{row.code}</span> — {row.statement}
+            <li key={row.id} className="flex flex-wrap items-center gap-2">
+              <span>
+                <span className="font-medium">{row.code}</span> — {row.statement}
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={pending}
+                data-testid={`delete-outcome-${row.id}`}
+                onClick={() => {
+                  startTransition(async () => {
+                    const result = await deleteLearningOutcomeAction(institutionId, row.id);
+                    if (!result.ok) {
+                      setFormError((current) => ({ ...current, outcome: result.error }));
+                      return;
+                    }
+                    router.refresh();
+                  });
+                }}
+              >
+                Remove
+              </Button>
             </li>
           ))}
         </ul>
       )}
+      <ConfirmActionDialog
+        open={confirmTaught !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmTaught(null);
+        }}
+        title={confirmTaught?.undo ? 'Un-mark this unit as taught?' : 'Mark this unit as taught?'}
+        description={
+          confirmTaught?.undo
+            ? 'Coverage will drop until the unit is marked taught again.'
+            : 'This updates the coverage bar for the selected subject, grade, and period.'
+        }
+        confirmLabel={confirmTaught?.undo ? 'Un-mark' : 'Mark taught'}
+        pending={pending}
+        testId="curriculum-taught-confirm"
+        onConfirm={() => {
+          if (confirmTaught) runTaught(confirmTaught.unitId, confirmTaught.undo);
+        }}
+      />
     </div>
   );
 }

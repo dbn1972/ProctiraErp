@@ -12,7 +12,8 @@ import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { CommentsBankItem } from '@/lib/api/gradebook';
-import type { EntityLabelOption } from '@/lib/entity-label';
+import { formatGpaSnapshotMessage } from '@/lib/gradebook/presentation';
+import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 export function GradeEntryForm({
   institutionId,
@@ -41,7 +42,8 @@ export function GradeEntryForm({
       data-hydrated={hydrated ? 'true' : 'false'}
       onSubmit={(event) => {
         event.preventDefault();
-        const fd = new FormData(event.currentTarget);
+        const form = event.currentTarget;
+        const fd = new FormData(form);
         const studentId = String(fd.get('studentId') ?? '').trim();
         const assessmentCode = String(fd.get('assessmentCode') ?? '').trim();
         const scoreRaw = String(fd.get('numericScore') ?? '').trim();
@@ -68,10 +70,15 @@ export function GradeEntryForm({
             );
             return;
           }
-          setMessage(`Saved grade entry ${result.id}`);
+          const savedName = resolveEntityLabel(
+            studentId,
+            new Map(studentOptions.map((o) => [o.id, o.label])),
+            'the student',
+          );
+          setMessage(`Grade saved for ${savedName}.`);
           setRemark('');
           setCommentBankId(null);
-          event.currentTarget.reset();
+          form.reset();
         });
       }}
     >
@@ -131,7 +138,11 @@ export function GradeEntryForm({
       <Button type="submit" disabled={pending}>
         {pending ? 'Saving…' : 'Save grade'}
       </Button>
-      {message ? <p className="text-sm text-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-sm text-foreground" data-testid="grade-save-message">
+          {message}
+        </p>
+      ) : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -176,7 +187,11 @@ export function ComputeGpaForm({
             return;
           }
           setMessage(
-            `GPA snapshot ${result.id}: weighted=${String(result.extra?.weightedGpa ?? 'n/a')} unweighted=${String(result.extra?.unweightedGpa ?? 'n/a')} credits=${String(result.extra?.creditsEarned ?? 'n/a')}`,
+            formatGpaSnapshotMessage({
+              weightedGpa: result.extra?.weightedGpa,
+              unweightedGpa: result.extra?.unweightedGpa,
+              creditsEarned: result.extra?.creditsEarned,
+            }),
           );
         });
       }}
@@ -237,9 +252,12 @@ export function ReportCardTriggerForm({
             setError(result.error);
             return;
           }
-          setMessage(
-            `Report card job ${result.id} → ${String(result.extra?.status ?? '')} ${String(result.extra?.artifactUri ?? '')}`,
+          const queuedName = resolveEntityLabel(
+            studentId,
+            new Map(studentOptions.map((option) => [option.id, option.label])),
+            'the student',
           );
+          setMessage(`Report card queued for ${queuedName}.`);
         });
       }}
     >

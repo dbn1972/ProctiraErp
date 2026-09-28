@@ -6,9 +6,14 @@
  * summarising any nodes flagged for repair. Powered by the institution
  * service's `/infrastructure/hierarchy` endpoint (Requirement 5.6).
  */
-import { AlertTriangle, Building, FileText, Home, Layers, Map as MapIcon } from 'lucide-react';
+import { AlertTriangle, Building, Home, Layers, Map as MapIcon } from 'lucide-react';
 
-import { Button, Card, CardContent } from '@proctira/ui/components';
+import { fetchList } from '@/lib/api/list-result';
+import { FacilityEditor } from '@/components/institutions/facility-editor';
+import { VerificationReportButton } from '@/components/institutions/verification-report-button';
+import { LogRepairRequestForm } from '@/components/institutions/log-repair-request-form';
+
+import { Card, CardContent } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { ApiClientError, getInfrastructureHierarchy } from '@/lib/institutions/api';
 import type { InfrastructureHierarchy } from '@/lib/institutions/types';
@@ -35,8 +40,12 @@ const CONDITION_PILL: Record<string, string> = {
   unknown: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
 };
 
-function titleCase(s: string): string {
-  return s
+const CONDITION_LABELS = ['Good', 'Fair', 'Needs repair', 'Unknown'] as const;
+
+function conditionLabel(condition: string): string {
+  const known = CONDITION_LABELS.find((item) => item.toLowerCase() === condition.toLowerCase());
+  if (known) return known;
+  return condition
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (m) => m.toUpperCase());
@@ -51,7 +60,7 @@ function ConditionPill({ condition }: { condition: string }) {
         CONDITION_PILL[kind],
       )}
     >
-      {titleCase(condition)}
+      {conditionLabel(condition)}
     </span>
   );
 }
@@ -64,15 +73,32 @@ function InfraRow({
   capacity,
   condition,
   description,
+  nodeId,
+  childCapacity,
 }: {
   icon: React.ReactNode;
   title: string;
   capacity: number;
   condition: string;
   description: string | null;
+  nodeId: string;
+  childCapacity?: number | null;
 }) {
+  const repair = normCondition(condition) === 'repair';
+  const mismatch =
+    childCapacity != null && childCapacity > 0 && childCapacity !== capacity
+      ? `Declared ${capacity.toLocaleString()} · parts total ${childCapacity.toLocaleString()}`
+      : null;
   return (
-    <div className="flex flex-col gap-1.5 py-1 sm:flex-row sm:items-center sm:justify-between">
+    <div
+      id={`facility-${nodeId}`}
+      data-testid={`facility-${title}`}
+      className={
+        repair
+          ? 'flex scroll-mt-24 flex-col gap-1.5 rounded-md bg-red-50/70 py-1 sm:flex-row sm:items-center sm:justify-between dark:bg-red-950/20'
+          : 'flex flex-col gap-1.5 py-1 sm:flex-row sm:items-center sm:justify-between'
+      }
+    >
       <div className="flex min-w-0 items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
         <span className="text-sm font-semibold text-foreground">{title}</span>
@@ -88,11 +114,34 @@ function InfraRow({
         </span>
         <ConditionPill condition={condition} />
       </div>
+      {mismatch ? (
+        <p className="text-[11px] text-amber-700 dark:text-amber-400">{mismatch}</p>
+      ) : null}
     </div>
   );
 }
 
 /* ──────────────────────────────── repair counter ── */
+
+function repairTargets(hierarchy: InfrastructureHierarchy): Array<{ id: string; name: string }> {
+  const items: Array<{ id: string; name: string }> = [];
+  for (const land of hierarchy.lands) {
+    if (normCondition(land.condition) === 'repair') items.push({ id: land.id, name: land.name });
+    for (const building of land.buildings) {
+      if (normCondition(building.condition) === 'repair')
+        items.push({ id: building.id, name: building.name });
+      for (const floor of building.floors) {
+        if (normCondition(floor.condition) === 'repair')
+          items.push({ id: floor.id, name: floor.name });
+        for (const room of floor.rooms) {
+          if (normCondition(room.condition) === 'repair')
+            items.push({ id: room.id, name: room.name });
+        }
+      }
+    }
+  }
+  return items;
+}
 
 function countRepairs(hierarchy: InfrastructureHierarchy): number {
   let n = 0;
@@ -116,10 +165,18 @@ function countRepairs(hierarchy: InfrastructureHierarchy): number {
 export default async function InstitutionInfrastructurePage(props: InfrastructurePageProps) {
   const params = await props.params;
   const result = await loadHierarchy(params.id);
+  const repairsList = await fetchList<{
+    id: string;
+    summary: string;
+    infrastructureId: string;
+  }>(`/infrastructure/repair-requests?institutionId=${encodeURIComponent(params.id)}`, {
+    method: 'GET',
+    cache: 'no-store',
+  });
   const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="institution-infrastructure">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -129,16 +186,7 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a
-              href={`/api/institutions/${params.id}/infrastructure/report`}
-              download
-              data-testid="infrastructure-verification-report"
-            >
-              <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Verification report (.csv)
-            </a>
-          </Button>
+          <VerificationReportButton institutionId={params.id} />
         </div>
       </div>
 
@@ -159,9 +207,62 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
             <p className="text-amber-700 dark:text-amber-400">
               Review the flagged items below and log a repair request to escalate them.
             </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {repairTargets(result.hierarchy as InfrastructureHierarchy).map((item) => (
+                <a
+                  key={item.id}
+                  href={`#facility-${item.id}`}
+                  className="text-sm font-semibold text-amber-900 underline dark:text-amber-200"
+                >
+                  {item.name}
+                </a>
+              ))}
+            </div>
+            {!result.error ? (
+              <LogRepairRequestForm
+                institutionId={params.id}
+                targets={repairTargets(result.hierarchy as InfrastructureHierarchy)}
+              />
+            ) : null}
+            {repairsList.ok && repairsList.items.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-sm" data-testid="repair-request-list">
+                {repairsList.items.map((row) => (
+                  <li key={row.id}>{row.summary}</li>
+                ))}
+              </ul>
+            ) : null}
+            {!repairsList.ok ? (
+              <p className="mt-2 text-sm" role="alert" data-testid="repair-request-error">
+                Repair requests could not be loaded.
+              </p>
+            ) : null}
           </div>
         </div>
       )}
+
+      {!result.error && result.hierarchy.lands.length > 0 ? (
+        <FacilityEditor
+          institutionId={params.id}
+          floors={result.hierarchy.lands.flatMap((land) =>
+            land.buildings.flatMap((building) =>
+              building.floors.map((floor) => ({
+                id: floor.id,
+                name: `${building.name} · ${floor.name}`,
+              })),
+            ),
+          )}
+          nodes={result.hierarchy.lands.flatMap((land) => [
+            { id: land.id, name: land.name },
+            ...land.buildings.flatMap((building) => [
+              { id: building.id, name: building.name },
+              ...building.floors.flatMap((floor) => [
+                { id: floor.id, name: floor.name },
+                ...floor.rooms.map((room) => ({ id: room.id, name: room.name })),
+              ]),
+            ]),
+          ])}
+        />
+      ) : null}
 
       {/* ── Hierarchy ── */}
       <Card>
@@ -189,6 +290,11 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                   capacity={land.capacity}
                   condition={land.condition}
                   description={land.description}
+                  nodeId={land.id}
+                  childCapacity={land.buildings.reduce(
+                    (sum, building) => sum + building.capacity,
+                    0,
+                  )}
                 />
 
                 {land.buildings.length > 0 && (
@@ -201,6 +307,11 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                           capacity={building.capacity}
                           condition={building.condition}
                           description={building.description}
+                          nodeId={building.id}
+                          childCapacity={building.floors.reduce(
+                            (sum, floor) => sum + floor.capacity,
+                            0,
+                          )}
                         />
                         {building.floors.length > 0 && (
                           <div className="ms-2 space-y-2 border-s border-border ps-4">
@@ -212,6 +323,11 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                                   capacity={floor.capacity}
                                   condition={floor.condition}
                                   description={floor.description}
+                                  nodeId={floor.id}
+                                  childCapacity={floor.rooms.reduce(
+                                    (sum, room) => sum + room.capacity,
+                                    0,
+                                  )}
                                 />
                                 {floor.rooms.length > 0 && (
                                   <ul className="ms-2 space-y-1 border-s border-border ps-4">
@@ -223,6 +339,7 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                                           capacity={room.capacity}
                                           condition={room.condition}
                                           description={room.description}
+                                          nodeId={room.id}
                                         />
                                       </li>
                                     ))}

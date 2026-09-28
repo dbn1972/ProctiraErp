@@ -25,7 +25,7 @@ function record(institutionId: string, name: string): InfrastructureRecord {
     type: 'LAND',
     name,
     capacity: 100,
-    condition: 'GOOD',
+    condition: 'Good',
     description: null,
     createdAt: now,
     updatedAt: now,

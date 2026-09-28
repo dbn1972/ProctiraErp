@@ -154,6 +154,7 @@ test.describe('Curriculum — live chain (E2E_BACKEND_READY)', () => {
     const row = page.locator(`[data-testid="syllabus-unit-row"][data-unit-code="${unitCode}"]`);
     await expect(row).toBeVisible();
     await page.getByTestId(`mark-taught-${unit.id}`).click();
+    await page.getByTestId('curriculum-taught-confirm-confirm').click();
     await expect(row).toHaveAttribute('data-taught', 'true', { timeout: 15_000 });
     await expect(page.getByTestId('coverage-percent')).toContainText('100%');
 

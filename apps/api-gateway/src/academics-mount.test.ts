@@ -135,7 +135,7 @@ describe('G-901 academics mount', () => {
       method: 'POST',
       url: '/api/v1/infrastructure/lands',
       headers: adminHeaders(),
-      payload: { name: 'Main campus', institutionId, capacity: 5000, condition: 'GOOD' },
+      payload: { name: 'Main campus', institutionId, capacity: 5000, condition: 'Good' },
     });
     expect(land.statusCode).toBe(201);
 

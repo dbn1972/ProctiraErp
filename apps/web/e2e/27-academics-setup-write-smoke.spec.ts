@@ -169,7 +169,7 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
         name: `Campus ${Date.now().toString(36)}`,
         institutionId: INSTITUTION_A,
         capacity: 5000,
-        condition: 'GOOD',
+        condition: 'Good',
       },
     });
     expect(land.status(), await land.text()).toBe(201);
@@ -184,7 +184,8 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
     await page.goto(`/institutions/${INSTITUTION_A}/infrastructure`, {
       waitUntil: 'domcontentloaded',
     });
-    await expect(page.getByText((await land.json()).name)).toBeVisible();
+    const landName = ((await land.json()) as { name: string }).name;
+    await expect(page.getByTestId(`facility-${landName}`)).toBeVisible();
   });
 
   test('cross-tenant: tenant B sees none of tenant A academics or infrastructure', async ({
