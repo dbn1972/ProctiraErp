@@ -1,6 +1,6 @@
 /**
  * Live Sunrise gradebook, curriculum, and infrastructure tabs.
- * Requires Postgres seeded with db/seeds/006, the gateway, and E2E_BACKEND_READY=1.
+ * Requires Postgres seeded with db/seeds/006, the gateway, Redis, and E2E_BACKEND_READY=1.
  */
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
