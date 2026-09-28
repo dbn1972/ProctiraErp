@@ -161,6 +161,13 @@ Images are built using Docker Buildx with:
 {registry}/{namespace}/proctira/{service-name}:{tag}
 ```
 
+`namespace` is `vars.IMAGE_NAMESPACE` or `github.repository_owner`, lowercased.
+Release, deploy, and rollback all use that path (`tools/scripts/image-repository.sh`
+for deploy and rollback). `CONTAINER_REGISTRY` still selects a non-GHCR host;
+only case is normalized. Deploy still requires `REGISTRY_USERNAME` and
+`REGISTRY_PASSWORD` before a production push (W1-OPS-15). Cosign remains on
+the release workflow for the same repository.
+
 Where `{tag}` is one of:
 
 - A branch name (e.g. `main`, `develop`) — registry convenience; **not** used by prod deploy manifests

@@ -62,12 +62,14 @@ helm rollback "$RELEASE" 0 -n "$NAMESPACE" --wait --timeout 300s
 kubectl rollout status "deployment/${RELEASE}" -n "$NAMESPACE" --timeout=120s
 ```
 
-Known-good image tag (same flags as deploy):
+Known-good image tag (same flags as deploy). `IMAGE_NAMESPACE` is
+`vars.IMAGE_NAMESPACE` or the GitHub repository owner, lowercased, so the
+repository matches release images (`ghcr.io/<owner>/proctira/api-gateway`):
 
 ```bash
 helm upgrade --install "$RELEASE" ./infrastructure/helm/proctira-service \
   --namespace "$NAMESPACE" \
-  --set image.repository="${REGISTRY}/proctira/api-gateway" \
+  --set image.repository="${REGISTRY}/${IMAGE_NAMESPACE}/proctira/api-gateway" \
   --set image.tag="<known-good-sha>" \
   --set environment=staging \
   --set service.name=api-gateway \

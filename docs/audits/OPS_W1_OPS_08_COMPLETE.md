@@ -54,7 +54,7 @@ pnpm exec vitest run tools/scripts/__tests__/check-no-latest-image-tags.test.ts
 | -------- | ------ |
 | Third-party compose images may still use vendor tags (e.g. `minio/minio:latest`) | **Accepted** — not Proctira app images; pin opportunistically |
 | Branch-name tags on release (`:main`, `:develop`) remain mutable convenience refs | **Accepted** — prod Helm/kustomize/deploy must use `sha-*` / digest |
-| `deploy.yml` image path is `{REGISTRY}/proctira/<svc>`; release uses `{REGISTRY}/{IMAGE_NAMESPACE}/proctira/<svc>` | **Accepted** — both use slash `proctira/<svc>`; org prefix follows existing registry vars |
+| Deploy image path omitted the registry owner (`{REGISTRY}/proctira/<svc>` vs release `{REGISTRY}/{IMAGE_NAMESPACE}/proctira/<svc>`) | **Superseded** — deploy.yml, rollback.yml, and Helm `--set image.repository` now use `tools/scripts/image-repository.sh` (`{registry}/{lowercase-namespace}/proctira/{service}`). Not a remaining residual. |
 | Historical GHCR tags named `proctira-<svc>:latest` are not deleted | **Accepted** — new pushes stop publishing them; consumers must cut over |
 
 ## Rollback
