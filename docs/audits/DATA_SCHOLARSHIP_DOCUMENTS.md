@@ -3,7 +3,7 @@
 **Module / slice:** Scholarship application documents  
 **Branch / tip:** `cursor/scholarship-application-documents-2d14`  
 **Date (UTC):** 2026-09-28  
-**Environment:** raw SQL under `db/sql`; live apply recorded when Postgres is available
+**Environment:** Postgres 16 + Redis on localhost, role `proctira_app` (NOBYPASSRLS), 2026-09-28
 
 ---
 
@@ -20,16 +20,16 @@
 
 | Step        | Command / evidence                                                  | Pass                                   |
 | ----------- | ------------------------------------------------------------------- | -------------------------------------- |
-| Apply       | `psql` / `tools/scripts/apply-sql.sh` including `104_…`             | ☐ until this environment runs Postgres |
-| Seed        | `psql … -f db/seeds/006_sunrise_public_school_demo.sql`             | ☐                                      |
-| Row counts  | seed raises unless `scholarship_application_documents` count ≥ 3    | ☐                                      |
+| Apply       | `APPLY_STRICT_FKS=1 bash tools/scripts/apply-sql.sh` then `psql -f 104` a second time | pass — first apply and second apply both completed (CONCURRENTLY unique index is idempotent) |
+| Seed        | `psql -f db/seeds/006_sunrise_public_school_demo.sql` twice, then `node db/seeds/write-sunrise-scholarship-placeholders.mjs` | pass |
+| Row counts  | seed raises unless `scholarship_application_documents` count ≥ 3    | pass — Sunrise tenant `…a501` returned 3 rows (PENDING, VERIFIED, REJECTED) |
 | Multi-board | not required — documents are tenant-scoped, not board-rule variants | n/a                                    |
 
 ## 3. Tenancy & constraints
 
 | Check                                 | Pass | Evidence                                                                                                                           |
 | ------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Tenant scoping / RLS / service filter | code | `tenant_isolation` policy matches other scholarship tables; reads go through `withPgTenant`                                        |
+| Tenant scoping / RLS / service filter | pass | As `proctira_app`, `set_app_tenant_id('…0000bb')` returns 0 document rows; `set_app_tenant_id('…00a501')` returns 3. Audit rows for upload/verify/reject exist on tenant `…0001` after Playwright (`entity_type=scholarship_application_document`, operations CREATE/UPDATE). |
 | FK / unique / indexes                 | code | `tenant_id → tenants(id)`; `(tenant_id, application_id) → scholarship_applications(tenant_id, id)`; partial indexes on active rows |
 | Privilege class                       | pass | `db/runtime-table-privileges.json` class `dml`; `check-runtime-table-privileges.mjs` PASS                                          |
 | Domain tests                          | pass | `document-routes.test.ts` mime, size, cross-tenant 404, other-parent 403, signed URL 401                                           |
@@ -42,6 +42,6 @@
 
 ## 5. Sign-off
 
-**Data claim:** Not certified until `104` and the Sunrise seed are applied on a live Postgres and the document count check passes.
+**Data claim:** Live apply, second apply of `104`, Sunrise seed, placeholder PDFs, and app-role RLS (other tenant 0 rows) were run on this Postgres 16. That is the data evidence for this slice. It is not a full multi-board certification.
 
-**Waivers:** Live apply is environment-dependent. Unit tests cover the service rules without a database.
+**Live UI:** `E2E_BACKEND_READY=1 pnpm --filter @proctira/web exec playwright test e2e/55-scholarship-documents.spec.ts --project=chromium` — 2 passed (upload, required-doc 400, signed URL body contains `%PDF`, verify, reject confirm).
