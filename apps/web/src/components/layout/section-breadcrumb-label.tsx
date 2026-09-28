@@ -5,17 +5,16 @@ import { useEffect, useState } from 'react';
 const nameCache = new Map<string, string>();
 
 /**
- * Resolves an institution UUID breadcrumb segment to a human label (B3-011).
- * Falls back to the shortened id while loading or when the fetch fails.
+ * Resolves a timetable section UUID in the breadcrumb to its course name.
  */
-export function InstitutionBreadcrumbLabel({
-  institutionId,
+export function SectionBreadcrumbLabel({
+  sectionId,
   fallbackLabel,
 }: {
-  institutionId: string;
+  sectionId: string;
   fallbackLabel: string;
 }) {
-  const cached = nameCache.get(institutionId);
+  const cached = nameCache.get(sectionId);
   const [label, setLabel] = useState(cached ?? fallbackLabel);
 
   useEffect(() => {
@@ -25,7 +24,7 @@ export function InstitutionBreadcrumbLabel({
     }
 
     let cancelled = false;
-    void fetch(`/api/entity-labels?institutionId=${encodeURIComponent(institutionId)}`, {
+    void fetch(`/api/entity-labels?sectionId=${encodeURIComponent(sectionId)}`, {
       credentials: 'same-origin',
       cache: 'no-store',
     })
@@ -36,7 +35,7 @@ export function InstitutionBreadcrumbLabel({
       .then((body) => {
         if (cancelled) return;
         const resolved = body.name?.trim() || fallbackLabel;
-        nameCache.set(institutionId, resolved);
+        nameCache.set(sectionId, resolved);
         setLabel(resolved);
       })
       .catch(() => {
@@ -46,7 +45,7 @@ export function InstitutionBreadcrumbLabel({
     return () => {
       cancelled = true;
     };
-  }, [institutionId, fallbackLabel, cached]);
+  }, [sectionId, fallbackLabel, cached]);
 
   return <>{label}</>;
 }

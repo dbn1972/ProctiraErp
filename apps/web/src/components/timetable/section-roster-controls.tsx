@@ -127,12 +127,13 @@ export function SectionEnrollForm(props: {
           id="enrollStudentId"
           name="studentId"
           label="Student"
+          placeholder="Search by name or admission no."
           options={props.studentOptions ?? []}
           required
         />
       </div>
       <Button type="submit" size="sm" disabled={pending}>
-        {pending ? 'Enrolling…' : 'Enroll'}
+        {pending ? 'Enrolling…' : 'Enrol'}
       </Button>
       {error && (
         <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
@@ -220,7 +221,7 @@ export function SectionBulkEnrollForm(props: {
             : 'Admission numbers, separated by commas'
         }
       />
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
         {pending ? 'Assigning…' : 'Bulk assign'}
       </Button>
       {message && (

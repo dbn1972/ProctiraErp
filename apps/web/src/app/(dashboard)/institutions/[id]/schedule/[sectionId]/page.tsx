@@ -14,7 +14,7 @@ import {
   WithdrawStudentButton,
 } from '@/components/timetable/section-roster-controls';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { dayLabel } from '@/lib/timetable/conflict-label';
+import { dayLabel, formatPeriodWhen } from '@/lib/timetable/conflict-label';
 import { getStaff, listStaff } from '@/lib/api/staff';
 import { getStudent, listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
@@ -23,6 +23,15 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string; sectionId: string }>;
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
 }
 
 export default async function SectionRosterPage(props: PageProps) {
@@ -67,13 +76,32 @@ export default async function SectionRosterPage(props: PageProps) {
   ]);
 
   const studentName = new Map<string, string>();
+  const studentAdmission = new Map<string, string>();
+  const rememberStudent = (student: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    nationalId?: string | null;
+    customData?: Record<string, unknown>;
+    admissionNumber?: string;
+  }) => {
+    const name = [student.firstName, student.lastName].filter(Boolean).join(' ').trim();
+    if (name) studentName.set(student.id, name);
+    const fromCustom = student.customData?.admissionNo;
+    const admission =
+      (typeof fromCustom === 'string' && fromCustom) ||
+      student.admissionNumber ||
+      student.nationalId ||
+      '';
+    if (admission) studentAdmission.set(student.id, admission);
+  };
   const studentOptions = (studentsResult.data ?? []).map((s) => {
-    const name = [s.firstName, s.lastName].filter(Boolean).join(' ').trim();
-    if (name) studentName.set(s.id, name);
+    rememberStudent(s);
+    const admission = studentAdmission.get(s.id) ?? '';
     return {
       id: s.id,
-      label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
-      searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
+      label: formatPersonLabel(s.firstName, s.lastName, admission || s.nationalId),
+      searchText: `${s.firstName} ${s.lastName} ${admission} ${s.nationalId ?? ''}`,
     };
   });
   const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
@@ -81,9 +109,12 @@ export default async function SectionRosterPage(props: PageProps) {
     if (studentLabel.has(enrollment.studentId)) continue;
     const student = await getStudent(enrollment.studentId).catch(() => null);
     if (!student) continue;
-    const name = [student.firstName, student.lastName].filter(Boolean).join(' ').trim();
-    if (name) studentName.set(student.id, name);
-    const label = formatPersonLabel(student.firstName, student.lastName, student.nationalId);
+    rememberStudent(student);
+    const label = formatPersonLabel(
+      student.firstName,
+      student.lastName,
+      studentAdmission.get(student.id) ?? student.nationalId,
+    );
     studentLabel.set(student.id, label);
     studentOptions.push({
       id: student.id,
@@ -116,7 +147,7 @@ export default async function SectionRosterPage(props: PageProps) {
     const periods = await listPeriods(schedule.id);
     if (!periods.ok) continue;
     for (const p of periods.data) {
-      periodLabel.set(p.id, `${schedule.name} · ${p.name}`);
+      periodLabel.set(p.id, `${schedule.name} · ${formatPeriodWhen(p.name, p.startTime, p.endTime)}`);
     }
   }
 
@@ -226,7 +257,25 @@ export default async function SectionRosterPage(props: PageProps) {
                   {enrollments.map((e) => (
                     <tr key={e.id} className="border-b border-border/60">
                       <td className="py-2 text-sm">
-                        {resolveEntityLabel(e.studentId, studentLabel, 'Student')}
+                        <div className="flex items-center gap-3">
+                          <span
+                            aria-hidden="true"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"
+                          >
+                            {initials(studentName.get(e.studentId) ?? '')}
+                          </span>
+                          <span>
+                            <span className="block font-semibold text-foreground">
+                              {studentName.get(e.studentId) ??
+                                resolveEntityLabel(e.studentId, studentLabel, 'Student')}
+                            </span>
+                            {studentAdmission.get(e.studentId) && (
+                              <span className="block text-xs text-muted-foreground">
+                                {studentAdmission.get(e.studentId)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-2 text-xs">
                         <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">

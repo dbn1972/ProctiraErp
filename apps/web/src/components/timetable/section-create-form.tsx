@@ -30,7 +30,7 @@ export function SectionCreateForm(props: {
 
   return (
     <form
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+      className="grid gap-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
@@ -54,7 +54,9 @@ export function SectionCreateForm(props: {
       }}
     >
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Name</span>
+        <span className="font-medium">
+          Name <span className="text-red-600">*</span>
+        </span>
         <input
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={name}
@@ -64,22 +66,28 @@ export function SectionCreateForm(props: {
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Code</span>
+        <span className="font-medium">
+          Code <span className="text-red-600">*</span>
+        </span>
         <input
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="G6A-MATH"
+          required
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Capacity</span>
+        <span className="font-medium">
+          Capacity <span className="text-red-600">*</span>
+        </span>
         <input
           type="number"
           min={1}
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={capacity}
           onChange={(e) => setCapacity(e.target.value)}
+          required
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -97,16 +105,13 @@ export function SectionCreateForm(props: {
           ))}
         </select>
       </label>
-      <div className="flex items-end">
-        <Button type="submit" size="sm" disabled={pending} className="w-full">
+      <div className="flex justify-end sm:col-span-2">
+        <Button type="submit" size="sm" disabled={pending}>
           {pending ? 'Saving…' : 'Create section'}
         </Button>
       </div>
       {error && (
-        <p
-          className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400"
-          role="alert"
-        >
+        <p className="sm:col-span-2 text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </p>
       )}

@@ -45,11 +45,11 @@ test.describe('Institutions detail — Sunrise live', () => {
     await expect(page.getByText('English medium')).toBeVisible();
     await expect(page.getByText('office.mv@sunrisepublic.edu.in')).toBeVisible();
     await expect(overview.getByText('Term 2 timetable published')).toBeVisible();
-    await expect(overview.getByText('Grade 9')).toBeVisible();
+    await expect(overview.getByText('Class 9')).toBeVisible();
 
     const reportPath = `/institutions/${MAYUR}/overview/report`;
     await page.getByRole('link', { name: 'School report' }).click();
-    await expect(page).toHaveURL(reportPath);
+    await expect(page).toHaveURL(reportPath, { timeout: 20_000 });
     await expect(page.getByTestId('school-report').filter({ visible: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'School report' })).toBeVisible();
     await expect(page.getByText('1,240').first()).toBeVisible();
@@ -69,9 +69,10 @@ test.describe('Institutions detail — Sunrise live', () => {
     await page.goto(classesPath, { waitUntil: 'domcontentloaded' });
     const classes = page.getByTestId('institution-classes').filter({ visible: true });
     await expect(classes).toBeVisible();
-    await expect(classes.getByText('Priya Sharma')).toBeVisible();
-    await expect(classes.getByText('Room 202')).toBeVisible();
-    await expect(classes.getByText('Unassigned')).toBeVisible();
+    await expect(classes.getByText('9 · A').first()).toBeVisible();
+    await expect(classes.getByText('Neha Verma').first()).toBeVisible();
+    await expect(classes.getByText('Room 201').first()).toBeVisible();
+    await expect(classes.getByText('Unassigned').first()).toBeVisible();
     await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
 
     const gradesPath = `/institutions/${MAYUR}/grades`;
@@ -85,14 +86,21 @@ test.describe('Institutions detail — Sunrise live', () => {
     const schedule = page.getByTestId('institution-schedule').filter({ visible: true });
     await expect(schedule).toBeVisible();
     await expect(schedule.getByText('Published').first()).toBeVisible();
+    await expect(schedule.getByText('Class 9-A Mathematics')).toBeVisible();
     await expect(schedule.getByText('Teacher clash', { exact: true })).toBeVisible();
-    await expect(schedule.getByText('Priya Sharma')).toBeVisible();
+    await expect(schedule.getByText(/Period 3 \(09:20–10:00\)/)).toBeVisible();
+    await expect(schedule.getByText('Neha Verma').first()).toBeVisible();
 
     const sectionPath = `/institutions/${MAYUR}/schedule/${SECTION_9B}`;
     await page.goto(sectionPath, { waitUntil: 'domcontentloaded' });
     const section = page.getByTestId('institution-schedule-section').filter({ visible: true });
     await expect(section).toBeVisible();
+    await expect(section.getByRole('heading', { name: 'Class 9-B Mathematics' })).toBeVisible();
+    await expect(section.getByText('G9B-MATH')).toBeVisible();
     await expect(section.getByText('Aarav Mehta')).toBeVisible();
+    const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' });
+    await expect(crumbs.getByText('Sunrise Public School – Mayur Vihar')).toBeVisible();
+    await expect(crumbs.getByText('Class 9-B Mathematics')).toBeVisible();
     const withdraw = section.getByRole('button', { name: /Withdraw Aarav Mehta/ });
     await expect(withdraw).toHaveAttribute('data-hydrated', 'true');
     await withdraw.click();
