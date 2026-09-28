@@ -12,6 +12,7 @@ import { ArrowLeft, FileText, Pencil, School } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { InstitutionReactivateButton } from '@/components/institutions/institution-row-actions';
 import { InstitutionTabs } from '@/components/institutions/institution-tabs';
 import { ApiClientError, getInstitution, getInstitutionOverview } from '@/lib/institutions/api';
 import type { Institution } from '@/lib/institutions/types';
@@ -113,6 +114,13 @@ export default async function InstitutionLayout({ params, children }: Institutio
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
+            {institution.name !== 'Institution unavailable' ? (
+              <InstitutionReactivateButton
+                id={institution.id}
+                name={institution.name}
+                inactive={!isActive}
+              />
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <Link href={`/institutions/${institution.id}/edit`}>
                 <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />

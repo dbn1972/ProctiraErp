@@ -5,6 +5,7 @@
  * - CreateInstitution (body)
  * - UpdateInstitution (body)
  * - DeactivateInstitution (body)
+ * - ReactivateInstitution (body)
  * - InstitutionResponse (response)
  * - InstitutionListQuery (querystring)
  */
@@ -114,6 +115,16 @@ export const DeactivateInstitutionSchema = Type.Object({
 });
 
 export type DeactivateInstitutionInput = Static<typeof DeactivateInstitutionSchema>;
+
+/**
+ * Schema for reactivating an institution.
+ * Reason is required, matching deactivate, so the audit row names why.
+ */
+export const ReactivateInstitutionSchema = Type.Object({
+  reason: Type.String({ minLength: 1, maxLength: 500, description: 'Reason for reactivation' }),
+});
+
+export type ReactivateInstitutionInput = Static<typeof ReactivateInstitutionSchema>;
 
 /**
  * Schema for institution list query parameters.

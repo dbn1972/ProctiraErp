@@ -159,6 +159,18 @@ export async function deactivateInstitution(id: string, reason: string): Promise
   }
 }
 
+export async function reactivateInstitution(id: string, reason: string): Promise<Institution> {
+  try {
+    const result = await gatewayFetch<Institution>(
+      `/institutions/${encodeURIComponent(id)}/reactivate`,
+      { method: 'POST', json: { reason }, cache: 'no-store', throwOnError: true },
+    );
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Areas
 // ---------------------------------------------------------------------------
