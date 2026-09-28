@@ -73,6 +73,7 @@ class _ScholarshipApplicationFormState
   String? _programError;
   ScholarshipDocumentUploadController? _documents;
   String? _draftApplicationId;
+  bool _documentUploadsAvailable = false;
 
   @override
   void didChangeDependencies() {
@@ -94,14 +95,21 @@ class _ScholarshipApplicationFormState
       _programError = null;
     });
     try {
-      final ScholarshipProgram? program = await context
-          .read<ScholarshipRepository>()
-          .findProgram(widget.programId);
+      final ScholarshipRepository repository =
+          context.read<ScholarshipRepository>();
+      final ScholarshipProgram? program =
+          await repository.findProgram(widget.programId);
+      if (!mounted) {
+        return;
+      }
+      final bool uploadsAvailable =
+          await repository.scholarshipDocumentUploadsAvailable();
       if (!mounted) {
         return;
       }
       setState(() {
         _program = program;
+        _documentUploadsAvailable = uploadsAvailable;
         _loadingProgram = false;
       });
     } catch (error) {
@@ -218,7 +226,8 @@ class _ScholarshipApplicationFormState
       return;
     }
     final ScholarshipDocumentUploadController? documents = _documents;
-    if (documents != null &&
+    if (_documentUploadsAvailable &&
+        documents != null &&
         (documents.hasSlotErrors || documents.missingTypes.isNotEmpty)) {
       final String missing = documents.missingTypes
           .map(scholarshipDocumentTypeLabel)
@@ -239,7 +248,8 @@ class _ScholarshipApplicationFormState
           ScholarshipApplicationSubmitted(
             programId: widget.programId,
             studentId: widget.studentId,
-            draftApplicationId: _draftApplicationId,
+            draftApplicationId:
+                _documentUploadsAvailable ? _draftApplicationId : null,
             additionalData: <String, dynamic>{
               'personalStatement': _statementCtrl.text.trim(),
               if (_incomeCtrl.text.trim().isNotEmpty)
@@ -275,7 +285,9 @@ class _ScholarshipApplicationFormState
       );
     }
 
-    _ensureDocuments(_program!);
+    if (_documentUploadsAvailable) {
+      _ensureDocuments(_program!);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -359,19 +371,41 @@ class _ScholarshipApplicationFormState
 
                     _SectionCard(
                       title: 'Documents',
-                      children: <Widget>[
-                        Text(
-                          'Add one file for each required document. PDF, JPEG, '
-                          'or PNG, up to 10 MB.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ScholarshipDocumentUploadPanel(
-                          controller: _documents!,
-                        ),
-                      ],
+                      children: _documentUploadsAvailable && _documents != null
+                          ? <Widget>[
+                              Text(
+                                'Add one file for each required document. PDF, JPEG, '
+                                'or PNG, up to 10 MB.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ScholarshipDocumentUploadPanel(
+                                controller: _documents!,
+                              ),
+                            ]
+                          : <Widget>[
+                              Text(
+                                'Supporting document upload is not available from '
+                                'this server yet. You can submit the application '
+                                'without files.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Semantics(
+                                button: true,
+                                enabled: false,
+                                label: 'Upload supporting documents unavailable',
+                                child: OutlinedButton.icon(
+                                  onPressed: null,
+                                  icon: Icon(Icons.upload_file_outlined),
+                                  label: Text('Upload Documents'),
+                                ),
+                              ),
+                            ],
                     ),
                     const SizedBox(height: 8),
 
