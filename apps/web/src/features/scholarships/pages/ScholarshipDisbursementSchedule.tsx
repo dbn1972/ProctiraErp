@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -91,7 +91,7 @@ export default function ScholarshipDisbursementSchedule() {
       });
       if (statusFilter) params.set('paymentStatus', statusFilter);
 
-      const result = await browserGatewayFetch<DisbursementListResponse>(
+      const result = await scholarshipBrowserFetch<DisbursementListResponse>(
         `/scholarships/disbursements?${params.toString()}`,
       );
       setDisbursements(result.data);
@@ -120,7 +120,7 @@ export default function ScholarshipDisbursementSchedule() {
         body.paidDate = new Date().toISOString().split('T')[0]!;
       }
 
-      await browserGatewayFetch<unknown>(`/scholarships/disbursements/${id}`, {
+      await scholarshipBrowserFetch<unknown>(`/scholarships/disbursements/${id}`, {
         method: 'PUT',
         json: body,
       });

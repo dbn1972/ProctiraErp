@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
 import { documentTypeLabel } from '../document-upload';
 
@@ -42,7 +42,7 @@ export function ApplicationDocumentsPanel({
     setLoading(true);
     setError(null);
     try {
-      const result = await browserGatewayFetch<{ data: ScholarshipDocumentRow[] }>(
+      const result = await scholarshipBrowserFetch<{ data: ScholarshipDocumentRow[] }>(
         `/scholarships/applications/${applicationId}/documents`,
       );
       setRows(result.data);
@@ -60,10 +60,12 @@ export function ApplicationDocumentsPanel({
   const download = async (id: string) => {
     setError(null);
     try {
-      const result = await browserGatewayFetch<{ url: string }>(
+      const result = await scholarshipBrowserFetch<{ url: string }>(
         `/scholarships/applications/${applicationId}/documents/${id}/download`,
       );
-      window.open(result.url, '_blank', 'noopener,noreferrer');
+      const gateway = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
+      const target = result.url.startsWith('http') ? result.url : `${gateway}${result.url}`;
+      window.open(target, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setError(err instanceof BrowserGatewayError ? err.message : 'Download failed');
     }
@@ -73,7 +75,7 @@ export function ApplicationDocumentsPanel({
     setError(null);
     setPending(true);
     try {
-      await browserGatewayFetch(
+      await scholarshipBrowserFetch(
         `/scholarships/applications/${applicationId}/documents/${id}/verify`,
         { method: 'POST', json: {} },
       );
@@ -90,7 +92,7 @@ export function ApplicationDocumentsPanel({
     setPending(true);
     setError(null);
     try {
-      await browserGatewayFetch(
+      await scholarshipBrowserFetch(
         `/scholarships/applications/${applicationId}/documents/${rejectId}/reject`,
         { method: 'POST', json: { reason } },
       );

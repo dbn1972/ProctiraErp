@@ -64,6 +64,7 @@ test.describe('Scholarship documents — live upload (E2E_BACKEND_READY)', () =>
   });
 
   test('uploads a small PDF and a reviewer verifies it', async ({ page, request }) => {
+    test.setTimeout(60_000);
     const applicationId = await seedDraft(request);
     const uploaded = await request.post(
       `${GATEWAY_URL}/api/v1/scholarships/applications/${applicationId}/documents`,

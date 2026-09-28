@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
 import { ApplicationDocumentsPanel } from '../components/application-documents-panel';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
@@ -98,7 +98,7 @@ export default function ScholarshipReviewQueue() {
       const params = new URLSearchParams({ page: String(page), pageSize: '20' });
       if (statusFilter) params.set('status', statusFilter);
 
-      const result = await browserGatewayFetch<ApplicationListResponse>(
+      const result = await scholarshipBrowserFetch<ApplicationListResponse>(
         `/scholarships/applications?${params.toString()}`,
       );
       setApplications(result.data);
@@ -146,7 +146,7 @@ export default function ScholarshipReviewQueue() {
 
     for (const id of ids) {
       try {
-        await browserGatewayFetch<unknown>(`/scholarships/applications/${id}/${action}`, {
+        await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${id}/${action}`, {
           method: 'POST',
         });
       } catch (err) {
@@ -166,7 +166,7 @@ export default function ScholarshipReviewQueue() {
   const handleSingleAction = async (id: string, action: 'approve' | 'reject') => {
     setActionError(null);
     try {
-      await browserGatewayFetch<unknown>(`/scholarships/applications/${id}/${action}`, {
+      await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${id}/${action}`, {
         method: 'POST',
       });
       void fetchApplications();

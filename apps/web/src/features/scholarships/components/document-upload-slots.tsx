@@ -6,7 +6,7 @@
  */
 import { useId, useRef, useState } from 'react';
 
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
 
 import {
@@ -42,8 +42,7 @@ async function uploadWithProgress(
   const body = new FormData();
   body.set('documentType', documentType);
   body.set('file', file, file.name);
-  const base = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
-  const url = `${base}/api/v1/scholarships/applications/${applicationId}/documents`;
+  const url = `/api/scholarships/applications/${applicationId}/documents`;
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
@@ -138,7 +137,7 @@ function Slot({
             type="button"
             className="ml-3 text-xs text-destructive underline"
             onClick={() => {
-              void browserGatewayFetch(
+              void scholarshipBrowserFetch(
                 `/scholarships/applications/${applicationId}/documents/${existing.id}`,
                 {
                   method: 'DELETE',

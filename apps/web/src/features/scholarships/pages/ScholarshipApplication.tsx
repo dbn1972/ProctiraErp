@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
 import {
   DocumentUploadSlots,
@@ -108,7 +108,7 @@ export default function ScholarshipApplication() {
   const fetchPrograms = useCallback(async () => {
     setLoadingPrograms(true);
     try {
-      const result = await browserGatewayFetch<{ data: ScholarshipProgramSummary[] }>(
+      const result = await scholarshipBrowserFetch<{ data: ScholarshipProgramSummary[] }>(
         '/scholarships/programs?status=open&pageSize=50',
       );
       setPrograms(result.data);
@@ -132,7 +132,7 @@ export default function ScholarshipApplication() {
       setSubmitError('Add at least one academic record before uploading documents.');
       return null;
     }
-    const created = await browserGatewayFetch<{ id: string }>('/scholarships/applications', {
+    const created = await scholarshipBrowserFetch<{ id: string }>('/scholarships/applications', {
       method: 'POST',
       json: {
         programId: selectedProgramId,
@@ -196,7 +196,7 @@ export default function ScholarshipApplication() {
         setSubmitting(false);
         return;
       }
-      await browserGatewayFetch<unknown>(`/scholarships/applications/${draftId}/submit`, {
+      await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${draftId}/submit`, {
         method: 'POST',
         json: {},
       });
