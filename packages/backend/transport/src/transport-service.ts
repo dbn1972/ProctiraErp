@@ -60,9 +60,7 @@ export const GPS_LIVE_HONESTY_NOTE =
 
 function isForeignKeyViolation(error: unknown): boolean {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: string }).code === '23503'
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === '23503'
   );
 }
 
