@@ -23,6 +23,16 @@ export const InfrastructureType = {
 
 export type InfrastructureTypeValue = (typeof InfrastructureType)[keyof typeof InfrastructureType];
 
+/** Closed set for facility condition. Free-text values are rejected. */
+export const FACILITY_CONDITIONS = ['Good', 'Fair', 'Needs repair', 'Unknown'] as const;
+export type FacilityCondition = (typeof FACILITY_CONDITIONS)[number];
+export const FacilityConditionSchema = Type.Union([
+  Type.Literal('Good'),
+  Type.Literal('Fair'),
+  Type.Literal('Needs repair'),
+  Type.Literal('Unknown'),
+]);
+
 /** UUID pattern for validation */
 const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
@@ -37,11 +47,7 @@ export const CreateLandSchema = Type.Object({
     maximum: 99999,
     description: 'Numeric capacity (1–99,999)',
   }),
-  condition: Type.String({
-    minLength: 1,
-    maxLength: 100,
-    description: 'Condition status from configurable options',
-  }),
+  condition: FacilityConditionSchema,
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -59,11 +65,7 @@ export const CreateBuildingSchema = Type.Object({
     maximum: 99999,
     description: 'Numeric capacity (1–99,999)',
   }),
-  condition: Type.String({
-    minLength: 1,
-    maxLength: 100,
-    description: 'Condition status from configurable options',
-  }),
+  condition: FacilityConditionSchema,
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -81,11 +83,7 @@ export const CreateFloorSchema = Type.Object({
     maximum: 99999,
     description: 'Numeric capacity (1–99,999)',
   }),
-  condition: Type.String({
-    minLength: 1,
-    maxLength: 100,
-    description: 'Condition status from configurable options',
-  }),
+  condition: FacilityConditionSchema,
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -103,11 +101,7 @@ export const CreateRoomSchema = Type.Object({
     maximum: 99999,
     description: 'Numeric capacity (1–99,999)',
   }),
-  condition: Type.String({
-    minLength: 1,
-    maxLength: 100,
-    description: 'Condition status from configurable options',
-  }),
+  condition: FacilityConditionSchema,
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -124,9 +118,7 @@ export const UpdateInfrastructureSchema = Type.Object({
   capacity: Type.Optional(
     Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' }),
   ),
-  condition: Type.Optional(
-    Type.String({ minLength: 1, maxLength: 100, description: 'Condition status' }),
-  ),
+  condition: Type.Optional(FacilityConditionSchema),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 

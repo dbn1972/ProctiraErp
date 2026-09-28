@@ -66,8 +66,7 @@ export interface CoverageSummary {
 }
 
 export type CurriculumLoadResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: string; status?: number };
+  { ok: true; data: T } | { ok: false; error: string; status?: number };
 
 function mapError(error: unknown): { error: string; status?: number } {
   if (error instanceof GatewayError) {
@@ -242,5 +241,94 @@ export async function getCurriculumCoverage(filters: {
     return { ok: true, data: result.data };
   } catch (error) {
     return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function listLessonPlansForUnits(
+  unitIds: string[],
+): Promise<CurriculumLoadResult<LessonPlan[]>> {
+  if (unitIds.length === 0) return { ok: true, data: [] };
+  try {
+    const params = new URLSearchParams({ unitIds: unitIds.join(',') });
+    const result = await gatewayFetch<{ data: LessonPlan[] }>(
+      `/curriculum/lesson-plans?${params.toString()}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function updateLessonPlan(
+  id: string,
+  input: { title?: string; plannedDate?: string | null },
+): Promise<LessonPlan> {
+  const result = await gatewayFetch<LessonPlan>(`/curriculum/lesson-plans/${id}`, {
+    method: 'PATCH',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from lesson plan update',
+    });
+  }
+  return result.data;
+}
+
+export async function deleteLessonPlan(id: string): Promise<void> {
+  const result = await gatewayFetch<unknown>(`/curriculum/lesson-plans/${id}`, {
+    method: 'DELETE',
+  });
+  if (!result.ok && result.status !== 204) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'GATEWAY_ERROR',
+      message: result.error?.message ?? 'Could not delete the lesson',
+    });
+  }
+}
+
+export async function unmarkUnitTaught(unitId: string): Promise<void> {
+  const result = await gatewayFetch<unknown>(`/curriculum/units/${unitId}/coverage`, {
+    method: 'DELETE',
+  });
+  if (!result.ok && result.status !== 204) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'GATEWAY_ERROR',
+      message: result.error?.message ?? 'Could not un-mark the unit',
+    });
+  }
+}
+
+export async function updateLearningOutcome(
+  id: string,
+  input: { code?: string; statement?: string; unitId?: string | null },
+): Promise<LearningOutcome> {
+  const result = await gatewayFetch<LearningOutcome>(`/curriculum/outcomes/${id}`, {
+    method: 'PATCH',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from outcome update',
+    });
+  }
+  return result.data;
+}
+
+export async function deleteLearningOutcome(id: string): Promise<void> {
+  const result = await gatewayFetch<unknown>(`/curriculum/outcomes/${id}`, { method: 'DELETE' });
+  if (!result.ok && result.status !== 204) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'GATEWAY_ERROR',
+      message: result.error?.message ?? 'Could not delete the outcome',
+    });
   }
 }

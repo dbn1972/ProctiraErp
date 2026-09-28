@@ -137,7 +137,7 @@ describe('G-901 institutionPlugin academics mount', () => {
     const land = await app.inject({
       method: 'POST',
       url: '/infrastructure/lands',
-      payload: { name: 'Main campus', institutionId, capacity: 5000, condition: 'GOOD' },
+      payload: { name: 'Main campus', institutionId, capacity: 5000, condition: 'Good' },
     });
     expect(land.statusCode).toBe(201);
 
@@ -149,7 +149,7 @@ describe('G-901 institutionPlugin academics mount', () => {
         landId: land.json().id,
         institutionId,
         capacity: 800,
-        condition: 'GOOD',
+        condition: 'Good',
       },
     });
     expect(building.statusCode).toBe(201);

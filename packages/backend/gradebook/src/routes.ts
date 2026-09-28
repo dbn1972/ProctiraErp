@@ -11,8 +11,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { isGradeWorkflowAction } from './grade-workflow.js';
-import { assertGradebookAccess, type GradebookAction } from './gradebook-access.js';
+import { isGradePublished, isGradeWorkflowAction } from './grade-workflow.js';
+import { assertGradebookAccess, normalizeRoles, type GradebookAction } from './gradebook-access.js';
 import {
   isGradebookSchemaMissingError,
   isGradeLockedError,
@@ -68,6 +68,13 @@ function requestRoles(request: FastifyRequest): unknown {
     }
   ).user;
   return user?.roles ?? [];
+}
+
+const PORTAL_ONLY_ROLES = new Set(['parent', 'student', 'guardian']);
+
+function isPortalOnlyReader(roles: unknown): boolean {
+  const names = normalizeRoles(roles);
+  return names.length > 0 && names.every((role) => PORTAL_ONLY_ROLES.has(role));
 }
 
 function requireAction(
@@ -138,7 +145,10 @@ export async function registerGradebookRoutes(
         sectionId: query.sectionId,
         studentId: query.studentId,
       });
-      return reply.send({ data: rows });
+      const visible = isPortalOnlyReader(requestRoles(request))
+        ? rows.filter((row) => isGradePublished(row.metadata, row.publishedAt))
+        : rows;
+      return reply.send({ data: visible });
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -207,7 +217,13 @@ export async function registerGradebookRoutes(
     const needed: GradebookAction = action === 'submit' ? 'grade.entry' : 'grade.moderate';
     if (!requireAction(request, reply, needed)) return;
     try {
-      const row = await service.transitionGradeEntry(tenantId, id, action, requestUser(request));
+      const row = await service.transitionGradeEntry(
+        tenantId,
+        id,
+        action,
+        requestUser(request),
+        validated.data.reason,
+      );
       return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);

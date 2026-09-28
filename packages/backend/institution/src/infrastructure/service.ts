@@ -14,6 +14,7 @@ import { NotFoundError, BusinessRuleError, type PaginatedResult } from '@proctir
 import { v4 as uuidv4 } from 'uuid';
 
 import {
+  FACILITY_CONDITIONS,
   InfrastructureType,
   type InfrastructureTypeValue,
   type CreateLandInput,
@@ -67,6 +68,17 @@ export interface InfrastructureStore {
   ): Promise<InfrastructureRecord | null>;
   delete(id: string): Promise<boolean>;
   hasChildren(id: string): Promise<boolean>;
+  createRepairRequest(record: RepairRequestRecord): Promise<RepairRequestRecord>;
+  listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]>;
+}
+
+export interface RepairRequestRecord {
+  id: string;
+  institutionId: string;
+  infrastructureId: string;
+  summary: string;
+  status: 'open' | 'closed';
+  createdAt: Date;
 }
 
 /**
@@ -147,10 +159,13 @@ export class InfrastructureService {
    * Validates that the condition value exists in the configurable options.
    */
   private async validateCondition(condition: string): Promise<void> {
+    if (!(FACILITY_CONDITIONS as readonly string[]).includes(condition)) {
+      throw new BusinessRuleError(
+        `Invalid condition '${condition}'. Valid options are: ${FACILITY_CONDITIONS.join(', ')}`,
+      );
+    }
     const options = await this.conditionStore.findAll();
-    // If no condition options are configured, allow any non-empty value
     if (options.length === 0) return;
-
     const found = options.find((opt) => opt.name === condition);
     if (!found) {
       const validOptions = options.map((opt) => opt.name).join(', ');
@@ -502,6 +517,33 @@ export class InfrastructureService {
           })),
       })),
     };
+  }
+
+  async logRepairRequest(input: {
+    institutionId: string;
+    infrastructureId: string;
+    summary: string;
+  }): Promise<RepairRequestRecord> {
+    const item = await this.store.findById(input.infrastructureId);
+    if (!item || item.institutionId !== input.institutionId) {
+      throw new NotFoundError('Facility not found');
+    }
+    const summary = input.summary.trim();
+    if (!summary) {
+      throw new BusinessRuleError('A repair summary is required');
+    }
+    return this.store.createRepairRequest({
+      id: uuidv4(),
+      institutionId: input.institutionId,
+      infrastructureId: input.infrastructureId,
+      summary,
+      status: 'open',
+      createdAt: new Date(),
+    });
+  }
+
+  listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]> {
+    return this.store.listRepairRequests(institutionId);
   }
 
   // ─── Condition Options Management ────────────────────────────────────────────

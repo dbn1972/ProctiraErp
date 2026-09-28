@@ -7,7 +7,12 @@ import {
   createLearningOutcome,
   createLessonPlan,
   createSyllabusUnit,
+  deleteLearningOutcome,
+  deleteLessonPlan,
   markUnitTaught,
+  unmarkUnitTaught,
+  updateLearningOutcome,
+  updateLessonPlan,
 } from '@/lib/api/curriculum';
 import {
   createLearningOutcomeFormSchema,
@@ -17,8 +22,7 @@ import {
 } from '@/lib/validation/curriculum-schema';
 
 export type CurriculumActionResult =
-  | { ok: true; id: string; extra?: Record<string, unknown> }
-  | { ok: false; error: string };
+  { ok: true; id: string; extra?: Record<string, unknown> } | { ok: false; error: string };
 
 function fail(error: unknown): CurriculumActionResult {
   if (error instanceof GatewayError) {
@@ -130,6 +134,78 @@ export async function createLearningOutcomeAction(
       unitId: parsed.data.unitId || null,
       code: parsed.data.code,
       statement: parsed.data.statement,
+    });
+    revalidateCurriculum(institutionId);
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function updateLessonPlanAction(
+  institutionId: string,
+  values: { id: string; title: string; plannedDate?: string },
+): Promise<CurriculumActionResult> {
+  try {
+    const row = await updateLessonPlan(values.id, {
+      title: values.title,
+      plannedDate: values.plannedDate || null,
+    });
+    revalidateCurriculum(institutionId);
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteLessonPlanAction(
+  institutionId: string,
+  id: string,
+): Promise<CurriculumActionResult> {
+  try {
+    await deleteLessonPlan(id);
+    revalidateCurriculum(institutionId);
+    return { ok: true, id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function unmarkUnitTaughtAction(
+  institutionId: string,
+  unitId: string,
+): Promise<CurriculumActionResult> {
+  try {
+    await unmarkUnitTaught(unitId);
+    revalidateCurriculum(institutionId);
+    return { ok: true, id: unitId };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteLearningOutcomeAction(
+  institutionId: string,
+  id: string,
+): Promise<CurriculumActionResult> {
+  try {
+    await deleteLearningOutcome(id);
+    revalidateCurriculum(institutionId);
+    return { ok: true, id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function updateLearningOutcomeAction(
+  institutionId: string,
+  values: { id: string; code: string; statement: string; unitId?: string },
+): Promise<CurriculumActionResult> {
+  try {
+    const row = await updateLearningOutcome(values.id, {
+      code: values.code,
+      statement: values.statement,
+      unitId: values.unitId || null,
     });
     revalidateCurriculum(institutionId);
     return { ok: true, id: row.id };

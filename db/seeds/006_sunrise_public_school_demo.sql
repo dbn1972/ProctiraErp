@@ -1610,6 +1610,345 @@ FROM (
 ) AS item(n, title, tone, actor, occurred_at)
 ON CONFLICT (id) DO NOTHING;
 
+-- Institution detail tabs: Class 9-B Mathematics gradebook, MATH curriculum, facility tree.
+-- Idempotent. Tenant a501 / institution a551.
+
+UPDATE students
+SET custom_data = COALESCE(custom_data, '{}'::jsonb) || '{"gradebookCode":"SPS-2018-0142"}'::jsonb,
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a5b1'::uuid
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501'::uuid;
+
+UPDATE students
+SET custom_data = COALESCE(custom_data, '{}'::jsonb) || '{"gradebookCode":"SPS-2018-0201"}'::jsonb,
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a5b2'::uuid
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501'::uuid;
+
+INSERT INTO students (
+  id, tenant_id, first_name, last_name, date_of_birth, gender, national_id, admission_number, custom_data
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-' || spec.code),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  spec.first_name,
+  spec.last_name,
+  spec.dob,
+  spec.gender,
+  spec.code,
+  spec.code,
+  jsonb_build_object('gradebookCode', spec.code)
+FROM (
+  VALUES
+    ('Ishita'::text, 'Rao'::text, DATE '2011-02-14', 'FEMALE'::text, 'SPS-2019-0388'::text),
+    ('Kabir', 'Singh', DATE '2011-07-09', 'MALE', 'SPS-2019-0411'),
+    ('Rohan', 'Gupta', DATE '2011-11-21', 'MALE', 'SPS-2019-0550'),
+    ('Sara', 'Khan', DATE '2011-05-03', 'FEMALE', 'SPS-2019-0602')
+) AS spec(first_name, last_name, dob, gender, code)
+ON CONFLICT (id) DO UPDATE
+SET first_name = EXCLUDED.first_name,
+    last_name = EXCLUDED.last_name,
+    custom_data = EXCLUDED.custom_data,
+    updated_at = now();
+
+INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-enroll-' || spec.code),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  '00000000-0000-4000-8000-00000000a572'::uuid,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-' || spec.code),
+  'ENROLLED',
+  DATE '2026-04-01'
+FROM (VALUES ('SPS-2019-0388'), ('SPS-2019-0411'), ('SPS-2019-0550'), ('SPS-2019-0602')) AS spec(code)
+ON CONFLICT (section_id, student_id) DO UPDATE
+SET status = 'ENROLLED', updated_at = now();
+
+INSERT INTO grade_entries (
+  id, tenant_id, student_id, section_id, assessment_code, numeric_score, letter_grade,
+  credit_rule_code, entered_at, entered_by, locked_at, published_at, metadata
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-entry-' || spec.student_key),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  spec.student_id,
+  '00000000-0000-4000-8000-00000000a572'::uuid,
+  'MATH',
+  spec.score,
+  spec.letter,
+  'CBSE-SCHOLASTIC',
+  TIMESTAMPTZ '2026-09-20 10:00:00+05:30',
+  'priya-sharma',
+  spec.locked_at,
+  spec.published_at,
+  jsonb_build_object(
+    'workflowStatus', spec.status,
+    'remark', spec.remark,
+    'rank', spec.rank,
+    'cgpa', spec.cgpa,
+    'published', spec.status = 'PUBLISHED'
+  )
+FROM (
+  VALUES
+    ('aarav'::text, '00000000-0000-4000-8000-00000000a5b1'::uuid, 91.50::numeric, 'A1'::text, 'PUBLISHED'::text, NULL::text, 1::int, 9.6::numeric, TIMESTAMPTZ '2026-09-21 09:00:00+05:30', TIMESTAMPTZ '2026-09-22 09:00:00+05:30'),
+    ('ishita', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0388'), 88.00, 'A2', 'LOCKED', NULL, 2, 9.2, TIMESTAMPTZ '2026-09-21 09:00:00+05:30', NULL),
+    ('kabir', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0411'), 84.50, 'A2', 'APPROVED', 'Consistent effort', 3, 8.9, NULL, NULL),
+    ('diya', '00000000-0000-4000-8000-00000000a5b2'::uuid, 79.00, 'B1', 'SUBMITTED', NULL, 4, 8.4, NULL, NULL),
+    ('sara', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0602'), 71.00, 'B2', 'DRAFT', NULL, 5, 7.8, NULL, NULL),
+    ('rohan', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0550'), 62.00, 'B2', 'REJECTED', 'Recheck internal marks', 6, 7.1, NULL, NULL)
+) AS spec(student_key, student_id, score, letter, status, remark, rank, cgpa, locked_at, published_at)
+ON CONFLICT (id) DO UPDATE
+SET numeric_score = EXCLUDED.numeric_score,
+    letter_grade = EXCLUDED.letter_grade,
+    locked_at = EXCLUDED.locked_at,
+    published_at = EXCLUDED.published_at,
+    metadata = EXCLUDED.metadata,
+    updated_at = now();
+
+INSERT INTO comments_bank (id, tenant_id, institution_id, subject_id, grade_band, label, body)
+VALUES
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-comment-a1'),
+    '00000000-0000-4000-8000-00000000a501'::uuid,
+    '00000000-0000-4000-8000-00000000a551'::uuid,
+    '00000000-0000-4000-8000-00000000a581'::uuid,
+    'A1',
+    'Excellent grasp of concepts',
+    'Excellent grasp of concepts'
+  ),
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-comment-b2'),
+    '00000000-0000-4000-8000-00000000a501'::uuid,
+    '00000000-0000-4000-8000-00000000a551'::uuid,
+    '00000000-0000-4000-8000-00000000a581'::uuid,
+    'B2',
+    'Needs regular practice',
+    'Needs regular practice'
+  )
+ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label, body = EXCLUDED.body;
+
+INSERT INTO class_rank_snapshots (
+  id, tenant_id, section_id, academic_period_id, student_id, rank, score, computed_at
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rank-' || spec.student_key),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  '00000000-0000-4000-8000-00000000a572'::uuid,
+  '00000000-0000-4000-8000-00000000a531'::uuid,
+  spec.student_id,
+  spec.rank,
+  spec.score,
+  TIMESTAMPTZ '2026-09-22 12:00:00+05:30'
+FROM (
+  VALUES
+    ('aarav'::text, '00000000-0000-4000-8000-00000000a5b1'::uuid, 1::int, 91.50::numeric),
+    ('ishita', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0388'), 2, 88.00),
+    ('kabir', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0411'), 3, 84.50),
+    ('diya', '00000000-0000-4000-8000-00000000a5b2'::uuid, 4, 79.00),
+    ('sara', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0602'), 5, 71.00),
+    ('rohan', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0550'), 6, 62.00)
+) AS spec(student_key, student_id, rank, score)
+ON CONFLICT (id) DO UPDATE SET rank = EXCLUDED.rank, score = EXCLUDED.score, computed_at = EXCLUDED.computed_at;
+
+INSERT INTO gpa_snapshots (
+  id, tenant_id, student_id, academic_period_id, board_id, weighted_gpa, unweighted_gpa, credits_earned, computed_at
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gpa-' || spec.student_key),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  spec.student_id,
+  '00000000-0000-4000-8000-00000000a531'::uuid,
+  '00000000-0000-4000-8000-00000000a511'::uuid,
+  spec.cgpa,
+  spec.cgpa,
+  5,
+  TIMESTAMPTZ '2026-09-22 12:00:00+05:30'
+FROM (
+  VALUES
+    ('aarav'::text, '00000000-0000-4000-8000-00000000a5b1'::uuid, 9.6::numeric),
+    ('ishita', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0388'), 9.2),
+    ('kabir', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0411'), 8.9),
+    ('diya', '00000000-0000-4000-8000-00000000a5b2'::uuid, 8.4),
+    ('sara', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0602'), 7.8),
+    ('rohan', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0550'), 7.1)
+) AS spec(student_key, student_id, cgpa)
+ON CONFLICT (id) DO UPDATE
+SET weighted_gpa = EXCLUDED.weighted_gpa, unweighted_gpa = EXCLUDED.unweighted_gpa, computed_at = EXCLUDED.computed_at;
+
+INSERT INTO board_export_jobs (
+  id, tenant_id, board_id, institution_id, job_type, status, requested_by,
+  finished_at, artifact_uri, error_message, metadata
+)
+VALUES
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rc-aarav'),
+    '00000000-0000-4000-8000-00000000a501'::uuid,
+    '00000000-0000-4000-8000-00000000a511'::uuid,
+    '00000000-0000-4000-8000-00000000a551'::uuid,
+    'REPORT_CARD',
+    'SUCCEEDED',
+    'priya-sharma',
+    TIMESTAMPTZ '2026-09-22 16:00:00+05:30',
+    'gradebook://report-cards/aarav-mehta',
+    NULL,
+    jsonb_build_object('studentId', '00000000-0000-4000-8000-00000000a5b1', 'term', 'Term 1', 'studentName', 'Aarav Mehta')
+  ),
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rc-ishita'),
+    '00000000-0000-4000-8000-00000000a501'::uuid,
+    '00000000-0000-4000-8000-00000000a511'::uuid,
+    '00000000-0000-4000-8000-00000000a551'::uuid,
+    'REPORT_CARD',
+    'QUEUED',
+    'priya-sharma',
+    NULL,
+    NULL,
+    NULL,
+    jsonb_build_object(
+      'studentId', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0388')::text,
+      'term', 'Term 1',
+      'studentName', 'Ishita Rao'
+    )
+  ),
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rc-rohan'),
+    '00000000-0000-4000-8000-00000000a501'::uuid,
+    '00000000-0000-4000-8000-00000000a511'::uuid,
+    '00000000-0000-4000-8000-00000000a551'::uuid,
+    'REPORT_CARD',
+    'FAILED',
+    'priya-sharma',
+    TIMESTAMPTZ '2026-09-22 16:10:00+05:30',
+    NULL,
+    'grades not published',
+    jsonb_build_object(
+      'studentId', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0550')::text,
+      'term', 'Term 1',
+      'studentName', 'Rohan Gupta'
+    )
+  )
+ON CONFLICT (id) DO UPDATE
+SET status = EXCLUDED.status,
+    artifact_uri = EXCLUDED.artifact_uri,
+    error_message = EXCLUDED.error_message,
+    metadata = EXCLUDED.metadata,
+    updated_at = now();
+
+INSERT INTO syllabus_units (
+  id, tenant_id, institution_id, subject_id, grade_id, academic_period_id, code, name, sequence, planned, notes
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-unit-' || spec.code),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  '00000000-0000-4000-8000-00000000a551'::uuid,
+  '00000000-0000-4000-8000-00000000a581'::uuid,
+  '00000000-0000-4000-8000-00000000a561'::uuid,
+  '00000000-0000-4000-8000-00000000a531'::uuid,
+  spec.code,
+  spec.name,
+  spec.sequence,
+  true,
+  spec.notes
+FROM (
+  VALUES
+    ('U1'::text, 'Number systems'::text, 1::int, NULL::text),
+    ('U2', 'Polynomials', 2, NULL),
+    ('U3', 'Coordinate geometry', 3, NULL),
+    ('U4', 'Linear equations', 4, NULL)
+) AS spec(code, name, sequence, notes)
+ON CONFLICT (tenant_id, subject_id, grade_id, academic_period_id, code) DO UPDATE
+SET name = EXCLUDED.name, sequence = EXCLUDED.sequence, planned = true, updated_at = now();
+
+INSERT INTO unit_coverage (id, tenant_id, unit_id, taught_at, taught_by)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-coverage-' || spec.code),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-unit-' || spec.code),
+  TIMESTAMPTZ '2026-09-15 10:00:00+05:30',
+  'priya-sharma'
+FROM (VALUES ('U1'), ('U2')) AS spec(code)
+ON CONFLICT (tenant_id, unit_id) DO UPDATE SET taught_at = EXCLUDED.taught_at;
+
+INSERT INTO lesson_plans (id, tenant_id, unit_id, title, planned_date)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-lesson-' || spec.code || '-' || spec.n::text),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-unit-' || spec.code),
+  spec.title,
+  spec.planned_date
+FROM (
+  VALUES
+    ('U1'::text, 1::int, 'Irrational numbers'::text, DATE '2026-09-08'),
+    ('U1', 2, 'Real numbers on the number line', DATE '2026-09-10'),
+    ('U2', 1, 'Zeroes of a polynomial', DATE '2026-09-16')
+) AS spec(code, n, title, planned_date)
+ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, planned_date = EXCLUDED.planned_date;
+
+INSERT INTO learning_outcomes (id, tenant_id, unit_id, subject_id, grade_id, code, statement)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-outcome-' || spec.code),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-unit-' || spec.unit_code),
+  '00000000-0000-4000-8000-00000000a581'::uuid,
+  '00000000-0000-4000-8000-00000000a561'::uuid,
+  spec.code,
+  spec.statement
+FROM (
+  VALUES
+    ('M9.1'::text, 'U1'::text, 'Represent real numbers on the number line'::text),
+    ('M9.2', 'U2', 'Factorise polynomials using identities'),
+    ('M9.3', 'U3', 'Plot points in the Cartesian plane')
+) AS spec(code, unit_code, statement)
+ON CONFLICT (id) DO UPDATE
+SET statement = EXCLUDED.statement, unit_id = EXCLUDED.unit_id, updated_at = now();
+
+INSERT INTO institution_condition_options (id, tenant_id, name, description)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-condition-' || spec.name),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  spec.name,
+  spec.name
+FROM (VALUES ('Good'), ('Fair'), ('Needs repair'), ('Unknown')) AS spec(name)
+ON CONFLICT (tenant_id, name) DO NOTHING;
+
+INSERT INTO institution_infrastructure (
+  id, tenant_id, institution_id, parent_id, type, name, capacity, condition, description
+)
+SELECT
+  spec.id,
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  '00000000-0000-4000-8000-00000000a551'::uuid,
+  spec.parent_id,
+  spec.type,
+  spec.name,
+  spec.capacity,
+  spec.condition,
+  spec.description
+FROM (
+  VALUES
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-campus')::uuid, NULL::uuid, 'LAND'::text, 'Mayur Vihar campus'::text, 2400::int, 'Good'::text, NULL::text),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-block-a'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-campus'), 'BUILDING', 'Academic Block A', 960, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-gf'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-block-a'), 'FLOOR', 'Ground floor', 480, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r101'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-gf'), 'ROOM', 'Room 101', 40, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r102'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-gf'), 'ROOM', 'Room 102', 40, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r103'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-gf'), 'ROOM', 'Room 103', 36, 'Fair', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-ff'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-block-a'), 'FLOOR', 'First floor', 480, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r201'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-ff'), 'ROOM', 'Room 201', 40, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r202'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-ff'), 'ROOM', 'Room 202', 40, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-r204'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-ff'), 'ROOM', 'Room 204', 32, 'Needs repair', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-block-b'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-campus'), 'BUILDING', 'Senior Block B', 720, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-labs'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-block-b'), 'FLOOR', 'Labs', 180, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-phys'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-labs'), 'ROOM', 'Physics lab L1', 30, 'Good', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-chem'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-labs'), 'ROOM', 'Chemistry lab L2', 28, 'Needs repair', NULL),
+    (uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-sports'), uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-fac-campus'), 'BUILDING', 'Sports pavilion', 200, 'Unknown', NULL)
+) AS spec(id, parent_id, type, name, capacity, condition, description)
+ON CONFLICT (id) DO UPDATE
+SET parent_id = EXCLUDED.parent_id,
+    name = EXCLUDED.name,
+    capacity = EXCLUDED.capacity,
+    condition = EXCLUDED.condition,
+    description = EXCLUDED.description,
+    updated_at = now();
+
 DO $$
 DECLARE
   tid CONSTANT uuid := '00000000-0000-4000-8000-00000000a501';

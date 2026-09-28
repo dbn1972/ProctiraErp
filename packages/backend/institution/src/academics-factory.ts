@@ -115,6 +115,12 @@ export class TenantPartitionedInfrastructureStore implements InfrastructureStore
   hasChildren(id: string) {
     return this.part().hasChildren(id);
   }
+  createRepairRequest(record: Parameters<InfrastructureStore['createRepairRequest']>[0]) {
+    return this.part().createRepairRequest(record);
+  }
+  listRepairRequests(institutionId: string) {
+    return this.part().listRepairRequests(institutionId);
+  }
 }
 
 export class TenantPartitionedConditionOptionStore implements ConditionOptionStore {

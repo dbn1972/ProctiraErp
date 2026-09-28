@@ -169,7 +169,7 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
         name: `Campus ${Date.now().toString(36)}`,
         institutionId: INSTITUTION_A,
         capacity: 5000,
-        condition: 'GOOD',
+        condition: 'Good',
       },
     });
     expect(land.status(), await land.text()).toBe(201);

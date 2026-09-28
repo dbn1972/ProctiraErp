@@ -12,7 +12,8 @@ import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { CommentsBankItem } from '@/lib/api/gradebook';
-import type { EntityLabelOption } from '@/lib/entity-label';
+import { formatGpaSnapshotMessage } from '@/lib/gradebook/presentation';
+import { resolveEntityLabel, type EntityLabelOption } from '@/lib/entity-label';
 
 export function GradeEntryForm({
   institutionId,
@@ -68,7 +69,12 @@ export function GradeEntryForm({
             );
             return;
           }
-          setMessage(`Saved grade entry ${result.id}`);
+          const savedName = resolveEntityLabel(
+            studentId,
+            new Map(studentOptions.map((o) => [o.id, o.label])),
+            'the student',
+          );
+          setMessage(`Grade saved for ${savedName}.`);
           setRemark('');
           setCommentBankId(null);
           event.currentTarget.reset();
@@ -176,7 +182,11 @@ export function ComputeGpaForm({
             return;
           }
           setMessage(
-            `GPA snapshot ${result.id}: weighted=${String(result.extra?.weightedGpa ?? 'n/a')} unweighted=${String(result.extra?.unweightedGpa ?? 'n/a')} credits=${String(result.extra?.creditsEarned ?? 'n/a')}`,
+            formatGpaSnapshotMessage({
+              weightedGpa: result.extra?.weightedGpa,
+              unweightedGpa: result.extra?.unweightedGpa,
+              creditsEarned: result.extra?.creditsEarned,
+            }),
           );
         });
       }}
@@ -237,9 +247,12 @@ export function ReportCardTriggerForm({
             setError(result.error);
             return;
           }
-          setMessage(
-            `Report card job ${result.id} → ${String(result.extra?.status ?? '')} ${String(result.extra?.artifactUri ?? '')}`,
+          const queuedName = resolveEntityLabel(
+            studentId,
+            new Map(studentOptions.map((option) => [option.id, option.label])),
+            'the student',
           );
+          setMessage(`Report card queued for ${queuedName}.`);
         });
       }}
     >
