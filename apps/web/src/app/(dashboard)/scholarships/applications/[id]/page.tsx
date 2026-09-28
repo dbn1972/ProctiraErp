@@ -28,6 +28,8 @@ import {
 } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
 
+import { ApplicationDocumentsPanel } from '@/features/scholarships/components/application-documents-panel';
+
 import { ApplicationDecisionForm } from '../../_components/application-decision-form';
 
 export const dynamic = 'force-dynamic';
@@ -223,6 +225,16 @@ export default async function ScholarshipApplicationPage(props: PageProps) {
                   </div>
                 </dl>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Documents</CardTitle>
+              <CardDescription>Income certificate, marksheet, and identity files.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ApplicationDocumentsPanel applicationId={application.id} canReview={canDecide} />
             </CardContent>
           </Card>
 

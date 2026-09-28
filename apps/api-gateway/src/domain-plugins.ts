@@ -119,7 +119,13 @@ import {
   type PublicTenantResolver,
 } from '@proctira/backend-registration';
 import { reportCataloguePlugin } from '@proctira/backend-report';
-import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
+import {
+  createScholarshipDocumentStore,
+  createScholarshipRepository,
+  isPgScholarshipEnabled,
+  linkedStudentIdsForParent,
+  scholarshipPlugin,
+} from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
   createStaffRepository,
@@ -840,6 +846,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(scholarshipPlugin, {
         repository,
         prefix: '/scholarships',
+        documentStore: isPgScholarshipEnabled() ? createScholarshipDocumentStore() : undefined,
+        resolveLinkedStudentIds: isPgScholarshipEnabled() ? linkedStudentIdsForParent : undefined,
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
