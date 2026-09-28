@@ -27,7 +27,7 @@
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.34.52",
     "fastify-plugin": "^4.5.0",
-    "uuid": "^9.0.0"
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",
