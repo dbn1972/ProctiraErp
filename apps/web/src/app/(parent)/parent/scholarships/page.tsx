@@ -23,7 +23,9 @@ export default async function ParentScholarshipsPage() {
       </div>
     );
   }
-  const labels = await loadStudentLabelsForIds(childrenResult.items.map((child) => child.studentId));
+  const labels = await loadStudentLabelsForIds(
+    childrenResult.items.map((child) => child.studentId),
+  );
   return (
     <div className="space-y-4">
       <div>

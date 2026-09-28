@@ -15,7 +15,10 @@ import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
 } from './document-blob-store.js';
-import { authorizeApplicationCreate, registerScholarshipDocumentRoutes } from './document-routes.js';
+import {
+  authorizeApplicationCreate,
+  registerScholarshipDocumentRoutes,
+} from './document-routes.js';
 import { ScholarshipDocumentService } from './document-service.js';
 import {
   InMemoryScholarshipDocumentStore,
@@ -33,7 +36,11 @@ export interface ParentScholarshipRouteOptions {
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
 }
 
-async function actorFor(request: FastifyRequest, tenantId: string, resolve?: ParentScholarshipRouteOptions['resolveLinkedStudentIds']) {
+async function actorFor(
+  request: FastifyRequest,
+  tenantId: string,
+  resolve?: ParentScholarshipRouteOptions['resolveLinkedStudentIds'],
+) {
   let actor = actorFromRequest(request);
   if (resolve && actor.userId) {
     try {
@@ -45,8 +52,7 @@ async function actorFor(request: FastifyRequest, tenantId: string, resolve?: Par
   return actor;
 }
 
-const APPLICANT_UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const APPLICANT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function ownedIds(actor: ReturnType<typeof actorFromRequest>): string[] {
   return [

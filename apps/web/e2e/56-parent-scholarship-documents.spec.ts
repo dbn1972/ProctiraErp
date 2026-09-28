@@ -44,21 +44,20 @@ test.describe('Parent scholarships', () => {
       'Content-Type': 'application/json',
     };
     const programId = await openProgram(request);
-    const draft = await request.post(
-      `${GATEWAY}/api/v1/parent-portal/scholarships/applications`,
-      {
-        headers,
-        data: {
-          programId,
-          applicantId: AARAV,
-          institutionId: INSTITUTION,
-          academicRecords: [{ institutionName: 'Sunrise Public School', educationLevel: 'secondary', gpa: 3.6 }],
-          financialInfo: { familyIncome: 180000 },
-          documents: [],
-          asDraft: true,
-        },
+    const draft = await request.post(`${GATEWAY}/api/v1/parent-portal/scholarships/applications`, {
+      headers,
+      data: {
+        programId,
+        applicantId: AARAV,
+        institutionId: INSTITUTION,
+        academicRecords: [
+          { institutionName: 'Sunrise Public School', educationLevel: 'secondary', gpa: 3.6 },
+        ],
+        financialInfo: { familyIncome: 180000 },
+        documents: [],
+        asDraft: true,
       },
-    );
+    });
     expect(draft.status(), await draft.text()).toBe(201);
     const applicationId = (await draft.json()).id as string;
 
@@ -70,7 +69,9 @@ test.describe('Parent scholarships', () => {
           programId,
           applicantId: DIYA,
           institutionId: INSTITUTION,
-          academicRecords: [{ institutionName: 'Sunrise Public School', educationLevel: 'secondary' }],
+          academicRecords: [
+            { institutionName: 'Sunrise Public School', educationLevel: 'secondary' },
+          ],
           financialInfo: {},
           documents: [],
         },

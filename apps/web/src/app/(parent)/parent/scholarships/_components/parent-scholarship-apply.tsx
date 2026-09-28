@@ -84,7 +84,9 @@ export function ParentScholarshipApply({
       setDraftId(created.id);
       setUploaded([]);
     } catch (err) {
-      setError(err instanceof BrowserGatewayError ? err.message : 'Could not start the application');
+      setError(
+        err instanceof BrowserGatewayError ? err.message : 'Could not start the application',
+      );
     } finally {
       setPending(false);
     }
@@ -97,7 +99,9 @@ export function ParentScholarshipApply({
       uploaded.map((doc) => doc.documentType),
     );
     if (missing.length > 0) {
-      setError(`Missing required documents: ${missing.join(', ')}. Upload each file before submitting.`);
+      setError(
+        `Missing required documents: ${missing.join(', ')}. Upload each file before submitting.`,
+      );
       return;
     }
     setPending(true);
@@ -152,7 +156,11 @@ export function ParentScholarshipApply({
         ) : (
           <ul className="mt-2 space-y-2">
             {own.map((row) => (
-              <li key={row.id} className="rounded-md border p-3 text-sm" data-testid={`parent-application-${row.id}`}>
+              <li
+                key={row.id}
+                className="rounded-md border p-3 text-sm"
+                data-testid={`parent-application-${row.id}`}
+              >
                 <span className="font-medium">{row.status}</span>
                 <ApplicationDocumentsPanel applicationId={row.id} canReview={false} apiRoot={API} />
               </li>
@@ -187,19 +195,36 @@ export function ParentScholarshipApply({
             <>
               <DocumentUploadSlots
                 applicationId={draftId}
-                types={required.length > 0 ? required : ['income_certificate', 'marksheet', 'id_proof']}
+                types={
+                  required.length > 0 ? required : ['income_certificate', 'marksheet', 'id_proof']
+                }
                 requiredTypes={required}
                 documents={uploaded}
                 apiRoot={API}
-                onUploaded={(doc) => setUploaded((rows) => [...rows.filter((row) => row.documentType !== doc.documentType), doc])}
+                onUploaded={(doc) =>
+                  setUploaded((rows) => [
+                    ...rows.filter((row) => row.documentType !== doc.documentType),
+                    doc,
+                  ])
+                }
                 onRemoved={(id) => setUploaded((rows) => rows.filter((row) => row.id !== id))}
               />
-              <Button type="button" className="min-h-12" disabled={pending} onClick={() => void submit()}>
+              <Button
+                type="button"
+                className="min-h-12"
+                disabled={pending}
+                onClick={() => void submit()}
+              >
                 Submit application
               </Button>
             </>
           ) : (
-            <Button type="button" className="min-h-12" disabled={pending || !programId} onClick={() => void startDraft()}>
+            <Button
+              type="button"
+              className="min-h-12"
+              disabled={pending || !programId}
+              onClick={() => void startDraft()}
+            >
               Start application
             </Button>
           )}
