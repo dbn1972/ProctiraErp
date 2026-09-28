@@ -47,6 +47,22 @@ export interface InstitutionFormProps {
 }
 
 const PLACEHOLDER_UUID = '';
+const WINDOW_DIRTY_BAG = '__proctiraInstitutionFormDirty';
+
+function readWindowDirty(formKey: string): boolean {
+  if (typeof window === 'undefined') return false;
+  const bag = (window as unknown as Record<string, Record<string, boolean>>)[WINDOW_DIRTY_BAG];
+  return Boolean(bag?.[formKey]);
+}
+
+function writeWindowDirty(formKey: string, dirty: boolean): void {
+  if (typeof window === 'undefined') return;
+  const root = window as unknown as Record<string, Record<string, boolean>>;
+  const bag = root[WINDOW_DIRTY_BAG] ?? {};
+  if (dirty) bag[formKey] = true;
+  else delete bag[formKey];
+  root[WINDOW_DIRTY_BAG] = bag;
+}
 
 function applyServerFieldErrors<T extends Record<string, unknown>>(
   setError: ReturnType<typeof useForm<T>>['setError'],
@@ -72,9 +88,10 @@ export function InstitutionForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
-  // Explicit flag — RHF isDirty alone misses Playwright fill / some controlled
-  // updates under React 19, which left data-dirty="false" after a name edit.
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Window bag survives RSC/client remounts that reset React state mid-edit
+  // (seen in Playwright production fills where data-dirty snapped back to false).
+  const formKey = initialValue?.id ?? 'new';
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(() => readWindowDirty(formKey));
 
   const form = useForm<InstitutionFormValues>({
     resolver: zodResolver(institutionFormSchema),
@@ -103,11 +120,12 @@ export function InstitutionForm({
   } = form;
 
   const leaveHref = initialValue ? `/institutions/${initialValue.id}/overview` : '/institutions';
-  const formIsDirty = isDirty || hasUnsavedChanges;
+  const formIsDirty = isDirty || hasUnsavedChanges || readWindowDirty(formKey);
   const isDirtyRef = useRef(formIsDirty);
   isDirtyRef.current = formIsDirty;
 
   useEffect(() => {
+    if (readWindowDirty(formKey)) setHasUnsavedChanges(true);
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!isDirtyRef.current) return;
       event.preventDefault();
@@ -134,7 +152,7 @@ export function InstitutionForm({
       window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('click', onClick, true);
     };
-  }, []);
+  }, [formKey]);
 
   const areaId = watch('areaId');
   const typeId = watch('typeId');
@@ -145,7 +163,13 @@ export function InstitutionForm({
   const mapHref = coordinateMapPreview(latitude, longitude);
 
   const markDirty = () => {
+    writeWindowDirty(formKey, true);
     setHasUnsavedChanges(true);
+  };
+
+  const clearDirty = () => {
+    writeWindowDirty(formKey, false);
+    setHasUnsavedChanges(false);
   };
 
   const selectValue = (field: 'areaId' | 'typeId' | 'sectorId' | 'ownershipId', value: string) => {
@@ -155,6 +179,7 @@ export function InstitutionForm({
 
   const cancel = () => {
     if (formIsDirty && !window.confirm('You have unsaved changes. Leave without saving?')) return;
+    clearDirty();
     router.push(leaveHref);
   };
 
@@ -166,6 +191,7 @@ export function InstitutionForm({
         : await createInstitutionAction(values);
 
       if (result.success) {
+        clearDirty();
         router.push(`/institutions/${result.data.id}/overview`);
         router.refresh();
         return;
@@ -220,23 +246,14 @@ export function InstitutionForm({
               </Label>
               <Input
                 id="name"
-                name="name"
+                {...register('name', {
+                  onChange: () => {
+                    markDirty();
+                  },
+                })}
                 disabled={isPending}
                 aria-invalid={errors.name ? 'true' : 'false'}
                 aria-describedby={errors.name ? 'name-error' : undefined}
-                value={watch('name')}
-                onChange={(event) => {
-                  setValue('name', event.target.value, { shouldDirty: true, shouldValidate: true });
-                  markDirty();
-                }}
-                onInput={(event) => {
-                  setValue('name', event.currentTarget.value, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                  markDirty();
-                }}
-                onBlur={() => void form.trigger('name')}
               />
               {errors.name && (
                 <p id="name-error" className="text-sm text-destructive">
@@ -251,24 +268,15 @@ export function InstitutionForm({
               </Label>
               <Input
                 id="code"
-                name="code"
+                {...register('code', {
+                  onChange: () => {
+                    markDirty();
+                  },
+                })}
                 disabled={isPending}
                 placeholder="07040100417"
                 aria-invalid={errors.code ? 'true' : 'false'}
                 aria-describedby={errors.code ? 'code-error' : 'code-hint'}
-                value={watch('code')}
-                onChange={(event) => {
-                  setValue('code', event.target.value, { shouldDirty: true, shouldValidate: true });
-                  markDirty();
-                }}
-                onInput={(event) => {
-                  setValue('code', event.currentTarget.value, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                  markDirty();
-                }}
-                onBlur={() => void form.trigger('code')}
               />
               <p id="code-hint" className="text-xs text-muted-foreground">
                 The school&apos;s UDISE code. It must be unique in this organisation.

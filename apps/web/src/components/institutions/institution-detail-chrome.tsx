@@ -15,18 +15,21 @@ import { InstitutionTabs } from '@/components/institutions/institution-tabs';
 export function InstitutionHeroActions(props: { id: string; name: string; inactive: boolean }) {
   const pathname = usePathname();
   if (pathname.endsWith('/edit')) return null;
+  const compact = '!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs';
   return (
     <div className="flex shrink-0 flex-wrap gap-2">
-      <InstitutionReactivateButton id={props.id} name={props.name} inactive={props.inactive} />
-      <Button asChild variant="outline" size="sm">
+      {props.name !== 'Institution unavailable' ? (
+        <InstitutionReactivateButton id={props.id} name={props.name} inactive={props.inactive} />
+      ) : null}
+      <Button asChild variant="outline" size="sm" className={compact}>
         <Link href={`/institutions/${props.id}/edit`}>
-          <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
+          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
           Edit
         </Link>
       </Button>
-      <Button asChild size="sm">
+      <Button asChild size="sm" className={compact}>
         <Link href={`/institutions/${props.id}/overview/report`}>
-          <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
+          <FileText className="h-3.5 w-3.5" aria-hidden="true" />
           School report
         </Link>
       </Button>

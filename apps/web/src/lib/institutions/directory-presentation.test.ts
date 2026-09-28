@@ -4,6 +4,7 @@ import {
   INSTITUTION_LIST_ERROR,
   attendanceTone,
   directoryAttendanceBand,
+  formatInstitutionSwitcher,
   formatPageLabel,
   formatShowingRange,
   formatTenantSwitcher,
@@ -50,6 +51,19 @@ describe('institutions directory presentation', () => {
     expect(copy.lines).toEqual(['CBSE', '1,240 students']);
     expect(`${copy.title}${copy.lines.join('')}`).not.toContain('Board: Delhi East');
     expect(copy.title.includes('CBSE')).toBe(false);
+  });
+
+  it('scopes the switcher to the open institution board, area, and enrolment', () => {
+    // Area stays an area. The prototype's "Board: Delhi East" is not copied.
+    const copy = formatInstitutionSwitcher({
+      organizationName: 'Sunrise Public School',
+      boardLabel: 'CBSE',
+      areaLabel: 'Delhi East',
+      studentCount: 1240,
+    });
+    expect(copy.title).toBe('Sunrise Public School');
+    expect(copy.lines).toEqual(['CBSE · Delhi East · 1,240 students']);
+    expect(copy.lines.join('')).not.toContain('Board:');
   });
 
   it('formats pagination with an en dash, including a single page', () => {

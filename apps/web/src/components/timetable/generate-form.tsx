@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 
-import { Button } from '@proctira/ui/components';
+import { Button, Checkbox } from '@proctira/ui/components';
 
 import { runGenerationJobAction } from '@/app/(dashboard)/timetable-actions';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
@@ -160,15 +160,16 @@ export function TimetableGenerateForm(props: {
           required
         />
       </label>
-      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:col-span-2">
-        <input
-          type="checkbox"
-          className="size-12 shrink-0 rounded border border-input"
+      <div className="flex items-center gap-2 text-sm sm:col-span-2">
+        <Checkbox
+          id="persist-meetings"
           checked={persistMeetings}
-          onChange={(e) => setPersistMeetings(e.target.checked)}
+          onCheckedChange={(checked) => setPersistMeetings(checked === true)}
         />
-        Write generated meetings into the live grid
-      </label>
+        <label htmlFor="persist-meetings" className="cursor-pointer">
+          Write generated meetings into the live grid
+        </label>
+      </div>
       {error ? (
         <p className="text-sm text-destructive sm:col-span-2" role="alert">
           {error}

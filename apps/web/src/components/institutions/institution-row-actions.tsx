@@ -322,6 +322,7 @@ export function InstitutionReactivateButton({
         <Button
           type="button"
           size="sm"
+          className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs"
           onClick={() => setOpen(true)}
           data-testid={`reactivate-header-${id}`}
         >

@@ -51,6 +51,23 @@ async function chooseSelectOption(page: Page, triggerId: string, optionName: str
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
+/** Set an input value through the native setter and fire input/change so RHF sees it. */
+async function fillReactInput(locator: import('@playwright/test').Locator, value: string) {
+  await locator.evaluate((el, next) => {
+    if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
+      throw new Error('fillReactInput expects an input or textarea');
+    }
+    const proto =
+      el instanceof HTMLTextAreaElement
+        ? window.HTMLTextAreaElement.prototype
+        : window.HTMLInputElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'value');
+    descriptor?.set?.call(el, next);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+}
+
 test.describe('Institutions profile forms — Sunrise live', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
 
@@ -105,11 +122,8 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     const editedName = `${name} edited`;
     const nameField = page.getByLabel('Name');
     await nameField.click();
-    await nameField.fill(editedName);
+    await fillReactInput(nameField, editedName);
     await expect(nameField).toHaveValue(editedName);
-    // Address uses register(); together with form onInput this reliably flips
-    // data-dirty under production Playwright fill (controlled Name alone can race).
-    await page.getByLabel('Address').fill('Unsaved edit lane');
     await expect(page.getByTestId('institution-profile-form')).toHaveAttribute(
       'data-dirty',
       'true',

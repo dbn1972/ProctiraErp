@@ -84,6 +84,27 @@ export function formatTenantSwitcher(input: {
   return { title, lines };
 }
 
+/**
+ * Institution detail: the switcher keeps the organisation title and replaces
+ * the tenant-wide count with this school's board, area, and enrolment.
+ * Area is not labelled "Board" — boards stay codes such as CBSE.
+ */
+export function formatInstitutionSwitcher(input: {
+  organizationName: string;
+  boardLabel: string | null;
+  areaLabel: string | null;
+  studentCount: number | null;
+}): TenantSwitcherCopy {
+  const title = input.organizationName.trim();
+  const parts = [input.boardLabel?.trim(), input.areaLabel?.trim()].filter((part): part is string =>
+    Boolean(part),
+  );
+  if (input.studentCount !== null) {
+    parts.push(`${input.studentCount.toLocaleString('en-IN')} students`);
+  }
+  return { title, lines: parts.length > 0 ? [parts.join(' · ')] : [] };
+}
+
 export function initialsFromName(name: string): string {
   const parts = name
     .split(/\s+/)

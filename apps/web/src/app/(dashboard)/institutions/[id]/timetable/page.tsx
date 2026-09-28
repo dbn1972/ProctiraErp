@@ -4,8 +4,10 @@
  * Route: /institutions/[id]/timetable
  */
 import Link from 'next/link';
+import { Sparkles, Users } from 'lucide-react';
 
 import { AcademicPeriodSelect } from '@/components/timetable/academic-period-select';
+import { ClassBandSelect } from '@/components/timetable/class-band-select';
 import { InstitutionWeekGrid } from '@/components/timetable/institution-week-grid';
 import { MeetingCreateForm } from '@/components/timetable/meeting-create-form';
 import { Button, Card, CardContent } from '@proctira/ui/components';
@@ -208,11 +210,25 @@ export default async function InstitutionTimetablePage(props: PageProps) {
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/institutions/${institutionId}/timetable/generate`}>Generate</Link>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs"
+          >
+            <Link href={`/institutions/${institutionId}/timetable/generate`}>
+              <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              Generate
+            </Link>
           </Button>
-          <Button asChild variant="outline" size="sm">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs"
+          >
             <Link href={`/institutions/${institutionId}/timetable/substitutions`}>
+              <Users className="h-3.5 w-3.5" aria-hidden="true" />
               Substitutions
             </Link>
           </Button>
@@ -297,32 +313,12 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                     List
                   </Link>
                 </div>
+                <ClassBandSelect
+                  value={classKey}
+                  bands={bands}
+                  preserve={{ view, academicPeriod: academicPeriodId || undefined }}
+                />
                 {context ? <span className="text-xs text-muted-foreground">{context}</span> : null}
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs" data-testid="timetable-class-filter">
-                <Link
-                  href={query({ class: 'all' })}
-                  className={
-                    classKey === 'all'
-                      ? 'font-semibold text-foreground'
-                      : 'text-muted-foreground underline'
-                  }
-                >
-                  All sections
-                </Link>
-                {bands.map((band) => (
-                  <Link
-                    key={band}
-                    href={query({ class: band })}
-                    className={
-                      classKey === band
-                        ? 'font-semibold text-foreground'
-                        : 'text-muted-foreground underline'
-                    }
-                  >
-                    Class {band}
-                  </Link>
-                ))}
               </div>
 
               {view === 'list' ? (

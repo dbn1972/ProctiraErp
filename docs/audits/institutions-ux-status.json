@@ -1,6 +1,6 @@
 {
-  "tip": "3eda2462",
-  "note": "LIVE evidence: 16d+16f+reactivate passed locally with harness Sunrise seed (006); form onInput/onChange marks data-dirty; captures under docs/audits/captures/institutions-*/; axe institutions 14/14.",
+  "tip": "4cdafa69",
+  "note": "LIVE: 16d+16f+reactivate with harness Sunrise seed; fillReactInput for dirty; captures + axe 14/14 institutions.",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
     "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
