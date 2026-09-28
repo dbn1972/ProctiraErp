@@ -24,6 +24,7 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
+import { compareDirectoryInstitutions } from './directory-order.js';
 import type {
   InstitutionEntity,
   InstitutionFilter,
@@ -237,15 +238,22 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
       const pageSize = Math.max(1, Math.min(pagination.pageSize ?? 20, 100));
       const skip = (page - 1) * pageSize;
 
-      const [totalItems, rows] = await Promise.all([
-        tx.institution.count({ where }),
-        tx.institution.findMany({
-          where,
-          orderBy: [{ name: 'asc' }],
-          skip,
-          take: pageSize,
-        }),
-      ]);
+      const directoryOrder = (pagination.sortBy ?? 'name') === 'directory';
+      const [totalItems, rows] = directoryOrder
+        ? await (async () => {
+            const all = (await tx.institution.findMany({ where })) as InstitutionRow[];
+            all.sort(compareDirectoryInstitutions);
+            return [all.length, all.slice(skip, skip + pageSize)] as const;
+          })()
+        : await Promise.all([
+            tx.institution.count({ where }),
+            tx.institution.findMany({
+              where,
+              orderBy: [{ name: 'asc' }],
+              skip,
+              take: pageSize,
+            }),
+          ]);
 
       return {
         data: (rows as InstitutionRow[]).map(toEntity),

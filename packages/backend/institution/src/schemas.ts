@@ -132,7 +132,7 @@ export const InstitutionListQuerySchema = Type.Object({
   search: Type.Optional(Type.String({ description: 'Search by name or code' })),
   sortBy: Type.Optional(
     Type.String({
-      enum: ['name', 'code', 'createdAt'],
+      enum: ['name', 'code', 'createdAt', 'directory'],
       default: 'name',
       description: 'Sort field',
     }),

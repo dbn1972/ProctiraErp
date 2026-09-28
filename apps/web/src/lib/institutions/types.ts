@@ -44,7 +44,7 @@ export interface InstitutionListFilters {
   areaId?: string;
   status?: InstitutionStatus;
   search?: string;
-  sortBy?: 'name' | 'code' | 'createdAt';
+  sortBy?: 'name' | 'code' | 'createdAt' | 'directory';
   sortOrder?: 'asc' | 'desc';
 }
 

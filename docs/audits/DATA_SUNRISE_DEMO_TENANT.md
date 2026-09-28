@@ -29,6 +29,8 @@ Directory profile on tenant `00000000-0000-4000-8000-00000000a501` (slug `sunris
 | `…a554` | Sunrise Public School – Rohini Sector 9  | Delhi North                                                         | Senior Secondary | 07040200731 | 1,105    | 76    | 76%              | active   |
 | `…a555` | Sunrise Pre-Primary – Vasundhara Enclave | Delhi East                                                          | Pre-Primary      | 07040100844 | 0        | 0     | none             | inactive |
 
+The institutions list asks for `sortBy=directory`: active schools by institution code, then inactive schools. That puts Mayur Vihar (`07040100417`), Preet Vihar (`07040100522`), Junior Wing Patparganj (`07040100618`), and Rohini Sector 9 (`07040200731`) ahead of inactive Vasundhara Enclave (`07040100844`). A name sort would list Junior Wing first. Other API clients keep the default `sortBy=name`.
+
 `…a551` is the original screen-review school, renamed in place from Pune / `SPS-PUN-01`. Named students `…a5b1`–`…a5b5`, staff `…a591`–`…a593`, classes `…a561`–`…a563`, sections, fees, and consents are unchanged. Generated people use `generate_series` and `uuid_generate_v5`. Attendance is five dates ending on `CURRENT_DATE` (18,075 rows). Present targets per day are 1,166 / 783 / 361 / 840 so `ROUND` yields 94 / 91 / 88 / 76. Names are fictional.
 
 ## 2. Apply / verify (no Prisma for cert)

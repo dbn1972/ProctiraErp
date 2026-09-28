@@ -40,7 +40,7 @@ vi.mock('next-intl', () => ({
       attendance: 'Attendance',
       examinations: 'Examinations',
       scholarships: 'Scholarships',
-      lms: 'Learning',
+      lms: 'LMS',
       health: 'Health',
       parentPortal: 'Parent portal',
       fees: 'Fees',
@@ -109,6 +109,8 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+import { navGroupLabel } from '@/lib/institutions/directory-presentation';
+
 import { Sidebar, navItems } from './sidebar';
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
@@ -125,6 +127,22 @@ afterEach(() => {
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('<Sidebar> keyboard contract — Task 56.6 / Req 37 AC 6', () => {
+  it('renders each sidebar group once, with LMS after Examinations', () => {
+    render(<Sidebar />);
+    const headings = Array.from(document.querySelectorAll('nav p')).map((node) => node.textContent);
+    expect(headings).toEqual(['Overview', 'Academics', 'Services', 'Insights & system']);
+    expect(new Set(headings).size).toBe(headings.length);
+    expect(screen.getByTestId('sidebar-link-lms').textContent).toContain('LMS');
+    expect(screen.queryByText('Learning')).toBeNull();
+
+    const keys = navItems.map((item) => item.key);
+    expect(keys.indexOf('lms')).toBe(keys.indexOf('examinations') + 1);
+    expect(keys.indexOf('scholarships')).toBe(keys.indexOf('lms') + 1);
+    const groups = keys.map((key) => navGroupLabel(key));
+    const collapsed = groups.filter((group, index) => group !== groups[index - 1]);
+    expect(collapsed).toEqual(['Overview', 'Academics', 'Services', 'Insights & system']);
+  });
+
   it('renders a navigation landmark with the documented aria-label', () => {
     render(<Sidebar />);
     expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeTruthy();

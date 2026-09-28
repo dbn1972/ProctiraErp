@@ -101,18 +101,35 @@ const NAV_GROUPS: Record<string, string> = {
   scholarships: 'Services',
   health: 'Services',
   fees: 'Services',
-  notifications: 'Services',
   transport: 'Services',
-  communication: 'Services',
   hostel: 'Services',
   library: 'Services',
-  workflows: 'Services',
-  dataWarehouse: 'Services',
-  reports: 'Services',
-  admin: 'Services',
+  communication: 'Services',
+  notifications: 'Services',
   parentPortal: 'Services',
+  workflows: 'Insights & system',
+  dataWarehouse: 'Insights & system',
+  reports: 'Insights & system',
+  admin: 'Insights & system',
 };
 
 export function navGroupLabel(key: string): string | null {
   return NAV_GROUPS[key] ?? null;
+}
+
+export const INSTITUTION_LIST_ERROR =
+  "We couldn't load schools. Check your connection and try again.";
+
+export function institutionListSubtitle(input: {
+  filteredCount: number;
+  catalogCount: number;
+  filtersActive: boolean;
+  failed: boolean;
+}): string {
+  if (input.failed) return 'Schools could not be loaded';
+  if (input.filtersActive) {
+    return `${input.filteredCount.toLocaleString()} of ${input.catalogCount.toLocaleString()} schools match`;
+  }
+  const noun = input.catalogCount === 1 ? 'school' : 'schools';
+  return `${input.catalogCount.toLocaleString()} ${noun} · profiles, classes, and infrastructure`;
 }

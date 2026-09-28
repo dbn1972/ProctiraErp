@@ -25,7 +25,7 @@ import { useOptionalBrand } from '@/providers/BrandConfigProvider';
  */
 export function Header() {
   const t = useTranslations('auth');
-  const { user } = useAuth();
+  const { user, status } = useAuth();
   const brand = useOptionalBrand();
   const directory = useDirectoryContext();
   const displayName = user?.name?.trim() || 'Account';
@@ -98,31 +98,42 @@ export function Header() {
           <HelpCircle className="h-4 w-4" aria-hidden="true" />
         </Link>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="inline-flex min-h-8 items-center gap-2 rounded-full py-1 pe-2 ps-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`Account menu for ${displayName}`}
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-xs font-semibold text-primary-foreground">
-                {initialsFromName(displayName)}
-              </span>
-              <span className="hidden text-start leading-tight sm:block">
-                <span className="block text-sm font-semibold text-foreground">{displayName}</span>
-                {subtitle ? (
-                  <span className="block text-[11px] text-muted-foreground">{subtitle}</span>
-                ) : null}
-              </span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => void handleLogout()}>
-              <LogOut className="me-2 h-4 w-4" aria-hidden="true" />
-              {t('logout')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {status === 'loading' ? (
+          <div
+            className="flex items-center gap-2"
+            data-testid="header-user-skeleton"
+            aria-hidden="true"
+          >
+            <span className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+            <span className="hidden h-8 w-28 animate-pulse rounded-md bg-muted sm:block" />
+          </div>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="inline-flex min-h-8 items-center gap-2 rounded-full py-1 pe-2 ps-1 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={`Account menu for ${displayName}`}
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[hsl(var(--primary))] text-xs font-semibold text-primary-foreground">
+                  {initialsFromName(displayName)}
+                </span>
+                <span className="hidden text-start leading-tight sm:block">
+                  <span className="block text-sm font-semibold text-foreground">{displayName}</span>
+                  {subtitle ? (
+                    <span className="block text-[11px] text-muted-foreground">{subtitle}</span>
+                  ) : null}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => void handleLogout()}>
+                <LogOut className="me-2 h-4 w-4" aria-hidden="true" />
+                {t('logout')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </header>
   );

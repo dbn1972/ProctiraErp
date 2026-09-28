@@ -126,10 +126,12 @@ export function InstitutionsFilters({
                 }
               })
             }
-            disabled={isPending || areas.length === 0}
+            disabled={isPending}
           >
             <SelectTrigger id="filter-area" className="h-10">
-              <SelectValue placeholder="All areas" />
+              <SelectValue placeholder="All areas">
+                {areas.find((area) => area.id === defaultAreaId)?.name ?? 'All areas'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_AREAS}>All areas</SelectItem>
@@ -160,7 +162,13 @@ export function InstitutionsFilters({
             disabled={isPending}
           >
             <SelectTrigger id="filter-status" className="h-10">
-              <SelectValue placeholder="All statuses" />
+              <SelectValue placeholder="All statuses">
+                {defaultStatus === 'ACTIVE'
+                  ? 'Active'
+                  : defaultStatus === 'INACTIVE'
+                    ? 'Inactive'
+                    : 'All statuses'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_STATUSES}>All statuses</SelectItem>
