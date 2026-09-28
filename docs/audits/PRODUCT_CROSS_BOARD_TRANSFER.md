@@ -13,37 +13,37 @@ A requesting-school registrar or principal can draft and submit a student move t
 
 ## 2. Personas & jobs
 
-| Persona | Job-to-be-done | Success looks like |
-| ------- | -------------- | ------------------ |
-| Requesting registrar / principal | Start a transfer and cancel it before it is finished | Draft is saved, submitted, and visible to the receiving school |
-| Receiving principal | Decide whether to accept the student | Approve or reject with a comment; completion places the student |
-| Board / tenant admin | Keep CBSE↔ICSE↔state equivalency current and unblock any school | Rules save; admin can act on any school in the tenant |
-| Teacher / parent | Must not approve or edit rules | Gateway 403 on writes; parent read of the queue is denied in the service |
+| Persona                          | Job-to-be-done                                                  | Success looks like                                                       |
+| -------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Requesting registrar / principal | Start a transfer and cancel it before it is finished            | Draft is saved, submitted, and visible to the receiving school           |
+| Receiving principal              | Decide whether to accept the student                            | Approve or reject with a comment; completion places the student          |
+| Board / tenant admin             | Keep CBSE↔ICSE↔state equivalency current and unblock any school | Rules save; admin can act on any school in the tenant                    |
+| Teacher / parent                 | Must not approve or edit rules                                  | Gateway 403 on writes; parent read of the queue is denied in the service |
 
 ## 3. Scope
 
-| In scope | Non-goals |
-| -------- | --------- |
-| States `DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED/REJECTED`, then `COMPLETED` or `CANCELLED` | Transfer certificate PDF generation (existing TC/lifecycle certificate module is unchanged) |
-| Approval history (actor, decision, comment, timestamps) | Multi-tenant transfers (one `tenant_id`; another tenant's id is 404) |
-| Grade equivalency: source board + grade + subject → target board + grade + subject, marks scale and credit factor | Automatic transcript recalculation or board export file changes |
-| Completion moves enrollment; board is the destination institution's board | Parent-shell transfer request |
-| Confirm dialog before reject and cancel | Rewriting the immediate `POST /enrollments/transfer` path |
+| In scope                                                                                                          | Non-goals                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| States `DRAFT → SUBMITTED → UNDER_REVIEW → APPROVED/REJECTED`, then `COMPLETED` or `CANCELLED`                    | Transfer certificate PDF generation (existing TC/lifecycle certificate module is unchanged) |
+| Approval history (actor, decision, comment, timestamps)                                                           | Multi-tenant transfers (one `tenant_id`; another tenant's id is 404)                        |
+| Grade equivalency: source board + grade + subject → target board + grade + subject, marks scale and credit factor | Automatic transcript recalculation or board export file changes                             |
+| Completion moves enrollment; board is the destination institution's board                                         | Parent-shell transfer request                                                               |
+| Confirm dialog before reject and cancel                                                                           | Rewriting the immediate `POST /enrollments/transfer` path                                   |
 
 ## 4. Peer parity
 
-| Peer capability | Our target this slice |
-| --------------- | --------------------- |
-| PowerSchool transfer workflow with school approval | Named states, role checks, comment on reject |
-| Infinite Campus course/grade equivalency on cross-district entry | Tenant-scoped board pair rules and a lookup used at approval |
-| Ellucian-style enrollment status history | Source enrollment `TRANSFERRED`, destination `ENROLLED`, history via the existing enrollment trigger, outbox event |
+| Peer capability                                                  | Our target this slice                                                                                              |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| PowerSchool transfer workflow with school approval               | Named states, role checks, comment on reject                                                                       |
+| Infinite Campus course/grade equivalency on cross-district entry | Tenant-scoped board pair rules and a lookup used at approval                                                       |
+| Ellucian-style enrollment status history                         | Source enrollment `TRANSFERRED`, destination `ENROLLED`, history via the existing enrollment trigger, outbox event |
 
 ## 5. Surface map
 
-| Nav label | Route | API | Tables / events | Shell |
-| --------- | ----- | --- | --------------- | ----- |
-| Transfers | `/transfers` | `GET /api/v1/transfers/pending`, equivalency CRUD | `transfer_records`, `grade_equivalency_rules` | Staff |
-| Transfer detail | `/transfers/[id]` and dashboard `/app/dashboard/cross-board-transfer/:transferId` | `GET/POST /api/v1/transfers/:id/...` | `transfer_approval_events`, `transactional_outbox`, `audit_log_entries`, `enrollments` | Staff |
+| Nav label       | Route                                                                             | API                                               | Tables / events                                                                        | Shell |
+| --------------- | --------------------------------------------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- | ----- |
+| Transfers       | `/transfers`                                                                      | `GET /api/v1/transfers/pending`, equivalency CRUD | `transfer_records`, `grade_equivalency_rules`                                          | Staff |
+| Transfer detail | `/transfers/[id]` and dashboard `/app/dashboard/cross-board-transfer/:transferId` | `GET/POST /api/v1/transfers/:id/...`              | `transfer_approval_events`, `transactional_outbox`, `audit_log_entries`, `enrollments` | Staff |
 
 ## 6. Roles & tenancy (high level)
 

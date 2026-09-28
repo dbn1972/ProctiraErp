@@ -176,12 +176,7 @@ export interface BoardAdminDashboardData {
 
 /** Metric key referenced by both `axes` and the per-board `metrics` map. */
 export type BoardComparisonMetricId =
-  | 'schools'
-  | 'students'
-  | 'attendance'
-  | 'passRate'
-  | 'ptr'
-  | 'gpi';
+  'schools' | 'students' | 'attendance' | 'passRate' | 'ptr' | 'gpi';
 
 export interface BoardComparisonMetric {
   /** Stable id used as a config-toggle key + radar axis id. */

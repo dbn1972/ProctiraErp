@@ -233,9 +233,9 @@ CREATE POLICY grade_equivalency_rules_tenant ON grade_equivalency_rules
   USING (tenant_id::text = app_tenant_id())
   WITH CHECK (tenant_id::text = app_tenant_id());
 
--- CREATE TABLE IF NOT EXISTS does not add a column FK when the table already
--- exists from a resumed phase. Attach tenant_id → tenants(id) if it is missing
--- (W1-DATA-06). NOT VALID, then VALIDATE with FORCE lifted.
+-- A resumed phase skips table creation, so a column FK in the table definition
+-- is not added to a table that already exists. Attach tenant_id → tenants(id)
+-- when it is missing (W1-DATA-06). NOT VALID, then VALIDATE with FORCE lifted.
 DO $transfer_workflow_tenant_fks$
 BEGIN
   IF NOT EXISTS (

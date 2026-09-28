@@ -52,21 +52,15 @@ export async function registerTransferWorkflowRoutes(
         .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
     const body = validate(CreateTransferBodySchema, request.body);
     if (!body.success) {
-      return reply
-        .status(400)
-        .send({
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid transfer',
-          statusCode: 400,
-          errors: body.errors,
-        });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid transfer',
+        statusCode: 400,
+        errors: body.errors,
+      });
     }
     try {
-      const created = await service.create(
-        tenantId,
-        actorFromRequest(request),
-        body.data,
-      );
+      const created = await service.create(tenantId, actorFromRequest(request), body.data);
       return reply.status(201).send(created);
     } catch (error) {
       return sendError(reply, error);
@@ -81,22 +75,16 @@ export async function registerTransferWorkflowRoutes(
         .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
     const query = validate(EquivalencyQuerySchema, request.query ?? {});
     if (!query.success) {
-      return reply
-        .status(400)
-        .send({
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid equivalency lookup',
-          statusCode: 400,
-          errors: query.errors,
-        });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid equivalency lookup',
+        statusCode: 400,
+        errors: query.errors,
+      });
     }
     try {
       return reply.send(
-        await service.listEquivalency(
-          tenantId,
-          actorFromRequest(request),
-          query.data,
-        ),
+        await service.listEquivalency(tenantId, actorFromRequest(request), query.data),
       );
     } catch (error) {
       return sendError(reply, error);
@@ -111,14 +99,12 @@ export async function registerTransferWorkflowRoutes(
         .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
     const body = validate(EquivalencyBodySchema, request.body);
     if (!body.success) {
-      return reply
-        .status(400)
-        .send({
-          code: 'VALIDATION_ERROR',
-          message: 'Invalid equivalency rule',
-          statusCode: 400,
-          errors: body.errors,
-        });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid equivalency rule',
+        statusCode: 400,
+        errors: body.errors,
+      });
     }
     try {
       const created = await service.createEquivalency(
@@ -137,23 +123,19 @@ export async function registerTransferWorkflowRoutes(
     async (request: FastifyRequest<{ Params: EquivalencyParams }>, reply) => {
       const tenantId = tenantIdOf(request);
       if (!tenantId)
-        return reply
-          .status(400)
-          .send({
-            code: 'TENANT_REQUIRED',
-            message: 'Tenant context is required',
-            statusCode: 400,
-          });
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
       const params = validate(EquivalencyParamsSchema, request.params);
       const body = validate(EquivalencyBodySchema, request.body);
       if (!params.success || !body.success) {
-        return reply
-          .status(400)
-          .send({
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid equivalency update',
-            statusCode: 400,
-          });
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid equivalency update',
+          statusCode: 400,
+        });
       }
       try {
         return reply.send(
@@ -175,13 +157,11 @@ export async function registerTransferWorkflowRoutes(
     async (request: FastifyRequest<{ Params: EquivalencyParams }>, reply) => {
       const tenantId = tenantIdOf(request);
       if (!tenantId)
-        return reply
-          .status(400)
-          .send({
-            code: 'TENANT_REQUIRED',
-            message: 'Tenant context is required',
-            statusCode: 400,
-          });
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
       const params = validate(EquivalencyParamsSchema, request.params);
       if (!params.success) {
         return reply
@@ -216,13 +196,11 @@ export async function registerTransferWorkflowRoutes(
       async (request: FastifyRequest<{ Params: { transferId: string } }>, reply) => {
         const tenantId = tenantIdOf(request);
         if (!tenantId)
-          return reply
-            .status(400)
-            .send({
-              code: 'TENANT_REQUIRED',
-              message: 'Tenant context is required',
-              statusCode: 400,
-            });
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
         if (!transferIdPattern.test(request.params.transferId)) {
           return reply
             .status(400)
@@ -230,14 +208,12 @@ export async function registerTransferWorkflowRoutes(
         }
         const body = validate(DecisionBodySchema, request.body ?? {});
         if (!body.success) {
-          return reply
-            .status(400)
-            .send({
-              code: 'VALIDATION_ERROR',
-              message: 'Invalid decision',
-              statusCode: 400,
-              errors: body.errors,
-            });
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid decision',
+            statusCode: 400,
+            errors: body.errors,
+          });
         }
         try {
           const view = await service.decide(
