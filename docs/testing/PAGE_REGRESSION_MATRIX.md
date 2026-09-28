@@ -179,8 +179,8 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/students/new` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`55-enrol-progression-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students/records` | smoke | `09-route-permission-coupling.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts` |
 | `/tenant-lifecycle` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/transfers` | functional | `56-cross-board-transfer-workflow.spec.ts` |
-| `/transfers/[id]` | functional | `56-cross-board-transfer-workflow.spec.ts` |
+| `/transfers` | functional | `57-cross-board-transfer-workflow.spec.ts` |
+| `/transfers/[id]` | functional | `57-cross-board-transfer-workflow.spec.ts` |
 | `/transport` | a11y, dark, functional, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport/alerts` | a11y, dark, functional, touch | `54-transport-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport/assignments` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |

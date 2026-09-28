@@ -7,6 +7,7 @@ import {
   assertCanDecide,
   assertCanEditEquivalency,
   assertCanRead,
+  isIdempotentReplay,
   nextStatus,
   schoolInScope,
   type TransferActor,
@@ -49,6 +50,11 @@ export class TransferWorkflowService {
     return this.toDashboard(tenantId, row, actor);
   }
 
+  async listFormOptions(tenantId: string, actor: TransferActor) {
+    assertCanRead(actor);
+    return this.store.listFormOptions(tenantId);
+  }
+
   async listPending(tenantId: string, actor: TransferActor) {
     assertCanRead(actor);
     const rows = await this.store.listOpen(tenantId);
@@ -65,9 +71,13 @@ export class TransferWorkflowService {
           destinationInstitutionName: row.destinationInstitutionName,
           sourceBoard: row.sourceBoardName,
           destinationBoard: row.destinationBoardName,
+          currentGrade: row.currentGradeName,
           status: row.status,
           reason: row.reason,
+          requestedBy: row.requestedBy,
           requestedAt: row.createdAt,
+          canApprove: this.capabilities(actor, row).canApprove,
+          canReject: this.capabilities(actor, row).canReject,
         })),
     };
   }
@@ -80,6 +90,9 @@ export class TransferWorkflowService {
     comment?: string,
   ) {
     const row = await this.requireRow(tenantId, transferId);
+    if (isIdempotentReplay(row.status, decision)) {
+      return this.toDashboard(tenantId, row, actor);
+    }
     const next = nextStatus(row.status, decision);
     assertCanDecide(actor, decision, row.sourceInstitutionId, row.destinationInstitutionId);
     const trimmed = comment?.trim() ?? '';
@@ -397,8 +410,10 @@ export class TransferWorkflowService {
       id: rule.id,
       sourceBoardId: rule.sourceBoardId,
       sourceBoardCode: rule.sourceBoardCode,
+      sourceBoardName: rule.sourceBoardName,
       targetBoardId: rule.targetBoardId,
       targetBoardCode: rule.targetBoardCode,
+      targetBoardName: rule.targetBoardName,
       sourceGradeCode: rule.sourceGradeCode,
       targetGradeCode: rule.targetGradeCode,
       sourceSubject: rule.sourceSubject,

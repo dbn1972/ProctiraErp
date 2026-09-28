@@ -106,7 +106,7 @@ env:
     e2e/52-staff-hr-write-smoke.spec.ts
     e2e/53-communication-circulars-write-smoke.spec.ts
     e2e/54-transport-ops-write-smoke.spec.ts
-    e2e/56-cross-board-transfer-workflow.spec.ts
+    e2e/57-cross-board-transfer-workflow.spec.ts
   # Nightly: PR set + the remaining live write smokes.
   NIGHTLY_SPECS: >-
     e2e/08b-legal-pages.spec.ts
@@ -148,7 +148,7 @@ env:
     e2e/19-services-write-validation-smoke.spec.ts
     e2e/20b-attendance-write-validation-smoke.spec.ts
     e2e/21b-assessments-write-validation-smoke.spec.ts
-    e2e/56-cross-board-transfer-workflow.spec.ts
+    e2e/57-cross-board-transfer-workflow.spec.ts
 
 permissions:
   contents: read

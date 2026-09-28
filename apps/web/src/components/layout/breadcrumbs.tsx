@@ -6,6 +6,7 @@ import Link from 'next/link';
 
 import { InstitutionBreadcrumbLabel } from '@/components/layout/institution-breadcrumb-label';
 import { SectionBreadcrumbLabel } from '@/components/layout/section-breadcrumb-label';
+import { TransferBreadcrumbLabel } from '@/components/layout/transfer-breadcrumb-label';
 
 /**
  * Breadcrumb navigation component.
@@ -30,8 +31,9 @@ export function Breadcrumbs() {
     const previousSegment = index > 0 ? segments[index - 1] : undefined;
     const isInstitutionId = previousSegment === 'institutions' && UUID_SEGMENT.test(segment);
     const isSectionId = previousSegment === 'schedule' && UUID_SEGMENT.test(segment);
+    const isTransferId = previousSegment === 'transfers' && UUID_SEGMENT.test(segment);
 
-    return { href, label, isLast, segment, isInstitutionId, isSectionId };
+    return { href, label, isLast, segment, isInstitutionId, isSectionId, isTransferId };
   });
 
   return (
@@ -60,6 +62,8 @@ export function Breadcrumbs() {
                   />
                 ) : crumb.isSectionId ? (
                   <SectionBreadcrumbLabel sectionId={crumb.segment} fallbackLabel={crumb.label} />
+                ) : crumb.isTransferId ? (
+                  <TransferBreadcrumbLabel transferId={crumb.segment} fallbackLabel={crumb.label} />
                 ) : (
                   crumb.label
                 )}
@@ -76,6 +80,8 @@ export function Breadcrumbs() {
                   />
                 ) : crumb.isSectionId ? (
                   <SectionBreadcrumbLabel sectionId={crumb.segment} fallbackLabel={crumb.label} />
+                ) : crumb.isTransferId ? (
+                  <TransferBreadcrumbLabel transferId={crumb.segment} fallbackLabel={crumb.label} />
                 ) : (
                   crumb.label
                 )}

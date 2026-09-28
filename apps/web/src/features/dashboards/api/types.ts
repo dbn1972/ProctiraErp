@@ -388,9 +388,13 @@ export interface PendingTransferApproval {
   destinationInstitutionName: string | null;
   sourceBoard: string | null;
   destinationBoard: string | null;
+  currentGrade?: string | null;
   status: string;
   reason: string;
+  requestedBy?: string | null;
   requestedAt: string;
+  canApprove?: boolean;
+  canReject?: boolean;
 }
 
 // ─── School / Principal (Task 52.4 / Req 40.6) ──────────────────────────────

@@ -5,6 +5,7 @@ export interface TransferWorkflowRow {
   tenantId: string;
   studentId: string;
   studentName: string | null;
+  currentGradeName: string | null;
   sourceInstitutionId: string;
   sourceInstitutionName: string | null;
   sourceBoardId: string | null;
@@ -46,8 +47,10 @@ export interface GradeEquivalencyRule {
   tenantId: string;
   sourceBoardId: string;
   sourceBoardCode: string | null;
+  sourceBoardName: string | null;
   targetBoardId: string;
   targetBoardCode: string | null;
+  targetBoardName: string | null;
   sourceGradeCode: string;
   targetGradeCode: string;
   sourceSubject: string;

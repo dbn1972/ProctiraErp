@@ -31,6 +31,19 @@ export async function registerTransferWorkflowRoutes(
 ): Promise<void> {
   const { service } = options;
 
+  fastify.get('/transfers/options', async (request, reply) => {
+    const tenantId = tenantIdOf(request);
+    if (!tenantId)
+      return reply
+        .status(400)
+        .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+    try {
+      return reply.send(await service.listFormOptions(tenantId, actorFromRequest(request)));
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   fastify.get('/transfers/pending', async (request, reply) => {
     const tenantId = tenantIdOf(request);
     if (!tenantId)

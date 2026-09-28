@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { convertMarks } from './marks.js';
+import { isIdempotentReplay } from './state-machine.js';
 import {
   TRANSFER_DECISIONS,
   TRANSFER_STATUSES,
@@ -50,6 +51,13 @@ describe('convertMarks', () => {
     expect(convertMarks({ sourceMarks: 75, sourceMax: 100, targetMax: 80, creditFactor: 1 })).toBe(
       60,
     );
+  });
+
+  it('treats a repeated decision on the landed status as a replay', () => {
+    expect(isIdempotentReplay('REJECTED', 'REJECT')).toBe(true);
+    expect(isIdempotentReplay('UNDER_REVIEW', 'REJECT')).toBe(false);
+    expect(isIdempotentReplay('COMPLETED', 'COMPLETE')).toBe(true);
+    expect(isIdempotentReplay('APPROVED', 'REJECT')).toBe(false);
   });
 
   it('caps at the target scale', () => {

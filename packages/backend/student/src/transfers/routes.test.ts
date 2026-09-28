@@ -162,7 +162,9 @@ describe('transfer workflow routes', () => {
       url: `/transfers/${id}/complete`,
       payload: {},
     });
-    expect(again.statusCode).toBe(409);
+    expect(again.statusCode).toBe(200);
+    expect(again.json().workflowStatus).toBe('COMPLETED');
+    expect(again.json().timeline).toHaveLength(completed.json().timeline.length);
 
     const rejected = await app.inject({ method: 'POST', url: '/transfers', payload: createBody() });
     const rejectId = rejected.json().transferId as string;
@@ -188,6 +190,14 @@ describe('transfer workflow routes', () => {
           String(event.comment ?? '').includes('No seat'),
         ),
     ).toBe(true);
+    const replay = await app.inject({
+      method: 'POST',
+      url: `/transfers/${rejectId}/reject`,
+      payload: { comment: 'No seat in the section' },
+    });
+    expect(replay.statusCode).toBe(200);
+    expect(replay.json().workflowStatus).toBe('REJECTED');
+    expect(replay.json().timeline).toHaveLength(rejection.json().timeline.length);
   });
 
   it('hides another tenant transfer and blocks the source principal from approving', async () => {

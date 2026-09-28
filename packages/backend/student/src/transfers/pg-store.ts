@@ -18,6 +18,7 @@ const ROW_SQL = `
          t.destination_class_id, t.academic_period_id, t.transfer_date, t.reason,
          t.workflow_status, t.requested_by, t.created_at, t.updated_at,
          NULLIF(btrim(concat_ws(' ', s.first_name, s.last_name)), '') AS student_name,
+         sg.name AS current_grade_name,
          src.name AS source_institution_name,
          sb.id AS source_board_id, sb.name AS source_board_name, sb.code AS source_board_code,
          dst.name AS destination_institution_name,
@@ -33,6 +34,10 @@ const ROW_SQL = `
       ON dst.id = t.destination_institution_id AND dst.tenant_id = t.tenant_id AND dst.deleted_at IS NULL
     LEFT JOIN boards db
       ON db.id = dst.board_id AND db.tenant_id = t.tenant_id AND db.deleted_at IS NULL
+    LEFT JOIN enrollments se
+      ON se.id = t.source_enrollment_id AND se.tenant_id = t.tenant_id
+    LEFT JOIN grades sg
+      ON sg.id = se.grade_id AND sg.tenant_id = t.tenant_id
 `;
 
 function text(value: unknown): string | null {
@@ -56,6 +61,7 @@ function mapRow(row: Record<string, unknown>): TransferWorkflowRow {
     tenantId: String(row.tenant_id),
     studentId: String(row.student_id),
     studentName: text(row.student_name),
+    currentGradeName: text(row.current_grade_name),
     sourceInstitutionId: String(row.source_institution_id),
     sourceInstitutionName: text(row.source_institution_name),
     sourceBoardId: text(row.source_board_id),
@@ -157,12 +163,126 @@ export class PgTransferWorkflowStore {
     );
   }
 
+  async listFormOptions(tenantId: string) {
+    return withPgTenant(this.pool, tenantId, async (client) => {
+      const students = await client.query(
+        `SELECT s.id,
+                NULLIF(btrim(concat_ws(' ', s.first_name, s.last_name)), '') AS label,
+                s.admission_number,
+                e.id AS enrollment_id,
+                e.institution_id,
+                i.name AS institution_name,
+                g.id AS grade_id,
+                g.name AS grade_name
+           FROM students s
+           JOIN enrollments e
+             ON e.student_id = s.id AND e.tenant_id = s.tenant_id AND e.status = 'ENROLLED'
+           JOIN institutions i
+             ON i.id = e.institution_id AND i.tenant_id = s.tenant_id
+           JOIN grades g
+             ON g.id = e.grade_id AND g.tenant_id = s.tenant_id
+          WHERE s.tenant_id = $1 AND s.deleted_at IS NULL
+          ORDER BY s.last_name, s.first_name
+          LIMIT 200`,
+        [tenantId],
+      );
+      const institutions = await client.query(
+        `SELECT i.id, i.name, i.board_id, b.name AS board_name
+           FROM institutions i
+           LEFT JOIN boards b ON b.id = i.board_id AND b.tenant_id = i.tenant_id
+          WHERE i.tenant_id = $1 AND i.deleted_at IS NULL AND i.status = 'active'
+          ORDER BY i.name
+          LIMIT 200`,
+        [tenantId],
+      );
+      const grades = await client.query(
+        `SELECT id, name, code FROM grades
+          WHERE tenant_id = $1 AND deleted_at IS NULL
+          ORDER BY "order", name`,
+        [tenantId],
+      );
+      const classes = await client.query(
+        `SELECT id, name, institution_id, grade_id FROM classes
+          WHERE tenant_id = $1
+          ORDER BY name`,
+        [tenantId],
+      );
+      const periods = await client.query(
+        `SELECT id, name FROM academic_periods
+          WHERE tenant_id = $1 AND deleted_at IS NULL
+          ORDER BY start_date DESC`,
+        [tenantId],
+      );
+      const boards = await client.query(
+        `SELECT id, name, code FROM boards
+          WHERE tenant_id = $1 AND deleted_at IS NULL
+          ORDER BY name`,
+        [tenantId],
+      );
+      const subjects = await client.query(
+        `SELECT id, name, code FROM subjects
+          WHERE tenant_id = $1 AND deleted_at IS NULL
+          ORDER BY name`,
+        [tenantId],
+      );
+      const row = (record: Record<string, unknown>) => record;
+      return {
+        students: students.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return {
+            id: String(record.id),
+            label: text(record.label) ?? 'Student',
+            admissionNumber: text(record.admission_number),
+            enrollmentId: String(record.enrollment_id),
+            institutionId: String(record.institution_id),
+            institutionName: text(record.institution_name) ?? 'School',
+            gradeId: String(record.grade_id),
+            gradeName: text(record.grade_name) ?? 'Grade',
+          };
+        }),
+        institutions: institutions.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return {
+            id: String(record.id),
+            name: text(record.name) ?? 'School',
+            boardId: text(record.board_id),
+            boardName: text(record.board_name),
+          };
+        }),
+        grades: grades.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return { id: String(record.id), name: String(record.name), code: String(record.code) };
+        }),
+        classes: classes.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return {
+            id: String(record.id),
+            name: String(record.name),
+            institutionId: String(record.institution_id),
+            gradeId: String(record.grade_id),
+          };
+        }),
+        periods: periods.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return { id: String(record.id), name: String(record.name) };
+        }),
+        boards: boards.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return { id: String(record.id), name: String(record.name), code: String(record.code) };
+        }),
+        subjects: subjects.rows.map((item) => {
+          const record = row(item as Record<string, unknown>);
+          return { id: String(record.id), name: String(record.name), code: String(record.code) };
+        }),
+      };
+    });
+  }
+
   async listOpen(tenantId: string): Promise<TransferWorkflowRow[]> {
     return withPgTenant(this.pool, tenantId, async (client) => {
       const result = await client.query(
         `${ROW_SQL}
           WHERE t.tenant_id = $1
-            AND t.workflow_status IN ('DRAFT','SUBMITTED','UNDER_REVIEW','APPROVED')
           ORDER BY t.updated_at DESC
           LIMIT 100`,
         [tenantId],
@@ -215,6 +335,11 @@ export class PgTransferWorkflowStore {
       );
       const current = locked.rows[0] as Record<string, unknown> | undefined;
       if (!current) throw new ConflictError('Transfer changed before the decision was saved');
+      if (String(current.workflow_status) === input.next) {
+        const loaded = await this.selectOne(client, input.tenantId, input.transferId);
+        if (!loaded) throw new NotFoundError('Transfer was not readable after update');
+        return loaded;
+      }
       if (String(current.workflow_status) !== input.expected) {
         throw new ConflictError(
           `Cannot ${input.decision} a transfer that is ${String(current.workflow_status)}`,
@@ -310,7 +435,8 @@ export class PgTransferWorkflowStore {
   ): Promise<GradeEquivalencyRule[]> {
     return withPgTenant(this.pool, tenantId, async (client) => {
       const result = await client.query(
-        `SELECT r.*, sb.code AS source_board_code, tb.code AS target_board_code
+        `SELECT r.*, sb.code AS source_board_code, sb.name AS source_board_name,
+                tb.code AS target_board_code, tb.name AS target_board_name
            FROM grade_equivalency_rules r
            LEFT JOIN boards sb ON sb.id = r.source_board_id AND sb.tenant_id = r.tenant_id
            LEFT JOIN boards tb ON tb.id = r.target_board_id AND tb.tenant_id = r.tenant_id
@@ -466,8 +592,10 @@ export class PgTransferWorkflowStore {
       tenantId: String(row.tenant_id),
       sourceBoardId: String(row.source_board_id),
       sourceBoardCode: text(row.source_board_code),
+      sourceBoardName: text(row.source_board_name),
       targetBoardId: String(row.target_board_id),
       targetBoardCode: text(row.target_board_code),
+      targetBoardName: text(row.target_board_name),
       sourceGradeCode: String(row.source_grade_code),
       targetGradeCode: String(row.target_grade_code),
       sourceSubject: String(row.source_subject),

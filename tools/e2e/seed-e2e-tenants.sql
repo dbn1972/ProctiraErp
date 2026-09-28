@@ -200,7 +200,8 @@ INSERT INTO students (id, tenant_id, first_name, last_name, date_of_birth, gende
 VALUES
   ('00000000-0000-4000-8000-00000000b751', '00000000-0000-4000-8000-000000000001', 'Aarav', 'Transfer', DATE '2011-04-18', 'male', '{"e2e":"transfer"}'::jsonb),
   ('00000000-0000-4000-8000-00000000b752', '00000000-0000-4000-8000-000000000001', 'Diya', 'Transfer', DATE '2011-08-09', 'female', '{"e2e":"transfer"}'::jsonb),
-  ('00000000-0000-4000-8000-00000000b753', '00000000-0000-4000-8000-000000000001', 'Kabir', 'Transfer', DATE '2011-11-02', 'male', '{"e2e":"transfer-draft"}'::jsonb)
+  ('00000000-0000-4000-8000-00000000b753', '00000000-0000-4000-8000-000000000001', 'Kabir', 'Transfer', DATE '2011-11-02', 'male', '{"e2e":"transfer-draft"}'::jsonb),
+  ('00000000-0000-4000-8000-00000000b754', '00000000-0000-4000-8000-000000000001', 'Meera', 'Nair', DATE '2011-06-14', 'female', '{"e2e":"transfer-reject"}'::jsonb)
 ON CONFLICT (id) DO UPDATE SET deleted_at = NULL, updated_at = now() WHERE students.tenant_id = EXCLUDED.tenant_id;
 
 -- A previous live run may have completed the transfer and opened a second
@@ -211,12 +212,14 @@ UPDATE enrollments
    AND student_id IN (
      '00000000-0000-4000-8000-00000000b751',
      '00000000-0000-4000-8000-00000000b752',
-     '00000000-0000-4000-8000-00000000b753'
+     '00000000-0000-4000-8000-00000000b753',
+     '00000000-0000-4000-8000-00000000b754'
    )
    AND id NOT IN (
      '00000000-0000-4000-8000-00000000b761',
      '00000000-0000-4000-8000-00000000b762',
-     '00000000-0000-4000-8000-00000000b763'
+     '00000000-0000-4000-8000-00000000b763',
+     '00000000-0000-4000-8000-00000000b764'
    )
    AND status = 'ENROLLED';
 
@@ -226,7 +229,8 @@ INSERT INTO enrollments (
 VALUES
   ('00000000-0000-4000-8000-00000000b761', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b751', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06'),
   ('00000000-0000-4000-8000-00000000b762', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b752', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06'),
-  ('00000000-0000-4000-8000-00000000b763', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b753', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06')
+  ('00000000-0000-4000-8000-00000000b763', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b753', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06'),
+  ('00000000-0000-4000-8000-00000000b764', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b754', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06')
 ON CONFLICT (id) DO UPDATE
   SET status = 'ENROLLED', exited_at = NULL, updated_at = now();
 
@@ -268,10 +272,27 @@ VALUES
     'UNDER_REVIEW',
     'e2e-user'
   )
-ON CONFLICT (id) DO UPDATE
-  SET workflow_status = EXCLUDED.workflow_status,
-      destination_enrollment_id = NULL,
-      updated_at = now();
+ON CONFLICT (id) DO NOTHING;
+
+-- Approval events are append-only, so rewinding workflow_status on re-seed
+-- left the header on UNDER_REVIEW while the timeline kept every prior reject.
+-- When history exists, the column follows the latest event.
+UPDATE transfer_records AS t
+   SET workflow_status = latest.to_status,
+       updated_at = now()
+  FROM (
+    SELECT DISTINCT ON (transfer_id) transfer_id, to_status
+      FROM transfer_approval_events
+     WHERE tenant_id = '00000000-0000-4000-8000-000000000001'
+       AND transfer_id IN (
+         '00000000-0000-4000-8000-00000000b771',
+         '00000000-0000-4000-8000-00000000b772'
+       )
+     ORDER BY transfer_id, created_at DESC
+  ) AS latest
+ WHERE t.id = latest.transfer_id
+   AND t.tenant_id = '00000000-0000-4000-8000-000000000001'
+   AND t.workflow_status IS DISTINCT FROM latest.to_status;
 
 INSERT INTO grade_equivalency_rules (
   id, tenant_id, source_board_id, target_board_id, source_grade_code, target_grade_code,

@@ -44,6 +44,7 @@ export class MemoryTransferWorkflowStore {
       tenantId,
       studentId: input.studentId,
       studentName: input.studentName ?? null,
+      currentGradeName: null,
       sourceInstitutionId: input.sourceInstitutionId,
       sourceInstitutionName: input.sourceInstitutionName ?? null,
       sourceBoardId: input.sourceBoardId ?? null,
@@ -88,6 +89,7 @@ export class MemoryTransferWorkflowStore {
       tenantId: legacy.tenantId,
       studentId: legacy.studentId,
       studentName: legacy.studentName,
+      currentGradeName: null,
       sourceInstitutionId: legacy.sourceInstitutionId,
       sourceInstitutionName: legacy.sourceInstitutionName,
       sourceBoardId: null,
@@ -112,16 +114,43 @@ export class MemoryTransferWorkflowStore {
     };
   }
 
+  async listFormOptions(_tenantId: string): Promise<{
+    students: Array<{
+      id: string;
+      label: string;
+      admissionNumber: string | null;
+      enrollmentId: string;
+      institutionId: string;
+      institutionName: string;
+      gradeId: string;
+      gradeName: string;
+    }>;
+    institutions: Array<{
+      id: string;
+      name: string;
+      boardId: string | null;
+      boardName: string | null;
+    }>;
+    grades: Array<{ id: string; name: string; code: string }>;
+    classes: Array<{ id: string; name: string; institutionId: string; gradeId: string }>;
+    periods: Array<{ id: string; name: string }>;
+    boards: Array<{ id: string; name: string; code: string }>;
+    subjects: Array<{ id: string; name: string; code: string }>;
+  }> {
+    return {
+      students: [],
+      institutions: [],
+      grades: [],
+      classes: [],
+      periods: [],
+      boards: [],
+      subjects: [],
+    };
+  }
+
   async listOpen(tenantId: string): Promise<TransferWorkflowRow[]> {
     return [...this.rows.values()]
-      .filter(
-        (row) =>
-          row.tenantId === tenantId &&
-          (row.status === 'DRAFT' ||
-            row.status === 'SUBMITTED' ||
-            row.status === 'UNDER_REVIEW' ||
-            row.status === 'APPROVED'),
-      )
+      .filter((row) => row.tenantId === tenantId)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
@@ -142,6 +171,7 @@ export class MemoryTransferWorkflowStore {
     if (!row || row.tenantId !== input.tenantId) {
       throw new ConflictError('Transfer changed before the decision was saved');
     }
+    if (row.status === input.next) return row;
     if (row.status !== input.expected) {
       throw new ConflictError(`Cannot ${input.decision} a transfer that is ${row.status}`);
     }
@@ -207,8 +237,10 @@ export class MemoryTransferWorkflowStore {
       tenantId,
       sourceBoardId: input.sourceBoardId,
       sourceBoardCode: null,
+      sourceBoardName: null,
       targetBoardId: input.targetBoardId,
       targetBoardCode: null,
+      targetBoardName: null,
       sourceGradeCode: input.sourceGradeCode,
       targetGradeCode: input.targetGradeCode,
       sourceSubject: input.sourceSubject,

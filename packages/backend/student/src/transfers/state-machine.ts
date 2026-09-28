@@ -54,6 +54,23 @@ export interface TransferActor {
   ipAddress: string;
 }
 
+/** Status a decision lands on. A second call in that status is a replay, not a new event. */
+const REPLAY_STATUS: Partial<Record<TransferDecision, TransferWorkflowStatus>> = {
+  SUBMIT: 'SUBMITTED',
+  START_REVIEW: 'UNDER_REVIEW',
+  APPROVE: 'APPROVED',
+  REJECT: 'REJECTED',
+  CANCEL: 'CANCELLED',
+  COMPLETE: 'COMPLETED',
+};
+
+export function isIdempotentReplay(
+  status: TransferWorkflowStatus,
+  decision: TransferDecision,
+): boolean {
+  return REPLAY_STATUS[decision] === status;
+}
+
 export function nextStatus(
   from: TransferWorkflowStatus,
   decision: TransferDecision,
