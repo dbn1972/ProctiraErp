@@ -6,7 +6,7 @@
  *
  * @requirements 5.5
  */
-import { NotFoundError, BusinessRuleError } from '@proctira/common';
+import { NotFoundError } from '@proctira/common';
 import type { PrismaClient, Class } from '@proctira/database';
 
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';

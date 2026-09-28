@@ -9,8 +9,8 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { ClassService } from './class-service.js';
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
+import type { ClassService } from './class-service.js';
 
 export interface ClassRoutesOptions {
   service: ClassService;
