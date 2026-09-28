@@ -1,22 +1,22 @@
 {
-  "tip": "pending implementation commit",
-  "note": "DONE items owned by this branch were checked in code and unit tests. Playwright rows marked PARTIAL until the live Sunrise run records a pass.",
+  "tip": "1d3e4bce",
+  "note": "LIVE evidence on tip: 16d + 16f passed with E2E_BACKEND_READY=1 against Sunrise seed; captures under docs/audits/captures/institutions-*/; axe institutions routes 14/14 passed.",
   "parity": {
-    "list.html": "Attendance band word added. Functional: 16b and 16c. New visual capture not taken on this commit.",
-    "detail.html": "Middleware 307 plus React cache. Gateway-down is an error state (16f-institutions-profile-write.spec.ts with E2E_ALLOW_GATEWAY_SIMULATION). Captures pending.",
-    "detail-classes.html": "Captures exist under docs/audits/captures/institutions-detail/classes-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
+    "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
+    "detail-classes.html": "Live captures classes-*-live.png + 16d passed on tip.",
     "detail-curriculum.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
-    "detail-edit.html": "Separate edit chrome (no hero Edit/School report/tabs). Functional e2e 16f-institutions-profile-write.spec.ts when the Sunrise stack is up. Captures pending a production web build.",
+    "detail-edit.html": "Edit chrome hidden; 16f passed; captures institutions-edit/form-*-live.png.",
     "detail-gradebook.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
-    "detail-grades.html": "Captures under docs/audits/captures/institutions-detail/grades-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-grades.html": "Live captures grades-*-live.png + 16d passed on tip.",
     "detail-infrastructure.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
-    "detail-overview.html": "Captures under docs/audits/captures/institutions-detail/overview-*. Functional: 16d-institutions-detail-live.spec.ts.",
-    "detail-schedule.html": "Captures under docs/audits/captures/institutions-detail/schedule-*. Functional: 16d-institutions-detail-live.spec.ts.",
-    "detail-schedule-section.html": "Captures under docs/audits/captures/institutions-detail/schedule-section-*. Functional: 16d-institutions-detail-live.spec.ts.",
+    "detail-overview.html": "Live captures overview-*-live.png + 16d passed on tip.",
+    "detail-schedule.html": "Live captures schedule-*-live.png + 16d passed on tip.",
+    "detail-schedule-section.html": "16d passed on tip. Captures schedule-section-* from prior pack retained.",
     "detail-timetable.html": "IN_PROGRESS in PR #478. Not edited here.",
     "detail-timetable-generate.html": "IN_PROGRESS in PR #478. Not edited here.",
     "detail-timetable-substitutions.html": "IN_PROGRESS in PR #478. Not edited here.",
-    "new.html": "Grouped identity/classification/location, UDISE label, active-on-create copy, coordinate preview link. Functional e2e 16f-institutions-profile-write.spec.ts. Captures pending a production web build."
+    "new.html": "16f passed; captures institutions-new/form-*-live.png."
   },
   "findings": [
     {
@@ -65,28 +65,28 @@
       "id": "detail-classes.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "class-section-controls.tsx AssignClassSectionButton writes classTeacherStaffId and roomName. 16d expects Neha Verma and Room 201. Room assignment is present in the same dialog.",
+      "evidence": "16d-institutions-detail-live.spec.ts passed on tip with Sunrise seed (Neha Verma, Room 201). Captures: docs/audits/captures/institutions-detail/classes-{desktop,tablet,mobile}-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-classes.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "classes/page.tsx Open roster href is /students?institutionId&gradeId. students/page.tsx applies both filters. Not the attendance marker.",
+      "evidence": "16d passed: Open roster goes to /students filters. Captures classes-*-live.png on tip.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-classes.html#3",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "ClassPeriodFilter in class-section-controls.tsx; classes page filters by academicPeriodId.",
+      "evidence": "16d passed with AY 2026-27 period filter. Captures classes-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-classes.html#4",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "academics-create-dialogs.tsx renders #add-section-blocked text, not a title-only tooltip.",
+      "evidence": "academics-create-dialogs #add-section-blocked text. Captures classes-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -121,22 +121,22 @@
       "id": "detail-edit.html#1",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "InstitutionHeroActions and InstitutionSectionTabs return null on /edit. 16f-institutions-profile-write.spec.ts asserts School report and Institution sections tablist are absent.",
-      "disposition": "PARTIAL"
+      "evidence": "16f-institutions-profile-write.spec.ts passed on tip: no School report / Institution sections on /edit. Captures institutions-edit/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-edit.html#2",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "InstitutionDeactivateButton and InstitutionReactivateButton on the edit form. #472 reactivate is on main. 16f-institutions-profile-write.spec.ts deactivates from the form.",
-      "disposition": "PARTIAL"
+      "evidence": "16f deactivate from edit form passed on tip (admin role for create; deactivate uses update).",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-edit.html#3",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "InstitutionForm confirms on dirty link clicks and Cancel. 16f-institutions-profile-write.spec.ts dismisses the dialog and stays on /edit.",
-      "disposition": "PARTIAL"
+      "evidence": "16f dirty-prompt: dismiss keeps /edit; accept Cancel leaves. Captures institutions-edit/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-gradebook.html#1",
@@ -170,28 +170,28 @@
       "id": "detail-grades.html#1",
       "status": "DONE",
       "ownerPr": "#467/#469",
-      "evidence": "grades/page.tsx UtilizationBar checks pct >= 100 before pct >= 95. status-label.test.ts utilizationBand(100) is Over capacity.",
+      "evidence": "status-label.test.ts utilizationBand(100)=Over capacity; grades/page.tsx checks >=100 first. Captures grades-*-live.png; 16d passed.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-grades.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "grades/page.tsx headers are Grade, Sections, Capacity, Utilization, View. The link column is View.",
+      "evidence": "grades headers Grade/Sections/Capacity/Utilization/View. Captures grades-*-live.png; 16d passed.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-grades.html#3",
       "status": "DONE",
       "ownerPr": "#469",
-      "evidence": "Utilization uses getInstitutionOverview enrollmentByGrade, not grade.customData. utilization.test.ts.",
+      "evidence": "utilization.test.ts + getInstitutionOverview enrollment. Captures grades-*-live.png show live %.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-grades.html#4",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "grades/page.tsx copy: Grades are shared across the organisation. Adding one here makes it available to every school.",
+      "evidence": "Tenant-wide grades copy visible in captures grades-*-live.png. 16d passed.",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -226,77 +226,77 @@
       "id": "detail-overview.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "overview/page.tsx reads enrollmentByGrade and activity from getInstitutionOverview, not institution.customData.",
+      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1–10 bars.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "layout.tsx School report href is /institutions/${id}/overview/report. 16d clicks it and expects the report route.",
+      "evidence": "16d clicks School report → /overview/report. Captures overview-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#3",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "KpiCard renders Currently unavailable with a Retry link when a KPI value is null.",
+      "evidence": "KpiCard Retry path in code; live KPIs show numbers in overview captures.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-overview.html#4",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "overview/page.tsx loads institution, lookups, and overview snapshot in one Promise.all via the request cache. overview/loading.tsx renders four KPI skeletons plus chart skeletons. Layout no longer awaits the overview snapshot.",
+      "evidence": "Promise.all + overview/loading.tsx. Layout does not await overview snapshot. 16d passed on tip.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "schedule/page.tsx uses formatScheduleConflict with staff, room, and period labels. 16d expects Period 3 and Neha Verma.",
+      "evidence": "16d expects Period 3 and Neha Verma conflict labels. Captures schedule-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule.html#2",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "section-roster-controls.tsx ConfirmActionDialog title Unpublish this section? 16d expects Published and Unpublish to draft.",
+      "evidence": "16d expects Published + Unpublish to draft confirm. Captures schedule-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule.html#3",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "schedule/page.tsx subtitle is Room and teacher clashes are blocked. The HTTP 409 sentence is gone.",
+      "evidence": "Subtitle \"Room and teacher clashes are blocked\" in captures schedule-*-live.png.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule.html#4",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "SectionCreatePanel keeps SectionCreateForm collapsed behind the Create section button (section-create-form.tsx).",
+      "evidence": "Create section collapsed behind button in captures schedule-*-live.png. 16d passed.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule-section.html#1",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "WithdrawStudentButton opens ConfirmActionDialog. 16d opens withdraw-student and cancels.",
+      "evidence": "16d opens withdraw-student and cancels ConfirmActionDialog.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule-section.html#2",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "SectionBulkEnrollForm label is Bulk assign by admission number. Unknown tokens are named; API failures use the student label. Code review of section-roster-controls.tsx.",
+      "evidence": "SectionBulkEnrollForm admission-number label; exercised via schedule section path in 16d.",
       "disposition": "FULLY_CLOSED"
     },
     {
       "id": "detail-schedule-section.html#3",
       "status": "DONE",
       "ownerPr": "#467",
-      "evidence": "schedule/[sectionId]/page.tsx renders Enrolled/Withdrawn pills and en-IN dates, not raw ENROLLED or ISO strings.",
+      "evidence": "Enrolled/Withdrawn pills and en-IN dates; 16d passed.",
       "disposition": "FULLY_CLOSED"
     },
     {
@@ -394,15 +394,15 @@
       "id": "new.html#1",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "institution-form.tsx sections Identity, Classification, Location and contact. 16f-institutions-profile-write.spec.ts asserts those headings.",
-      "disposition": "PARTIAL"
+      "evidence": "16f asserts Identity/Classification/Location headings; captures institutions-new/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "new.html#2",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "new/page.tsx says the school is created active. 16f-institutions-profile-write.spec.ts asserts once approved is absent.",
-      "disposition": "PARTIAL"
+      "evidence": "16f asserts created-active copy and no once-approved; captures institutions-new/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
     },
     {
       "id": "new.html#3",

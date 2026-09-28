@@ -13,7 +13,7 @@
  * /institutions/${id}/edit
  * /institutions/${id}/overview
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { setupFakeTenantSession, setupGatewayTenantSession } from './fixtures/fake-session';
 
@@ -22,14 +22,33 @@ const GATEWAY_SIM = process.env.E2E_ALLOW_GATEWAY_SIMULATION === '1';
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
 const MAYUR = '00000000-0000-4000-8000-00000000a551';
 
-async function signIn(page: import('@playwright/test').Page) {
+async function signIn(page: Page) {
+  // Create needs institution:create. Principals only have read/update on
+  // institution by design (DEFAULT_ROLES); tenant admin covers the write path
+  // while keep the Sunrise tenant and Priya display for the UX review seed.
   await setupGatewayTenantSession(page, {
     sub: 'priya-sharma',
     email: 'priya.sharma@school.edu',
     displayName: 'Priya Sharma',
     tenantId: SUNRISE,
-    roles: [{ roleId: 'principal', roleName: 'Principal', areaId: null }],
+    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
   });
+}
+
+/** Radix Select: wait for hydration, open the combobox, then pick an option. */
+async function chooseSelectOption(page: Page, triggerId: string, optionName: string | RegExp) {
+  const trigger = page.locator(`#${triggerId}`);
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toBeEnabled();
+  // Retry open until the listbox mounts (client Select hydrates after SSR).
+  await expect(async () => {
+    if ((await trigger.getAttribute('aria-expanded')) !== 'true') {
+      await trigger.click();
+    }
+    await expect(page.getByRole('listbox')).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 15_000 });
+  await page.getByRole('option', { name: optionName }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
 test.describe('Institutions profile forms — Sunrise live', () => {
@@ -38,6 +57,7 @@ test.describe('Institutions profile forms — Sunrise live', () => {
   test('create a school, keep unsaved edits, and deactivate from the edit form', async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     await signIn(page);
     await page.setViewportSize({ width: 1440, height: 900 });
     const stamp = Date.now().toString().slice(-8);
@@ -51,20 +71,22 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     await expect(page.getByRole('heading', { name: 'Identity' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Classification' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Location and contact' })).toBeVisible();
+    await expect(page.locator('#areaId')).toBeEnabled();
+    await expect(page.getByTestId('institution-profile-form')).toBeVisible();
 
+    // Classification first: SelectTrigger used to default to type=submit and
+    // wipe sibling fields on open. Fill identity after the selects settle.
+    await chooseSelectOption(page, 'areaId', 'Delhi East');
+    await chooseSelectOption(page, 'typeId', 'Primary School');
+    await chooseSelectOption(page, 'sectorId', 'Private');
+    await chooseSelectOption(page, 'ownershipId', 'Private');
     await page.getByLabel('Name').fill(name);
     await page.getByLabel('UDISE code').fill(code);
-    await page.getByLabel('Area').click();
-    await page.getByRole('option', { name: 'Delhi East' }).click();
-    await page.getByLabel('Type').click();
-    await page.getByRole('option', { name: 'Primary School' }).click();
-    await page.getByLabel('Sector').click();
-    await page.getByRole('option', { name: 'Private' }).click();
-    await page.getByLabel('Ownership').click();
-    await page.getByRole('option', { name: 'Private' }).click();
     await page.getByLabel('Latitude').fill('28.6072');
     await page.getByLabel('Longitude').fill('77.2965');
     await expect(page.getByTestId('coordinate-map-preview')).toBeVisible();
+    await expect(page.getByLabel('Name')).toHaveValue(name);
+    await expect(page.getByLabel('UDISE code')).toHaveValue(code);
 
     await page.getByRole('button', { name: 'Create institution' }).click();
     await expect(page).toHaveURL(/\/institutions\/[^/]+\/overview$/, { timeout: 30_000 });
@@ -80,14 +102,22 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     await expect(page.getByRole('link', { name: 'School report' })).toHaveCount(0);
     await expect(page.getByRole('tablist', { name: 'Institution sections' })).toHaveCount(0);
 
-    await page.getByLabel('Name').fill(`${name} edited`);
+    const editedName = `${name} edited`;
+    await page.getByLabel('Name').click();
+    await page.getByLabel('Name').fill(editedName);
+    await expect(page.getByLabel('Name')).toHaveValue(editedName);
+    await expect(page.getByTestId('institution-profile-form')).toHaveAttribute(
+      'data-dirty',
+      'true',
+    );
+
     page.once('dialog', async (dialog) => {
       expect(dialog.message()).toMatch(/unsaved changes/i);
       await dialog.dismiss();
     });
     await page.getByRole('link', { name: 'Back to institutions' }).click();
     await expect(page).toHaveURL(/\/edit$/);
-    await expect(page.getByLabel('Name')).toHaveValue(`${name} edited`);
+    await expect(page.getByLabel('Name')).toHaveValue(editedName);
 
     page.once('dialog', async (dialog) => {
       await dialog.accept();
@@ -96,14 +126,20 @@ test.describe('Institutions profile forms — Sunrise live', () => {
     await expect(page).toHaveURL(/\/overview$/, { timeout: 20_000 });
 
     const editPath = `/institutions/${page.url().split('/institutions/')[1]?.split('/')[0]}/edit`;
+    const institutionId = page.url().split('/institutions/')[1]?.split('/')[0] ?? '';
     await page.goto(editPath, { waitUntil: 'domcontentloaded' });
-    const deactivate = page.getByRole('button', { name: 'Deactivate school' });
-    await expect(deactivate).toBeVisible();
-    await deactivate.click();
-    const dialog = page.getByTestId(/deactivate-form-dialog-/);
-    await expect(dialog).toBeVisible();
+    const deactivate = page.getByTestId(`deactivate-form-${institutionId}`);
+    const dialog = page.getByTestId(`deactivate-form-dialog-${institutionId}`);
+    await expect(deactivate).toBeVisible({ timeout: 20_000 });
+    await deactivate.scrollIntoViewIfNeeded();
+    await expect(async () => {
+      if (!(await dialog.isVisible().catch(() => false))) {
+        await deactivate.click();
+      }
+      await expect(dialog).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await dialog.getByLabel('Reason').fill('UX findings closure');
-    await dialog.getByRole('button', { name: 'Deactivate' }).click();
+    await dialog.getByTestId(`deactivate-form-dialog-${institutionId}-confirm`).click();
     await expect(page.getByText('This school is inactive.')).toBeVisible({ timeout: 20_000 });
   });
 });

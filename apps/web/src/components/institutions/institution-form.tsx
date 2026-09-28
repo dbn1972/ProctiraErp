@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -100,14 +100,17 @@ export function InstitutionForm({
   } = form;
 
   const leaveHref = initialValue ? `/institutions/${initialValue.id}/overview` : '/institutions';
+  const isDirtyRef = useRef(isDirty);
+  isDirtyRef.current = isDirty;
 
   useEffect(() => {
-    if (!isDirty) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirtyRef.current) return;
       event.preventDefault();
       event.returnValue = '';
     };
     const onClick = (event: MouseEvent) => {
+      if (!isDirtyRef.current) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       const anchor = target.closest('a');
@@ -127,7 +130,7 @@ export function InstitutionForm({
       window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('click', onClick, true);
     };
-  }, [isDirty]);
+  }, []);
 
   const areaId = watch('areaId');
   const typeId = watch('typeId');
@@ -177,13 +180,14 @@ export function InstitutionForm({
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-dirty={isDirty ? 'true' : 'false'}>
       <form
         onSubmit={(event) => {
           void onSubmit(event);
         }}
         className="space-y-8"
         data-testid="institution-profile-form"
+        data-dirty={isDirty ? 'true' : 'false'}
       >
         {serverError && (
           <div
@@ -205,10 +209,15 @@ export function InstitutionForm({
               </Label>
               <Input
                 id="name"
-                {...register('name')}
+                name="name"
                 disabled={isPending}
                 aria-invalid={errors.name ? 'true' : 'false'}
                 aria-describedby={errors.name ? 'name-error' : undefined}
+                value={watch('name')}
+                onChange={(event) =>
+                  setValue('name', event.target.value, { shouldDirty: true, shouldValidate: true })
+                }
+                onBlur={() => void form.trigger('name')}
               />
               {errors.name && (
                 <p id="name-error" className="text-sm text-destructive">
@@ -223,11 +232,16 @@ export function InstitutionForm({
               </Label>
               <Input
                 id="code"
-                {...register('code')}
+                name="code"
                 disabled={isPending}
                 placeholder="07040100417"
                 aria-invalid={errors.code ? 'true' : 'false'}
                 aria-describedby={errors.code ? 'code-error' : 'code-hint'}
+                value={watch('code')}
+                onChange={(event) =>
+                  setValue('code', event.target.value, { shouldDirty: true, shouldValidate: true })
+                }
+                onBlur={() => void form.trigger('code')}
               />
               <p id="code-hint" className="text-xs text-muted-foreground">
                 The school&apos;s UDISE code. It must be unique in this organisation.

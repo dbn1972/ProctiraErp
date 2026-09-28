@@ -10,6 +10,8 @@
  * - "Back to list" ghost button in page-head actions
  * - max-w-[860px] Card + InstitutionForm kept 100% intact
  */
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 

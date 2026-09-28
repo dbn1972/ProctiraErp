@@ -5,6 +5,8 @@
  * shared `InstitutionForm` Client Component to handle validation and
  * submission via a Server Action.
  */
+export const dynamic = 'force-dynamic';
+
 import { notFound } from 'next/navigation';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
