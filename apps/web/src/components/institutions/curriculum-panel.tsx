@@ -197,7 +197,8 @@ export function CurriculumPanel({
         data-testid="syllabus-unit-form"
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
           setFormError((current) => ({ ...current, unit: null }));
           startTransition(async () => {
             const result = await createSyllabusUnitAction(institutionId, {
@@ -212,7 +213,7 @@ export function CurriculumPanel({
               setFormError((current) => ({ ...current, unit: result.error }));
               return;
             }
-            event.currentTarget.reset();
+            form.reset();
             router.refresh();
           });
         }}
@@ -366,7 +367,8 @@ export function CurriculumPanel({
                   data-testid={`lesson-plan-form-${unit.id}`}
                   onSubmit={(event) => {
                     event.preventDefault();
-                    const fd = new FormData(event.currentTarget);
+                    const form = event.currentTarget;
+                    const fd = new FormData(form);
                     setFormError((current) => ({ ...current, [`lesson-${unit.id}`]: null }));
                     startTransition(async () => {
                       const result = await createLessonPlanAction(institutionId, {
@@ -381,7 +383,7 @@ export function CurriculumPanel({
                         }));
                         return;
                       }
-                      event.currentTarget.reset();
+                      form.reset();
                       router.refresh();
                     });
                   }}
@@ -420,7 +422,8 @@ export function CurriculumPanel({
         data-testid="learning-outcome-form"
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
           setFormError((current) => ({ ...current, outcome: null }));
           startTransition(async () => {
             const result = await createLearningOutcomeAction(institutionId, {
@@ -434,7 +437,7 @@ export function CurriculumPanel({
               setFormError((current) => ({ ...current, outcome: result.error }));
               return;
             }
-            event.currentTarget.reset();
+            form.reset();
             router.refresh();
           });
         }}

@@ -8,6 +8,7 @@
  */
 import { AlertTriangle, Building, Home, Layers, Map as MapIcon } from 'lucide-react';
 
+import { gatewayFetch } from '@/lib/api/gateway';
 import { FacilityEditor } from '@/components/institutions/facility-editor';
 import { VerificationReportButton } from '@/components/institutions/verification-report-button';
 import { LogRepairRequestForm } from '@/components/institutions/log-repair-request-form';
@@ -39,8 +40,12 @@ const CONDITION_PILL: Record<string, string> = {
   unknown: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
 };
 
-function titleCase(s: string): string {
-  return s
+const CONDITION_LABELS = ['Good', 'Fair', 'Needs repair', 'Unknown'] as const;
+
+function conditionLabel(condition: string): string {
+  const known = CONDITION_LABELS.find((item) => item.toLowerCase() === condition.toLowerCase());
+  if (known) return known;
+  return condition
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (m) => m.toUpperCase());
@@ -55,7 +60,7 @@ function ConditionPill({ condition }: { condition: string }) {
         CONDITION_PILL[kind],
       )}
     >
-      {titleCase(condition)}
+      {conditionLabel(condition)}
     </span>
   );
 }
@@ -160,6 +165,14 @@ function countRepairs(hierarchy: InfrastructureHierarchy): number {
 export default async function InstitutionInfrastructurePage(props: InfrastructurePageProps) {
   const params = await props.params;
   const result = await loadHierarchy(params.id);
+  const repairsResult = await gatewayFetch<{
+    data: Array<{ id: string; summary: string; infrastructureId: string }>;
+  }>(`/infrastructure/repair-requests?institutionId=${encodeURIComponent(params.id)}`, {
+    method: 'GET',
+    throwOnError: false,
+    cache: 'no-store',
+  });
+  const openRepairs = repairsResult.ok ? (repairsResult.data?.data ?? []) : [];
   const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
 
   return (
@@ -210,6 +223,13 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
                 institutionId={params.id}
                 targets={repairTargets(result.hierarchy as InfrastructureHierarchy)}
               />
+            ) : null}
+            {openRepairs.length > 0 ? (
+              <ul className="mt-2 space-y-1 text-sm" data-testid="repair-request-list">
+                {openRepairs.map((row) => (
+                  <li key={row.id}>{row.summary}</li>
+                ))}
+              </ul>
             ) : null}
           </div>
         </div>

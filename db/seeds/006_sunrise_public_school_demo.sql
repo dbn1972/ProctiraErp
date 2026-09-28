@@ -1665,7 +1665,7 @@ SET status = 'ENROLLED', updated_at = now();
 
 INSERT INTO grade_entries (
   id, tenant_id, student_id, section_id, assessment_code, numeric_score, letter_grade,
-  credit_rule_code, entered_at, entered_by, locked_at, published_at, metadata
+  entered_at, locked_at, published_at, metadata
 )
 SELECT
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-entry-' || spec.student_key),
@@ -1675,9 +1675,7 @@ SELECT
   'MATH',
   spec.score,
   spec.letter,
-  'CBSE-SCHOLASTIC',
   TIMESTAMPTZ '2026-09-20 10:00:00+05:30',
-  'priya-sharma',
   spec.locked_at,
   spec.published_at,
   jsonb_build_object(
@@ -1727,14 +1725,15 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label, body = EXCLUDED.body;
 
 INSERT INTO class_rank_snapshots (
-  id, tenant_id, section_id, academic_period_id, student_id, rank, score, computed_at
+  id, tenant_id, section_id, academic_period_id, batch_id, student_id, class_rank, cgpa, computed_at
 )
 SELECT
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rank-' || spec.student_key),
   '00000000-0000-4000-8000-00000000a501'::uuid,
   '00000000-0000-4000-8000-00000000a572'::uuid,
   '00000000-0000-4000-8000-00000000a531'::uuid,
-  spec.student_id,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rank-batch'),
+  spec.student_id::text,
   spec.rank,
   spec.score,
   TIMESTAMPTZ '2026-09-22 12:00:00+05:30'
@@ -1747,17 +1746,16 @@ FROM (
     ('sara', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0602'), 5, 71.00),
     ('rohan', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-student-SPS-2019-0550'), 6, 62.00)
 ) AS spec(student_key, student_id, rank, score)
-ON CONFLICT (id) DO UPDATE SET rank = EXCLUDED.rank, score = EXCLUDED.score, computed_at = EXCLUDED.computed_at;
+ON CONFLICT (id) DO UPDATE SET class_rank = EXCLUDED.class_rank, cgpa = EXCLUDED.cgpa, computed_at = EXCLUDED.computed_at;
 
 INSERT INTO gpa_snapshots (
-  id, tenant_id, student_id, academic_period_id, board_id, weighted_gpa, unweighted_gpa, credits_earned, computed_at
+  id, tenant_id, student_id, academic_period_id, weighted_gpa, unweighted_gpa, credits_earned, computed_at
 )
 SELECT
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gpa-' || spec.student_key),
   '00000000-0000-4000-8000-00000000a501'::uuid,
   spec.student_id,
   '00000000-0000-4000-8000-00000000a531'::uuid,
-  '00000000-0000-4000-8000-00000000a511'::uuid,
   spec.cgpa,
   spec.cgpa,
   5,
@@ -1782,11 +1780,11 @@ VALUES
   (
     uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rc-aarav'),
     '00000000-0000-4000-8000-00000000a501'::uuid,
-    '00000000-0000-4000-8000-00000000a511'::uuid,
+    '00000000-0000-4000-8000-00000000a521'::uuid,
     '00000000-0000-4000-8000-00000000a551'::uuid,
     'REPORT_CARD',
     'SUCCEEDED',
-    'priya-sharma',
+    NULL,
     TIMESTAMPTZ '2026-09-22 16:00:00+05:30',
     'gradebook://report-cards/aarav-mehta',
     NULL,
@@ -1795,11 +1793,11 @@ VALUES
   (
     uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rc-ishita'),
     '00000000-0000-4000-8000-00000000a501'::uuid,
-    '00000000-0000-4000-8000-00000000a511'::uuid,
+    '00000000-0000-4000-8000-00000000a521'::uuid,
     '00000000-0000-4000-8000-00000000a551'::uuid,
     'REPORT_CARD',
     'QUEUED',
-    'priya-sharma',
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -1812,11 +1810,11 @@ VALUES
   (
     uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-rc-rohan'),
     '00000000-0000-4000-8000-00000000a501'::uuid,
-    '00000000-0000-4000-8000-00000000a511'::uuid,
+    '00000000-0000-4000-8000-00000000a521'::uuid,
     '00000000-0000-4000-8000-00000000a551'::uuid,
     'REPORT_CARD',
     'FAILED',
-    'priya-sharma',
+    NULL,
     TIMESTAMPTZ '2026-09-22 16:10:00+05:30',
     NULL,
     'grades not published',
@@ -1841,7 +1839,7 @@ SELECT
   '00000000-0000-4000-8000-00000000a501'::uuid,
   '00000000-0000-4000-8000-00000000a551'::uuid,
   '00000000-0000-4000-8000-00000000a581'::uuid,
-  '00000000-0000-4000-8000-00000000a561'::uuid,
+  '00000000-0000-4000-8000-00000000a542'::uuid,
   '00000000-0000-4000-8000-00000000a531'::uuid,
   spec.code,
   spec.name,
@@ -1889,7 +1887,7 @@ SELECT
   '00000000-0000-4000-8000-00000000a501'::uuid,
   uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-unit-' || spec.unit_code),
   '00000000-0000-4000-8000-00000000a581'::uuid,
-  '00000000-0000-4000-8000-00000000a561'::uuid,
+  '00000000-0000-4000-8000-00000000a542'::uuid,
   spec.code,
   spec.statement
 FROM (

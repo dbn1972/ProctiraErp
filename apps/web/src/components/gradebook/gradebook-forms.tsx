@@ -42,7 +42,8 @@ export function GradeEntryForm({
       data-hydrated={hydrated ? 'true' : 'false'}
       onSubmit={(event) => {
         event.preventDefault();
-        const fd = new FormData(event.currentTarget);
+        const form = event.currentTarget;
+        const fd = new FormData(form);
         const studentId = String(fd.get('studentId') ?? '').trim();
         const assessmentCode = String(fd.get('assessmentCode') ?? '').trim();
         const scoreRaw = String(fd.get('numericScore') ?? '').trim();
@@ -77,7 +78,7 @@ export function GradeEntryForm({
           setMessage(`Grade saved for ${savedName}.`);
           setRemark('');
           setCommentBankId(null);
-          event.currentTarget.reset();
+          form.reset();
         });
       }}
     >
@@ -137,7 +138,11 @@ export function GradeEntryForm({
       <Button type="submit" disabled={pending}>
         {pending ? 'Saving…' : 'Save grade'}
       </Button>
-      {message ? <p className="text-sm text-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-sm text-foreground" data-testid="grade-save-message">
+          {message}
+        </p>
+      ) : null}
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}

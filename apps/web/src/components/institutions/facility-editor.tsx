@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 
+import { useHydrated } from '@/hooks/useHydrated';
+
 import {
   createRoomAction,
   updateFacilityAction,
@@ -19,19 +21,25 @@ export function FacilityEditor({
   floors: Array<{ id: string; name: string }>;
   nodes: Array<{ id: string; name: string }>;
 }) {
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [editId, setEditId] = useState(nodes[0]?.id ?? '');
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2" data-testid="facility-editor">
+    <div
+      className="grid gap-4 lg:grid-cols-2"
+      data-testid="facility-editor"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <form
         className="space-y-2 rounded-lg border p-4"
         data-testid="add-room-form"
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
           setError(null);
           startTransition(async () => {
             const result = await createRoomAction({
@@ -46,7 +54,7 @@ export function FacilityEditor({
               return;
             }
             setMessage('Room added.');
-            event.currentTarget.reset();
+            form.reset();
           });
         }}
       >

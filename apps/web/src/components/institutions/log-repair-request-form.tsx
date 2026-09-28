@@ -25,7 +25,8 @@ export function LogRepairRequestForm({
       data-testid="log-repair-request"
       onSubmit={(event) => {
         event.preventDefault();
-        const summary = String(new FormData(event.currentTarget).get('summary') ?? '');
+        const form = event.currentTarget;
+        const summary = String(new FormData(form).get('summary') ?? '');
         setError(null);
         setMessage(null);
         startTransition(async () => {
@@ -39,7 +40,7 @@ export function LogRepairRequestForm({
             return;
           }
           setMessage('Repair request logged.');
-          event.currentTarget.reset();
+          form.reset();
         });
       }}
     >

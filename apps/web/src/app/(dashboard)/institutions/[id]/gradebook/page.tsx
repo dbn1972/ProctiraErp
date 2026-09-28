@@ -15,7 +15,7 @@ import { GradebookWorkflowPanel } from '@/components/gradebook/gradebook-workflo
 import { Card, CardContent } from '@proctira/ui/components';
 import { getSession } from '@/lib/auth/server';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { listStudents } from '@/lib/api/students';
+import { getStudent, listStudents, type Student } from '@/lib/api/students';
 import {
   listClassRanks,
   listCommentsBank,
@@ -62,13 +62,16 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const scales = scalesResult.ok ? scalesResult.data : [];
   const jobs = jobsResult.ok ? jobsResult.data : [];
   const comments = commentsResult.ok ? commentsResult.data : [];
-  const studentOptions = (studentsResult.data ?? []).map((s) => ({
-    id: s.id,
-    label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
-    searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
-  }));
-  const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
-
+  const directory = studentsResult.data ?? [];
+  const studentCode = (student: Student) => {
+    const custom = student.customData?.gradebookCode;
+    return typeof custom === 'string' && custom.length > 0 ? custom : student.nationalId;
+  };
+  const toOption = (student: Student) => ({
+    id: student.id,
+    label: formatPersonLabel(student.firstName, student.lastName, studentCode(student)),
+    searchText: `${student.firstName} ${student.lastName} ${studentCode(student) ?? ''}`,
+  });
   const preferred =
     sections.find((section) => section.code === 'G9B-MATH') ??
     sections.find((section) => section.name.toLowerCase().includes('mathematics')) ??
@@ -82,6 +85,15 @@ export default async function InstitutionGradebookPage(props: PageProps) {
     ? await listGradeEntries({ sectionId })
     : { ok: true as const, data: [] };
   const entries = entriesResult.ok ? entriesResult.data : [];
+  const knownIds = new Set(directory.map((student) => student.id));
+  const missingIds = [...new Set(entries.map((entry) => entry.studentId))].filter(
+    (id) => !knownIds.has(id),
+  );
+  const extras = (
+    await Promise.all(missingIds.map((id) => getStudent(id).catch(() => null)))
+  ).filter((student): student is Student => student !== null);
+  const studentOptions = [...directory, ...extras].map(toOption);
+  const studentLabel = new Map(studentOptions.map((option) => [option.id, option.label]));
   const entryError = entriesResult.ok ? null : entriesResult.error;
   const ranksResult = sectionId ? await listClassRanks(sectionId) : { ok: true as const, data: [] };
   const ranks = ranksResult.ok ? ranksResult.data : [];

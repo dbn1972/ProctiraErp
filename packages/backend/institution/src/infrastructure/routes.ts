@@ -78,6 +78,65 @@ export async function registerInfrastructureRoutes(
 ): Promise<void> {
   const { infrastructureService, prefix = '/infrastructure' } = options;
 
+  // Static paths must be registered before `/:id`, which would otherwise
+  // capture "repair-requests" as an infrastructure id.
+  fastify.post(`${prefix}/repair-requests`, async (request, reply) => {
+    const body = request.body as {
+      institutionId?: string;
+      infrastructureId?: string;
+      summary?: string;
+    };
+    if (!body?.institutionId || !body.infrastructureId || !body.summary?.trim()) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'institutionId, infrastructureId, and summary are required',
+        statusCode: 400,
+      });
+    }
+    try {
+      const row = await infrastructureService.logRepairRequest({
+        institutionId: body.institutionId,
+        infrastructureId: body.infrastructureId,
+        summary: body.summary,
+      });
+      return reply.status(201).send({
+        id: row.id,
+        institutionId: row.institutionId,
+        infrastructureId: row.infrastructureId,
+        summary: row.summary,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+      });
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send(error.toJSON());
+      }
+      throw error;
+    }
+  });
+
+  fastify.get(`${prefix}/repair-requests`, async (request, reply) => {
+    const institutionId = (request.query as { institutionId?: string }).institutionId;
+    if (!institutionId) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'institutionId query parameter is required',
+        statusCode: 400,
+      });
+    }
+    const rows = await infrastructureService.listRepairRequests(institutionId);
+    return reply.send({
+      data: rows.map((row) => ({
+        id: row.id,
+        institutionId: row.institutionId,
+        infrastructureId: row.infrastructureId,
+        summary: row.summary,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+      })),
+    });
+  });
+
   // ─── Land Routes ─────────────────────────────────────────────────────────────
 
   /**
@@ -560,61 +619,4 @@ export async function registerInfrastructureRoutes(
       }
     },
   );
-
-  fastify.post(`${prefix}/repair-requests`, async (request, reply) => {
-    const body = request.body as {
-      institutionId?: string;
-      infrastructureId?: string;
-      summary?: string;
-    };
-    if (!body?.institutionId || !body.infrastructureId || !body.summary?.trim()) {
-      return reply.status(400).send({
-        code: 'VALIDATION_ERROR',
-        message: 'institutionId, infrastructureId, and summary are required',
-        statusCode: 400,
-      });
-    }
-    try {
-      const row = await infrastructureService.logRepairRequest({
-        institutionId: body.institutionId,
-        infrastructureId: body.infrastructureId,
-        summary: body.summary,
-      });
-      return reply.status(201).send({
-        id: row.id,
-        institutionId: row.institutionId,
-        infrastructureId: row.infrastructureId,
-        summary: row.summary,
-        status: row.status,
-        createdAt: row.createdAt.toISOString(),
-      });
-    } catch (error: unknown) {
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send(error.toJSON());
-      }
-      throw error;
-    }
-  });
-
-  fastify.get(`${prefix}/repair-requests`, async (request, reply) => {
-    const institutionId = (request.query as { institutionId?: string }).institutionId;
-    if (!institutionId) {
-      return reply.status(400).send({
-        code: 'VALIDATION_ERROR',
-        message: 'institutionId query parameter is required',
-        statusCode: 400,
-      });
-    }
-    const rows = await infrastructureService.listRepairRequests(institutionId);
-    return reply.send({
-      data: rows.map((row) => ({
-        id: row.id,
-        institutionId: row.institutionId,
-        infrastructureId: row.infrastructureId,
-        summary: row.summary,
-        status: row.status,
-        createdAt: row.createdAt.toISOString(),
-      })),
-    });
-  });
 }

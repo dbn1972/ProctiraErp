@@ -398,7 +398,8 @@ function CommentsBankCard({
         data-hydrated={hydrated ? 'true' : 'false'}
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
           setError(null);
           startTransition(async () => {
             const result = await createCommentsBankAction({
@@ -411,7 +412,7 @@ function CommentsBankCard({
               setError(result.error);
               return;
             }
-            event.currentTarget.reset();
+            form.reset();
             router.refresh();
           });
         }}
