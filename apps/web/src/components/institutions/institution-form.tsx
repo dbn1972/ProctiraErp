@@ -176,7 +176,7 @@ export function InstitutionForm({
       event.stopPropagation();
       void requestLeaveConfirm().then((ok) => {
         if (!ok) return;
-        clearDirty();
+        clearDirtyRef.current();
         router.push(href);
       });
     };
