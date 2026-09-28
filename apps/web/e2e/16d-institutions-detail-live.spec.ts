@@ -40,7 +40,9 @@ test.describe('Institutions detail — Sunrise live', () => {
     await expect(overview).toBeVisible();
     await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /UX review/i })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Sunrise Public School – Mayur Vihar' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Sunrise Public School – Mayur Vihar' }),
+    ).toBeVisible();
     await expect(overview.getByText('1,240').first()).toBeVisible();
     await expect(page.getByText('English medium')).toBeVisible();
     await expect(page.getByText('office.mv@sunrisepublic.edu.in')).toBeVisible();

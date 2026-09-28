@@ -4,7 +4,14 @@ import { useState, useTransition } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Pencil } from 'lucide-react';
 
-import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@proctira/ui/components';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@proctira/ui/components';
 
 import { assignClassSectionAction } from '@/lib/institutions/actions';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';

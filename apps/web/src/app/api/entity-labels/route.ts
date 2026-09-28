@@ -31,10 +31,7 @@ export async function GET(request: Request): Promise<Response> {
     );
     const name = readName(result.data);
     if (result.ok && name) {
-      return NextResponse.json(
-        { name },
-        { headers: { 'cache-control': 'no-store' } },
-      );
+      return NextResponse.json({ name }, { headers: { 'cache-control': 'no-store' } });
     }
     return NextResponse.json({ name: null }, { status: result.status || 404 });
   }
@@ -46,10 +43,7 @@ export async function GET(request: Request): Promise<Response> {
     );
     const name = readName(result.data);
     if (result.ok && name) {
-      return NextResponse.json(
-        { name },
-        { headers: { 'cache-control': 'no-store' } },
-      );
+      return NextResponse.json({ name }, { headers: { 'cache-control': 'no-store' } });
     }
     return NextResponse.json({ name: null }, { status: result.status || 404 });
   }

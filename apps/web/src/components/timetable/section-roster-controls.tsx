@@ -192,7 +192,9 @@ export function SectionBulkEnrollForm(props: {
             return;
           }
           if ('enrolled' in result) {
-            const names = new Map((props.studentOptions ?? []).map((option) => [option.id, option.label]));
+            const names = new Map(
+              (props.studentOptions ?? []).map((option) => [option.id, option.label]),
+            );
             const failNote =
               result.failed.length > 0
                 ? ` · ${result.failed.length} failed (${result.failed

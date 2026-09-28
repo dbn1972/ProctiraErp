@@ -63,9 +63,9 @@ describe('gateway timetable withdraw IDOR', () => {
     expect(crossStudent.statusCode).toBe(404);
 
     const stillEnrolled = await service.listEnrollments(tenantA, section.id);
-    expect(stillEnrolled.some((row) => row.studentId === studentA && row.status === 'ENROLLED')).toBe(
-      true,
-    );
+    expect(
+      stillEnrolled.some((row) => row.studentId === studentA && row.status === 'ENROLLED'),
+    ).toBe(true);
     await app.close();
   });
 });

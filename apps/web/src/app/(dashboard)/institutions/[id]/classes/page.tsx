@@ -53,8 +53,7 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
   const params = await props.params;
   const searchParams = (await props.searchParams) ?? {};
   const data = await loadClasses(params.id);
-  const activePeriod =
-    data.periods.find((period) => period.status === 'active') ?? data.periods[0];
+  const activePeriod = data.periods.find((period) => period.status === 'active') ?? data.periods[0];
   const periodParam = searchParams.period ?? activePeriod?.id ?? 'all';
   const visibleClasses =
     periodParam === 'all'
@@ -93,13 +92,19 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
               <p className="font-medium">Service unavailable</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {data.error}{' '}
-                <Link href={`/institutions/${params.id}/classes`} className="font-semibold underline">
+                <Link
+                  href={`/institutions/${params.id}/classes`}
+                  className="font-semibold underline"
+                >
                   Retry
                 </Link>
               </p>
             </div>
           ) : visibleClasses.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-14 text-center" data-testid="classes-empty">
+            <div
+              className="flex flex-col items-center justify-center gap-2 py-14 text-center"
+              data-testid="classes-empty"
+            >
               <Layers className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
               <p className="text-base font-semibold">No class sections yet</p>
               <p className="text-sm text-muted-foreground">

@@ -28,11 +28,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import {
-  ApiClientError,
-  getInstitution,
-  getInstitutionOverview,
-} from '@/lib/institutions/api';
+import { ApiClientError, getInstitution, getInstitutionOverview } from '@/lib/institutions/api';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 
 interface OverviewPageProps {
@@ -129,7 +125,10 @@ function EnrollmentByGrade({
       </CardHeader>
       <CardContent className="pb-5">
         {data.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="enrollment-empty">
+          <p
+            className="py-6 text-center text-sm text-muted-foreground"
+            data-testid="enrollment-empty"
+          >
             {unavailable
               ? 'Enrollment data is currently unavailable for this institution.'
               : 'No students are enrolled in this institution yet.'}
@@ -331,7 +330,10 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
       )}
 
       {overviewError && (
-        <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm"
+        >
           <p className="font-medium">Service unavailable</p>
           <p className="mt-1 text-muted-foreground">
             {overviewError}{' '}

@@ -11,14 +11,14 @@
 
 ## 1. Controls
 
-| Control | Evidence | Disposition |
-| ------- | -------- | ----------- |
-| Cross-tenant institution | `institution-overview.test.ts` returns null / Fastify 404 | **FULLY_CLOSED** |
-| Parent role | same file, 403 when roles lack `institution:read` | **FULLY_CLOSED** |
-| Cross-tenant class teacher | `class-service.test.ts` NotFound | **FULLY_CLOSED** |
-| IDOR on section withdraw | Not re-proved in this session beyond existing timetable routes | **PARTIAL** |
-| Secrets | No new secrets. Local JWT is the dev secret | **FULLY_CLOSED** for this diff |
-| PII | Overview returns counts and contact already stored on the institution | **PARTIAL** |
+| Control                    | Evidence                                                              | Disposition                    |
+| -------------------------- | --------------------------------------------------------------------- | ------------------------------ |
+| Cross-tenant institution   | `institution-overview.test.ts` returns null / Fastify 404             | **FULLY_CLOSED**               |
+| Parent role                | same file, 403 when roles lack `institution:read`                     | **FULLY_CLOSED**               |
+| Cross-tenant class teacher | `class-service.test.ts` NotFound                                      | **FULLY_CLOSED**               |
+| IDOR on section withdraw   | Not re-proved in this session beyond existing timetable routes        | **PARTIAL**                    |
+| Secrets                    | No new secrets. Local JWT is the dev secret                           | **FULLY_CLOSED** for this diff |
+| PII                        | Overview returns counts and contact already stored on the institution | **PARTIAL**                    |
 
 ## 2. Findings
 

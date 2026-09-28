@@ -48,8 +48,7 @@ export interface FieldError {
 }
 
 export type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: FieldError[] };
+  { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
 function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldError[] {
   return Object.entries(errors).flatMap(([field, messages]) =>

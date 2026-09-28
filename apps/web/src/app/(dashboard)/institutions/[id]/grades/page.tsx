@@ -61,9 +61,7 @@ function UtilizationBar({ pct }: { pct: number }) {
           aria-valuenow={Math.min(100, pct)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={
-            pct > 100 ? 'Utilization over capacity' : `Utilization ${band}, ${pct}%`
-          }
+          aria-label={pct > 100 ? 'Utilization over capacity' : `Utilization ${band}, ${pct}%`}
         />
       </div>
       <span className={cn('text-xs font-bold tabular-nums', textCls)}>{utilizationLabel(pct)}</span>
@@ -106,7 +104,8 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
               : `${offered.length} ${offered.length === 1 ? 'grade' : 'grades'} · ${offeredCount} with sections here`}
           </p>
           <p className="mt-1 max-w-prose text-xs text-muted-foreground">
-            Grades are shared across the organisation. Adding one here makes it available to every school.
+            Grades are shared across the organisation. Adding one here makes it available to every
+            school.
           </p>
         </div>
         <AddGradeDialog />

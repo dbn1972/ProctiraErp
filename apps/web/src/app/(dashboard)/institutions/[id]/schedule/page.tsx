@@ -11,9 +11,19 @@ import { SectionCreateForm } from '@/components/timetable/section-create-form';
 import { SectionPublishControls } from '@/components/timetable/section-roster-controls';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { getStaff, listStaff } from '@/lib/api/staff';
-import { listBellSchedules, listPeriods, listRooms, listScheduleConflicts, listSections } from '@/lib/api/timetable';
+import {
+  listBellSchedules,
+  listPeriods,
+  listRooms,
+  listScheduleConflicts,
+  listSections,
+} from '@/lib/api/timetable';
 import { formatPersonLabel } from '@/lib/entity-label';
-import { conflictReasonLabel, formatPeriodWhen, formatScheduleConflict } from '@/lib/timetable/conflict-label';
+import {
+  conflictReasonLabel,
+  formatPeriodWhen,
+  formatScheduleConflict,
+} from '@/lib/timetable/conflict-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,7 +131,10 @@ export default async function InstitutionSchedulePage(props: PageProps) {
                 </p>
                 <ul className="space-y-2 text-sm">
                   {conflicts.slice(0, 12).map((c, idx) => (
-                    <li key={`${c.againstMeetingId}-${c.reason}-${idx}`} className="flex flex-wrap items-center gap-2">
+                    <li
+                      key={`${c.againstMeetingId}-${c.reason}-${idx}`}
+                      className="flex flex-wrap items-center gap-2"
+                    >
                       <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
                         {conflictReasonLabel(c.reason)}
                       </span>

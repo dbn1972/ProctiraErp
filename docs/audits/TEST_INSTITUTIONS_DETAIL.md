@@ -9,12 +9,12 @@ Overview, classes, grades, schedule, schedule section, plus `/institutions/:id/o
 
 ## 1. Functionality
 
-| Check | Result |
-| ----- | ------ |
-| Gateway overview unit | 3 passed |
-| Class service unit | 16 passed |
-| Conflict label unit | 1 passed |
-| Page matrix G-804 | 209 passed (matrix file) |
+| Check                 | Result                   |
+| --------------------- | ------------------------ |
+| Gateway overview unit | 3 passed                 |
+| Class service unit    | 16 passed                |
+| Conflict label unit   | 1 passed                 |
+| Page matrix G-804     | 209 passed (matrix file) |
 
 ## 2. E2E (Playwright)
 

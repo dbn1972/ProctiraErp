@@ -178,7 +178,11 @@ export function AddClassSectionDialog({
           Add section
         </Button>
         {blocked && (
-          <p id="add-section-blocked" className="max-w-xs text-end text-xs text-amber-800 dark:text-amber-200" role="status">
+          <p
+            id="add-section-blocked"
+            className="max-w-xs text-end text-xs text-amber-800 dark:text-amber-200"
+            role="status"
+          >
             Add section is disabled. Define at least one grade and one academic period first.
           </p>
         )}

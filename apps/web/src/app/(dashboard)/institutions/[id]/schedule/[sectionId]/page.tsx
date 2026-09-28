@@ -132,7 +132,10 @@ export default async function SectionRosterPage(props: PageProps) {
     if (!meeting.staffId || staffLabel.has(meeting.staffId)) continue;
     const person = await getStaff(meeting.staffId).catch(() => null);
     if (person) {
-      staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName, person.position));
+      staffLabel.set(
+        person.id,
+        formatPersonLabel(person.firstName, person.lastName, person.position),
+      );
     }
   }
   const roomLabel = new Map(
@@ -147,7 +150,10 @@ export default async function SectionRosterPage(props: PageProps) {
     const periods = await listPeriods(schedule.id);
     if (!periods.ok) continue;
     for (const p of periods.data) {
-      periodLabel.set(p.id, `${schedule.name} · ${formatPeriodWhen(p.name, p.startTime, p.endTime)}`);
+      periodLabel.set(
+        p.id,
+        `${schedule.name} · ${formatPeriodWhen(p.name, p.startTime, p.endTime)}`,
+      );
     }
   }
 
@@ -172,7 +178,11 @@ export default async function SectionRosterPage(props: PageProps) {
                   : 'inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800'
               }
             >
-              {section.status === 'PUBLISHED' ? 'Published' : section.status === 'DRAFT' ? 'Draft' : section.status}
+              {section.status === 'PUBLISHED'
+                ? 'Published'
+                : section.status === 'DRAFT'
+                  ? 'Draft'
+                  : section.status}
             </span>
             {section.publishedAt
               ? ` · published ${new Date(section.publishedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`

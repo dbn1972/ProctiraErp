@@ -14,7 +14,9 @@ interface ReportPageProps {
 export default async function InstitutionSchoolReportPage(props: ReportPageProps) {
   const params = await props.params;
   const institution = await getInstitution(params.id).catch(() => null);
-  const snapshot = institution ? await getInstitutionOverview(institution.id).catch(() => null) : null;
+  const snapshot = institution
+    ? await getInstitutionOverview(institution.id).catch(() => null)
+    : null;
 
   if (!institution || !snapshot) {
     return (
@@ -84,7 +86,9 @@ export default async function InstitutionSchoolReportPage(props: ReportPageProps
             {snapshot.enrollmentByGrade.map((row) => (
               <li key={row.gradeId} className="flex justify-between gap-4">
                 <span>{row.name}</span>
-                <span className="tabular-nums font-semibold">{row.count.toLocaleString('en-IN')}</span>
+                <span className="tabular-nums font-semibold">
+                  {row.count.toLocaleString('en-IN')}
+                </span>
               </li>
             ))}
           </ul>

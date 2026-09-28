@@ -319,7 +319,10 @@ export function registerInstitutionOverviewRoutes(
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       const roles = (request as FastifyRequest & { user?: { roles?: { roleId: string }[] } }).user
         ?.roles;
-      if (roles && !roles.some((role) => overviewRbac.roleHasPermission(role.roleId, 'institution', 'read'))) {
+      if (
+        roles &&
+        !roles.some((role) => overviewRbac.roleHasPermission(role.roleId, 'institution', 'read'))
+      ) {
         return reply.status(403).send({
           code: 'FORBIDDEN',
           message: 'Insufficient permissions',
@@ -335,9 +338,7 @@ export function registerInstitutionOverviewRoutes(
       }
 
       const institutionId = request.params.id;
-      if (
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(institutionId)
-      ) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(institutionId)) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
           message: 'Institution id must be a UUID',

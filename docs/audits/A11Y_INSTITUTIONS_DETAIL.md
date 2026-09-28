@@ -9,13 +9,13 @@ No axe run in this session. Disposition: **EXTERNALLY_UNVERIFIED**.
 
 ## 2. Manual
 
-| Check | Evidence | Disposition |
-| ----- | -------- | ----------- |
-| Names on controls | e2e finds "Withdraw Aarav Mehta" after hydration | **PARTIAL** |
-| Dialog | `ConfirmActionDialog` title and cancel | **PARTIAL** — keyboard trap not re-tested here |
-| Tables | `aria-label` on class and grade tables | **PARTIAL** |
-| Status not colour-only | Published/Draft/Archived and Enrolled/Withdrawn text | **FULLY_CLOSED** for those pills |
-| RTL / contrast | Not measured on these five screens this session | **OPEN** |
+| Check                  | Evidence                                             | Disposition                                    |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------------- |
+| Names on controls      | e2e finds "Withdraw Aarav Mehta" after hydration     | **PARTIAL**                                    |
+| Dialog                 | `ConfirmActionDialog` title and cancel               | **PARTIAL** — keyboard trap not re-tested here |
+| Tables                 | `aria-label` on class and grade tables               | **PARTIAL**                                    |
+| Status not colour-only | Published/Draft/Archived and Enrolled/Withdrawn text | **FULLY_CLOSED** for those pills               |
+| RTL / contrast         | Not measured on these five screens this session      | **OPEN**                                       |
 
 ## 3. Findings
 
