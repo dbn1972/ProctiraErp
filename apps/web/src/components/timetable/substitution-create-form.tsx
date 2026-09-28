@@ -6,13 +6,26 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@proctira/ui/components';
 
 import { createSubstitutionAction } from '@/app/(dashboard)/timetable-actions';
+import { formatSubstituteClash } from '@/lib/timetable/meeting-conflict-label';
 
-export function SubstitutionCreateForm(props: { meetingOptions: { id: string; label: string }[] }) {
+export function SubstitutionCreateForm(props: {
+  meetingOptions: {
+    id: string;
+    label: string;
+    dayOfWeek?: number;
+    periodId?: string;
+    sectionId?: string;
+  }[];
+  staffOptions?: { id: string; label: string }[];
+  sectionLabels?: Record<string, string>;
+  periodLabels?: Record<string, string>;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sectionMeetingId, setSectionMeetingId] = useState(props.meetingOptions[0]?.id ?? '');
-  const [substituteStaffId, setSubstituteStaffId] = useState('');
+  const staffOptions = props.staffOptions ?? [];
+  const [substituteStaffId, setSubstituteStaffId] = useState(staffOptions[0]?.id ?? '');
   const [substitutionDate, setSubstitutionDate] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState('');
 
@@ -38,7 +51,23 @@ export function SubstitutionCreateForm(props: { meetingOptions: { id: string; la
             reason: reason || null,
           });
           if (!result.ok) {
-            setError(result.status === 409 ? `Conflict (409): ${result.error}` : result.error);
+            const clash = result.conflicts?.find(
+              (item) => item.reason === 'substitute' || item.reason === 'staff',
+            );
+            if (result.status === 409 && clash) {
+              const teacher =
+                staffOptions.find((item) => item.id === substituteStaffId)?.label ?? 'This teacher';
+              setError(
+                `Conflict (409). ${formatSubstituteClash({
+                  teacherLabel: teacher,
+                  dayOfWeek: clash.dayOfWeek,
+                  periodLabel: props.periodLabels?.[clash.periodId] ?? 'that period',
+                  sectionLabel: props.sectionLabels?.[clash.sectionId ?? ''] ?? 'another section',
+                })}`,
+              );
+              return;
+            }
+            setError(result.status === 409 ? `Conflict (409). ${result.error}` : result.error);
             return;
           }
           router.refresh();
@@ -61,13 +90,32 @@ export function SubstitutionCreateForm(props: { meetingOptions: { id: string; la
         </select>
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Substitute staff ID</span>
-        <input
-          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
-          value={substituteStaffId}
-          onChange={(e) => setSubstituteStaffId(e.target.value)}
-          required
-        />
+        <span className="font-medium">
+          Substitute staff<span className="text-destructive"> *</span>
+        </span>
+        {staffOptions.length > 0 ? (
+          <select
+            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
+            value={substituteStaffId}
+            onChange={(e) => setSubstituteStaffId(e.target.value)}
+            required
+            data-testid="substitute-staff"
+          >
+            {staffOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
+            value={substituteStaffId}
+            onChange={(e) => setSubstituteStaffId(e.target.value)}
+            required
+            aria-label="Substitute staff"
+          />
+        )}
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Date</span>

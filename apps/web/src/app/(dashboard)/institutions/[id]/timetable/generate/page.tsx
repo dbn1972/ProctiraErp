@@ -104,16 +104,46 @@ export default async function TimetableGeneratePage(props: PageProps) {
           {jobs.length === 0 ? (
             <p className="text-sm text-muted-foreground">No generation jobs yet.</p>
           ) : (
-            <ul className="divide-y divide-border" role="list">
-              {jobs.map((job) => (
-                <li key={job.id} className="py-2 text-sm" data-testid="generation-job-row">
-                  <span className="font-medium">{job.status}</span>
-                  {' · '}
-                  {job.assignedCount} assigned · {job.clashCount} clashes
-                  {job.errorMessage ? ` · ${job.errorMessage}` : ''}
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[36rem] text-sm" aria-label="Generation jobs">
+                <thead>
+                  <tr className="border-b border-border text-left text-muted-foreground">
+                    <th className="py-2 font-medium">Status</th>
+                    <th className="px-3 py-2 font-medium">Result</th>
+                    <th className="px-3 py-2 font-medium">Run at</th>
+                    <th className="px-3 py-2 font-medium">Run by</th>
+                    <th className="py-2 font-medium" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map((job) => (
+                    <tr
+                      key={job.id}
+                      className="border-b border-border/60"
+                      data-testid="generation-job-row"
+                    >
+                      <td className="py-2 font-medium capitalize">{job.status}</td>
+                      <td className="px-3 py-2">
+                        {job.assignedCount} assigned · {job.clashCount} clashes
+                        {job.errorMessage ? ` · ${job.errorMessage}` : ''}
+                      </td>
+                      <td className="px-3 py-2">{job.finishedAt ?? job.createdAt}</td>
+                      <td className="px-3 py-2">{job.requestedBy ?? '—'}</td>
+                      <td className="py-2 text-right">
+                        {job.status === 'done' ? (
+                          <Link
+                            href={`/institutions/${institutionId}/timetable`}
+                            className="font-semibold underline"
+                          >
+                            View grid
+                          </Link>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

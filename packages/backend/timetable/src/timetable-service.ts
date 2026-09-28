@@ -802,17 +802,15 @@ export class TimetableService {
         daysOfWeek: input.daysOfWeek ?? [1, 2, 3, 4, 5],
         periods,
         rooms: rooms.map((r): GeneratorRoom => ({ id: r.id, capacity: r.capacity })),
-        demands: input.demands.map(
-          (d): GeneratorDemand => ({
-            id: d.id ?? randomUUID(),
-            sectionId: d.sectionId,
-            subjectId: d.subjectId,
-            staffId: d.staffId,
-            periodsPerWeek: d.periodsPerWeek,
-            preferredRoomId: d.preferredRoomId ?? null,
-            enrollmentCount: d.enrollmentCount ?? 0,
-          }),
-        ),
+        demands: input.demands.map((d): GeneratorDemand => ({
+          id: d.id ?? randomUUID(),
+          sectionId: d.sectionId,
+          subjectId: d.subjectId,
+          staffId: d.staffId,
+          periodsPerWeek: d.periodsPerWeek,
+          preferredRoomId: d.preferredRoomId ?? null,
+          enrollmentCount: d.enrollmentCount ?? 0,
+        })),
         unavailable: input.unavailable,
         teacherMaxPeriodsPerDay: input.teacherMaxPeriodsPerDay ?? 6,
       };
@@ -939,12 +937,14 @@ export class TimetableService {
   ): Promise<GeneratorPeriod[]> {
     if (input.bellScheduleId) {
       const rows = await this.repo.listPeriods(tenantId, input.bellScheduleId);
-      return rows.map((p) => ({
-        id: p.id,
-        startTime: p.startTime,
-        endTime: p.endTime,
-        periodOrder: p.periodOrder,
-      }));
+      return rows
+        .filter((p) => !p.isBreak && !/^break$/i.test(p.name))
+        .map((p) => ({
+          id: p.id,
+          startTime: p.startTime,
+          endTime: p.endTime,
+          periodOrder: p.periodOrder,
+        }));
     }
     const schedules = await this.repo.listBellSchedules(tenantId, {
       institutionId: input.institutionId,
@@ -958,12 +958,14 @@ export class TimetableService {
     if (rows.length === 0) {
       throw new ValidationError('Bell schedule has no periods');
     }
-    return rows.map((p) => ({
-      id: p.id,
-      startTime: p.startTime,
-      endTime: p.endTime,
-      periodOrder: p.periodOrder,
-    }));
+    return rows
+      .filter((p) => !p.isBreak && !/^break$/i.test(p.name))
+      .map((p) => ({
+        id: p.id,
+        startTime: p.startTime,
+        endTime: p.endTime,
+        periodOrder: p.periodOrder,
+      }));
   }
 
   private async assertSectionEditable(tenantId: string, sectionId: string): Promise<void> {

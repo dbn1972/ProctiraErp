@@ -27,6 +27,7 @@ export interface BellPeriod {
   periodOrder: number;
   startTime: string;
   endTime: string;
+  isBreak?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -247,6 +248,20 @@ export async function createMeeting(input: {
     });
   }
   return result.data;
+}
+
+export async function deleteMeeting(meetingId: string): Promise<void> {
+  const result = await gatewayFetch<unknown>(
+    `/timetable/meetings/${encodeURIComponent(meetingId)}`,
+    { method: 'DELETE' },
+  );
+  if (result.status !== 204 && result.status !== 200) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Meeting delete failed',
+    });
+  }
 }
 
 export async function listSubstitutions(filters?: {
@@ -535,6 +550,7 @@ export interface GenerationJob {
   persistMeetings: boolean;
   stats: Record<string, unknown>;
   errorMessage: string | null;
+  requestedBy?: string | null;
   createdAt: string;
   finishedAt: string | null;
 }

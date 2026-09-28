@@ -139,6 +139,7 @@ function mapPeriod(row: Record<string, unknown>): PeriodEntity {
     periodOrder: Number(row.period_order),
     startTime: timeText(row.start_time),
     endTime: timeText(row.end_time),
+    isBreak: row.is_break === true,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
