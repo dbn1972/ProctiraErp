@@ -74,7 +74,13 @@ export function isCoveredByE2E(route: string, specSource: string = SPEC_SOURCE):
 describe('G-804 page-wise regression matrix', () => {
   it('discovers the App Router page inventory', () => {
     expect(PAGES.length).toBeGreaterThan(100);
-    for (const required of ['/lms', '/lms/assignments/new', '/lms/assignments/[id]', '/lms/pal']) {
+    for (const required of [
+      '/lms',
+      '/lms/assignments/new',
+      '/lms/assignments/[id]',
+      '/lms/pal',
+      '/parent/scholarships',
+    ]) {
       expect(PAGES, `${required} missing from src/app`).toContain(required);
     }
   });
