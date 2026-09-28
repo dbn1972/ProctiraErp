@@ -16,6 +16,7 @@
  *   bulk save.
  */
 import { CheckCheck, Save } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
@@ -83,12 +84,18 @@ interface RowState {
   comment: string;
 }
 
-const STATUS_OPTIONS: { value: AttendanceStatusValue; label: string }[] = [
-  { value: 'PRESENT', label: 'Present' },
-  { value: 'ABSENT', label: 'Absent' },
-  { value: 'LATE', label: 'Late' },
-  { value: 'EXCUSED', label: 'Excused' },
-  { value: 'EARLY_DEPARTURE', label: 'Early' },
+/**
+ * Status order is the keyboard order (UX AT-2) and the message key is the label (UX AT-4).
+ *
+ * Labels were English literals here, which made the five statuses untranslatable — the one part
+ * of this screen a teacher reads on every row.
+ */
+const STATUS_OPTIONS: { value: AttendanceStatusValue; labelKey: string }[] = [
+  { value: 'PRESENT', labelKey: 'statusPresent' },
+  { value: 'ABSENT', labelKey: 'statusAbsent' },
+  { value: 'LATE', labelKey: 'statusLate' },
+  { value: 'EXCUSED', labelKey: 'statusExcused' },
+  { value: 'EARLY_DEPARTURE', labelKey: 'statusEarly' },
 ];
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
@@ -125,6 +132,37 @@ const TOGGLE_ON: Record<AttendanceStatusValue, string> = {
   EARLY_DEPARTURE: 'bg-violet-500 text-white',
 };
 
+/**
+ * One student's attendance status — a real radio group (UX AT-2).
+ *
+ * ## What was wrong
+ *
+ * This was a `role="group"` of five `<button aria-pressed>` elements. Two consequences, both
+ * costly on the product's highest-frequency screen:
+ *
+ * 1. **Five tab stops per student.** A 40-student roster was ~200 tab stops before the first
+ *    comment field. Marking six classes a day by keyboard was not realistic.
+ * 2. **Wrong semantics.** Assistive technology heard five independent toggle buttons rather
+ *    than one five-way choice, so a screen-reader user was never told "2 of 5" or that picking
+ *    one clears the others.
+ *
+ * The mobile form in `features/attendance/` already used `radiogroup`/`radio`/`aria-checked`.
+ * The live desktop grid did not, so the better pattern existed and was unused.
+ *
+ * ## The model now
+ *
+ * Standard WAI-ARIA radio group with a roving tabindex:
+ *
+ * - **one tab stop per row** — only the checked option is tabbable, so Tab moves student to
+ *   student and the 40-row roster costs 40 stops, not 200
+ * - **arrow keys move *and* select**, wrapping at both ends, which is the expected radio
+ *   behaviour and means marking a row is one keystroke
+ * - **Home / End** jump to first / last
+ * - **type-ahead on the first letter** — `p`, `a`, `l`, `e` (cycles Excused → Early)
+ * - **Space** selects the focused option, for users who expect button semantics
+ *
+ * Focus follows selection so the announcement and the visible ring stay together.
+ */
 function StatusToggle({
   value,
   onChange,
@@ -134,10 +172,70 @@ function StatusToggle({
   onChange: (v: AttendanceStatusValue) => void;
   studentName: string;
 }) {
+  const t = useTranslations('attendance');
+  const refs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  /** Select `next` and move focus to it, so the ring and the announcement agree. */
+  function selectAndFocus(next: AttendanceStatusValue) {
+    onChange(next);
+    refs.current[next]?.focus();
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const index = STATUS_OPTIONS.findIndex((o) => o.value === value);
+    const last = STATUS_OPTIONS.length - 1;
+    const at = (i: number) => STATUS_OPTIONS[i]!.value;
+
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        event.preventDefault();
+        selectAndFocus(at(index >= last ? 0 : index + 1));
+        return;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        event.preventDefault();
+        selectAndFocus(at(index <= 0 ? last : index - 1));
+        return;
+      case 'Home':
+        event.preventDefault();
+        selectAndFocus(at(0));
+        return;
+      case 'End':
+        event.preventDefault();
+        selectAndFocus(at(last));
+        return;
+      case ' ':
+      case 'Spacebar':
+        event.preventDefault();
+        selectAndFocus(value);
+        return;
+      default:
+        break;
+    }
+
+    // Type-ahead. `e` matches Excused then Early, so search forward from the current
+    // position and wrap — repeated presses cycle rather than sticking on the first match.
+    if (event.key.length !== 1) return;
+    const letter = event.key.toLowerCase();
+    if (!/[a-z]/.test(letter)) return;
+    for (let step = 1; step <= STATUS_OPTIONS.length; step += 1) {
+      const candidate = STATUS_OPTIONS[(index + step) % STATUS_OPTIONS.length]!;
+      // Matched against the *translated* label, so type-ahead follows the user's language
+      // rather than the English source.
+      if (t(candidate.labelKey).toLowerCase().startsWith(letter)) {
+        event.preventDefault();
+        selectAndFocus(candidate.value);
+        return;
+      }
+    }
+  }
+
   return (
     <div
-      role="group"
-      aria-label={`Attendance status for ${studentName}`}
+      role="radiogroup"
+      aria-label={t('statusLabel', { name: studentName })}
+      onKeyDown={handleKeyDown}
       className="inline-flex gap-1 rounded-full bg-muted p-1"
     >
       {STATUS_OPTIONS.map((opt) => {
@@ -145,15 +243,23 @@ function StatusToggle({
         return (
           <button
             key={opt.value}
+            ref={(node) => {
+              refs.current[opt.value] = node;
+            }}
             type="button"
-            aria-pressed={active}
+            role="radio"
+            aria-checked={active}
+            // Roving tabindex — the whole point of the fix. Only the checked option is
+            // reachable by Tab, so one row costs one tab stop.
+            tabIndex={active ? 0 : -1}
             onClick={() => onChange(opt.value)}
             className={cn(
               'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
               active ? TOGGLE_ON[opt.value] : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {opt.label}
+            {t(opt.labelKey)}
           </button>
         );
       })}
@@ -191,6 +297,7 @@ export function AttendanceMarkingForm({
   defaults,
   roster,
 }: AttendanceMarkingFormProps) {
+  const t = useTranslations('attendance');
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
@@ -221,6 +328,14 @@ export function AttendanceMarkingForm({
   // We only seed once so subsequent edits are not clobbered if the
   // hook re-emits.
   const hasHydratedDraftRef = useRef<boolean>(false);
+  /**
+   * UX AT-2 — focus moves to the error when a submit is rejected.
+   *
+   * Previously the `role="alert"` appeared above the grid and focus stayed on the submit button
+   * at the bottom of a 40-row roster. A screen-reader user heard the message but had no way to
+   * reach it; a sighted keyboard user had no idea the page had changed 40 rows above them.
+   */
+  const errorRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (hasHydratedDraftRef.current) return;
     if (draft.values === null) return;
@@ -239,6 +354,11 @@ export function AttendanceMarkingForm({
   useEffect(() => {
     setRows(rosterToRows(roster));
   }, [roster]);
+
+  // UX AT-2 — pull focus to the rejection so it is reachable, not just announced.
+  useEffect(() => {
+    if (serverState?.status === 'error') errorRef.current?.focus();
+  }, [serverState]);
 
   // Autosave the live snapshot on every change. The hook itself
   // debounces to 30 s so this is cheap.
@@ -358,15 +478,15 @@ export function AttendanceMarkingForm({
     >
       <div className="grid gap-4 md:grid-cols-4">
         <div className="space-y-1">
-          <Label htmlFor="institutionId">Institution</Label>
+          <Label htmlFor="institutionId">{t('institution')}</Label>
           <Select value={institutionId || undefined} onValueChange={handleInstitutionChange}>
             <SelectTrigger id="institutionId">
-              <SelectValue placeholder="Select institution" />
+              <SelectValue placeholder={t('selectInstitution')} />
             </SelectTrigger>
             <SelectContent>
               {institutions.length === 0 ? (
                 <SelectItem value={ZERO_UUID} disabled>
-                  No institutions
+                  {t('noInstitutions')}
                 </SelectItem>
               ) : (
                 institutions.map((inst) => (
@@ -379,16 +499,16 @@ export function AttendanceMarkingForm({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="classId">Class</Label>
+          <Label htmlFor="classId">{t('class')}</Label>
           <Select value={classId || undefined} onValueChange={(value) => setClassId(value)}>
-            <SelectTrigger id="classId" aria-label="Class">
+            <SelectTrigger id="classId" aria-label={t('class')}>
               <SelectValue
-                placeholder={institutionId ? 'Select class' : 'Select institution first'}
+                placeholder={institutionId ? t('selectClass') : t('selectInstitutionFirst')}
               />
             </SelectTrigger>
             <SelectContent>
               {classId && !classes.some((c) => c.id === classId) && (
-                <SelectItem value={classId}>Selected class</SelectItem>
+                <SelectItem value={classId}>{t('selectedClass')}</SelectItem>
               )}
               {classes.length === 0 && !classId ? (
                 <SelectItem value={ZERO_UUID} disabled>
@@ -407,19 +527,19 @@ export function AttendanceMarkingForm({
           </Select>
         </div>
         <div className="space-y-1">
-          <Label htmlFor="academicPeriodId">Academic period</Label>
+          <Label htmlFor="academicPeriodId">{t('academicPeriod')}</Label>
           <Select
             value={academicPeriodId || undefined}
             onValueChange={(value) => setAcademicPeriodId(value)}
           >
-            <SelectTrigger id="academicPeriodId" aria-label="Academic period">
+            <SelectTrigger id="academicPeriodId" aria-label={t('academicPeriod')}>
               <SelectValue
                 placeholder={institutionId ? 'Select period' : 'Select institution first'}
               />
             </SelectTrigger>
             <SelectContent>
               {academicPeriodId && !academicPeriods.some((p) => p.id === academicPeriodId) && (
-                <SelectItem value={academicPeriodId}>Selected period</SelectItem>
+                <SelectItem value={academicPeriodId}>{t('selectedPeriod')}</SelectItem>
               )}
               {academicPeriods.length === 0 && !academicPeriodId ? (
                 <SelectItem value={ZERO_UUID} disabled>
@@ -456,7 +576,10 @@ export function AttendanceMarkingForm({
 
       {serverState?.status === 'error' && serverState.message && (
         <div
-          className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))]"
+          ref={errorRef}
+          // `-1` so it can receive programmatic focus without becoming a Tab stop of its own.
+          tabIndex={-1}
+          className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           role="alert"
           data-testid="attendance-marking-error"
         >
@@ -479,8 +602,7 @@ export function AttendanceMarkingForm({
           className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]"
           data-testid="attendance-marking-empty"
         >
-          No roster yet. Choose an institution, class, academic period, and date, then click{' '}
-          <strong>Load roster</strong>.
+          {t('emptyRoster')}
         </p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
@@ -495,17 +617,17 @@ export function AttendanceMarkingForm({
             </div>
             <Button type="button" variant="outline" size="sm" onClick={() => bulkSet('PRESENT')}>
               <CheckCheck className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Mark all present
+              {t('markAllPresent')}
             </Button>
           </div>
 
           <div className="overflow-x-auto">
-            <Table aria-label="Attendance roster">
+            <Table aria-label={t('rosterLabel')}>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-semibold">Student</TableHead>
-                  <TableHead className="font-semibold">Today</TableHead>
-                  <TableHead className="font-semibold">Note</TableHead>
+                  <TableHead className="font-semibold">{t('columnStudent')}</TableHead>
+                  <TableHead className="font-semibold">{t('columnToday')}</TableHead>
+                  <TableHead className="font-semibold">{t('columnNote')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -534,10 +656,10 @@ export function AttendanceMarkingForm({
                     </TableCell>
                     <TableCell className="min-w-[240px]">
                       <Input
-                        aria-label={`Comment for ${row.studentName}`}
+                        aria-label={t('commentLabel', { name: row.studentName })}
                         value={row.comment}
                         onChange={(e) => setRowComment(row.studentId, e.target.value)}
-                        placeholder="Optional note"
+                        placeholder={t('commentPlaceholder')}
                         className="h-9"
                       />
                     </TableCell>
@@ -551,9 +673,13 @@ export function AttendanceMarkingForm({
 
       <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/90 px-5 py-3 shadow-lg backdrop-blur">
         <span className="me-auto text-xs text-muted-foreground">
-          {rows.length > 0
-            ? `${rows.length} ${rows.length === 1 ? 'student' : 'students'} on roster · draft autosaves locally`
-            : 'Select institution, class, period, and date, then load a roster before submitting'}
+          {/*
+            UX AT-4 — the count was `${n} ${n === 1 ? 'student' : 'students'}`, a binary plural
+            baked into a template literal. That is correct for English and wrong for Arabic
+            (six plural categories) and several Indic languages. ICU `plural` in the catalogue
+            lets each locale declare its own rule.
+          */}
+          {rows.length > 0 ? t('rosterCount', { count: rows.length }) : t('selectBeforeSubmit')}
         </span>
         <Button
           type="button"
@@ -562,7 +688,7 @@ export function AttendanceMarkingForm({
           data-testid="attendance-marking-submit"
         >
           <Save className="me-1.5 h-4 w-4" aria-hidden="true" />
-          {isSaving ? 'Submitting…' : 'Submit attendance'}
+          {isSaving ? t('submitting') : t('submit')}
         </Button>
       </div>
     </div>
