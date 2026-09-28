@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { LanguageSelector } from '@/components/LanguageSelector';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { ConnectivityIndicator } from '@/components/connectivity/ConnectivityIndicator';
 import { signOut } from '@/lib/auth';
 
 /**
@@ -53,6 +54,15 @@ export function Header() {
 
       {/* Right side - user actions */}
       <div className="flex shrink-0 items-center gap-3">
+        {/*
+          V15-14 — desktop half of the persistent connectivity indicator (Req 38.1).
+          `MobileShell` carries the mobile one. Without this, every desktop App Router route
+          gave a user on a dropping connection no signal at all; the widget existed and was
+          only ever mounted by `SchoolDashboard`. Label visible here — unlike the mobile
+          header, there is room for it.
+        */}
+        <ConnectivityIndicator />
+
         {/* Theme Toggle (Task 47.4) */}
         <ThemeToggle />
 

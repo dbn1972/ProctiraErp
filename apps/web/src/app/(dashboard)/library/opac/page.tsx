@@ -10,8 +10,9 @@ import {
 } from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
-import { searchLibraryOpacResult } from '@/lib/api/library';
-import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { searchLibraryOpac } from '@/lib/api/library';
 import { OpacSearchForm } from '../_components/opac-search-form';
 
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,23 @@ export default async function LibraryOpacPage({
   await requireSession();
   const { q = '' } = await searchParams;
   const query = q.trim();
-  const result = query ? await searchLibraryOpacResult(query) : null;
+  // No query means no read at all — a third state the old `?? []` could not express:
+  // "nothing searched yet" is neither "nothing found" nor "search failed".
+  const searchResult = query ? await searchLibraryOpac(query) : null;
+
+  if (searchResult && !searchResult.ok) {
+    return (
+      <ListLoadFailurePage
+        heading="OPAC"
+        kind={searchResult.kind}
+        status={searchResult.status}
+        requestId={searchResult.requestId}
+        returnTo={`/library/opac?q=${encodeURIComponent(query)}`}
+        copy={await getListFailureCopy()}
+      />
+    );
+  }
+  const items = searchResult?.items ?? [];
 
   return (
     <div className="space-y-6 p-6">
@@ -46,21 +63,15 @@ export default async function LibraryOpacPage({
         <CardHeader>
           <CardTitle className="text-base">Results</CardTitle>
           <CardDescription>
-            {result && !result.ok
-              ? 'Catalogue search could not be completed.'
-              : query
-                ? result && result.ok && result.items.length === 0
-                  ? 'No titles match this search.'
-                  : result && result.ok
-                    ? `${result.items.length} title${result.items.length === 1 ? '' : 's'}.`
-                    : 'Enter a title, author, ISBN, or barcode.'
-                : 'Enter a title, author, ISBN, or barcode.'}
+            {query
+              ? items.length === 0
+                ? 'No titles match this search.'
+                : `${items.length} title${items.length === 1 ? '' : 's'}.`
+              : 'Enter a title, author, ISBN, or barcode.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {result && !result.ok ? (
-            <ListLoadFailure kind={result.kind} status={result.status} returnTo="/library/opac" />
-          ) : !result || result.items.length === 0 ? (
+          {items.length === 0 ? (
             <p
               className="text-sm text-muted-foreground"
               role="status"
@@ -70,7 +81,7 @@ export default async function LibraryOpacPage({
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
-              {result.items.map((item) => (
+              {items.map((item) => (
                 <li
                   key={item.id}
                   className="py-3 first:pt-0 last:pb-0"

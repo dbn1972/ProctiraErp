@@ -1,8 +1,20 @@
 /**
  * Library service client — catalog and overdues.
+ *
+ * V15-10: the six collection reads return {@link ListResult} so a denied or unavailable
+ * read is distinguishable from an empty shelf. A librarian without the `library:read`
+ * grant used to see "No records found", which reads as "the catalogue is empty" — the
+ * single most misleading empty state in the product, because an empty catalogue is
+ * plausible on a new tenant.
+ *
+ * `getLibraryItem` deliberately keeps `?? []` for its nested `copyList` / `holds`. It is a
+ * single-object read that already returns `null` on failure, and those defaults are for
+ * absent sub-collections on a record that *was* found. The drift counter still counts it
+ * because its eight-line window sees the `??  []`; that is the documented false positive,
+ * and `BASELINE` is not lowered for it.
  */
 import { GatewayError, gatewayFetch } from './gateway';
-import { fetchList, itemsOrEmpty, type ListResult } from './list-result';
+import { fetchList, type ListResult } from './list-result';
 
 export interface LibraryItem {
   id: string;
@@ -51,12 +63,8 @@ export interface CreateLibraryItemInput {
   copies?: number;
 }
 
-export async function listLibraryItemsResult(): Promise<ListResult<LibraryItem>> {
+export async function listLibraryItems(): Promise<ListResult<LibraryItem>> {
   return fetchList<LibraryItem>('/library/items', { next: { revalidate: 0 } });
-}
-
-export async function listLibraryItems(): Promise<LibraryItem[]> {
-  return itemsOrEmpty(await listLibraryItemsResult());
 }
 
 export async function createLibraryItem(input: CreateLibraryItemInput): Promise<LibraryItem> {
@@ -74,12 +82,8 @@ export async function createLibraryItem(input: CreateLibraryItemInput): Promise<
   return result.data;
 }
 
-export async function listLibraryOverduesResult(): Promise<ListResult<LibraryLoan>> {
+export async function listLibraryOverdues(): Promise<ListResult<LibraryLoan>> {
   return fetchList<LibraryLoan>('/library/overdues', { next: { revalidate: 0 } });
-}
-
-export async function listLibraryOverdues(): Promise<LibraryLoan[]> {
-  return itemsOrEmpty(await listLibraryOverduesResult());
 }
 
 export async function checkoutLibraryItem(input: {
@@ -211,16 +215,12 @@ export async function importLibraryIsbn(isbn: string, copies?: number): Promise<
   return result.data;
 }
 
-export async function searchLibraryOpacResult(q: string): Promise<ListResult<LibraryItem>> {
+export async function searchLibraryOpac(q: string): Promise<ListResult<LibraryItem>> {
   const query = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : '';
   return fetchList<LibraryItem>(`/library/opac/search${query}`, { next: { revalidate: 0 } });
 }
 
-export async function searchLibraryOpac(q: string): Promise<LibraryItem[]> {
-  return itemsOrEmpty(await searchLibraryOpacResult(q));
-}
-
-export async function listLibraryLoansResult(opts?: {
+export async function listLibraryLoans(opts?: {
   studentId?: string;
   patronUserId?: string;
 }): Promise<ListResult<LibraryLoan>> {
@@ -231,14 +231,7 @@ export async function listLibraryLoansResult(opts?: {
   return fetchList<LibraryLoan>(`/library/loans${suffix}`, { next: { revalidate: 0 } });
 }
 
-export async function listLibraryLoans(opts?: {
-  studentId?: string;
-  patronUserId?: string;
-}): Promise<LibraryLoan[]> {
-  return itemsOrEmpty(await listLibraryLoansResult(opts));
-}
-
-export async function listLibraryHoldsResult(opts?: {
+export async function listLibraryHolds(opts?: {
   itemId?: string;
   studentId?: string;
   patronUserId?: string;
@@ -249,14 +242,6 @@ export async function listLibraryHoldsResult(opts?: {
   if (opts?.patronUserId) params.set('patronUserId', opts.patronUserId);
   const suffix = params.size ? `?${params.toString()}` : '';
   return fetchList<LibraryHold>(`/library/holds${suffix}`, { next: { revalidate: 0 } });
-}
-
-export async function listLibraryHolds(opts?: {
-  itemId?: string;
-  studentId?: string;
-  patronUserId?: string;
-}): Promise<LibraryHold[]> {
-  return itemsOrEmpty(await listLibraryHoldsResult(opts));
 }
 
 export async function placeLibraryHold(input: {
@@ -336,13 +321,9 @@ export async function assessLibraryFine(loanId: string): Promise<{
   return result.data;
 }
 
-export async function listLibraryFines(studentId?: string): Promise<LibraryFine[]> {
+export async function listLibraryFines(studentId?: string): Promise<ListResult<LibraryFine>> {
   const query = studentId ? `?studentId=${encodeURIComponent(studentId)}` : '';
-  const result = await gatewayFetch<{ data: LibraryFine[] }>(`/library/fines${query}`, {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return result.data?.data ?? [];
+  return fetchList<LibraryFine>(`/library/fines${query}`, { next: { revalidate: 0 } });
 }
 
 export interface LibraryItemDetail extends LibraryItem {

@@ -1,30 +1,16 @@
 import { requireSession } from '@/lib/auth/server';
 import { listChildren } from '@/lib/api/parent-portal';
+import { listLibraryHolds, listLibraryLoans, searchLibraryOpac } from '@/lib/api/library';
+import type { ListFailure } from '@/lib/api/list-result';
 import {
-  listLibraryHoldsResult,
-  listLibraryLoansResult,
-  searchLibraryOpacResult,
-} from '@/lib/api/library';
-import type { ListFailureKind, ListResult } from '@/lib/api/list-result';
-import { AcademicFrame, firstSearchParam, pickChild } from '../_components/academic-frame';
+  AcademicFrame,
+  academicFrameStatusFor,
+  firstSearchParam,
+  pickChild,
+} from '../_components/academic-frame';
 import { Button, FormField, Input } from '@proctira/ui/components';
 
 export const dynamic = 'force-dynamic';
-
-function firstFailure(
-  ...results: ListResult<unknown>[]
-): { kind: ListFailureKind; status: number } | null {
-  for (const result of results) {
-    if (!result.ok) return { kind: result.kind, status: result.status };
-  }
-  return null;
-}
-
-function frameStatusFromKind(kind: ListFailureKind | null): 'ok' | 'forbidden' | 'error' {
-  if (!kind) return 'ok';
-  if (kind === 'denied' || kind === 'unauthenticated') return 'forbidden';
-  return 'error';
-}
 
 export default async function ParentLibraryPage({
   searchParams,
@@ -53,15 +39,45 @@ export default async function ParentLibraryPage({
   }
 
   const [itemsResult, loansResult, holdsResult] = await Promise.all([
-    searchLibraryOpacResult(q),
-    listLibraryLoansResult({ studentId: child.studentId }),
-    listLibraryHoldsResult({ studentId: child.studentId }),
+    searchLibraryOpac(q),
+    listLibraryLoans({ studentId: child.studentId }),
+    listLibraryHolds({ studentId: child.studentId }),
   ]);
-  const failure = firstFailure(itemsResult, loansResult, holdsResult);
-  const status = frameStatusFromKind(failure?.kind ?? null);
+
+  /**
+   * Loans and holds are this child's own borrowing record, and the consequence of getting
+   * this wrong is concrete: a guardian shown "no loans" when the read was actually denied
+   * has no way to know a book is overdue and accruing a fine.
+   *
+   * Two separate early returns rather than one combined `failed` check: TypeScript cannot
+   * correlate a third variable back to the two results, so the combined form left both
+   * still unnarrowed and `.items` unreachable.
+   */
+  const failureFrame = (failure: ListFailure) => (
+    <AcademicFrame
+      title="Library"
+      description="Search the catalogue and see your child's loans and holds."
+      testId="parent-library"
+      childrenLinks={children}
+      selectedId={child.studentId}
+      status={academicFrameStatusFor(failure.kind)}
+      errorMessage={`Unable to load library records (status ${failure.status}${
+        failure.requestId ? `, reference ${failure.requestId}` : ''
+      }).`}
+      emptyMessage="No titles match this search."
+      hasRows={false}
+    >
+      {null}
+    </AcademicFrame>
+  );
+  if (!loansResult.ok) return failureFrame(loansResult);
+  if (!holdsResult.ok) return failureFrame(holdsResult);
+
+  const loans = loansResult.items;
+  const holds = holdsResult.items;
+  // The catalogue search is secondary here: a failure shows no results rather than hiding
+  // the child's own records, which are the reason a guardian opened this page.
   const items = itemsResult.ok ? itemsResult.items : [];
-  const loans = loansResult.ok ? loansResult.items : [];
-  const holds = holdsResult.ok ? holdsResult.items : [];
 
   return (
     <AcademicFrame
@@ -70,16 +86,7 @@ export default async function ParentLibraryPage({
       testId="parent-library"
       childrenLinks={children}
       selectedId={child.studentId}
-      status={status}
-      errorMessage={
-        failure
-          ? failure.kind === 'unavailable'
-            ? 'The library service is temporarily unavailable. Try again later.'
-            : failure.kind === 'missing'
-              ? 'Library records are not available for this school yet.'
-              : undefined
-          : undefined
-      }
+      status="ok"
       emptyMessage="No titles match this search."
       hasRows
     >

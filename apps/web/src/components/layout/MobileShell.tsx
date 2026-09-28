@@ -67,6 +67,7 @@ import {
 import { useBrand } from '@/providers/BrandConfigProvider';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ConnectivityIndicator } from '@/components/connectivity/ConnectivityIndicator';
 import { cn } from '@/lib/utils';
 import {
   availableDestinations,
@@ -249,14 +250,27 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
           </div>
         ) : null}
 
-        {/* Persistent connectivity-indicator slot. Task 54.3 will swap this
-            placeholder for the live `<ConnectivityIndicator>` component;
-            keeping the slot from 53.2 onward avoids a layout shift. */}
-        <div
-          data-testid="connectivity-indicator-placeholder"
-          aria-hidden="true"
-          className="h-2 w-2 shrink-0 rounded-full bg-muted-foreground/40"
-        />
+        {/*
+          V15-14 — the live indicator, replacing the 53.2 placeholder.
+
+          The placeholder was an `aria-hidden` grey dot that never changed colour, so a
+          user on a dropping connection got no signal anywhere on an App Router route.
+          `<ConnectivityIndicator>` was already built, tested and localised; nothing had
+          ever mounted it outside `SchoolDashboard`.
+
+          Both providers it needs are in scope on every route: the root layout mounts
+          `LanguageProvider` (which supplies `NextIntlClientProvider`) and then
+          `AppProviders` → `ConnectivityProvider`. That is why `useConnectivity` is left
+          strict — it should throw outside a provider, and an earlier attempt to make it
+          tolerant was defending against a case that cannot occur here while breaking 26
+          tests that mocked the strict hook.
+
+          `iconOnly` because this header is tight on a 360 px viewport; the localised label
+          stays on `aria-label`, so the state is still announced.
+        */}
+        <div className="flex shrink-0 items-center" data-testid="mobile-shell-connectivity">
+          <ConnectivityIndicator iconOnly />
+        </div>
 
         {/* Hamburger drawer trigger — opens the less-frequent destinations
             sheet (Settings / Reports / Help / Sign out). */}

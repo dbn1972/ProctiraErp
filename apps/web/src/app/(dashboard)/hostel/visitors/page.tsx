@@ -12,6 +12,9 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { ListLoadFailurePage } from '@/components/route-state/list-load-failure-page';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { itemsOrEmpty } from '@/lib/api/list-result';
 import { listHostelVisitors, listHostels } from '@/lib/api/hostel';
 import { resolveEntityLabel } from '@/lib/entity-label';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
@@ -22,11 +25,28 @@ export const dynamic = 'force-dynamic';
 
 export default async function HostelVisitorsPage() {
   await requireSession();
-  const [visitors, hostels, studentOptions] = await Promise.all([
+  const [visitorsResult, hostelsResult, studentOptions] = await Promise.all([
     listHostelVisitors(),
     listHostels(),
     loadStudentOptions(),
   ]);
+  if (!visitorsResult.ok) {
+    return (
+      <ListLoadFailurePage
+        heading="Visitors"
+        kind={visitorsResult.kind}
+        status={visitorsResult.status}
+        requestId={visitorsResult.requestId}
+        returnTo="/hostel/visitors"
+        copy={await getListFailureCopy()}
+      />
+    );
+  }
+  const visitors = visitorsResult.items;
+  // Supporting lookup for a form control, not the page's subject: an explicit
+  // opt-out rather than a hidden collapse. The primary list above reports the
+  // real reason when the domain is denied or down.
+  const hostels = itemsOrEmpty(hostelsResult);
   const studentLabels = new Map(studentOptions.map((option) => [option.id, option.label]));
 
   return (

@@ -1,32 +1,14 @@
 import { requireStudentSession } from '../_lib/session';
-import {
-  listLibraryHoldsResult,
-  listLibraryLoansResult,
-  searchLibraryOpacResult,
-} from '@/lib/api/library';
-import type { ListFailureKind, ListResult } from '@/lib/api/list-result';
+import { listLibraryHolds, listLibraryLoans, searchLibraryOpac } from '@/lib/api/library';
+import type { ListFailure } from '@/lib/api/list-result';
 import {
   AcademicFrame,
+  academicFrameStatusFor,
   firstSearchParam,
 } from '../../../(parent)/parent/_components/academic-frame';
 import { Button, FormField, Input } from '@proctira/ui/components';
 
 export const dynamic = 'force-dynamic';
-
-function firstFailure(
-  ...results: ListResult<unknown>[]
-): { kind: ListFailureKind; status: number } | null {
-  for (const result of results) {
-    if (!result.ok) return { kind: result.kind, status: result.status };
-  }
-  return null;
-}
-
-function frameStatusFromKind(kind: ListFailureKind | null): 'ok' | 'forbidden' | 'error' {
-  if (!kind) return 'ok';
-  if (kind === 'denied' || kind === 'unauthenticated') return 'forbidden';
-  return 'error';
-}
 
 export default async function StudentLibraryPage({
   searchParams,
@@ -37,34 +19,52 @@ export default async function StudentLibraryPage({
   const params = await searchParams;
   const q = firstSearchParam(params.q) ?? '';
   const [itemsResult, loansResult, holdsResult] = await Promise.all([
-    searchLibraryOpacResult(q),
+    searchLibraryOpac(q),
     // The gateway pins student reads to the JWT subject (G-916 patron binding);
     // student loans/holds are keyed by students.id, which /student-portal/me also
     // resolves from the subject.
-    listLibraryLoansResult({ studentId: session.user.sub }),
-    listLibraryHoldsResult({ studentId: session.user.sub }),
+    listLibraryLoans({ studentId: session.user.sub }),
+    listLibraryHolds({ studentId: session.user.sub }),
   ]);
-  const failure = firstFailure(itemsResult, loansResult, holdsResult);
-  const status = frameStatusFromKind(failure?.kind ?? null);
+
+  /**
+   * Same reasoning as the parent portal: the student's own loans and holds are the record
+   * that matters, and "no loans" is not a safe thing to show when nobody actually looked.
+   *
+   * Two separate early returns rather than one combined `failed` check: TypeScript cannot
+   * correlate a third variable back to the two results, so the combined form left both
+   * still unnarrowed and `.items` unreachable.
+   */
+  const failureFrame = (failure: ListFailure) => (
+    <AcademicFrame
+      title="Library"
+      description="Search the catalogue and see your loans and holds."
+      testId="student-library"
+      status={academicFrameStatusFor(failure.kind)}
+      errorMessage={`Unable to load library records (status ${failure.status}${
+        failure.requestId ? `, reference ${failure.requestId}` : ''
+      }).`}
+      emptyMessage="No titles match this search."
+      hasRows={false}
+    >
+      {null}
+    </AcademicFrame>
+  );
+  if (!loansResult.ok) return failureFrame(loansResult);
+  if (!holdsResult.ok) return failureFrame(holdsResult);
+
+  const loans = loansResult.items;
+  const holds = holdsResult.items;
+  // The catalogue search is secondary here: a failure shows no results rather than hiding
+  // the student's own records, which are the reason they opened this page.
   const items = itemsResult.ok ? itemsResult.items : [];
-  const loans = loansResult.ok ? loansResult.items : [];
-  const holds = holdsResult.ok ? holdsResult.items : [];
 
   return (
     <AcademicFrame
       title="Library"
       description="Search the catalogue and see your loans and holds."
       testId="student-library"
-      status={status}
-      errorMessage={
-        failure
-          ? failure.kind === 'unavailable'
-            ? 'The library service is temporarily unavailable. Try again later.'
-            : failure.kind === 'missing'
-              ? 'Library records are not available for this school yet.'
-              : undefined
-          : undefined
-      }
+      status="ok"
       emptyMessage="No titles match this search."
       hasRows
     >

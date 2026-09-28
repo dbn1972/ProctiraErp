@@ -5,9 +5,10 @@ volumes in `docs/multitenant/`. Findings and evidence live in:
 
 - `CHARTER_CONFORMANCE_VOL1_VOL2_2026-09-21.md`
 - `CHARTER_CONFORMANCE_VOL3_VOL4_VOL5_2026-09-21.md`
+- `VOLUME_15_ERROR_STATE_AUDIT_2026-09-24.md` (Volume 15 — error / failure / edge states)
 - `TASKLIST_GAP_CLOSURE_2026-09-21.md` (pre-existing T-items)
 
-**Baseline tip:** `main` = `12705129`
+**Baseline tip:** `main` = `12705129` for the V1–V5 items; `a2d77494` for the V15-\* items.
 
 ## Working rules
 
@@ -25,16 +26,28 @@ test, or an observed runtime behaviour. Not "looks right".
 
 Ordered by leverage, not by size.
 
-| ID  | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
-| --- | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
-| V10 | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
-| V9  | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
-| V3  | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
-| V8  | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
-| V5  | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
-| V6  | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
-| T6  | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
-| T4  | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
+| ID     | Gap                                                 | Spec                        | Status         | Branch                               | PR   |
+| ------ | --------------------------------------------------- | --------------------------- | -------------- | ------------------------------------ | ---- |
+| V15-A  | Failure responses disclosed schema + infrastructure | V15 D10; V5 §3              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-B  | No error body a user could quote; no request id     | V15 D5 D11                  | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-C  | Timeout was not a state — no deadline either side   | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-D  | 12 pages had no error boundary at all               | V15 D5 D6                   | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-9  | Non-atomic cross-package write bills for nothing    | V15 D9                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-15 | Denied mutations left no audit row                  | V15 D10; V5 §6              | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-17 | Error copy English-only on localised routes         | V15 D4                      | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-10 | Denied-vs-empty: 107 of 126 reads still collapse    | V15 D6                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-14 | Offline indicator built but mounted on one screen   | V15 D6; V1 §38.1            | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V15-16 | Post-hoc mutation audit; its 503 misled the caller  | V15 D9 D10 D11              | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-11 | Client 401 handling; shell subscriber still open    | V15 D5                      | `PARTIAL`      | fix/V15-error-state-audit            | TBD  |
+| V15-19 | 41 wire codes against a 10-entry registry           | V15 D5; V4 §6               | `FULLY_CLOSED` | fix/V15-error-state-audit            | TBD  |
+| V10    | 9 defects behind Table 2; 1a partial, 8 open        | V5 §6; V3 §12; V4 §4 §8 §11 | `PARTIAL`      | fix/V10-outbox-failed-requeue        | #365 |
+| V9     | Error envelope inconsistent (`retryable` in 1 file) | V4 §6                       | `OPEN`         | —                                    | —    |
+| V3     | MySQL offered but cannot work                       | V1 §17.1 §14.4 §33.3; V2 T6 | `FULLY_CLOSED` | fix/V3-postgres-only-install         | #363 |
+| V8     | No first-party SDK                                  | V4 §9; V1 §22.2             | `OPEN`         | —                                    | —    |
+| V5     | Hardcoded UI copy, 8 of 9 fees pages                | V1 §11.5 §46                | `OPEN`         | —                                    | —    |
+| V6     | No email/notification delivery adapter              | V2 T6; V3 T3                | `OPEN`         | —                                    | —    |
+| T6     | `VALIDATE CONSTRAINT` under FORCE RLS needs a gate  | —                           | `FULLY_CLOSED` | fix/T6-validate-under-force-rls-gate | #362 |
+| T4     | Zero statutory/interop implementation               | —                           | `OPEN`         | —                                    | —    |
 
 ### T11 — WITHDRAWN, not a defect
 
@@ -254,6 +267,258 @@ _behaviour_ — a nested-set hierarchy, a hashed credential — not the noun; th
 **gateway mount state**, because in this repository a package having routes does not
 mean the routes are reachable. `apps/api-gateway/src/mount-matrix.ts` is the authority
 and it parks several packages outright.
+
+### V15 — error, failure and edge states
+
+Full evidence in `VOLUME_15_ERROR_STATE_AUDIT_2026-09-24.md`. Graded against `a2d77494`.
+
+The shape of every finding is the same: the mechanism exists and is well built, and the
+one branch nobody ran was wrong. A global error handler, a real transaction helper, a
+fail-closed idempotency store, an offline queue with correct backoff — and then four
+un-gated disclosure paths, an anonymous endpoint publishing hostnames, twelve pages with
+no boundary, and no request deadline anywhere.
+
+**V15-A `FULLY_CLOSED`.** Four reproduced disclosure paths, all under production posture
+(`includeStackTrace: false`). Prisma `P2002` emitted `"Unique constraint violation on:
+tenant_id, admission_number"`, `P2003` emitted the constraint identifier
+`student_guardians_student_id_fkey (index)`, `P2025` forwarded Prisma's generated
+`meta.cause` naming models and relations, and an `AppError` at 500 emitted its message
+verbatim — reproduced as `"connect ECONNREFUSED 10.0.3.14:5432 (database
+\"proctira_prod\")"`. The last is the subtle one: that branch runs _before_ the default
+500 branch that masks. Separately, `/health` and `/health/ready` are in
+`authExcludePaths` (container probes cannot authenticate) and published the raw probe
+text, including `host=db-prod-1.internal db=proctira_prod` and the missing relation name.
+All five now generic outside development; per-dependency statuses kept because they are
+what a probe consumer needs and they name nothing.
+
+**V15-B `FULLY_CLOSED`.** The gateway generated a request id, logged it, and returned it
+as a header — and no client read the header, and nothing put it in the body. A user
+reporting a failure had nothing to quote. `requestId` is now stamped by an `onSend` hook,
+not in the handler: the auth, RBAC, tenant, idempotency and service-router paths never
+throw, they build their own envelope and call `reply.send`, and a denial is the failure
+users are most likely to report. Narrow by construction — JSON only, envelope-shaped only,
+never overwrites, leaves 2xx and the health body alone, fixes content-length.
+
+**V15-C `PARTIAL`.** Neither web client had any deadline and the gateway sets no
+`requestTimeout`, so a hung handler produced an indefinite spinner — the one failure a
+person cannot act on. The client half is closed with a shared deadline reporting `TIMEOUT`
+distinctly from `NETWORK_ERROR`. **The server half is V15-8 and is open**: the budget is a
+product decision because report exports are legitimately slow.
+
+**V15-D `FULLY_CLOSED`.** `(public)`, `(student)`, `(marketing)` and `app/legal` shipped a
+`layout.tsx` and nothing else, with no root `error.tsx` or `global-error.tsx` above them —
+so 12 pages had no boundary and fell to Next's unstyled default with no retry. Those pages
+are `/track` (the anonymous admission tracker, used by people with no account), the nine
+student-portal routes, and the two legal documents signup asks users to accept.
+`route-state-boundaries.test.ts` could not see it: a recursive "at least 8 error.tsx" floor
+was satisfied the whole time, because a count cannot say which subtree is uncovered. It now
+walks every route group asking whether a boundary exists at or above it, and removing
+`app/error.tsx` makes it fail naming `(marketing)`.
+
+#### As first triaged: "open, and why each needs an owner rather than an agent"
+
+**This heading and the four `OPEN` labels below are the wave-1 triage, kept for the reasoning
+they record. Three of the four have since been closed** — the per-finding status lines mark
+each one. The summary table at the top of this file is authoritative; where it and this section
+disagree, the table wins. The original text is preserved rather than rewritten because the
+argument for why each looked un-agentable is worth reading against what actually happened: two
+of the three were closed by narrowing the fix to something that needed no ruling (ordering
+instead of compensation; `metadata.outcome` instead of a new enum value), not by getting the
+ruling.
+
+**V15-9 — now `FULLY_CLOSED`** (ordering fix; full cross-package atomicity still open).
+As triaged: `hostel-service.ts:63-120` `createAssignment` posts a fee invoice
+through a cross-package port and _then_ writes the hostel row — two transactions in two
+packages. `createActiveAssignment` can throw `BedAssignmentConflictError` → 409, and when
+it does the invoice is already committed: the student is billed for a bed they were never
+assigned, and the 409 says nothing about the surviving financial row. Not fixed here
+because the remedy is a choice between a compensating reversal, a saga, and moving the
+invoice inside the assignment transaction — a finance-behaviour decision.
+
+**V15-15 — now `FULLY_CLOSED`** for 403; 401 is unauditable in a tenant-scoped RLS table by
+design and is stated as such. As triaged: `app.ts:819-822` returns early for 401 and 403, so every RBAC
+denial, `TENANT_SUSPENDED`, `FEATURE_NOT_ENTITLED` and default-deny rejection on a
+mutation leaves only a log line. An insider probing for records they may not see produces
+no audit trail. Not fixed here because the volume and the PII shape of a denial audit row
+both need a security ruling.
+
+**V15-10 `PARTIAL`, P1.** The denied-vs-empty classifier (`fetchList` + `ListLoadFailure`) is
+correct and proved. As found it reached 2 pages against `BASELINE = 126`. Wave 4 converted the
+**`hostel` domain end to end** — 13 data functions and 9 pages — lowering the ratchet to
+`BASELINE = 113` in the same commit, with `denied-not-empty.test.ts` pinning it and a negative
+control that names `mess/page.tsx` when the pattern is reverted.
+
+Wave 5 added `library`: 6 functions and 8 call sites, `BASELINE` 113 → 107, with its own
+11-test suite. That domain also produced the first case where the panel was _not_ the right
+surface — the parent and student portals render every screen inside `AcademicFrame`, which
+already had `forbidden` and `error` states that nothing could reach, so the failure kind is
+mapped onto them instead of introducing a second design.
+
+**107 reads across 22 modules still render a 401/403/404 as an empty table**, so this is
+`PARTIAL`, not closed. An adoption gap, not a defect in the pattern.
+
+**V15-19 — now `FULLY_CLOSED`.** 46 registry entries covering all 41 emitted wire codes, plus a
+CI gate (`check:error-codes`) and a unit test for the gate itself. As triaged:
+`ERROR_CODE_REGISTRY` has 10 entries and one
+runtime consumer, which serves it as documentation. Roughly 48-50 distinct wire codes are
+emitted outside it, and the single most-emitted code in the codebase — `TENANT_REQUIRED`,
+426 occurrences — is not in it. A registry no client can rely on cannot be used to branch.
+
+_Two numbers in that triage were revised by measurement: the scan found **41** distinct wire
+codes, not 48–50, and `TENANT_REQUIRED` has **424** emit sites, not 426. The naive grep matched
+111 candidates; requiring a sibling `statusCode` within ±4 lines brought it to 41. Recorded
+because a gate built on an unreproducible count is a gate nobody can maintain._
+
+#### V15-10 — two domains done, 107 reads remaining
+
+Measured rather than estimated: the collapsing reads are not spread through pages. They were
+126 functions in **24 modules under `apps/web/src/lib/api/`** — `hostel.ts` (13, **now
+converted**), `examinations.ts` (10), `fees.ts` (10), `lms.ts` (9), `staff.ts` (9) and 19 more —
+each the same `gatewayFetch(..., { throwOnError: false })` followed by `?? []`.
+
+**What the `hostel` pass actually cost**, now that it is measured rather than sampled: 13
+signature changes and 9 pages. The slow part was not the type change but deciding, per screen,
+what that table should say when the read was denied. Scaling the observed ratio to the remaining
+107 gives ~107 signatures and 120–170 call sites.
+
+**Remaining distribution:** `examinations.ts` (10), `fees.ts` (10), `lms.ts` (9), `staff.ts`
+(9), `health.ts` (8), `parent-portal.ts` (8), `lib/transport/api.ts` (8), `library.ts` (7),
+`institutions.ts` (6), and the rest across 14 further modules.
+
+**A codemod across all 23 at once was tried in wave 4 and abandoned.** It produced 411
+call-site type errors and two silent corruptions worth knowing before anyone retries it: it
+retyped a neighbouring signature in `fees.ts:205`, and left dangling `result` references in
+`students.ts`. The 18 partially-converted modules were reverted so the branch stayed green.
+One domain at a time is the shape that worked.
+
+**The cheap way must not be taken.** Converting the data functions and wrapping every call
+site in `itemsOrEmpty(...)` would drop the ratchet to near zero and change nothing a user
+sees — the collapse would merely move from the data layer to the page. That would make this
+tracker say `FULLY_CLOSED` about a defect still fully present, which is the failure mode this
+audit exists to catch.
+
+Recommended shape: one domain per commit, data functions together with their pages, `BASELINE`
+lowered in the same commit, and evidence per converted screen that a denial now renders as a
+denial.
+
+One counter artefact for whoever does the work: `getLibraryItem` is counted although it is a
+single-object read returning `null` — the counter's eight-line window catches the next
+function's `?? []`. Expect a handful of these, so the true figure is slightly under 107, and
+`BASELINE` must not be lowered for them without also fixing the counter.
+
+#### V15-17 — closed
+
+`route-error.tsx` and `list-load-failure.tsx` carried English literals, so eight of the nine
+supported locales read English failure copy. A `routeState` namespace now exists in all nine
+catalogues with verified key-set parity, and a test asserts the four failure kinds stay
+distinct once translated — a translation collapsing "you may not see this" into "nothing
+found" would reintroduce the original defect in that locale, silently. Translations are
+agent-authored and want native review.
+
+Two wirings, because the two components differ: `ListLoadFailure` is rendered from server
+components and takes its copy as a prop from `getListFailureCopy()` (the pattern
+`(dashboard)/loading.tsx` already uses for `RouteLoadingPanel`), while `RouteErrorPanel` is a
+client component under `NextIntlClientProvider` and translates directly. An earlier revision
+wrapped `useTranslations` in try/catch; eslint rejected it as a conditional hook call and was
+right twice — it breaks the rules of hooks, and the provider it was defending against is
+always present, because `error.tsx` renders inside the root layout.
+
+#### V15-16 — measuring it changed its severity (wave 5, now `PARTIAL`)
+
+Filed as "post-hoc audit for all but two path prefixes", P2 Minor, from source reading.
+Enumerating `app.mutatingRouteAuthzRegistry.getRegistered()` gives: 451 registered mutating
+routes, 447 auditable, **170 security-sensitive, 4 atomic, 166 post-hoc**. Re-graded to Major.
+
+Three defects on the `AUDIT_UNAVAILABLE` 503 that the post-hoc path produces — a response that
+can only ever mean "your write landed and we could not record it", because `onSend` runs after
+the handler commits:
+
+1. no `requestId`, because the hook that stamps every other error envelope is registered
+   earlier (`app.ts:222` vs `app.ts:838`) and Fastify runs `onSend` in registration order, so
+   it had already run and seen a 2xx;
+2. the message read "refusing to acknowledge", i.e. the opposite of what happened;
+3. `ERROR_CODE_REGISTRY` published `retryable: true`, and `plugins/api-contract.ts` serves that
+   to clients — so the documented contract invited a duplicate write.
+
+**(2) and (3) were introduced by this audit in wave 3, along with the test that pinned (3).**
+Recorded here because fixing your own regression restores a baseline, it does not advance past
+one, and §2 of the audit deliberately scores it as zero movement.
+
+Fixed: the 503 is truthful, carries a request id, sends no `Retry-After`. The residual is
+enumerated in `POST_HOC_MUTATION_AUDIT_WAIVERS` (15 prefixes, each with a reason and its
+observed route count) and gated two ways — an unaccounted sensitive route fails the build, and
+a waiver that matches no route or whose count drifts also fails.
+
+**Still `PARTIAL`: nothing became atomic.** Wiring 166 routes to commit domain state and audit
+in one transaction is per-handler work across the gateway. The gate bounds the gap; it does not
+close it, and the comment in the source says so.
+
+#### V15-14 — closed in wave 5 by fixing the harness, not the hook
+
+The wave-3 attempt made `useConnectivity` provider-tolerant, broke 26 tests, and in its first
+form let a missing provider unmount the whole shell. It was solving the wrong problem: the root
+layout already mounts `LanguageProvider` then `AppProviders` → `ConnectivityProvider`, so both
+providers are in scope on every App Router route. The strict hook was never the obstacle — the
+shell _tests_ mounted less than production.
+
+Wave 5 wrapped the real providers in `renderShell` and left `useConnectivity` strict, because
+throwing outside its provider is correct. The indicator is now mounted in `MobileShell`
+(`iconOnly`, label on `aria-label`) and the desktop `header.tsx`.
+
+**A test had been pinning the absence:** `MobileShell.test.tsx` asserted the _placeholder_
+existed, so it passed for exactly as long as the feature was missing. Worth naming as a class —
+a test can hold a to-do in place as if it were a contract. `connectivity-indicator-mounted.test.ts`
+covers the desktop header, which has no render test of its own because `AppShell.test.tsx`
+mocks `./header`.
+
+#### Wave 4, D7 — evidence class changed, no finding closed
+
+`error-surfaces.a11y.test.tsx` runs axe over all six `ListLoadFailure` / `RouteErrorPanel`
+variants. **This closes no numbered finding** and is recorded here so it is not later cited as
+one: it moves D7's evidence from "`role` and `aria-live` read in source" to "a checker executed
+against the rendered DOM", which is why D7 went 7 → 8 in the audit and not because a defect was
+repaired. The panels were already wired correctly.
+
+Two things it is not. It is **not** a WCAG pass — axe covers a minority of the criteria, the
+scan is component-level so no tenant CSS or real contrast is involved, and no assistive
+technology was used. And it does **not** establish the thing D7 actually cares about: whether a
+screen-reader user learns a list was _denied_ rather than _empty_. That remains an observation
+a human has to make, and it is now filed as the path to 9.
+
+An earlier revision of this document set the bar for D7 → 8 at a screen-reader pass and marked
+it un-agentable. That conflated the bar for 8 with the bar for 9 and is corrected in the audit's
+§13.2 rather than dropped.
+
+Scanned inside `<main><h1>` deliberately: `heading-order` only fires once the page heading is
+present, so scanning the panels bare would have hidden the likeliest violation. Negative
+control: a skipped heading level and an unnamed button make the matcher fail naming
+`heading-order` and `button-name`.
+
+#### Out of scope, found while validating — needs its own branch
+
+`apps/web/src/providers/ThemeProvider.tsx:169` calls `useBrand()` inside a `try/catch`, which
+eslint reports as `react-hooks/rules-of-hooks` — a **hard error, not a warning**. Confirmed
+byte-identical to base `a2d77494`, so it is pre-existing and not introduced here. It is the same
+conditional-hook pattern eslint rejected in this branch's own `useSafeRouteStateTranslations`,
+which was fixed properly there.
+
+It stays invisible because CI lints only the files in a change range, so no PR that avoids that
+file will ever report it. Not fixed on this branch: unrelated to error states, and the
+`try/catch` is load-bearing for mounting `ThemeProvider` standalone, so the fix needs a real
+decision (a context default, or a separate non-throwing reader) rather than a deletion.
+
+#### Method note
+
+Every finding above was reproduced before it was filed, and each fix has an attribution
+arm: reverting it reproduces the defect. Two worth recording because they changed the fix:
+
+- The containment reference for the deadline test is a `fetch` that never settles. Without
+  the deadline that test _hangs_ until the runner kills it rather than failing — which is
+  exactly the user-visible behaviour, and a better demonstration than any assertion.
+- Four pre-existing `error-handler` tests asserted `toContain('email')`,
+  `toContain('institution_id')` and Prisma's `meta.cause` verbatim. They had pinned the
+  disclosure as expected behaviour, which is why it survived. Each is updated with a note
+  saying so, rather than silently rewritten.
 
 ## Needs a decision before work can start
 

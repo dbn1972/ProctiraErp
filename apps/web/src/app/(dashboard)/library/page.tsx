@@ -2,7 +2,6 @@
  * Library catalog (Server Component).
  */
 import Link from 'next/link';
-
 import {
   Button,
   Card,
@@ -12,40 +11,33 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { getTranslations } from 'next-intl/server';
-
 import { requireSession } from '@/lib/auth/server';
-import { listLibraryItemsResult } from '@/lib/api/library';
 import { ListLoadFailure } from '@/components/route-state/list-load-failure';
+import { getListFailureCopy } from '@/components/route-state/list-failure-copy';
+import { listLibraryItems } from '@/lib/api/library';
 import { loadStudentOptions } from '@/lib/load-entity-labels';
 import { LibraryClearanceForm } from './_components/clearance-form';
 import { IsbnImportForm } from './_components/isbn-import-form';
 import { NewLibraryItemForm } from './_components/new-item-form';
-
 export const dynamic = 'force-dynamic';
-
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const [t, result, studentOptions] = await Promise.all([
+  const [t, itemsResult, studentOptions] = await Promise.all([
     getTranslations('library'),
-    listLibraryItemsResult(),
+    listLibraryItems(),
     loadStudentOptions(),
   ]);
-
-  if (!result.ok) {
-    return (
-      <div className="space-y-6 p-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
-        </div>
-        <ListLoadFailure kind={result.kind} status={result.status} returnTo="/library" />
-        <NewLibraryItemForm />
-      </div>
-    );
-  }
-
-  const items = result.items;
-
+  /**
+   * The catalogue list can fail without the page being useless.
+   *
+   * An empty shelf is plausible on a new tenant, which is exactly why a denial must not be
+   * allowed to look like one — but the panel belongs *where the table was*, not in place of
+   * the whole page. A librarian can still add a book or import an ISBN while the listing is
+   * down, and an earlier revision removed those forms by early-returning.
+   */
+  const failure = itemsResult.ok ? null : itemsResult;
+  const items = itemsResult.ok ? itemsResult.items : [];
+  const failureCopy = failure ? await getListFailureCopy() : undefined;
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -71,18 +63,26 @@ export default async function LibraryCatalogPage() {
           </Button>
         </div>
       </div>
-
       <NewLibraryItemForm />
       <IsbnImportForm />
       <LibraryClearanceForm studentOptions={studentOptions} />
-
       <Card>
         <CardHeader>
           <CardTitle className="text-base">{t('catalog')}</CardTitle>
-          <CardDescription>{t('itemCount', { count: items.length })}</CardDescription>
+          <CardDescription>
+            {failure ? t('catalog') : t('itemCount', { count: items.length })}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
+          {failure ? (
+            <ListLoadFailure
+              kind={failure.kind}
+              status={failure.status}
+              requestId={failure.requestId}
+              returnTo="/library"
+              copy={failureCopy}
+            />
+          ) : items.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
               {t('noHoldings')}
             </p>
