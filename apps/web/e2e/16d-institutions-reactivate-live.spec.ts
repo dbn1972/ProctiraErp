@@ -80,8 +80,8 @@ test.describe('Institutions reactivate — Sunrise live', () => {
     deleteThrowawaySchool();
   });
 
-  test('deactivates a throwaway school then reactivates it from the keyboard', async ({ page }) => {
-    test.setTimeout(90_000);
+  test('deactivates a throwaway school, reactivates it from the keyboard, then reactivates again from the detail header', async ({ page }) => {
+    test.setTimeout(120_000);
     await setupGatewayTenantSession(page, {
       sub: 'priya-sharma',
       email: 'priya.sharma@school.edu',
@@ -139,9 +139,37 @@ test.describe('Institutions reactivate — Sunrise live', () => {
     await expect(page.getByTestId('institution-status-toast')).toContainText('active again');
     await expect(schoolsKpi).toHaveText(schoolsBefore);
 
+    // Second cycle: deactivate from the list, then click Reactivate on the detail header.
+    await expect(async () => {
+      await more.focus();
+      await more.press('ArrowDown');
+      await expect(deactivateItem).toBeVisible();
+    }).toPass();
+    await deactivateItem.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId(`deactivate-${THROWAWAY_ID}`)).toBeVisible();
+    await page.getByLabel('Reason').fill('Header review throwaway');
+    await page.getByTestId(`deactivate-${THROWAWAY_ID}-confirm`).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId(`deactivate-${THROWAWAY_ID}`)).toBeHidden({ timeout: 30_000 });
+    await expect(throwawayRow).toContainText('Inactive');
+
     await page.goto(`/institutions/${THROWAWAY_ID}/overview`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { name: 'Throwaway Reactivate Wing' })).toBeVisible();
+    await expect(page.getByText('Inactive', { exact: true }).first()).toBeVisible();
+    const headerReactivate = page.getByTestId(`reactivate-header-${THROWAWAY_ID}`);
+    const headerDialog = page.getByTestId(`reactivate-header-dialog-${THROWAWAY_ID}`);
+    // The header button is in the first paint; its click handler attaches after hydration.
+    await expect(async () => {
+      await headerReactivate.click({ timeout: 2_000 });
+      await expect(headerDialog).toBeVisible({ timeout: 1_500 });
+    }).toPass({ timeout: 20_000 });
+    await headerDialog.getByLabel('Reason').fill('Header review restored');
+    await page.getByTestId(`reactivate-header-dialog-${THROWAWAY_ID}-confirm`).click();
+    await expect(headerDialog).toBeHidden({ timeout: 30_000 });
+
     await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
-    await expect(page.getByTestId(`reactivate-header-${THROWAWAY_ID}`)).toHaveCount(0);
+    await expect(page.getByTestId('institution-status-toast')).toContainText('active again');
+    await expect(headerReactivate).toHaveCount(0);
   });
 });

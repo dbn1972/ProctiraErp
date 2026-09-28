@@ -208,8 +208,18 @@ export function InstitutionRowActions({
   );
 }
 
-/** Detail header control for an inactive school. Deactivate stays on the list menu. */
-export function InstitutionReactivateButton({ id, name }: { id: string; name: string }) {
+/** Detail header control for an inactive school. Deactivate stays on the list menu.
+ *  The component stays mounted after refresh so the success toast is not removed
+ *  when the server stops rendering the button. */
+export function InstitutionReactivateButton({
+  id,
+  name,
+  inactive = true,
+}: {
+  id: string;
+  name: string;
+  inactive?: boolean;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -239,14 +249,16 @@ export function InstitutionReactivateButton({ id, name }: { id: string; name: st
 
   return (
     <>
-      <Button
-        type="button"
-        size="sm"
-        onClick={() => setOpen(true)}
-        data-testid={`reactivate-header-${id}`}
-      >
-        Reactivate
-      </Button>
+      {inactive ? (
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => setOpen(true)}
+          data-testid={`reactivate-header-${id}`}
+        >
+          Reactivate
+        </Button>
+      ) : null}
       <ConfirmActionDialog
         open={open}
         onOpenChange={setOpen}

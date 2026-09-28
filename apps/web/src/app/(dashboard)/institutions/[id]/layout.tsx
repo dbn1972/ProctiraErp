@@ -114,8 +114,12 @@ export default async function InstitutionLayout({ params, children }: Institutio
           </div>
 
           <div className="flex shrink-0 flex-wrap gap-2">
-            {!isActive && institution.name !== 'Institution unavailable' ? (
-              <InstitutionReactivateButton id={institution.id} name={institution.name} />
+            {institution.name !== 'Institution unavailable' ? (
+              <InstitutionReactivateButton
+                id={institution.id}
+                name={institution.name}
+                inactive={!isActive}
+              />
             ) : null}
             <Button asChild variant="outline" size="sm">
               <Link href={`/institutions/${institution.id}/edit`}>

@@ -63,7 +63,9 @@ describe('institution reactivate UI', () => {
   });
 
   it('confirms a reason from the detail header and refreshes', async () => {
-    render(<InstitutionReactivateButton id="school-1" name="Sunrise Pre-Primary" />);
+    const { rerender } = render(
+      <InstitutionReactivateButton id="school-1" name="Sunrise Pre-Primary" />,
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Reactivate' }));
     fireEvent.change(screen.getByLabelText('Reason'), { target: { value: 'Wing reopened' } });
     fireEvent.click(screen.getByTestId('reactivate-header-dialog-school-1-confirm'));
@@ -74,6 +76,12 @@ describe('institution reactivate UI', () => {
     await waitFor(() => {
       expect(refresh).toHaveBeenCalled();
     });
+    expect(screen.getByTestId('institution-status-toast')).toHaveTextContent(/active again/i);
+
+    rerender(
+      <InstitutionReactivateButton id="school-1" name="Sunrise Pre-Primary" inactive={false} />,
+    );
+    expect(screen.queryByTestId('reactivate-header-school-1')).toBeNull();
     expect(screen.getByTestId('institution-status-toast')).toHaveTextContent(/active again/i);
   });
 });
