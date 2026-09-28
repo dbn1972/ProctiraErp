@@ -11,6 +11,10 @@ import type { PrismaClient, Class } from '@proctira/database';
 
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
 
+const teacherInclude = {
+  classTeacher: { select: { id: true, firstName: true, lastName: true } },
+} as const;
+
 export interface ClassServiceDeps {
   prisma: PrismaClient;
 }
@@ -51,6 +55,10 @@ export class ClassService {
       throw new NotFoundError(`Institution '${dto.institutionId}' not found`);
     }
 
+    if (dto.classTeacherStaffId) {
+      await this.requireStaff(tenantId, dto.classTeacherStaffId);
+    }
+
     return this.prisma.class.create({
       data: {
         tenantId,
@@ -59,8 +67,20 @@ export class ClassService {
         academicPeriodId: dto.academicPeriodId,
         name: dto.name,
         capacity: dto.capacity ?? null,
+        classTeacherStaffId: dto.classTeacherStaffId ?? null,
+        roomName: dto.roomName ?? null,
       },
+      include: teacherInclude,
     });
+  }
+
+  private async requireStaff(tenantId: string, staffId: string): Promise<void> {
+    const staff = await this.prisma.staff.findFirst({
+      where: { id: staffId, tenantId, deletedAt: null },
+    });
+    if (!staff) {
+      throw new NotFoundError(`Staff '${staffId}' not found`);
+    }
   }
 
   /**
@@ -87,13 +107,22 @@ export class ClassService {
       }
     }
 
+    if (dto.classTeacherStaffId) {
+      await this.requireStaff(tenantId, dto.classTeacherStaffId);
+    }
+
     return this.prisma.class.update({
       where: { id },
       data: {
         ...(dto.name !== undefined && { name: dto.name }),
         ...(dto.capacity !== undefined && { capacity: dto.capacity }),
         ...(dto.gradeId !== undefined && { gradeId: dto.gradeId }),
+        ...(dto.classTeacherStaffId !== undefined && {
+          classTeacherStaffId: dto.classTeacherStaffId,
+        }),
+        ...(dto.roomName !== undefined && { roomName: dto.roomName }),
       },
+      include: teacherInclude,
     });
   }
 
@@ -103,6 +132,7 @@ export class ClassService {
   async getById(tenantId: string, id: string): Promise<Class> {
     const cls = await this.prisma.class.findFirst({
       where: { id, tenantId, deletedAt: null },
+      include: teacherInclude,
     });
 
     if (!cls) {
@@ -128,6 +158,7 @@ export class ClassService {
         ...(options?.academicPeriodId && { academicPeriodId: options.academicPeriodId }),
         ...(options?.gradeId && { gradeId: options.gradeId }),
       },
+      include: teacherInclude,
       orderBy: { name: 'asc' },
     });
   }

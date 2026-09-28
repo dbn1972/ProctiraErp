@@ -106,7 +106,7 @@ VALUES (
   'private',
   'private',
   'active',
-  '{"city":"Delhi","boardCode":"CBSE","currency":"INR","demo":"sunrise-screen-review","udise":"07040100417"}'::jsonb
+  '{"city":"Delhi","boardCode":"CBSE","currency":"INR","demo":"sunrise-screen-review","udise":"07040100417","medium":"English","established":"1998","shift":"Morning (07:30–13:30)","headmaster":"Priya Sharma","__profile":{"latitude":28.6072,"longitude":77.2965,"address":"Plot 12, Pocket B, Mayur Vihar Phase 1, Delhi 110091","contactPhone":"+91 11 2271 0417","contactEmail":"office.mv@sunrisepublic.edu.in","deactivationReason":null}}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -729,7 +729,7 @@ SET name = 'Sunrise Public School – Mayur Vihar',
     type = 'Senior Secondary',
     status = 'active',
     area_id = '00000000-0000-4000-8000-00000000a511',
-    custom_data = '{"city":"Delhi","boardCode":"CBSE","currency":"INR","demo":"sunrise-screen-review","udise":"07040100417"}'::jsonb,
+    custom_data = '{"city":"Delhi","boardCode":"CBSE","currency":"INR","demo":"sunrise-screen-review","udise":"07040100417","medium":"English","established":"1998","shift":"Morning (07:30–13:30)","headmaster":"Priya Sharma","__profile":{"latitude":28.6072,"longitude":77.2965,"address":"Plot 12, Pocket B, Mayur Vihar Phase 1, Delhi 110091","contactPhone":"+91 11 2271 0417","contactEmail":"office.mv@sunrisepublic.edu.in","deactivationReason":null}}'::jsonb,
     updated_at = now()
 WHERE id = '00000000-0000-4000-8000-00000000a551'
   AND tenant_id = '00000000-0000-4000-8000-00000000a501';
@@ -776,7 +776,7 @@ VALUES
     '00000000-0000-4000-8000-00000000a521',
     '00000000-0000-4000-8000-00000000a511',
     'Pre-Primary', 'private', 'private', 'inactive',
-    '{"city":"Delhi","boardCode":"CBSE","udise":"07040100844"}'::jsonb
+    '{"city":"Delhi","boardCode":"CBSE","udise":"07040100844","__profile":{"deactivationReason":"Merged into Sunrise Public School – Mayur Vihar from academic year 2026–27"}}'::jsonb
   )
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
@@ -982,6 +982,182 @@ CROSS JOIN LATERAL (
 WHERE e.tenant_id = '00000000-0000-4000-8000-00000000a501'
   AND e.status = 'ENROLLED'
   AND e.class_id IS NOT NULL
+ON CONFLICT (id) DO NOTHING;
+
+-- Class teacher and room on the three Mayur Vihar homerooms (requires 103).
+UPDATE classes
+SET class_teacher_staff_id = '00000000-0000-4000-8000-00000000a593',
+    room_name = 'Room 201',
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a561'
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501';
+UPDATE classes
+SET class_teacher_staff_id = '00000000-0000-4000-8000-00000000a592',
+    room_name = 'Room 202',
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a562'
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501';
+UPDATE classes
+SET room_name = NULL,
+    class_teacher_staff_id = NULL,
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a563'
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501';
+
+-- Bell, meetings, and a teacher clash so the master schedule is not an empty shell.
+INSERT INTO bell_schedules (
+  id, tenant_id, institution_id, academic_period_id, code, name, status
+)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-bell-mv'),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  '00000000-0000-4000-8000-00000000a531',
+  'MORNING',
+  'Morning bell',
+  'active'
+)
+ON CONFLICT (tenant_id, institution_id, academic_period_id, code) DO NOTHING;
+
+INSERT INTO bell_periods (
+  id, tenant_id, bell_schedule_id, code, name, period_order, start_time, end_time
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-' || n::text),
+  '00000000-0000-4000-8000-00000000a501',
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-bell-mv'),
+  'P' || n::text,
+  'Period ' || n::text,
+  n,
+  TIME '07:40' + ((n - 1) * INTERVAL '50 minutes'),
+  TIME '08:20' + ((n - 1) * INTERVAL '50 minutes')
+FROM generate_series(1, 6) AS n
+ON CONFLICT (bell_schedule_id, code) DO NOTHING;
+
+INSERT INTO sections (
+  id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
+  primary_teacher_id, default_room_id, capacity, status
+)
+VALUES (
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  '00000000-0000-4000-8000-00000000a531',
+  '00000000-0000-4000-8000-00000000a542',
+  'G9B-SCI',
+  'Class 9-B Science',
+  '00000000-0000-4000-8000-00000000a592',
+  NULL,
+  40,
+  'DRAFT'
+)
+ON CONFLICT (id) DO NOTHING;
+
+UPDATE sections
+SET primary_teacher_id = '00000000-0000-4000-8000-00000000a592'
+WHERE id = '00000000-0000-4000-8000-00000000a572';
+
+INSERT INTO section_meetings (
+  id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-' || spec.section_key || '-' || spec.day::text),
+  '00000000-0000-4000-8000-00000000a501',
+  spec.section_id,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-3'),
+  spec.day,
+  NULL,
+  '00000000-0000-4000-8000-00000000a592',
+  'active'
+FROM (
+  VALUES
+    ('9b'::text, '00000000-0000-4000-8000-00000000a572'::uuid, 1),
+    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 2),
+    ('9b', '00000000-0000-4000-8000-00000000a572'::uuid, 3),
+    ('8a', '00000000-0000-4000-8000-00000000a571'::uuid, 1)
+) AS spec(section_key, section_id, day)
+ON CONFLICT (section_id, bell_period_id, day_of_week) DO NOTHING;
+
+INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
+VALUES
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-enr-aarav'),
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a572',
+    '00000000-0000-4000-8000-00000000a5b1',
+    'ENROLLED',
+    DATE '2026-04-06'
+  ),
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-enr-diya'),
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a572',
+    '00000000-0000-4000-8000-00000000a5b2',
+    'ENROLLED',
+    DATE '2026-04-06'
+  )
+ON CONFLICT (section_id, student_id) DO NOTHING;
+
+-- Classrooms and recent activity for the Mayur Vihar overview. Deterministic
+-- ids so re-running the seed does not duplicate rows.
+INSERT INTO rooms (
+  id, tenant_id, institution_id, code, name, capacity, room_type, status
+)
+SELECT
+  uuid_generate_v5(
+    '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
+    'sunrise-room-mv-' || gs.n::text
+  ),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  '00000000-0000-4000-8000-00000000a551'::uuid,
+  'RMV-' || lpad(gs.n::text, 2, '0'),
+  'Classroom ' || gs.n::text,
+  40,
+  'CLASSROOM',
+  'active'
+FROM generate_series(1, 46) AS gs(n)
+ON CONFLICT (tenant_id, institution_id, code) DO NOTHING;
+
+UPDATE sections
+SET default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-1')
+WHERE id = '00000000-0000-4000-8000-00000000a572'
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501';
+
+UPDATE section_meetings
+SET room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2')
+WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
+  AND teacher_staff_id = '00000000-0000-4000-8000-00000000a592'
+  AND room_id IS NULL;
+
+INSERT INTO audit_log_entries (
+  id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
+  ip_address, occurred_at, metadata
+)
+SELECT
+  uuid_generate_v5(
+    '6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid,
+    'sunrise-audit-mv-' || item.n::text
+  ),
+  '00000000-0000-4000-8000-00000000a501',
+  'institution',
+  '00000000-0000-4000-8000-00000000a551',
+  'UPDATE',
+  'priya-sharma',
+  item.actor,
+  '127.0.0.1',
+  item.occurred_at,
+  jsonb_build_object(
+    'title', item.title,
+    'tone', item.tone,
+    'institutionId', '00000000-0000-4000-8000-00000000a551'
+  )
+FROM (
+  VALUES
+    (1, 'Attendance submitted for class sections'::text, 'green'::text, 'Priya Sharma'::text, TIMESTAMPTZ '2026-09-28 09:42:00+05:30'),
+    (2, 'Term 2 timetable published', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
+    (3, 'Room 204 flagged for repair in the facility register', 'amber', 'Sunil Rao', TIMESTAMPTZ '2026-09-22 15:10:00+05:30'),
+    (4, 'Class sections confirmed for the active academic period', 'brand', 'Priya Sharma', TIMESTAMPTZ '2026-09-18 10:00:00+05:30')
+) AS item(n, title, tone, actor, occurred_at)
 ON CONFLICT (id) DO NOTHING;
 
 DO $$

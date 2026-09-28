@@ -8,7 +8,7 @@
  * (Requirement 5.5).
  */
 import Link from 'next/link';
-import { Eye } from 'lucide-react';
+import { Eye, Layers } from 'lucide-react';
 
 import {
   Button,
@@ -24,6 +24,12 @@ import {
 import { cn } from '@/lib/utils';
 import { AddClassSectionDialog } from '@/components/institutions/academics-create-dialogs';
 import {
+  AssignClassSectionButton,
+  ClassPeriodFilter,
+} from '@/components/institutions/class-section-controls';
+import { listStaff } from '@/lib/api/staff';
+import { formatPersonLabel } from '@/lib/entity-label';
+import {
   ApiClientError,
   listAcademicPeriods,
   listClassesByInstitution,
@@ -33,6 +39,7 @@ import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/typ
 
 interface ClassesPageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ period?: string }>;
 }
 
 interface ClassesData {
@@ -42,18 +49,22 @@ interface ClassesData {
   error: string | null;
 }
 
-function readStr(cd: Record<string, unknown> | null | undefined, key: string): string {
-  const v = cd?.[key];
-  return typeof v === 'string' ? v : '';
-}
-
 export default async function InstitutionClassesPage(props: ClassesPageProps) {
   const params = await props.params;
+  const searchParams = (await props.searchParams) ?? {};
   const data = await loadClasses(params.id);
+  const activePeriod =
+    data.periods.find((period) => period.status === 'active') ?? data.periods[0];
+  const periodParam = searchParams.period ?? activePeriod?.id ?? 'all';
+  const visibleClasses =
+    periodParam === 'all'
+      ? data.classes
+      : data.classes.filter((section) => section.academicPeriodId === periodParam);
+  const staffOptions = await loadStaffOptions();
   const gradeMap = new Map(data.grades.map((grade) => [grade.id, grade]));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="institution-classes">
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -61,10 +72,11 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
           <p className="text-sm text-muted-foreground">
             {data.error
               ? 'Service unavailable'
-              : `${data.classes.length} ${data.classes.length === 1 ? 'section' : 'sections'} configured`}
+              : `${visibleClasses.length} ${visibleClasses.length === 1 ? 'section' : 'sections'} configured`}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ClassPeriodFilter periods={data.periods} value={periodParam} />
           <AddClassSectionDialog
             institutionId={params.id}
             grades={data.grades}
@@ -77,9 +89,18 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           {data.error ? (
-            <p className="px-6 py-8 text-center text-sm text-muted-foreground">{data.error}</p>
-          ) : data.classes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-14 text-center">
+            <div className="px-6 py-8" role="alert">
+              <p className="font-medium">Service unavailable</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {data.error}{' '}
+                <Link href={`/institutions/${params.id}/classes`} className="font-semibold underline">
+                  Retry
+                </Link>
+              </p>
+            </div>
+          ) : visibleClasses.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-14 text-center" data-testid="classes-empty">
+              <Layers className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
               <p className="text-base font-semibold">No class sections yet</p>
               <p className="text-sm text-muted-foreground">
                 Create the first section to start enrolling students into this institution.
@@ -97,14 +118,10 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.classes.map((section) => {
+                {visibleClasses.map((section) => {
                   const grade = gradeMap.get(section.gradeId);
-                  const cd =
-                    (section as unknown as { customData?: Record<string, unknown> }).customData ??
-                    {};
-                  const teacher = readStr(cd, 'classTeacher');
-                  const teacherRole = readStr(cd, 'classTeacherRole');
-                  const room = readStr(cd, 'room');
+                  const teacher = section.classTeacherName;
+                  const room = section.roomName;
                   const chip = grade ? `${grade.code} · ${section.name}` : section.name;
                   return (
                     <TableRow key={section.id} className="group">
@@ -122,9 +139,7 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
                         {teacher ? (
                           <div>
                             <p className="text-sm font-medium text-foreground">{teacher}</p>
-                            {teacherRole && (
-                              <p className="text-[11px] text-muted-foreground">{teacherRole}</p>
-                            )}
+                            <p className="text-[11px] text-muted-foreground">Class teacher</p>
                           </div>
                         ) : (
                           <span className="text-sm text-muted-foreground">Unassigned</span>
@@ -135,10 +150,18 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{room || '—'}</TableCell>
                       <TableCell className="text-end">
-                        <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                          <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <AssignClassSectionButton
+                            institutionId={params.id}
+                            classId={section.id}
+                            sectionLabel={chip}
+                            classTeacherStaffId={section.classTeacherStaffId}
+                            roomName={section.roomName}
+                            staffOptions={staffOptions}
+                          />
+                          <Button asChild variant="ghost" size="icon" className="h-11 w-11">
                             <Link
-                              href={`/attendance?institutionId=${params.id}&classId=${section.id}`}
+                              href={`/students?institutionId=${params.id}&gradeId=${section.gradeId}`}
                               aria-label={`Open roster for ${chip}`}
                             >
                               <Eye className="h-4 w-4" aria-hidden="true" />
@@ -156,6 +179,25 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
       </Card>
     </div>
   );
+}
+
+async function loadStaffOptions() {
+  try {
+    const first = await listStaff({ page: 1, pageSize: 100 });
+    const people = [...first.data];
+    const pages = Math.min(first.meta.totalPages, 4);
+    for (let page = 2; page <= pages; page += 1) {
+      const next = await listStaff({ page, pageSize: 100 });
+      people.push(...next.data);
+    }
+    return people.map((person) => ({
+      id: person.id,
+      label: formatPersonLabel(person.firstName, person.lastName, person.position),
+      searchText: `${person.firstName} ${person.lastName} ${person.position ?? ''}`,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 async function loadClasses(institutionId: string): Promise<ClassesData> {

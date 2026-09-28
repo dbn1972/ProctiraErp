@@ -181,6 +181,9 @@ export interface ClassSection {
   academicPeriodId: string;
   name: string;
   capacity: number | null;
+  classTeacherStaffId: string | null;
+  classTeacherName: string | null;
+  roomName: string | null;
   createdAt: string;
   updatedAt: string;
 }

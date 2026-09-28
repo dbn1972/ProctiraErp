@@ -165,17 +165,24 @@ export function AddClassSectionDialog({
 
   return (
     <>
-      <Button
-        size="sm"
-        onClick={() => setOpen(true)}
-        data-testid="add-section"
-        data-hydrated={hydrated ? 'true' : 'false'}
-        disabled={blocked}
-        title={blocked ? 'Define at least one grade and one academic period first' : undefined}
-      >
-        <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-        Add section
-      </Button>
+      <div className="flex flex-col items-end gap-1">
+        <Button
+          size="sm"
+          onClick={() => setOpen(true)}
+          data-testid="add-section"
+          data-hydrated={hydrated ? 'true' : 'false'}
+          disabled={blocked}
+          aria-describedby={blocked ? 'add-section-blocked' : undefined}
+        >
+          <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Add section
+        </Button>
+        {blocked && (
+          <p id="add-section-blocked" className="max-w-xs text-end text-xs text-amber-800 dark:text-amber-200" role="status">
+            Add section is disabled. Define at least one grade and one academic period first.
+          </p>
+        )}
+      </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent data-hydrated="true">
           <form action={onSubmit} className="space-y-4">
