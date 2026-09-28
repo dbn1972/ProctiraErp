@@ -39,6 +39,12 @@ export interface BrowserGatewayRequestInit extends Omit<RequestInit, 'body' | 'm
   body?: BodyInit | null;
   /** Tenant override (defaults to the JWT claim). */
   tenantId?: string;
+  /**
+   * Call the Next.js same-origin `/api/v1` proxy so the httpOnly session
+   * cookie can be forwarded as a bearer token. Direct gateway calls cannot
+   * see that cookie.
+   */
+  sameOrigin?: boolean;
   /** Abort signal for cancellation. */
   signal?: AbortSignal;
 }
@@ -61,10 +67,12 @@ export class BrowserGatewayError extends Error {
  * Resolve a path relative to the gateway. Absolute URLs are returned
  * unchanged so callers can target ad-hoc endpoints in tests.
  */
-function resolveUrl(path: string): string {
+function resolveUrl(path: string, sameOrigin = false): string {
   if (path.startsWith('http')) return path;
   const prefixed = path.startsWith('/') ? path : `/${path}`;
-  return `${BROWSER_GATEWAY_BASE_URL}${BROWSER_GATEWAY_API_PREFIX}${prefixed}`;
+  const apiPath = `${BROWSER_GATEWAY_API_PREFIX}${prefixed}`;
+  if (sameOrigin) return apiPath;
+  return `${BROWSER_GATEWAY_BASE_URL}${apiPath}`;
 }
 
 /**
@@ -92,7 +100,7 @@ export async function browserGatewayFetch<T>(
 
   let response: Response;
   try {
-    response = await fetch(resolveUrl(path), {
+    response = await fetch(resolveUrl(path, init.sameOrigin), {
       ...init,
       method: init.method ?? (body ? 'POST' : 'GET'),
       headers,

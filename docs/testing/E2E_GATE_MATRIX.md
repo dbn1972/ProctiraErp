@@ -71,6 +71,7 @@
 | `52-staff-hr-write-smoke.spec.ts`                         | Mixed (ungated + gated describes)                                    |
 | `53-communication-circulars-write-smoke.spec.ts`          | Mixed (ungated + gated describes)                                    |
 | `54-transport-ops-write-smoke.spec.ts`                    | Mixed (ungated + gated describes)                                    |
+| `56-cross-board-transfer-workflow.spec.ts`                | Mixed (ungated login redirect + gated approve/reject)                |
 | `5x-pipelines-write-smoke.spec.ts`                        | Mixed (ungated + gated describes)                                    |
 | `a11y-axe.spec.ts`                                        | Mixed (ungated + gated describes)                                    |
 | `dark-mode-parity.spec.ts`                                | Mixed (ungated + gated describes)                                    |

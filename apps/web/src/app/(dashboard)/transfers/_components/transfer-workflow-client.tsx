@@ -46,6 +46,7 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
         setPending(queue.data);
         const equivalency = await browserGatewayFetch<{ data: Array<Record<string, string>> }>(
           '/transfers/equivalency',
+          { sameOrigin: true },
         );
         setRules(equivalency.data ?? []);
       } else {
@@ -392,6 +393,7 @@ function EquivalencyForm({ onSaved }: { onSaved: () => void }) {
         const form = new FormData(event.currentTarget);
         void browserGatewayFetch('/transfers/equivalency', {
           method: 'POST',
+          sameOrigin: true,
           json: {
             sourceBoardId: String(form.get('sourceBoardId') ?? ''),
             targetBoardId: String(form.get('targetBoardId') ?? ''),

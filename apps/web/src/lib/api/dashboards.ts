@@ -536,7 +536,10 @@ export async function fetchBoardComparison(
 export async function fetchPendingTransferApprovals(
   signal?: AbortSignal,
 ): Promise<{ data: PendingTransferApproval[] }> {
-  return browserGatewayFetch<{ data: PendingTransferApproval[] }>('/transfers/pending', { signal });
+  return browserGatewayFetch<{ data: PendingTransferApproval[] }>('/transfers/pending', {
+    signal,
+    sameOrigin: true,
+  });
 }
 
 export async function postTransferDecision(
@@ -546,7 +549,7 @@ export async function postTransferDecision(
 ): Promise<CrossBoardTransferData> {
   return browserGatewayFetch<CrossBoardTransferData>(
     `/transfers/${encodeURIComponent(transferId)}/${action}`,
-    { method: 'POST', json: comment ? { comment } : {} },
+    { method: 'POST', json: comment ? { comment } : {}, sameOrigin: true },
   );
 }
 
@@ -563,7 +566,7 @@ export async function fetchCrossBoardTransfer(
   }
   return browserGatewayFetch<CrossBoardTransferData>(
     `/transfers/${encodeURIComponent(transferId)}`,
-    { signal },
+    { signal, sameOrigin: true },
   );
 }
 
