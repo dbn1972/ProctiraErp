@@ -1,6 +1,6 @@
 {
-  "tip": "this-pr",
-  "note": "Institutions timetable/tabs leftovers closed. #478/#480/#484/#485 merged; residual polish (generate Back to grid, subject select, switcher wrap, CBSE scale seed, period label, prod captures) on this PR. Specs: 16e timetable + 16e tabs. Captures institutions-timetable/ + institutions-tabs/ on next start.",
+  "tip": "8b5049c7005de51f831cbd950f5d51ab19d61e11",
+  "note": "Institutions timetable/tabs leftovers closed. #478/#480/#484/#485 merged; residual polish (generate Back to grid, subject select, switcher wrap, CBSE scale seed, period label, prod captures) on tip 8b5049c7. Specs: 16e timetable + 16e tabs (chromium). Captures institutions-timetable/ + institutions-tabs/ on next start (no Next N badge).",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
     "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
