@@ -425,6 +425,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/api/v1/auth/mfa/otp/resend',
     '/api/v1/auth/mfa/resend',
     '/api/v1/auth/mfa/verify',
+    // HMAC capability URL (short TTL). The token is the credential; JWT is not sent.
+    '/api/v1/scholarships/document-downloads',
     '/auth/mfa/otp/send',
     '/auth/mfa/otp/resend',
     '/auth/mfa/resend',
@@ -881,6 +883,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (!url.startsWith('/api/v1/')) return;
     if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    // Signed document download authenticates with its own HMAC token.
+    if (url === '/api/v1/scholarships/document-downloads') return;
 
     const user = request.user;
     if (!user) {
