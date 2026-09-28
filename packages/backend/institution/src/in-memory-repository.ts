@@ -6,6 +6,7 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
+import { compareDirectoryInstitutions } from './directory-order.js';
 import type {
   InstitutionEntity,
   InstitutionFilter,
@@ -107,15 +108,19 @@ export class InMemoryInstitutionRepository implements InstitutionRepository {
       );
     }
 
-    // Sort
+    // Sort. The directory default is active schools by code, then inactive.
     const sortBy = pagination.sortBy ?? 'name';
     const sortOrder = pagination.sortOrder ?? 'asc';
-    items.sort((a, b) => {
-      const aVal = String(a[sortBy as keyof InstitutionEntity] ?? '');
-      const bVal = String(b[sortBy as keyof InstitutionEntity] ?? '');
-      const cmp = aVal.localeCompare(bVal);
-      return sortOrder === 'asc' ? cmp : -cmp;
-    });
+    if (sortBy === 'directory') {
+      items.sort(compareDirectoryInstitutions);
+    } else {
+      items.sort((a, b) => {
+        const aVal = String(a[sortBy as keyof InstitutionEntity] ?? '');
+        const bVal = String(b[sortBy as keyof InstitutionEntity] ?? '');
+        const cmp = aVal.localeCompare(bVal);
+        return sortOrder === 'asc' ? cmp : -cmp;
+      });
+    }
 
     // Paginate
     const totalItems = items.length;

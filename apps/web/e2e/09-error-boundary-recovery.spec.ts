@@ -160,7 +160,12 @@ test.describe('Property F-9: Error Boundary Recovery', () => {
     if (hasDesktop) {
       await expect(desktopShell).toBeVisible();
 
-      // Sidebar nav should still be mounted
+      // Below 1024px the sidebar is an off-canvas drawer. Open it, then
+      // confirm the nav is still mounted.
+      const menu = page.getByTestId('desktop-shell-menu');
+      if (await menu.isVisible()) {
+        await menu.click();
+      }
       const sidebar = desktopShell.locator('nav').first();
       await expect(sidebar).toBeVisible();
 

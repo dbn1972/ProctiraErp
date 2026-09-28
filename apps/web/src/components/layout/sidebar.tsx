@@ -75,17 +75,17 @@ export const navItems = [
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
-    key: 'scholarships',
-    href: '/scholarships',
-    icon: 'AcademicCapIcon',
-    requiredPermissions: ['scholarship.read'],
-    hideForRoleSubstrings: ['parent', 'guardian'],
-  },
-  {
     key: 'lms',
     href: '/lms',
     icon: 'BookOpenIcon',
     requiredPermissions: ['lms.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'scholarships',
+    href: '/scholarships',
+    icon: 'AcademicCapIcon',
+    requiredPermissions: ['scholarship.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
@@ -96,13 +96,6 @@ export const navItems = [
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
-    key: 'parentPortal',
-    href: '/parent',
-    icon: 'UserGroupIcon',
-    requiredPermissions: [],
-    requiredRoleSubstrings: ['parent', 'guardian'],
-  },
-  {
     key: 'fees',
     href: '/fees',
     icon: 'CurrencyIcon',
@@ -110,22 +103,9 @@ export const navItems = [
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
-    key: 'notifications',
-    href: '/notifications',
-    icon: 'BellIcon',
-    requiredPermissions: [],
-  },
-  {
     key: 'transport',
     href: '/transport',
     icon: 'BusIcon',
-    requiredPermissions: [],
-    hideForRoleSubstrings: ['parent', 'guardian'],
-  },
-  {
-    key: 'communication',
-    href: '/communication',
-    icon: 'MegaphoneIcon',
     requiredPermissions: [],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
@@ -142,6 +122,26 @@ export const navItems = [
     icon: 'BookOpenIcon',
     requiredPermissions: [],
     hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'communication',
+    href: '/communication',
+    icon: 'MegaphoneIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'notifications',
+    href: '/notifications',
+    icon: 'BellIcon',
+    requiredPermissions: [],
+  },
+  {
+    key: 'parentPortal',
+    href: '/parent',
+    icon: 'UserGroupIcon',
+    requiredPermissions: [],
+    requiredRoleSubstrings: ['parent', 'guardian'],
   },
   {
     key: 'workflows',
@@ -202,7 +202,7 @@ const ROLE_VISIBLE_NAV = new Set([
 export function Sidebar() {
   const t = useTranslations('nav');
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, status } = useAuth();
   const brand = useOptionalBrand();
   const directory = useDirectoryContext();
 
@@ -245,57 +245,73 @@ export function Sidebar() {
       </div>
 
       <div className="mx-3 mb-2 rounded-lg bg-white/5 px-3 py-2.5" data-testid="tenant-switcher">
-        <div className="flex items-start gap-2.5">
-          <span
-            aria-hidden="true"
-            className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 text-[11px] font-bold text-white"
-          >
-            {initialsFromName(switcher.title)}
-          </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold leading-snug text-white">
-              {switcher.title}
-            </p>
-            {switcher.lines.map((line) => (
-              <p key={line} className="truncate text-[11px] leading-snug text-slate-400">
-                {line}
-              </p>
-            ))}
+        {status === 'loading' ? (
+          <div className="flex items-center gap-2.5" data-testid="tenant-switcher-skeleton">
+            <span className="h-8 w-8 animate-pulse rounded-md bg-white/10" />
+            <span className="h-8 flex-1 animate-pulse rounded-md bg-white/10" />
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start gap-2.5">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 text-[11px] font-bold text-white"
+            >
+              {initialsFromName(switcher.title)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-snug text-white">
+                {switcher.title}
+              </p>
+              {switcher.lines.map((line) => (
+                <p key={line} className="truncate text-[11px] leading-snug text-slate-400">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main navigation">
-        <ul className="space-y-0.5" role="list">
-          {visibleItems.map((item, index) => {
-            const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-            const group = navGroupLabel(item.key);
-            const previous = index > 0 ? visibleItems[index - 1] : undefined;
-            const showGroup = group && navGroupLabel(previous?.key ?? '') !== group;
+        {status === 'loading' ? (
+          <div className="space-y-2 px-3" data-testid="sidebar-nav-skeleton" aria-hidden="true">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="h-8 animate-pulse rounded-md bg-white/10" />
+            ))}
+          </div>
+        ) : (
+          <ul className="space-y-0.5" role="list">
+            {visibleItems.map((item, index) => {
+              const isActive =
+                item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+              const group = navGroupLabel(item.key);
+              const previous = index > 0 ? visibleItems[index - 1] : undefined;
+              const showGroup = group && navGroupLabel(previous?.key ?? '') !== group;
 
-            return (
-              <li key={item.key}>
-                {showGroup ? (
-                  <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                    {group}
-                  </p>
-                ) : null}
-                <Link
-                  href={item.href}
-                  className={`sidebar-link ${
-                    isActive ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                  }`}
-                  aria-current={isActive ? 'page' : undefined}
-                  data-testid={`sidebar-link-${item.key}`}
-                >
-                  <NavIcon name={item.icon} />
-                  <span>{t(item.key)}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={item.key}>
+                  {showGroup ? (
+                    <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {group}
+                    </p>
+                  ) : null}
+                  <Link
+                    href={item.href}
+                    className={`sidebar-link ${
+                      isActive ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                    }`}
+                    aria-current={isActive ? 'page' : undefined}
+                    data-testid={`sidebar-link-${item.key}`}
+                  >
+                    <NavIcon name={item.icon} />
+                    <span>{t(item.key)}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </nav>
       <div className="mt-auto border-t border-white/10 px-3 py-3">
         <Link

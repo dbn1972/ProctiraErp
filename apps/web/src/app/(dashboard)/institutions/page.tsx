@@ -18,7 +18,7 @@
  *   icon-button actions (Eye/Pencil)
  */
 import Link from 'next/link';
-import { Building2, CheckCircle2, GraduationCap, Map as MapIcon, Plus, School } from 'lucide-react';
+import { Building2, CheckCircle2, GraduationCap, Map as MapIcon, Plus } from 'lucide-react';
 
 import {
   Button,
@@ -40,7 +40,9 @@ import { PaginationControls } from '@/components/institutions/pagination-control
 import { ApiClientError, listInstitutions } from '@/lib/institutions/api';
 import { loadInstitutionDirectory } from '@/lib/institutions/directory';
 import {
+  INSTITUTION_LIST_ERROR,
   attendanceTone,
+  institutionListSubtitle,
   rowMetrics,
   type DirectorySchoolMetrics,
 } from '@/lib/institutions/directory-presentation';
@@ -90,7 +92,7 @@ function KpiCard({ icon: Icon, iconBg, label, value, foot }: KpiCardProps) {
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center gap-2">
           <span
             aria-hidden="true"
             className={cn('flex h-9 w-9 items-center justify-center rounded-lg', iconBg)}
@@ -144,13 +146,50 @@ function AttendanceBar({ pct }: { pct: number | null }) {
 
 /* ──────────────────────────────────────── Status pill ── */
 
-const SCHOOL_AVATAR_PALETTES = [
-  'bg-blue-50   text-blue-600   dark:bg-blue-900   dark:text-blue-400',
-  'bg-teal-50   text-teal-600   dark:bg-teal-900   dark:text-teal-400',
-  'bg-amber-50  text-amber-600  dark:bg-amber-900  dark:text-amber-400',
-  'bg-violet-50 text-violet-600 dark:bg-violet-900 dark:text-violet-400',
-  'bg-sky-50    text-sky-600    dark:bg-sky-900    dark:text-sky-400',
-] as const;
+const TYPE_CHIP =
+  'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground';
+
+/** Solid school glyph coloured by type. Senior Secondary stays blue for every campus. */
+function schoolMarkClass(typeName: string): string {
+  const key = typeName.trim().toLowerCase();
+  if (key.includes('pre-primary') || key.includes('pre primary')) {
+    return 'bg-gradient-to-br from-pink-500 to-pink-700';
+  }
+  if (key.includes('senior')) return 'bg-gradient-to-br from-[#3568CF] to-[#163780]';
+  if (key.includes('secondary')) return 'bg-gradient-to-br from-teal-500 to-teal-700';
+  if (key.includes('primary')) return 'bg-gradient-to-br from-amber-500 to-amber-700';
+  return 'bg-gradient-to-br from-[#3568CF] to-[#163780]';
+}
+
+function SchoolMark({ typeName }: { typeName: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-white',
+        schoolMarkClass(typeName),
+      )}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-6 w-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="m4 6 8-4 8 4" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"
+        />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 22v-4a2 2 0 0 0-4 0v4" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 5v17M6 5v17" />
+        <circle cx="12" cy="9" r="2" />
+      </svg>
+    </span>
+  );
+}
 
 const INST_STATUS_PILL: Record<string, string> = {
   ACTIVE: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
@@ -184,6 +223,63 @@ function InstitutionStatusPill({ status }: { status: string }) {
   );
 }
 
+function InstitutionMobileCard({
+  institution,
+  areaName,
+  typeName,
+  metrics,
+  metricsAvailable,
+}: {
+  institution: Institution;
+  areaName: string;
+  typeName: string;
+  metrics: DirectorySchoolMetrics | undefined;
+  metricsAvailable: { students: boolean; staff: boolean };
+}) {
+  const counts = rowMetrics(institution.status, metrics, metricsAvailable);
+  return (
+    <article className="space-y-3">
+      <div className="flex items-start gap-3">
+        <SchoolMark typeName={typeName} />
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/institutions/${institution.id}/overview`}
+            className="font-semibold text-foreground hover:underline"
+          >
+            {institution.name}
+          </Link>
+          <p className="font-mono text-[11px] text-muted-foreground">{institution.code}</p>
+        </div>
+        <InstitutionStatusPill status={institution.status} />
+      </div>
+      <dl className="grid grid-cols-2 gap-2 text-sm">
+        <div>
+          <dt className="text-[11px] font-semibold uppercase text-muted-foreground">Block</dt>
+          <dd>{areaName || '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-semibold uppercase text-muted-foreground">Type</dt>
+          <dd>{typeName ? <span className={TYPE_CHIP}>{typeName}</span> : '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-semibold uppercase text-muted-foreground">Students</dt>
+          <dd>{counts.students !== null ? counts.students.toLocaleString('en-IN') : '—'}</dd>
+        </div>
+        <div>
+          <dt className="text-[11px] font-semibold uppercase text-muted-foreground">Staff</dt>
+          <dd>{counts.staff !== null ? counts.staff.toLocaleString('en-IN') : '—'}</dd>
+        </div>
+      </dl>
+      <AttendanceBar pct={counts.attendance} />
+      <InstitutionRowActions
+        id={institution.id}
+        name={institution.name}
+        status={institution.status}
+      />
+    </article>
+  );
+}
+
 /* ──────────────────────────────────────── Institution row ── */
 
 function InstitutionRow({
@@ -192,18 +288,13 @@ function InstitutionRow({
   typeName,
   metrics,
   metricsAvailable,
-  avatarIndex,
 }: {
   institution: Institution;
   areaName: string;
   typeName: string;
   metrics: DirectorySchoolMetrics | undefined;
   metricsAvailable: { students: boolean; staff: boolean };
-  avatarIndex: number;
 }) {
-  const palette =
-    SCHOOL_AVATAR_PALETTES[avatarIndex % SCHOOL_AVATAR_PALETTES.length] ??
-    SCHOOL_AVATAR_PALETTES[0];
   const counts = rowMetrics(institution.status, metrics, {
     students: metricsAvailable.students,
     staff: metricsAvailable.staff,
@@ -212,14 +303,9 @@ function InstitutionRow({
   return (
     <TableRow className="group">
       {/* School (person-cell) */}
-      <TableCell>
+      <TableCell className="sticky start-0 z-10 bg-card">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', palette)}
-          >
-            <School className="h-5 w-5" aria-hidden="true" />
-          </span>
+          <SchoolMark typeName={typeName} />
           <div className="min-w-0">
             <Link
               href={`/institutions/${institution.id}/overview`}
@@ -238,9 +324,7 @@ function InstitutionRow({
       {/* Type */}
       <TableCell>
         {typeName ? (
-          <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
-            {typeName}
-          </span>
+          <span className={TYPE_CHIP}>{typeName}</span>
         ) : (
           <span className="text-sm text-muted-foreground">—</span>
         )}
@@ -288,17 +372,30 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
   const page = parsePage(searchParams.page);
   const pageSize = DEFAULT_PAGE_SIZE;
 
-  const [areas, types, listResult, directory] = await Promise.all([
+  const filtersActive = Boolean(search || areaId || status);
+  const [areas, types, listResult, directory, catalogResult] = await Promise.all([
     loadAreaOptions({ fallback: false }),
     loadTypeOptions(),
-    fetchInstitutions({ search, areaId, status, page, pageSize }),
+    fetchInstitutions({ search, areaId, status, page, pageSize, sortBy: 'directory' }),
     loadInstitutionDirectory(),
+    filtersActive
+      ? fetchInstitutions({ page: 1, pageSize: 1, sortBy: 'directory' })
+      : Promise.resolve(null),
   ]);
 
   // Build a fast area id→name lookup
   const areaById: Record<string, string> = Object.fromEntries(areas.map((a) => [a.id, a.name]));
   const totalItems = listResult.data.meta.totalItems;
+  const catalogCount =
+    catalogResult && !catalogResult.error ? catalogResult.data.meta.totalItems : totalItems;
+  const loadFailed = Boolean(listResult.error);
   const areaCount = areas.length;
+  const subtitle = institutionListSubtitle({
+    filteredCount: totalItems,
+    catalogCount,
+    filtersActive,
+    failed: loadFailed,
+  });
 
   return (
     <section aria-labelledby="institutions-heading" className="space-y-6">
@@ -311,10 +408,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           >
             Institutions
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {totalItems.toLocaleString()} {totalItems === 1 ? 'school' : 'schools'} · profiles,
-            classes, and infrastructure
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           {/*
@@ -334,19 +428,19 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
       </div>
 
       {/* ── KPI grid ── */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <KpiCard
           icon={Building2}
           iconBg="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
           label="Schools"
-          value={totalItems.toLocaleString()}
+          value={loadFailed ? '—' : catalogCount.toLocaleString()}
           foot="across all blocks"
         />
         <KpiCard
           icon={MapIcon}
           iconBg="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
           label="Blocks / Areas"
-          value={areaCount.toLocaleString()}
+          value={loadFailed ? '—' : areaCount.toLocaleString()}
           foot={
             areaCount > 0
               ? areas
@@ -361,18 +455,24 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           iconBg="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
           label="Students enrolled"
           value={
-            directory.studentsEnrolled === null ? (
-              <span className="text-lg font-semibold tracking-normal text-muted-foreground">
-                Currently unavailable
-              </span>
+            loadFailed || directory.studentsEnrolled === null ? (
+              loadFailed ? (
+                '—'
+              ) : (
+                <span className="text-lg font-semibold tracking-normal text-muted-foreground">
+                  Currently unavailable
+                </span>
+              )
             ) : (
               directory.studentsEnrolled.toLocaleString('en-IN')
             )
           }
           foot={
-            directory.studentsEnrolled === null
-              ? 'Connect enrollment API for live data'
-              : 'Enrolled students across schools'
+            loadFailed
+              ? '—'
+              : directory.studentsEnrolled === null
+                ? 'Connect enrollment API for live data'
+                : 'Enrolled students across schools'
           }
         />
         <KpiCard
@@ -380,18 +480,24 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
           iconBg="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
           label="Reporting today"
           value={
-            directory.reportingToday === null ? (
-              <span className="text-lg font-semibold tracking-normal text-muted-foreground">
-                Currently unavailable
-              </span>
+            loadFailed || directory.reportingToday === null ? (
+              loadFailed ? (
+                '—'
+              ) : (
+                <span className="text-lg font-semibold tracking-normal text-muted-foreground">
+                  Currently unavailable
+                </span>
+              )
             ) : (
               directory.reportingToday.toLocaleString('en-IN')
             )
           }
           foot={
-            directory.reportingToday === null
-              ? 'Connect reporting API for live data'
-              : `${directory.reportingToday.toLocaleString('en-IN')} schools recorded attendance today`
+            loadFailed
+              ? '—'
+              : directory.reportingToday === null
+                ? 'Connect reporting API for live data'
+                : `${directory.reportingToday.toLocaleString('en-IN')} schools recorded attendance today`
           }
         />
       </div>
@@ -411,7 +517,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
             <CardTitle className="text-destructive">Unable to load institutions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">{listResult.error}</p>
+            <p className="text-sm text-muted-foreground">{INSTITUTION_LIST_ERROR}</p>
             <Button asChild variant="outline" size="sm">
               <Link href="/institutions">Try again</Link>
             </Button>
@@ -439,23 +545,10 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
               </div>
             ) : (
               <>
-                <Table aria-label="Institutions" data-testid="institutions-table">
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="font-semibold">School</TableHead>
-                      <TableHead className="font-semibold">Block</TableHead>
-                      <TableHead className="font-semibold">Type</TableHead>
-                      <TableHead className="text-end font-semibold">Students</TableHead>
-                      <TableHead className="text-end font-semibold">Staff</TableHead>
-                      <TableHead className="font-semibold">Attendance</TableHead>
-                      <TableHead className="font-semibold">Status</TableHead>
-                      <TableHead className="text-end font-semibold">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {listResult.data.data.map((institution, index) => (
-                      <InstitutionRow
-                        key={institution.id}
+                <ul className="divide-y md:hidden" data-testid="institutions-cards">
+                  {listResult.data.data.map((institution) => (
+                    <li key={institution.id} className="p-4">
+                      <InstitutionMobileCard
                         institution={institution}
                         areaName={areaById[institution.areaId] ?? ''}
                         typeName={resolveLookupLabel(types, institution.typeId)}
@@ -464,11 +557,47 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
                           students: directory.studentsAvailable,
                           staff: directory.staffAvailable,
                         }}
-                        avatarIndex={index}
                       />
-                    ))}
-                  </TableBody>
-                </Table>
+                    </li>
+                  ))}
+                </ul>
+                <div className="hidden overflow-x-auto md:block">
+                  <Table
+                    aria-label="Institutions"
+                    data-testid="institutions-table"
+                    className="min-w-[960px]"
+                  >
+                    <TableHeader>
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableHead className="sticky start-0 z-10 bg-card font-semibold">
+                          School
+                        </TableHead>
+                        <TableHead className="font-semibold">Block</TableHead>
+                        <TableHead className="font-semibold">Type</TableHead>
+                        <TableHead className="text-end font-semibold">Students</TableHead>
+                        <TableHead className="text-end font-semibold">Staff</TableHead>
+                        <TableHead className="font-semibold">Attendance</TableHead>
+                        <TableHead className="font-semibold">Status</TableHead>
+                        <TableHead className="text-end font-semibold">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {listResult.data.data.map((institution) => (
+                        <InstitutionRow
+                          key={institution.id}
+                          institution={institution}
+                          areaName={areaById[institution.areaId] ?? ''}
+                          typeName={resolveLookupLabel(types, institution.typeId)}
+                          metrics={directory.schools[institution.id]}
+                          metricsAvailable={{
+                            students: directory.studentsAvailable,
+                            staff: directory.staffAvailable,
+                          }}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
                 <div className="border-t px-4 py-3">
                   <PaginationControls
                     page={listResult.data.meta.page}
