@@ -38,10 +38,18 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
     await Promise.all([
       listSubstitutions({ institutionId }),
       listMeetings({ institutionId }),
-      listStaff({ pageSize: 100 }).catch(() => ({
-        data: [],
-        meta: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
-      })),
+    (async () => {
+      const rows: Awaited<ReturnType<typeof listStaff>>['data'] = [];
+      for (let page = 1; page <= 4; page += 1) {
+        const batch = await listStaff({ page, pageSize: 100 }).catch(() => ({
+          data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
+          meta: { page, pageSize: 100, totalItems: 0, totalPages: 0 },
+        }));
+        rows.push(...batch.data);
+        if (batch.data.length < 100) break;
+      }
+      return { data: rows };
+    })(),
       listSections({ institutionId }),
       listRooms({ institutionId }),
       listBellSchedules({ institutionId }),

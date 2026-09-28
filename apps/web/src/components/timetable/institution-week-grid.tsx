@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
@@ -54,6 +54,8 @@ export function InstitutionWeekGrid(props: {
   const [selected, setSelected] = useState<GridMeeting | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
 
   function prefill(day: number, periodId: string) {
     const params = new URLSearchParams();
@@ -65,7 +67,7 @@ export function InstitutionWeekGrid(props: {
   }
 
   return (
-    <div data-testid="timetable-week-grid">
+    <div data-testid="timetable-week-grid" data-hydrated={ready ? 'true' : 'false'}>
       <div className="overflow-x-auto">
         <table
           className="w-full min-w-[760px] border-separate border-spacing-1 text-xs"
