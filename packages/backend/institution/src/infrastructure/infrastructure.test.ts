@@ -82,14 +82,25 @@ describe('InfrastructureService', () => {
       ).rejects.toThrow('Invalid condition');
     });
 
-    it('should allow any condition when no options are configured', async () => {
-      const land = await service.createLand({
-        name: 'Test Land',
-        institutionId,
-        capacity: 100,
-        condition: 'AnyValue',
-      });
-      expect(land.condition).toBe('AnyValue');
+    it('returns 404 when logging a repair for a missing facility', async () => {
+      await expect(
+        service.logRepairRequest({
+          institutionId,
+          infrastructureId: '00000000-0000-4000-8000-000000000099',
+          summary: 'Ceiling leak',
+        }),
+      ).rejects.toThrow('Facility not found');
+    });
+
+    it('should reject conditions outside the facility enum even when no options are configured', async () => {
+      await expect(
+        service.createLand({
+          name: 'Test Land',
+          institutionId,
+          capacity: 100,
+          condition: 'AnyValue',
+        }),
+      ).rejects.toThrow('Invalid condition');
     });
 
     it('should list lands for an institution', async () => {

@@ -3,16 +3,19 @@
  *
  * Route: /institutions/[id]/gradebook
  */
+import Link from 'next/link';
+
 import {
   ComputeGpaForm,
   GradeEntryForm,
   ReportCardTriggerForm,
 } from '@/components/gradebook/gradebook-forms';
+import { GradebookSectionSwitcher } from '@/components/gradebook/section-switcher';
 import { GradebookWorkflowPanel } from '@/components/gradebook/gradebook-workflow-panel';
 import { Card, CardContent } from '@proctira/ui/components';
 import { getSession } from '@/lib/auth/server';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { listStudents } from '@/lib/api/students';
+import { getStudent, listStudents, type Student } from '@/lib/api/students';
 import {
   listClassRanks,
   listCommentsBank,
@@ -22,6 +25,7 @@ import {
   listReportCardJobs,
 } from '@/lib/api/gradebook';
 import { canModerateGrades, canSubmitGrades } from '@/lib/gradebook-roles';
+import { humanGradebookError, reportCardStatusLabel } from '@/lib/gradebook/presentation';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,22 +62,38 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const scales = scalesResult.ok ? scalesResult.data : [];
   const jobs = jobsResult.ok ? jobsResult.data : [];
   const comments = commentsResult.ok ? commentsResult.data : [];
-  const studentOptions = (studentsResult.data ?? []).map((s) => ({
-    id: s.id,
-    label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
-    searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
-  }));
-  const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
-
+  const directory = studentsResult.data ?? [];
+  const studentCode = (student: Student) => {
+    const custom = student.customData?.gradebookCode;
+    return typeof custom === 'string' && custom.length > 0 ? custom : student.nationalId;
+  };
+  const toOption = (student: Student) => ({
+    id: student.id,
+    label: formatPersonLabel(student.firstName, student.lastName, studentCode(student)),
+    searchText: `${student.firstName} ${student.lastName} ${studentCode(student) ?? ''}`,
+  });
+  const preferred =
+    sections.find((section) => section.code === 'G9B-MATH') ??
+    sections.find((section) => section.name.toLowerCase().includes('mathematics')) ??
+    sections[0];
   const sectionId =
     searchParams?.sectionId && sections.some((s) => s.id === searchParams.sectionId)
       ? searchParams.sectionId
-      : (sections[0]?.id ?? '');
+      : (preferred?.id ?? '');
 
   const entriesResult = sectionId
     ? await listGradeEntries({ sectionId })
     : { ok: true as const, data: [] };
   const entries = entriesResult.ok ? entriesResult.data : [];
+  const knownIds = new Set(directory.map((student) => student.id));
+  const missingIds = [...new Set(entries.map((entry) => entry.studentId))].filter(
+    (id) => !knownIds.has(id),
+  );
+  const extras = (
+    await Promise.all(missingIds.map((id) => getStudent(id).catch(() => null)))
+  ).filter((student): student is Student => student !== null);
+  const studentOptions = [...directory, ...extras].map(toOption);
+  const studentLabel = new Map(studentOptions.map((option) => [option.id, option.label]));
   const entryError = entriesResult.ok ? null : entriesResult.error;
   const ranksResult = sectionId ? await listClassRanks(sectionId) : { ok: true as const, data: [] };
   const ranks = ranksResult.ok ? ranksResult.data : [];
@@ -82,8 +102,12 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const defaultStudentId = entries[0]?.studentId ?? studentOptions[0]?.id ?? '';
   const activeSection = sections.find((s) => s.id === sectionId);
 
+  const institutionJobs = jobs.filter(
+    (job) => !job.institutionId || job.institutionId === institutionId,
+  );
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="institution-gradebook">
       <div>
         <h2 className="text-lg font-bold tracking-tight text-foreground">Gradebook</h2>
         <p className="text-sm text-muted-foreground">
@@ -95,12 +119,13 @@ export default async function InstitutionGradebookPage(props: PageProps) {
       {apiError ? (
         <Card>
           <CardContent className="space-y-2 p-6">
-            <p className="text-sm font-semibold">Gradebook API unavailable</p>
-            <p className="text-sm text-muted-foreground" role="alert">
-              {apiError}
-              {sectionsResult.ok === false &&
-                sectionsResult.code === 'GRADEBOOK_SCHEMA_MISSING' &&
-                ' Gradebook storage is not set up for this environment yet. Contact your administrator.'}
+            <p className="text-sm font-semibold">Gradebook is unavailable</p>
+            <p
+              className="text-sm text-muted-foreground"
+              role="alert"
+              data-testid="gradebook-api-error"
+            >
+              {humanGradebookError(apiError, sectionsResult.ok ? undefined : sectionsResult.code)}
             </p>
           </CardContent>
         </Card>
@@ -108,9 +133,20 @@ export default async function InstitutionGradebookPage(props: PageProps) {
 
       {!apiError && sections.length === 0 ? (
         <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            No sections for this institution yet. Create sections from the master schedule, or ask
-            an administrator to finish gradebook setup.
+          <CardContent
+            className="space-y-3 p-6 text-sm text-muted-foreground"
+            data-testid="gradebook-no-sections"
+          >
+            <p className="text-base font-semibold text-foreground">
+              No sections for this institution yet
+            </p>
+            <p>Create sections on the Schedule tab before entering grades.</p>
+            <Link
+              href={`/institutions/${institutionId}/schedule`}
+              className="inline-flex text-sm font-semibold text-primary"
+            >
+              Go to Schedule
+            </Link>
           </CardContent>
         </Card>
       ) : null}
@@ -119,13 +155,20 @@ export default async function InstitutionGradebookPage(props: PageProps) {
         <>
           <Card>
             <CardContent className="space-y-4 p-6">
-              <div>
-                <h3 className="text-base font-semibold">Section</h3>
-                <p className="text-sm text-muted-foreground" data-testid="gradebook-section-name">
-                  {activeSection
-                    ? formatCodeNameLabel(activeSection.code, activeSection.name)
-                    : resolveEntityLabel(sectionId, new Map(), 'Section')}
-                </p>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold">Section</h3>
+                  <p className="text-sm text-muted-foreground" data-testid="gradebook-section-name">
+                    {activeSection
+                      ? formatCodeNameLabel(activeSection.code, activeSection.name)
+                      : resolveEntityLabel(sectionId, new Map(), 'Section')}
+                  </p>
+                </div>
+                <GradebookSectionSwitcher
+                  institutionId={institutionId}
+                  sectionId={sectionId}
+                  sections={sections}
+                />
               </div>
               <GradeEntryForm
                 institutionId={institutionId}
@@ -185,17 +228,54 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  No grading scale / board available — seed board scales first.
+                  No grading scale is available yet. Ask an administrator to add a board scale
+                  before generating report cards.
                 </p>
               )}
-              {jobs.length > 0 ? (
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  {jobs.slice(0, 5).map((job) => (
-                    <li key={job.id}>
-                      Report card · {job.status}
-                      {job.artifactUri ? ` · ${job.artifactUri}` : ''}
-                    </li>
-                  ))}
+              {institutionJobs.length > 0 ? (
+                <ul className="mt-3 space-y-2 text-sm" data-testid="report-card-jobs">
+                  {institutionJobs.slice(0, 8).map((job) => {
+                    const studentId =
+                      typeof job.metadata?.studentId === 'string' ? job.metadata.studentId : '';
+                    const studentName = studentId
+                      ? resolveEntityLabel(studentId, studentLabel, 'Student')
+                      : 'Student';
+                    const term =
+                      typeof job.metadata?.term === 'string' ? job.metadata.term : 'Term';
+                    const label = reportCardStatusLabel(job.status);
+                    return (
+                      <li key={job.id} className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold">
+                          {label}
+                        </span>
+                        <span>
+                          Report card · {studentName} · {term}
+                        </span>
+                        {job.status === 'FAILED' && job.errorMessage ? (
+                          <span className="text-xs text-muted-foreground">
+                            · {job.errorMessage}
+                          </span>
+                        ) : null}
+                        {job.status === 'SUCCEEDED' ? (
+                          <Link
+                            href={`/institutions/${institutionId}/gradebook/report-cards/${job.id}`}
+                            className="text-sm font-semibold text-primary"
+                            data-testid={`report-card-link-${job.id}`}
+                          >
+                            PDF
+                          </Link>
+                        ) : null}
+                        {job.status === 'FAILED' ? (
+                          <Link
+                            href={`/institutions/${institutionId}/gradebook?sectionId=${sectionId}#gradebook-entries`}
+                            className="text-sm font-semibold text-primary"
+                          >
+                            Review grades
+                          </Link>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               ) : null}
             </CardContent>

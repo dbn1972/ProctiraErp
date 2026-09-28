@@ -76,7 +76,7 @@ describe('hierarchyToCsv (G-925)', () => {
           id: 'l',
           name: 'Main campus',
           capacity: 0,
-          condition: 'GOOD',
+          condition: 'Good',
           description: null,
           buildings: [
             {
@@ -90,7 +90,7 @@ describe('hierarchyToCsv (G-925)', () => {
                   id: 'f',
                   name: 'Ground',
                   capacity: 200,
-                  condition: 'GOOD',
+                  condition: 'Good',
                   description: null,
                   rooms: [
                     {

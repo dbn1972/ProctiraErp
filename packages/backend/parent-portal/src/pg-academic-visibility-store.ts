@@ -5,6 +5,7 @@
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import type pg from 'pg';
 
+import { isParentVisibleGrade } from './academic-visibility.js';
 import {
   EMPTY_ATTENDANCE_SUMMARY,
   emptyAcademicList,
@@ -78,8 +79,7 @@ async function queryRows(
   }
 }
 
-function publishedWorkflow(metadata: unknown, lockedAt: unknown): string | null {
-  if (lockedAt) return 'LOCKED';
+function publishedWorkflow(metadata: unknown): string | null {
   if (metadata && typeof metadata === 'object') {
     const status = (metadata as { workflowStatus?: unknown }).workflowStatus;
     if (typeof status === 'string') return status;
@@ -167,7 +167,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       const gradeRows = await queryRows(
         client,
         `SELECT id, section_id, assessment_code, numeric_score, letter_grade,
-                locked_at, entered_at, metadata
+                locked_at, published_at, entered_at, metadata
            FROM grade_entries
           WHERE tenant_id = $1::uuid AND student_id = $2::uuid
           ORDER BY entered_at DESC
@@ -176,8 +176,9 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
       );
       const data: PublishedGrade[] = [];
       for (const row of gradeRows) {
-        const workflowStatus = publishedWorkflow(row.metadata, row.locked_at) ?? 'DRAFT';
-        if (workflowStatus !== 'APPROVED' && workflowStatus !== 'LOCKED') continue;
+        const workflowStatus = publishedWorkflow(row.metadata) ?? 'DRAFT';
+        const publishedAt = isoOrNull(row.published_at);
+        if (!isParentVisibleGrade({ workflowStatus, publishedAt })) continue;
         data.push({
           id: str(row.id),
           sectionId: strOrNull(row.section_id),
@@ -392,8 +393,8 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
                   OR ge.metadata->>'academicPeriodId' = $3::text
                 )
                 AND (
-                  ge.locked_at IS NOT NULL
-                  OR COALESCE(ge.metadata->>'workflowStatus', '') IN ('APPROVED', 'LOCKED')
+                  ge.published_at IS NOT NULL
+                  OR COALESCE(ge.metadata->>'workflowStatus', '') = 'PUBLISHED'
                 )
               ORDER BY ge.entered_at DESC
               LIMIT 40`,

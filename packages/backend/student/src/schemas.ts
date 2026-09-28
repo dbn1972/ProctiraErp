@@ -189,22 +189,29 @@ export type StudentSearchQuery = Static<typeof StudentSearchQuerySchema>;
  */
 export const StudentParamsSchema = Type.Object({
   id: Type.String({
-    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Student UUID',
   }),
 });
 
 export type StudentParams = Static<typeof StudentParamsSchema>;
 
-const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 
 /**
  * W2-SIS-02: merge duplicate student into survivor.
  */
 export const MergeStudentsSchema = Type.Object({
   survivorId: Type.String({ pattern: UuidPattern, description: 'Canonical student UUID' }),
-  duplicateId: Type.String({ pattern: UuidPattern, description: 'Duplicate student UUID to retire' }),
-  reason: Type.String({ minLength: 1, maxLength: 500, description: 'Why these records are duplicates' }),
+  duplicateId: Type.String({
+    pattern: UuidPattern,
+    description: 'Duplicate student UUID to retire',
+  }),
+  reason: Type.String({
+    minLength: 1,
+    maxLength: 500,
+    description: 'Why these records are duplicates',
+  }),
 });
 export type MergeStudentsInput = Static<typeof MergeStudentsSchema>;
 

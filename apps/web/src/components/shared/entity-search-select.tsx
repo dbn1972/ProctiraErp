@@ -46,14 +46,20 @@ export function EntitySearchSelect({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return options.slice(0, 50);
-    return options
-      .filter((o) => {
-        const hay = `${o.label} ${o.searchText ?? ''} ${o.id}`.toLowerCase();
-        return hay.includes(q);
-      })
-      .slice(0, 50);
-  }, [options, query]);
+    const matched = !q
+      ? options.slice(0, 50)
+      : options
+          .filter((o) => {
+            const hay = `${o.label} ${o.searchText ?? ''} ${o.id}`.toLowerCase();
+            return hay.includes(q);
+          })
+          .slice(0, 50);
+    const selected = options.find((o) => o.id === value);
+    if (selected && !matched.some((o) => o.id === selected.id)) {
+      return [selected, ...matched].slice(0, 50);
+    }
+    return matched;
+  }, [options, query, value]);
 
   const selectedLabel = options.find((o) => o.id === value)?.label;
 

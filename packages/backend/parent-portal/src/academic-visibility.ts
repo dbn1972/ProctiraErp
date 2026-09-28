@@ -11,6 +11,15 @@ export const STUDENT_SELF_BINDING_ASSUMPTION =
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Parents and students see a grade only after it is published. */
+export function isParentVisibleGrade(input: {
+  workflowStatus?: string | null;
+  publishedAt?: string | null;
+}): boolean {
+  if (input.publishedAt) return true;
+  return input.workflowStatus === 'PUBLISHED';
+}
+
 export type AcademicSource = 'postgres' | 'none';
 
 export interface AcademicMeta {

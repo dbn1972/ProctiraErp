@@ -14,6 +14,8 @@ export async function scholarshipBrowserFetch<T>(
     json?: unknown;
     body?: BodyInit | null;
     headers?: HeadersInit;
+    /** Same-origin proxy root. Parent portal uses /api/parent-portal/scholarships. */
+    apiRoot?: string;
   } = {},
 ): Promise<T> {
   const relative = path.startsWith('/scholarships')
@@ -21,6 +23,7 @@ export async function scholarshipBrowserFetch<T>(
     : path.startsWith('/')
       ? path
       : `/${path}`;
+  const apiRoot = init.apiRoot ?? '/api/scholarships';
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   const csrfToken = readCsrfTokenFromDocument();
@@ -32,7 +35,7 @@ export async function scholarshipBrowserFetch<T>(
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`/api/scholarships${relative}`, {
+  const response = await fetch(`${apiRoot}${relative}`, {
     method: init.method ?? (body ? 'POST' : 'GET'),
     headers,
     body: body ?? null,

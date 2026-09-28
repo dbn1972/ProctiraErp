@@ -91,6 +91,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
   institutionInfrastructure: [
     'public.institution_infrastructure',
     'public.institution_condition_options',
+    'public.institution_repair_requests',
   ],
   library: [
     'public.library_items',

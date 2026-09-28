@@ -31,6 +31,8 @@ interface DocumentUploadSlotsProps {
   documents: UploadedScholarshipDocument[];
   onUploaded: (doc: UploadedScholarshipDocument) => void;
   onRemoved: (id: string) => void;
+  /** Same-origin API root. Defaults to the staff scholarship proxy. */
+  apiRoot?: string;
 }
 
 async function uploadWithProgress(
@@ -38,11 +40,12 @@ async function uploadWithProgress(
   documentType: string,
   file: File,
   onProgress: (pct: number) => void,
+  apiRoot: string,
 ): Promise<UploadedScholarshipDocument> {
   const body = new FormData();
   body.set('documentType', documentType);
   body.set('file', file, file.name);
-  const url = `/api/scholarships/applications/${applicationId}/documents`;
+  const url = `${apiRoot}/applications/${applicationId}/documents`;
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
@@ -86,6 +89,7 @@ function Slot({
   existing,
   onUploaded,
   onRemoved,
+  apiRoot,
 }: {
   applicationId: string;
   documentType: string;
@@ -93,6 +97,7 @@ function Slot({
   existing: UploadedScholarshipDocument | undefined;
   onUploaded: (doc: UploadedScholarshipDocument) => void;
   onRemoved: (id: string) => void;
+  apiRoot: string;
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -110,7 +115,13 @@ function Slot({
     setError(null);
     setProgress(0);
     try {
-      const uploaded = await uploadWithProgress(applicationId, documentType, file, setProgress);
+      const uploaded = await uploadWithProgress(
+        applicationId,
+        documentType,
+        file,
+        setProgress,
+        apiRoot,
+      );
       onUploaded(uploaded);
     } catch (err) {
       setError(err instanceof BrowserGatewayError ? err.message : 'Upload failed');
@@ -138,9 +149,10 @@ function Slot({
             className="ms-3 text-xs text-destructive underline"
             onClick={() => {
               void scholarshipBrowserFetch(
-                `/scholarships/applications/${applicationId}/documents/${existing.id}`,
+                `/applications/${applicationId}/documents/${existing.id}`,
                 {
                   method: 'DELETE',
+                  apiRoot,
                 },
               )
                 .then(() => onRemoved(existing.id))
@@ -216,6 +228,7 @@ export function DocumentUploadSlots({
   documents,
   onUploaded,
   onRemoved,
+  apiRoot = '/api/scholarships',
 }: DocumentUploadSlotsProps) {
   const slots = types.includes('other') ? types : [...types, 'other'];
   return (
@@ -229,6 +242,7 @@ export function DocumentUploadSlots({
           existing={documents.find((doc) => doc.documentType === type)}
           onUploaded={onUploaded}
           onRemoved={onRemoved}
+          apiRoot={apiRoot}
         />
       ))}
     </div>

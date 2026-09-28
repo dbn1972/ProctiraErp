@@ -125,6 +125,7 @@ import {
   isPgScholarshipEnabled,
   linkedStudentIdsForParent,
   scholarshipPlugin,
+  parentScholarshipPlugin,
 } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -843,11 +844,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         await seedScholarshipDemoData(repository);
       }
       const feesForScholarships = new FeesService(createFeesRepository());
+      const documentStore = isPgScholarshipEnabled() ? createScholarshipDocumentStore() : undefined;
+      const resolveLinkedStudentIds = isPgScholarshipEnabled()
+        ? linkedStudentIdsForParent
+        : undefined;
       await scope.register(scholarshipPlugin, {
         repository,
         prefix: '/scholarships',
-        documentStore: isPgScholarshipEnabled() ? createScholarshipDocumentStore() : undefined,
-        resolveLinkedStudentIds: isPgScholarshipEnabled() ? linkedStudentIdsForParent : undefined,
+        documentStore,
+        resolveLinkedStudentIds,
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
@@ -872,6 +877,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             );
           },
         },
+      });
+      await scope.register(parentScholarshipPlugin, {
+        repository,
+        prefix: '/parent-portal/scholarships',
+        documentStore,
+        resolveLinkedStudentIds,
       });
     },
   },

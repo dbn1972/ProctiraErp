@@ -12,6 +12,7 @@ import {
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { useHydrated } from '@/hooks/useHydrated';
 import { resolveEntityLabel } from '@/lib/entity-label';
+import { workflowPillClass } from '@/lib/gradebook/presentation';
 import {
   readGradeWorkflowStatus,
   type ClassRankSnapshot,
@@ -97,7 +98,7 @@ export function GradebookWorkflowPanel({
 
   const requestTransition = (ids: string[], action: GradeWorkflowAction) => {
     if (ids.length === 0) return;
-    if (action === 'publish' || action === 'lock' || action === 'approve') {
+    if (action === 'publish' || action === 'lock' || action === 'approve' || action === 'reopen') {
       setConfirmBulk({ action, ids });
       return;
     }
@@ -133,6 +134,10 @@ export function GradebookWorkflowPanel({
       data-testid="gradebook-workflow-panel"
       data-hydrated={hydrated ? 'true' : 'false'}
     >
+      <p className="text-sm text-muted-foreground">
+        Workflow: Draft → Submit → Approve → Lock → Publish. Parents and students only see Published
+        grades.
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
@@ -200,21 +205,27 @@ export function GradebookWorkflowPanel({
             ? `Publish ${confirmBulk.ids.length} grade ${confirmBulk.ids.length === 1 ? 'entry' : 'entries'}?`
             : confirmBulk?.action === 'lock'
               ? `Lock ${confirmBulk.ids.length} grade ${confirmBulk.ids.length === 1 ? 'entry' : 'entries'}?`
-              : `Approve ${confirmBulk?.ids.length ?? 0} grade ${(confirmBulk?.ids.length ?? 0) === 1 ? 'entry' : 'entries'}?`
+              : confirmBulk?.action === 'reopen'
+                ? `Unpublish ${confirmBulk.ids.length} grade ${confirmBulk.ids.length === 1 ? 'entry' : 'entries'}?`
+                : `Approve ${confirmBulk?.ids.length ?? 0} grade ${(confirmBulk?.ids.length ?? 0) === 1 ? 'entry' : 'entries'}?`
         }
         description={
           confirmBulk?.action === 'publish'
-            ? 'Publishing makes grades visible to parents and students and cannot be undone from this screen.'
-            : confirmBulk?.action === 'lock'
-              ? 'Locking prevents further edits until unlocked by a moderator workflow.'
-              : 'Approving advances these entries toward lock and publish.'
+            ? 'Publishing makes grades visible to parents and students. An authorised moderator can unpublish later; that change is audited.'
+            : confirmBulk?.action === 'reopen'
+              ? 'Unpublishing hides these grades from parents and students and returns them to draft. The change is written to the grade audit.'
+              : confirmBulk?.action === 'lock'
+                ? 'Locking prevents further edits until a moderator reopens the entry.'
+                : 'Approving advances these entries toward lock and publish.'
         }
         confirmLabel={
           confirmBulk?.action === 'publish'
             ? 'Publish'
-            : confirmBulk?.action === 'lock'
-              ? 'Lock'
-              : 'Approve'
+            : confirmBulk?.action === 'reopen'
+              ? 'Unpublish'
+              : confirmBulk?.action === 'lock'
+                ? 'Lock'
+                : 'Approve'
         }
         pending={pending}
         onConfirm={() => {
@@ -233,11 +244,15 @@ export function GradebookWorkflowPanel({
         </p>
       ) : null}
       {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-testid="gradebook-empty">
-          No grades entered for this section.
-        </p>
+        <div className="py-8 text-center" data-testid="gradebook-empty">
+          <p className="text-base font-semibold">No grades entered for this section</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Save the first grade above. Entries then move through Submit, Approve, Lock, and
+            Publish.
+          </p>
+        </div>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" id="gradebook-entries">
           <table
             className="w-full min-w-[52rem] text-start text-sm"
             data-testid="gradebook-entries"
@@ -287,7 +302,21 @@ export function GradebookWorkflowPanel({
                     <td className="py-2 pe-3 tabular-nums">{row.numericScore ?? '—'}</td>
                     <td className="py-2 pe-3">{row.letterGrade ?? '—'}</td>
                     <td className="py-2 pe-3 text-xs" data-testid={`workflow-${row.id}`}>
-                      {status}
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${workflowPillClass(status)}`}
+                      >
+                        {status === 'PUBLISHED'
+                          ? 'Published'
+                          : status === 'LOCKED'
+                            ? 'Locked'
+                            : status === 'APPROVED'
+                              ? 'Approved'
+                              : status === 'SUBMITTED'
+                                ? 'Submitted'
+                                : status === 'REJECTED'
+                                  ? 'Rejected'
+                                  : 'Draft'}
+                      </span>
                       {remark ? (
                         <span className="mt-0.5 block text-[11px] text-muted-foreground">
                           {remark}
@@ -317,6 +346,17 @@ export function GradebookWorkflowPanel({
                               : next === 'lock'
                                 ? 'Lock'
                                 : 'Publish'}
+                        </Button>
+                      ) : status === 'PUBLISHED' && canModerate ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={pending}
+                          data-testid={`transition-reopen-${row.id}`}
+                          onClick={() => requestTransition([row.id], 'reopen')}
+                        >
+                          Unpublish
                         </Button>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
@@ -358,7 +398,8 @@ function CommentsBankCard({
         data-hydrated={hydrated ? 'true' : 'false'}
         onSubmit={(event) => {
           event.preventDefault();
-          const fd = new FormData(event.currentTarget);
+          const form = event.currentTarget;
+          const fd = new FormData(form);
           setError(null);
           startTransition(async () => {
             const result = await createCommentsBankAction({
@@ -371,7 +412,7 @@ function CommentsBankCard({
               setError(result.error);
               return;
             }
-            event.currentTarget.reset();
+            form.reset();
             router.refresh();
           });
         }}

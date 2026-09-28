@@ -78,6 +78,7 @@ env:
     e2e/17c-module-a11y-smoke.spec.ts
     e2e/a11y-axe.spec.ts
     e2e/22-parent-portal-smoke.spec.ts
+    e2e/56-parent-scholarship-documents.spec.ts
     e2e/21c-campus-comms-write-smoke.spec.ts
     e2e/14c-insights-live-write-smoke.spec.ts
     e2e/16d-institutions-detail-live.spec.ts
@@ -109,6 +110,7 @@ env:
     e2e/52-staff-hr-write-smoke.spec.ts
     e2e/53-communication-circulars-write-smoke.spec.ts
     e2e/54-transport-ops-write-smoke.spec.ts
+    e2e/16e-institutions-tabs-live.spec.ts
   # Nightly: PR set + the remaining live write smokes.
   NIGHTLY_SPECS: >-
     e2e/08b-legal-pages.spec.ts
@@ -116,6 +118,7 @@ env:
     e2e/17c-module-a11y-smoke.spec.ts
     e2e/a11y-axe.spec.ts
     e2e/22-parent-portal-smoke.spec.ts
+    e2e/56-parent-scholarship-documents.spec.ts
     e2e/21c-campus-comms-write-smoke.spec.ts
     e2e/14c-insights-live-write-smoke.spec.ts
     e2e/16d-institutions-detail-live.spec.ts
@@ -147,6 +150,7 @@ env:
     e2e/52-staff-hr-write-smoke.spec.ts
     e2e/53-communication-circulars-write-smoke.spec.ts
     e2e/54-transport-ops-write-smoke.spec.ts
+    e2e/16e-institutions-tabs-live.spec.ts
     e2e/21d-campus-hostel-library-write-smoke.spec.ts
     e2e/15b-staff-write-validation-smoke.spec.ts
     e2e/15d-student-write-validation-smoke.spec.ts
@@ -243,6 +247,11 @@ jobs:
           # Same tenant FK posture as production; the harness seeds the E2E
           # tenant rows (tools/e2e/seed-e2e-tenants.sql) before the gateway starts.
           APPLY_STRICT_FKS: '1'
+
+      - name: Seed Sunrise Public School demo (institution detail tabs)
+        run: psql "$MIGRATOR_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/006_sunrise_public_school_demo.sql
+        env:
+          MIGRATOR_DATABASE_URL: ${{ env.MIGRATOR_DATABASE_URL }}
 
       - name: Multi-board 3×2×500 certification (G-408)
         run: |

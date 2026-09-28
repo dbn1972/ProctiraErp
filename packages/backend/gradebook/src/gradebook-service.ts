@@ -410,6 +410,7 @@ export class GradebookService {
     entryId: string,
     action: GradeWorkflowAction,
     user?: { id?: string; sub?: string },
+    reason?: string | null,
   ): Promise<GradeEntryEntity> {
     const entry = await this.repo.getGradeEntry(tenantId, entryId);
     if (!entry) {
@@ -419,6 +420,7 @@ export class GradebookService {
     const next = transitionGradeWorkflow(current, action);
     const now = nowIso();
     const published = next === 'PUBLISHED';
+    const trimmedReason = reason?.trim() ?? '';
     const metadata = {
       ...entry.metadata,
       workflowStatus: next,
@@ -426,6 +428,10 @@ export class GradebookService {
       lastWorkflowAt: now,
       lastWorkflowBy: actorId(user),
       published,
+      ...(action === 'reject' && trimmedReason
+        ? { remark: trimmedReason, rejectionReason: trimmedReason }
+        : {}),
+      ...(action === 'reopen' ? { published: false } : {}),
     };
     const lockedAt =
       next === 'LOCKED' || next === 'PUBLISHED'
