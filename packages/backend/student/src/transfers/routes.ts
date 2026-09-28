@@ -9,14 +9,10 @@ import {
   EquivalencyBodySchema,
   EquivalencyParamsSchema,
   EquivalencyQuerySchema,
-  type CreateTransferBody,
-  type DecisionBody,
-  type EquivalencyBody,
   type EquivalencyParams,
-  type EquivalencyQuery,
 } from './schemas.js';
-import type { TransferDecision } from './state-machine.js';
 import type { TransferWorkflowService } from './service.js';
+import type { TransferDecision } from './state-machine.js';
 
 function tenantIdOf(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
@@ -69,7 +65,7 @@ export async function registerTransferWorkflowRoutes(
       const created = await service.create(
         tenantId,
         actorFromRequest(request),
-        body.data as CreateTransferBody,
+        body.data,
       );
       return reply.status(201).send(created);
     } catch (error) {
@@ -99,7 +95,7 @@ export async function registerTransferWorkflowRoutes(
         await service.listEquivalency(
           tenantId,
           actorFromRequest(request),
-          query.data as EquivalencyQuery,
+          query.data,
         ),
       );
     } catch (error) {
@@ -128,7 +124,7 @@ export async function registerTransferWorkflowRoutes(
       const created = await service.createEquivalency(
         tenantId,
         actorFromRequest(request),
-        body.data as EquivalencyBody,
+        body.data,
       );
       return reply.status(201).send(created);
     } catch (error) {
@@ -249,7 +245,7 @@ export async function registerTransferWorkflowRoutes(
             request.params.transferId,
             actorFromRequest(request),
             route.decision,
-            (body.data as DecisionBody).comment,
+            body.data.comment,
           );
           return reply.send(view);
         } catch (error) {

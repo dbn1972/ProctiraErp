@@ -17,6 +17,9 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { actorFromRequest } from '../transfers/actor.js';
+import type { TransferWorkflowService } from '../transfers/service.js';
+
 import type {
   EnrollmentEntity,
   EnrollmentHistoryEntity,
@@ -24,8 +27,6 @@ import type {
   TransferRecordEntity,
 } from './enrollment-repository.js';
 import type { EnrollmentService } from './enrollment-service.js';
-import type { TransferWorkflowService } from '../transfers/service.js';
-import { actorFromRequest } from '../transfers/actor.js';
 import {
   CreateEnrollmentSchema,
   UpdateEnrollmentStatusSchema,

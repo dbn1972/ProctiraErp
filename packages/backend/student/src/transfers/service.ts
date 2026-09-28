@@ -1,6 +1,8 @@
 import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 
 import { convertMarks } from './marks.js';
+import type { MemoryTransferWorkflowStore } from './memory-store.js';
+import type { PgTransferWorkflowStore } from './pg-store.js';
 import {
   assertCanDecide,
   assertCanEditEquivalency,
@@ -11,8 +13,6 @@ import {
   type TransferDecision,
   type TransferWorkflowStatus,
 } from './state-machine.js';
-import type { MemoryTransferWorkflowStore } from './memory-store.js';
-import type { PgTransferWorkflowStore } from './pg-store.js';
 import type {
   CreateTransferInput,
   EquivalencyInput,

@@ -1,8 +1,7 @@
-import type { Pool } from 'pg';
-import { v4 as uuidv4 } from 'uuid';
-
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
+import type { Pool } from 'pg';
+import { v4 as uuidv4 } from 'uuid';
 
 import type { TransferActor, TransferDecision, TransferWorkflowStatus } from './state-machine.js';
 import type {

@@ -8,11 +8,15 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  InMemoryLifecycleCertificateRepository,
+  LifecycleCertificateService,
+  registerLifecycleCertificateRoutes,
+  type LifecycleCertificateRepository,
+} from './certificates/index.js';
 import { createEnrollmentRepository } from './enrollment/create-enrollment-repository.js';
 import type { EnrollmentRepository } from './enrollment/enrollment-repository.js';
 import { registerEnrollmentRoutes } from './enrollment/enrollment-routes.js';
-import { createTransferWorkflow } from './transfers/create-workflow.js';
-import { registerTransferWorkflowRoutes } from './transfers/routes.js';
 import { EnrollmentService } from './enrollment/enrollment-service.js';
 import { CoreRepositoryImportAdapter } from './import/core-repository-import-adapter.js';
 import { registerImportRoutes } from './import/import-routes.js';
@@ -28,12 +32,8 @@ import { createStudents360Store } from './students-360/create-store.js';
 import { registerStudents360Routes } from './students-360/routes.js';
 import { Students360Service, type AttendanceHeatmapSource } from './students-360/service.js';
 import type { Students360Store } from './students-360/store.js';
-import {
-  InMemoryLifecycleCertificateRepository,
-  LifecycleCertificateService,
-  registerLifecycleCertificateRoutes,
-  type LifecycleCertificateRepository,
-} from './certificates/index.js';
+import { createTransferWorkflow } from './transfers/create-workflow.js';
+import { registerTransferWorkflowRoutes } from './transfers/routes.js';
 
 /**
  * Options for the student plugin.
