@@ -38,13 +38,14 @@ See `SEC_INSTITUTIONS_DETAIL.md`.
 
 ## 6. CI / production gates
 
-Not run on the merge commit. Disposition: **OPEN** until CI Aggregate (Required) and the E2E backend-ready live gate finish on the PR.
+Required checks on #467 were red on Prettier for the change range. A format commit was pushed. Disposition: **OPEN** until CI Aggregate (Required) is green on that tip. Not claimed shipped.
 
 ## 7. Residual risks / waivers
 
-- Section breadcrumb still shortens the section UUID.
 - Bulk enroll still accepts a raw id if it is not in the loaded student options.
-- Grade 8 utilization exceeds 100% because the demo seed enrolls most generated students in Grade 8.
+- LKG is seeded with sections and zero students so the 1,240 total stays on Class 1–12.
+- The mobile shell does not render the desktop breadcrumb. School and section names resolve on desktop and tablet.
+- Production captures were taken with `next build` and `next start` (no Next dev badge), signed in as Priya Sharma. G-804 routes are unchanged; `16d` still references them.
 
 ## Done criteria
 
