@@ -18,7 +18,10 @@ import {
   postTransferDecision,
 } from '@/lib/api/dashboards';
 import { browserGatewayFetch } from '@/lib/api/browser-gateway';
-import type { CrossBoardTransferData, PendingTransferApproval } from '@/features/dashboards/api/types';
+import type {
+  CrossBoardTransferData,
+  PendingTransferApproval,
+} from '@/features/dashboards/api/types';
 
 import { transferPartyLabel } from './transfer-labels';
 
@@ -59,7 +62,10 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
     void load();
   }, [load]);
 
-  async function act(action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete', note?: string) {
+  async function act(
+    action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete',
+    note?: string,
+  ) {
     if (mode.kind !== 'detail') return;
     setBusy(true);
     setError(null);
@@ -76,7 +82,11 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
 
   if (loading) {
     return (
-      <div className="space-y-3 p-4 md:p-6" data-testid="transfer-workflow-loading" aria-busy="true">
+      <div
+        className="space-y-3 p-4 md:p-6"
+        data-testid="transfer-workflow-loading"
+        aria-busy="true"
+      >
         <div className="h-8 w-64 animate-pulse rounded bg-muted" />
         <div className="h-24 animate-pulse rounded bg-muted" />
       </div>
@@ -107,14 +117,17 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
         <header>
           <h1 className="text-2xl font-semibold">Pending transfer approvals</h1>
           <p className="text-sm text-muted-foreground">
-            Requesting registrars submit. Receiving principals approve. Tenant admins maintain equivalency.
+            Requesting registrars submit. Receiving principals approve. Tenant admins maintain
+            equivalency.
           </p>
         </header>
         {(pending?.length ?? 0) === 0 ? (
           <Card data-testid="transfer-pending-empty">
             <CardHeader>
               <CardTitle>No pending approvals</CardTitle>
-              <CardDescription>New submissions from a requesting school will appear here with names, not ids.</CardDescription>
+              <CardDescription>
+                New submissions from a requesting school will appear here with names, not ids.
+              </CardDescription>
             </CardHeader>
           </Card>
         ) : (
@@ -125,9 +138,14 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
                   {transferPartyLabel(row.studentId, row.studentName, 'Student')}
                 </Link>
                 <p className="text-sm text-muted-foreground">
-                  {transferPartyLabel(row.sourceInstitutionId, row.sourceInstitutionName, 'School')} →{' '}
-                  {transferPartyLabel(row.destinationInstitutionId, row.destinationInstitutionName, 'School')} ·{' '}
-                  {row.status}
+                  {transferPartyLabel(row.sourceInstitutionId, row.sourceInstitutionName, 'School')}{' '}
+                  →{' '}
+                  {transferPartyLabel(
+                    row.destinationInstitutionId,
+                    row.destinationInstitutionName,
+                    'School',
+                  )}{' '}
+                  · {row.status}
                 </p>
               </li>
             ))}
@@ -137,7 +155,8 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
           <CardHeader>
             <CardTitle>Grade equivalency</CardTitle>
             <CardDescription>
-              CBSE 100 to ICSE 100 stays the same. A state-board 80-mark internal scales by target/source. Bridge rows still need an exam.
+              CBSE 100 to ICSE 100 stays the same. A state-board 80-mark internal scales by
+              target/source. Bridge rows still need an exam.
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
@@ -233,7 +252,8 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
           <ol className="space-y-2">
             {transfer.timeline?.map((event) => (
               <li key={event.id}>
-                <span className="font-medium">{event.actorName}</span> {event.decision} → {event.toStatus}
+                <span className="font-medium">{event.actorName}</span> {event.decision} →{' '}
+                {event.toStatus}
                 {event.comment ? ` — ${event.comment}` : ''}
               </li>
             ))}
@@ -245,7 +265,9 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
           <CardTitle>Grade equivalency</CardTitle>
         </CardHeader>
         <CardContent className="overflow-x-auto">
-          {transfer.equivalency.length === 0 ? <p>No grade equivalency rules for this board pair.</p> : null}
+          {transfer.equivalency.length === 0 ? (
+            <p>No grade equivalency rules for this board pair.</p>
+          ) : null}
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left">
@@ -288,12 +310,22 @@ export function TransferWorkflowClient({ mode }: { mode: Mode }) {
           </Button>
         ) : null}
         {caps?.canReject ? (
-          <Button type="button" variant="outline" disabled={busy} onClick={() => setDialog('reject')}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => setDialog('reject')}
+          >
             Reject
           </Button>
         ) : null}
         {caps?.canCancel ? (
-          <Button type="button" variant="outline" disabled={busy} onClick={() => setDialog('cancel')}>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy}
+            onClick={() => setDialog('cancel')}
+          >
             Cancel transfer
           </Button>
         ) : null}
@@ -400,15 +432,31 @@ function EquivalencyForm({ onSaved }: { onSaved: () => void }) {
       ))}
       <label className="text-sm">
         Source marks max
-        <input name="sourceMarksMax" type="number" defaultValue={100} className="mt-1 w-full rounded border p-2" />
+        <input
+          name="sourceMarksMax"
+          type="number"
+          defaultValue={100}
+          className="mt-1 w-full rounded border p-2"
+        />
       </label>
       <label className="text-sm">
         Target marks max
-        <input name="targetMarksMax" type="number" defaultValue={100} className="mt-1 w-full rounded border p-2" />
+        <input
+          name="targetMarksMax"
+          type="number"
+          defaultValue={100}
+          className="mt-1 w-full rounded border p-2"
+        />
       </label>
       <label className="text-sm">
         Credit factor
-        <input name="creditFactor" type="number" step="0.01" defaultValue={1} className="mt-1 w-full rounded border p-2" />
+        <input
+          name="creditFactor"
+          type="number"
+          step="0.01"
+          defaultValue={1}
+          className="mt-1 w-full rounded border p-2"
+        />
       </label>
       <label className="text-sm">
         Status

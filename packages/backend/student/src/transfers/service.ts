@@ -1,8 +1,4 @@
-import {
-  BusinessRuleError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 
 import { convertMarks } from './marks.js';
 import {
@@ -163,7 +159,9 @@ export class TransferWorkflowService {
       sourceBoardId: row.sourceBoardId,
       targetBoardId: row.destinationBoardId,
     });
-    const usable = rules.some((rule) => rule.mappingStatus === 'mapped' || rule.mappingStatus === 'bridge');
+    const usable = rules.some(
+      (rule) => rule.mappingStatus === 'mapped' || rule.mappingStatus === 'bridge',
+    );
     if (!usable) {
       throw new BusinessRuleError(
         'Cross-board approval needs at least one mapped or bridge grade equivalency rule',
@@ -181,7 +179,10 @@ export class TransferWorkflowService {
     const source = schoolInScope(actor, row.sourceInstitutionId);
     const dest = schoolInScope(actor, row.destinationInstitutionId);
     if (!source && !dest) return false;
-    if (actor.roleIds.includes('registrar') && !actor.roleIds.some((role) => role !== 'registrar')) {
+    if (
+      actor.roleIds.includes('registrar') &&
+      !actor.roleIds.some((role) => role !== 'registrar')
+    ) {
       return source && (row.status === 'DRAFT' || row.status === 'SUBMITTED');
     }
     return true;

@@ -262,7 +262,10 @@ function ApprovalList({ approvals }: ApprovalListProps) {
       </CardHeader>
       <CardContent>
         {approvals.length === 0 ? (
-          <p className="text-sm text-[hsl(var(--muted-foreground))]" data-testid="cross-board-transfer-approvals-empty">
+          <p
+            className="text-sm text-[hsl(var(--muted-foreground))]"
+            data-testid="cross-board-transfer-approvals-empty"
+          >
             No approval steps recorded yet.
           </p>
         ) : null}
@@ -567,7 +570,9 @@ export default function CrossBoardTransferDashboard() {
           <Card data-testid="cross-board-transfer-pending-empty">
             <CardHeader>
               <CardTitle>No pending approvals</CardTitle>
-              <CardDescription>Submitted and in-review transfers will show student and school names here.</CardDescription>
+              <CardDescription>
+                Submitted and in-review transfers will show student and school names here.
+              </CardDescription>
             </CardHeader>
           </Card>
         ) : null}
@@ -581,7 +586,9 @@ export default function CrossBoardTransferDashboard() {
               );
               const source = resolveEntityLabel(
                 row.sourceInstitutionId,
-                row.sourceInstitutionName ? { [row.sourceInstitutionId]: row.sourceInstitutionName } : {},
+                row.sourceInstitutionName
+                  ? { [row.sourceInstitutionId]: row.sourceInstitutionName }
+                  : {},
                 'School',
               );
               const destination = resolveEntityLabel(
@@ -592,7 +599,11 @@ export default function CrossBoardTransferDashboard() {
                 'School',
               );
               return (
-                <li key={row.id} className="rounded-md border p-3" data-testid={`pending-transfer-${row.id}`}>
+                <li
+                  key={row.id}
+                  className="rounded-md border p-3"
+                  data-testid={`pending-transfer-${row.id}`}
+                >
                   <p className="font-medium">{student}</p>
                   <p className="text-sm text-[hsl(var(--muted-foreground))]">
                     {source} → {destination} · {row.status}
@@ -641,7 +652,7 @@ export default function CrossBoardTransferDashboard() {
   const activeStep = transfer.approvals.find((s) => s.status === 'current');
   const actionsEnabled = Boolean(
     transfer.capabilities?.canAct ||
-      (activeStep && transfer.currentApprover && transfer.currentApprover === activeStep.id),
+    (activeStep && transfer.currentApprover && transfer.currentApprover === activeStep.id),
   );
   const reload = async (
     action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete',
@@ -734,7 +745,9 @@ export default function CrossBoardTransferDashboard() {
                   <p className="text-sm font-medium">
                     {event.actorName} · {event.decision} · {event.toStatus}
                   </p>
-                  {event.comment ? <p className="text-sm text-[hsl(var(--muted-foreground))]">{event.comment}</p> : null}
+                  {event.comment ? (
+                    <p className="text-sm text-[hsl(var(--muted-foreground))]">{event.comment}</p>
+                  ) : null}
                 </li>
               ))}
             </ol>

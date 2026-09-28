@@ -47,12 +47,7 @@ function createTestConfig(): GatewayConfig {
   };
 }
 
-function bearer(
-  app: FastifyInstance,
-  roleId: string,
-  tenantId = TENANT_A,
-  institutionId?: string,
-) {
+function bearer(app: FastifyInstance, roleId: string, tenantId = TENANT_A, institutionId?: string) {
   return app.jwt.sign({
     sub: `${roleId}-user`,
     tenantId,
@@ -235,7 +230,11 @@ describe('cross-board transfer workflow authz', () => {
       method: 'POST',
       url: '/api/v1/transfers',
       headers: { authorization: `Bearer ${bearer(app, 'registrar', TENANT_A, SOURCE_SCHOOL)}` },
-      payload: { ...createBody(), studentName: 'Diya Sharma', sourceEnrollmentId: '00000000-0000-4000-8000-00000000d012' },
+      payload: {
+        ...createBody(),
+        studentName: 'Diya Sharma',
+        sourceEnrollmentId: '00000000-0000-4000-8000-00000000d012',
+      },
     });
     expect(second.statusCode).toBe(201);
     const rejectId = second.json().transferId as string;

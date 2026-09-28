@@ -28,7 +28,10 @@ export const TRANSFER_DECISIONS = [
 
 export type TransferDecision = (typeof TRANSFER_DECISIONS)[number];
 
-const TRANSITIONS: Record<TransferWorkflowStatus, Partial<Record<TransferDecision, TransferWorkflowStatus>>> = {
+const TRANSITIONS: Record<
+  TransferWorkflowStatus,
+  Partial<Record<TransferDecision, TransferWorkflowStatus>>
+> = {
   DRAFT: { SUBMIT: 'SUBMITTED', CANCEL: 'CANCELLED' },
   SUBMITTED: { START_REVIEW: 'UNDER_REVIEW', CANCEL: 'CANCELLED' },
   UNDER_REVIEW: { APPROVE: 'APPROVED', REJECT: 'REJECTED', CANCEL: 'CANCELLED' },
@@ -94,7 +97,9 @@ export function assertCanDecide(
 ): void {
   if (decision === 'SUBMIT') {
     if (!hasRole(actor, SOURCE_ROLES) || !schoolInScope(actor, sourceInstitutionId)) {
-      throw new ForbiddenError('Only the requesting registrar or principal can submit this transfer');
+      throw new ForbiddenError(
+        'Only the requesting registrar or principal can submit this transfer',
+      );
     }
     return;
   }

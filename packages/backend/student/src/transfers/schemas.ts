@@ -41,11 +41,7 @@ export const EquivalencyBodySchema = Type.Object({
   sourceMarksMax: Type.Number({ exclusiveMinimum: 0 }),
   targetMarksMax: Type.Number({ exclusiveMinimum: 0 }),
   creditFactor: Type.Number({ minimum: 0 }),
-  mappingStatus: Type.Union([
-    Type.Literal('mapped'),
-    Type.Literal('bridge'),
-    Type.Literal('na'),
-  ]),
+  mappingStatus: Type.Union([Type.Literal('mapped'), Type.Literal('bridge'), Type.Literal('na')]),
   notes: Type.Optional(Type.String({ maxLength: 500 })),
 });
 

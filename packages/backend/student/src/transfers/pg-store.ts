@@ -98,8 +98,7 @@ export class PgTransferWorkflowStore {
         [tenantId, input.sourceEnrollmentId],
       );
       const enrollment = source.rows[0] as
-        | { id: string; student_id: string; institution_id: string; status: string }
-        | undefined;
+        { id: string; student_id: string; institution_id: string; status: string } | undefined;
       if (!enrollment) throw new BusinessRuleError('Source enrollment was not found');
       if (String(enrollment.student_id) !== input.studentId) {
         throw new BusinessRuleError('Source enrollment does not belong to this student');
@@ -154,7 +153,9 @@ export class PgTransferWorkflowStore {
   }
 
   async get(tenantId: string, id: string): Promise<TransferWorkflowRow | null> {
-    return withPgTenant(this.pool, tenantId, async (client) => this.selectOne(client, tenantId, id));
+    return withPgTenant(this.pool, tenantId, async (client) =>
+      this.selectOne(client, tenantId, id),
+    );
   }
 
   async listOpen(tenantId: string): Promise<TransferWorkflowRow[]> {
@@ -216,7 +217,9 @@ export class PgTransferWorkflowStore {
       const current = locked.rows[0] as Record<string, unknown> | undefined;
       if (!current) throw new ConflictError('Transfer changed before the decision was saved');
       if (String(current.workflow_status) !== input.expected) {
-        throw new ConflictError(`Cannot ${input.decision} a transfer that is ${String(current.workflow_status)}`);
+        throw new ConflictError(
+          `Cannot ${input.decision} a transfer that is ${String(current.workflow_status)}`,
+        );
       }
 
       let destinationEnrollmentId = text(current.destination_enrollment_id);

@@ -41,14 +41,20 @@ describe('transfer state machine', () => {
 
 describe('convertMarks', () => {
   it('keeps CBSE 100 to ICSE 100 identity', () => {
-    expect(convertMarks({ sourceMarks: 87, sourceMax: 100, targetMax: 100, creditFactor: 1 })).toBe(87);
+    expect(convertMarks({ sourceMarks: 87, sourceMax: 100, targetMax: 100, creditFactor: 1 })).toBe(
+      87,
+    );
   });
 
   it('scales CBSE percentage onto a state-board 80-mark internal', () => {
-    expect(convertMarks({ sourceMarks: 75, sourceMax: 100, targetMax: 80, creditFactor: 1 })).toBe(60);
+    expect(convertMarks({ sourceMarks: 75, sourceMax: 100, targetMax: 80, creditFactor: 1 })).toBe(
+      60,
+    );
   });
 
   it('caps at the target scale', () => {
-    expect(convertMarks({ sourceMarks: 100, sourceMax: 100, targetMax: 80, creditFactor: 2 })).toBe(80);
+    expect(convertMarks({ sourceMarks: 100, sourceMax: 100, targetMax: 80, creditFactor: 2 })).toBe(
+      80,
+    );
   });
 });

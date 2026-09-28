@@ -77,15 +77,27 @@ describe('transfer workflow routes', () => {
     expect(created.json().studentName).toBe('Aarav Mehta');
     expect(created.json().approvals.length).toBeGreaterThan(0);
 
-    const submit = await app.inject({ method: 'POST', url: `/transfers/${id}/submit`, payload: {} });
+    const submit = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/submit`,
+      payload: {},
+    });
     expect(submit.statusCode).toBe(200);
     expect(submit.json().workflowStatus).toBe('SUBMITTED');
 
-    const review = await app.inject({ method: 'POST', url: `/transfers/${id}/review`, payload: {} });
+    const review = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/review`,
+      payload: {},
+    });
     expect(review.statusCode).toBe(200);
     expect(review.json().workflowStatus).toBe('UNDER_REVIEW');
 
-    const blocked = await app.inject({ method: 'POST', url: `/transfers/${id}/approve`, payload: {} });
+    const blocked = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/approve`,
+      payload: {},
+    });
     expect(blocked.statusCode).toBe(422);
 
     actor = user('registrar', SOURCE_SCHOOL);
@@ -135,13 +147,21 @@ describe('transfer workflow routes', () => {
     expect(approved.json().workflowStatus).toBe('APPROVED');
     expect(approved.json().equivalency[0].sourceSubject).toContain('Mathematics');
 
-    const completed = await app.inject({ method: 'POST', url: `/transfers/${id}/complete`, payload: {} });
+    const completed = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/complete`,
+      payload: {},
+    });
     expect(completed.statusCode).toBe(200);
     expect(completed.json().workflowStatus).toBe('COMPLETED');
     expect(completed.json().destinationEnrollmentId).toBeTruthy();
     expect(store.enrollmentStatus(TENANT_A, SOURCE_ENROLLMENT)).toBe('TRANSFERRED');
 
-    const again = await app.inject({ method: 'POST', url: `/transfers/${id}/complete`, payload: {} });
+    const again = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/complete`,
+      payload: {},
+    });
     expect(again.statusCode).toBe(409);
 
     const rejected = await app.inject({ method: 'POST', url: '/transfers', payload: createBody() });
@@ -161,7 +181,13 @@ describe('transfer workflow routes', () => {
     });
     expect(rejection.statusCode).toBe(200);
     expect(rejection.json().workflowStatus).toBe('REJECTED');
-    expect(rejection.json().timeline.some((event: { comment: string }) => event.comment.includes('No seat'))).toBe(true);
+    expect(
+      rejection
+        .json()
+        .timeline.some((event: { comment: string | null }) =>
+          String(event.comment ?? '').includes('No seat'),
+        ),
+    ).toBe(true);
   });
 
   it('hides another tenant transfer and blocks the source principal from approving', async () => {
@@ -169,7 +195,11 @@ describe('transfer workflow routes', () => {
     const id = created.json().transferId as string;
 
     tenantId = TENANT_B;
-    const hidden = await app.inject({ method: 'POST', url: `/transfers/${id}/submit`, payload: {} });
+    const hidden = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/submit`,
+      payload: {},
+    });
     expect(hidden.statusCode).toBe(404);
     const otherQueue = await app.inject({ method: 'GET', url: '/transfers/pending' });
     expect(JSON.stringify(otherQueue.json())).not.toContain('Aarav Mehta');
@@ -177,7 +207,11 @@ describe('transfer workflow routes', () => {
     tenantId = TENANT_A;
     actor = user('principal', SOURCE_SCHOOL);
     await app.inject({ method: 'POST', url: `/transfers/${id}/submit`, payload: {} });
-    const review = await app.inject({ method: 'POST', url: `/transfers/${id}/review`, payload: {} });
+    const review = await app.inject({
+      method: 'POST',
+      url: `/transfers/${id}/review`,
+      payload: {},
+    });
     expect(review.statusCode).toBe(403);
 
     actor = user('teacher');

@@ -26,7 +26,7 @@ interface MemoryEnrollment {
  */
 export class MemoryTransferWorkflowStore {
   private readonly rows = new Map<string, TransferWorkflowRow>();
-  private readonly events = new Map<string, TransferApprovalEvent[]>();
+  private readonly eventLog = new Map<string, TransferApprovalEvent[]>();
   private readonly rules: GradeEquivalencyRule[] = [];
   private readonly enrollments = new Map<string, MemoryEnrollment>();
 
@@ -126,7 +126,7 @@ export class MemoryTransferWorkflowStore {
   }
 
   async events(tenantId: string, transferId: string): Promise<TransferApprovalEvent[]> {
-    return [...(this.events.get(this.key(tenantId, transferId)) ?? [])];
+    return [...(this.eventLog.get(this.key(tenantId, transferId)) ?? [])];
   }
 
   async apply(input: {
@@ -168,9 +168,9 @@ export class MemoryTransferWorkflowStore {
       comment: input.comment,
       createdAt: updated.updatedAt,
     };
-    const list = this.events.get(this.key(input.tenantId, input.transferId)) ?? [];
+    const list = this.eventLog.get(this.key(input.tenantId, input.transferId)) ?? [];
     list.push(event);
-    this.events.set(this.key(input.tenantId, input.transferId), list);
+    this.eventLog.set(this.key(input.tenantId, input.transferId), list);
     return updated;
   }
 
@@ -196,7 +196,9 @@ export class MemoryTransferWorkflowStore {
     input: EquivalencyInput,
     id?: string,
   ): Promise<GradeEquivalencyRule> {
-    const existing = id ? this.rules.find((rule) => rule.id === id && rule.tenantId === tenantId) : undefined;
+    const existing = id
+      ? this.rules.find((rule) => rule.id === id && rule.tenantId === tenantId)
+      : undefined;
     if (id && !existing) {
       throw new NotFoundError('Equivalency rule not found');
     }
