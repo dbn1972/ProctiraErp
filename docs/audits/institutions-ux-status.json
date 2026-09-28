@@ -1,6 +1,6 @@
 {
-  "tip": "9a73e9e4",
-  "note": "LIVE evidence on tip: 16d + 16f passed with E2E_BACKEND_READY=1 against Sunrise seed; captures under docs/audits/captures/institutions-*/; axe institutions routes 14/14 passed.",
+  "tip": "297246d6",
+  "note": "LIVE evidence on tip 297246d6: 16d + 16f + reactivate passed with E2E_BACKEND_READY=1 after harness applies db/seeds/006; captures under docs/audits/captures/institutions-*/; axe institutions routes 14/14 passed.",
   "parity": {
     "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
     "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
