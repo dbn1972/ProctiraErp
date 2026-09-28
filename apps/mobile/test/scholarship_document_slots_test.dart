@@ -23,6 +23,15 @@ class _FakePicker implements ScholarshipFilePicker {
 const List<int> _jpeg = <int>[0xFF, 0xD8, 0xFF, 0xD9];
 
 void main() {
+  test('document upload is offered only when the download route exists', () {
+    expect(scholarshipDocumentUploadRoutePresent(401), isTrue);
+    expect(scholarshipDocumentUploadRoutePresent(400), isTrue);
+    expect(scholarshipDocumentUploadRoutePresent(200), isTrue);
+    expect(scholarshipDocumentUploadRoutePresent(404), isFalse);
+    expect(scholarshipDocumentUploadRoutePresent(502), isFalse);
+    expect(scholarshipDocumentUploadRoutePresent(null), isFalse);
+  });
+
   test('program JSON exposes required document types', () {
     final ScholarshipProgram program = ScholarshipProgram.fromJson(
       <String, dynamic>{

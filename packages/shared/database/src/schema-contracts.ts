@@ -167,6 +167,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
   scholarships: [
     'public.scholarship_programs',
     'public.scholarship_applications',
+    'public.scholarship_application_documents',
     'public.scholarship_disbursements',
     'public.scholarship_compliance_records',
   ],

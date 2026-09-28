@@ -26,6 +26,19 @@ const Map<String, String> scholarshipDocumentTypeLabels = <String, String>{
   'other': 'Other supporting document',
 };
 
+/// True when GET /scholarships/document-downloads is a real route.
+/// 401/400 means the signed-download route exists. 404 means this server
+/// has no document API yet, so the apply screen must not require uploads.
+bool scholarshipDocumentUploadRoutePresent(int? statusCode) {
+  if (statusCode == null) {
+    return false;
+  }
+  if (statusCode == 404 || statusCode >= 500) {
+    return false;
+  }
+  return true;
+}
+
 String scholarshipDocumentTypeLabel(String type) {
   return scholarshipDocumentTypeLabels[type] ?? type.replaceAll('_', ' ');
 }

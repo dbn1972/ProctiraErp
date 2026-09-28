@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gateway';
+import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -105,7 +105,7 @@ export default function ScholarshipPrograms() {
       if (search) params.set('search', search);
       if (statusFilter) params.set('status', statusFilter);
 
-      const result = await browserGatewayFetch<ProgramListResponse>(
+      const result = await scholarshipBrowserFetch<ProgramListResponse>(
         `/scholarships/programs?${params.toString()}`,
       );
       setPrograms(result.data);

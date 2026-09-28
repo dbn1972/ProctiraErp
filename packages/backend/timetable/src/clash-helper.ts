@@ -68,6 +68,7 @@ export function detectMeetingClashes(
         dayOfWeek: slot.dayOfWeek,
         periodId: slot.periodId,
         staffId: slot.staffId,
+        sectionId: slot.sectionId,
       });
     }
     if (slot.sectionId === candidate.sectionId) {
@@ -125,6 +126,7 @@ export function detectSubstituteClashes(input: {
       dayOfWeek,
       periodId,
       staffId: substituteStaffId,
+      sectionId: meeting.sectionId,
       date: substitutionDate,
     });
   }

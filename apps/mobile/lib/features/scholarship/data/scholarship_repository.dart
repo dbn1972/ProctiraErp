@@ -6,6 +6,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../../core/storage/database.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import 'scholarship_document_rules.dart';
 
 /// Scholarship program model.
 class ScholarshipProgram {
@@ -247,6 +248,19 @@ class ScholarshipRepository {
       return programs;
     } on DioException {
       return _getCachedPrograms(tenantId, openOnly: openOnly);
+    }
+  }
+
+  /// Whether this gateway exposes scholarship document upload.
+  /// A missing route is 404. The signed-download route answers 401 without a token.
+  Future<bool> scholarshipDocumentUploadsAvailable() async {
+    try {
+      final Response<dynamic> response = await _dio.get(
+        '/api/v1/scholarships/document-downloads',
+      );
+      return scholarshipDocumentUploadRoutePresent(response.statusCode);
+    } on DioException catch (error) {
+      return scholarshipDocumentUploadRoutePresent(error.response?.statusCode);
     }
   }
 

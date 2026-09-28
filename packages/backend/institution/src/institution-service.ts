@@ -9,14 +9,8 @@
  * - 5.3: Validate required fields, unique code, unique name within area
  * - 5.4: Return structured error response on validation failure
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-  EntityStatus,
-} from '@proctira/common';
-import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, EntityStatus } from '@proctira/common';
+import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -167,6 +161,41 @@ export class InstitutionService {
     const updated = await this.repository.update(id, tenantId, {
       status: EntityStatus.INACTIVE,
       deactivationReason: reason,
+    });
+
+    if (!updated) {
+      throw new NotFoundError(`Institution with id '${id}' not found`);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Reactivate an institution.
+   *
+   * Only INACTIVE → ACTIVE. An already-active institution is a state conflict
+   * (same family as a second deactivate). Clearing `deactivationReason` restores
+   * the school to pickers and enrollment: `EnrollmentService` rejects creates
+   * when status is not ACTIVE, and `isActive` is the shared guard. Deactivate
+   * does not cascade enrollments, staff, or attendance rows, so reactivate
+   * does not rewrite them.
+   *
+   * @throws NotFoundError if institution not found in this tenant
+   * @throws BusinessRuleError if institution is not inactive
+   */
+  async reactivate(tenantId: string, id: string): Promise<InstitutionEntity> {
+    const existing = await this.repository.findById(id, tenantId);
+    if (!existing) {
+      throw new NotFoundError(`Institution with id '${id}' not found`);
+    }
+
+    if (existing.status !== EntityStatus.INACTIVE) {
+      throw new BusinessRuleError('Institution is already active');
+    }
+
+    const updated = await this.repository.update(id, tenantId, {
+      status: EntityStatus.ACTIVE,
+      deactivationReason: null,
     });
 
     if (!updated) {

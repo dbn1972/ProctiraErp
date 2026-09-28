@@ -17,6 +17,7 @@ import {
   createGrade,
   createInstitution,
   deactivateInstitution,
+  reactivateInstitution,
   deleteAcademicPeriod,
   deleteCalendarEvent,
   rolloverAcademicPeriod,
@@ -135,6 +136,29 @@ export async function deactivateInstitutionAction(
     revalidatePath('/institutions');
     revalidatePath(`/institutions/${id}`);
     return { success: true, data: { id: institution.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function reactivateInstitutionAction(
+  id: string,
+  reason: string,
+): Promise<ActionResult<{ id: string; status: string }>> {
+  if (!reason || reason.trim().length === 0) {
+    return {
+      success: false,
+      error: 'A reactivation reason is required',
+      fieldErrors: [{ field: 'reason', message: 'A reactivation reason is required' }],
+    };
+  }
+
+  try {
+    const institution = await reactivateInstitution(id, reason.trim());
+    revalidatePath('/institutions');
+    revalidatePath(`/institutions/${id}`);
+    revalidatePath(`/institutions/${id}/overview`);
+    return { success: true, data: { id: institution.id, status: institution.status } };
   } catch (error) {
     return toActionError(error);
   }

@@ -5,6 +5,7 @@
  * - Typebox schema validation
  * - Unique code enforcement (global) and unique name within area
  * - Deactivation logic (set status inactive, prevent new enrollments/assignments)
+ * - Reactivation (INACTIVE → ACTIVE; clears the deactivation reason)
  * - Area hierarchy placement
  */
 
@@ -33,6 +34,7 @@ export {
   CreateInstitutionSchema,
   UpdateInstitutionSchema,
   DeactivateInstitutionSchema,
+  ReactivateInstitutionSchema,
   InstitutionListQuerySchema,
   InstitutionParamsSchema,
   InstitutionResponseSchema,
@@ -42,6 +44,7 @@ export type {
   CreateInstitutionInput,
   UpdateInstitutionInput,
   DeactivateInstitutionInput,
+  ReactivateInstitutionInput,
   InstitutionListQuery,
   InstitutionParams,
   InstitutionResponse,
