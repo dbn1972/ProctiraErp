@@ -7,8 +7,12 @@
 --
 -- Rollback: forward-fix only. Dropping the table would orphan object keys;
 -- a corrective migration should soft-delete rows (deleted_at) instead.
+--
+-- The supporting unique index is on the existing applications table, so it is
+-- built CONCURRENTLY (apply-sql.sh runs this file outside a transaction).
+-- A new empty table's own indexes stay ordinary CREATE INDEX.
 
-CREATE UNIQUE INDEX IF NOT EXISTS scholarship_applications_tenant_id_uidx
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS scholarship_applications_tenant_id_uidx
   ON scholarship_applications (tenant_id, id);
 
 CREATE TABLE IF NOT EXISTS scholarship_application_documents (

@@ -100,6 +100,7 @@ test.describe('Scholarship documents — live upload (E2E_BACKEND_READY)', () =>
       },
     );
     expect(marksheet.status(), await marksheet.text()).toBe(201);
+    const marksheetId = (await marksheet.json()).id as string;
 
     const submitted = await request.post(
       `${GATEWAY_URL}/api/v1/scholarships/applications/${applicationId}/submit`,
@@ -107,13 +108,37 @@ test.describe('Scholarship documents — live upload (E2E_BACKEND_READY)', () =>
     );
     expect(submitted.status(), await submitted.text()).toBe(200);
 
+    const download = await request.get(
+      `${GATEWAY_URL}/api/v1/scholarships/applications/${applicationId}/documents/${documentId}/download`,
+      { headers: headers() },
+    );
+    expect(download.status(), await download.text()).toBe(200);
+    const signed = (await download.json()) as { url: string; expiresAt: string };
+    expect(signed.expiresAt).toBeTruthy();
+    const signedUrl = signed.url.startsWith('http') ? signed.url : `${GATEWAY_URL}${signed.url}`;
+    const file = await request.get(signedUrl);
+    expect(file.status(), await file.text()).toBe(200);
+    expect(await file.body()).toContain('%PDF');
+
     await page.goto(`/scholarships/applications/${applicationId}`, {
       waitUntil: 'domcontentloaded',
     });
     await hydrated(page, 'scholarship-documents');
     await expect(page.getByText('Income certificate')).toBeVisible();
     await page.getByTestId(`document-verify-${documentId}`).click();
-    await expect(page.getByTestId(`scholarship-document-${documentId}`)).toContainText('VERIFIED');
+    await expect(page.getByTestId(`scholarship-document-${documentId}`)).toContainText('VERIFIED', {
+      timeout: 20_000,
+    });
+
+    await page.locator(`#reject-reason-${applicationId}`).fill('The marksheet scan is unreadable');
+    await page.getByTestId(`document-reject-${marksheetId}`).click();
+    await page.getByTestId('scholarship-document-reject-confirm').click();
+    await expect(page.getByTestId(`scholarship-document-${marksheetId}`)).toContainText('REJECTED', {
+      timeout: 20_000,
+    });
+    await expect(page.getByTestId(`scholarship-document-${marksheetId}`)).toContainText(
+      'unreadable',
+    );
   });
 });
 
