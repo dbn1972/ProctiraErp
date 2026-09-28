@@ -2,9 +2,10 @@
 environment: development
 
 image:
-  # W1-OPS-08 — canonical proctira/<service>; never mutable :latest.
-  # Deploy/CI must --set image.tag=sha-<gitsha> (or digest). Default is non-runnable.
-  repository: ghcr.io/proctira/api-gateway
+  # W1-OPS-08 — canonical <registry>/<owner>/proctira/<service>; never mutable :latest.
+  # deploy.yml and rollback.yml --set image.repository via tools/scripts/image-repository.sh.
+  # Default is non-runnable until that override and image.tag=sha-<gitsha> (or digest).
+  repository: ghcr.io/owner/proctira/api-gateway
   tag: sha-pending
   pullPolicy: IfNotPresent
 
