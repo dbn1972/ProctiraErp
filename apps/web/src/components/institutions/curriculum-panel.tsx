@@ -105,7 +105,7 @@ export function CurriculumPanel({
       data-testid="curriculum-panel"
       data-hydrated={hydrated ? 'true' : 'false'}
     >
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1.5 text-sm">
           <span className="font-medium">Subject</span>
           <select
@@ -154,16 +154,6 @@ export function CurriculumPanel({
             ))}
           </select>
         </label>
-        <div className="flex items-end">
-          <Button
-            type="button"
-            variant="secondary"
-            data-testid="curriculum-apply-scope"
-            onClick={() => pushScope(scope)}
-          >
-            Apply scope
-          </Button>
-        </div>
       </div>
 
       <div

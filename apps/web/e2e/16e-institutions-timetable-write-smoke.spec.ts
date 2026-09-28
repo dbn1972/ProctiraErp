@@ -6,6 +6,7 @@ import { expect, test } from '@playwright/test';
 
 import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
+import { cleanupSunriseE2E } from './helpers/sunrise-e2e-cleanup';
 
 const BACKEND_READY = process.env.E2E_BACKEND_READY === '1';
 const SUNRISE = '00000000-0000-4000-8000-00000000a501';
@@ -13,6 +14,9 @@ const MAYUR = '00000000-0000-4000-8000-00000000a551';
 
 test.describe('Institutions timetable — Sunrise live', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
+  test.afterAll(() => {
+    cleanupSunriseE2E();
+  });
 
   test.beforeEach(async ({ page }) => {
     await setupGatewayTenantSession(page, {

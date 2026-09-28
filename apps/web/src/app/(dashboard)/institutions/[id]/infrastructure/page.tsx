@@ -86,8 +86,8 @@ function InfraRow({
 }) {
   const repair = normCondition(condition) === 'repair';
   const mismatch =
-    childCapacity != null && childCapacity > 0 && childCapacity !== capacity
-      ? `Declared ${capacity.toLocaleString()} · parts total ${childCapacity.toLocaleString()}`
+    childCapacity != null && childCapacity > capacity
+      ? `Parts total ${childCapacity.toLocaleString()} exceeds declared ${capacity.toLocaleString()}`
       : null;
   return (
     <div
@@ -143,6 +143,32 @@ function repairTargets(hierarchy: InfrastructureHierarchy): Array<{ id: string; 
   return items;
 }
 
+function facilityNameMap(hierarchy: InfrastructureHierarchy): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const land of hierarchy.lands) {
+    names.set(land.id, land.name);
+    for (const building of land.buildings) {
+      names.set(building.id, building.name);
+      for (const floor of building.floors) {
+        names.set(floor.id, floor.name);
+        for (const room of floor.rooms) names.set(room.id, room.name);
+      }
+    }
+  }
+  return names;
+}
+
+function formatRepairDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  }).format(date);
+}
+
 function countRepairs(hierarchy: InfrastructureHierarchy): number {
   let n = 0;
   for (const land of hierarchy.lands) {
@@ -169,10 +195,15 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
     id: string;
     summary: string;
     infrastructureId: string;
+    status: string;
+    createdAt: string;
   }>(`/infrastructure/repair-requests?institutionId=${encodeURIComponent(params.id)}`, {
     method: 'GET',
     cache: 'no-store',
   });
+  const facilityNames = result.error
+    ? new Map<string, string>()
+    : facilityNameMap(result.hierarchy as InfrastructureHierarchy);
   const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
 
   return (
@@ -225,11 +256,31 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
               />
             ) : null}
             {repairsList.ok && repairsList.items.length > 0 ? (
-              <ul className="mt-2 space-y-1 text-sm" data-testid="repair-request-list">
-                {repairsList.items.map((row) => (
-                  <li key={row.id}>{row.summary}</li>
-                ))}
-              </ul>
+              <table
+                className="mt-3 w-full border-collapse text-start text-sm"
+                data-testid="repair-request-list"
+              >
+                <thead>
+                  <tr className="text-amber-900 dark:text-amber-200">
+                    <th className="py-1 pe-3 font-semibold">Facility</th>
+                    <th className="py-1 pe-3 font-semibold">Request</th>
+                    <th className="py-1 pe-3 font-semibold">Date</th>
+                    <th className="py-1 font-semibold">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {repairsList.items.map((row) => (
+                    <tr key={row.id} className="border-t border-amber-200/80 dark:border-amber-800">
+                      <td className="py-1 pe-3">
+                        {facilityNames.get(row.infrastructureId) ?? 'Unknown facility'}
+                      </td>
+                      <td className="py-1 pe-3">{row.summary}</td>
+                      <td className="py-1 pe-3 tabular-nums">{formatRepairDate(row.createdAt)}</td>
+                      <td className="py-1 capitalize">{row.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : null}
             {!repairsList.ok ? (
               <p className="mt-2 text-sm" role="alert" data-testid="repair-request-error">
