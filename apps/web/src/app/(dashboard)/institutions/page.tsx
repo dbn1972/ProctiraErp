@@ -42,6 +42,7 @@ import { loadInstitutionDirectory } from '@/lib/institutions/directory';
 import {
   INSTITUTION_LIST_ERROR,
   attendanceTone,
+  directoryAttendanceBand,
   institutionListSubtitle,
   rowMetrics,
   type DirectorySchoolMetrics,
@@ -117,6 +118,7 @@ function KpiCard({ icon: Icon, iconBg, label, value, foot }: KpiCardProps) {
 function AttendanceBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-sm text-muted-foreground">—</span>;
   const tone = attendanceTone(pct);
+  const band = directoryAttendanceBand(pct);
   const cls =
     tone === 'green' ? 'bg-emerald-500' : tone === 'amber' ? 'bg-amber-500' : 'bg-red-500';
   const textCls =
@@ -136,10 +138,13 @@ function AttendanceBar({ pct }: { pct: number | null }) {
           aria-valuenow={pct}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Attendance: ${pct}%`}
+          aria-label={`Attendance ${band}, ${pct}%`}
         />
       </div>
-      <span className={cn('text-xs font-semibold tabular-nums', textCls)}>{pct}%</span>
+      <span className={cn('text-xs font-semibold', textCls)}>
+        <span className="tabular-nums">{pct}%</span>
+        <span className="ms-1 font-medium">{band}</span>
+      </span>
     </div>
   );
 }
@@ -471,7 +476,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
             loadFailed
               ? '—'
               : directory.studentsEnrolled === null
-                ? 'Connect enrollment API for live data'
+                ? 'Enrollment totals are not available yet'
                 : 'Enrolled students across schools'
           }
         />
@@ -496,7 +501,7 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
             loadFailed
               ? '—'
               : directory.reportingToday === null
-                ? 'Connect reporting API for live data'
+                ? "Today's attendance reports are not available yet"
                 : `${directory.reportingToday.toLocaleString('en-IN')} schools recorded attendance today`
           }
         />

@@ -10,6 +10,8 @@
  * - "Back to list" ghost button in page-head actions
  * - max-w-[860px] Card + InstitutionForm kept 100% intact
  */
+export const dynamic = 'force-dynamic';
+
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
@@ -40,7 +42,7 @@ export default async function NewInstitutionPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Create a new school profile with its UDISE identity, location, and administration
-            details. It will appear on the district roster once approved.
+            details. The school is created active and appears on the institution list immediately.
           </p>
         </div>
         <div className="shrink-0">

@@ -13,6 +13,13 @@ export function attendanceTone(pct: number): AttendanceTone {
   return 'red';
 }
 
+/** Word for the same thresholds as attendanceTone. Colour never carries the band alone. */
+export function directoryAttendanceBand(pct: number): string {
+  if (pct >= 90) return 'On track';
+  if (pct >= 80) return 'Watch';
+  return 'Low';
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Human type chip. UUID catalogue ids without a name stay blank. */

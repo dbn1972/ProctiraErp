@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INSTITUTION_LIST_ERROR,
   attendanceTone,
+  directoryAttendanceBand,
   formatInstitutionSwitcher,
   formatPageLabel,
   formatShowingRange,
@@ -15,12 +16,15 @@ import {
 import { resolveLookupLabel } from './lookups';
 
 describe('institutions directory presentation', () => {
-  it('colours attendance by the design thresholds', () => {
+  it('colours attendance by the design thresholds and names the band', () => {
     expect(attendanceTone(94)).toBe('green');
     expect(attendanceTone(90)).toBe('green');
     expect(attendanceTone(88)).toBe('amber');
     expect(attendanceTone(80)).toBe('amber');
     expect(attendanceTone(76)).toBe('red');
+    expect(directoryAttendanceBand(94)).toBe('On track');
+    expect(directoryAttendanceBand(80)).toBe('Watch');
+    expect(directoryAttendanceBand(76)).toBe('Low');
   });
 
   it('shows em dashes for inactive schools even when counts exist', () => {

@@ -4,7 +4,7 @@
 > Gate: `apps/web/src/app/page-regression-matrix.test.ts` fails when any page lacks an e2e reference.
 
 - App Router pages: **208**
-- Playwright specs: **94**
+- Playwright specs: **95**
 - Pages without any e2e reference: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -108,11 +108,11 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/hostel/mess` | a11y, dark, functional, touch | `49-hostel-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/structure` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/visitors` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/institutions` | a11y, dark, functional, smoke, touch, visual | `01-login-and-create-student.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`16b-institutions-directory-ui.spec.ts`<br>`16c-institutions-directory-live.spec.ts`<br>`16d-institutions-reactivate-live.spec.ts`<br>`24-visual-regression.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/institutions/[id]` | a11y, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/institutions` | a11y, dark, functional, smoke, touch, visual | `01-login-and-create-student.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`16b-institutions-directory-ui.spec.ts`<br>`16c-institutions-directory-live.spec.ts`<br>`16d-institutions-reactivate-live.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`24-visual-regression.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/institutions/[id]` | a11y, functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/institutions/[id]/classes` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16d-institutions-detail-live.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
 | `/institutions/[id]/curriculum` | functional, smoke | `16e-institutions-tabs-live.spec.ts`<br>`43-curriculum-coverage-write-smoke.spec.ts` |
-| `/institutions/[id]/edit` | smoke | `16-institutions-inventory-smoke.spec.ts` |
+| `/institutions/[id]/edit` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts` |
 | `/institutions/[id]/gradebook` | functional, smoke | `16e-institutions-tabs-live.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts`<br>`42-gradebook-workflow-write-smoke.spec.ts` |
 | `/institutions/[id]/gradebook/report-cards/[jobId]` | smoke | `16e-institutions-tabs-live.spec.ts` |
 | `/institutions/[id]/grades` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16d-institutions-detail-live.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
@@ -124,7 +124,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/institutions/[id]/timetable` | functional, smoke | `16e-institutions-timetable-write-smoke.spec.ts`<br>`22-timetable-inventory-smoke.spec.ts` |
 | `/institutions/[id]/timetable/generate` | dark, functional, touch | `16e-institutions-timetable-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/[id]/timetable/substitutions` | dark, functional, touch | `16e-institutions-timetable-write-smoke.spec.ts`<br>`50-timetable-generation-write-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/institutions/new` | smoke | `16-institutions-inventory-smoke.spec.ts` |
+| `/institutions/new` | a11y, functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`16f-institutions-profile-write.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/library` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/library/[id]` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/library/circulation` | a11y, dark, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`48-library-ops-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |

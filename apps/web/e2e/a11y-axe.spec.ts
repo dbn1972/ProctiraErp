@@ -292,6 +292,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/timetable/substitutions',
     '/schedule',
     '/infrastructure',
+    '/edit',
   ] as const) {
     const path = `/institutions/${E2E_INSTITUTION_ID}${suffix}`;
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
@@ -312,6 +313,15 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
       await runAxe(page, { checkpointLabel: path });
     });
   }
+
+  test('/institutions/new is WCAG 2.1 AA clean', async ({ page }) => {
+    await setupGatewayTenantSession(page);
+    await page.goto('/institutions/new', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { name: /register institution/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await runAxe(page, { checkpointLabel: '/institutions/new' });
+  });
 
   test('institutions list is WCAG 2.1 AA clean', async ({ page }) => {
     await setupGatewayTenantSession(page);

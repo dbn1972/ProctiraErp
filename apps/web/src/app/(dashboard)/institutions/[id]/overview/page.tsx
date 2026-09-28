@@ -30,7 +30,11 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { ApiClientError, getInstitution, getInstitutionOverview } from '@/lib/institutions/api';
+import { ApiClientError } from '@/lib/institutions/api';
+import {
+  getCachedInstitution,
+  getCachedInstitutionOverview,
+} from '@/lib/institutions/request-cache';
 import { loadAreaOptions, loadTypeOptions, resolveLookupLabel } from '@/lib/institutions/lookups';
 
 interface OverviewPageProps {
@@ -245,10 +249,20 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 
 export default async function InstitutionOverviewPage(props: OverviewPageProps) {
   const params = await props.params;
-  const [institutionResult, areas, types] = await Promise.all([
-    getInstitution(params.id).catch(() => null),
+  const [institutionResult, areas, types, snapshotResult] = await Promise.all([
+    getCachedInstitution(params.id).catch(() => null),
     loadAreaOptions(),
     loadTypeOptions(),
+    getCachedInstitutionOverview(params.id).then(
+      (snapshot) => ({ snapshot, error: null as string | null }),
+      (error: unknown) => ({
+        snapshot: null,
+        error:
+          error instanceof ApiClientError
+            ? error.message
+            : 'Institution details are currently unavailable.',
+      }),
+    ),
   ]);
 
   // Layout already soft-fails when the gateway is down; mirror that here so
@@ -267,14 +281,8 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
   const typeName = resolveLookupLabel(types, institution.typeId);
   const retryHref = `/institutions/${institution.id}/overview`;
 
-  let overviewError: string | null = null;
-  const snapshot = await getInstitutionOverview(institution.id).catch((error: unknown) => {
-    overviewError =
-      error instanceof ApiClientError
-        ? error.message
-        : 'Institution details are currently unavailable.';
-    return null;
-  });
+  const overviewError = snapshotResult.error;
+  const snapshot = snapshotResult.snapshot;
 
   const studentCount = snapshot?.studentsAvailable ? snapshot.students : null;
   const staffCount = snapshot?.staffAvailable ? snapshot.staff : null;
@@ -387,7 +395,11 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
                 </FactRow>
                 {areaName && <FactRow label="Block">{areaName}</FactRow>}
                 {typeName && <FactRow label="Type">{typeName}</FactRow>}
-                {medium && <FactRow label="Medium">{medium}</FactRow>}
+                {medium && (
+                  <FactRow label="Medium">
+                    {medium.toLowerCase().includes('medium') ? medium : `${medium} medium`}
+                  </FactRow>
+                )}
                 {established && <FactRow label="Established">{established}</FactRow>}
                 {shift && <FactRow label="Shift">{shift}</FactRow>}
                 {headmaster && <FactRow label="Headmaster">{headmaster}</FactRow>}
