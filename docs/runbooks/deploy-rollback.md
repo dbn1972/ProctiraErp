@@ -10,11 +10,11 @@ canary/Flagger/Argo path in this repo. Do not claim live canary proof from tip C
 
 ## 1. What “atomic” means here
 
-| Path | Atomic behaviour |
-| ---- | ---------------- |
-| Deploy (`deploy.yml`) | `helm upgrade --install … --atomic --wait --timeout 300s` — failed release **auto-rolls back** to the prior successful revision |
-| Manual rollback → prior revision | `helm rollback proctira-<svc> <rev>` (revision `0` = previous) — one Helm release transaction + `kubectl rollout status` |
-| Manual rollback → known-good tag | `helm upgrade … --atomic --wait` to a previous image tag |
+| Path                             | Atomic behaviour                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy (`deploy.yml`)            | `helm upgrade --install … --atomic --wait --timeout 300s` — failed release **auto-rolls back** to the prior successful revision |
+| Manual rollback → prior revision | `helm rollback proctira-<svc> <rev>` (revision `0` = previous) — one Helm release transaction + `kubectl rollout status`        |
+| Manual rollback → known-good tag | `helm upgrade … --atomic --wait` to a previous image tag                                                                        |
 
 Single-wave progressive baseline (chart default):
 
@@ -28,13 +28,13 @@ Single-wave progressive baseline (chart default):
 
 GitHub Actions → **Actions → Rollback** (`.github/workflows/rollback.yml`):
 
-| Input | Guidance |
-| ----- | -------- |
-| `environment` | `staging` or `production` (GitHub Environment protection applies) |
-| `services` | Comma-separated chart services, e.g. `api-gateway,web` |
-| `revision` | Helm revision (`0` = previous successful). Ignored if `image_tag` set |
-| `image_tag` | Optional known-good tag; uses `--atomic --wait` instead of `helm rollback` |
-| `dry_run` | **Defaults to `true`** (fail-closed / plan-only). Set `false` only to apply |
+| Input         | Guidance                                                                    |
+| ------------- | --------------------------------------------------------------------------- |
+| `environment` | `staging` or `production` (GitHub Environment protection applies)           |
+| `services`    | Comma-separated chart services, e.g. `api-gateway,web`                      |
+| `revision`    | Helm revision (`0` = previous successful). Ignored if `image_tag` set       |
+| `image_tag`   | Optional known-good tag; uses `--atomic --wait` instead of `helm rollback`  |
+| `dry_run`     | **Defaults to `true`** (fail-closed / plan-only). Set `false` only to apply |
 
 Dry-run prints the exact Helm commands and exits 0 without cluster access.
 
@@ -81,11 +81,11 @@ helm upgrade --install "$RELEASE" ./infrastructure/helm/proctira-service \
 
 ## 4. When **not** to use image rollback alone
 
-| Situation | Prefer |
-| --------- | ------ |
-| App regression, schema unchanged | This runbook (Helm revision / prior tag) |
-| Bad migration / data shape | [database-migration-rollback](./database-migration-rollback.md) first |
-| Provider outage (IdP / PSP / SMTP) | Kill switch / sandbox honesty — not Helm rollback |
+| Situation                          | Prefer                                                                |
+| ---------------------------------- | --------------------------------------------------------------------- |
+| App regression, schema unchanged   | This runbook (Helm revision / prior tag)                              |
+| Bad migration / data shape         | [database-migration-rollback](./database-migration-rollback.md) first |
+| Provider outage (IdP / PSP / SMTP) | Kill switch / sandbox honesty — not Helm rollback                     |
 
 ---
 
