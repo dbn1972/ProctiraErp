@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -120,12 +120,45 @@ export function InstitutionForm({
   } = form;
 
   const leaveHref = initialValue ? `/institutions/${initialValue.id}/overview` : '/institutions';
+  const formRef = useRef<HTMLFormElement | null>(null);
   const formIsDirty = isDirty || hasUnsavedChanges || readWindowDirty(formKey);
   const isDirtyRef = useRef(formIsDirty);
   isDirtyRef.current = formIsDirty;
 
+  const markDirty = () => {
+    writeWindowDirty(formKey, true);
+    isDirtyRef.current = true;
+    formRef.current?.setAttribute('data-dirty', 'true');
+    setHasUnsavedChanges(true);
+  };
+
+  const clearDirty = () => {
+    writeWindowDirty(formKey, false);
+    isDirtyRef.current = false;
+    formRef.current?.setAttribute('data-dirty', 'false');
+    setHasUnsavedChanges(false);
+  };
+
+  useLayoutEffect(() => {
+    if (readWindowDirty(formKey)) {
+      formRef.current?.setAttribute('data-dirty', 'true');
+      setHasUnsavedChanges(true);
+    }
+    const formEl = formRef.current;
+    // Native capture listeners — React synthetic onInput can miss Playwright's
+    // dispatched Events in the production Next build used by CI.
+    const onNativeEdit = () => {
+      markDirty();
+    };
+    formEl?.addEventListener('input', onNativeEdit, true);
+    formEl?.addEventListener('change', onNativeEdit, true);
+    return () => {
+      formEl?.removeEventListener('input', onNativeEdit, true);
+      formEl?.removeEventListener('change', onNativeEdit, true);
+    };
+  }, [formKey]);
+
   useEffect(() => {
-    if (readWindowDirty(formKey)) setHasUnsavedChanges(true);
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       if (!isDirtyRef.current) return;
       event.preventDefault();
@@ -152,7 +185,7 @@ export function InstitutionForm({
       window.removeEventListener('beforeunload', onBeforeUnload);
       document.removeEventListener('click', onClick, true);
     };
-  }, [formKey]);
+  }, []);
 
   const areaId = watch('areaId');
   const typeId = watch('typeId');
@@ -161,16 +194,6 @@ export function InstitutionForm({
   const latitude = watch('latitude');
   const longitude = watch('longitude');
   const mapHref = coordinateMapPreview(latitude, longitude);
-
-  const markDirty = () => {
-    writeWindowDirty(formKey, true);
-    setHasUnsavedChanges(true);
-  };
-
-  const clearDirty = () => {
-    writeWindowDirty(formKey, false);
-    setHasUnsavedChanges(false);
-  };
 
   const selectValue = (field: 'areaId' | 'typeId' | 'sectorId' | 'ownershipId', value: string) => {
     setValue(field, value, { shouldValidate: true, shouldDirty: true });
@@ -217,11 +240,10 @@ export function InstitutionForm({
   return (
     <div className="space-y-8" data-dirty={formIsDirty ? 'true' : 'false'}>
       <form
+        ref={formRef}
         onSubmit={(event) => {
           void onSubmit(event);
         }}
-        onInput={markDirty}
-        onChange={markDirty}
         className="space-y-8"
         data-testid="institution-profile-form"
         data-dirty={formIsDirty ? 'true' : 'false'}

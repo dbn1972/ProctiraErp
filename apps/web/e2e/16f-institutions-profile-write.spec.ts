@@ -121,14 +121,15 @@ test.describe('Institutions profile forms — Sunrise live', () => {
 
     const editedName = `${name} edited`;
     const nameField = page.getByLabel('Name');
-    await nameField.click();
-    await fillReactInput(nameField, editedName);
-    await expect(nameField).toHaveValue(editedName);
-    await expect(page.getByTestId('institution-profile-form')).toHaveAttribute(
-      'data-dirty',
-      'true',
-      { timeout: 10_000 },
-    );
+    const profileForm = page.getByTestId('institution-profile-form');
+    await expect(profileForm).toBeVisible();
+    // Retry: production hydration can attach native dirty listeners a tick late.
+    await expect(async () => {
+      await nameField.click();
+      await fillReactInput(nameField, editedName);
+      await expect(nameField).toHaveValue(editedName);
+      await expect(profileForm).toHaveAttribute('data-dirty', 'true');
+    }).toPass({ timeout: 15_000 });
 
     page.once('dialog', async (dialog) => {
       expect(dialog.message()).toMatch(/unsaved changes/i);
