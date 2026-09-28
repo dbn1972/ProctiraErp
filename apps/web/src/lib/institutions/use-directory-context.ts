@@ -6,6 +6,7 @@ export interface DirectoryContextSnapshot {
   organizationName: string | null;
   boardLabel: string | null;
   studentsEnrolled: number | null;
+  schools: Record<string, { studentCount: number | null }>;
 }
 
 /**
@@ -28,7 +29,15 @@ export function useDirectoryContext(): DirectoryContextSnapshot | null {
           return;
         }
         const payload = (await response.json()) as DirectoryContextSnapshot;
-        if (!cancelled) setDirectory(payload);
+        if (!cancelled) {
+          setDirectory({
+            organizationName: payload.organizationName ?? null,
+            boardLabel: payload.boardLabel ?? null,
+            studentsEnrolled:
+              typeof payload.studentsEnrolled === 'number' ? payload.studentsEnrolled : null,
+            schools: payload.schools ?? {},
+          });
+        }
       } catch {
         if (!cancelled) setDirectory(null);
       }

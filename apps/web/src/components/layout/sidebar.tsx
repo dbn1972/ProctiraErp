@@ -8,10 +8,12 @@ import { useAuth } from '@/providers/AuthProvider';
 
 import { filterNavItemsByAccess, type NavPermissionItem } from './nav-permissions';
 import {
+  formatInstitutionSwitcher,
   formatTenantSwitcher,
   initialsFromName,
   navGroupLabel,
 } from '@/lib/institutions/directory-presentation';
+import { useInstitutionScope } from '@/lib/institutions/institution-scope';
 import { useOptionalBrand } from '@/providers/BrandConfigProvider';
 import { useDirectoryContext } from '@/lib/institutions/use-directory-context';
 
@@ -205,14 +207,25 @@ export function Sidebar() {
   const { user, status } = useAuth();
   const brand = useOptionalBrand();
   const directory = useDirectoryContext();
+  const institutionScope = useInstitutionScope();
 
   const organizationName =
     directory?.organizationName?.trim() || brand?.name?.trim() || 'Organization';
-  const switcher = formatTenantSwitcher({
-    organizationName,
-    boardLabel: directory?.boardLabel ?? null,
-    studentCount: directory?.studentsEnrolled ?? null,
-  });
+  const schoolCount = institutionScope
+    ? (directory?.schools?.[institutionScope.id]?.studentCount ?? null)
+    : null;
+  const switcher = institutionScope
+    ? formatInstitutionSwitcher({
+        organizationName,
+        boardLabel: directory?.boardLabel ?? null,
+        areaLabel: institutionScope.areaLabel,
+        studentCount: schoolCount,
+      })
+    : formatTenantSwitcher({
+        organizationName,
+        boardLabel: directory?.boardLabel ?? null,
+        studentCount: directory?.studentsEnrolled ?? null,
+      });
 
   const visibleItems = filterNavItemsByAccess(
     navItems.map((item) =>
