@@ -20,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { utilizationLabel, utilizationWidth } from '@/lib/institutions/utilization';
 import { cn } from '@/lib/utils';
 import { utilizationBand } from '@/lib/status-label';
 import { AddGradeDialog } from '@/components/institutions/academics-create-dialogs';
@@ -55,15 +56,17 @@ function UtilizationBar({ pct }: { pct: number }) {
       <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
         <div
           className={cn('h-full rounded-full', cls)}
-          style={{ width: `${Math.min(100, pct)}%` }}
+          style={{ width: `${utilizationWidth(pct)}%` }}
           role="progressbar"
-          aria-valuenow={pct}
+          aria-valuenow={Math.min(100, pct)}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label={`Utilization ${band}, ${pct}%`}
+          aria-label={
+            pct > 100 ? 'Utilization over capacity' : `Utilization ${band}, ${pct}%`
+          }
         />
       </div>
-      <span className={cn('text-xs font-bold tabular-nums', textCls)}>{pct}%</span>
+      <span className={cn('text-xs font-bold tabular-nums', textCls)}>{utilizationLabel(pct)}</span>
     </div>
   );
 }

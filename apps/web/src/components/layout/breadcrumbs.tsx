@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 import { InstitutionBreadcrumbLabel } from '@/components/layout/institution-breadcrumb-label';
+import { SectionBreadcrumbLabel } from '@/components/layout/section-breadcrumb-label';
 
 /**
  * Breadcrumb navigation component.
@@ -28,8 +29,9 @@ export function Breadcrumbs() {
     const isLast = index === segments.length - 1;
     const previousSegment = index > 0 ? segments[index - 1] : undefined;
     const isInstitutionId = previousSegment === 'institutions' && UUID_SEGMENT.test(segment);
+    const isSectionId = previousSegment === 'schedule' && UUID_SEGMENT.test(segment);
 
-    return { href, label, isLast, segment, isInstitutionId };
+    return { href, label, isLast, segment, isInstitutionId, isSectionId };
   });
 
   return (
@@ -56,6 +58,8 @@ export function Breadcrumbs() {
                     institutionId={crumb.segment}
                     fallbackLabel={crumb.label}
                   />
+                ) : crumb.isSectionId ? (
+                  <SectionBreadcrumbLabel sectionId={crumb.segment} fallbackLabel={crumb.label} />
                 ) : (
                   crumb.label
                 )}
@@ -70,6 +74,8 @@ export function Breadcrumbs() {
                     institutionId={crumb.segment}
                     fallbackLabel={crumb.label}
                   />
+                ) : crumb.isSectionId ? (
+                  <SectionBreadcrumbLabel sectionId={crumb.segment} fallbackLabel={crumb.label} />
                 ) : (
                   crumb.label
                 )}

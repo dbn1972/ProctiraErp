@@ -13,6 +13,17 @@ export function dayLabel(dayOfWeek: number): string {
   return DAYS[dayOfWeek] ?? `Day ${dayOfWeek}`;
 }
 
+export function formatPeriodWhen(
+  name: string,
+  startTime?: string | null,
+  endTime?: string | null,
+): string {
+  const start = startTime?.slice(0, 5);
+  const end = endTime?.slice(0, 5);
+  if (!start || !end) return name;
+  return `${name} (${start}–${end})`;
+}
+
 export function conflictReasonLabel(reason: string): string {
   return REASONS[reason] ?? reason;
 }

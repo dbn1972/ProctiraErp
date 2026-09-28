@@ -1129,6 +1129,382 @@ WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
   AND teacher_staff_id = '00000000-0000-4000-8000-00000000a592'
   AND room_id IS NULL;
 
+-- Mayur Vihar catalogue, homerooms, and master schedule shaped like the
+-- approved prototype. Idempotent: fixed ids, ON CONFLICT, and UPDATEs.
+
+UPDATE grades
+SET name = 'Class 8', code = '8', "order" = 8, updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a541';
+UPDATE grades
+SET name = 'Class 9', code = '9', "order" = 9, updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a542';
+UPDATE grades
+SET name = 'Class 10', code = '10', "order" = 10, updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a543';
+
+INSERT INTO grades (id, tenant_id, name, code, "order")
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-grade-' || spec.code),
+  '00000000-0000-4000-8000-00000000a501',
+  spec.name,
+  spec.code,
+  spec.ord
+FROM (
+  VALUES
+    ('LKG', 'LKG', 0),
+    ('1', 'Class 1', 1),
+    ('2', 'Class 2', 2),
+    ('3', 'Class 3', 3),
+    ('4', 'Class 4', 4),
+    ('5', 'Class 5', 5),
+    ('6', 'Class 6', 6),
+    ('7', 'Class 7', 7),
+    ('11', 'Class 11', 11),
+    ('12', 'Class 12', 12)
+) AS spec(code, name, ord)
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name, code = EXCLUDED.code, "order" = EXCLUDED."order", updated_at = now();
+
+INSERT INTO staff (id, tenant_id, first_name, last_name, date_of_birth, identity_number, custom_data)
+VALUES
+  ('00000000-0000-4000-8000-00000000a594', '00000000-0000-4000-8000-00000000a501', 'Arun', 'Kapoor', DATE '1984-02-11', 'SPS-CT-9C', '{"__profile":{"position":"Class teacher","status":"ACTIVE"}}'::jsonb),
+  ('00000000-0000-4000-8000-00000000a595', '00000000-0000-4000-8000-00000000a501', 'Meera', 'Iyer', DATE '1986-05-21', 'SPS-CT-10A', '{"__profile":{"position":"Class teacher","status":"ACTIVE"}}'::jsonb),
+  ('00000000-0000-4000-8000-00000000a596', '00000000-0000-4000-8000-00000000a501', 'Rahul', 'Joshi', DATE '1983-09-09', 'SPS-CT-10B', '{"__profile":{"position":"Class teacher","status":"ACTIVE"}}'::jsonb),
+  ('00000000-0000-4000-8000-00000000a597', '00000000-0000-4000-8000-00000000a501', 'Kavita', 'Nair', DATE '1987-01-30', 'SPS-CT-11A', '{"__profile":{"position":"Class teacher","status":"ACTIVE"}}'::jsonb)
+ON CONFLICT (id) DO UPDATE
+SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, updated_at = now();
+
+-- Named homerooms keep their original ids so existing attendance rows still join.
+UPDATE classes
+SET grade_id = '00000000-0000-4000-8000-00000000a542',
+    name = 'A',
+    capacity = 40,
+    class_teacher_staff_id = '00000000-0000-4000-8000-00000000a593',
+    room_name = 'Room 201',
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a561';
+UPDATE classes
+SET grade_id = '00000000-0000-4000-8000-00000000a542',
+    name = 'B',
+    capacity = 40,
+    class_teacher_staff_id = '00000000-0000-4000-8000-00000000a593',
+    room_name = 'Room 202',
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a562';
+UPDATE classes
+SET grade_id = '00000000-0000-4000-8000-00000000a543',
+    name = 'A',
+    capacity = 42,
+    class_teacher_staff_id = '00000000-0000-4000-8000-00000000a595',
+    room_name = 'Room 301',
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a563';
+
+INSERT INTO classes (
+  id, tenant_id, institution_id, grade_id, academic_period_id, name, capacity,
+  class_teacher_staff_id, room_name
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-class-mv-' || spec.code || '-' || spec.letter),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a551',
+  g.id,
+  '00000000-0000-4000-8000-00000000a531',
+  spec.letter,
+  spec.capacity,
+  spec.teacher,
+  spec.room
+FROM (
+  VALUES
+    ('LKG', 'A', 40, NULL::uuid, NULL::text),
+    ('LKG', 'B', 40, NULL, NULL),
+    ('1', 'A', 40, NULL, NULL),
+    ('1', 'B', 40, NULL, NULL),
+    ('1', 'C', 40, NULL, NULL),
+    ('2', 'A', 40, NULL, NULL),
+    ('2', 'B', 40, NULL, NULL),
+    ('2', 'C', 40, NULL, NULL),
+    ('3', 'A', 40, NULL, NULL),
+    ('3', 'B', 40, NULL, NULL),
+    ('3', 'C', 40, NULL, NULL),
+    ('4', 'A', 40, NULL, NULL),
+    ('4', 'B', 40, NULL, NULL),
+    ('4', 'C', 40, NULL, NULL),
+    ('5', 'A', 40, NULL, NULL),
+    ('5', 'B', 40, NULL, NULL),
+    ('5', 'C', 40, NULL, NULL),
+    ('6', 'A', 40, NULL, NULL),
+    ('6', 'B', 40, NULL, NULL),
+    ('6', 'C', 40, NULL, NULL),
+    ('7', 'A', 40, NULL, NULL),
+    ('7', 'B', 40, NULL, NULL),
+    ('7', 'C', 40, NULL, NULL),
+    ('8', 'A', 40, NULL, NULL),
+    ('8', 'B', 40, NULL, NULL),
+    ('8', 'C', 40, NULL, NULL),
+    ('9', 'C', 40, '00000000-0000-4000-8000-00000000a594'::uuid, 'Room 203'),
+    ('9', 'D', 40, NULL, NULL),
+    ('10', 'B', 42, '00000000-0000-4000-8000-00000000a596'::uuid, 'Room 302'),
+    ('10', 'C', 40, NULL, NULL),
+    ('11', 'A (Science)', 36, '00000000-0000-4000-8000-00000000a597'::uuid, 'Lab block L1'),
+    ('11', 'B', 48, NULL, NULL),
+    ('12', 'A (Commerce)', 34, '00000000-0000-4000-8000-00000000a591'::uuid, 'Room 401'),
+    ('12', 'B', 40, NULL, NULL)
+) AS spec(code, letter, capacity, teacher, room)
+JOIN grades g
+  ON g.tenant_id = '00000000-0000-4000-8000-00000000a501'
+ AND g.code = spec.code
+ON CONFLICT (id) DO UPDATE
+SET grade_id = EXCLUDED.grade_id,
+    name = EXCLUDED.name,
+    capacity = EXCLUDED.capacity,
+    class_teacher_staff_id = EXCLUDED.class_teacher_staff_id,
+    room_name = EXCLUDED.room_name,
+    updated_at = now();
+
+WITH mayur AS (
+  SELECT id, row_number() OVER (ORDER BY student_id) AS n
+  FROM enrollments
+  WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
+    AND institution_id = '00000000-0000-4000-8000-00000000a551'
+    AND status = 'ENROLLED'
+),
+bands AS (
+  SELECT
+    spec.code,
+    spec.n_students,
+    spec.n_sections,
+    SUM(spec.n_students) OVER (ORDER BY spec.ord) AS hi,
+    SUM(spec.n_students) OVER (ORDER BY spec.ord) - spec.n_students AS lo
+  FROM (
+    VALUES
+      ('1', 96, 3, 1),
+      ('2', 102, 3, 2),
+      ('3', 98, 3, 3),
+      ('4', 104, 3, 4),
+      ('5', 110, 3, 5),
+      ('6', 118, 3, 6),
+      ('7', 112, 3, 7),
+      ('8', 108, 3, 8),
+      ('9', 124, 4, 9),
+      ('10', 116, 3, 10),
+      ('11', 82, 2, 11),
+      ('12', 70, 2, 12)
+  ) AS spec(code, n_students, n_sections, ord)
+),
+picked AS (
+  SELECT
+    m.id,
+    g.id AS grade_id,
+    CASE
+      WHEN b.code = '11' AND ((m.n - b.lo - 1) % b.n_sections) = 0 THEN 'A (Science)'
+      WHEN b.code = '12' AND ((m.n - b.lo - 1) % b.n_sections) = 0 THEN 'A (Commerce)'
+      ELSE CHR((65 + ((m.n - b.lo - 1) % b.n_sections))::int)
+    END AS section_name
+  FROM mayur m
+  JOIN bands b ON m.n > b.lo AND m.n <= b.hi
+  JOIN grades g
+    ON g.tenant_id = '00000000-0000-4000-8000-00000000a501'
+   AND g.code = b.code
+)
+UPDATE enrollments e
+SET grade_id = picked.grade_id,
+    class_id = c.id,
+    updated_at = now()
+FROM picked
+JOIN classes c
+  ON c.tenant_id = '00000000-0000-4000-8000-00000000a501'
+ AND c.institution_id = '00000000-0000-4000-8000-00000000a551'
+ AND c.grade_id = picked.grade_id
+ AND c.name = picked.section_name
+ AND c.deleted_at IS NULL
+WHERE e.id = picked.id;
+
+UPDATE student_attendance a
+SET class_id = e.class_id
+FROM enrollments e
+WHERE a.tenant_id = e.tenant_id
+  AND a.student_id = e.student_id
+  AND a.institution_id = e.institution_id
+  AND e.institution_id = '00000000-0000-4000-8000-00000000a551'
+  AND a.class_id IS DISTINCT FROM e.class_id;
+
+UPDATE bell_periods bp
+SET start_time = spec.start_time,
+    end_time = spec.end_time,
+    name = 'Period ' || spec.n::text,
+    updated_at = now()
+FROM (
+  VALUES
+    (1, TIME '07:40', TIME '08:20'),
+    (2, TIME '08:30', TIME '09:10'),
+    (3, TIME '09:20', TIME '10:00'),
+    (4, TIME '10:20', TIME '11:00'),
+    (5, TIME '11:10', TIME '11:50'),
+    (6, TIME '12:00', TIME '12:40')
+) AS spec(n, start_time, end_time)
+WHERE bp.id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-' || spec.n::text);
+
+UPDATE rooms
+SET code = spec.code, name = spec.name, updated_at = now()
+FROM (
+  VALUES
+    (1, 'R201', 'Room 201'),
+    (2, 'R202', 'Room 202'),
+    (3, 'R203', 'Room 203'),
+    (4, 'R301', 'Room 301'),
+    (5, 'R302', 'Room 302'),
+    (6, 'R401', 'Room 401'),
+    (7, 'R105', 'Room 105'),
+    (8, 'L1', 'Physics lab')
+) AS spec(n, code, name)
+WHERE rooms.id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-' || spec.n::text);
+
+UPDATE sections
+SET code = 'G8C-HIN',
+    name = 'Class 8-C Hindi',
+    grade_id = '00000000-0000-4000-8000-00000000a541',
+    status = 'ARCHIVED',
+    capacity = 40,
+    default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-7'),
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a571';
+
+UPDATE sections
+SET code = 'G9B-MATH',
+    name = 'Class 9-B Mathematics',
+    grade_id = '00000000-0000-4000-8000-00000000a542',
+    status = 'PUBLISHED',
+    capacity = 40,
+    primary_teacher_id = '00000000-0000-4000-8000-00000000a593',
+    default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-2'),
+    published_at = COALESCE(published_at, TIMESTAMPTZ '2026-09-24 11:00:00+05:30'),
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a572';
+
+UPDATE sections
+SET code = 'G10A-ENG',
+    name = 'Class 10-A English',
+    grade_id = '00000000-0000-4000-8000-00000000a543',
+    status = 'DRAFT',
+    capacity = 42,
+    primary_teacher_id = '00000000-0000-4000-8000-00000000a595',
+    default_room_id = NULL,
+    published_at = NULL,
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a573';
+
+UPDATE sections
+SET name = 'Class 9-B Science',
+    code = 'G9B-SCI',
+    status = 'DRAFT',
+    default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'),
+    primary_teacher_id = '00000000-0000-4000-8000-00000000a593',
+    updated_at = now()
+WHERE id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci');
+
+INSERT INTO sections (
+  id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
+  primary_teacher_id, default_room_id, capacity, status, published_at
+)
+VALUES
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'),
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a551',
+    '00000000-0000-4000-8000-00000000a531',
+    '00000000-0000-4000-8000-00000000a542',
+    'G9A-MATH',
+    'Class 9-A Mathematics',
+    '00000000-0000-4000-8000-00000000a593',
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-1'),
+    40,
+    'PUBLISHED',
+    TIMESTAMPTZ '2026-09-24 11:00:00+05:30'
+  ),
+  (
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g11a-phy'),
+    '00000000-0000-4000-8000-00000000a501',
+    '00000000-0000-4000-8000-00000000a551',
+    '00000000-0000-4000-8000-00000000a531',
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-grade-11'),
+    'G11A-PHY',
+    'Class 11-A Physics',
+    '00000000-0000-4000-8000-00000000a597',
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-8'),
+    36,
+    'PUBLISHED',
+    TIMESTAMPTZ '2026-09-24 11:00:00+05:30'
+  )
+ON CONFLICT (id) DO UPDATE
+SET code = EXCLUDED.code,
+    name = EXCLUDED.name,
+    status = EXCLUDED.status,
+    default_room_id = EXCLUDED.default_room_id,
+    primary_teacher_id = EXCLUDED.primary_teacher_id,
+    capacity = EXCLUDED.capacity,
+    grade_id = EXCLUDED.grade_id,
+    updated_at = now();
+
+DELETE FROM section_meetings
+WHERE tenant_id = '00000000-0000-4000-8000-00000000a501'
+  AND section_id IN (
+    '00000000-0000-4000-8000-00000000a571',
+    '00000000-0000-4000-8000-00000000a572',
+    '00000000-0000-4000-8000-00000000a573',
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9b-sci'),
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'),
+    uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g11a-phy')
+  );
+
+INSERT INTO section_meetings (
+  id, tenant_id, section_id, bell_period_id, day_of_week, room_id, teacher_staff_id, status
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-mtg-v2-' || spec.key),
+  '00000000-0000-4000-8000-00000000a501',
+  spec.section_id,
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-period-mv-' || spec.period::text),
+  spec.day,
+  CASE
+    WHEN spec.room_n IS NULL THEN NULL
+    ELSE uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-' || spec.room_n::text)
+  END,
+  spec.teacher,
+  'active'
+FROM (
+  VALUES
+    ('g9b-mon', '00000000-0000-4000-8000-00000000a572'::uuid, 1, 3, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-tue', '00000000-0000-4000-8000-00000000a572'::uuid, 2, 1, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-wed', '00000000-0000-4000-8000-00000000a572'::uuid, 3, 4, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-thu', '00000000-0000-4000-8000-00000000a572'::uuid, 4, 2, NULL::int, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9b-fri', '00000000-0000-4000-8000-00000000a572'::uuid, 5, 6, 2, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9a-mon', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 1, 3, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g9a-wed', uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-section-g9a-math'), 3, 5, 1, '00000000-0000-4000-8000-00000000a593'::uuid),
+    ('g10-wed', '00000000-0000-4000-8000-00000000a573'::uuid, 3, 5, 1, '00000000-0000-4000-8000-00000000a595'::uuid)
+) AS spec(key, section_id, day, period, room_n, teacher)
+ON CONFLICT (section_id, bell_period_id, day_of_week) DO NOTHING;
+
+INSERT INTO section_enrollments (id, tenant_id, section_id, student_id, status, enrolled_at)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-roster-g9b-' || spec.student_id::text),
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a572',
+  spec.student_id,
+  spec.status,
+  spec.enrolled_at
+FROM (
+  VALUES
+    ('00000000-0000-4000-8000-00000000a5b1'::uuid, 'ENROLLED', DATE '2026-04-01'),
+    ('00000000-0000-4000-8000-00000000a5b2'::uuid, 'ENROLLED', DATE '2026-04-01'),
+    ('00000000-0000-4000-8000-00000000a5b3'::uuid, 'ENROLLED', DATE '2026-04-01'),
+    ('00000000-0000-4000-8000-00000000a5b4'::uuid, 'ENROLLED', DATE '2026-04-03'),
+    ('00000000-0000-4000-8000-00000000a5b5'::uuid, 'WITHDRAWN', DATE '2026-04-01')
+) AS spec(student_id, status, enrolled_at)
+ON CONFLICT (section_id, student_id) DO UPDATE
+SET status = EXCLUDED.status, enrolled_at = EXCLUDED.enrolled_at, updated_at = now();
+
+
 INSERT INTO audit_log_entries (
   id, tenant_id, entity_type, entity_id, operation, user_id, user_name,
   ip_address, occurred_at, metadata

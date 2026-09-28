@@ -13,7 +13,7 @@ import { listAcademicPeriods } from '@/lib/institutions/api';
 import { getStaff, listStaff } from '@/lib/api/staff';
 import { listBellSchedules, listPeriods, listRooms, listScheduleConflicts, listSections } from '@/lib/api/timetable';
 import { formatPersonLabel } from '@/lib/entity-label';
-import { conflictReasonLabel, formatScheduleConflict } from '@/lib/timetable/conflict-label';
+import { conflictReasonLabel, formatPeriodWhen, formatScheduleConflict } from '@/lib/timetable/conflict-label';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,7 +72,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
     const periods = await listPeriods(schedule.id);
     if (!periods.ok) continue;
     for (const period of periods.data) {
-      periodLabel.set(period.id, `${schedule.name} · ${period.name}`);
+      periodLabel.set(period.id, formatPeriodWhen(period.name, period.startTime, period.endTime));
     }
   }
   const sectionLabel = new Map(sections.map((section) => [section.id, section.name]));
