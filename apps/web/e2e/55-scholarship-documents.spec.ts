@@ -118,7 +118,7 @@ test.describe('Scholarship documents — live upload (E2E_BACKEND_READY)', () =>
     const signedUrl = signed.url.startsWith('http') ? signed.url : `${GATEWAY_URL}${signed.url}`;
     const file = await request.get(signedUrl);
     expect(file.status(), await file.text()).toBe(200);
-    expect(await file.body()).toContain('%PDF');
+    expect((await file.body()).toString('utf8')).toContain('%PDF');
 
     await page.goto(`/scholarships/applications/${applicationId}`, {
       waitUntil: 'domcontentloaded',
