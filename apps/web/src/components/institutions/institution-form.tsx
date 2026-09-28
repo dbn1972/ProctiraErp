@@ -131,6 +131,8 @@ export function InstitutionForm({
     formRef.current?.setAttribute('data-dirty', 'true');
     setHasUnsavedChanges(true);
   };
+  const markDirtyRef = useRef(markDirty);
+  markDirtyRef.current = markDirty;
 
   const clearDirty = () => {
     writeWindowDirty(formKey, false);
@@ -148,7 +150,7 @@ export function InstitutionForm({
     // Native capture listeners — React synthetic onInput can miss Playwright's
     // dispatched Events in the production Next build used by CI.
     const onNativeEdit = () => {
-      markDirty();
+      markDirtyRef.current();
     };
     formEl?.addEventListener('input', onNativeEdit, true);
     formEl?.addEventListener('change', onNativeEdit, true);
