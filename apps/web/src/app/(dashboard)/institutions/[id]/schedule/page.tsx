@@ -61,7 +61,9 @@ export default async function InstitutionSchedulePage(props: PageProps) {
       ? roomsResult.error
       : null;
 
-  const sections = sectionsResult.ok ? sectionsResult.data : [];
+  const sections = (sectionsResult.ok ? sectionsResult.data : [])
+    .slice()
+    .sort((a, b) => a.code.localeCompare(b.code));
   const rooms = roomsResult.ok ? roomsResult.data : [];
   const conflicts = conflictsResult.ok ? conflictsResult.data : [];
   const roomOptions = rooms.map((r) => ({
@@ -73,7 +75,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
   const staffLabel = new Map(
     (staffResult?.data ?? []).map((person) => [
       person.id,
-      formatPersonLabel(person.firstName, person.lastName, person.position),
+      formatPersonLabel(person.firstName, person.lastName),
     ]),
   );
   const periodLabel = new Map<string, string>();
@@ -90,10 +92,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
     if (conflict.staffId && !staffLabel.has(conflict.staffId)) {
       const person = await getStaff(conflict.staffId).catch(() => null);
       if (person) {
-        staffLabel.set(
-          person.id,
-          formatPersonLabel(person.firstName, person.lastName, person.position),
-        );
+        staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
       }
     }
   }
@@ -198,7 +197,7 @@ export default async function InstitutionSchedulePage(props: PageProps) {
                           <td className="px-4 py-3">
                             <Link
                               href={`/institutions/${institutionId}/schedule/${section.id}`}
-                              className="font-medium text-foreground underline-offset-4 hover:underline"
+                              className="font-medium text-primary underline underline-offset-4"
                             >
                               {section.name}
                             </Link>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Pencil } from 'lucide-react';
 
 import {
@@ -23,6 +23,7 @@ export function ClassPeriodFilter(props: {
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <label className="flex items-center gap-2 text-sm">
@@ -33,7 +34,7 @@ export function ClassPeriodFilter(props: {
         aria-label="Academic period"
         data-testid="class-period-filter"
         onChange={(event) => {
-          const params = new URLSearchParams();
+          const params = new URLSearchParams(searchParams.toString());
           if (event.target.value) params.set('period', event.target.value);
           const query = params.toString();
           router.push(query ? `${pathname}?${query}` : pathname);
@@ -43,6 +44,49 @@ export function ClassPeriodFilter(props: {
         {props.periods.map((period) => (
           <option key={period.id} value={period.id}>
             {period.name} · {period.status}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function ClassGradeFilter(props: {
+  grades: { id: string; code: string; name: string; order: number }[];
+  value: string;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const grades = props.grades.slice().sort((a, b) => {
+    const rank = (grade: { code: string; order: number }) =>
+      grade.code === 'LKG'
+        ? -1
+        : Number.isFinite(Number(grade.code))
+          ? Number(grade.code)
+          : grade.order;
+    return rank(a) - rank(b);
+  });
+
+  return (
+    <label className="flex items-center gap-2 text-sm">
+      <span className="text-muted-foreground">Grade</span>
+      <select
+        className="h-10 min-h-11 rounded-md border border-input bg-background px-3 text-sm"
+        value={props.value}
+        aria-label="Grade"
+        data-testid="class-grade-filter"
+        onChange={(event) => {
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('grade', event.target.value);
+          router.push(`${pathname}?${params.toString()}`);
+        }}
+      >
+        <option value="senior">Classes 9–12</option>
+        <option value="all">All grades</option>
+        {grades.map((grade) => (
+          <option key={grade.id} value={grade.id}>
+            {grade.name}
           </option>
         ))}
       </select>

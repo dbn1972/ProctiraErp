@@ -58,7 +58,8 @@ export function SectionPublishControls(props: {
       <Button
         type="button"
         size="sm"
-        variant={isPublished ? 'outline' : 'default'}
+        variant="outline"
+        className="h-8 px-2.5 text-xs"
         disabled={pending}
         onClick={() => {
           if (isPublished) {
@@ -68,7 +69,7 @@ export function SectionPublishControls(props: {
           run(false);
         }}
       >
-        {pending ? 'Working…' : isPublished ? 'Unpublish to draft' : 'Publish schedule'}
+        {pending ? 'Working…' : isPublished ? 'Unpublish' : 'Publish'}
       </Button>
       <ConfirmActionDialog
         open={confirmOpen}
@@ -130,6 +131,7 @@ export function SectionEnrollForm(props: {
           placeholder="Search by name or admission no."
           options={props.studentOptions ?? []}
           required
+          presentation="combobox"
         />
       </div>
       <Button type="submit" size="sm" disabled={pending}>

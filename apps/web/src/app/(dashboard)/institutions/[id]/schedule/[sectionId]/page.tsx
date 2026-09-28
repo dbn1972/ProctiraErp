@@ -123,19 +123,13 @@ export default async function SectionRosterPage(props: PageProps) {
     });
   }
   const staffLabel = new Map(
-    (staffResult.data ?? []).map((s) => [
-      s.id,
-      formatPersonLabel(s.firstName, s.lastName, s.position),
-    ]),
+    (staffResult.data ?? []).map((s) => [s.id, formatPersonLabel(s.firstName, s.lastName)]),
   );
   for (const meeting of meetings) {
     if (!meeting.staffId || staffLabel.has(meeting.staffId)) continue;
     const person = await getStaff(meeting.staffId).catch(() => null);
     if (person) {
-      staffLabel.set(
-        person.id,
-        formatPersonLabel(person.firstName, person.lastName, person.position),
-      );
+      staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
     }
   }
   const roomLabel = new Map(
@@ -240,16 +234,18 @@ export default async function SectionRosterPage(props: PageProps) {
               {active.length} / {section.capacity} enrolled
             </p>
           </div>
-          <SectionEnrollForm
-            institutionId={institutionId}
-            sectionId={section.id}
-            studentOptions={studentOptions}
-          />
-          <SectionBulkEnrollForm
-            institutionId={institutionId}
-            sectionId={section.id}
-            studentOptions={studentOptions}
-          />
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <SectionEnrollForm
+              institutionId={institutionId}
+              sectionId={section.id}
+              studentOptions={studentOptions}
+            />
+            <SectionBulkEnrollForm
+              institutionId={institutionId}
+              sectionId={section.id}
+              studentOptions={studentOptions}
+            />
+          </div>
           {enrollments.length === 0 ? (
             <p className="text-sm text-muted-foreground">No enrollments yet.</p>
           ) : (

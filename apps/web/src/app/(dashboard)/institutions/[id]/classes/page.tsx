@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { AddClassSectionDialog } from '@/components/institutions/academics-create-dialogs';
 import {
   AssignClassSectionButton,
+  ClassGradeFilter,
   ClassPeriodFilter,
 } from '@/components/institutions/class-section-controls';
 import { listStaff } from '@/lib/api/staff';
@@ -39,7 +40,7 @@ import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/typ
 
 interface ClassesPageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ period?: string }>;
+  searchParams?: Promise<{ period?: string; grade?: string }>;
 }
 
 interface ClassesData {
@@ -55,10 +56,31 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
   const data = await loadClasses(params.id);
   const activePeriod = data.periods.find((period) => period.status === 'active') ?? data.periods[0];
   const periodParam = searchParams.period ?? activePeriod?.id ?? 'all';
-  const visibleClasses =
+  const gradeParam = searchParams.grade ?? 'senior';
+  const periodScoped =
     periodParam === 'all'
       ? data.classes
       : data.classes.filter((section) => section.academicPeriodId === periodParam);
+  const visibleClasses = periodScoped
+    .filter((section) => {
+      const grade = data.grades.find((item) => item.id === section.gradeId);
+      if (gradeParam === 'all') return true;
+      if (gradeParam === 'senior')
+        return grade != null && ['9', '10', '11', '12'].includes(grade.code);
+      return section.gradeId === gradeParam;
+    })
+    .slice()
+    .sort((a, b) => {
+      const left = data.grades.find((item) => item.id === a.gradeId);
+      const right = data.grades.find((item) => item.id === b.gradeId);
+      const rank = (grade: Grade | undefined) => {
+        if (!grade) return 1000;
+        if (grade.code === 'LKG') return -1;
+        const numeric = Number(grade.code);
+        return Number.isFinite(numeric) ? numeric : grade.order;
+      };
+      return rank(left) - rank(right) || a.name.localeCompare(b.name);
+    });
   const staffOptions = await loadStaffOptions();
   const gradeMap = new Map(data.grades.map((grade) => [grade.id, grade]));
 
@@ -76,6 +98,7 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ClassPeriodFilter periods={data.periods} value={periodParam} />
+          <ClassGradeFilter grades={data.grades} value={gradeParam} />
           <AddClassSectionDialog
             institutionId={params.id}
             grades={data.grades}

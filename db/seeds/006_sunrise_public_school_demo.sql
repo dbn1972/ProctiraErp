@@ -1116,7 +1116,7 @@ SELECT
   'CLASSROOM',
   'active'
 FROM generate_series(1, 46) AS gs(n)
-ON CONFLICT (tenant_id, institution_id, code) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 UPDATE sections
 SET default_room_id = uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-room-mv-1')
@@ -1151,7 +1151,7 @@ SELECT
   spec.ord
 FROM (
   VALUES
-    ('LKG', 'LKG', 0),
+    ('LKG', 'Lower KG', 0),
     ('1', 'Class 1', 1),
     ('2', 'Class 2', 2),
     ('3', 'Class 3', 3),
@@ -1261,6 +1261,80 @@ SET grade_id = EXCLUDED.grade_id,
     class_teacher_staff_id = EXCLUDED.class_teacher_staff_id,
     room_name = EXCLUDED.room_name,
     updated_at = now();
+
+-- Neha Verma's profile used the department "Accounts" as position, which the
+-- schedule rendered as "Accounts · Neha Verma".
+UPDATE staff
+SET custom_data = jsonb_set(custom_data, '{__profile,position}', '"Class teacher"', true),
+    updated_at = now()
+WHERE id = '00000000-0000-4000-8000-00000000a593'
+  AND tenant_id = '00000000-0000-4000-8000-00000000a501';
+
+-- Every Mayur homeroom except 9-D gets a class teacher and a room.
+-- Teachers are existing active assignments (staff KPI stays a distinct count).
+-- 9-D stays unassigned on purpose.
+WITH open_sections AS (
+  SELECT c.id,
+         row_number() OVER (ORDER BY g."order", c.name, c.id) AS n
+  FROM classes c
+  JOIN grades g ON g.id = c.grade_id
+  WHERE c.institution_id = '00000000-0000-4000-8000-00000000a551'
+    AND c.deleted_at IS NULL
+    AND c.class_teacher_staff_id IS NULL
+    AND NOT (g.code = '9' AND c.name = 'D')
+),
+teacher_pool AS (
+  SELECT s.id,
+         row_number() OVER (ORDER BY s.last_name, s.first_name, s.id) AS n
+  FROM staff s
+  JOIN staff_assignments sa
+    ON sa.staff_id = s.id
+   AND sa.institution_id = '00000000-0000-4000-8000-00000000a551'
+   AND sa.status = 'ACTIVE'
+  WHERE s.tenant_id = '00000000-0000-4000-8000-00000000a501'
+    AND NOT EXISTS (
+      SELECT 1 FROM classes taken
+      WHERE taken.institution_id = '00000000-0000-4000-8000-00000000a551'
+        AND taken.deleted_at IS NULL
+        AND taken.class_teacher_staff_id = s.id
+    )
+)
+UPDATE classes c
+SET class_teacher_staff_id = teacher_pool.id,
+    updated_at = now()
+FROM open_sections
+JOIN teacher_pool USING (n)
+WHERE c.id = open_sections.id;
+
+WITH open_rooms AS (
+  SELECT c.id,
+         row_number() OVER (ORDER BY g."order", c.name, c.id) AS n
+  FROM classes c
+  JOIN grades g ON g.id = c.grade_id
+  WHERE c.institution_id = '00000000-0000-4000-8000-00000000a551'
+    AND c.deleted_at IS NULL
+    AND (c.room_name IS NULL OR btrim(c.room_name) = '')
+    AND NOT (g.code = '9' AND c.name = 'D')
+),
+room_pool AS (
+  SELECT r.name,
+         row_number() OVER (ORDER BY r.code, r.id) AS n
+  FROM rooms r
+  WHERE r.institution_id = '00000000-0000-4000-8000-00000000a551'
+    AND r.deleted_at IS NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM classes taken
+      WHERE taken.institution_id = r.institution_id
+        AND taken.deleted_at IS NULL
+        AND taken.room_name = r.name
+    )
+)
+UPDATE classes c
+SET room_name = room_pool.name,
+    updated_at = now()
+FROM open_rooms
+JOIN room_pool USING (n)
+WHERE c.id = open_rooms.id;
 
 WITH mayur AS (
   SELECT id, row_number() OVER (ORDER BY student_id) AS n

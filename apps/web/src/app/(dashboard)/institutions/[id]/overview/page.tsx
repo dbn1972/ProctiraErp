@@ -12,6 +12,8 @@
 import Link from 'next/link';
 import {
   AlertTriangle,
+  Bell,
+  CheckCircle2,
   GraduationCap,
   Grid3x3,
   Map as MapIcon,
@@ -169,23 +171,11 @@ interface ActivityItem {
   tone?: 'green' | 'amber' | 'brand';
 }
 
-const TONE_DOT: Record<string, string> = {
-  green: 'bg-emerald-500',
-  amber: 'bg-amber-500',
-  brand: 'bg-primary',
-};
-
-const TONE_LABEL: Record<string, string> = {
-  green: 'Completed',
-  amber: 'Attention',
-  brand: 'Update',
-};
-
-const TONE_PILL: Record<string, string> = {
-  green: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-  amber: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
-  brand: 'bg-primary/10 text-primary',
-};
+const TONE_ICON = {
+  green: { Icon: CheckCircle2, className: 'bg-emerald-50 text-emerald-600' },
+  amber: { Icon: AlertTriangle, className: 'bg-amber-50 text-amber-600' },
+  brand: { Icon: Bell, className: 'bg-primary/10 text-primary' },
+} as const;
 
 function RecentActivity({ items }: { items: ActivityItem[] }) {
   return (
@@ -203,13 +193,20 @@ function RecentActivity({ items }: { items: ActivityItem[] }) {
           <ol className="space-y-0">
             {items.map((item, i) => {
               const tone = item.tone ?? 'brand';
+              const visual = TONE_ICON[tone] ?? TONE_ICON.brand;
+              const Icon = visual.Icon;
               return (
                 <li key={i} className="flex gap-3">
                   <div className="flex flex-col items-center">
                     <span
                       aria-hidden="true"
-                      className={cn('mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full', TONE_DOT[tone])}
-                    />
+                      className={cn(
+                        'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+                        visual.className,
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                    </span>
                     {i < items.length - 1 && (
                       <span
                         aria-hidden="true"
@@ -218,19 +215,7 @@ function RecentActivity({ items }: { items: ActivityItem[] }) {
                     )}
                   </div>
                   <div className={cn('min-w-0 pb-4', i === items.length - 1 && 'pb-0')}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-medium leading-snug text-foreground">
-                        {item.title}
-                      </p>
-                      <span
-                        className={cn(
-                          'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                          TONE_PILL[tone] ?? TONE_PILL.brand,
-                        )}
-                      >
-                        {TONE_LABEL[tone] ?? TONE_LABEL.brand}
-                      </span>
-                    </div>
+                    <p className="text-sm font-medium leading-snug text-foreground">{item.title}</p>
                     {item.meta && (
                       <p className="mt-0.5 text-xs text-muted-foreground">{item.meta}</p>
                     )}

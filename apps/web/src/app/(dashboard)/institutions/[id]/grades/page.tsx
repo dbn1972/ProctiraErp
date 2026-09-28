@@ -137,10 +137,12 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
               <TableBody>
                 {offered
                   .slice()
-                  .sort(
-                    (a, b) =>
-                      Number(byGrade.has(b.id)) - Number(byGrade.has(a.id)) || a.order - b.order,
-                  )
+                  .sort((a, b) => {
+                    const rank = (grade: Grade) => (grade.code === 'LKG' ? 1000 : grade.order);
+                    return (
+                      Number(byGrade.has(b.id)) - Number(byGrade.has(a.id)) || rank(a) - rank(b)
+                    );
+                  })
                   .map((grade) => {
                     const agg = byGrade.get(grade.id) ?? { sections: 0, capacity: 0 };
                     const enrollment = enrolledByGrade.has(grade.id)
