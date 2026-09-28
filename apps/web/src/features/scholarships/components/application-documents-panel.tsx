@@ -25,11 +25,14 @@ interface ApplicationDocumentsPanelProps {
   applicationId: string;
   /** Reviewers can verify and reject. Applicants get download only. */
   canReview?: boolean;
+  /** Same-origin API root. Defaults to the staff scholarship proxy. */
+  apiRoot?: string;
 }
 
 export function ApplicationDocumentsPanel({
   applicationId,
   canReview = false,
+  apiRoot = '/api/scholarships',
 }: ApplicationDocumentsPanelProps) {
   const [rows, setRows] = useState<ScholarshipDocumentRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,8 @@ export function ApplicationDocumentsPanel({
     setError(null);
     try {
       const result = await scholarshipBrowserFetch<{ data: ScholarshipDocumentRow[] }>(
-        `/scholarships/applications/${applicationId}/documents`,
+        `/applications/${applicationId}/documents`,
+        { apiRoot },
       );
       setRows(result.data);
     } catch (err) {
@@ -51,7 +55,7 @@ export function ApplicationDocumentsPanel({
     } finally {
       setLoading(false);
     }
-  }, [applicationId]);
+  }, [applicationId, apiRoot]);
 
   useEffect(() => {
     void load();
@@ -61,7 +65,8 @@ export function ApplicationDocumentsPanel({
     setError(null);
     try {
       const result = await scholarshipBrowserFetch<{ url: string }>(
-        `/scholarships/applications/${applicationId}/documents/${id}/download`,
+        `/applications/${applicationId}/documents/${id}/download`,
+        { apiRoot },
       );
       const gateway = process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
       const target = result.url.startsWith('http') ? result.url : `${gateway}${result.url}`;
@@ -76,8 +81,8 @@ export function ApplicationDocumentsPanel({
     setPending(true);
     try {
       await scholarshipBrowserFetch(
-        `/scholarships/applications/${applicationId}/documents/${id}/verify`,
-        { method: 'POST', json: {} },
+        `/applications/${applicationId}/documents/${id}/verify`,
+        { method: 'POST', json: {}, apiRoot },
       );
       await load();
     } catch (err) {
@@ -93,8 +98,8 @@ export function ApplicationDocumentsPanel({
     setError(null);
     try {
       await scholarshipBrowserFetch(
-        `/scholarships/applications/${applicationId}/documents/${rejectId}/reject`,
-        { method: 'POST', json: { reason } },
+        `/applications/${applicationId}/documents/${rejectId}/reject`,
+        { method: 'POST', json: { reason }, apiRoot },
       );
       setRejectId(null);
       setReason('');

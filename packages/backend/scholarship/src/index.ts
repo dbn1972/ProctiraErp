@@ -14,6 +14,7 @@
 
 // Plugin
 export { scholarshipPlugin } from './scholarship-plugin.js';
+export { parentScholarshipPlugin } from './parent-scholarship-routes.js';
 export type { ScholarshipPluginOptions } from './scholarship-plugin.js';
 
 // Service
