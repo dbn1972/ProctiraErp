@@ -11,41 +11,41 @@ A principal or timetable coordinator at a school can see the week's section meet
 
 ## 2. Personas & jobs
 
-| Persona | Job-to-be-done | Success looks like |
-| ------- | -------------- | ------------------ |
+| Persona                  | Job-to-be-done                            | Success looks like                                           |
+| ------------------------ | ----------------------------------------- | ------------------------------------------------------------ |
 | Principal (Priya Sharma) | See Class 9-B's week and cover an absence | Grid matches the seeded week; substitution names the teacher |
-| Timetable coordinator | Add one meeting or generate demand | New meeting appears; a double-book is rejected |
+| Timetable coordinator    | Add one meeting or generate demand        | New meeting appears; a double-book is rejected               |
 
 ## 3. Scope
 
-| In scope | Non-goals |
-| -------- | --------- |
-| `/institutions/[id]/timetable`, `/generate`, `/substitutions` | Parent/student timetable shells |
-| Week grid, list, add, draft remove, 409 copy | Rewriting the generator algorithm |
-| Sunrise Mayur Class 9-B seed | New migration (104/105 are taken; no schema change required) |
+| In scope                                                      | Non-goals                                                    |
+| ------------------------------------------------------------- | ------------------------------------------------------------ |
+| `/institutions/[id]/timetable`, `/generate`, `/substitutions` | Parent/student timetable shells                              |
+| Week grid, list, add, draft remove, 409 copy                  | Rewriting the generator algorithm                            |
+| Sunrise Mayur Class 9-B seed                                  | New migration (104/105 are taken; no schema change required) |
 
 ## 4. Peer parity
 
-| Peer capability | Our target this slice |
-| --------------- | --------------------- |
-| Weekly grid with free periods and breaks | Seeded Mayur grid |
-| Conflict on teacher double-book | Existing 409, named in the form |
-| Substitute assignment | Existing substitution API with staff names |
+| Peer capability                          | Our target this slice                      |
+| ---------------------------------------- | ------------------------------------------ |
+| Weekly grid with free periods and breaks | Seeded Mayur grid                          |
+| Conflict on teacher double-book          | Existing 409, named in the form            |
+| Substitute assignment                    | Existing substitution API with staff names |
 
 ## 5. Surface map
 
-| Nav label | Route | API | Tables | Shell |
-| --------- | ----- | --- | ------ | ----- |
-| Timetable | `/institutions/[id]/timetable` | meetings, periods, sections | `section_meetings`, `bell_periods` | staff |
-| Generate | `.../timetable/generate` | generation-jobs | `timetable_generation_jobs` | staff |
-| Substitutions | `.../timetable/substitutions` | substitutions, teacher-absences | `substitutions`, `timetable_teacher_absences` | staff |
+| Nav label     | Route                          | API                             | Tables                                        | Shell |
+| ------------- | ------------------------------ | ------------------------------- | --------------------------------------------- | ----- |
+| Timetable     | `/institutions/[id]/timetable` | meetings, periods, sections     | `section_meetings`, `bell_periods`            | staff |
+| Generate      | `.../timetable/generate`       | generation-jobs                 | `timetable_generation_jobs`                   | staff |
+| Substitutions | `.../timetable/substitutions`  | substitutions, teacher-absences | `substitutions`, `timetable_teacher_absences` | staff |
 
 ## 6. Roles & tenancy
 
-| Role | Can | Cannot |
-| ---- | --- | ------ |
+| Role                            | Can                               | Cannot                     |
+| ------------------------------- | --------------------------------- | -------------------------- |
 | Principal, registrar, scheduler | Create meetings and substitutions | Read another tenant's rows |
-| Teacher | | Write meetings (403) |
+| Teacher                         |                                   | Write meetings (403)       |
 
 Tenant boundary: meeting delete for another tenant is 404.
 
@@ -58,9 +58,9 @@ Tenant boundary: meeting delete for another tenant is 404.
 
 ## 8. Handoff
 
-| Next skill | Audit path |
-| ---------- | ---------- |
-| Build | `DEV_INSTITUTIONS_TIMETABLE.md` |
-| UX | `UX_INSTITUTIONS_TIMETABLE.md` |
-| Security | `SEC_INSTITUTIONS_TIMETABLE.md` |
-| Test | `TEST_INSTITUTIONS_TIMETABLE.md` |
+| Next skill | Audit path                       |
+| ---------- | -------------------------------- |
+| Build      | `DEV_INSTITUTIONS_TIMETABLE.md`  |
+| UX         | `UX_INSTITUTIONS_TIMETABLE.md`   |
+| Security   | `SEC_INSTITUTIONS_TIMETABLE.md`  |
+| Test       | `TEST_INSTITUTIONS_TIMETABLE.md` |
