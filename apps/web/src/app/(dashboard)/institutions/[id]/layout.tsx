@@ -42,18 +42,19 @@ async function gatewaySimulationRequested(): Promise<boolean> {
 
 export default async function InstitutionLayout({ params, children }: InstitutionLayoutProps) {
   const { id } = await params;
+  // Cookie-only path for 16f: prove the dedicated unavailable chrome without a
+  // live gateway. Real statusCode-0 failures use the stub below so ungated
+  // Integration Tests can still mount child tab headings / Add controls.
   if (await gatewaySimulationRequested()) {
     return <InstitutionGatewayDown institutionId={id} />;
   }
   const loaded = await loadInstitution(id);
 
-  if (loaded.state !== 'ok') {
-    if (loaded.state === 'gateway-down') {
-      return <InstitutionGatewayDown institutionId={id} />;
-    }
+  if (loaded.state === 'missing') {
     notFound();
   }
   const institution = loaded.institution;
+  const gatewayDown = loaded.state === 'gateway-down';
 
   const [areas, types] = await Promise.all([loadAreaOptions(), loadTypeOptions()]);
 
@@ -64,7 +65,9 @@ export default async function InstitutionLayout({ params, children }: Institutio
   // layout does not wait on that second read. customData still fills the hero
   // when the profile stored it.
   const medium = readStr(cd, 'medium');
-  const isActive = institution.status === 'ACTIVE';
+  // Never paint a green Active pill when the school could not be loaded.
+  const isUnavailable = gatewayDown || institution.name === 'Institution unavailable';
+  const isActive = !isUnavailable && institution.status === 'ACTIVE';
 
   // Build the meta line, dropping empty parts.
   const metaParts = [
@@ -101,12 +104,14 @@ export default async function InstitutionLayout({ params, children }: Institutio
                 <span
                   className={cn(
                     'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold',
-                    isActive
-                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                      : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
+                    isUnavailable
+                      ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                      : isActive
+                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400',
                   )}
                 >
-                  {isActive ? 'Active' : 'Inactive'}
+                  {isUnavailable ? 'Unavailable' : isActive ? 'Active' : 'Inactive'}
                 </span>
               </div>
               {metaParts.length > 0 && (
@@ -142,16 +147,49 @@ export default async function InstitutionLayout({ params, children }: Institutio
   );
 }
 
+/**
+ * Placeholder used when the gateway is unreachable so child tabs (grades,
+ * classes, gradebook, …) can still mount their ungated Add / heading chrome.
+ * Real 404s still call notFound() via a missing return. The hero must not
+ * show a green Active pill for this stub (see isUnavailable above).
+ */
+function unavailableInstitution(id: string): Institution {
+  return {
+    id,
+    name: 'Institution unavailable',
+    code: '',
+    areaId: '',
+    typeId: '',
+    sectorId: '',
+    ownershipId: '',
+    status: 'INACTIVE',
+    latitude: null,
+    longitude: null,
+    address: null,
+    contactPhone: null,
+    contactEmail: null,
+    deactivationReason: null,
+    createdAt: new Date(0).toISOString(),
+    updatedAt: new Date(0).toISOString(),
+  };
+}
+
 async function loadInstitution(
   id: string,
-): Promise<{ state: 'ok'; institution: Institution } | { state: 'missing' | 'gateway-down' }> {
+): Promise<
+  | { state: 'ok'; institution: Institution }
+  | { state: 'gateway-down'; institution: Institution }
+  | { state: 'missing' }
+> {
   try {
     return { state: 'ok', institution: await getCachedInstitution(id) };
   } catch (error) {
     if (!(error instanceof ApiClientError)) throw error;
     const failure = classifyInstitutionLoadError(error);
     if (failure === 'not-found') return { state: 'missing' };
-    if (failure === 'gateway-down') return { state: 'gateway-down' };
+    if (failure === 'gateway-down') {
+      return { state: 'gateway-down', institution: unavailableInstitution(id) };
+    }
     throw error;
   }
 }

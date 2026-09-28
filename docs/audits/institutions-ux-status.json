@@ -58,7 +58,7 @@
       "id": "detail.html#2",
       "status": "DONE",
       "ownerPr": "this branch",
-      "evidence": "classifyInstitutionLoadError statusCode 0 is gateway-down (load-state.test.ts). Layout renders InstitutionGatewayDown. Playwright 16f-institutions-profile-write.spec.ts gateway down passed on Chromium with E2E_ALLOW_GATEWAY_SIMULATION=1 (no Active pill).",
+      "evidence": "classifyInstitutionLoadError statusCode 0 is gateway-down (load-state.test.ts). Real statusCode-0 uses unavailable stub + Unavailable pill (children still mount for ungated Integration). Cookie E2E_ALLOW_GATEWAY_SIMULATION path renders InstitutionGatewayDown; 16f gateway-down passed (no Active pill).",
       "disposition": "FULLY_CLOSED"
     },
     {
