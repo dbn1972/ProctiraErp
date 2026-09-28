@@ -18,7 +18,7 @@
  *   icon-button actions (Eye/Pencil)
  */
 import Link from 'next/link';
-import { Building2, CheckCircle2, GraduationCap, Map as MapIcon, Plus, School } from 'lucide-react';
+import { Building2, CheckCircle2, GraduationCap, Map as MapIcon, Plus } from 'lucide-react';
 
 import {
   Button,
@@ -146,13 +146,50 @@ function AttendanceBar({ pct }: { pct: number | null }) {
 
 /* ──────────────────────────────────────── Status pill ── */
 
-const SCHOOL_AVATAR_PALETTES = [
-  'bg-blue-50   text-blue-600   dark:bg-blue-900   dark:text-blue-400',
-  'bg-teal-50   text-teal-600   dark:bg-teal-900   dark:text-teal-400',
-  'bg-amber-50  text-amber-600  dark:bg-amber-900  dark:text-amber-400',
-  'bg-violet-50 text-violet-600 dark:bg-violet-900 dark:text-violet-400',
-  'bg-sky-50    text-sky-600    dark:bg-sky-900    dark:text-sky-400',
-] as const;
+const TYPE_CHIP =
+  'inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground';
+
+/** Solid school glyph coloured by type. Senior Secondary stays blue for every campus. */
+function schoolMarkClass(typeName: string): string {
+  const key = typeName.trim().toLowerCase();
+  if (key.includes('pre-primary') || key.includes('pre primary')) {
+    return 'bg-gradient-to-br from-pink-500 to-pink-700';
+  }
+  if (key.includes('senior')) return 'bg-gradient-to-br from-[#3568CF] to-[#163780]';
+  if (key.includes('secondary')) return 'bg-gradient-to-br from-teal-500 to-teal-700';
+  if (key.includes('primary')) return 'bg-gradient-to-br from-amber-500 to-amber-700';
+  return 'bg-gradient-to-br from-[#3568CF] to-[#163780]';
+}
+
+function SchoolMark({ typeName }: { typeName: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-white',
+        schoolMarkClass(typeName),
+      )}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        className="h-6 w-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="m4 6 8-4 8 4" />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"
+        />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 22v-4a2 2 0 0 0-4 0v4" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M18 5v17M6 5v17" />
+        <circle cx="12" cy="9" r="2" />
+      </svg>
+    </span>
+  );
+}
 
 const INST_STATUS_PILL: Record<string, string> = {
   ACTIVE: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
@@ -192,28 +229,18 @@ function InstitutionMobileCard({
   typeName,
   metrics,
   metricsAvailable,
-  avatarIndex,
 }: {
   institution: Institution;
   areaName: string;
   typeName: string;
   metrics: DirectorySchoolMetrics | undefined;
   metricsAvailable: { students: boolean; staff: boolean };
-  avatarIndex: number;
 }) {
-  const palette =
-    SCHOOL_AVATAR_PALETTES[avatarIndex % SCHOOL_AVATAR_PALETTES.length] ??
-    SCHOOL_AVATAR_PALETTES[0];
   const counts = rowMetrics(institution.status, metrics, metricsAvailable);
   return (
     <article className="space-y-3">
       <div className="flex items-start gap-3">
-        <span
-          aria-hidden="true"
-          className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', palette)}
-        >
-          <School className="h-5 w-5" aria-hidden="true" />
-        </span>
+        <SchoolMark typeName={typeName} />
         <div className="min-w-0 flex-1">
           <Link
             href={`/institutions/${institution.id}/overview`}
@@ -232,7 +259,7 @@ function InstitutionMobileCard({
         </div>
         <div>
           <dt className="text-[11px] font-semibold uppercase text-muted-foreground">Type</dt>
-          <dd>{typeName || '—'}</dd>
+          <dd>{typeName ? <span className={TYPE_CHIP}>{typeName}</span> : '—'}</dd>
         </div>
         <div>
           <dt className="text-[11px] font-semibold uppercase text-muted-foreground">Students</dt>
@@ -261,18 +288,13 @@ function InstitutionRow({
   typeName,
   metrics,
   metricsAvailable,
-  avatarIndex,
 }: {
   institution: Institution;
   areaName: string;
   typeName: string;
   metrics: DirectorySchoolMetrics | undefined;
   metricsAvailable: { students: boolean; staff: boolean };
-  avatarIndex: number;
 }) {
-  const palette =
-    SCHOOL_AVATAR_PALETTES[avatarIndex % SCHOOL_AVATAR_PALETTES.length] ??
-    SCHOOL_AVATAR_PALETTES[0];
   const counts = rowMetrics(institution.status, metrics, {
     students: metricsAvailable.students,
     staff: metricsAvailable.staff,
@@ -283,12 +305,7 @@ function InstitutionRow({
       {/* School (person-cell) */}
       <TableCell className="sticky start-0 z-10 bg-card">
         <div className="flex items-center gap-3">
-          <span
-            aria-hidden="true"
-            className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', palette)}
-          >
-            <School className="h-5 w-5" aria-hidden="true" />
-          </span>
+          <SchoolMark typeName={typeName} />
           <div className="min-w-0">
             <Link
               href={`/institutions/${institution.id}/overview`}
@@ -307,9 +324,7 @@ function InstitutionRow({
       {/* Type */}
       <TableCell>
         {typeName ? (
-          <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
-            {typeName}
-          </span>
+          <span className={TYPE_CHIP}>{typeName}</span>
         ) : (
           <span className="text-sm text-muted-foreground">—</span>
         )}
@@ -542,7 +557,6 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
                           students: directory.studentsAvailable,
                           staff: directory.staffAvailable,
                         }}
-                        avatarIndex={index}
                       />
                     </li>
                   ))}
@@ -579,7 +593,6 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
                             students: directory.studentsAvailable,
                             staff: directory.staffAvailable,
                           }}
-                          avatarIndex={index}
                         />
                       ))}
                     </TableBody>

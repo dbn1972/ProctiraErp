@@ -34,6 +34,12 @@ test.describe('Critical journey: language switch → RTL layout → module navig
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl', { timeout: 10_000 });
     await expect(page.locator('html')).toHaveAttribute('lang', /^ar(-|$)/);
 
+    // Below 1024px the sidebar is a drawer. Open it before reading nav links.
+    const menu = page.getByTestId('desktop-shell-menu');
+    if (await menu.isVisible()) {
+      await menu.click();
+    }
+
     // A translated nav label should be visible (Students in Arabic = الطلاب).
     // Fall back to verifying the nav region exists if translations aren't loaded.
     const studentsNav = page

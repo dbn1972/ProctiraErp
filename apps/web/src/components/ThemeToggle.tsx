@@ -4,13 +4,8 @@
  * ThemeToggle — Header theme cycle control (Task 47.4, Requirement 36 AC 1)
  *
  * Renders a single icon button that cycles the {@link useTheme} mode through
- * `light → dark → system → light`. The icon shown reflects the *currently
- * selected* mode (not the resolved theme), so the user can always see which
- * preference is active:
- *
- *   • `light`  → <Sun />
- *   • `dark`   → <Moon />
- *   • `system` → <Monitor />
+ * `light → dark → system → light`. The glyph stays the prototype moon;
+ * `data-mode` and the accessible name still report the selected mode.
  *
  * Per the task contract this control:
  *
@@ -31,7 +26,7 @@
  *      Requirement 37 AC 3 touch-target rule on mobile.
  */
 
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Moon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import React from 'react';
 
@@ -70,8 +65,6 @@ export function ThemeToggle({ className }: ThemeToggleProps = {}) {
   const t = useTranslations('theme');
   const { mode, setMode } = useTheme();
 
-  const Icon = mode === 'dark' ? Moon : mode === 'system' ? Monitor : Sun;
-
   return (
     <Button
       type="button"
@@ -86,7 +79,7 @@ export function ThemeToggle({ className }: ThemeToggleProps = {}) {
       // min-h/min-w without disturbing the visual chrome.
       className={['min-h-[48px] min-w-[48px]', className].filter(Boolean).join(' ')}
     >
-      <Icon className="h-5 w-5" aria-hidden="true" />
+      <Moon className="h-5 w-5" aria-hidden="true" />
     </Button>
   );
 }

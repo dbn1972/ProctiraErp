@@ -27,9 +27,14 @@ import { useEffect, useState } from 'react';
 /** The breakpoint used by `<AppShell>` to switch between mobile and desktop chrome. */
 export const MOBILE_MEDIA_QUERY = '(max-width: 767px)';
 
+/** Prototype tablet: persistent sidebar starts at 1024px. */
+export const DRAWER_MEDIA_QUERY = '(max-width: 1023px)';
+
 export interface ViewportState {
   /** `true` when the viewport is below 768 px. */
   isMobile: boolean;
+  /** `true` when the desktop sidebar should be an off-canvas drawer (below 1024px). */
+  isDrawer: boolean;
 }
 
 /**
@@ -41,39 +46,42 @@ export interface ViewportState {
  * client hydrates into the mobile shell on the first paint after
  * hydration without any UI flicker.
  */
+function subscribeMedia(
+  query: string,
+  setMatches: (matches: boolean) => void,
+): (() => void) | undefined {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return;
+  }
+  const mediaQuery = window.matchMedia(query);
+  setMatches(mediaQuery.matches);
+  const handler = (event: MediaQueryListEvent) => {
+    setMatches(event.matches);
+  };
+  if (typeof mediaQuery.addEventListener === 'function') {
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }
+  const legacy = mediaQuery as unknown as {
+    addListener: (cb: (e: MediaQueryListEvent) => void) => void;
+    removeListener: (cb: (e: MediaQueryListEvent) => void) => void;
+  };
+  legacy.addListener(handler);
+  return () => legacy.removeListener(handler);
+}
+
 export function useViewport(): ViewportState {
   const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [isDrawer, setIsDrawer] = useState<boolean>(false);
 
   useEffect(() => {
-    // Guard against environments without a DOM (e.g. SSR, Node-only tests).
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia(MOBILE_MEDIA_QUERY);
-
-    // Reconcile the SSR default with the real viewport on mount.
-    setIsMobile(mediaQuery.matches);
-
-    const handler = (event: MediaQueryListEvent) => {
-      setIsMobile(event.matches);
+    const stopMobile = subscribeMedia(MOBILE_MEDIA_QUERY, setIsMobile);
+    const stopDrawer = subscribeMedia(DRAWER_MEDIA_QUERY, setIsDrawer);
+    return () => {
+      stopMobile?.();
+      stopDrawer?.();
     };
-
-    // Modern browsers expose `addEventListener` on MediaQueryList.
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', handler);
-      return () => mediaQuery.removeEventListener('change', handler);
-    }
-
-    // Safari < 14 only exposes the deprecated `addListener` API. Cast
-    // through `unknown` so TypeScript does not flag the legacy methods.
-    const legacy = mediaQuery as unknown as {
-      addListener: (cb: (e: MediaQueryListEvent) => void) => void;
-      removeListener: (cb: (e: MediaQueryListEvent) => void) => void;
-    };
-    legacy.addListener(handler);
-    return () => legacy.removeListener(handler);
   }, []);
 
-  return { isMobile };
+  return { isMobile, isDrawer };
 }

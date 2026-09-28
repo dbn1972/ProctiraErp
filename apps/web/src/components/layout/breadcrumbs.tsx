@@ -83,21 +83,14 @@ export function Breadcrumbs() {
 }
 
 /**
- * Breadcrumb separator that respects RTL direction.
- * Uses a chevron that flips automatically in RTL mode.
+ * Breadcrumb separator. The prototype and CONVENTIONS.md use a slash,
+ * which is the same in LTR and RTL.
  */
 function BreadcrumbSeparator() {
   return (
-    <svg
-      className="breadcrumb-separator h-4 w-4 rtl:rotate-180"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
+    <span className="breadcrumb-separator" aria-hidden="true">
+      /
+    </span>
   );
 }
 
