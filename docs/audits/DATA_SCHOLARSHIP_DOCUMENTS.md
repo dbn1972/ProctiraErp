@@ -18,21 +18,21 @@
 
 ## 2. Apply / verify (no Prisma for cert)
 
-| Step        | Command / evidence                                                  | Pass                                   |
-| ----------- | ------------------------------------------------------------------- | -------------------------------------- |
-| Apply       | `APPLY_STRICT_FKS=1 bash tools/scripts/apply-sql.sh` then `psql -f 104` a second time | pass — first apply and second apply both completed (CONCURRENTLY unique index is idempotent) |
-| Seed        | `psql -f db/seeds/006_sunrise_public_school_demo.sql` twice, then `node db/seeds/write-sunrise-scholarship-placeholders.mjs` | pass |
-| Row counts  | seed raises unless `scholarship_application_documents` count ≥ 3    | pass — Sunrise tenant `…a501` returned 3 rows (PENDING, VERIFIED, REJECTED) |
-| Multi-board | not required — documents are tenant-scoped, not board-rule variants | n/a                                    |
+| Step        | Command / evidence                                                                                                           | Pass                                                                                         |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Apply       | `APPLY_STRICT_FKS=1 bash tools/scripts/apply-sql.sh` then `psql -f 104` a second time                                        | pass — first apply and second apply both completed (CONCURRENTLY unique index is idempotent) |
+| Seed        | `psql -f db/seeds/006_sunrise_public_school_demo.sql` twice, then `node db/seeds/write-sunrise-scholarship-placeholders.mjs` | pass                                                                                         |
+| Row counts  | seed raises unless `scholarship_application_documents` count ≥ 3                                                             | pass — Sunrise tenant `…a501` returned 3 rows (PENDING, VERIFIED, REJECTED)                  |
+| Multi-board | not required — documents are tenant-scoped, not board-rule variants                                                          | n/a                                                                                          |
 
 ## 3. Tenancy & constraints
 
-| Check                                 | Pass | Evidence                                                                                                                           |
-| ------------------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Check                                 | Pass | Evidence                                                                                                                                                                                                                                                                      |
+| ------------------------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Tenant scoping / RLS / service filter | pass | As `proctira_app`, `set_app_tenant_id('…0000bb')` returns 0 document rows; `set_app_tenant_id('…00a501')` returns 3. Audit rows for upload/verify/reject exist on tenant `…0001` after Playwright (`entity_type=scholarship_application_document`, operations CREATE/UPDATE). |
-| FK / unique / indexes                 | code | `tenant_id → tenants(id)`; `(tenant_id, application_id) → scholarship_applications(tenant_id, id)`; partial indexes on active rows |
-| Privilege class                       | pass | `db/runtime-table-privileges.json` class `dml`; `check-runtime-table-privileges.mjs` PASS                                          |
-| Domain tests                          | pass | `document-routes.test.ts` mime, size, cross-tenant 404, other-parent 403, signed URL 401                                           |
+| FK / unique / indexes                 | code | `tenant_id → tenants(id)`; `(tenant_id, application_id) → scholarship_applications(tenant_id, id)`; partial indexes on active rows                                                                                                                                            |
+| Privilege class                       | pass | `db/runtime-table-privileges.json` class `dml`; `check-runtime-table-privileges.mjs` PASS                                                                                                                                                                                     |
+| Domain tests                          | pass | `document-routes.test.ts` mime, size, cross-tenant 404, other-parent 403, signed URL 401                                                                                                                                                                                      |
 
 ## 4. Rollback
 

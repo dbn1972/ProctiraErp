@@ -56,11 +56,7 @@ import {
   type ScholarshipParams,
 } from './schemas.js';
 import { requireScholarshipAction } from './scholarship-http-guard.js';
-import type {
-  ApplicationStatus,
-  PaymentStatus,
-  ProgramStatus,
-} from './scholarship-repository.js';
+import type { ApplicationStatus, PaymentStatus, ProgramStatus } from './scholarship-repository.js';
 import type { ScholarshipService } from './scholarship-service.js';
 
 const PROGRAM_STATUSES = ['draft', 'open', 'closed', 'archived'] as const;

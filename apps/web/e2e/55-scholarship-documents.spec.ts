@@ -134,9 +134,12 @@ test.describe('Scholarship documents — live upload (E2E_BACKEND_READY)', () =>
     await page.locator(`#reject-reason-${applicationId}`).fill('The marksheet scan is unreadable');
     await page.getByTestId(`document-reject-${marksheetId}`).click();
     await page.getByTestId('scholarship-document-reject-confirm').click();
-    await expect(page.getByTestId(`scholarship-document-${marksheetId}`)).toContainText('REJECTED', {
-      timeout: 20_000,
-    });
+    await expect(page.getByTestId(`scholarship-document-${marksheetId}`)).toContainText(
+      'REJECTED',
+      {
+        timeout: 20_000,
+      },
+    );
     await expect(page.getByTestId(`scholarship-document-${marksheetId}`)).toContainText(
       'unreadable',
     );

@@ -32,9 +32,7 @@ async function proxy(
     );
   }
 
-  const upstreamUrl = new URL(
-    `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/scholarships/${joined}`,
-  );
+  const upstreamUrl = new URL(`${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/scholarships/${joined}`);
   upstreamUrl.search = new URL(request.url).search;
 
   const headers = new Headers();

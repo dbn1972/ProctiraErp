@@ -31,7 +31,8 @@ if (actual !== SHA) {
   process.exit(1);
 }
 
-const root = process.env.SCHOLARSHIP_DOCUMENT_DIR ?? join(tmpdir(), 'proctira-scholarship-documents');
+const root =
+  process.env.SCHOLARSHIP_DOCUMENT_DIR ?? join(tmpdir(), 'proctira-scholarship-documents');
 for (const id of IDS) {
   const key = `scholarships/${APP}/documents/${id}`;
   const full = join(root, key);
