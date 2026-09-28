@@ -215,9 +215,9 @@ export default function ScholarshipApplication() {
   // Success state
   if (submitSuccess) {
     return (
-      <div className="p-6 max-w-2xl mx-auto text-center space-y-4">
+      <div className="text-center space-y-4">
         <div className="text-4xl">🎉</div>
-        <h1 className="text-2xl font-semibold">Application Submitted</h1>
+        <h2 className="text-2xl font-semibold">Application Submitted</h2>
         <p className="text-muted-foreground">
           Your scholarship application has been submitted and is now under review. You can track its
           status from the application status page.
@@ -227,9 +227,7 @@ export default function ScholarshipApplication() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-semibold">Apply for Scholarship</h1>
-
+    <div className="space-y-6">
       {/* Step indicator */}
       <nav aria-label="Application steps" className="flex gap-1">
         {STEPS.map((step, idx) => (
