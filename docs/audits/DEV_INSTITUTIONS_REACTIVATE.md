@@ -9,18 +9,18 @@
 
 ## 0. Product contract
 
-| Item | Content |
-| --- | --- |
+| Item                 | Content                                                                                                                                                                                                                                  |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Capability statement | A principal with `institution:update` can reactivate an inactive institution. The school returns to ACTIVE, the deactivation reason is cleared, new enrollments are allowed again, and the directory status pill and row counts refresh. |
-| In scope | `POST /api/v1/institutions/:id/reactivate`, list overflow menu, detail header control, audit row, Playwright keyboard path. |
-| Explicit non-goals | No new SQL table. Deactivate does not emit an outbox or `institution.deactivated` runtime event, so reactivate does not add one. Seeded Vasundhara Enclave stays inactive. |
-| Roles (RBAC) | `institution:update` (principal, admin via manage). Parent → 403. Cross-tenant → 404. |
-| Boards impacted | CBSE ☐ ICSE ☐ State ☐ Other: status is board-neutral |
+| In scope             | `POST /api/v1/institutions/:id/reactivate`, list overflow menu, detail header control, audit row, Playwright keyboard path.                                                                                                              |
+| Explicit non-goals   | No new SQL table. Deactivate does not emit an outbox or `institution.deactivated` runtime event, so reactivate does not add one. Seeded Vasundhara Enclave stays inactive.                                                               |
+| Roles (RBAC)         | `institution:update` (principal, admin via manage). Parent → 403. Cross-tenant → 404.                                                                                                                                                    |
+| Boards impacted      | CBSE ☐ ICSE ☐ State ☐ Other: status is board-neutral                                                                                                                                                                                     |
 
-| Nav / surface | Route | API | Tables | PII |
-| --- | --- | --- | --- | --- |
-| Institutions list ⋮ | `/institutions` | `POST /institutions/:id/reactivate` | `institutions.status`, `custom_data.__profile.deactivationReason` | school name, reason |
-| Detail header | `/institutions/:id/overview` | same | same | same |
+| Nav / surface       | Route                        | API                                 | Tables                                                            | PII                 |
+| ------------------- | ---------------------------- | ----------------------------------- | ----------------------------------------------------------------- | ------------------- |
+| Institutions list ⋮ | `/institutions`              | `POST /institutions/:id/reactivate` | `institutions.status`, `custom_data.__profile.deactivationReason` | school name, reason |
+| Detail header       | `/institutions/:id/overview` | same                                | same                                                              | same                |
 
 ## 1. Domain model
 
@@ -28,13 +28,13 @@ No new migration. Status already lives on `institutions.status`. Deactivation re
 
 ## 2. API
 
-| Check | Done | Evidence |
-| --- | --- | --- |
-| Tenant middleware | ☑ | `findById(id, tenantId)` → 404 |
-| Validation | ☑ | reason required, min 1, max 500, same as deactivate |
-| RBAC | ☑ | inventory rule `institution.reactivate` action `update` |
-| Wrong state | ☑ | already ACTIVE → 422 `BUSINESS_RULE_ERROR` |
-| Cross-tenant | ☑ | gateway test 404 |
+| Check             | Done | Evidence                                                |
+| ----------------- | ---- | ------------------------------------------------------- |
+| Tenant middleware | ☑    | `findById(id, tenantId)` → 404                          |
+| Validation        | ☑    | reason required, min 1, max 500, same as deactivate     |
+| RBAC              | ☑    | inventory rule `institution.reactivate` action `update` |
+| Wrong state       | ☑    | already ACTIVE → 422 `BUSINESS_RULE_ERROR`              |
+| Cross-tenant      | ☑    | gateway test 404                                        |
 
 ## 3. UI
 

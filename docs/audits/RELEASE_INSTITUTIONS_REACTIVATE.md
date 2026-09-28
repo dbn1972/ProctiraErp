@@ -7,14 +7,14 @@
 
 ## 1. Pre-merge
 
-| Check | Pass | Evidence |
-| --- | --- | --- |
-| Tip CI | ☐ | local live spec passed; GitHub required checks are not green on this SHA yet |
-| Migrations | ☑ | no new SQL file. Existing `institutions.status` |
-| Providers | ☑ | no new external provider |
-| Feature flag | ☑ | none |
-| Deploy | ☑ | api-gateway + web app image; no schema change |
-| Rollback | ☑ | revert the commit. Active schools stay active; no data migration to undo |
+| Check        | Pass | Evidence                                                                     |
+| ------------ | ---- | ---------------------------------------------------------------------------- |
+| Tip CI       | ☐    | local live spec passed; GitHub required checks are not green on this SHA yet |
+| Migrations   | ☑    | no new SQL file. Existing `institutions.status`                              |
+| Providers    | ☑    | no new external provider                                                     |
+| Feature flag | ☑    | none                                                                         |
+| Deploy       | ☑    | api-gateway + web app image; no schema change                                |
+| Rollback     | ☑    | revert the commit. Active schools stay active; no data migration to undo     |
 
 ## 2. Merge
 

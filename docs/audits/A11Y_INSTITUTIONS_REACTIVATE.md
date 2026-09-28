@@ -6,20 +6,20 @@
 
 ## 1. Automated
 
-| Check | Pass | Evidence |
-| --- | --- | --- |
-| axe on `/institutions` | ☐ | existing `a11y-axe.spec.ts` covers the list; not re-run live in this session |
-| Touch | ☐ | overflow trigger keeps `min-h-6` matching the existing row actions (24px icon button, same as deactivate) |
-| Named controls | ☑ | menu item name `Reactivate`; dialog title; reason label; confirm `data-testid` |
+| Check                  | Pass | Evidence                                                                                                  |
+| ---------------------- | ---- | --------------------------------------------------------------------------------------------------------- |
+| axe on `/institutions` | ☐    | existing `a11y-axe.spec.ts` covers the list; not re-run live in this session                              |
+| Touch                  | ☐    | overflow trigger keeps `min-h-6` matching the existing row actions (24px icon button, same as deactivate) |
+| Named controls         | ☑    | menu item name `Reactivate`; dialog title; reason label; confirm `data-testid`                            |
 
 ## 2. Manual
 
-| Check | Pass | Evidence |
-| --- | --- | --- |
-| Keyboard | ☑ | `e2e/16d-institutions-reactivate-live.spec.ts` passed live: overflow ArrowDown, Enter, reason, confirm Enter, then detail header Reactivate click, reason, confirm. |
-| Dialog | ☑ | `ConfirmActionDialog` (Radix Dialog) with cancel and confirm |
-| Toast | ☑ | `role="status"` success message |
-| Screen reader | ☐ | no screen-reader session in this environment — waiver: dialog uses title, description, and a labelled reason field |
+| Check         | Pass | Evidence                                                                                                                                                            |
+| ------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keyboard      | ☑    | `e2e/16d-institutions-reactivate-live.spec.ts` passed live: overflow ArrowDown, Enter, reason, confirm Enter, then detail header Reactivate click, reason, confirm. |
+| Dialog        | ☑    | `ConfirmActionDialog` (Radix Dialog) with cancel and confirm                                                                                                        |
+| Toast         | ☑    | `role="status"` success message                                                                                                                                     |
+| Screen reader | ☐    | no screen-reader session in this environment — waiver: dialog uses title, description, and a labelled reason field                                                  |
 
 ## 3. Findings
 

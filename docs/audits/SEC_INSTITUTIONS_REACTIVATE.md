@@ -8,21 +8,21 @@
 
 ## 0. Inventory
 
-| Route / API | AuthN | AuthZ | Data class | Notes |
-| --- | --- | --- | --- | --- |
-| `POST /api/v1/institutions/:id/reactivate` | JWT | `institution:update` | operational | reason required |
+| Route / API                                | AuthN | AuthZ                | Data class  | Notes           |
+| ------------------------------------------ | ----- | -------------------- | ----------- | --------------- |
+| `POST /api/v1/institutions/:id/reactivate` | JWT   | `institution:update` | operational | reason required |
 
 ## 1. Controls
 
-| Check | Pass | Evidence |
-| --- | --- | --- |
-| Unauthenticated → 401 | ☑ | gateway `onRequest` auth hook (same as deactivate) |
-| RBAC deny | ☑ | parent role → 403 `FORBIDDEN` in `institution-reactivate.test.ts` |
-| Cross-tenant IDOR (API) | ☑ | other tenant JWT → 404 `NOT_FOUND` |
-| Cross-tenant IDOR (UI) | ☐ | UI uses the session tenant; no second-tenant browser session in this slice |
-| Write audit | ☑ | actor, reason, before/after status on the audit row |
-| Secrets | ☑ | no tokens committed |
-| Input validation | ☑ | reason 1–500, UUID path param |
+| Check                   | Pass | Evidence                                                                   |
+| ----------------------- | ---- | -------------------------------------------------------------------------- |
+| Unauthenticated → 401   | ☑    | gateway `onRequest` auth hook (same as deactivate)                         |
+| RBAC deny               | ☑    | parent role → 403 `FORBIDDEN` in `institution-reactivate.test.ts`          |
+| Cross-tenant IDOR (API) | ☑    | other tenant JWT → 404 `NOT_FOUND`                                         |
+| Cross-tenant IDOR (UI)  | ☐    | UI uses the session tenant; no second-tenant browser session in this slice |
+| Write audit             | ☑    | actor, reason, before/after status on the audit row                        |
+| Secrets                 | ☑    | no tokens committed                                                        |
+| Input validation        | ☑    | reason 1–500, UUID path param                                              |
 
 ## 2. Findings
 
