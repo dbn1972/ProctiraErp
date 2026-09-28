@@ -158,7 +158,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'mixed',
     rbacWired: true,
     notes:
-      'Prisma when DATABASE_URL set, else in-memory. G-901: academic periods / grades / classes / subjects (Prisma or in-memory look-alike) + infrastructure hierarchy (raw-pg on db/sql/027 with RLS, else tenant-partitioned in-memory) mounted by institutionPlugin.',
+      'Prisma when DATABASE_URL set, else in-memory. G-901: academic periods / grades / classes / subjects (Prisma or in-memory look-alike) + infrastructure hierarchy (raw-pg on db/sql/027 with RLS, else tenant-partitioned in-memory) mounted by institutionPlugin. Area tree mounts when DATABASE_URL is set. GET /institutions/directory-context returns tenant-scoped enrolment, staff, and today-attendance aggregates (null when the table is absent).',
     registrarName: 'institution',
   },
   {

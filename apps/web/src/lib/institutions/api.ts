@@ -98,7 +98,7 @@ export async function listInstitutions(
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
       })}`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result);
   } catch (error) {
@@ -168,6 +168,7 @@ export async function listAreaTree(rootId?: string): Promise<AreaNode[]> {
     const result = await gatewayFetch<AreaNode[]>(`/areas/tree${buildQuery({ rootId })}`, {
       method: 'GET',
       throwOnError: true,
+      cache: 'no-store',
     });
     return unwrap(result, []);
   } catch (error) {
@@ -258,7 +259,7 @@ export async function listCalendarEvents(periodId: string): Promise<CalendarEven
   try {
     const result = await gatewayFetch<{ data: CalendarEvent[] }>(
       `/academic-periods/${encodeURIComponent(periodId)}/calendar`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result, { data: [] }).data;
   } catch (error) {
@@ -371,7 +372,7 @@ export async function listClassesByInstitution(
   try {
     const result = await gatewayFetch<ClassSection[]>(
       `/classes${buildQuery({ institutionId, academicPeriodId })}`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result, []);
   } catch (error) {
@@ -390,7 +391,7 @@ export async function getInfrastructureHierarchy(
     // G-901: backend route is `/infrastructure/hierarchy/:institutionId`.
     const result = await gatewayFetch<InfrastructureHierarchy>(
       `/infrastructure/hierarchy/${encodeURIComponent(institutionId)}`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result, { lands: [] });
   } catch (error) {

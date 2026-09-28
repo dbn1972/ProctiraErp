@@ -107,6 +107,9 @@ export async function gatewayFetch<T>(
   if (init.next?.revalidate === 0) {
     fetchInit.cache = 'no-store';
     delete fetchInit.next;
+  } else if (accessToken && !fetchInit.cache && !init.next) {
+    // Authenticated reads must not be served from the Next.js data cache.
+    fetchInit.cache = 'no-store';
   }
 
   let response: Response;

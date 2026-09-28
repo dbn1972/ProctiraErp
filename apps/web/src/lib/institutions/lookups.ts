@@ -58,13 +58,15 @@ function flattenAreas(nodes: AreaNode[], depth = 0): LookupOption[] {
  * Loads area options for filter UIs and form selects. Falls back to static
  * options if the backend area-tree endpoint is unavailable.
  */
-export async function loadAreaOptions(): Promise<LookupOption[]> {
+export async function loadAreaOptions(options?: { fallback?: boolean }): Promise<LookupOption[]> {
+  const useFallback = options?.fallback !== false;
   try {
     const tree = await listAreaTree();
     const flat = flattenAreas(tree);
-    return flat.length > 0 ? flat : FALLBACK_AREAS;
+    if (flat.length > 0) return flat;
+    return useFallback ? FALLBACK_AREAS : [];
   } catch {
-    return FALLBACK_AREAS;
+    return useFallback ? FALLBACK_AREAS : [];
   }
 }
 

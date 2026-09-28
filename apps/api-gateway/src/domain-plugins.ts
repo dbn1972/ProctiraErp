@@ -144,6 +144,7 @@ import { getSharedPgPool, withPgTenant } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
+import { registerInstitutionDirectoryRoutes } from './institution-directory.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
@@ -663,6 +664,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             : undefined,
         },
       });
+      await registerInstitutionDirectoryRoutes(scope);
     },
   },
   {

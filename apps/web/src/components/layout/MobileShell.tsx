@@ -193,10 +193,14 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
   const resolvedTitle = pageTitle ?? activeTab?.label ?? name;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground" data-shell="mobile">
+    <div
+      className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background text-foreground"
+      data-shell="mobile"
+    >
       {/* ─── Sticky header (Design §H — brand mark + page title + actions). */}
       <header
-        className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-background px-4"
+        data-testid="mobile-shell-header"
+        className="z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-background px-4"
         aria-label="Mobile header"
       >
         {/* Brand logo (Requirement 43.4 — multi-tenant). The alt text uses
@@ -304,7 +308,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
       {/* ─── Routed page content (the same outlet `<DesktopShell>` wraps).
             Wrapped in `<PageErrorBoundary>` so render errors inside the page
             do NOT crash the header or bottom tabs (Property F-9). */}
-      <main className="flex-1 overflow-y-auto p-4 pb-20">
+      <main data-shell-scroll="page" className="touch-controls min-h-0 flex-1 overflow-y-auto p-4 pb-4">
         <PageErrorBoundary>{children}</PageErrorBoundary>
       </main>
 
@@ -312,7 +316,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             lucide-react icon with a visible text label (Req 37 AC 4 /
             41 AC 3). The active tab uses the tenant `--primary` token. */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background"
+        className="z-20 shrink-0 border-t border-border bg-background"
         aria-label="Mobile navigation"
       >
         <ul className="flex" role="list">
