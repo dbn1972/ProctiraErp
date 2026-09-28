@@ -30,6 +30,7 @@ vi.mock('../api', async (importActual) => {
   return {
     ...actual,
     useCrossBoardTransferData: (id?: string) => useCrossBoardTransferDataMock(id),
+    usePendingTransferApprovals: () => ({ data: [], isLoading: false, error: null }),
   };
 });
 
@@ -63,7 +64,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     const stepper = screen.getByTestId('cross-board-transfer-stepper');
     expect(stepper).toBeTruthy();
@@ -90,7 +91,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     const source = screen.getByTestId('cross-board-transfer-source-card');
     const destination = screen.getByTestId('cross-board-transfer-destination-card');
@@ -105,7 +106,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     const list = screen.getByTestId('cross-board-transfer-approvals-list');
     expect(within(list).getByText('Initiated by Parent')).toBeTruthy();
@@ -121,7 +122,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     const table = screen.getByTestId('cross-board-transfer-equivalency-table');
     expect(within(table).getByText(/Mathematics \(Marathi medium\)/)).toBeTruthy();
@@ -137,7 +138,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     const approve = screen.getByTestId('cross-board-transfer-approve-button');
     const reject = screen.getByTestId('cross-board-transfer-reject-button');
@@ -161,7 +162,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     const approve = screen.getByTestId('cross-board-transfer-approve-button') as HTMLButtonElement;
     const reject = screen.getByTestId('cross-board-transfer-reject-button') as HTMLButtonElement;
@@ -179,7 +180,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: new Error('Cross-board transfer endpoint pending workflow detail view'),
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     expect(screen.getByTestId('cross-board-transfer-unavailable')).toBeTruthy();
     expect(screen.queryByText(/Maharashtra State Board School/)).toBeNull();
@@ -193,7 +194,7 @@ describe('<CrossBoardTransferDashboard>', () => {
       error: null,
     });
 
-    await renderPage();
+    await renderPage('transfer-1');
 
     fireEvent.click(screen.getByTestId('cross-board-transfer-reject-button'));
     expect(screen.queryByTestId('cross-board-transfer-actions-status')).toBeNull();

@@ -8,6 +8,12 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  InMemoryLifecycleCertificateRepository,
+  LifecycleCertificateService,
+  registerLifecycleCertificateRoutes,
+  type LifecycleCertificateRepository,
+} from './certificates/index.js';
 import { createEnrollmentRepository } from './enrollment/create-enrollment-repository.js';
 import type { EnrollmentRepository } from './enrollment/enrollment-repository.js';
 import { registerEnrollmentRoutes } from './enrollment/enrollment-routes.js';
@@ -19,22 +25,15 @@ import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
 import type { ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentRepository } from './student-repository.js';
-import {
-  StudentService,
-  type AssertDestructiveDeleteAllowed,
-} from './student-service.js';
+import { StudentService, type AssertDestructiveDeleteAllowed } from './student-service.js';
 import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridge.js';
 import { createStudentBlobStore, type StudentBlobStore } from './students-360/blob-store.js';
 import { createStudents360Store } from './students-360/create-store.js';
 import { registerStudents360Routes } from './students-360/routes.js';
 import { Students360Service, type AttendanceHeatmapSource } from './students-360/service.js';
 import type { Students360Store } from './students-360/store.js';
-import {
-  InMemoryLifecycleCertificateRepository,
-  LifecycleCertificateService,
-  registerLifecycleCertificateRoutes,
-  type LifecycleCertificateRepository,
-} from './certificates/index.js';
+import { createTransferWorkflow } from './transfers/create-workflow.js';
+import { registerTransferWorkflowRoutes } from './transfers/routes.js';
 
 /**
  * Options for the student plugin.
@@ -144,9 +143,12 @@ export const studentPlugin = fp(
 
     const enrollmentService = new EnrollmentService(enrollmentRepository);
     fastify.decorate('enrollmentService', enrollmentService);
+    const transferWorkflow = createTransferWorkflow(enrollmentRepository);
+    await registerTransferWorkflowRoutes(fastify, { service: transferWorkflow });
     await registerEnrollmentRoutes(fastify, {
       enrollmentService,
       prefix: enrollmentPrefix,
+      transferWorkflow,
     });
 
     const importService = new ImportService({

@@ -157,4 +157,155 @@ ON CONFLICT (id) DO UPDATE
       status = 'PUBLISHED',
       updated_at = now();
 
+-- Cross-board transfer workflow fixtures (tenant A). CBSE school is the existing
+-- demo school; ICSE is a second institution. Aarav is submitted, Diya is under review.
+INSERT INTO boards (id, tenant_id, name, code, type, status)
+VALUES
+  ('00000000-0000-4000-8000-00000000b711', '00000000-0000-4000-8000-000000000001', 'Central Board of Secondary Education', 'CBSE', 'NATIONAL', 'active'),
+  ('00000000-0000-4000-8000-00000000b712', '00000000-0000-4000-8000-000000000001', 'Council for the Indian School Certificate Examinations', 'ICSE', 'PRIVATE', 'active')
+ON CONFLICT (id) DO UPDATE SET status = 'active', deleted_at = NULL, updated_at = now();
+
+UPDATE institutions
+   SET board_id = '00000000-0000-4000-8000-00000000b711', updated_at = now()
+ WHERE id = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374'
+   AND tenant_id = '00000000-0000-4000-8000-000000000001';
+
+INSERT INTO institutions (id, tenant_id, name, code, board_id, area_id, type, sector, ownership, status)
+VALUES (
+  '00000000-0000-4000-8000-00000000b721',
+  '00000000-0000-4000-8000-000000000001',
+  'E2E ICSE Academy',
+  'E2E-ICSE-01',
+  '00000000-0000-4000-8000-00000000b712',
+  '00000000-0000-4000-8000-00000000a0ea',
+  'school', 'public', 'government', 'active'
+)
+ON CONFLICT (id) DO UPDATE SET status = 'active', deleted_at = NULL, board_id = EXCLUDED.board_id, updated_at = now();
+
+INSERT INTO grades (id, tenant_id, name, code, "order")
+VALUES (
+  '00000000-0000-4000-8000-00000000b731',
+  '00000000-0000-4000-8000-000000000001',
+  'Grade 9', 'G9', 9
+)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO classes (id, tenant_id, institution_id, grade_id, academic_period_id, name, capacity)
+VALUES
+  ('00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-000000000001', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000ac01', '9-A', 40),
+  ('00000000-0000-4000-8000-00000000b742', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b721', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000ac01', '9-A', 40)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO students (id, tenant_id, first_name, last_name, date_of_birth, gender, custom_data)
+VALUES
+  ('00000000-0000-4000-8000-00000000b751', '00000000-0000-4000-8000-000000000001', 'Aarav', 'Transfer', DATE '2011-04-18', 'male', '{"e2e":"transfer"}'::jsonb),
+  ('00000000-0000-4000-8000-00000000b752', '00000000-0000-4000-8000-000000000001', 'Diya', 'Transfer', DATE '2011-08-09', 'female', '{"e2e":"transfer"}'::jsonb),
+  ('00000000-0000-4000-8000-00000000b753', '00000000-0000-4000-8000-000000000001', 'Kabir', 'Transfer', DATE '2011-11-02', 'male', '{"e2e":"transfer-draft"}'::jsonb),
+  ('00000000-0000-4000-8000-00000000b754', '00000000-0000-4000-8000-000000000001', 'Meera', 'Nair', DATE '2011-06-14', 'female', '{"e2e":"transfer-reject"}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET deleted_at = NULL, updated_at = now() WHERE students.tenant_id = EXCLUDED.tenant_id;
+
+-- A previous live run may have completed the transfer and opened a second
+-- ENROLLED row. Withdraw those before restoring the source enrollment.
+UPDATE enrollments
+   SET status = 'WITHDRAWN', exited_at = CURRENT_DATE, updated_at = now()
+ WHERE tenant_id = '00000000-0000-4000-8000-000000000001'
+   AND student_id IN (
+     '00000000-0000-4000-8000-00000000b751',
+     '00000000-0000-4000-8000-00000000b752',
+     '00000000-0000-4000-8000-00000000b753',
+     '00000000-0000-4000-8000-00000000b754'
+   )
+   AND id NOT IN (
+     '00000000-0000-4000-8000-00000000b761',
+     '00000000-0000-4000-8000-00000000b762',
+     '00000000-0000-4000-8000-00000000b763',
+     '00000000-0000-4000-8000-00000000b764'
+   )
+   AND status = 'ENROLLED';
+
+INSERT INTO enrollments (
+  id, tenant_id, student_id, institution_id, grade_id, class_id, academic_period_id, status, enrolled_at
+)
+VALUES
+  ('00000000-0000-4000-8000-00000000b761', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b751', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06'),
+  ('00000000-0000-4000-8000-00000000b762', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b752', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06'),
+  ('00000000-0000-4000-8000-00000000b763', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b753', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06'),
+  ('00000000-0000-4000-8000-00000000b764', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000b754', 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374', '00000000-0000-4000-8000-00000000b731', '00000000-0000-4000-8000-00000000b741', '00000000-0000-4000-8000-00000000ac01', 'ENROLLED', DATE '2026-04-06')
+ON CONFLICT (id) DO UPDATE
+  SET status = 'ENROLLED', exited_at = NULL, updated_at = now();
+
+INSERT INTO transfer_records (
+  id, tenant_id, student_id, source_institution_id, source_enrollment_id,
+  destination_institution_id, destination_enrollment_id, destination_grade_id,
+  destination_class_id, academic_period_id, transfer_date, reason, workflow_status, requested_by
+)
+VALUES
+  (
+    '00000000-0000-4000-8000-00000000b771',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-00000000b751',
+    'a2e96cd1-0232-4cce-97e2-00ebbfb9a374',
+    '00000000-0000-4000-8000-00000000b761',
+    '00000000-0000-4000-8000-00000000b721',
+    NULL,
+    '00000000-0000-4000-8000-00000000b731',
+    '00000000-0000-4000-8000-00000000b742',
+    '00000000-0000-4000-8000-00000000ac01',
+    DATE '2026-09-01',
+    'Family relocated from a CBSE school to an ICSE school',
+    'SUBMITTED',
+    'e2e-user'
+  ),
+  (
+    '00000000-0000-4000-8000-00000000b772',
+    '00000000-0000-4000-8000-000000000001',
+    '00000000-0000-4000-8000-00000000b752',
+    'a2e96cd1-0232-4cce-97e2-00ebbfb9a374',
+    '00000000-0000-4000-8000-00000000b762',
+    '00000000-0000-4000-8000-00000000b721',
+    NULL,
+    '00000000-0000-4000-8000-00000000b731',
+    '00000000-0000-4000-8000-00000000b742',
+    '00000000-0000-4000-8000-00000000ac01',
+    DATE '2026-09-02',
+    'State board seat not required — reject path fixture',
+    'UNDER_REVIEW',
+    'e2e-user'
+  )
+ON CONFLICT (id) DO NOTHING;
+
+-- Approval events are append-only, so rewinding workflow_status on re-seed
+-- left the header on UNDER_REVIEW while the timeline kept every prior reject.
+-- When history exists, the column follows the latest event.
+UPDATE transfer_records AS t
+   SET workflow_status = latest.to_status,
+       updated_at = now()
+  FROM (
+    SELECT DISTINCT ON (transfer_id) transfer_id, to_status
+      FROM transfer_approval_events
+     WHERE tenant_id = '00000000-0000-4000-8000-000000000001'
+       AND transfer_id IN (
+         '00000000-0000-4000-8000-00000000b771',
+         '00000000-0000-4000-8000-00000000b772'
+       )
+     ORDER BY transfer_id, created_at DESC
+  ) AS latest
+ WHERE t.id = latest.transfer_id
+   AND t.tenant_id = '00000000-0000-4000-8000-000000000001'
+   AND t.workflow_status IS DISTINCT FROM latest.to_status;
+
+INSERT INTO grade_equivalency_rules (
+  id, tenant_id, source_board_id, target_board_id, source_grade_code, target_grade_code,
+  source_subject, target_subject, source_marks_max, target_marks_max, credit_factor, mapping_status, notes
+)
+VALUES (
+  '00000000-0000-4000-8000-00000000b781',
+  '00000000-0000-4000-8000-000000000001',
+  '00000000-0000-4000-8000-00000000b711',
+  '00000000-0000-4000-8000-00000000b712',
+  'G9', 'G9', 'Mathematics', 'Mathematics', 100, 100, 1, 'mapped',
+  'CBSE 100-mark scale maps 1:1 onto ICSE'
+)
+ON CONFLICT (id) DO NOTHING;
+
 COMMIT;

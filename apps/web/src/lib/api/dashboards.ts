@@ -32,6 +32,7 @@ import type {
   BoardRow,
   CountryDashboardData,
   CrossBoardTransferData,
+  PendingTransferApproval,
   DashboardKpi,
   DistrictRanking,
   DistrictRow,
@@ -532,6 +533,36 @@ export async function fetchBoardComparison(
   });
 }
 
+export async function fetchPendingTransferApprovals(
+  signal?: AbortSignal,
+): Promise<{ data: PendingTransferApproval[] }> {
+  return browserGatewayFetch<{ data: PendingTransferApproval[] }>('/transfers/pending', {
+    signal,
+    sameOrigin: true,
+  });
+}
+
+export async function postTransferCreate(
+  body: Record<string, string>,
+): Promise<CrossBoardTransferData> {
+  return browserGatewayFetch<CrossBoardTransferData>('/transfers', {
+    method: 'POST',
+    json: body,
+    sameOrigin: true,
+  });
+}
+
+export async function postTransferDecision(
+  transferId: string,
+  action: 'submit' | 'review' | 'approve' | 'reject' | 'cancel' | 'complete',
+  comment?: string,
+): Promise<CrossBoardTransferData> {
+  return browserGatewayFetch<CrossBoardTransferData>(
+    `/transfers/${encodeURIComponent(transferId)}/${action}`,
+    { method: 'POST', json: comment ? { comment } : {}, sameOrigin: true },
+  );
+}
+
 export async function fetchCrossBoardTransfer(
   transferId?: string,
   signal?: AbortSignal,
@@ -545,7 +576,7 @@ export async function fetchCrossBoardTransfer(
   }
   return browserGatewayFetch<CrossBoardTransferData>(
     `/transfers/${encodeURIComponent(transferId)}`,
-    { signal },
+    { signal, sameOrigin: true },
   );
 }
 

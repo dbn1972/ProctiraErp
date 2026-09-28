@@ -23,6 +23,7 @@ export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   const institutionId = url.searchParams.get('institutionId');
   const sectionId = url.searchParams.get('sectionId');
+  const transferId = url.searchParams.get('transferId');
 
   if (institutionId && UUID.test(institutionId)) {
     const result = await gatewayFetch<{ name?: string; code?: string }>(
@@ -42,6 +43,18 @@ export async function GET(request: Request): Promise<Response> {
       { throwOnError: false, cache: 'no-store' },
     );
     const name = readName(result.data);
+    if (result.ok && name) {
+      return NextResponse.json({ name }, { headers: { 'cache-control': 'no-store' } });
+    }
+    return NextResponse.json({ name: null }, { status: result.status || 404 });
+  }
+
+  if (transferId && UUID.test(transferId)) {
+    const result = await gatewayFetch<{ studentName?: string }>(
+      `/transfers/${encodeURIComponent(transferId)}`,
+      { throwOnError: false, cache: 'no-store' },
+    );
+    const name = result.data?.studentName?.trim() || null;
     if (result.ok && name) {
       return NextResponse.json({ name }, { headers: { 'cache-control': 'no-store' } });
     }

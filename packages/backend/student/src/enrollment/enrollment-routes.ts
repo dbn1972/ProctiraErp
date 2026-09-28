@@ -17,6 +17,9 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { actorFromRequest } from '../transfers/actor.js';
+import type { TransferWorkflowService } from '../transfers/service.js';
+
 import type {
   EnrollmentEntity,
   EnrollmentHistoryEntity,
@@ -49,6 +52,8 @@ export interface EnrollmentRoutesOptions {
   enrollmentService: EnrollmentService;
   /** Route prefix (default: '/enrollments') */
   prefix?: string;
+  /** When set, GET /transfers/:id includes approval history and equivalency. */
+  transferWorkflow?: TransferWorkflowService;
 }
 
 /**
@@ -499,6 +504,14 @@ export async function registerEnrollmentRoutes(
       }
 
       try {
+        if (options.transferWorkflow) {
+          const view = await options.transferWorkflow.getDashboard(
+            tenantId,
+            paramsResult.data.transferId,
+            actorFromRequest(request),
+          );
+          return reply.status(200).send(view);
+        }
         const record = await enrollmentService.getTransferById(
           tenantId,
           paramsResult.data.transferId,

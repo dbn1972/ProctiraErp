@@ -176,12 +176,7 @@ export interface BoardAdminDashboardData {
 
 /** Metric key referenced by both `axes` and the per-board `metrics` map. */
 export type BoardComparisonMetricId =
-  | 'schools'
-  | 'students'
-  | 'attendance'
-  | 'passRate'
-  | 'ptr'
-  | 'gpi';
+  'schools' | 'students' | 'attendance' | 'passRate' | 'ptr' | 'gpi';
 
 export interface BoardComparisonMetric {
   /** Stable id used as a config-toggle key + radar axis id. */
@@ -255,6 +250,12 @@ export interface BoardComparisonData {
  * the visual treatment of each step.
  */
 export type TransferStateId =
+  | 'draft'
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
   | 'initiated'
   | 'documents_uploaded'
   | 'equivalency_mapped'
@@ -353,6 +354,47 @@ export interface CrossBoardTransferData {
    * the action buttons unless `currentApprover` matches the active step.
    */
   currentApprover?: string;
+  /** Server workflow status (DRAFT … COMPLETED). */
+  workflowStatus?: string;
+  capabilities?: {
+    canSubmit: boolean;
+    canStartReview: boolean;
+    canApprove: boolean;
+    canReject: boolean;
+    canCancel: boolean;
+    canComplete: boolean;
+    canAct: boolean;
+  };
+  timeline?: ReadonlyArray<{
+    id: string;
+    at: string;
+    actorName: string;
+    actorRole?: string;
+    decision: string;
+    comment?: string | null;
+    fromStatus: string;
+    toStatus: string;
+  }>;
+  destinationEnrollmentId?: string | null;
+}
+
+export interface PendingTransferApproval {
+  id: string;
+  studentId: string;
+  studentName: string | null;
+  sourceInstitutionId: string;
+  sourceInstitutionName: string | null;
+  destinationInstitutionId: string;
+  destinationInstitutionName: string | null;
+  sourceBoard: string | null;
+  destinationBoard: string | null;
+  currentGrade?: string | null;
+  status: string;
+  reason: string;
+  requestedBy?: string | null;
+  requestedAt: string;
+  canApprove?: boolean;
+  canReject?: boolean;
 }
 
 // ─── School / Principal (Task 52.4 / Req 40.6) ──────────────────────────────

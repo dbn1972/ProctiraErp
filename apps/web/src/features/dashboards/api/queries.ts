@@ -19,6 +19,7 @@ import {
   fetchBoardComparison,
   fetchCountryDashboard,
   fetchCrossBoardTransfer,
+  fetchPendingTransferApprovals,
   fetchStateDashboard,
 } from '@/lib/api/dashboards';
 
@@ -34,6 +35,7 @@ import type {
   CountryDashboardData,
   CrossBoardTransferData,
   DashboardQueryResult,
+  PendingTransferApproval,
   StateDashboardData,
 } from './types';
 
@@ -174,6 +176,46 @@ export function useCrossBoardTransferData(
       controller.abort();
     };
   }, [transferId]);
+
+  return { data, isLoading, error };
+}
+
+export function usePendingTransferApprovals(
+  enabled = true,
+): DashboardQueryResult<PendingTransferApproval[]> {
+  const [data, setData] = useState<PendingTransferApproval[] | undefined>(undefined);
+  const [error, setError] = useState<Error | null>(null);
+  const [isLoading, setIsLoading] = useState(enabled);
+
+  useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+    const controller = new AbortController();
+    let cancelled = false;
+    setIsLoading(true);
+    void (async () => {
+      try {
+        const result = await fetchPendingTransferApprovals(controller.signal);
+        if (!cancelled) {
+          setData(result.data);
+          setError(null);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setData(undefined);
+        setError(err instanceof Error ? err : new Error('Pending transfers unavailable'));
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [enabled]);
 
   return { data, isLoading, error };
 }
