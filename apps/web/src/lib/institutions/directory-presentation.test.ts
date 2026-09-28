@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  INSTITUTION_LIST_ERROR,
   attendanceTone,
   formatPageLabel,
   formatShowingRange,
   formatTenantSwitcher,
+  institutionListSubtitle,
+  navGroupLabel,
   rowMetrics,
   typeChipLabel,
 } from './directory-presentation';
@@ -57,6 +60,51 @@ describe('institutions directory presentation', () => {
     expect(typeChipLabel('00000000-0000-4000-8000-000000000011', names)).toBe('Secondary');
     expect(typeChipLabel('00000000-0000-4000-8000-000000000099', names)).toBe('');
     expect(typeChipLabel('Senior Secondary', names)).toBe('Senior Secondary');
+  });
+
+  it('groups academics once and keeps LMS with academics', () => {
+    const keys = [
+      'dashboard',
+      'institutions',
+      'examinations',
+      'lms',
+      'scholarships',
+      'health',
+      'fees',
+    ];
+    const groups = keys.map((key) => navGroupLabel(key));
+    expect(groups).toEqual([
+      'Overview',
+      'Academics',
+      'Academics',
+      'Academics',
+      'Services',
+      'Services',
+      'Services',
+    ]);
+    expect(new Set(groups.filter((group) => group === 'Academics')).size).toBe(1);
+  });
+
+  it('describes a filtered empty list without pretending the catalogue is empty', () => {
+    expect(
+      institutionListSubtitle({
+        filteredCount: 0,
+        catalogCount: 5,
+        filtersActive: true,
+        failed: false,
+      }),
+    ).toBe('0 of 5 schools match');
+    expect(INSTITUTION_LIST_ERROR).toBe(
+      "We couldn't load schools. Check your connection and try again.",
+    );
+    expect(
+      institutionListSubtitle({
+        filteredCount: 0,
+        catalogCount: 0,
+        filtersActive: false,
+        failed: true,
+      }),
+    ).toBe('Schools could not be loaded');
   });
 
   it('keeps stored type labels and title-cases slugs', () => {

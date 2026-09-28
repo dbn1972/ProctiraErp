@@ -40,7 +40,7 @@
     "dataWarehouse": "Data Warehouse",
     "reports": "Reports",
     "admin": "Administration",
-    "lms": "Learning"
+    "lms": "LMS"
   },
   "auth": {
     "login": "Sign In",

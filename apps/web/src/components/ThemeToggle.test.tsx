@@ -5,7 +5,7 @@
  *
  * Covers:
  *   • Click cycle: light → dark → system → light
- *   • Icon shown reflects the current selected mode (Sun/Moon/Monitor)
+ *   • The visible glyph is the prototype moon; data-mode still cycles
  *   • aria-label is sourced from `t('theme.toggle')` in the active locale
  *   • The control passes the 48 × 48 px touch-target rule (Req 37.3)
  *   • The pure `nextMode()` helper exposes the rotation contract
@@ -141,17 +141,17 @@ describe('<ThemeToggle> — render contract', () => {
     expect(button).toBeDefined();
   });
 
-  it('shows the Sun icon when mode === "light"', () => {
+  it('shows the Moon icon when mode === "light"', () => {
     render(
       <Harness initialMode="light">
         <ThemeToggle />
       </Harness>,
     );
     const button = screen.getByRole('button', { name: 'Toggle theme' });
-    // lucide-react renders an <svg> with a `lucide-sun` class on the icon.
+    // lucide-react renders an <svg> with a `lucide-moon` class on the icon.
     const icon = button.querySelector('svg');
     expect(icon).not.toBeNull();
-    expect(icon!.getAttribute('class') || '').toMatch(/lucide-sun/i);
+    expect(icon!.getAttribute('class') || '').toMatch(/lucide-moon/i);
   });
 
   it('shows the Moon icon when mode === "dark"', () => {
@@ -166,7 +166,7 @@ describe('<ThemeToggle> — render contract', () => {
     expect(icon!.getAttribute('class') || '').toMatch(/lucide-moon/i);
   });
 
-  it('shows the Monitor icon when mode === "system"', () => {
+  it('shows the Moon icon when mode === "system"', () => {
     render(
       <Harness initialMode="system">
         <ThemeToggle />
@@ -175,7 +175,7 @@ describe('<ThemeToggle> — render contract', () => {
     const button = screen.getByRole('button', { name: 'Toggle theme' });
     const icon = button.querySelector('svg');
     expect(icon).not.toBeNull();
-    expect(icon!.getAttribute('class') || '').toMatch(/lucide-monitor/i);
+    expect(icon!.getAttribute('class') || '').toMatch(/lucide-moon/i);
   });
 
   it('reserves a 48 × 48 px touch target (Requirement 37 AC 3)', () => {
@@ -221,7 +221,7 @@ describe('<ThemeToggle> — click cycle (Requirement 36 AC 1)', () => {
     expect(button.getAttribute('data-mode')).toBe('light');
   });
 
-  it('updates the rendered icon to track the current mode', () => {
+  it('keeps the moon glyph while the mode cycles', () => {
     render(
       <Harness initialMode="light">
         <ThemeToggle />
@@ -229,21 +229,18 @@ describe('<ThemeToggle> — click cycle (Requirement 36 AC 1)', () => {
     );
     const button = screen.getByTestId('theme-toggle');
 
-    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-sun/i);
-
-    act(() => {
-      fireEvent.click(button);
-    });
     expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-moon/i);
 
     act(() => {
       fireEvent.click(button);
     });
-    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-monitor/i);
+    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-moon/i);
+    expect(button.getAttribute('data-mode')).toBe('dark');
 
     act(() => {
       fireEvent.click(button);
     });
-    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-sun/i);
+    expect(button.querySelector('svg')!.getAttribute('class') || '').toMatch(/lucide-moon/i);
+    expect(button.getAttribute('data-mode')).toBe('system');
   });
 });

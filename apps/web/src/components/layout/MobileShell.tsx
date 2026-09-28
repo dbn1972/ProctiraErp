@@ -310,7 +310,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             do NOT crash the header or bottom tabs (Property F-9). */}
       <main
         data-shell-scroll="page"
-        className="touch-controls min-h-0 flex-1 overflow-y-auto p-4 pb-4"
+        className="touch-controls min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-4 pb-8"
       >
         <PageErrorBoundary>{children}</PageErrorBoundary>
       </main>
