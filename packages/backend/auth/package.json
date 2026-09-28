@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fastify/jwt": "^9.0.0",
+    "@fastify/jwt": "^10.2.2",
     "@prisma/client": "^5.22.0",
     "@proctira/auth": "workspace:*",
     "@proctira/common": "workspace:*",
@@ -35,13 +35,13 @@
     "@types/pg": "^8.23.1",
     "@types/uuid": "^9.0.8",
     "fast-check": "^4.10.1",
-    "fastify": "^5.7.2",
+    "fastify": "^5.12.5",
     "pg": "^8.23.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
   },
   "peerDependencies": {
-    "fastify": "^5.7.2"
+    "fastify": "^5.12.5"
   },
   "peerDependenciesMeta": {
     "fastify": {
