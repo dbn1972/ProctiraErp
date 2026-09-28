@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 
 import { Button } from '@proctira/ui/components';
 
-import { createMeetingAction } from '@/app/(dashboard)/timetable-actions';
+import { createMeetingAction, unpublishSectionAction } from '@/app/(dashboard)/timetable-actions';
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { formatTeacherClash } from '@/lib/timetable/meeting-conflict-label';
 
 /** ISO weekday: 1=Mon … 7=Sun (matches 003 schema). */
@@ -23,7 +24,7 @@ export function MeetingCreateForm(props: {
   institutionId: string;
   academicPeriodId: string;
   periodOptions: { id: string; label: string }[];
-  sectionOptions?: { id: string; label: string }[];
+  sectionOptions?: { id: string; label: string; status?: string }[];
   roomOptions?: { id: string; label: string }[];
   staffOptions?: { id: string; label: string }[];
   initial?: {
@@ -48,6 +49,26 @@ export function MeetingCreateForm(props: {
   );
   const [roomId, setRoomId] = useState(props.initial?.roomId ?? props.roomOptions?.[0]?.id ?? '');
   const [dayOfWeek, setDayOfWeek] = useState(String(props.initial?.dayOfWeek ?? 1));
+  const [unpublishOpen, setUnpublishOpen] = useState(false);
+  const selectedSection = props.sectionOptions?.find((item) => item.id === sectionId);
+  const publishedLocked = selectedSection?.status === 'PUBLISHED';
+
+  function unpublishSelected() {
+    if (!sectionId) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await unpublishSectionAction({
+        institutionId: props.institutionId,
+        sectionId,
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setUnpublishOpen(false);
+      router.refresh();
+    });
+  }
 
   if (props.periodOptions.length === 0) {
     return (
@@ -65,6 +86,12 @@ export function MeetingCreateForm(props: {
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
+        if (publishedLocked) {
+          setError(
+            'This section is published, so meetings are locked. Unpublish it to draft before adding a meeting.',
+          );
+          return;
+        }
         startTransition(async () => {
           const result = await createMeetingAction({
             institutionId: props.institutionId,
@@ -96,7 +123,13 @@ export function MeetingCreateForm(props: {
               );
               return;
             }
-            setError(result.status === 409 ? `Conflict (409). ${result.error}` : result.error);
+            setError(
+              /published schedule is locked/i.test(result.error)
+                ? 'This section is published, so meetings are locked. Unpublish it to draft before adding a meeting.'
+                : result.status === 409
+                  ? `Conflict (409). ${result.error}`
+                  : result.error,
+            );
             return;
           }
           router.refresh();
@@ -203,6 +236,7 @@ export function MeetingCreateForm(props: {
           size="sm"
           disabled={
             pending ||
+            publishedLocked ||
             !(props.sectionOptions && props.sectionOptions.length > 0) ||
             !(props.staffOptions && props.staffOptions.length > 0)
           }
@@ -211,6 +245,39 @@ export function MeetingCreateForm(props: {
           {pending ? 'Saving…' : 'Add meeting'}
         </Button>
       </div>
+      {publishedLocked && (
+        <div
+          className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:col-span-2 lg:col-span-3 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+          role="status"
+        >
+          <p>
+            This section is published, so meetings are locked. Unpublish it to draft before adding a
+            meeting.
+          </p>
+          <div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pending}
+              onClick={() => setUnpublishOpen(true)}
+            >
+              Unpublish to draft
+            </Button>
+          </div>
+        </div>
+      )}
+      <ConfirmActionDialog
+        open={unpublishOpen}
+        onOpenChange={setUnpublishOpen}
+        title="Unpublish this section?"
+        description="The section returns to draft. Students keep their places, and you can add or edit meetings until you publish again."
+        confirmLabel="Unpublish to draft"
+        destructive
+        pending={pending}
+        testId="unpublish-section-from-meeting"
+        onConfirm={unpublishSelected}
+      />
       {error && (
         <p
           className="text-sm text-red-600 dark:text-red-400 sm:col-span-2 lg:col-span-3"

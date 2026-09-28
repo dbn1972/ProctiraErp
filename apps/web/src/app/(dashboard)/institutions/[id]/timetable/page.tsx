@@ -85,6 +85,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   const sectionById = new Map(sections.map((section) => [section.id, section]));
   const sectionOptions = sections.map((s) => ({
     id: s.id,
+    status: s.status,
     label:
       formatCodeNameLabel(s.code, s.name) +
       ` (${s.status === 'PUBLISHED' ? 'Published' : s.status === 'DRAFT' ? 'Draft' : s.status})`,

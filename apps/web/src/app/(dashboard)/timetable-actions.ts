@@ -209,6 +209,7 @@ export async function publishSectionAction(input: {
     const row = await publishSection(input.sectionId);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    revalidatePath(`/institutions/${input.institutionId}/timetable`);
     return { ok: true, id: row.id };
   } catch (error) {
     return fail(error);
@@ -223,6 +224,7 @@ export async function unpublishSectionAction(input: {
     const row = await unpublishSection(input.sectionId);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    revalidatePath(`/institutions/${input.institutionId}/timetable`);
     return { ok: true, id: row.id };
   } catch (error) {
     return fail(error);

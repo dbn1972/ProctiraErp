@@ -50,7 +50,11 @@ test.describe('Institutions timetable — Sunrise live', () => {
     await page.goto(`/institutions/${MAYUR}/timetable?view=grid&class=9-B`, {
       waitUntil: 'domcontentloaded',
     });
-    for (let attempt = 0; attempt < 3 && !(await page.getByTestId('timetable-week-grid').count()); attempt += 1) {
+    for (
+      let attempt = 0;
+      attempt < 3 && !(await page.getByTestId('timetable-week-grid').count());
+      attempt += 1
+    ) {
       await page.waitForTimeout(2000);
       await page.reload({ waitUntil: 'domcontentloaded' });
     }
@@ -65,7 +69,10 @@ test.describe('Institutions timetable — Sunrise live', () => {
     await form.getByLabel('Section').selectOption({ label: 'G9B-HIN · Class 9-B Hindi (Draft)' });
     await form.getByLabel('Staff').selectOption({ label: 'Rahul Joshi' });
     await form.getByRole('button', { name: 'Add meeting' }).click();
-    const added = page.getByTestId('timetable-week-grid').getByRole('button', { name: /9-B Hindi/ }).first();
+    const added = page
+      .getByTestId('timetable-week-grid')
+      .getByRole('button', { name: /9-B Hindi/ })
+      .first();
     await added.scrollIntoViewIfNeeded();
     await expect(added).toBeVisible({ timeout: 15_000 });
 

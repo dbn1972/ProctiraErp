@@ -8,7 +8,11 @@ const LIVE = 'http://127.0.0.1:3001';
 const PROTO = 'http://127.0.0.1:8099';
 
 const pages = [
-  { name: 'timetable', proto: '/institutions/detail-timetable.html', live: `/institutions/${MAYUR}/timetable` },
+  {
+    name: 'timetable',
+    proto: '/institutions/detail-timetable.html',
+    live: `/institutions/${MAYUR}/timetable`,
+  },
   {
     name: 'generate',
     proto: '/institutions/detail-timetable-generate.html',
@@ -50,9 +54,11 @@ function signedJwt() {
 
 async function hidePrototypeChrome(page) {
   await page.evaluate(() => {
-    document.querySelectorAll('.states, .review-fab, .review-drawer, .review-panel').forEach((el) => {
-      el.remove();
-    });
+    document
+      .querySelectorAll('.states, .review-fab, .review-drawer, .review-panel')
+      .forEach((el) => {
+        el.remove();
+      });
     document.querySelectorAll('[data-panel]').forEach((el) => {
       if (el.getAttribute('data-panel') !== 'filled') el.remove();
     });
@@ -64,8 +70,12 @@ const browser = await chromium.launch();
 const token = signedJwt();
 
 for (const vp of viewports) {
-  const protoContext = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
-  const liveContext = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+  const protoContext = await browser.newContext({
+    viewport: { width: vp.width, height: vp.height },
+  });
+  const liveContext = await browser.newContext({
+    viewport: { width: vp.width, height: vp.height },
+  });
   await liveContext.addCookies([
     { name: 'access_token', value: token, url: LIVE },
     { name: 'refresh_token', value: token, url: LIVE },
@@ -74,9 +84,15 @@ for (const vp of viewports) {
   const livePage = await liveContext.newPage();
 
   for (const item of pages) {
-    await protoPage.goto(`${PROTO}${item.proto}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await protoPage.goto(`${PROTO}${item.proto}`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000,
+    });
     await hidePrototypeChrome(protoPage);
-    await protoPage.screenshot({ path: `${OUT}/${item.name}-${vp.name}-prototype.png`, fullPage: true });
+    await protoPage.screenshot({
+      path: `${OUT}/${item.name}-${vp.name}-prototype.png`,
+      fullPage: true,
+    });
     await livePage.goto(`${LIVE}${item.live}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await livePage.waitForTimeout(2500);
     if (await livePage.getByRole('heading', { name: 'Unable to load institutions' }).count()) {
