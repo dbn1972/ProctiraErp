@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -10,7 +9,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { filterNavItemsByAccess, type NavPermissionItem } from './nav-permissions';
 import { formatTenantSwitcher, initialsFromName, navGroupLabel } from '@/lib/institutions/directory-presentation';
 import { useOptionalBrand } from '@/providers/BrandConfigProvider';
-import { browserGatewayFetch } from '@/lib/api/browser-gateway';
+import { useDirectoryContext } from '@/lib/institutions/use-directory-context';
 
 /** Navigation items for the sidebar (W2-UX-03: permission + role gated). */
 export const navItems = [
@@ -201,30 +200,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const brand = useOptionalBrand();
-  const [directory, setDirectory] = useState<{
-    organizationName: string | null;
-    boardLabel: string | null;
-    studentsEnrolled: number | null;
-  } | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const context = await browserGatewayFetch<{
-          organizationName: string | null;
-          boardLabel: string | null;
-          studentsEnrolled: number | null;
-        }>('/institutions/directory-context', { cache: 'no-store' });
-        if (!cancelled) setDirectory(context);
-      } catch {
-        if (!cancelled) setDirectory(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const directory = useDirectoryContext();
 
   const organizationName =
     directory?.organizationName?.trim() || brand?.name?.trim() || 'Organization';

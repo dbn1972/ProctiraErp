@@ -14,6 +14,7 @@ import {
 } from '@proctira/ui/components';
 import { initialsFromName } from '@/lib/institutions/directory-presentation';
 import { signOut } from '@/lib/auth';
+import { useDirectoryContext } from '@/lib/institutions/use-directory-context';
 import { useAuth } from '@/providers/AuthProvider';
 import { useOptionalBrand } from '@/providers/BrandConfigProvider';
 
@@ -26,13 +27,14 @@ export function Header() {
   const t = useTranslations('auth');
   const { user } = useAuth();
   const brand = useOptionalBrand();
+  const directory = useDirectoryContext();
   const displayName = user?.name?.trim() || 'Account';
   const roleLabel = (user?.roles?.[0] ?? '')
     .split('-')
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ');
-  const orgName = brand?.name?.trim();
+  const orgName = directory?.organizationName?.trim() || brand?.name?.trim();
   const subtitle = [roleLabel, orgName].filter(Boolean).join(' · ');
 
   async function handleLogout() {

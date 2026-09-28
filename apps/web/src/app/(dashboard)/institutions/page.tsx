@@ -317,7 +317,8 @@ export default async function InstitutionsListPage(props: InstitutionsPageProps)
             Institutions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totalItems.toLocaleString()} schools · profiles, classes, and infrastructure
+            {totalItems.toLocaleString()} {totalItems === 1 ? 'school' : 'schools'} · profiles,
+            classes, and infrastructure
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">

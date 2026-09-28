@@ -59,8 +59,8 @@ vi.mock('next-intl', () => ({
 }));
 
 
-vi.mock('@/lib/api/browser-gateway', () => ({
-  browserGatewayFetch: () => new Promise(() => undefined),
+vi.mock('@/lib/institutions/use-directory-context', () => ({
+  useDirectoryContext: () => null,
 }));
 
 vi.mock('@/providers/AuthProvider', () => ({

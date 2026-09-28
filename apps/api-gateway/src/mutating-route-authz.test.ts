@@ -87,6 +87,17 @@ describe('W1-SEC-02 mutating-route authz inventory', () => {
       action: 'create',
       deferredDomainGuard: false,
     });
+
+    const deactivate = resolveExactMutatingAuthz(
+      'POST',
+      '/api/v1/institutions/00000000-0000-4000-8000-00000000a551/deactivate',
+    );
+    expect(deactivate).toMatchObject({
+      resource: 'institution',
+      action: 'update',
+      ruleId: 'institution.deactivate',
+    });
+    expect(resolveExactMutatingAuthz('POST', '/api/v1/institutions')?.action).toBe('create');
   });
 
   it('fails closed when mutating path has no inventory rule', () => {
