@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, FileText, Pencil, School } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
+import { InstitutionScopeRegistrar } from '@/lib/institutions/institution-scope';
 import { cn } from '@/lib/utils';
 import { InstitutionReactivateButton } from '@/components/institutions/institution-row-actions';
 import { InstitutionTabs } from '@/components/institutions/institution-tabs';
@@ -62,12 +63,18 @@ export default async function InstitutionLayout({ params, children }: Institutio
   ].filter(Boolean);
 
   return (
-    <section className="space-y-6">
+    <section className="-mt-3 space-y-3">
+      <InstitutionScopeRegistrar id={institution.id} areaLabel={areaName || null} />
       {/* ── Hero head ── */}
-      <div className="flex flex-col gap-3">
-        <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+      <div className="flex flex-col gap-2">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="-ms-2 w-fit !h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2 !text-xs"
+        >
           <Link href="/institutions">
-            <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Back to institutions
           </Link>
         </Button>
@@ -121,15 +128,20 @@ export default async function InstitutionLayout({ params, children }: Institutio
                 inactive={!isActive}
               />
             ) : null}
-            <Button asChild variant="outline" size="sm">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs"
+            >
               <Link href={`/institutions/${institution.id}/edit`}>
-                <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                 Edit
               </Link>
             </Button>
-            <Button asChild size="sm">
+            <Button asChild size="sm" className="!h-8 !min-h-8 !min-w-0 !gap-1.5 !px-2.5 !text-xs">
               <Link href={`/institutions/${institution.id}/overview/report`}>
-                <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
                 School report
               </Link>
             </Button>
