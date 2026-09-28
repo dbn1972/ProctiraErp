@@ -6,6 +6,7 @@
 import Link from 'next/link';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
+import { AcademicPeriodSelect } from '@/components/timetable/academic-period-select';
 import { TimetableGenerateForm } from '@/components/timetable/generate-form';
 import { formatCodeNameLabel, formatPersonLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
@@ -16,16 +17,38 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ academicPeriod?: string }>;
+}
+
+function formatWhen(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 export default async function TimetableGeneratePage(props: PageProps) {
   const params = await props.params;
+  const searchParams = (await props.searchParams) ?? {};
   const institutionId = params.id;
 
+  let academicPeriods: { id: string; label: string }[] = [];
   let academicPeriodId = '';
   try {
     const periods = await listAcademicPeriods();
-    academicPeriodId = periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
+    academicPeriods = periods.map((period) => ({
+      id: period.id,
+      label: `${period.name} (${period.status === 'active' ? 'Active' : period.status === 'inactive' ? 'Inactive' : 'Archived'})`,
+    }));
+    const requested = periods.find((period) => period.id === searchParams.academicPeriod);
+    const active = periods.find((period) => period.status === 'active') ?? periods[0];
+    academicPeriodId = (requested ?? active)?.id ?? '';
   } catch {
     academicPeriodId = '';
   }
@@ -33,10 +56,18 @@ export default async function TimetableGeneratePage(props: PageProps) {
   const [schedulesResult, sectionsResult, staffResult, jobsResult] = await Promise.all([
     listBellSchedules({ institutionId }),
     listSections({ institutionId, academicPeriodId: academicPeriodId || undefined }),
-    listStaff({ pageSize: 100 }).catch(() => ({
-      data: [],
-      meta: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
-    })),
+    (async () => {
+      const rows: Awaited<ReturnType<typeof listStaff>>['data'] = [];
+      for (let page = 1; page <= 4; page += 1) {
+        const batch = await listStaff({ page, pageSize: 100 }).catch(() => ({
+          data: [] as Awaited<ReturnType<typeof listStaff>>['data'],
+          meta: { page, pageSize: 100, totalItems: 0, totalPages: 0 },
+        }));
+        rows.push(...batch.data);
+        if (batch.data.length < 100) break;
+      }
+      return { data: rows };
+    })(),
     listGenerationJobs({ institutionId }),
   ]);
 
@@ -58,9 +89,14 @@ export default async function TimetableGeneratePage(props: PageProps) {
         <div>
           <h2 className="text-lg font-bold tracking-tight text-foreground">Generate timetable</h2>
           <p className="text-sm text-muted-foreground">
-            Constraint-based greedy assignment with a repair loop. Hard clashes stay at zero;
-            leftover demand is left unassigned.
+            Places each section&apos;s weekly periods onto the bell schedule. A teacher or room that
+            is already booked is left unassigned, and nothing is saved until you confirm.
           </p>
+          {academicPeriods.length > 0 ? (
+            <div className="mt-3">
+              <AcademicPeriodSelect value={academicPeriodId} options={academicPeriods} />
+            </div>
+          ) : null}
         </div>
         <Button asChild variant="outline" size="sm">
           <Link href={`/institutions/${institutionId}/timetable`}>Back to grid</Link>
@@ -90,7 +126,10 @@ export default async function TimetableGeneratePage(props: PageProps) {
             <TimetableGenerateForm
               institutionId={institutionId}
               academicPeriodId={academicPeriodId}
-              bellScheduleId={schedules[0]?.id}
+              bellScheduleOptions={schedules.map((schedule) => ({
+                id: schedule.id,
+                label: schedule.name,
+              }))}
               sectionOptions={sectionOptions}
               staffOptions={staffOptions}
             />
@@ -127,7 +166,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
                         {job.assignedCount} assigned · {job.clashCount} clashes
                         {job.errorMessage ? ` · ${job.errorMessage}` : ''}
                       </td>
-                      <td className="px-3 py-2">{job.finishedAt ?? job.createdAt}</td>
+                      <td className="px-3 py-2">{formatWhen(job.finishedAt ?? job.createdAt)}</td>
                       <td className="px-3 py-2">{job.requestedBy ?? '—'}</td>
                       <td className="py-2 text-end">
                         {job.status === 'done' ? (

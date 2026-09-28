@@ -108,13 +108,9 @@ export function SubstitutionCreateForm(props: {
             ))}
           </select>
         ) : (
-          <input
-            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
-            value={substituteStaffId}
-            onChange={(e) => setSubstituteStaffId(e.target.value)}
-            required
-            aria-label="Substitute staff"
-          />
+          <p className="text-sm text-muted-foreground" role="status">
+            Staff directory is unavailable. Try again when the directory loads.
+          </p>
         )}
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -136,7 +132,12 @@ export function SubstitutionCreateForm(props: {
         />
       </label>
       <div className="flex items-end">
-        <Button type="submit" size="sm" disabled={pending} className="w-full">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || staffOptions.length === 0}
+          className="w-full"
+        >
           {pending ? 'Saving…' : 'Assign substitute'}
         </Button>
       </div>

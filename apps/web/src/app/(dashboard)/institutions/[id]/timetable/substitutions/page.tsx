@@ -24,6 +24,13 @@ export const dynamic = 'force-dynamic';
 
 const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+function formatDay(iso: string): string {
+  const day = iso.slice(0, 10);
+  const date = new Date(`${day}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return day;
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 interface PageProps {
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ staff?: string; date?: string }>;
@@ -150,7 +157,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
                   <h3 className="text-base font-semibold">Affected periods</h3>
                   <p className="text-sm text-muted-foreground">
                     {resolveEntityLabel(searchParams.staff, staffLabel, 'Teacher')} ·{' '}
-                    {searchParams.date}
+                    {formatDay(searchParams.date ?? '')}
                   </p>
                 </div>
                 {affectedRows.length === 0 ? (
@@ -245,14 +252,16 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
                   {substitutions.map((s) => {
                     const meeting = meetingById.get(s.sectionMeetingId);
                     const meetingText = meeting
-                      ? `${DAY_LABELS[meeting.dayOfWeek] ?? ''} · ${periodLabel.get(meeting.periodId) ?? 'Period'} · ${resolveEntityLabel(meeting.sectionId, sectionLabel, 'Section')} (${resolveEntityLabel(s.originalStaffId, staffLabel, 'Teacher')})`
+                      ? `${DAY_LABELS[meeting.dayOfWeek] ?? ''} · ${periodLabel.get(meeting.periodId) ?? 'Period'} · ${resolveEntityLabel(meeting.sectionId, sectionLabel, 'Section')}`
                       : 'Meeting';
+                    const absent = resolveEntityLabel(s.originalStaffId, staffLabel, 'Teacher');
+                    const cover = resolveEntityLabel(s.substituteStaffId, staffLabel, 'Substitute');
                     return (
                       <tr key={s.id} className="border-b border-border/60">
-                        <td className="px-6 py-2">{s.substitutionDate.slice(0, 10)}</td>
+                        <td className="px-6 py-2">{formatDay(s.substitutionDate)}</td>
                         <td className="px-4 py-2">{meetingText}</td>
                         <td className="px-4 py-2">
-                          {resolveEntityLabel(s.substituteStaffId, staffLabel, 'Substitute')}
+                          {absent} → {cover}
                         </td>
                         <td className="px-4 py-2">{s.reason ?? '—'}</td>
                       </tr>

@@ -5,6 +5,7 @@
  */
 import Link from 'next/link';
 
+import { AcademicPeriodSelect } from '@/components/timetable/academic-period-select';
 import { InstitutionWeekGrid } from '@/components/timetable/institution-week-grid';
 import { MeetingCreateForm } from '@/components/timetable/meeting-create-form';
 import { Button, Card, CardContent } from '@proctira/ui/components';
@@ -24,7 +25,14 @@ export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ view?: string; class?: string; day?: string; period?: string }>;
+  searchParams?: Promise<{
+    view?: string;
+    class?: string;
+    day?: string;
+    period?: string;
+    academicPeriod?: string;
+    meeting?: string;
+  }>;
 }
 
 const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -39,13 +47,20 @@ export default async function InstitutionTimetablePage(props: PageProps) {
   const institutionId = params.id;
   const view = searchParams.view === 'list' ? 'list' : 'grid';
 
+  let academicPeriods: { id: string; label: string }[] = [];
   let academicPeriodId = '';
   let academicPeriodName = '';
   try {
     const periods = await listAcademicPeriods();
-    const active = periods.find((p) => p.status === 'active') ?? periods[0];
-    academicPeriodId = active?.id ?? '';
-    academicPeriodName = active?.name ?? '';
+    academicPeriods = periods.map((period) => ({
+      id: period.id,
+      label: `${period.name} (${period.status === 'active' ? 'Active' : period.status === 'inactive' ? 'Inactive' : 'Archived'})`,
+    }));
+    const requested = periods.find((period) => period.id === searchParams.academicPeriod);
+    const active = periods.find((period) => period.status === 'active') ?? periods[0];
+    const chosen = requested ?? active;
+    academicPeriodId = chosen?.id ?? '';
+    academicPeriodName = chosen?.name ?? '';
   } catch {
     academicPeriodId = '';
   }
@@ -166,6 +181,7 @@ export default async function InstitutionTimetablePage(props: PageProps) {
     const params = new URLSearchParams();
     params.set('view', next.view ?? view);
     params.set('class', next.class ?? classKey);
+    if (academicPeriodId) params.set('academicPeriod', academicPeriodId);
     return `/institutions/${institutionId}/timetable?${params.toString()}`;
   };
 
@@ -181,6 +197,15 @@ export default async function InstitutionTimetablePage(props: PageProps) {
           <p className="text-sm text-muted-foreground">
             Weekly section meetings for this institution. Teacher double-bookings are blocked.
           </p>
+          {academicPeriods.length > 0 ? (
+            <div className="mt-3">
+              <AcademicPeriodSelect
+                value={academicPeriodId}
+                options={academicPeriods}
+                preserve={{ view, class: classKey }}
+              />
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
@@ -361,6 +386,8 @@ export default async function InstitutionTimetablePage(props: PageProps) {
                 <InstitutionWeekGrid
                   institutionId={institutionId}
                   classKey={classKey}
+                  academicPeriodId={academicPeriodId}
+                  openMeetingId={searchParams.meeting}
                   caption={`Weekly timetable${classKey === 'all' ? '' : `, Class ${classKey}`}`}
                   periods={periodRows.map((p) => ({
                     id: p.id,

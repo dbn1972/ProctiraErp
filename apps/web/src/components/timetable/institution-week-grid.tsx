@@ -45,6 +45,8 @@ const DAYS = [
 export function InstitutionWeekGrid(props: {
   institutionId: string;
   classKey: string;
+  academicPeriodId?: string;
+  openMeetingId?: string;
   periods: GridPeriod[];
   meetings: GridMeeting[];
   caption: string;
@@ -56,18 +58,28 @@ export function InstitutionWeekGrid(props: {
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => setReady(true), []);
+  useEffect(() => {
+    if (!props.openMeetingId) return;
+    const meeting = props.meetings.find((item) => item.id === props.openMeetingId);
+    if (meeting) setSelected(meeting);
+  }, [props.openMeetingId, props.meetings]);
 
   function prefill(day: number, periodId: string) {
     const params = new URLSearchParams();
     params.set('view', 'grid');
     params.set('class', props.classKey);
+    if (props.academicPeriodId) params.set('academicPeriod', props.academicPeriodId);
     params.set('day', String(day));
     params.set('period', periodId);
     router.push(`/institutions/${props.institutionId}/timetable?${params.toString()}#add-meeting`);
   }
 
   return (
-    <div data-testid="timetable-week-grid" data-hydrated={ready ? 'true' : 'false'}>
+    <div
+      id="timetable-week-grid"
+      data-testid="timetable-week-grid"
+      data-hydrated={ready ? 'true' : 'false'}
+    >
       <div className="overflow-x-auto">
         <table
           className="w-full min-w-[760px] border-separate border-spacing-1 text-xs"
