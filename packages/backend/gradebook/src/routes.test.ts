@@ -208,6 +208,103 @@ describe('gradebook routes G-907', () => {
     }
   });
 
+  // PRC-C006: read routes must reject unrelated readers and scope portal readers.
+  describe('PRC-C006 read authorization', () => {
+    it('denies a student on staff-only reads (audits, board-exports, credit-rules, rank, sections)', async () => {
+      for (const url of [
+        '/gradebook/audits',
+        '/gradebook/board-exports',
+        '/gradebook/credit-rules',
+        `/gradebook/rank?sectionId=${SECTION}`,
+        '/gradebook/sections',
+        '/gradebook/report-cards',
+      ]) {
+        const res = await app.inject({ method: 'GET', url, headers: { 'x-roles': 'student' } });
+        expect(res.statusCode, `student GET ${url}`).toBe(403);
+      }
+    });
+
+    it('denies a portal reader on self-scopable reads when no studentBinding is configured', async () => {
+      // The default app has no studentBinding → portal reader fails closed.
+      const res = await app.inject({
+        method: 'GET',
+        url: `/gradebook/gpa?studentId=${STUDENT}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('staff can still read (regression guard)', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/gradebook/audits',
+        headers: { 'x-roles': 'registrar' },
+      });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it('binds a portal reader to their linked students on /gpa and /published', async () => {
+      await app.close();
+      const OTHER_STUDENT = '99999999-9999-4999-8999-999999999999';
+      app = Fastify({ logger: false });
+      app.addHook('onRequest', async (request) => {
+        const rolesHeader = request.headers['x-roles'];
+        const roles = typeof rolesHeader === 'string' ? rolesHeader.split(',') : ['admin'];
+        (
+          request as FastifyRequest & { user: { tenantId: string; id: string; roles: string[] } }
+        ).user = { tenantId: TENANT, id: 'parent-1', roles };
+      });
+      await app.register(gradebookPlugin, {
+        repository: repo,
+        extras: new InMemoryGradebookExtrasStore(),
+        prefix: '/gradebook',
+        // Parent is linked only to STUDENT.
+        studentBinding: { listReadableStudentIds: async () => [STUDENT] },
+      });
+      await app.ready();
+
+      // Own child → 200.
+      const own = await app.inject({
+        method: 'GET',
+        url: `/gradebook/gpa?studentId=${STUDENT}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(own.statusCode).toBe(200);
+
+      // Another student → 403.
+      const other = await app.inject({
+        method: 'GET',
+        url: `/gradebook/gpa?studentId=${OTHER_STUDENT}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(other.statusCode).toBe(403);
+
+      // /published for own child → 200; other child → 403.
+      const ownPublished = await app.inject({
+        method: 'GET',
+        url: `/gradebook/published?studentId=${STUDENT}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(ownPublished.statusCode).toBe(200);
+      const otherPublished = await app.inject({
+        method: 'GET',
+        url: `/gradebook/published?studentId=${OTHER_STUDENT}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(otherPublished.statusCode).toBe(403);
+    });
+  });
+
+  // PRC-C007: board-export download requires a staff read role (was open with a decorative token).
+  it('PRC-C007: denies board-export download without a staff role', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/gradebook/board-exports/${SECTION}/download`,
+      headers: { 'x-roles': 'student' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
   it('issues a transcript when the dedicated signing secret is configured', async () => {
     const previousDir = process.env.SIS_TRANSCRIPT_DIR;
     const previousSecret = process.env.TRANSCRIPT_SIGNING_SECRET;
