@@ -6,9 +6,25 @@
  * Supports scheduled execution, retry with exponential backoff,
  * structured execution logging, and Kafka event publishing.
  */
-import { v4 as uuidv4 } from 'uuid';
 import { AppError, NotFoundError } from '@proctira/common';
+import { v4 as uuidv4 } from 'uuid';
 
+import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
+import { ExecutionLogger, type LogSink } from './execution-logger.js';
+import { buildExecutionLineage } from './lineage.js';
+import {
+  type PipelineEventPublisher,
+  InMemoryEventPublisher,
+  createPipelineEvent,
+} from './pipeline-events.js';
+import type { PipelineRepository, PipelineListFilter } from './pipeline-repository.js';
+import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
+import {
+  RetryExecutor,
+  TestableRetryExecutor,
+  type AdminNotifier,
+  InMemoryAdminNotifier,
+} from './retry-executor.js';
 import type {
   Pipeline,
   PipelineExecution,
@@ -16,23 +32,7 @@ import type {
   UpdatePipelineInput,
   RetryPolicy,
 } from './schemas.js';
-import type { PipelineRepository, PipelineListFilter } from './pipeline-repository.js';
-import { createSourceConnector, createDestinationConnector } from './connectors/index.js';
 import { transformRows } from './transformations/index.js';
-import { ExecutionLogger, type LogSink } from './execution-logger.js';
-import { buildExecutionLineage } from './lineage.js';
-import {
-  RetryExecutor,
-  TestableRetryExecutor,
-  type AdminNotifier,
-  InMemoryAdminNotifier,
-} from './retry-executor.js';
-import { PipelineScheduler, type SchedulerConfig } from './pipeline-scheduler.js';
-import {
-  type PipelineEventPublisher,
-  InMemoryEventPublisher,
-  createPipelineEvent,
-} from './pipeline-events.js';
 
 export interface ETLServiceConfig {
   /** Default retry policy for pipelines without explicit config */
@@ -256,6 +256,15 @@ export class ETLService {
     const existing = await this.repository.findById(pipelineId, tenantId);
     if (!existing) {
       throw new NotFoundError(`Pipeline not found: ${pipelineId}`);
+    }
+
+    // PRC-C003: validate any connector config being changed so a PATCH cannot store an unsafe
+    // filePath (LFI) or non-public/non-https URL (SSRF) that bypassed create-time checks.
+    if (input.source !== undefined || input.destination !== undefined) {
+      await this.assertConnectorConfigSafe({
+        source: input.source ?? existing.source,
+        destination: input.destination ?? existing.destination,
+      });
     }
 
     const updates: Partial<Pipeline> = {};
@@ -494,7 +503,7 @@ export class ETLService {
         {
           row: -1,
           field: null,
-          message: `Pipeline failed after ${retryResult.attempts} attempts: ${retryResult.lastError}`,
+          message: `Pipeline failed after ${retryResult.attempts} attempts: ${retryResult.lastError ?? 'unknown error'}`,
           data: null,
         },
       ],

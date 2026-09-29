@@ -41,6 +41,10 @@ describe('isDisallowedAddress (PRC-C003)', () => {
       expect(isDisallowedAddress(addr)).toBe(false);
     },
   );
+
+  it('rejects IPv4-mapped IPv6 in compressed hextet form', () => {
+    expect(isDisallowedAddress('::ffff:7f00:1')).toBe(true); // ::ffff:127.0.0.1 compressed
+  });
 });
 
 describe('assertPublicHttpsUrl (PRC-C003)', () => {
@@ -79,6 +83,27 @@ describe('assertPublicHttpsUrl (PRC-C003)', () => {
     await expect(assertPublicHttpsUrl('https://example.com/', publicResolver)).resolves.toBeInstanceOf(
       URL,
     );
+  });
+
+  it('rejects IPv6 loopback / IPv4-mapped literal URL hosts by policy', async () => {
+    // These must be rejected by the classifier (bracket-stripped), not merely as unresolvable.
+    await expect(assertPublicHttpsUrl('https://[::1]/', publicResolver)).rejects.toBeInstanceOf(
+      SsrfError,
+    );
+    await expect(
+      assertPublicHttpsUrl('https://[::ffff:7f00:1]/', publicResolver),
+    ).rejects.toBeInstanceOf(SsrfError);
+    await expect(assertPublicHttpsUrl('https://[fe80::1]/', publicResolver)).rejects.toBeInstanceOf(
+      SsrfError,
+    );
+  });
+
+  it('rejects a hostname that resolves to a private IPv6 address', async () => {
+    await expect(
+      assertPublicHttpsUrl('https://evil.example.com/', async () => [
+        { address: 'fd00::1', family: 6 },
+      ]),
+    ).rejects.toBeInstanceOf(SsrfError);
   });
 });
 

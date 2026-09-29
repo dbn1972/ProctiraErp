@@ -7,13 +7,20 @@
  * SSRF. This module enforces, on every request AND on every redirect hop:
  *   - https only (no http/file/ftp/gopher/etc.);
  *   - DNS resolution up front, rejecting any address in a private / loopback / link-local /
- *     unique-local / metadata / reserved range (blocks DNS-rebinding to internal targets);
+ *     unique-local / metadata / reserved range;
  *   - manual redirect handling with a small hop cap (each hop re-validated);
  *   - a request timeout (AbortSignal);
  *   - a response body size cap.
  *
  * The guard fails closed: anything it cannot positively classify as a public, https target is
  * rejected.
+ *
+ * RESIDUAL RISK — this is resolve-and-check, not connection-level DNS pinning. The address is
+ * validated here, then the request is issued by host name, so fetch() re-resolves independently.
+ * A hostile resolver could return a public IP to this check and a private IP to the actual
+ * connection (DNS rebinding / TOCTOU). Closing that fully requires connecting to the validated
+ * IP (e.g. a custom undici agent) and is tracked as a follow-up; the checks above still block
+ * the common literal-IP, http-scheme, and redirect vectors.
  */
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
@@ -69,9 +76,10 @@ export function isDisallowedAddress(address: string): boolean {
     if (addr.startsWith('fe80')) return true; // link-local
     if (addr.startsWith('fc') || addr.startsWith('fd')) return true; // unique-local fc00::/7
     if (addr.startsWith('ff')) return true; // multicast
-    // IPv4-mapped (::ffff:a.b.c.d) — validate the embedded v4.
-    const mapped = addr.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isDisallowedAddress(mapped[1]!);
+    // IPv4-mapped (::ffff:...) — reject the whole class. Node's URL emits the compressed
+    // hextet form (::ffff:7f00:1) rather than dotted (::ffff:127.0.0.1), so we do not try to
+    // parse the embedded v4; a public target should never be reached via a v4-mapped literal.
+    if (addr.startsWith('::ffff:') || addr.startsWith('::')) return true;
     return false;
   }
   // Not a recognised IP literal — fail closed.
@@ -95,7 +103,9 @@ export async function assertPublicHttpsUrl(
   if (url.protocol !== 'https:') {
     throw new SsrfError(`Only https URLs are allowed (got '${url.protocol}')`);
   }
-  const host = url.hostname;
+  // url.hostname keeps brackets around IPv6 literals ([::1]); strip them so net.isIP and the
+  // classifier see the bare address rather than treating it as an (unresolvable) name.
+  const host = url.hostname.replace(/^\[/, '').replace(/\]$/, '');
   // A bare IP host is checked directly; a name is resolved and every address checked.
   if (net.isIP(host)) {
     if (isDisallowedAddress(host)) {
