@@ -25,12 +25,12 @@
     "@proctira/events": "workspace:*",
     "kafkajs": "^2.2.4",
     "amqplib": "^0.10.4",
-    "@aws-sdk/client-sqs": "^3.1135.0"
+    "@aws-sdk/client-sqs": "^3.1140.0"
   },
   "devDependencies": {
     "@types/amqplib": "^0.10.5",
     "@types/pg": "^8.23.1",
-    "fast-check": "^4.10.1",
+    "fast-check": "^4.10.2",
     "pg": "^8.23.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
