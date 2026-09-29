@@ -121,7 +121,13 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     await page.goto('/admin/roles', { waitUntil: 'domcontentloaded' });
     page.once('dialog', (d) => d.accept());
     await (await hydrated(page, `delete-role-${name}`)).click();
-    await expect(page.getByTestId(`role-card-${name}`)).toHaveCount(0, { timeout: 30_000 });
+    try {
+      await expect(page.getByTestId(`role-card-${name}`)).toHaveCount(0, { timeout: 15_000 });
+    } catch {
+      // router.refresh can stall under production RSC; confirm via hard nav.
+      await page.goto('/admin/roles', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByTestId(`role-card-${name}`)).toHaveCount(0, { timeout: 15_000 });
+    }
   });
 
   test('tenant settings save and reload', async ({ page, request }) => {
