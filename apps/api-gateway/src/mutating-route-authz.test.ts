@@ -87,6 +87,40 @@ describe('W1-SEC-02 mutating-route authz inventory', () => {
       action: 'create',
       deferredDomainGuard: false,
     });
+
+    const deactivate = resolveExactMutatingAuthz(
+      'POST',
+      '/api/v1/institutions/00000000-0000-4000-8000-00000000a551/deactivate',
+    );
+    expect(deactivate).toMatchObject({
+      resource: 'institution',
+      action: 'update',
+      ruleId: 'institution.deactivate',
+    });
+
+    const reactivate = resolveExactMutatingAuthz(
+      'POST',
+      '/api/v1/institutions/00000000-0000-4000-8000-00000000a551/reactivate',
+    );
+    expect(reactivate).toMatchObject({
+      resource: 'institution',
+      action: 'update',
+      ruleId: 'institution.reactivate',
+      domainAction: 'institution.reactivate',
+    });
+    expect(resolveExactMutatingAuthz('POST', '/api/v1/institutions')?.action).toBe('create');
+    expect(resolveExactMutatingAuthz('POST', '/api/v1/infrastructure/rooms')).toMatchObject({
+      resource: 'institution',
+      action: 'update',
+      ruleId: 'institution.infrastructure.rooms',
+    });
+    expect(
+      resolveExactMutatingAuthz('POST', '/api/v1/infrastructure/repair-requests'),
+    ).toMatchObject({
+      resource: 'institution',
+      action: 'update',
+      ruleId: 'institution.infrastructure.repairs',
+    });
   });
 
   it('fails closed when mutating path has no inventory rule', () => {

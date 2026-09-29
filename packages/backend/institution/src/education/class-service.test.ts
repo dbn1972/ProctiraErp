@@ -17,6 +17,9 @@ function createMockPrisma() {
     institution: {
       findFirst: vi.fn(),
     },
+    staff: {
+      findFirst: vi.fn(),
+    },
     class: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -66,16 +69,17 @@ describe('ClassService', () => {
       });
 
       expect(result).toEqual(created);
-      expect(prisma.class.create).toHaveBeenCalledWith({
-        data: {
-          tenantId: TENANT_ID,
-          institutionId: 'inst-1',
-          gradeId: 'grade-1',
-          academicPeriodId: 'period-1',
-          name: 'Class A',
-          capacity: 30,
-        },
-      });
+      expect(prisma.class.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tenantId: TENANT_ID,
+            name: 'Class A',
+            capacity: 30,
+            classTeacherStaffId: null,
+            roomName: null,
+          }),
+        }),
+      );
     });
 
     it('should throw NotFoundError if grade does not exist', async () => {
@@ -133,9 +137,11 @@ describe('ClassService', () => {
         name: 'Class B',
       });
 
-      expect(prisma.class.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ capacity: null }),
-      });
+      expect(prisma.class.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ capacity: null }),
+        }),
+      );
     });
   });
 
@@ -234,8 +240,28 @@ describe('ClassService', () => {
           academicPeriodId: 'period-1',
           gradeId: 'grade-1',
         },
+        include: {
+          classTeacher: { select: { id: true, firstName: true, lastName: true } },
+        },
         orderBy: { name: 'asc' },
       });
+    });
+  });
+
+  describe('update assignment', () => {
+    it('rejects a class teacher from another tenant', async () => {
+      prisma.class.findFirst.mockResolvedValue({
+        id: 'class-1',
+        tenantId: TENANT_ID,
+        gradeId: 'grade-1',
+        deletedAt: null,
+      });
+      prisma.staff.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update(TENANT_ID, 'class-1', { classTeacherStaffId: 'staff-other' }),
+      ).rejects.toThrow(NotFoundError);
+      expect(prisma.class.update).not.toHaveBeenCalled();
     });
   });
 

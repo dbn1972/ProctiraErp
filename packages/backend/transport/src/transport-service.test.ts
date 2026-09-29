@@ -7,6 +7,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { v4 as uuidv4 } from 'uuid';
 
+import { NotFoundError } from '@proctira/common';
+
 import { TransportService } from './transport-service.js';
 import { InMemoryTransportRepository } from './in-memory-repository.js';
 
@@ -404,6 +406,28 @@ describe('TransportService', () => {
           startDate: '2024-01-15',
         }),
       ).rejects.toThrow('inactive');
+    });
+
+    it('maps a student foreign-key violation to not found', async () => {
+      const route = await service.createRoute(tenantId, {
+        name: 'Route FK',
+        startLocation: 'A',
+        endLocation: 'B',
+        operatingDays: ['monday'],
+      });
+      repository.createStudentAssignment = async () => {
+        const error = new Error('violates foreign key constraint') as Error & { code?: string };
+        error.code = '23503';
+        throw error;
+      };
+
+      await expect(
+        service.createStudentAssignment(tenantId, {
+          studentId: uuidv4(),
+          routeId: route.id,
+          startDate: '2024-01-15',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
 
     it('should reject duplicate active assignment for same student', async () => {

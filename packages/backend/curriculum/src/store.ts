@@ -68,16 +68,32 @@ export interface CurriculumStore {
 
   createLessonPlan(row: LessonPlanRecord): Promise<LessonPlanRecord>;
   listLessonPlans(tenantId: string, unitId: string): Promise<LessonPlanRecord[]>;
+  listLessonPlansForUnits(tenantId: string, unitIds: string[]): Promise<LessonPlanRecord[]>;
+  updateLessonPlan(
+    tenantId: string,
+    id: string,
+    patch: Partial<Pick<LessonPlanRecord, 'title' | 'objectives' | 'plannedDate' | 'updatedAt'>>,
+  ): Promise<LessonPlanRecord | null>;
+  deleteLessonPlan(tenantId: string, id: string): Promise<boolean>;
 
   createOutcome(row: LearningOutcomeRecord): Promise<LearningOutcomeRecord>;
   listOutcomes(
     tenantId: string,
     filter?: { subjectId?: string; unitId?: string; gradeId?: string },
   ): Promise<LearningOutcomeRecord[]>;
+  updateOutcome(
+    tenantId: string,
+    id: string,
+    patch: Partial<
+      Pick<LearningOutcomeRecord, 'code' | 'statement' | 'unitId' | 'gradeId' | 'updatedAt'>
+    >,
+  ): Promise<LearningOutcomeRecord | null>;
+  deleteOutcome(tenantId: string, id: string): Promise<boolean>;
 
   upsertCoverage(row: UnitCoverageRecord): Promise<UnitCoverageRecord>;
   getCoverage(tenantId: string, unitId: string): Promise<UnitCoverageRecord | null>;
   listCoverage(tenantId: string, unitIds: string[]): Promise<UnitCoverageRecord[]>;
+  deleteCoverage(tenantId: string, unitId: string): Promise<boolean>;
 }
 
 export class InMemoryCurriculumStore implements CurriculumStore {
@@ -116,9 +132,33 @@ export class InMemoryCurriculumStore implements CurriculumStore {
   }
 
   async listLessonPlans(tenantId: string, unitId: string): Promise<LessonPlanRecord[]> {
+    return this.listLessonPlansForUnits(tenantId, [unitId]);
+  }
+
+  async listLessonPlansForUnits(tenantId: string, unitIds: string[]): Promise<LessonPlanRecord[]> {
+    const set = new Set(unitIds);
     return [...this.plans.values()]
-      .filter((r) => r.tenantId === tenantId && r.unitId === unitId)
+      .filter((r) => r.tenantId === tenantId && set.has(r.unitId))
       .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  async updateLessonPlan(
+    tenantId: string,
+    id: string,
+    patch: Partial<Pick<LessonPlanRecord, 'title' | 'objectives' | 'plannedDate' | 'updatedAt'>>,
+  ): Promise<LessonPlanRecord | null> {
+    const row = this.plans.get(id);
+    if (!row || row.tenantId !== tenantId) return null;
+    const next = { ...row, ...patch };
+    this.plans.set(id, next);
+    return { ...next };
+  }
+
+  async deleteLessonPlan(tenantId: string, id: string): Promise<boolean> {
+    const row = this.plans.get(id);
+    if (!row || row.tenantId !== tenantId) return false;
+    this.plans.delete(id);
+    return true;
   }
 
   async createOutcome(row: LearningOutcomeRecord): Promise<LearningOutcomeRecord> {
@@ -139,6 +179,27 @@ export class InMemoryCurriculumStore implements CurriculumStore {
         return true;
       })
       .sort((a, b) => a.code.localeCompare(b.code));
+  }
+
+  async updateOutcome(
+    tenantId: string,
+    id: string,
+    patch: Partial<
+      Pick<LearningOutcomeRecord, 'code' | 'statement' | 'unitId' | 'gradeId' | 'updatedAt'>
+    >,
+  ): Promise<LearningOutcomeRecord | null> {
+    const row = this.outcomes.get(id);
+    if (!row || row.tenantId !== tenantId) return null;
+    const next = { ...row, ...patch };
+    this.outcomes.set(id, next);
+    return { ...next };
+  }
+
+  async deleteOutcome(tenantId: string, id: string): Promise<boolean> {
+    const row = this.outcomes.get(id);
+    if (!row || row.tenantId !== tenantId) return false;
+    this.outcomes.delete(id);
+    return true;
   }
 
   async upsertCoverage(row: UnitCoverageRecord): Promise<UnitCoverageRecord> {
@@ -164,6 +225,15 @@ export class InMemoryCurriculumStore implements CurriculumStore {
   async listCoverage(tenantId: string, unitIds: string[]): Promise<UnitCoverageRecord[]> {
     const set = new Set(unitIds);
     return [...this.coverage.values()].filter((r) => r.tenantId === tenantId && set.has(r.unitId));
+  }
+
+  async deleteCoverage(tenantId: string, unitId: string): Promise<boolean> {
+    const row = [...this.coverage.values()].find(
+      (r) => r.tenantId === tenantId && r.unitId === unitId,
+    );
+    if (!row) return false;
+    this.coverage.delete(row.id);
+    return true;
   }
 }
 
@@ -334,12 +404,56 @@ export class PgCurriculumStore implements CurriculumStore {
   }
 
   async listLessonPlans(tenantId: string, unitId: string): Promise<LessonPlanRecord[]> {
+    return this.listLessonPlansForUnits(tenantId, [unitId]);
+  }
+
+  async listLessonPlansForUnits(tenantId: string, unitIds: string[]): Promise<LessonPlanRecord[]> {
+    if (unitIds.length === 0) return [];
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM lesson_plans WHERE tenant_id = $1 AND unit_id = $2 ORDER BY title ASC`,
-        [tenantId, unitId],
+        `SELECT * FROM lesson_plans
+          WHERE tenant_id = $1 AND unit_id = ANY($2::uuid[])
+          ORDER BY title ASC`,
+        [tenantId, unitIds],
       );
       return (rows as Record<string, unknown>[]).map(mapPlan);
+    });
+  }
+
+  async updateLessonPlan(
+    tenantId: string,
+    id: string,
+    patch: Partial<Pick<LessonPlanRecord, 'title' | 'objectives' | 'plannedDate' | 'updatedAt'>>,
+  ): Promise<LessonPlanRecord | null> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `UPDATE lesson_plans SET
+           title = COALESCE($3, title),
+           objectives = COALESCE($4, objectives),
+           planned_date = COALESCE($5::date, planned_date),
+           updated_at = COALESCE($6::timestamptz, now())
+         WHERE tenant_id = $1 AND id = $2
+         RETURNING *`,
+        [
+          tenantId,
+          id,
+          patch.title ?? null,
+          patch.objectives ?? null,
+          patch.plannedDate ?? null,
+          patch.updatedAt ?? null,
+        ],
+      );
+      return rows[0] ? mapPlan(rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async deleteLessonPlan(tenantId: string, id: string): Promise<boolean> {
+    return this.run(tenantId, async (client) => {
+      const { rowCount } = await client.query(
+        `DELETE FROM lesson_plans WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id],
+      );
+      return Number(rowCount ?? 0) > 0;
     });
   }
 
@@ -393,6 +507,47 @@ export class PgCurriculumStore implements CurriculumStore {
     });
   }
 
+  async updateOutcome(
+    tenantId: string,
+    id: string,
+    patch: Partial<
+      Pick<LearningOutcomeRecord, 'code' | 'statement' | 'unitId' | 'gradeId' | 'updatedAt'>
+    >,
+  ): Promise<LearningOutcomeRecord | null> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(
+        `UPDATE learning_outcomes SET
+           code = COALESCE($3, code),
+           statement = COALESCE($4, statement),
+           unit_id = COALESCE($5::uuid, unit_id),
+           grade_id = COALESCE($6::uuid, grade_id),
+           updated_at = COALESCE($7::timestamptz, now())
+         WHERE tenant_id = $1 AND id = $2
+         RETURNING *`,
+        [
+          tenantId,
+          id,
+          patch.code ?? null,
+          patch.statement ?? null,
+          patch.unitId ?? null,
+          patch.gradeId ?? null,
+          patch.updatedAt ?? null,
+        ],
+      );
+      return rows[0] ? mapOutcome(rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async deleteOutcome(tenantId: string, id: string): Promise<boolean> {
+    return this.run(tenantId, async (client) => {
+      const { rowCount } = await client.query(
+        `DELETE FROM learning_outcomes WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id],
+      );
+      return Number(rowCount ?? 0) > 0;
+    });
+  }
+
   async upsertCoverage(row: UnitCoverageRecord): Promise<UnitCoverageRecord> {
     return this.run(row.tenantId, async (client) => {
       const { rows } = await client.query(
@@ -438,6 +593,16 @@ export class PgCurriculumStore implements CurriculumStore {
         [tenantId, unitIds],
       );
       return (rows as Record<string, unknown>[]).map(mapCoverage);
+    });
+  }
+
+  async deleteCoverage(tenantId: string, unitId: string): Promise<boolean> {
+    return this.run(tenantId, async (client) => {
+      const { rowCount } = await client.query(
+        `DELETE FROM unit_coverage WHERE tenant_id = $1 AND unit_id = $2`,
+        [tenantId, unitId],
+      );
+      return Number(rowCount ?? 0) > 0;
     });
   }
 }

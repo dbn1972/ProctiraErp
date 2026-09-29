@@ -25,6 +25,8 @@ export interface PeriodEntity {
   periodOrder: number;
   startTime: string;
   endTime: string;
+  /** True for hatched break rows. Omitted on stores that predate the column. */
+  isBreak?: boolean;
   createdAt: string;
   updatedAt: string;
 }

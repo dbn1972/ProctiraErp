@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Class sections · Proctira ERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+.states { display:flex; align-items:center; gap:10px; margin:0 0 16px; flex-wrap:wrap; }
+.states .states-label { font-size: var(--fs-2xs); font-weight:700; letter-spacing:.07em; text-transform:uppercase; color: var(--text-3); }
+.states .tabs { margin:0; border-bottom:0; gap:4px; }
+.states .tab { padding:5px 10px; font-size: var(--fs-xs); border:1px solid var(--border); border-radius: var(--r-full); margin:0; }
+.states .tab.active { background: var(--brand-50); border-color: var(--brand-200); color: var(--brand-700); }
+.hero { display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+.hero .hero-icon { width:56px; height:56px; border-radius:14px; flex-shrink:0; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow: var(--sh-sm); }
+.hero .hero-icon svg { width:26px; height:26px; }
+.hero .hero-text { flex:1; min-width:220px; }
+.hero .hero-title { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.hero .hero-title h1 { margin:0; font-size: var(--fs-2xl); font-weight:800; letter-spacing:-.02em; }
+.hero .hero-meta { margin:4px 0 0; color: var(--text-2); font-size: var(--fs-sm); display:flex; gap:6px; flex-wrap:wrap; }
+.hero .hero-meta .dot { opacity:.5; }
+.hero .hero-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.back { display:inline-flex; align-items:center; gap:6px; font-size: var(--fs-sm); color: var(--text-2); text-decoration:none; margin-bottom:10px; font-weight:500; }
+.back svg { width:15px; height:15px; } .back:hover { color: var(--text); }
+.sec-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.sec-head h2 { margin:0; font-size: var(--fs-lg); font-weight:700; letter-spacing:-.01em; }
+.sec-head p { margin:2px 0 0; font-size: var(--fs-sm); color: var(--text-2); max-width:70ch; }
+.sec-head .sec-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.stack { display:flex; flex-direction:column; gap:20px; }
+.chip { display:inline-flex; align-items:center; justify-content:center; min-width:64px; padding:3px 10px; border-radius: var(--r-sm); background: var(--brand-50); color: var(--brand-700); font-weight:700; font-size: var(--fs-sm); letter-spacing:.02em; }
+.grade-box { width:40px; height:40px; border-radius: var(--r-md); background: var(--brand-50); color: var(--brand-700); font-weight:800; display:inline-flex; align-items:center; justify-content:center; font-size: var(--fs-md); flex-shrink:0; }
+.bar { display:flex; align-items:center; gap:8px; } .bar .progress { width:96px; flex-shrink:0; } .bar b { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.bar.green b { color: var(--green-700); } .bar.amber b { color: var(--amber-700); } .bar.red b { color: var(--red-700); }
+.hbar { display:grid; grid-template-columns:48px 1fr 48px; align-items:center; gap:12px; padding:4px 0; font-size: var(--fs-sm); }
+.hbar .progress { height:10px; } .hbar .lbl { font-weight:600; color: var(--text-2); } .hbar .val { text-align:right; font-weight:700; font-variant-numeric: tabular-nums; }
+.dialog { max-width:560px; width:100%; border:1px solid var(--border); border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--sh-lg); overflow:hidden; }
+.dialog .dlg-head { padding:18px 22px 6px; } .dialog .dlg-head h3 { margin:0; font-size: var(--fs-lg); font-weight:700; } .dialog .dlg-head p { margin:4px 0 0; font-size: var(--fs-sm); color: var(--text-2); }
+.dialog .dlg-body { padding:14px 22px; } .dialog .dlg-foot { padding:14px 22px 18px; display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.dialog-stage { padding:24px; background: color-mix(in srgb, var(--navy-900) 35%, transparent); border-radius: var(--r-lg); display:flex; justify-content:center; }
+.tree { display:flex; flex-direction:column; gap:12px; }
+.tree .node { border:1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); padding:12px 14px; }
+.tree .node-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.tree .node-row svg { width:16px; height:16px; color: var(--text-3); flex-shrink:0; }
+.tree .node-row .n-title { font-weight:600; font-size: var(--fs-sm); } .tree .node-row .n-desc { color: var(--text-3); font-size: var(--fs-xs); }
+.tree .node-row .n-right { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.tree .children { margin:10px 0 0 8px; padding-left:14px; border-left:2px solid var(--border); display:flex; flex-direction:column; gap:8px; }
+.tree .children .children { border-left-width:1px; }
+.seg { display:inline-flex; border:1px solid var(--border-strong); border-radius: var(--r-md); overflow:hidden; }
+.seg button { border:0; background: var(--surface); color: var(--text-2); font: 600 11px var(--font-sans); padding:6px 9px; cursor:pointer; border-right:1px solid var(--border); white-space:nowrap; }
+.seg button:last-child { border-right:0; }
+.seg button.on.p { background: var(--green-50); color: var(--green-700); } .seg button.on.a { background: var(--red-50); color: var(--red-700); }
+.seg button.on.l { background: var(--amber-50); color: var(--amber-700); } .seg button.on.e { background: var(--sky-50); color: var(--sky-700); } .seg button.on.d { background: var(--violet-50); color: var(--violet-600); }
+.count-chips { display:flex; gap:8px; flex-wrap:wrap; }
+.count-chip { display:inline-flex; align-items:center; gap:6px; font-size: var(--fs-xs); font-weight:600; padding:4px 10px; border-radius: var(--r-full); background: var(--bg-subtle); color: var(--text-2); }
+.count-chip i { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.tt-wrap { overflow-x:auto; }
+.tt { border-collapse:separate; border-spacing:4px; min-width:760px; width:100%; font-size: var(--fs-xs); }
+.tt th { font-size: var(--fs-2xs); font-weight:700; text-transform:uppercase; letter-spacing:.06em; color: var(--text-3); padding:4px 6px; text-align:left; }
+.tt th.time { width:96px; white-space:nowrap; }
+.tt td { vertical-align:top; padding:0; height:56px; }
+.tt .slot { height:100%; border-radius: var(--r-sm); padding:6px 8px; background: var(--bg-subtle); border:1px solid var(--border); min-height:52px; }
+.tt .slot b { display:block; font-size: var(--fs-xs); } .tt .slot span { display:block; color: var(--text-3); font-size: var(--fs-2xs); }
+.tt .slot.c1 { background: var(--brand-50); border-color: var(--brand-200); } .tt .slot.c2 { background: var(--teal-50); } .tt .slot.c3 { background: var(--amber-50); } .tt .slot.c4 { background: var(--violet-50); } .tt .slot.c5 { background: var(--sky-50); }
+.tt .slot.free { background:transparent; border-style:dashed; color: var(--text-3); display:flex; align-items:center; justify-content:center; }
+.tt .slot.brk { background: repeating-linear-gradient(135deg, var(--bg-subtle) 0 6px, var(--surface) 6px 12px); color: var(--text-3); display:flex; align-items:center; justify-content:center; font-weight:600; }
+.msg { font-size: var(--fs-sm); padding:10px 12px; border-radius: var(--r-md); background: var(--bg-subtle); color: var(--text-2); }
+.list-plain { list-style:none; margin:0; padding:0; } .list-plain li { padding:10px 0; border-bottom:1px solid var(--border); font-size: var(--fs-sm); display:flex; gap:10px; align-items:center; flex-wrap:wrap; } .list-plain li:last-child { border-bottom:0; }
+.rec { display:flex; align-items:center; gap:6px; font-size: var(--fs-xs); color: var(--text-3); }
+.card .table-wrap .table { min-width:640px; } .table.mw { min-width: var(--mw); }
+.form-grid.cols-3 { grid-template-columns: repeat(3,1fr); } .form-grid.cols-4 { grid-template-columns: repeat(4,1fr); } .form-grid.cols-5 { grid-template-columns: 2fr 2fr 1fr 1fr 1fr; }
+.entity-picker .ep-value, .entity-picker .ep-meta { display:block; }
+.kpi-grid.kpi-6 { grid-template-columns: repeat(6,1fr); }
+@media (max-width:1023px) { .kpi-grid.kpi-6 { grid-template-columns: repeat(3,1fr); } }
+@media (max-width:767px) { .card-head { flex-wrap:wrap; } .card-head .spacer { flex-wrap:wrap; margin-left:0; width:100%; } .kpi-grid.kpi-6 { grid-template-columns: repeat(2,1fr); } }
+.sr-only { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+@media (max-width:1023px) { .form-grid.cols-3, .form-grid.cols-4, .form-grid.cols-5 { grid-template-columns: repeat(2, 1fr) !important; } }
+@media (max-width:767px) { .card .table-wrap .table, .table.mw { min-width:0; } .hbar { grid-template-columns:40px 1fr 40px; } .dl { grid-template-columns: 110px 1fr; } .tt { min-width:640px; } .form-grid.cols-3, .form-grid.cols-4, .form-grid.cols-5 { grid-template-columns: 1fr !important; } .dialog-stage { padding:12px; } }
+</style>
+</head>
+<body data-portal="web" data-active="institutions">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+      <div class="breadcrumbs"><a href="../dashboard/home.html">Home</a><span class="sep">/</span><a href="list.html">Institutions</a><span class="sep">/</span><a href="detail-overview.html">Sunrise Public School – Mayur Vihar</a><span class="sep">/</span><span class="current">Classes</span></div>
+<a class="back" href="list.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to institutions</a>
+<div class="hero">
+  <div class="hero-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></div>
+  <div class="hero-text"><div class="hero-title"><h1>Sunrise Public School – Mayur Vihar</h1><span class="pill green">Active</span></div>
+  <p class="hero-meta"><span class="mono">07040100417</span><span class="dot">·</span><span>Delhi East</span><span class="dot">·</span><span>Senior Secondary</span><span class="dot">·</span><span>English medium</span></p></div>
+  <div class="hero-actions"><a class="btn btn-secondary btn-sm" href="detail-edit.html" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit</a><a class="btn btn-primary btn-sm" href="detail-overview.html" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>School report</a></div>
+</div>
+<nav class="tabs" role="tablist" aria-label="Institution sections"><a class="tab" role="tab" href="detail-overview.html" aria-selected="false">Overview</a><a class="tab active" role="tab" href="detail-classes.html" aria-selected="true" aria-current="page">Classes</a><a class="tab" role="tab" href="detail-grades.html" aria-selected="false">Grades</a><a class="tab" role="tab" href="detail-schedule.html" aria-selected="false">Schedule</a><a class="tab" role="tab" href="detail-timetable.html" aria-selected="false">Timetable</a><a class="tab" role="tab" href="detail-gradebook.html" aria-selected="false">Gradebook</a><a class="tab" role="tab" href="detail-curriculum.html" aria-selected="false">Curriculum</a><a class="tab" role="tab" href="detail-infrastructure.html" aria-selected="false">Infrastructure</a></nav>
+<div class="sec-head"><div><h2>Class sections</h2><p>8 sections configured</p></div><div class="sec-actions"><button type="button" class="btn btn-primary btn-sm" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add section</button></div></div><div data-tabscope><div class="states"><span class="states-label">Screen state</span><div class="tabs" role="tablist" aria-label="Screen states"><button type="button" class="tab active" data-tab="filled" role="tab" aria-selected="true">Filled</button><button type="button" class="tab" data-tab="dialog" role="tab" aria-selected="false">Add section dialog</button><button type="button" class="tab" data-tab="empty" role="tab" aria-selected="false">Empty</button><button type="button" class="tab" data-tab="blocked" role="tab" aria-selected="false">Add blocked</button><button type="button" class="tab" data-tab="loading" role="tab" aria-selected="false">Loading</button><button type="button" class="tab" data-tab="error" role="tab" aria-selected="false">Error</button></div></div><div data-panel="filled"><div class="card"><div class="table-wrap"><table class="table" aria-label="Class sections"><thead><tr><th>Class</th><th>Class teacher</th><th class="num">Capacity</th><th>Room</th><th class="num">Actions</th></tr></thead><tbody><tr><td data-label="Class"><span class="chip">9 · A</span></td><td data-label="Class teacher"><div class="cell-main">Neha Verma</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">40</td><td data-label="Room">Room 201</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 9 · A"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">9 · B</span></td><td data-label="Class teacher"><div class="cell-main">Neha Verma</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">40</td><td data-label="Room">Room 202</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 9 · B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">9 · C</span></td><td data-label="Class teacher"><div class="cell-main">Arun Kapoor</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">40</td><td data-label="Room">Room 203</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 9 · C"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">9 · D</span></td><td data-label="Class teacher"><span class="muted-3">Unassigned</span></td><td data-label="Capacity" class="num">40</td><td data-label="Room"><span class="muted-3">—</span></td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 9 · D"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">10 · A</span></td><td data-label="Class teacher"><div class="cell-main">Meera Iyer</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">42</td><td data-label="Room">Room 301</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 10 · A"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">10 · B</span></td><td data-label="Class teacher"><div class="cell-main">Rahul Joshi</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">42</td><td data-label="Room">Room 302</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 10 · B"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">11 · A (Science)</span></td><td data-label="Class teacher"><div class="cell-main">Kavita Nair</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">36</td><td data-label="Room">Lab block L1</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 11 · A (Science)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr><tr><td data-label="Class"><span class="chip">12 · A (Commerce)</span></td><td data-label="Class teacher"><div class="cell-main">Sunil Rao</div><div class="cell-sub">Class teacher</div></td><td data-label="Capacity" class="num">34</td><td data-label="Room">Room 401</td><td data-label="Actions"><div class="row-actions"><a class="icon-btn" href="../attendance/list.html" aria-label="Open roster for 12 · A (Commerce)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td></tr></tbody></table></div></div></div><div data-panel="dialog" hidden><div class="dialog-stage"><div class="dialog" role="dialog" aria-label="Add class section"><div class="dlg-head"><h3>Add class section</h3><p>A section belongs to one grade in one academic period for this institution.</p></div><div class="dlg-body"><div class="form-grid"><div class="field"><label for="section-grade-dialog">Grade<span class="req">*</span></label><select class="select" id="section-grade-dialog" name="section-grade" ><option value="9" selected>Class 9 (IX)</option><option value="10">Class 10 (X)</option></select></div><div class="field"><label for="section-period-dialog">Academic period<span class="req">*</span></label><select class="select" id="section-period-dialog" name="section-period" ><option value="1" selected>AY 2026–27 · active</option><option value="2">AY 2025–26 · closed</option></select></div><div class="field"><label for="section-name-dialog">Section name<span class="req">*</span></label><input class="input" id="section-name-dialog" name="section-name" type="text" value="" placeholder="A" ></div><div class="field"><label for="section-capacity-dialog">Capacity</label><input class="input" id="section-capacity-dialog" name="section-capacity" type="number" value="" placeholder="40" ></div></div></div><div class="dlg-foot"><button type="button" class="btn btn-secondary" >Cancel</button><button type="button" class="btn btn-primary" >Create section</button></div></div></div></div><div data-panel="empty" hidden><div class="card"><div class="empty"><div class="e-art"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div><h4>No class sections yet</h4><p>Create the first section to start enrolling students into this institution.</p><div class="e-actions"><button type="button" class="btn btn-primary btn-sm" ><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add section</button></div></div></div></div><div data-panel="blocked" hidden><div class="alert warn" role="status"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div class="a-body"><b>Add section is disabled</b>Define at least one grade and one academic period first (AddClassSectionDialog is disabled when grades or periods are empty; the reason is only a hover title).</div></div><div class="card" style="margin-top:16px"><div class="empty"><div class="e-art"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div><h4>No class sections yet</h4><p>Create the first section to start enrolling students into this institution.</p><div class="e-actions"><button type="button" class="btn btn-primary btn-sm" disabled title="Define at least one grade and one academic period first"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add section</button></div></div></div></div><div data-panel="loading" hidden><div class="card"><div class="card-pad" aria-busy="true" aria-label="Loading"><div class="skel" style="height:14px;width:32%;margin-bottom:18px"></div><div class="flex aic g12" style="margin-bottom:14px"><div class="skel" style="width:36px;height:36px;border-radius:10px"></div><div style="flex:1"><div class="skel" style="height:12px;width:45%;margin-bottom:6px"></div><div class="skel" style="height:10px;width:25%"></div></div><div class="skel" style="height:20px;width:72px;border-radius:999px"></div></div><div class="flex aic g12" style="margin-bottom:14px"><div class="skel" style="width:36px;height:36px;border-radius:10px"></div><div style="flex:1"><div class="skel" style="height:12px;width:45%;margin-bottom:6px"></div><div class="skel" style="height:10px;width:25%"></div></div><div class="skel" style="height:20px;width:72px;border-radius:999px"></div></div><div class="flex aic g12" style="margin-bottom:14px"><div class="skel" style="width:36px;height:36px;border-radius:10px"></div><div style="flex:1"><div class="skel" style="height:12px;width:45%;margin-bottom:6px"></div><div class="skel" style="height:10px;width:25%"></div></div><div class="skel" style="height:20px;width:72px;border-radius:999px"></div></div><div class="flex aic g12" style="margin-bottom:14px"><div class="skel" style="width:36px;height:36px;border-radius:10px"></div><div style="flex:1"><div class="skel" style="height:12px;width:45%;margin-bottom:6px"></div><div class="skel" style="height:10px;width:25%"></div></div><div class="skel" style="height:20px;width:72px;border-radius:999px"></div></div><div class="flex aic g12" style="margin-bottom:14px"><div class="skel" style="width:36px;height:36px;border-radius:10px"></div><div style="flex:1"><div class="skel" style="height:12px;width:45%;margin-bottom:6px"></div><div class="skel" style="height:10px;width:25%"></div></div><div class="skel" style="height:20px;width:72px;border-radius:999px"></div></div></div></div></div><div data-panel="error" hidden><div class="card"><div class="card-pad"><div class="alert error" role="alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><div class="a-body"><b>Service unavailable</b>The class catalog is currently unavailable. <span class="muted-3">·</span> <a href="#retry" style="color:inherit;font-weight:600">Retry</a></div></div></div></div></div></div>
+    </main>
+  </div>
+</div>
+<script type="application/json" id="ux-review">{
+ "route": "/institutions/[id]/classes",
+ "module": "Institutions",
+ "actor": "Principal, Academic coordinator",
+ "purpose": "See every class section in this school with its teacher, capacity and room, and add new sections.",
+ "primaryAction": "Add section",
+ "source": "apps/web/src/app/(dashboard)/institutions/[id]/classes/page.tsx",
+ "states": [
+  "loading (dashboard-level loading.tsx, generic panel)",
+  "error (dashboard-level error.tsx, generic panel)",
+  "inline error text (data.error)",
+  "empty (in code)",
+  "Add section disabled when no grades/periods",
+  "dialog (academics-create-dialogs.tsx)",
+  "filled"
+ ],
+ "issues": [
+  {
+   "severity": "high",
+   "text": "Class teacher and Room are read from section.customData (classTeacher / room) which nothing writes — on real data every row shows \"Unassigned\" / \"—\" and there is no way to assign a teacher or room from this tab."
+  },
+  {
+   "severity": "medium",
+   "text": "The only row action (\"Open roster\") deep-links to /attendance?institutionId&classId, i.e. the attendance marking page, not a roster; the label and destination disagree."
+  },
+  {
+   "severity": "medium",
+   "text": "Sections are listed across all academic periods with no period filter or column, so last year's 9-A and this year's 9-A appear as duplicates."
+  },
+  {
+   "severity": "medium",
+   "text": "When Add section is blocked the reason is only a `title` tooltip on a disabled button — not reachable by keyboard or touch."
+  }
+ ]
+}</script>
+<script src="../shared/app.js"></script>
+</body>
+</html>

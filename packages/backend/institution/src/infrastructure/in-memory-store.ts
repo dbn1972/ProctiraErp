@@ -6,19 +6,21 @@
  *
  * @module infrastructure/in-memory-store
  */
+import type { InfrastructureTypeValue } from './schemas.js';
 import type {
   InfrastructureStore,
   InfrastructureRecord,
   ConditionOptionStore,
   ConditionOptionRecord,
+  RepairRequestRecord,
 } from './service.js';
-import type { InfrastructureTypeValue } from './schemas.js';
 
 /**
  * In-memory implementation of InfrastructureStore for testing.
  */
 export class InMemoryInfrastructureStore implements InfrastructureStore {
   private items: Map<string, InfrastructureRecord> = new Map();
+  private repairs: RepairRequestRecord[] = [];
 
   async create(record: InfrastructureRecord): Promise<InfrastructureRecord> {
     this.items.set(record.id, { ...record });
@@ -104,9 +106,21 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
     return false;
   }
 
+  async createRepairRequest(record: RepairRequestRecord): Promise<RepairRequestRecord> {
+    this.repairs.push({ ...record });
+    return { ...record };
+  }
+
+  async listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]> {
+    return this.repairs
+      .filter((row) => row.institutionId === institutionId)
+      .map((row) => ({ ...row }));
+  }
+
   /** Clear all items (test helper). */
   clear(): void {
     this.items.clear();
+    this.repairs = [];
   }
 
   private sortItems(

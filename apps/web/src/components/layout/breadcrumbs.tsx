@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 import { InstitutionBreadcrumbLabel } from '@/components/layout/institution-breadcrumb-label';
+import { SectionBreadcrumbLabel } from '@/components/layout/section-breadcrumb-label';
 
 /**
  * Breadcrumb navigation component.
@@ -28,8 +29,9 @@ export function Breadcrumbs() {
     const isLast = index === segments.length - 1;
     const previousSegment = index > 0 ? segments[index - 1] : undefined;
     const isInstitutionId = previousSegment === 'institutions' && UUID_SEGMENT.test(segment);
+    const isSectionId = previousSegment === 'schedule' && UUID_SEGMENT.test(segment);
 
-    return { href, label, isLast, segment, isInstitutionId };
+    return { href, label, isLast, segment, isInstitutionId, isSectionId };
   });
 
   return (
@@ -56,6 +58,8 @@ export function Breadcrumbs() {
                     institutionId={crumb.segment}
                     fallbackLabel={crumb.label}
                   />
+                ) : crumb.isSectionId ? (
+                  <SectionBreadcrumbLabel sectionId={crumb.segment} fallbackLabel={crumb.label} />
                 ) : (
                   crumb.label
                 )}
@@ -70,6 +74,8 @@ export function Breadcrumbs() {
                     institutionId={crumb.segment}
                     fallbackLabel={crumb.label}
                   />
+                ) : crumb.isSectionId ? (
+                  <SectionBreadcrumbLabel sectionId={crumb.segment} fallbackLabel={crumb.label} />
                 ) : (
                   crumb.label
                 )}
@@ -83,21 +89,14 @@ export function Breadcrumbs() {
 }
 
 /**
- * Breadcrumb separator that respects RTL direction.
- * Uses a chevron that flips automatically in RTL mode.
+ * Breadcrumb separator. The prototype and CONVENTIONS.md use a slash,
+ * which is the same in LTR and RTL.
  */
 function BreadcrumbSeparator() {
   return (
-    <svg
-      className="breadcrumb-separator h-4 w-4 rtl:rotate-180"
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={2}
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
+    <span className="breadcrumb-separator" aria-hidden="true">
+      /
+    </span>
   );
 }
 

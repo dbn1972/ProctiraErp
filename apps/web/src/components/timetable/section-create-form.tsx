@@ -3,9 +3,42 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { Button } from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 
 import { createSectionAction } from '@/app/(dashboard)/timetable-actions';
+
+export function SectionCreatePanel(props: {
+  institutionId: string;
+  academicPeriodId: string;
+  roomOptions: { id: string; label: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Create section</h3>
+            <p className="text-sm text-muted-foreground">
+              The sections list stays in view until you need a new one.
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={open ? 'outline' : 'default'}
+            onClick={() => setOpen((value) => !value)}
+            data-testid="toggle-create-section"
+            aria-expanded={open}
+          >
+            {open ? 'Hide form' : 'Create section'}
+          </Button>
+        </div>
+        {open ? <SectionCreateForm {...props} /> : null}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function SectionCreateForm(props: {
   institutionId: string;
@@ -30,7 +63,7 @@ export function SectionCreateForm(props: {
 
   return (
     <form
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5"
+      className="grid gap-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
         setError(null);
@@ -54,7 +87,9 @@ export function SectionCreateForm(props: {
       }}
     >
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Name</span>
+        <span className="font-medium">
+          Name <span className="text-red-600">*</span>
+        </span>
         <input
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={name}
@@ -64,22 +99,28 @@ export function SectionCreateForm(props: {
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Code</span>
+        <span className="font-medium">
+          Code <span className="text-red-600">*</span>
+        </span>
         <input
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="G6A-MATH"
+          required
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Capacity</span>
+        <span className="font-medium">
+          Capacity <span className="text-red-600">*</span>
+        </span>
         <input
           type="number"
           min={1}
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={capacity}
           onChange={(e) => setCapacity(e.target.value)}
+          required
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
@@ -97,16 +138,13 @@ export function SectionCreateForm(props: {
           ))}
         </select>
       </label>
-      <div className="flex items-end">
-        <Button type="submit" size="sm" disabled={pending} className="w-full">
+      <div className="flex justify-end sm:col-span-2">
+        <Button type="submit" size="sm" disabled={pending}>
           {pending ? 'Saving…' : 'Create section'}
         </Button>
       </div>
       {error && (
-        <p
-          className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400"
-          role="alert"
-        >
+        <p className="sm:col-span-2 text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
         </p>
       )}

@@ -31,6 +31,7 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
     required this.studentId,
     this.additionalData,
     this.documentIds,
+    this.draftApplicationId,
   });
 
   final String programId;
@@ -38,9 +39,17 @@ class ScholarshipApplicationSubmitted extends ScholarshipEvent {
   final Map<String, dynamic>? additionalData;
   final List<String>? documentIds;
 
+  /// When set, finalize this draft instead of posting a new application.
+  final String? draftApplicationId;
+
   @override
-  List<Object?> get props =>
-      <Object?>[programId, studentId, additionalData, documentIds];
+  List<Object?> get props => <Object?>[
+        programId,
+        studentId,
+        additionalData,
+        documentIds,
+        draftApplicationId,
+      ];
 }
 
 // --- State ---
@@ -177,12 +186,17 @@ class ScholarshipBloc extends Bloc<ScholarshipEvent, ScholarshipState> {
         return;
       }
 
-      await _repository.submitApplication(
-        programId: event.programId,
-        studentId: event.studentId,
-        additionalData: event.additionalData,
-        documentIds: event.documentIds,
-      );
+      final String? draftId = event.draftApplicationId;
+      if (draftId != null && draftId.isNotEmpty) {
+        await _repository.finalizeApplication(draftId);
+      } else {
+        await _repository.submitApplication(
+          programId: event.programId,
+          studentId: event.studentId,
+          additionalData: event.additionalData,
+          documentIds: event.documentIds,
+        );
+      }
       emit(state.copyWith(status: ScholarshipStatus.submitted));
     } catch (error) {
       emit(state.copyWith(

@@ -120,15 +120,18 @@ helm lint "${SERVICE_CHART}"
 echo "==> template proctira-service (deploy.yml shape)"
 for SERVICE in api-gateway web student; do
   out="$(mktemp)"
+  # Same owner-qualified repository deploy.yml pushes (namespace lowercased).
+  IMAGE_REPOSITORY="$(bash tools/scripts/image-repository.sh ghcr.io Example-Owner "$SERVICE")"
   helm template "proctira-${SERVICE}" "${SERVICE_CHART}" \
     --namespace "proctira-staging" \
-    --set image.repository="ghcr.io/proctira/${SERVICE}" \
+    --set image.repository="${IMAGE_REPOSITORY}" \
     --set image.tag="sha-ci" \
     --set environment=staging \
     --set service.name="${SERVICE}" \
     --values "${SERVICE_CHART}/values-staging.yaml" \
     >"$out"
   grep -q "name: proctira-${SERVICE}" "$out" || die "missing release name proctira-${SERVICE}"
+  grep -F -q "${IMAGE_REPOSITORY}:sha-ci" "$out" || die "image must be ${IMAGE_REPOSITORY}:sha-ci"
   grep -q "kind: Deployment" "$out" || die "missing Deployment for ${SERVICE}"
   grep -q "readOnlyRootFilesystem: true" "$out" || die "missing readOnlyRootFilesystem (${SERVICE})"
   grep -q "runAsNonRoot: true" "$out" || die "missing runAsNonRoot (${SERVICE})"

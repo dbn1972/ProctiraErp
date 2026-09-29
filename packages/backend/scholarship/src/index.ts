@@ -14,6 +14,7 @@
 
 // Plugin
 export { scholarshipPlugin } from './scholarship-plugin.js';
+export { parentScholarshipPlugin } from './parent-scholarship-routes.js';
 export type { ScholarshipPluginOptions } from './scholarship-plugin.js';
 
 // Service
@@ -115,3 +116,13 @@ export {
 } from './scholarship-access.js';
 export type { ScholarshipAction } from './scholarship-access.js';
 export { requireScholarshipAction } from './scholarship-http-guard.js';
+
+export { InMemoryScholarshipDocumentStore } from './document-store.js';
+export type { ScholarshipApplicationDocument, ScholarshipDocumentStore } from './document-store.js';
+export { createScholarshipDocumentStore, PgScholarshipDocumentStore } from './pg-document-store.js';
+export { linkedStudentIdsForParent } from './parent-links.js';
+export {
+  createScholarshipDocumentBlobStore,
+  InMemoryScholarshipDocumentBlobStore,
+} from './document-blob-store.js';
+export { PLACEHOLDER_PDF, PLACEHOLDER_PDF_SHA256, sha256Hex } from './document-bytes.js';

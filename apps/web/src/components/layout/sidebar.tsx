@@ -1,6 +1,5 @@
 'use client';
 
-import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -8,6 +7,15 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 
 import { filterNavItemsByAccess, type NavPermissionItem } from './nav-permissions';
+import {
+  formatInstitutionSwitcher,
+  formatTenantSwitcher,
+  initialsFromName,
+  navGroupLabel,
+} from '@/lib/institutions/directory-presentation';
+import { useInstitutionScope } from '@/lib/institutions/institution-scope';
+import { useOptionalBrand } from '@/providers/BrandConfigProvider';
+import { useDirectoryContext } from '@/lib/institutions/use-directory-context';
 
 /** Navigation items for the sidebar (W2-UX-03: permission + role gated). */
 export const navItems = [
@@ -69,17 +77,17 @@ export const navItems = [
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
-    key: 'scholarships',
-    href: '/scholarships',
-    icon: 'AcademicCapIcon',
-    requiredPermissions: ['scholarship.read'],
-    hideForRoleSubstrings: ['parent', 'guardian'],
-  },
-  {
     key: 'lms',
     href: '/lms',
     icon: 'BookOpenIcon',
     requiredPermissions: ['lms.read'],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'scholarships',
+    href: '/scholarships',
+    icon: 'AcademicCapIcon',
+    requiredPermissions: ['scholarship.read'],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
@@ -90,13 +98,6 @@ export const navItems = [
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
-    key: 'parentPortal',
-    href: '/parent',
-    icon: 'UserGroupIcon',
-    requiredPermissions: [],
-    requiredRoleSubstrings: ['parent', 'guardian'],
-  },
-  {
     key: 'fees',
     href: '/fees',
     icon: 'CurrencyIcon',
@@ -104,22 +105,9 @@ export const navItems = [
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
   {
-    key: 'notifications',
-    href: '/notifications',
-    icon: 'BellIcon',
-    requiredPermissions: [],
-  },
-  {
     key: 'transport',
     href: '/transport',
     icon: 'BusIcon',
-    requiredPermissions: [],
-    hideForRoleSubstrings: ['parent', 'guardian'],
-  },
-  {
-    key: 'communication',
-    href: '/communication',
-    icon: 'MegaphoneIcon',
     requiredPermissions: [],
     hideForRoleSubstrings: ['parent', 'guardian'],
   },
@@ -136,6 +124,26 @@ export const navItems = [
     icon: 'BookOpenIcon',
     requiredPermissions: [],
     hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'communication',
+    href: '/communication',
+    icon: 'MegaphoneIcon',
+    requiredPermissions: [],
+    hideForRoleSubstrings: ['parent', 'guardian'],
+  },
+  {
+    key: 'notifications',
+    href: '/notifications',
+    icon: 'BellIcon',
+    requiredPermissions: [],
+  },
+  {
+    key: 'parentPortal',
+    href: '/parent',
+    icon: 'UserGroupIcon',
+    requiredPermissions: [],
+    requiredRoleSubstrings: ['parent', 'guardian'],
   },
   {
     key: 'workflows',
@@ -170,44 +178,67 @@ export const navItems = [
 
 type IconName = (typeof navItems)[number]['icon'];
 
-export interface SidebarProps {
-  /**
-   * Pre-rendered tenant/school identity block (Requirement 1), e.g.
-   * `<TenantIdentityBlock studentCount={n} />` already resolved by a
-   * Server Component ancestor.
-   *
-   * `Sidebar` is a Client Component, so it cannot import or invoke the
-   * async Server Component `TenantIdentityBlock` itself — Next.js App
-   * Router only allows a Server Component's already-rendered output to
-   * cross the server/client boundary as a prop (the same rule that
-   * governs `children`). The caller (`DashboardLayout`) resolves the
-   * block server-side and passes the resulting element down through
-   * `AppShell` → `DesktopShell` → `Sidebar`.
-   *
-   * `undefined`/`null` when the caller has no slot content (e.g. tenant
-   * settings were unavailable) — the sidebar renders nothing in that
-   * case and stays fully functional otherwise (Req 1 AC3).
-   */
-  tenantIdentitySlot?: ReactNode;
-}
+/**
+ * Session JWTs do not carry permission claims. Principals and admins still
+ * need these modules in the sidebar; the API remains the authorization check.
+ */
+const ROLE_VISIBLE_NAV = new Set([
+  'institutions',
+  'academicPeriods',
+  'students',
+  'admissions',
+  'staff',
+  'assessments',
+  'attendance',
+  'examinations',
+  'lms',
+  'scholarships',
+  'health',
+]);
 
 /**
  * Sidebar navigation component (Design System v2.0).
  * Deep-navy chrome with per-module stroke icons and an active rail.
  * Supports RTL layout automatically via CSS dir attribute.
  */
-export function Sidebar({ tenantIdentitySlot }: SidebarProps = {}) {
+export function Sidebar() {
   const t = useTranslations('nav');
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, status } = useAuth();
+  const brand = useOptionalBrand();
+  const directory = useDirectoryContext();
+  const institutionScope = useInstitutionScope();
+
+  const organizationName =
+    directory?.organizationName?.trim() || brand?.name?.trim() || 'Organization';
+  const schoolCount = institutionScope
+    ? (directory?.schools?.[institutionScope.id]?.studentCount ?? null)
+    : null;
+  const switcher = institutionScope
+    ? formatInstitutionSwitcher({
+        organizationName,
+        boardLabel: directory?.boardLabel ?? null,
+        areaLabel: institutionScope.areaLabel,
+        studentCount: schoolCount,
+      })
+    : formatTenantSwitcher({
+        organizationName,
+        boardLabel: directory?.boardLabel ?? null,
+        studentCount: directory?.studentsEnrolled ?? null,
+      });
+
   const visibleItems = filterNavItemsByAccess(
-    navItems,
+    navItems.map((item) =>
+      ROLE_VISIBLE_NAV.has(item.key)
+        ? { ...item, allowRoleSubstrings: ['principal', 'admin', 'super-admin'] as const }
+        : item,
+    ),
     user?.permissions ?? [],
     user?.roles ?? [],
   );
 
   return (
-    <aside className="flex w-64 flex-col bg-[var(--color-navy-900)] text-slate-300">
+    <aside className="flex h-full min-h-0 w-64 shrink-0 flex-col self-stretch bg-[var(--color-navy-900)] text-slate-300">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 px-5">
         <span
@@ -226,35 +257,84 @@ export function Sidebar({ tenantIdentitySlot }: SidebarProps = {}) {
         </Link>
       </div>
 
-      {/* Tenant/school identity block (Requirement 1) — server-rendered
-          slot passed down from DashboardLayout; renders nothing when
-          unavailable. */}
-      {tenantIdentitySlot}
+      <div className="mx-3 mb-2 rounded-lg bg-white/5 px-3 py-2.5" data-testid="tenant-switcher">
+        {status === 'loading' ? (
+          <div className="flex items-center gap-2.5" data-testid="tenant-switcher-skeleton">
+            <span className="h-8 w-8 animate-pulse rounded-md bg-white/10" />
+            <span className="h-8 flex-1 animate-pulse rounded-md bg-white/10" />
+          </div>
+        ) : (
+          <div className="flex items-start gap-2.5">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/10 text-[11px] font-bold text-white"
+            >
+              {initialsFromName(switcher.title)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold leading-snug text-white">
+                {switcher.title}
+              </p>
+              {switcher.lines.map((line) => (
+                <p key={line} className="truncate text-[11px] leading-snug text-slate-400">
+                  {line}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Navigation Links */}
       <nav className="flex-1 overflow-y-auto px-3 py-3" aria-label="Main navigation">
-        <ul className="space-y-0.5" role="list">
-          {visibleItems.map((item) => {
-            const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+        {status === 'loading' ? (
+          <div className="space-y-2 px-3" data-testid="sidebar-nav-skeleton" aria-hidden="true">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="h-8 animate-pulse rounded-md bg-white/10" />
+            ))}
+          </div>
+        ) : (
+          <ul className="space-y-0.5" role="list">
+            {visibleItems.map((item, index) => {
+              const isActive =
+                item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+              const group = navGroupLabel(item.key);
+              const previous = index > 0 ? visibleItems[index - 1] : undefined;
+              const showGroup = group && navGroupLabel(previous?.key ?? '') !== group;
 
-            return (
-              <li key={item.key}>
-                <Link
-                  href={item.href}
-                  className={`sidebar-link ${
-                    isActive ? 'sidebar-link-active' : 'sidebar-link-inactive'
-                  }`}
-                  aria-current={isActive ? 'page' : undefined}
-                  data-testid={`sidebar-link-${item.key}`}
-                >
-                  <NavIcon name={item.icon} />
-                  <span>{t(item.key)}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+              return (
+                <li key={item.key}>
+                  {showGroup ? (
+                    <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {group}
+                    </p>
+                  ) : null}
+                  <Link
+                    href={item.href}
+                    className={`sidebar-link ${
+                      isActive ? 'sidebar-link-active' : 'sidebar-link-inactive'
+                    }`}
+                    aria-current={isActive ? 'page' : undefined}
+                    data-testid={`sidebar-link-${item.key}`}
+                  >
+                    <NavIcon name={item.icon} />
+                    <span>{t(item.key)}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </nav>
+      <div className="mt-auto border-t border-white/10 px-3 py-3">
+        <Link
+          href="/help"
+          className="sidebar-link sidebar-link-inactive"
+          data-testid="sidebar-link-help"
+        >
+          <span>Help &amp; Support</span>
+        </Link>
+      </div>
     </aside>
   );
 }

@@ -103,12 +103,8 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
     // (3) Sidebar mirrors visually to the right edge of the viewport.
     await assertSidebarOnRight(page);
 
-    // (4) Breadcrumb chevron flips via `<DirectionalIcon>` / `-scale-x-100`.
-    //     The `<BreadcrumbSeparator>` rendered by
-    //     `apps/web/src/components/layout/breadcrumbs.tsx` carries the
-    //     `rtl:rotate-180` utility, while any `<DirectionalIcon>` in the
-    //     header / shell renders `data-rtl-flipped="true"` once `<html
-    //     dir="rtl">` is set.
+    // (4) Directional icons still flip. The shared breadcrumb separator is
+    //     the prototype slash, which is symmetric in RTL.
     await assertChevronFlipped(page);
 
     // (5) At least one element on the dashboard surfaces a logical
@@ -162,6 +158,10 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
  * of the parent flex container.
  */
 async function assertSidebarOnRight(page: Page): Promise<void> {
+  const menu = page.getByTestId('desktop-shell-menu');
+  if (await menu.isVisible()) {
+    await menu.click();
+  }
   const sidebar = page
     .locator('aside')
     .filter({ has: page.getByRole('navigation', { name: /main navigation/i }) })
@@ -183,13 +183,10 @@ async function assertSidebarOnRight(page: Page): Promise<void> {
 }
 
 /**
- * Asserts a directional chevron icon is mirrored. The dashboard shell
- * exposes two pathways:
- *   • `<BreadcrumbSeparator>` uses `rtl:rotate-180` Tailwind variants.
- *   • `<DirectionalIcon>` adds `data-rtl-flipped="true"` and the
- *     `-scale-x-100` utility class when `dir === 'rtl'`.
- * Either is acceptable evidence that Requirement 18 AC 11 is honoured;
- * we assert that *at least one* shows up on the page.
+ * Asserts directional icons mirror, or that the breadcrumb uses the
+ * prototype slash (symmetric in LTR and RTL).
+ *   • `<DirectionalIcon>` adds `data-rtl-flipped="true"` and `-scale-x-100`.
+ *   • `<BreadcrumbSeparator>` renders "/" (CONVENTIONS.md).
  */
 async function assertChevronFlipped(page: Page): Promise<void> {
   const directionalIcons = page.locator('[data-rtl-flipped="true"]');
@@ -198,7 +195,6 @@ async function assertChevronFlipped(page: Page): Promise<void> {
   const directionalCount = await directionalIcons.count();
   const breadcrumbCount = await breadcrumbChevrons.count();
 
-  // Prefer the explicit `<DirectionalIcon>` evidence when it's present.
   if (directionalCount > 0) {
     const first = directionalIcons.first();
     await expect(first).toBeAttached();
@@ -207,17 +203,13 @@ async function assertChevronFlipped(page: Page): Promise<void> {
     return;
   }
 
-  // Fallback: the breadcrumb separator renders an SVG with the
-  // `rtl:rotate-180` utility. Tailwind compiles the variant into a CSS
-  // rule that becomes active once `<html dir="rtl">` is set, so the
-  // computed `transform` should include a 180° rotation.
   expect(breadcrumbCount).toBeGreaterThan(0);
+  const separator = ((await breadcrumbChevrons.first().innerText()) ?? '').trim();
+  if (separator === '/') return;
+
   const transform = await breadcrumbChevrons
     .first()
     .evaluate((node) => window.getComputedStyle(node).transform);
-  // `matrix(-1, 0, 0, -1, 0, 0)` is the canonical 180° rotation matrix.
-  // Allow either `rotate(180deg)` or the matrix form depending on the
-  // browser's serialization.
   expect(transform === 'none' ? '' : transform).toMatch(/matrix\(-1|rotate\(180/);
 }
 

@@ -44,7 +44,7 @@ export interface InstitutionListFilters {
   areaId?: string;
   status?: InstitutionStatus;
   search?: string;
-  sortBy?: 'name' | 'code' | 'createdAt';
+  sortBy?: 'name' | 'code' | 'createdAt' | 'directory';
   sortOrder?: 'asc' | 'desc';
 }
 
@@ -181,6 +181,9 @@ export interface ClassSection {
   academicPeriodId: string;
   name: string;
   capacity: number | null;
+  classTeacherStaffId: string | null;
+  classTeacherName: string | null;
+  roomName: string | null;
   createdAt: string;
   updatedAt: string;
 }

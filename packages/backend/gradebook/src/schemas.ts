@@ -71,6 +71,7 @@ export const TransitionGradeEntrySchema = Type.Object({
     Type.Literal('publish'),
     Type.Literal('reopen'),
   ]),
+  reason: Type.Optional(Type.String({ maxLength: 500 })),
 });
 export type TransitionGradeEntryInput = Static<typeof TransitionGradeEntrySchema>;
 

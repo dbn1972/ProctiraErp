@@ -119,7 +119,14 @@ import {
   type PublicTenantResolver,
 } from '@proctira/backend-registration';
 import { reportCataloguePlugin } from '@proctira/backend-report';
-import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
+import {
+  createScholarshipDocumentStore,
+  createScholarshipRepository,
+  isPgScholarshipEnabled,
+  linkedStudentIdsForParent,
+  scholarshipPlugin,
+  parentScholarshipPlugin,
+} from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
   createStaffRepository,
@@ -148,6 +155,8 @@ import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
+import { registerInstitutionDirectoryRoutes } from './institution-directory.js';
+import { registerInstitutionOverviewRoutes } from './institution-overview.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
@@ -663,6 +672,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             : undefined,
         },
       });
+      registerInstitutionDirectoryRoutes(scope);
+      registerInstitutionOverviewRoutes(scope);
     },
   },
   {
@@ -833,9 +844,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         await seedScholarshipDemoData(repository);
       }
       const feesForScholarships = new FeesService(createFeesRepository());
+      const documentStore = isPgScholarshipEnabled() ? createScholarshipDocumentStore() : undefined;
+      const resolveLinkedStudentIds = isPgScholarshipEnabled()
+        ? linkedStudentIdsForParent
+        : undefined;
       await scope.register(scholarshipPlugin, {
         repository,
         prefix: '/scholarships',
+        documentStore,
+        resolveLinkedStudentIds,
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.
@@ -860,6 +877,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
             );
           },
         },
+      });
+      await scope.register(parentScholarshipPlugin, {
+        repository,
+        prefix: '/parent-portal/scholarships',
+        documentStore,
+        resolveLinkedStudentIds,
       });
     },
   },

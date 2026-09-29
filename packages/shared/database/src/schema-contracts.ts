@@ -91,6 +91,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
   institutionInfrastructure: [
     'public.institution_infrastructure',
     'public.institution_condition_options',
+    'public.institution_repair_requests',
   ],
   library: [
     'public.library_items',
@@ -166,6 +167,7 @@ export const DATABASE_SCHEMA_CONTRACTS = {
   scholarships: [
     'public.scholarship_programs',
     'public.scholarship_applications',
+    'public.scholarship_application_documents',
     'public.scholarship_disbursements',
     'public.scholarship_compliance_records',
   ],

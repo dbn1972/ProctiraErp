@@ -340,6 +340,7 @@ model Staff {
 
   // Relations
   tenant Tenant @relation(fields: [tenantId], references: [id])
+  classesTaught Class[]
 
   @@unique([tenantId, identityNumber])
   @@index([tenantId, lastName, firstName])
@@ -469,8 +470,10 @@ model Class {
   institutionId    String @map("institution_id") @db.Uuid
   gradeId          String @map("grade_id") @db.Uuid
   academicPeriodId String @map("academic_period_id") @db.Uuid
-  name             String @db.VarChar(100)
-  capacity         Int?   @db.SmallInt
+  name                String  @db.VarChar(100)
+  capacity            Int?    @db.SmallInt
+  classTeacherStaffId String? @map("class_teacher_staff_id") @db.Uuid
+  roomName            String? @map("room_name") @db.VarChar(120)
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -482,6 +485,7 @@ model Class {
   grade          Grade          @relation(fields: [gradeId], references: [id])
   academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
   enrollments    Enrollment[]
+  classTeacher   Staff?         @relation(fields: [classTeacherStaffId], references: [id])
 
   @@index([tenantId, institutionId, academicPeriodId])
   @@index([tenantId, gradeId])

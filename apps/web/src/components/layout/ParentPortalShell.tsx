@@ -10,6 +10,7 @@ import {
   Clock,
   CreditCard,
   FileText,
+  Award,
   GraduationCap,
   Home,
   Layers,
@@ -122,6 +123,13 @@ const PARENT_NAV: readonly ParentNavItem[] = [
     href: '/parent/consents',
     Icon: ShieldCheck,
     match: (pathname) => pathname.startsWith('/parent/consents'),
+  },
+  {
+    key: 'scholarships',
+    label: 'Scholarships',
+    href: '/parent/scholarships',
+    Icon: Award,
+    match: (pathname) => pathname.startsWith('/parent/scholarships'),
   },
   {
     key: 'fees',

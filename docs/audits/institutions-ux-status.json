@@ -1,0 +1,422 @@
+{
+  "tip": "ae3b16ce",
+  "note": "LIVE: 16d+16f with native dirty listeners + fillReactInput; harness seeds 006; axe 14/14.",
+  "parity": {
+    "list.html": "Attendance band words On track/Watch/Low in list captures. 16b/16c/16f path. Captures institutions-list/filled-*-live.png.",
+    "detail.html": "Middleware 307 + getCachedInstitution. Gateway-down 16f passed. Captures pending bare-id (overview covers).",
+    "detail-classes.html": "Live captures classes-*-live.png + 16d passed on tip.",
+    "detail-curriculum.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-edit.html": "Edit chrome hidden; 16f passed; captures institutions-edit/form-*-live.png.",
+    "detail-gradebook.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-grades.html": "Live captures grades-*-live.png + 16d passed on tip.",
+    "detail-infrastructure.html": "IN_PROGRESS on another agent (bc-009de6bb). Not recaptured here.",
+    "detail-overview.html": "Live captures overview-*-live.png + 16d passed on tip.",
+    "detail-schedule.html": "Live captures schedule-*-live.png + 16d passed on tip.",
+    "detail-schedule-section.html": "16d passed on tip. Captures schedule-section-* from prior pack retained.",
+    "detail-timetable.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "detail-timetable-generate.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "detail-timetable-substitutions.html": "IN_PROGRESS in PR #478. Not edited here.",
+    "new.html": "16f passed; captures institutions-new/form-*-live.png."
+  },
+  "findings": [
+    {
+      "id": "list.html#1",
+      "status": "DONE",
+      "ownerPr": "#465/#468 + this branch",
+      "evidence": "directory.ts supplies studentsEnrolled and reportingToday. Null copy is Currently unavailable / Enrollment totals are not available yet (institutions/page.tsx). Verified by reading the page and directory-presentation.test.ts.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "list.html#2",
+      "status": "DONE",
+      "ownerPr": "#465/#468",
+      "evidence": "institutions/page.tsx InstitutionRow uses directory.schools metrics (directory.ts), not customData. directory-presentation.test.ts rowMetrics.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "list.html#3",
+      "status": "DONE",
+      "ownerPr": "#472",
+      "evidence": "institution-row-actions.tsx menu deactivates and reactivates. institution-reactivate.test.tsx and reactivate-action.test.ts. #472 is on origin/main 774eb8f7.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "list.html#4",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "directoryAttendanceBand in directory-presentation.test.ts (On track / Watch / Low) rendered beside the percent in AttendanceBar.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail.html#1",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "getCachedInstitution = cache(getInstitution) in request-cache.ts, used by layout, overview, and edit. load-state.test.ts asserts the wrap. Middleware 307 still covers the bare URL (middleware.test.ts).",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail.html#2",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "classifyInstitutionLoadError statusCode 0 is gateway-down (load-state.test.ts). Real statusCode-0 uses unavailable stub + Unavailable pill (children still mount for ungated Integration). Cookie E2E_ALLOW_GATEWAY_SIMULATION path renders InstitutionGatewayDown; 16f gateway-down passed (no Active pill).",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d-institutions-detail-live.spec.ts passed on tip with Sunrise seed (Neha Verma, Room 201). Captures: docs/audits/captures/institutions-detail/classes-{desktop,tablet,mobile}-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d passed: Open roster goes to /students filters. Captures classes-*-live.png on tip.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d passed with AY 2026-27 period filter. Captures classes-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-classes.html#4",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "academics-create-dialogs #add-section-blocked text. Captures classes-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-curriculum.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-curriculum.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-curriculum.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-curriculum.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-edit.html#1",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "16f-institutions-profile-write.spec.ts passed on tip: no School report / Institution sections on /edit. Captures institutions-edit/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-edit.html#2",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "16f deactivate from edit form passed on tip (admin role for create; deactivate uses update).",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-edit.html#3",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "16f dirty-prompt: dismiss keeps /edit; accept Cancel leaves. Captures institutions-edit/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-gradebook.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-gradebook.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-grades.html#1",
+      "status": "DONE",
+      "ownerPr": "#467/#469",
+      "evidence": "status-label.test.ts utilizationBand(100)=Over capacity; grades/page.tsx checks >=100 first. Captures grades-*-live.png; 16d passed.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-grades.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "grades headers Grade/Sections/Capacity/Utilization/View. Captures grades-*-live.png; 16d passed.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-grades.html#3",
+      "status": "DONE",
+      "ownerPr": "#469",
+      "evidence": "utilization.test.ts + getInstitutionOverview enrollment. Captures grades-*-live.png show live %.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-grades.html#4",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "Tenant-wide grades copy visible in captures grades-*-live.png. 16d passed.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-infrastructure.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-infrastructure.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-infrastructure.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-infrastructure.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "bc-009de6bb",
+      "evidence": "Owned by the other institutions agent. Not re-tested on this branch.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-overview.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d expects enrollment + activity from getInstitutionOverview. Captures overview-*-live.png show Class 1\u201310 bars.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-overview.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d clicks School report \u2192 /overview/report. Captures overview-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-overview.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "KpiCard Retry path in code; live KPIs show numbers in overview captures.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-overview.html#4",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "Promise.all + overview/loading.tsx. Layout does not await overview snapshot. 16d passed on tip.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d expects Period 3 and Neha Verma conflict labels. Captures schedule-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#2",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d expects Published + Unpublish to draft confirm. Captures schedule-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "Subtitle \"Room and teacher clashes are blocked\" in captures schedule-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule.html#4",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "Create section collapsed behind button in captures schedule-*-live.png. 16d passed.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule-section.html#1",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "16d opens withdraw-student and cancels ConfirmActionDialog.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule-section.html#2",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "SectionBulkEnrollForm admission-number label; exercised via schedule section path in 16d.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule-section.html#3",
+      "status": "DONE",
+      "ownerPr": "#467",
+      "evidence": "Enrolled/Withdrawn pills and en-IN dates; 16d passed.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "detail-schedule-section.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "Meetings edit/remove is in the timetable PR (bc-eaa0a317). Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-generate.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#1",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#2",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#3",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "detail-timetable-substitutions.html#4",
+      "status": "IN_PROGRESS",
+      "ownerPr": "#478",
+      "evidence": "PR #478. Not edited here.",
+      "disposition": "OPEN"
+    },
+    {
+      "id": "new.html#1",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "16f asserts Identity/Classification/Location headings; captures institutions-new/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "new.html#2",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "16f asserts created-active copy and no once-approved; captures institutions-new/form-*-live.png.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "new.html#3",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "Label UDISE code plus hint. validation.ts message UDISE code is required.",
+      "disposition": "FULLY_CLOSED"
+    },
+    {
+      "id": "new.html#4",
+      "status": "DONE",
+      "ownerPr": "this branch",
+      "evidence": "Decimal-degree hints and coordinateMapPreview OpenStreetMap link (load-state.test.ts). Leaflet is only in apps/registration-portal, so the staff form does not embed a picker.",
+      "disposition": "FULLY_CLOSED"
+    }
+  ]
+}

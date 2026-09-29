@@ -11,6 +11,11 @@
 # lab-only — pass them explicitly via workflow_dispatch inputs.services.
 # See docs/DEPLOYMENT_TOPOLOGY.md.
 #
+# Image coordinates match release.yml:
+#   {CONTAINER_REGISTRY||ghcr.io}/{IMAGE_NAMESPACE||repository_owner}/proctira/service:<tag>
+# tools/scripts/image-repository.sh lowercases the host, namespace, and service
+# so GHCR accepts the name. Cosign stays on release.yml (same repository).
+#
 # Triggers:
 #   - workflow_run: After CI completes successfully on main/develop
 #   - workflow_dispatch: Manual deploy for any ref (with optional service list)
@@ -49,7 +54,9 @@ permissions:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+  # Same registry/namespace inputs as release.yml. The image script lowercases them.
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
+  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || github.repository_owner }}
   NODE_VERSION: '20'
   PNPM_VERSION: '10.33.2'
 
@@ -320,6 +327,18 @@ jobs:
               ;;
           esac
 
+      - name: Compute image repository
+        id: image-ref
+        env:
+          SERVICE: ${{ matrix.service }}
+          IMAGE_TAG: ${{ needs.prepare.outputs.image-tag }}
+        run: |
+          set -euo pipefail
+          # Canonical repository: ghcr.io/<owner>/proctira/service (lowercased).
+          repo="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" "$SERVICE")"
+          echo "repository=${repo}" >> "$GITHUB_OUTPUT"
+          echo "reference=${repo}:${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Build and push image
         uses: docker/build-push-action@v7
         with:
@@ -327,8 +346,8 @@ jobs:
           file: ${{ steps.docker-config.outputs.dockerfile }}
           push: true
           # W1-OPS-08 — immutable tag only (no mutable :latest).
-          tags: |
-            ${{ env.REGISTRY }}/proctira/${{ matrix.service }}:${{ needs.prepare.outputs.image-tag }}
+          # Owner-qualified path, same as release.yml (namespace lowercased).
+          tags: ${{ steps.image-ref.outputs.reference }}
           build-args: ${{ steps.docker-config.outputs.build-args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -411,6 +430,7 @@ jobs:
 
           for SERVICE in "${SERVICE_ARRAY[@]}"; do
             echo "Deploying ${SERVICE} to ${ENVIRONMENT}..."
+            IMAGE_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" "$SERVICE")"
 
             # W1-OPS-09: --atomic auto-rolls back the release on failure;
             # --wait blocks until resources are ready (or timeout).
@@ -421,7 +441,7 @@ jobs:
               ./infrastructure/helm/proctira-service \
               --namespace "${NAMESPACE}" \
               --create-namespace \
-              --set image.repository="${{ env.REGISTRY }}/proctira/${SERVICE}" \
+              --set image.repository="${IMAGE_REPOSITORY}" \
               --set image.tag="${IMAGE_TAG}" \
               --set environment="${ENVIRONMENT}" \
               --set service.name="${SERVICE}" \

@@ -90,6 +90,30 @@ export class CurriculumService {
     return this.store.listLessonPlans(tenantId, unitId);
   }
 
+  listLessonPlansForUnits(tenantId: string, unitIds: string[]) {
+    return this.store.listLessonPlansForUnits(tenantId, unitIds);
+  }
+
+  async updateLessonPlan(
+    tenantId: string,
+    id: string,
+    input: { title?: string; objectives?: string | null; plannedDate?: string | null },
+  ) {
+    const updated = await this.store.updateLessonPlan(tenantId, id, {
+      title: input.title?.trim(),
+      objectives: input.objectives ?? undefined,
+      plannedDate: input.plannedDate ?? undefined,
+      updatedAt: nowIso(),
+    });
+    if (!updated) throw new NotFoundError(`Lesson plan ${id} not found`);
+    return updated;
+  }
+
+  async deleteLessonPlan(tenantId: string, id: string) {
+    const ok = await this.store.deleteLessonPlan(tenantId, id);
+    if (!ok) throw new NotFoundError(`Lesson plan ${id} not found`);
+  }
+
   async createOutcome(
     tenantId: string,
     input: CreateLearningOutcomeInput,
@@ -116,6 +140,27 @@ export class CurriculumService {
     return this.store.listOutcomes(tenantId, filter);
   }
 
+  async updateOutcome(
+    tenantId: string,
+    id: string,
+    input: { code?: string; statement?: string; unitId?: string | null; gradeId?: string | null },
+  ) {
+    const updated = await this.store.updateOutcome(tenantId, id, {
+      code: input.code?.trim(),
+      statement: input.statement?.trim(),
+      unitId: input.unitId ?? undefined,
+      gradeId: input.gradeId ?? undefined,
+      updatedAt: nowIso(),
+    });
+    if (!updated) throw new NotFoundError(`Learning outcome ${id} not found`);
+    return updated;
+  }
+
+  async deleteOutcome(tenantId: string, id: string) {
+    const ok = await this.store.deleteOutcome(tenantId, id);
+    if (!ok) throw new NotFoundError(`Learning outcome ${id} not found`);
+  }
+
   async markTaught(
     tenantId: string,
     unitId: string,
@@ -134,6 +179,12 @@ export class CurriculumService {
       lmsSkillId: input.lmsSkillId ?? null,
       createdAt: now,
     });
+  }
+
+  async unmarkTaught(tenantId: string, unitId: string): Promise<void> {
+    await this.getUnit(tenantId, unitId);
+    const removed = await this.store.deleteCoverage(tenantId, unitId);
+    if (!removed) throw new NotFoundError(`Unit ${unitId} is not marked taught`);
   }
 
   /**

@@ -98,7 +98,7 @@ export async function listInstitutions(
         sortBy: filters.sortBy,
         sortOrder: filters.sortOrder,
       })}`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result);
   } catch (error) {
@@ -159,6 +159,18 @@ export async function deactivateInstitution(id: string, reason: string): Promise
   }
 }
 
+export async function reactivateInstitution(id: string, reason: string): Promise<Institution> {
+  try {
+    const result = await gatewayFetch<Institution>(
+      `/institutions/${encodeURIComponent(id)}/reactivate`,
+      { method: 'POST', json: { reason }, cache: 'no-store', throwOnError: true },
+    );
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Areas
 // ---------------------------------------------------------------------------
@@ -168,6 +180,7 @@ export async function listAreaTree(rootId?: string): Promise<AreaNode[]> {
     const result = await gatewayFetch<AreaNode[]>(`/areas/tree${buildQuery({ rootId })}`, {
       method: 'GET',
       throwOnError: true,
+      cache: 'no-store',
     });
     return unwrap(result, []);
   } catch (error) {
@@ -258,7 +271,7 @@ export async function listCalendarEvents(periodId: string): Promise<CalendarEven
   try {
     const result = await gatewayFetch<{ data: CalendarEvent[] }>(
       `/academic-periods/${encodeURIComponent(periodId)}/calendar`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result, { data: [] }).data;
   } catch (error) {
@@ -364,6 +377,28 @@ export async function createClassSection(input: CreateClassSectionInput): Promis
   }
 }
 
+export async function updateClassSection(
+  id: string,
+  input: {
+    classTeacherStaffId?: string | null;
+    roomName?: string | null;
+    name?: string;
+    capacity?: number;
+  },
+): Promise<ClassSection> {
+  try {
+    const result = await gatewayFetch<ClassSection>(`/classes/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      json: input,
+      throwOnError: true,
+      cache: 'no-store',
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 export async function listClassesByInstitution(
   institutionId: string,
   academicPeriodId?: string,
@@ -371,12 +406,46 @@ export async function listClassesByInstitution(
   try {
     const result = await gatewayFetch<ClassSection[]>(
       `/classes${buildQuery({ institutionId, academicPeriodId })}`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result, []);
   } catch (error) {
     rethrowAsApiError(error);
   }
+}
+
+export interface InstitutionOverviewSnapshot {
+  students: number | null;
+  staff: number | null;
+  attendancePercent: number | null;
+  classrooms: number | null;
+  studentsAvailable: boolean;
+  staffAvailable: boolean;
+  attendanceAvailable: boolean;
+  classroomsAvailable: boolean;
+  enrollmentAvailable: boolean;
+  activityAvailable: boolean;
+  enrollmentByGrade: { gradeId: string; code: string; name: string; count: number }[];
+  activity: { title: string; meta: string; tone: 'green' | 'amber' | 'brand' }[];
+  facts: { medium: string; established: string; shift: string; headmaster: string };
+}
+
+export async function getInstitutionOverview(
+  institutionId: string,
+): Promise<InstitutionOverviewSnapshot | null> {
+  const result = await gatewayFetch<InstitutionOverviewSnapshot>(
+    `/institutions/${encodeURIComponent(institutionId)}/overview`,
+    { method: 'GET', throwOnError: false, cache: 'no-store' },
+  );
+  if (result.status === 404) return null;
+  if (!result.ok || !result.data) {
+    throw new ApiClientError({
+      code: result.error?.code ?? 'SERVICE_UNAVAILABLE',
+      message: result.error?.message ?? 'Institution details are currently unavailable.',
+      statusCode: result.status,
+    });
+  }
+  return result.data;
 }
 
 // ---------------------------------------------------------------------------
@@ -390,7 +459,7 @@ export async function getInfrastructureHierarchy(
     // G-901: backend route is `/infrastructure/hierarchy/:institutionId`.
     const result = await gatewayFetch<InfrastructureHierarchy>(
       `/infrastructure/hierarchy/${encodeURIComponent(institutionId)}`,
-      { method: 'GET', throwOnError: true },
+      { method: 'GET', throwOnError: true, cache: 'no-store' },
     );
     return unwrap(result, { lands: [] });
   } catch (error) {

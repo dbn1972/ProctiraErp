@@ -64,6 +64,11 @@ export interface MutatingAuthzInventoryRule {
   action?: PermissionAction;
   /** Restrict to these methods (uppercase). Default: all mutating. */
   methods?: ReadonlyArray<'POST' | 'PUT' | 'PATCH' | 'DELETE'>;
+  /**
+   * When set, the path must also end with this suffix (for example
+   * `/deactivate`). Used so a status change is not classified as create.
+   */
+  pathSuffix?: string;
   /** Optional domain action annotation. */
   domainAction?: string;
   /**
@@ -125,6 +130,44 @@ function buildSegmentRules(): MutatingAuthzInventoryRule[] {
  * These override segment defaults when the path is more specific.
  */
 export const MUTATING_AUTHZ_EXACT_OVERRIDES: readonly MutatingAuthzInventoryRule[] = [
+  {
+    id: 'institution.deactivate',
+    pathPrefix: '/api/v1/institutions',
+    pathSuffix: '/deactivate',
+    resource: 'institution',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'institution.deactivate',
+    deferredDomainGuard: true,
+  },
+  {
+    id: 'institution.reactivate',
+    pathPrefix: '/api/v1/institutions',
+    pathSuffix: '/reactivate',
+    resource: 'institution',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'institution.reactivate',
+    deferredDomainGuard: true,
+  },
+  {
+    id: 'institution.infrastructure.rooms',
+    pathPrefix: '/api/v1/infrastructure/rooms',
+    resource: 'institution',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'infrastructure.room.create',
+    deferredDomainGuard: true,
+  },
+  {
+    id: 'institution.infrastructure.repairs',
+    pathPrefix: '/api/v1/infrastructure/repair-requests',
+    resource: 'institution',
+    action: 'update',
+    methods: ['POST'],
+    domainAction: 'infrastructure.repair.log',
+    deferredDomainGuard: true,
+  },
   {
     id: 'examination.documents.generate',
     pathPrefix: '/api/v1/examinations',
@@ -265,7 +308,10 @@ function ruleMatches(rule: MutatingAuthzInventoryRule, method: string, path: str
     return false;
   }
   const prefix = rule.pathPrefix.endsWith('/') ? rule.pathPrefix.slice(0, -1) : rule.pathPrefix;
-  return path === prefix || path.startsWith(`${prefix}/`);
+  const prefixMatch = path === prefix || path.startsWith(`${prefix}/`);
+  if (!prefixMatch) return false;
+  if (rule.pathSuffix && !path.endsWith(rule.pathSuffix)) return false;
+  return true;
 }
 
 /**
@@ -290,7 +336,9 @@ export function resolveExactMutatingAuthz(
   let best: MutatingAuthzInventoryRule | undefined;
   for (const rule of MUTATING_ROUTE_AUTHZ_INVENTORY) {
     if (!ruleMatches(rule, m, path)) continue;
-    if (!best || rule.pathPrefix.length > best.pathPrefix.length) {
+    const score = rule.pathPrefix.length + (rule.pathSuffix ? 10_000 : 0);
+    const bestScore = best ? best.pathPrefix.length + (best.pathSuffix ? 10_000 : 0) : -1;
+    if (!best || score > bestScore) {
       best = rule;
     }
   }

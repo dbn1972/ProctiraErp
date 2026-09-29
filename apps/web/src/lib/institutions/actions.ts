@@ -13,9 +13,11 @@ import {
   createAcademicPeriod,
   createCalendarEvent,
   createClassSection,
+  updateClassSection,
   createGrade,
   createInstitution,
   deactivateInstitution,
+  reactivateInstitution,
   deleteAcademicPeriod,
   deleteCalendarEvent,
   rolloverAcademicPeriod,
@@ -26,6 +28,7 @@ import type { CreateAcademicPeriodInput, RolloverSummary } from './types';
 import {
   academicPeriodFormSchema,
   calendarEventFormSchema,
+  assignClassSectionSchema,
   classSectionFormSchema,
   gradeFormSchema,
   institutionFormSchema,
@@ -33,6 +36,7 @@ import {
   type AcademicPeriodFormParsed,
   type AcademicPeriodFormValues,
   type CalendarEventFormValues,
+  type AssignClassSectionValues,
   type ClassSectionFormValues,
   type GradeFormValues,
   type InstitutionFormValues,
@@ -45,8 +49,7 @@ export interface FieldError {
 }
 
 export type ActionResult<T = unknown> =
-  | { success: true; data: T }
-  | { success: false; error: string; fieldErrors?: FieldError[] };
+  { success: true; data: T } | { success: false; error: string; fieldErrors?: FieldError[] };
 
 function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldError[] {
   return Object.entries(errors).flatMap(([field, messages]) =>
@@ -133,6 +136,29 @@ export async function deactivateInstitutionAction(
     revalidatePath('/institutions');
     revalidatePath(`/institutions/${id}`);
     return { success: true, data: { id: institution.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function reactivateInstitutionAction(
+  id: string,
+  reason: string,
+): Promise<ActionResult<{ id: string; status: string }>> {
+  if (!reason || reason.trim().length === 0) {
+    return {
+      success: false,
+      error: 'A reactivation reason is required',
+      fieldErrors: [{ field: 'reason', message: 'A reactivation reason is required' }],
+    };
+  }
+
+  try {
+    const institution = await reactivateInstitution(id, reason.trim());
+    revalidatePath('/institutions');
+    revalidatePath(`/institutions/${id}`);
+    revalidatePath(`/institutions/${id}/overview`);
+    return { success: true, data: { id: institution.id, status: institution.status } };
   } catch (error) {
     return toActionError(error);
   }
@@ -299,6 +325,25 @@ export async function createGradeAction(
     const grade = await createGrade(parsed.data);
     revalidatePath('/institutions', 'layout');
     return { success: true, data: { id: grade.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function assignClassSectionAction(
+  values: AssignClassSectionValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = assignClassSectionSchema.safeParse(values);
+  if (!parsed.success) {
+    return { success: false, error: 'Validation failed' };
+  }
+  try {
+    const section = await updateClassSection(parsed.data.classId, {
+      classTeacherStaffId: parsed.data.classTeacherStaffId || null,
+      roomName: parsed.data.roomName.trim() || null,
+    });
+    revalidatePath(`/institutions/${parsed.data.institutionId}/classes`);
+    return { success: true, data: { id: section.id } };
   } catch (error) {
     return toActionError(error);
   }

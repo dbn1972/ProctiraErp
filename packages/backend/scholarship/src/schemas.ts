@@ -233,6 +233,10 @@ export const CreateApplicationSchema = Type.Object({
   }),
   financialInfo: FinancialInfoSchema,
   documents: Type.Array(ApplicationDocumentSchema, { description: 'Supporting documents' }),
+  /** When true, persist a draft and skip required-document checks until POST …/submit. */
+  asDraft: Type.Optional(
+    Type.Boolean({ description: 'Save as draft so files can be uploaded before submit' }),
+  ),
   personalStatement: Type.Optional(
     Type.String({ maxLength: 5000, description: 'Personal statement' }),
   ),

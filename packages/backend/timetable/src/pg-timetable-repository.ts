@@ -4,7 +4,7 @@
  *   bell_schedules, bell_periods, section_meetings, substitutions, rooms, sections
  */
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import pg from 'pg';
+import type pg from 'pg';
 
 import { TimetableSchemaMissingError, TimetableVersionConflictError } from './timetable-errors.js';
 import type {
@@ -139,6 +139,7 @@ function mapPeriod(row: Record<string, unknown>): PeriodEntity {
     periodOrder: Number(row.period_order),
     startTime: timeText(row.start_time),
     endTime: timeText(row.end_time),
+    isBreak: row.is_break === true,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };

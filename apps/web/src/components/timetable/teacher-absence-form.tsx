@@ -43,7 +43,9 @@ export function TeacherAbsenceForm(props: {
             return;
           }
           setInfo(`${result.affectedCount ?? 0} periods affected.`);
-          router.refresh();
+          router.push(
+            `/institutions/${props.institutionId}/timetable/substitutions?staff=${encodeURIComponent(staffId)}&date=${encodeURIComponent(absenceDate)}`,
+          );
         });
       }}
     >

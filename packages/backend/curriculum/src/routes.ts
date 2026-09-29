@@ -149,6 +149,69 @@ export async function registerCurriculumRoutes(
     }
   });
 
+  fastify.get(`${prefix}/lesson-plans`, async (request, reply) => {
+    const tenantId = tenantOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const query = request.query as { unitIds?: string };
+    const unitIds = (query.unitIds ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    try {
+      const rows = await service.listLessonPlansForUnits(tenantId, unitIds);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.patch(`${prefix}/lesson-plans/:id`, async (request, reply) => {
+    const tenantId = tenantOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const { id } = request.params as { id: string };
+    const body = request.body as {
+      title?: string;
+      objectives?: string | null;
+      plannedDate?: string | null;
+    };
+    try {
+      const row = await service.updateLessonPlan(tenantId, id, body ?? {});
+      return reply.send(row);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.delete(`${prefix}/lesson-plans/:id`, async (request, reply) => {
+    const tenantId = tenantOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const { id } = request.params as { id: string };
+    try {
+      await service.deleteLessonPlan(tenantId, id);
+      return reply.status(204).send();
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
   fastify.post(`${prefix}/units/:id/mark-taught`, async (request, reply) => {
     const tenantId = tenantOf(request);
     if (!tenantId) {
@@ -171,6 +234,24 @@ export async function registerCurriculumRoutes(
     try {
       const row = await service.markTaught(tenantId, id, body.data, actorId(request));
       return reply.send(row);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.delete(`${prefix}/units/:id/coverage`, async (request, reply) => {
+    const tenantId = tenantOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const { id } = request.params as { id: string };
+    try {
+      await service.unmarkTaught(tenantId, id);
+      return reply.status(204).send();
     } catch (error) {
       return sendError(reply, error);
     }
@@ -215,6 +296,48 @@ export async function registerCurriculumRoutes(
     try {
       const rows = await service.listOutcomes(tenantId, query);
       return reply.send({ data: rows });
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.patch(`${prefix}/outcomes/:id`, async (request, reply) => {
+    const tenantId = tenantOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const { id } = request.params as { id: string };
+    const body = request.body as {
+      code?: string;
+      statement?: string;
+      unitId?: string | null;
+      gradeId?: string | null;
+    };
+    try {
+      const row = await service.updateOutcome(tenantId, id, body ?? {});
+      return reply.send(row);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.delete(`${prefix}/outcomes/:id`, async (request, reply) => {
+    const tenantId = tenantOf(request);
+    if (!tenantId) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Tenant context required',
+        statusCode: 401,
+      });
+    }
+    const { id } = request.params as { id: string };
+    try {
+      await service.deleteOutcome(tenantId, id);
+      return reply.status(204).send();
     } catch (error) {
       return sendError(reply, error);
     }

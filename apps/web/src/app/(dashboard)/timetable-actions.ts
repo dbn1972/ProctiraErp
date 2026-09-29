@@ -6,6 +6,7 @@ import { GatewayError } from '@/lib/api/gateway';
 import {
   createBellSchedule,
   createMeeting,
+  deleteMeeting,
   createPeriod,
   createSection,
   createSubstitution,
@@ -17,10 +18,17 @@ import {
   runGenerationJob,
   markTeacherAbsent,
 } from '@/lib/api/timetable';
+import type { MeetingClash } from '@/lib/timetable/meeting-conflict-label';
 
 export type TimetableActionResult =
   | { ok: true; id: string }
-  | { ok: false; error: string; code?: string; status?: number };
+  | { ok: false; error: string; code?: string; status?: number; conflicts?: MeetingClash[] };
+
+function clashList(details: unknown): MeetingClash[] | undefined {
+  if (!details || typeof details !== 'object' || !('conflicts' in details)) return undefined;
+  const conflicts = (details as { conflicts?: unknown }).conflicts;
+  return Array.isArray(conflicts) ? (conflicts as MeetingClash[]) : undefined;
+}
 
 function fail(error: unknown): TimetableActionResult {
   if (error instanceof GatewayError) {
@@ -29,6 +37,7 @@ function fail(error: unknown): TimetableActionResult {
       error: error.message,
       code: error.code,
       status: error.status,
+      conflicts: clashList(error.details),
     };
   }
   return {
@@ -86,6 +95,21 @@ export async function createMeetingAction(input: {
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
     return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function deleteMeetingAction(input: {
+  institutionId: string;
+  meetingId: string;
+  sectionId: string;
+}): Promise<TimetableActionResult> {
+  try {
+    await deleteMeeting(input.meetingId);
+    revalidatePath(`/institutions/${input.institutionId}/timetable`);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    return { ok: true, id: input.meetingId };
   } catch (error) {
     return fail(error);
   }
@@ -185,6 +209,7 @@ export async function publishSectionAction(input: {
     const row = await publishSection(input.sectionId);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    revalidatePath(`/institutions/${input.institutionId}/timetable`);
     return { ok: true, id: row.id };
   } catch (error) {
     return fail(error);
@@ -199,6 +224,7 @@ export async function unpublishSectionAction(input: {
     const row = await unpublishSection(input.sectionId);
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    revalidatePath(`/institutions/${input.institutionId}/timetable`);
     return { ok: true, id: row.id };
   } catch (error) {
     return fail(error);

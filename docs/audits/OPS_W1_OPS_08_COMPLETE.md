@@ -12,25 +12,25 @@ Image naming was inconsistent (`proctira/<service>` in k8s/Helm vs `proctira-<se
 
 ## Done when (this PR)
 
-| Criterion | Evidence |
-| --------- | -------- |
-| Deploy manifests / kustomize / Helm / compose prod paths do not use mutable `:latest` for **app** images | k8s `sha-pending`; Helm `tag: sha-pending`; compose apps use `build:`; gate below |
-| Image naming consistent (`proctira/<service>`) | release + supply-chain aligned to slash form; k8s/Helm/deploy already slash |
-| CI gate fails on `:latest` in prod deploy paths | `tools/scripts/check-no-latest-image-tags.sh` (+ Vitest fixtures; wired via `helm-template-check.sh`) |
-| Audit with tip SHA + residuals | this file |
+| Criterion                                                                                                | Evidence                                                                                              |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Deploy manifests / kustomize / Helm / compose prod paths do not use mutable `:latest` for **app** images | k8s `sha-pending`; Helm `tag: sha-pending`; compose apps use `build:`; gate below                     |
+| Image naming consistent (`proctira/<service>`)                                                           | release + supply-chain aligned to slash form; k8s/Helm/deploy already slash                           |
+| CI gate fails on `:latest` in prod deploy paths                                                          | `tools/scripts/check-no-latest-image-tags.sh` (+ Vitest fixtures; wired via `helm-template-check.sh`) |
+| Audit with tip SHA + residuals                                                                           | this file                                                                                             |
 
 ## Scope
 
-| Artifact | Path | Notes |
-| -------- | ---- | ----- |
-| Helm default | `infrastructure/helm/proctira-service/values.yaml` | `tag: sha-pending` (was `latest`) |
-| Deploy | `.github/workflows/deploy.yml` | Push immutable tag only (dropped `:latest`) |
-| Release | `.github/workflows/release.yml` | `proctira/<service>`; no `value=latest` |
-| Supply-chain | `.github/workflows/supply-chain.yml` | `…/proctira/api-gateway` |
-| Gate | `tools/scripts/check-no-latest-image-tags.sh` | k8s + Helm + workflows + compose app images |
-| Tests | `tools/scripts/__tests__/check-no-latest-image-tags.test.ts` | pass + fail fixtures |
-| Docs | `.github/README.md`, `infrastructure/k8s/README.md`, `docs/SUPPLY_CHAIN.md` | Canonical naming |
-| Audit | this file | |
+| Artifact     | Path                                                                        | Notes                                       |
+| ------------ | --------------------------------------------------------------------------- | ------------------------------------------- |
+| Helm default | `infrastructure/helm/proctira-service/values.yaml`                          | `tag: sha-pending` (was `latest`)           |
+| Deploy       | `.github/workflows/deploy.yml`                                              | Push immutable tag only (dropped `:latest`) |
+| Release      | `.github/workflows/release.yml`                                             | `proctira/<service>`; no `value=latest`     |
+| Supply-chain | `.github/workflows/supply-chain.yml`                                        | `…/proctira/api-gateway`                    |
+| Gate         | `tools/scripts/check-no-latest-image-tags.sh`                               | k8s + Helm + workflows + compose app images |
+| Tests        | `tools/scripts/__tests__/check-no-latest-image-tags.test.ts`                | pass + fail fixtures                        |
+| Docs         | `.github/README.md`, `infrastructure/k8s/README.md`, `docs/SUPPLY_CHAIN.md` | Canonical naming                            |
+| Audit        | this file                                                                   |                                             |
 
 ## Invariants
 
@@ -50,12 +50,12 @@ pnpm exec vitest run tools/scripts/__tests__/check-no-latest-image-tags.test.ts
 
 ## Residuals (honest)
 
-| Residual | Status |
-| -------- | ------ |
-| Third-party compose images may still use vendor tags (e.g. `minio/minio:latest`) | **Accepted** — not Proctira app images; pin opportunistically |
-| Branch-name tags on release (`:main`, `:develop`) remain mutable convenience refs | **Accepted** — prod Helm/kustomize/deploy must use `sha-*` / digest |
-| `deploy.yml` image path is `{REGISTRY}/proctira/<svc>`; release uses `{REGISTRY}/{IMAGE_NAMESPACE}/proctira/<svc>` | **Accepted** — both use slash `proctira/<svc>`; org prefix follows existing registry vars |
-| Historical GHCR tags named `proctira-<svc>:latest` are not deleted | **Accepted** — new pushes stop publishing them; consumers must cut over |
+| Residual                                                                                                                            | Status                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Third-party compose images may still use vendor tags (e.g. `minio/minio:latest`)                                                    | **Accepted** — not Proctira app images; pin opportunistically                                                                                                                                               |
+| Branch-name tags on release (`:main`, `:develop`) remain mutable convenience refs                                                   | **Accepted** — prod Helm/kustomize/deploy must use `sha-*` / digest                                                                                                                                         |
+| Deploy image path omitted the registry owner (`{REGISTRY}/proctira/<svc>` vs release `{REGISTRY}/{IMAGE_NAMESPACE}/proctira/<svc>`) | **Superseded** — deploy.yml, rollback.yml, and Helm `--set image.repository` now use `tools/scripts/image-repository.sh` (`{registry}/{lowercase-namespace}/proctira/{service}`). Not a remaining residual. |
+| Historical GHCR tags named `proctira-<svc>:latest` are not deleted                                                                  | **Accepted** — new pushes stop publishing them; consumers must cut over                                                                                                                                     |
 
 ## Rollback
 

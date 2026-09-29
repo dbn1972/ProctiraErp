@@ -5,11 +5,10 @@
  *
  * Loads the application's globals.css into a jsdom document and asserts
  * that the resolved `--font-sans` CSS custom property — the value the
- * <body> ultimately uses for `font-family` — starts with the system-font
- * fallback (`-apple-system, ...`). This guards against an accidental
- * regression where Inter (or another web font) is hoisted to the front of
- * the stack and causes invisible text on the first paint while the web
- * font is still downloading.
+ * <body> ultimately uses for `font-family` — starts with the self-hosted
+ * Inter variable (`var(--font-inter)`). next/font/local sets
+ * `font-display: swap`, so the first paint uses the system fallbacks that
+ * follow Inter instead of hiding text while the face downloads.
  *
  * The same expectation is verified for the RTL override, since the RTL
  * stack is what gets applied for Arabic / Hebrew locales.
@@ -41,13 +40,14 @@ describe('Font stack — system-font fallback (Task 55.3, Requirement 39.3)', ()
     document.head.appendChild(style);
   });
 
-  it('--font-sans starts with the -apple-system system font (LTR)', () => {
+  it('--font-sans uses the self-hosted Inter variable, then system fonts', () => {
     const computed = getComputedStyle(document.documentElement)
       .getPropertyValue('--font-sans')
       .trim();
 
     expect(computed.length).toBeGreaterThan(0);
-    expect(computed).toMatch(/^-apple-system\b/);
+    expect(computed).toMatch(/^var\(--font-inter\)/);
+    expect(computed.indexOf('-apple-system')).toBeGreaterThan(computed.indexOf('--font-inter'));
   });
 
   it('--font-sans includes the full system-font fallback chain', () => {
@@ -72,19 +72,15 @@ describe('Font stack — system-font fallback (Task 55.3, Requirement 39.3)', ()
     expect(computed).toMatch(/sans-serif\s*$/);
   });
 
-  it('Inter (the web font) appears AFTER the system fonts in the stack', () => {
+  it('Inter is the first family so the loaded face is used, with system fallbacks after', () => {
     const computed = getComputedStyle(document.documentElement)
       .getPropertyValue('--font-sans')
       .trim();
 
     const apple = computed.indexOf('-apple-system');
-    const inter = computed.indexOf("'Inter'");
-
-    // If Inter is listed at all, it must come after the system fonts so the
-    // first paint never blocks on the web font (Requirement 39.4).
-    if (inter !== -1) {
-      expect(inter).toBeGreaterThan(apple);
-    }
+    const inter = computed.indexOf('var(--font-inter)');
+    expect(inter).toBe(0);
+    expect(apple).toBeGreaterThan(inter);
   });
 
   it('body uses var(--font-sans) for font-family', () => {

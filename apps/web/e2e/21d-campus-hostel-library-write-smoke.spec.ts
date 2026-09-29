@@ -297,9 +297,10 @@ test.describe('Transport — live writes (E2E_BACKEND_READY)', () => {
       headers: gatewayAuthHeaders('transport-a'),
       data: { studentId, routeId: a.id, startDate: '2026-09-08' },
     });
+    const firstBody = await first.json();
     // Prior runs may already have an active assignment for this student.
     if (first.status() !== 201) {
-      expect(first.status()).toBe(422);
+      expect(first.status(), JSON.stringify(firstBody)).toBe(422);
     }
 
     const second = await request.post(`${GATEWAY_URL}/api/v1/transport/student-assignments`, {
@@ -353,9 +354,29 @@ test.describe('Library fines → fees (G-603) + Comms send (G-604)', () => {
   );
 
   test('library: assess fine posts fees invoice', async ({ request }) => {
+    // The seeded overdue loan is renewed earlier in this file (fullyParallel),
+    // which moves its due date forward. Assess against a loan this test creates.
+    const itemRes = await request.post(`${GATEWAY_URL}/api/v1/library/items`, {
+      headers: gatewayAuthHeaders('librarian-a'),
+      data: { title: `Fine Book ${Date.now()}`, copies: 1, author: 'E2E' },
+    });
+    const item = await itemRes.json();
+    expect(itemRes.status(), JSON.stringify(item)).toBe(201);
+
+    const loanRes = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/checkout`, {
+      headers: gatewayAuthHeaders('librarian-a'),
+      data: {
+        itemId: item.id,
+        studentId: STUDENT_ID,
+        dueAt: '2020-01-01T00:00:00.000Z',
+      },
+    });
+    const loan = await loanRes.json();
+    expect(loanRes.status(), JSON.stringify(loan)).toBe(201);
+
     const assess = await request.post(`${GATEWAY_URL}/api/v1/library/fines/assess`, {
       headers: gatewayAuthHeaders('librarian-a'),
-      data: { loanId: OVERDUE_LOAN_ID, amountCents: 2500 },
+      data: { loanId: loan.id, amountCents: 2500 },
     });
     const body = await assess.json();
     expect(assess.status(), JSON.stringify(body)).toBe(201);

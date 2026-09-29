@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { Button } from '@proctira/ui/components';
+
+import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 
 import {
   enrollStudentAction,
@@ -23,37 +25,63 @@ export function SectionPublishControls(props: {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const isPublished = props.status === 'PUBLISHED';
+
+  function run(unpublish: boolean) {
+    setError(null);
+    startTransition(async () => {
+      const result = unpublish
+        ? await unpublishSectionAction({
+            institutionId: props.institutionId,
+            sectionId: props.sectionId,
+          })
+        : await publishSectionAction({
+            institutionId: props.institutionId,
+            sectionId: props.sectionId,
+          });
+      if (!result.ok) {
+        setError(
+          result.status === 409
+            ? `This section clashes with another booking. ${result.error}`
+            : result.error,
+        );
+        return;
+      }
+      setConfirmOpen(false);
+      router.refresh();
+    });
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button
         type="button"
         size="sm"
-        variant={isPublished ? 'outline' : 'default'}
+        variant="outline"
+        className="h-8 px-2.5 text-xs"
         disabled={pending}
         onClick={() => {
-          setError(null);
-          startTransition(async () => {
-            const result = isPublished
-              ? await unpublishSectionAction({
-                  institutionId: props.institutionId,
-                  sectionId: props.sectionId,
-                })
-              : await publishSectionAction({
-                  institutionId: props.institutionId,
-                  sectionId: props.sectionId,
-                });
-            if (!result.ok) {
-              setError(result.status === 409 ? `Conflict (409): ${result.error}` : result.error);
-              return;
-            }
-            router.refresh();
-          });
+          if (isPublished) {
+            setConfirmOpen(true);
+            return;
+          }
+          run(false);
         }}
       >
         {pending ? 'Working…' : isPublished ? 'Unpublish to draft' : 'Publish schedule'}
       </Button>
+      <ConfirmActionDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Unpublish this section?"
+        description="The section returns to draft. Students keep their places, and you can publish again after clashes are resolved."
+        confirmLabel="Unpublish to draft"
+        destructive
+        pending={pending}
+        testId="unpublish-section"
+        onConfirm={() => run(true)}
+      />
       {error && (
         <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
           {error}
@@ -100,12 +128,14 @@ export function SectionEnrollForm(props: {
           id="enrollStudentId"
           name="studentId"
           label="Student"
+          placeholder="Search by name or admission no."
           options={props.studentOptions ?? []}
           required
+          presentation="combobox"
         />
       </div>
       <Button type="submit" size="sm" disabled={pending}>
-        {pending ? 'Enrolling…' : 'Enroll'}
+        {pending ? 'Enrolling…' : 'Enrol'}
       </Button>
       {error && (
         <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">
@@ -134,14 +164,33 @@ export function SectionBulkEnrollForm(props: {
         event.preventDefault();
         const fd = new FormData(event.currentTarget);
         const raw = String(fd.get('studentIds') ?? '');
-        const studentIds = raw
+        const byAdmission = new Map<string, string>();
+        for (const option of props.studentOptions ?? []) {
+          byAdmission.set(option.id.toLowerCase(), option.id);
+          for (const token of option.searchText?.split(/\s+/) ?? []) {
+            if (token) byAdmission.set(token.toLowerCase(), option.id);
+          }
+          byAdmission.set(option.label.toLowerCase(), option.id);
+        }
+        const tokens = raw
           .split(/[\s,;]+/)
           .map((s) => s.trim())
           .filter(Boolean);
+        const studentIds: string[] = [];
+        const unknown: string[] = [];
+        for (const token of tokens) {
+          const resolved = byAdmission.get(token.toLowerCase());
+          if (resolved) studentIds.push(resolved);
+          else unknown.push(token);
+        }
         setError(null);
         setMessage(null);
+        if (tokens.length === 0) {
+          setError('Enter at least one admission number');
+          return;
+        }
         if (studentIds.length === 0) {
-          setError('Enter at least one student id');
+          setError(`No matching students for ${unknown.join(', ')}`);
           return;
         }
         startTransition(async () => {
@@ -155,13 +204,13 @@ export function SectionBulkEnrollForm(props: {
             return;
           }
           if ('enrolled' in result) {
+            const names = new Map(
+              (props.studentOptions ?? []).map((option) => [option.id, option.label]),
+            );
+            const failedNames = result.failed.map((f) => names.get(f.studentId) ?? f.studentId);
+            const named = [...failedNames, ...unknown];
             const failNote =
-              result.failed.length > 0
-                ? ` · ${result.failed.length} failed (${result.failed
-                    .slice(0, 3)
-                    .map((f) => f.studentId.slice(0, 8))
-                    .join(', ')})`
-                : '';
+              named.length > 0 ? ` · ${named.length} failed (${named.slice(0, 3).join(', ')})` : '';
             setMessage(`Enrolled ${result.enrolled}${failNote}`);
           }
           event.currentTarget.reset();
@@ -170,20 +219,24 @@ export function SectionBulkEnrollForm(props: {
       }}
     >
       <label className="block text-sm font-medium text-foreground" htmlFor="bulkStudentIds">
-        Bulk assign (student ids, comma or newline separated)
+        Bulk assign by admission number
       </label>
+      <p className="text-xs text-muted-foreground">
+        Paste admission numbers separated by commas or new lines. Unknown numbers are named in the
+        result instead of raw ids.
+      </p>
       <textarea
         id="bulkStudentIds"
         name="studentIds"
         rows={3}
         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
         placeholder={
-          props.studentOptions?.[0]
-            ? `e.g. ${props.studentOptions[0].id}`
-            : 'student-uuid-1, student-uuid-2'
+          props.studentOptions?.[0]?.searchText
+            ? `e.g. ${props.studentOptions[0].searchText.split(' ').slice(-1)[0]}`
+            : 'Admission numbers, separated by commas'
         }
       />
-      <Button type="submit" size="sm" disabled={pending}>
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
         {pending ? 'Assigning…' : 'Bulk assign'}
       </Button>
       {message && (
@@ -204,24 +257,48 @@ export function WithdrawStudentButton(props: {
   institutionId: string;
   sectionId: string;
   studentId: string;
+  studentName: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
 
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      disabled={pending}
-      onClick={() => {
-        startTransition(async () => {
-          await withdrawStudentAction(props);
-          router.refresh();
-        });
-      }}
-    >
-      {pending ? '…' : 'Withdraw'}
-    </Button>
+    <>
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={pending}
+        data-hydrated={hydrated ? 'true' : 'false'}
+        aria-label={`Withdraw ${props.studentName}`}
+        onClick={() => setOpen(true)}
+      >
+        {pending ? '…' : 'Withdraw'}
+      </Button>
+      <ConfirmActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={`Withdraw ${props.studentName}?`}
+        description="They leave this section roster. You can enroll them again later."
+        confirmLabel="Withdraw"
+        destructive
+        pending={pending}
+        testId="withdraw-student"
+        onConfirm={() => {
+          startTransition(async () => {
+            await withdrawStudentAction({
+              institutionId: props.institutionId,
+              sectionId: props.sectionId,
+              studentId: props.studentId,
+            });
+            setOpen(false);
+            router.refresh();
+          });
+        }}
+      />
+    </>
   );
 }

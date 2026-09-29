@@ -8,7 +8,10 @@ import '../../../core/l10n/app_localizations.dart';
 import '../../../core/student/student_route.dart';
 import '../../students/presentation/student_picker.dart';
 import '../bloc/scholarship_bloc.dart';
+import '../data/scholarship_document_rules.dart';
+import '../data/scholarship_file_picker.dart';
 import '../data/scholarship_repository.dart';
+import 'scholarship_document_slots.dart';
 
 /// Screen for submitting a scholarship application.
 class ScholarshipApplicationScreen extends StatelessWidget {
@@ -68,6 +71,9 @@ class _ScholarshipApplicationFormState
   bool _loadingProgram = true;
   ScholarshipProgram? _program;
   String? _programError;
+  ScholarshipDocumentUploadController? _documents;
+  String? _draftApplicationId;
+  bool _documentUploadsAvailable = false;
 
   @override
   void didChangeDependencies() {
@@ -89,14 +95,21 @@ class _ScholarshipApplicationFormState
       _programError = null;
     });
     try {
-      final ScholarshipProgram? program = await context
-          .read<ScholarshipRepository>()
-          .findProgram(widget.programId);
+      final ScholarshipRepository repository =
+          context.read<ScholarshipRepository>();
+      final ScholarshipProgram? program =
+          await repository.findProgram(widget.programId);
+      if (!mounted) {
+        return;
+      }
+      final bool uploadsAvailable =
+          await repository.scholarshipDocumentUploadsAvailable();
       if (!mounted) {
         return;
       }
       setState(() {
         _program = program;
+        _documentUploadsAvailable = uploadsAvailable;
         _loadingProgram = false;
       });
     } catch (error) {
@@ -112,9 +125,79 @@ class _ScholarshipApplicationFormState
 
   @override
   void dispose() {
+    _documents?.dispose();
     _statementCtrl.dispose();
     _incomeCtrl.dispose();
     super.dispose();
+  }
+
+  List<String> _requiredTypes(ScholarshipProgram program) {
+    if (program.requiredDocuments.isEmpty) {
+      return defaultScholarshipDocumentTypes;
+    }
+    return program.requiredDocuments;
+  }
+
+  void _ensureDocuments(ScholarshipProgram program) {
+    if (_documents != null) {
+      return;
+    }
+    _documents = ScholarshipDocumentUploadController(
+      requiredTypes: _requiredTypes(program),
+      picker: DeviceScholarshipFilePicker(),
+      upload: _uploadDocument,
+    );
+  }
+
+  Future<String> _ensureDraft() async {
+    final String? existing = _draftApplicationId;
+    if (existing != null && existing.isNotEmpty) {
+      return existing;
+    }
+    final ScholarshipRepository repository =
+        context.read<ScholarshipRepository>();
+    final String? institutionId =
+        await repository.institutionIdForStudent(widget.studentId);
+    if (institutionId == null || institutionId.isEmpty) {
+      throw StateError(
+        'This student\'s school is not on the device yet. Open the student list, then try the upload again.',
+      );
+    }
+    final double? income = double.tryParse(_incomeCtrl.text.trim());
+    final String id = await repository.createDraftApplication(
+      programId: widget.programId,
+      studentId: widget.studentId,
+      institutionId: institutionId,
+      personalStatement: _statementCtrl.text.trim(),
+      familyIncome: income,
+    );
+    _draftApplicationId = id;
+    return id;
+  }
+
+  Future<void> _uploadDocument(
+    String documentType,
+    PickedScholarshipFile file,
+    void Function(double progress) onProgress,
+  ) async {
+    final ScholarshipRepository repository =
+        context.read<ScholarshipRepository>();
+    final String applicationId = await _ensureDraft();
+    if (!mounted) {
+      return;
+    }
+    await repository.uploadApplicationDocument(
+          applicationId: applicationId,
+          documentType: documentType,
+          bytes: file.bytes,
+          filename: file.filename,
+          mimeType: file.mimeType,
+          onSendProgress: (int sent, int total) {
+            if (total > 0) {
+              onProgress(sent / total);
+            }
+          },
+        );
   }
 
   void _submit(BuildContext context) {
@@ -142,11 +225,31 @@ class _ScholarshipApplicationFormState
       );
       return;
     }
+    final ScholarshipDocumentUploadController? documents = _documents;
+    if (_documentUploadsAvailable &&
+        documents != null &&
+        (documents.hasSlotErrors || documents.missingTypes.isNotEmpty)) {
+      final String missing = documents.missingTypes
+          .map(scholarshipDocumentTypeLabel)
+          .join(', ');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            missing.isEmpty
+                ? 'Fix the document errors before submitting.'
+                : 'Upload the required documents before submitting: $missing',
+          ),
+        ),
+      );
+      return;
+    }
 
     context.read<ScholarshipBloc>().add(
           ScholarshipApplicationSubmitted(
             programId: widget.programId,
             studentId: widget.studentId,
+            draftApplicationId:
+                _documentUploadsAvailable ? _draftApplicationId : null,
             additionalData: <String, dynamic>{
               'personalStatement': _statementCtrl.text.trim(),
               if (_incomeCtrl.text.trim().isNotEmpty)
@@ -180,6 +283,10 @@ class _ScholarshipApplicationFormState
         message:
             'This scholarship is closed or the deadline has passed. You cannot submit an application.',
       );
+    }
+
+    if (_documentUploadsAvailable) {
+      _ensureDocuments(_program!);
     }
 
     return Scaffold(
@@ -262,30 +369,43 @@ class _ScholarshipApplicationFormState
                     ),
                     const SizedBox(height: 16),
 
-                    // Documents — upload API not wired on mobile yet (PARTIAL).
                     _SectionCard(
                       title: 'Documents',
-                      children: <Widget>[
-                        Text(
-                          'Supporting document upload is not available in this '
-                          'app build yet. Submit the application without files, '
-                          'or attach documents from the web portal.',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Semantics(
-                          button: true,
-                          enabled: false,
-                          label: 'Upload supporting documents unavailable',
-                          child: OutlinedButton.icon(
-                            onPressed: null,
-                            icon: const Icon(Icons.upload_file_outlined),
-                            label: const Text('Upload Documents'),
-                          ),
-                        ),
-                      ],
+                      children: _documentUploadsAvailable && _documents != null
+                          ? <Widget>[
+                              Text(
+                                'Add one file for each required document. PDF, JPEG, '
+                                'or PNG, up to 10 MB.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ScholarshipDocumentUploadPanel(
+                                controller: _documents!,
+                              ),
+                            ]
+                          : <Widget>[
+                              Text(
+                                'Supporting document upload is not available from '
+                                'this server yet. You can submit the application '
+                                'without files.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Semantics(
+                                button: true,
+                                enabled: false,
+                                label: 'Upload supporting documents unavailable',
+                                child: OutlinedButton.icon(
+                                  onPressed: null,
+                                  icon: Icon(Icons.upload_file_outlined),
+                                  label: Text('Upload Documents'),
+                                ),
+                              ),
+                            ],
                     ),
                     const SizedBox(height: 8),
 

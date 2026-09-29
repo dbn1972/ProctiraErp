@@ -1,0 +1,193 @@
+/**
+ * Live Sunrise directory. Requires Postgres seeded with
+ * db/seeds/006_sunrise_public_school_demo.sql, the gateway, and
+ * E2E_BACKEND_READY=1. The seed has five Delhi schools. A throwaway school
+ * is inserted here so deactivate does not touch those rows.
+ */
+import { execFileSync } from 'node:child_process';
+
+import { expect, test } from '@playwright/test';
+
+import { setupGatewayTenantSession } from './fixtures/fake-session';
+
+const BACKEND_READY = process.env.E2E_BACKEND_READY === '1';
+const SUNRISE = '00000000-0000-4000-8000-00000000a501';
+const AREA_EAST = '00000000-0000-4000-8000-00000000a511';
+const THROWAWAY_ID = '00000000-0000-4000-8000-00000000a5e1';
+
+function insertThrowawaySchool(): void {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required to insert the throwaway school');
+  }
+  const sql = `
+BEGIN;
+DO $$ BEGIN
+  PERFORM set_config('app.platform_admin', '1', true);
+  PERFORM set_app_tenant_id('${SUNRISE}');
+END $$;
+DELETE FROM institutions
+ WHERE tenant_id = '${SUNRISE}'
+   AND code LIKE 'SPS-PG-%';
+INSERT INTO institutions (
+  id, tenant_id, name, code, board_id, area_id, type, sector, ownership, status
+) VALUES (
+  '${THROWAWAY_ID}',
+  '${SUNRISE}',
+  'Throwaway Wing',
+  'SPS-TMP-99',
+  '00000000-0000-4000-8000-00000000a521',
+  '${AREA_EAST}',
+  'school',
+  'private',
+  'private',
+  'active'
+) ON CONFLICT (id) DO UPDATE SET status = 'active', name = 'Throwaway Wing';
+COMMIT;
+`;
+  execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-c', sql], { stdio: 'pipe' });
+}
+
+test.describe('Institutions directory — Sunrise live', () => {
+  test.describe.configure({ mode: 'serial' });
+  test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1, gateway, and the Sunrise seed');
+
+  test.beforeAll(() => {
+    insertThrowawaySchool();
+  });
+
+  test('filters, KPIs, and keyboard deactivate use seeded rows', async ({ page }) => {
+    await setupGatewayTenantSession(page, {
+      sub: 'priya-sharma',
+      email: 'priya.sharma@school.edu',
+      displayName: 'Priya Sharma',
+      tenantId: SUNRISE,
+      roles: [{ roleId: 'principal', roleName: 'Principal', areaId: null }],
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/institutions', { waitUntil: 'domcontentloaded' });
+
+    const heading = page.getByRole('heading', { name: 'Institutions', exact: true });
+    await expect(heading).toBeVisible();
+    await expect(page.getByText('SCREEN STATE')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /UX review/i })).toHaveCount(0);
+
+    const directoryTable = page.getByRole('table', { name: 'Institutions' });
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
+    await expect(
+      page.getByText('6 schools · profiles, classes, and infrastructure').filter({ visible: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Showing 1–6 of 6').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Page 1 of 1').filter({ visible: true })).toBeVisible();
+
+    const studentsKpi = page
+      .getByText('Students enrolled')
+      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]')
+      .filter({ visible: true });
+    await expect(studentsKpi).toContainText('3,615');
+    const reportingKpi = page
+      .getByText('Reporting today')
+      .locator('xpath=ancestor::div[contains(@class,"rounded")][1]')
+      .filter({ visible: true });
+    await expect(reportingKpi).toContainText('4');
+
+    const mayur = directoryTable.getByRole('row', { name: /Mayur Vihar/ });
+    await expect(mayur).toContainText('1,240');
+    await expect(mayur).toContainText('84');
+    await expect(mayur).toContainText('94%');
+    await expect(mayur).toContainText('Delhi East');
+    await expect(mayur).toContainText('Senior Secondary');
+    const rohini = directoryTable.getByRole('row', { name: /Rohini Sector 9/ });
+    await expect(rohini).toContainText('76%');
+    await expect(rohini).toContainText('Delhi North');
+    const patparganj = directoryTable.getByRole('row', { name: /Patparganj/ });
+    await expect(patparganj).toContainText('88%');
+
+    const switcher = page.getByTestId('tenant-switcher').filter({ visible: true });
+    await expect(switcher).toContainText('CBSE');
+    await expect(switcher).not.toContainText('Board:');
+
+    const searchBox = page.getByRole('searchbox', { name: 'Search' });
+    await searchBox.fill('zzzz-no-match');
+    await searchBox.press('Enter');
+    await expect(page).toHaveURL(/search=zzzz-no-match/);
+    await expect(page.getByTestId('institutions-empty').filter({ visible: true })).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Clear all filters' }).click();
+    await expect(page).not.toHaveURL(/search=/);
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
+
+    await page.locator('#filter-area').filter({ visible: true }).click();
+    await page.getByRole('option', { name: 'Delhi East' }).click();
+    await expect(page).toHaveURL(new RegExp(`areaId=${AREA_EAST}`));
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
+    await expect(directoryTable.getByText('07040200731')).toHaveCount(0);
+
+    await page.locator('#filter-status').filter({ visible: true }).click();
+    await page.getByRole('option', { name: 'Inactive' }).click();
+    await expect(page).toHaveURL(/status=INACTIVE/);
+    await expect(directoryTable.getByText('07040100844')).toBeVisible();
+    const inactive = directoryTable.getByRole('row', { name: /Vasundhara Enclave/ });
+    await expect(inactive.getByText('—').first()).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Clear all filters' }).click();
+    await expect(page).not.toHaveURL(/status=/);
+    await expect(page).not.toHaveURL(/areaId=/);
+
+    const more = page.getByTestId(`institution-more-${THROWAWAY_ID}`).filter({ visible: true });
+    await more.focus();
+    await page.keyboard.press('ArrowDown');
+    const deactivateItem = page.getByRole('menuitem', { name: 'Deactivate school' });
+    await expect(deactivateItem).toBeVisible();
+    await deactivateItem.focus();
+    await page.keyboard.press('Enter');
+    const dialog = page.getByTestId(`deactivate-${THROWAWAY_ID}`);
+    await expect(dialog).toBeVisible();
+    await page.getByLabel('Reason').fill('Screen review throwaway');
+    await page.getByTestId(`deactivate-${THROWAWAY_ID}-confirm`).focus();
+    await page.keyboard.press('Enter');
+    const throwawayRow = directoryTable.getByRole('row', { name: /Throwaway Wing/ });
+    await expect(throwawayRow).toContainText('Inactive');
+    await expect(directoryTable.getByText('07040100417')).toBeVisible();
+  });
+
+  test('page 2 renders when more than one page of schools exists', async ({ page }) => {
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) throw new Error('DATABASE_URL is required');
+    const values = Array.from({ length: 19 }, (_, index) => {
+      const n = String(index + 1).padStart(2, '0');
+      const id = `00000000-0000-4000-8000-00000000a6${n}`;
+      return `('${id}', '${SUNRISE}', 'Page School ${n}', 'SPS-PG-${n}', '00000000-0000-4000-8000-00000000a521', '${AREA_EAST}', 'school', 'private', 'private', 'active')`;
+    }).join(',\n');
+    const sql = `
+BEGIN;
+DO $$ BEGIN
+  PERFORM set_config('app.platform_admin', '1', true);
+  PERFORM set_app_tenant_id('${SUNRISE}');
+END $$;
+INSERT INTO institutions (
+  id, tenant_id, name, code, board_id, area_id, type, sector, ownership, status
+) VALUES
+${values}
+ON CONFLICT (id) DO NOTHING;
+COMMIT;
+`;
+    execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-c', sql], { stdio: 'pipe' });
+
+    await setupGatewayTenantSession(page, {
+      sub: 'priya-sharma',
+      email: 'priya.sharma@school.edu',
+      displayName: 'Priya Sharma',
+      tenantId: SUNRISE,
+      roles: [{ roleId: 'principal', roleName: 'Principal', areaId: null }],
+    });
+    await page.goto('/institutions?page=2', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByText('Page 2 of 2').filter({ visible: true })).toBeVisible();
+    await expect(page.getByText('Showing 21–25 of 25').filter({ visible: true })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Institutions' }).locator('tbody tr')).toHaveCount(
+      5,
+    );
+  });
+});

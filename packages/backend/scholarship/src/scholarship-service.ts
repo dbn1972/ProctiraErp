@@ -89,8 +89,7 @@ function resolveMoneyPair(
   centsHint: number | undefined,
   field: string,
 ): { amount: number; amountCents: number } {
-  const amountCents =
-    centsHint !== undefined ? centsHint : majorUnitsToCents(major);
+  const amountCents = centsHint !== undefined ? centsHint : majorUnitsToCents(major);
   if (!Number.isInteger(amountCents) || amountCents < 0) {
     throw new BusinessRuleError(`${field} cents must be a non-negative integer`);
   }
@@ -379,20 +378,11 @@ export class ScholarshipService {
       throw new ConflictError('Applicant has already submitted an application for this program');
     }
 
-    // Validate required documents
-    if (program.eligibility.requiredDocuments && program.eligibility.requiredDocuments.length > 0) {
-      const submittedDocTypes = new Set(input.documents.map((d) => d.documentType));
-      const missingDocs = program.eligibility.requiredDocuments.filter(
-        (docType) => !submittedDocTypes.has(docType),
+    if (!input.asDraft) {
+      this.assertRequiredDocuments(
+        program,
+        input.documents.map((d) => d.documentType),
       );
-      if (missingDocs.length > 0) {
-        const errors: FieldError[] = missingDocs.map((docType) => ({
-          field: 'documents',
-          rule: 'required',
-          message: `Required document '${docType}' is missing`,
-        }));
-        throw new ValidationError('Missing required documents', errors);
-      }
     }
 
     assertCentRepresentableMoney(input.financialInfo);
@@ -404,7 +394,7 @@ export class ScholarshipService {
       programId: input.programId,
       applicantId: input.applicantId,
       institutionId: input.institutionId,
-      status: 'submitted',
+      status: input.asDraft ? 'draft' : 'submitted',
       academicRecords: input.academicRecords,
       financialInfo: input.financialInfo,
       documents: input.documents,
@@ -420,8 +410,8 @@ export class ScholarshipService {
 
     const created = await this.repository.createApplication(application);
 
-    // Integrate with Workflow Engine for approval routing (Requirement 11.3)
-    if (this.workflowEngine) {
+    // Drafts stay out of the approval workflow until POST …/applications/:id/submit.
+    if (!input.asDraft && this.workflowEngine) {
       try {
         const workflowInstanceId = await this.workflowEngine.createInstance(
           tenantId,
@@ -442,6 +432,106 @@ export class ScholarshipService {
     }
 
     return created;
+  }
+
+  /**
+   * Move a draft to submitted once every scheme-required document is on file.
+   * Uploaded file types (not rejected, not deleted) count. Legacy JSON
+   * `documents` entries still count so older clients keep working.
+   */
+  async finalizeDraft(
+    tenantId: string,
+    id: string,
+    uploadedTypes: string[],
+    uploadedDocuments: CreateApplicationInput['documents'] = [],
+  ): Promise<ScholarshipApplicationEntity> {
+    const application = await this.repository.findApplicationById(id, tenantId);
+    if (!application) {
+      throw new NotFoundError(`Scholarship application with id '${id}' not found`);
+    }
+    if (application.status !== 'draft') {
+      throw new BusinessRuleError(
+        `Cannot submit application in '${application.status}' status. Save a draft, upload the required documents, then submit.`,
+      );
+    }
+    const program = await this.repository.findProgramById(application.programId, tenantId);
+    if (!program) {
+      throw new NotFoundError(`Scholarship program with id '${application.programId}' not found`);
+    }
+    if (program.status !== 'open') {
+      throw new BusinessRuleError('Scholarship program is not currently accepting applications');
+    }
+    const today = new Date().toISOString().split('T')[0]!;
+    if (today < program.applicationStartDate || today > program.applicationEndDate) {
+      throw new BusinessRuleError('Application period is not currently active');
+    }
+    if (program.usedSlots >= program.totalSlots) {
+      throw new BusinessRuleError('No available slots remaining for this scholarship program');
+    }
+
+    const knownTypes = [...application.documents.map((doc) => doc.documentType), ...uploadedTypes];
+    this.assertRequiredDocuments(program, knownTypes);
+
+    const mergedDocuments = [...application.documents];
+    for (const doc of uploadedDocuments) {
+      if (
+        !mergedDocuments.some(
+          (existing) =>
+            existing.fileName === doc.fileName && existing.documentType === doc.documentType,
+        )
+      ) {
+        mergedDocuments.push(doc);
+      }
+    }
+
+    const updated = await this.repository.updateApplication(id, tenantId, {
+      status: 'submitted',
+      documents: mergedDocuments,
+      submittedAt: new Date(),
+    });
+    if (!updated) {
+      throw new NotFoundError(`Scholarship application with id '${id}' not found`);
+    }
+
+    if (this.workflowEngine) {
+      try {
+        const workflowInstanceId = await this.workflowEngine.createInstance(
+          tenantId,
+          this.defaultWorkflowId,
+          'scholarship_application',
+          updated.id,
+        );
+        await this.repository.updateApplication(updated.id, tenantId, {
+          workflowInstanceId,
+          status: 'under_review',
+        });
+        updated.workflowInstanceId = workflowInstanceId;
+        updated.status = 'under_review';
+      } catch {
+        // Application remains submitted when workflow routing is unavailable.
+      }
+    }
+    return updated;
+  }
+
+  private assertRequiredDocuments(
+    program: { eligibility: { requiredDocuments?: string[] } },
+    submittedTypes: string[],
+  ): void {
+    const required = program.eligibility.requiredDocuments ?? [];
+    if (required.length === 0) return;
+    const submitted = new Set(submittedTypes);
+    const missingDocs = required.filter((docType) => !submitted.has(docType));
+    if (missingDocs.length === 0) return;
+    const errors: FieldError[] = missingDocs.map((docType) => ({
+      field: 'documents',
+      rule: 'required',
+      message: `Required document '${docType}' is missing. Upload it before submitting.`,
+    }));
+    throw new ValidationError(
+      `Missing required documents: ${missingDocs.join(', ')}. Upload each file before submitting.`,
+      errors,
+    );
   }
 
   /**

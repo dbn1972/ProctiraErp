@@ -14,14 +14,24 @@ import {
   WithdrawStudentButton,
 } from '@/components/timetable/section-roster-controls';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
-import { listStaff } from '@/lib/api/staff';
-import { listStudents } from '@/lib/api/students';
+import { dayLabel, formatPeriodWhen } from '@/lib/timetable/conflict-label';
+import { getStaff, listStaff } from '@/lib/api/staff';
+import { getStudent, listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
 
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string; sectionId: string }>;
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
 }
 
 export default async function SectionRosterPage(props: PageProps) {
@@ -65,18 +75,63 @@ export default async function SectionRosterPage(props: PageProps) {
     listBellSchedules({ institutionId }),
   ]);
 
-  const studentOptions = (studentsResult.data ?? []).map((s) => ({
-    id: s.id,
-    label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
-    searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
-  }));
+  const studentName = new Map<string, string>();
+  const studentAdmission = new Map<string, string>();
+  const rememberStudent = (student: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    nationalId?: string | null;
+    customData?: Record<string, unknown>;
+    admissionNumber?: string;
+  }) => {
+    const name = [student.firstName, student.lastName].filter(Boolean).join(' ').trim();
+    if (name) studentName.set(student.id, name);
+    const fromCustom = student.customData?.admissionNo;
+    const admission =
+      (typeof fromCustom === 'string' && fromCustom) ||
+      student.admissionNumber ||
+      student.nationalId ||
+      '';
+    if (admission) studentAdmission.set(student.id, admission);
+  };
+  const studentOptions = (studentsResult.data ?? []).map((s) => {
+    rememberStudent(s);
+    const admission = studentAdmission.get(s.id) ?? '';
+    return {
+      id: s.id,
+      label: formatPersonLabel(s.firstName, s.lastName, admission || s.nationalId),
+      searchText: `${s.firstName} ${s.lastName} ${admission} ${s.nationalId ?? ''}`,
+    };
+  });
   const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
+  for (const enrollment of enrollments) {
+    if (studentLabel.has(enrollment.studentId)) continue;
+    const student = await getStudent(enrollment.studentId).catch(() => null);
+    if (!student) continue;
+    rememberStudent(student);
+    const label = formatPersonLabel(
+      student.firstName,
+      student.lastName,
+      studentAdmission.get(student.id) ?? student.nationalId,
+    );
+    studentLabel.set(student.id, label);
+    studentOptions.push({
+      id: student.id,
+      label,
+      searchText: `${student.firstName} ${student.lastName} ${student.nationalId ?? ''}`,
+    });
+  }
   const staffLabel = new Map(
-    (staffResult.data ?? []).map((s) => [
-      s.id,
-      formatPersonLabel(s.firstName, s.lastName, s.position),
-    ]),
+    (staffResult.data ?? []).map((s) => [s.id, formatPersonLabel(s.firstName, s.lastName)]),
   );
+  for (const meeting of meetings) {
+    if (!meeting.staffId || staffLabel.has(meeting.staffId)) continue;
+    const person = await getStaff(meeting.staffId).catch(() => null);
+    if (person) {
+      staffLabel.set(person.id, formatPersonLabel(person.firstName, person.lastName));
+    }
+  }
   const roomLabel = new Map(
     (roomsResult.ok ? roomsResult.data : []).map((r) => [
       r.id,
@@ -89,12 +144,15 @@ export default async function SectionRosterPage(props: PageProps) {
     const periods = await listPeriods(schedule.id);
     if (!periods.ok) continue;
     for (const p of periods.data) {
-      periodLabel.set(p.id, `${schedule.name} · ${p.name}`);
+      periodLabel.set(
+        p.id,
+        `${schedule.name} · ${formatPeriodWhen(p.name, p.startTime, p.endTime)}`,
+      );
     }
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="institution-schedule-section">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <Link
@@ -105,8 +163,24 @@ export default async function SectionRosterPage(props: PageProps) {
           </Link>
           <h2 className="mt-2 text-lg font-bold tracking-tight text-foreground">{section.name}</h2>
           <p className="text-sm text-muted-foreground">
-            {section.code} · {section.status}
-            {section.publishedAt ? ` · published ${section.publishedAt.slice(0, 10)}` : ''}
+            <span className="font-mono">{section.code}</span>
+            {' · '}
+            <span
+              className={
+                section.status === 'PUBLISHED'
+                  ? 'inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700'
+                  : 'inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800'
+              }
+            >
+              {section.status === 'PUBLISHED'
+                ? 'Published'
+                : section.status === 'DRAFT'
+                  ? 'Draft'
+                  : section.status}
+            </span>
+            {section.publishedAt
+              ? ` · published ${new Date(section.publishedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`
+              : ''}
           </p>
         </div>
         <SectionPublishControls
@@ -118,7 +192,12 @@ export default async function SectionRosterPage(props: PageProps) {
 
       <Card>
         <CardContent className="space-y-3 p-6">
-          <h3 className="text-base font-semibold">Meetings</h3>
+          <div>
+            <h3 className="text-base font-semibold">Meetings</h3>
+            <p className="text-sm text-muted-foreground">
+              {meetings.length} weekly {meetings.length === 1 ? 'meeting' : 'meetings'}
+            </p>
+          </div>
           {meetings.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No meetings yet. Add them on the{' '}
@@ -133,10 +212,19 @@ export default async function SectionRosterPage(props: PageProps) {
           ) : (
             <ul className="space-y-1 text-sm">
               {meetings.map((m) => (
-                <li key={m.id} className="text-sm text-muted-foreground">
-                  day {m.dayOfWeek} · {resolveEntityLabel(m.periodId, periodLabel, 'Period')} ·{' '}
-                  {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : 'no room'} ·{' '}
-                  {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
+                <li key={m.id} className="flex flex-wrap items-baseline gap-2 text-sm">
+                  <b className="w-10">{dayLabel(m.dayOfWeek)}</b>
+                  <span>{resolveEntityLabel(m.periodId, periodLabel, 'Period')}</span>
+                  <span className="text-muted-foreground">
+                    · {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : 'no room'} ·{' '}
+                    {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
+                  </span>
+                  <Link
+                    href={`/institutions/${institutionId}/timetable?meeting=${m.id}#timetable-week-grid`}
+                    className="font-semibold underline underline-offset-4"
+                  >
+                    Edit or remove
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -152,23 +240,25 @@ export default async function SectionRosterPage(props: PageProps) {
               {active.length} / {section.capacity} enrolled
             </p>
           </div>
-          <SectionEnrollForm
-            institutionId={institutionId}
-            sectionId={section.id}
-            studentOptions={studentOptions}
-          />
-          <SectionBulkEnrollForm
-            institutionId={institutionId}
-            sectionId={section.id}
-            studentOptions={studentOptions}
-          />
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <SectionEnrollForm
+              institutionId={institutionId}
+              sectionId={section.id}
+              studentOptions={studentOptions}
+            />
+            <SectionBulkEnrollForm
+              institutionId={institutionId}
+              sectionId={section.id}
+              studentOptions={studentOptions}
+            />
+          </div>
           {enrollments.length === 0 ? (
             <p className="text-sm text-muted-foreground">No enrollments yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
+                  <tr className="border-b border-border text-start text-muted-foreground">
                     <th className="py-2 font-medium">Student</th>
                     <th className="py-2 font-medium">Status</th>
                     <th className="py-2 font-medium">Enrolled</th>
@@ -179,16 +269,54 @@ export default async function SectionRosterPage(props: PageProps) {
                   {enrollments.map((e) => (
                     <tr key={e.id} className="border-b border-border/60">
                       <td className="py-2 text-sm">
-                        {resolveEntityLabel(e.studentId, studentLabel, 'Student')}
+                        <div className="flex items-center gap-3">
+                          <span
+                            aria-hidden="true"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary"
+                          >
+                            {initials(studentName.get(e.studentId) ?? '')}
+                          </span>
+                          <span>
+                            <span className="block font-semibold text-foreground">
+                              {studentName.get(e.studentId) ??
+                                resolveEntityLabel(e.studentId, studentLabel, 'Student')}
+                            </span>
+                            {studentAdmission.get(e.studentId) && (
+                              <span className="block text-xs text-muted-foreground">
+                                {studentAdmission.get(e.studentId)}
+                              </span>
+                            )}
+                          </span>
+                        </div>
                       </td>
-                      <td className="py-2 text-xs">{e.status}</td>
-                      <td className="py-2 text-xs">{e.enrolledAt}</td>
-                      <td className="py-2 text-right">
+                      <td className="py-2 text-xs">
+                        <span className="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+                          {e.status === 'ENROLLED'
+                            ? 'Enrolled'
+                            : e.status === 'WITHDRAWN'
+                              ? 'Withdrawn'
+                              : e.status}
+                        </span>
+                      </td>
+                      <td className="py-2 text-xs">
+                        {e.enrolledAt
+                          ? new Date(e.enrolledAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })
+                          : '—'}
+                      </td>
+                      <td className="py-2 text-end">
                         {e.status === 'ENROLLED' && (
                           <WithdrawStudentButton
                             institutionId={institutionId}
                             sectionId={section.id}
                             studentId={e.studentId}
+                            studentName={
+                              studentName.get(e.studentId) ??
+                              resolveEntityLabel(e.studentId, studentLabel, 'Student')
+                            }
                           />
                         )}
                       </td>

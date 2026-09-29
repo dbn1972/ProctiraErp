@@ -8,7 +8,7 @@ import { CurriculumPanel } from '@/components/institutions/curriculum-panel';
 import {
   getCurriculumCoverage,
   listLearningOutcomes,
-  listLessonPlans,
+  listLessonPlansForUnits,
   listSyllabusUnits,
   type LessonPlan,
 } from '@/lib/api/curriculum';
@@ -63,10 +63,15 @@ export default async function InstitutionCurriculumPage(props: PageProps) {
   const units = unitsResult.ok ? unitsResult.data : [];
   const loadError = unitsResult.ok ? null : unitsResult.error;
 
+  const plansResult =
+    units.length > 0
+      ? await listLessonPlansForUnits(units.map((unit) => unit.id))
+      : { ok: true as const, data: [] as LessonPlan[] };
   const plansByUnit: Record<string, LessonPlan[]> = {};
-  for (const unit of units) {
-    const plans = await listLessonPlans(unit.id);
-    plansByUnit[unit.id] = plans.ok ? plans.data : [];
+  for (const plan of plansResult.ok ? plansResult.data : []) {
+    const list = plansByUnit[plan.unitId] ?? [];
+    list.push(plan);
+    plansByUnit[plan.unitId] = list;
   }
 
   const outcomesResult = subjectId
@@ -90,7 +95,7 @@ export default async function InstitutionCurriculumPage(props: PageProps) {
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="institution-curriculum">
       <div>
         <h2 className="text-lg font-bold tracking-tight text-foreground">Curriculum</h2>
         <p className="text-sm text-muted-foreground">

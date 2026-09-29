@@ -10,11 +10,11 @@ canary/Flagger/Argo path in this repo. Do not claim live canary proof from tip C
 
 ## 1. What “atomic” means here
 
-| Path | Atomic behaviour |
-| ---- | ---------------- |
-| Deploy (`deploy.yml`) | `helm upgrade --install … --atomic --wait --timeout 300s` — failed release **auto-rolls back** to the prior successful revision |
-| Manual rollback → prior revision | `helm rollback proctira-<svc> <rev>` (revision `0` = previous) — one Helm release transaction + `kubectl rollout status` |
-| Manual rollback → known-good tag | `helm upgrade … --atomic --wait` to a previous image tag |
+| Path                             | Atomic behaviour                                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Deploy (`deploy.yml`)            | `helm upgrade --install … --atomic --wait --timeout 300s` — failed release **auto-rolls back** to the prior successful revision |
+| Manual rollback → prior revision | `helm rollback proctira-<svc> <rev>` (revision `0` = previous) — one Helm release transaction + `kubectl rollout status`        |
+| Manual rollback → known-good tag | `helm upgrade … --atomic --wait` to a previous image tag                                                                        |
 
 Single-wave progressive baseline (chart default):
 
@@ -28,13 +28,13 @@ Single-wave progressive baseline (chart default):
 
 GitHub Actions → **Actions → Rollback** (`.github/workflows/rollback.yml`):
 
-| Input | Guidance |
-| ----- | -------- |
-| `environment` | `staging` or `production` (GitHub Environment protection applies) |
-| `services` | Comma-separated chart services, e.g. `api-gateway,web` |
-| `revision` | Helm revision (`0` = previous successful). Ignored if `image_tag` set |
-| `image_tag` | Optional known-good tag; uses `--atomic --wait` instead of `helm rollback` |
-| `dry_run` | **Defaults to `true`** (fail-closed / plan-only). Set `false` only to apply |
+| Input         | Guidance                                                                    |
+| ------------- | --------------------------------------------------------------------------- |
+| `environment` | `staging` or `production` (GitHub Environment protection applies)           |
+| `services`    | Comma-separated chart services, e.g. `api-gateway,web`                      |
+| `revision`    | Helm revision (`0` = previous successful). Ignored if `image_tag` set       |
+| `image_tag`   | Optional known-good tag; uses `--atomic --wait` instead of `helm rollback`  |
+| `dry_run`     | **Defaults to `true`** (fail-closed / plan-only). Set `false` only to apply |
 
 Dry-run prints the exact Helm commands and exits 0 without cluster access.
 
@@ -62,12 +62,14 @@ helm rollback "$RELEASE" 0 -n "$NAMESPACE" --wait --timeout 300s
 kubectl rollout status "deployment/${RELEASE}" -n "$NAMESPACE" --timeout=120s
 ```
 
-Known-good image tag (same flags as deploy):
+Known-good image tag (same flags as deploy). `IMAGE_NAMESPACE` is
+`vars.IMAGE_NAMESPACE` or the GitHub repository owner, lowercased, so the
+repository matches release images (`ghcr.io/<owner>/proctira/api-gateway`):
 
 ```bash
 helm upgrade --install "$RELEASE" ./infrastructure/helm/proctira-service \
   --namespace "$NAMESPACE" \
-  --set image.repository="${REGISTRY}/proctira/api-gateway" \
+  --set image.repository="${REGISTRY}/${IMAGE_NAMESPACE}/proctira/api-gateway" \
   --set image.tag="<known-good-sha>" \
   --set environment=staging \
   --set service.name=api-gateway \
@@ -79,11 +81,11 @@ helm upgrade --install "$RELEASE" ./infrastructure/helm/proctira-service \
 
 ## 4. When **not** to use image rollback alone
 
-| Situation | Prefer |
-| --------- | ------ |
-| App regression, schema unchanged | This runbook (Helm revision / prior tag) |
-| Bad migration / data shape | [database-migration-rollback](./database-migration-rollback.md) first |
-| Provider outage (IdP / PSP / SMTP) | Kill switch / sandbox honesty — not Helm rollback |
+| Situation                          | Prefer                                                                |
+| ---------------------------------- | --------------------------------------------------------------------- |
+| App regression, schema unchanged   | This runbook (Helm revision / prior tag)                              |
+| Bad migration / data shape         | [database-migration-rollback](./database-migration-rollback.md) first |
+| Provider outage (IdP / PSP / SMTP) | Kill switch / sandbox honesty — not Helm rollback                     |
 
 ---
 

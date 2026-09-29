@@ -52,7 +52,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+  # Same registry/namespace inputs as release.yml and deploy.yml.
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
+  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || github.repository_owner }}
 
 jobs:
   rollback:
@@ -98,6 +100,7 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
           DRY_RUN: ${{ inputs.dry_run }}
           REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAMESPACE: ${{ env.IMAGE_NAMESPACE }}
         run: |
           set -euo pipefail
           NAMESPACE="proctira-${ENVIRONMENT}"
@@ -130,10 +133,11 @@ jobs:
             RELEASE="proctira-${SERVICE}"
 
             if [ -n "${IMAGE_TAG}" ]; then
+              IMAGE_REPOSITORY="$(bash tools/scripts/image-repository.sh "$REGISTRY" "$IMAGE_NAMESPACE" "$SERVICE")"
               CMD=(helm upgrade --install "${RELEASE}"
                 ./infrastructure/helm/proctira-service
                 --namespace "${NAMESPACE}"
-                --set "image.repository=${REGISTRY}/proctira/${SERVICE}"
+                --set "image.repository=${IMAGE_REPOSITORY}"
                 --set "image.tag=${IMAGE_TAG}"
                 --set "environment=${ENVIRONMENT}"
                 --set "service.name=${SERVICE}"

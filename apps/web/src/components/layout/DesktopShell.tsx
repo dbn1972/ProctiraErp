@@ -1,11 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './sidebar';
-import { Header, type HeaderIdentity } from './header';
+import { Header } from './header';
 import { Breadcrumbs } from './breadcrumbs';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
+import { useViewport } from '@/hooks/useViewport';
 
 /**
  * DesktopShell — Authenticated chrome for viewports ≥ 768 px (Design §H).
@@ -25,35 +27,49 @@ import { CommandPalette } from '@/components/CommandPalette';
  * chrome remains mounted and the user can click Retry to recover
  * (Property F-9, Requirement 24.x / 38.7).
  */
-export interface DesktopShellProps {
-  children: React.ReactNode;
-  /**
-   * Server-rendered tenant/school identity block (Requirement 1),
-   * threaded down from `DashboardLayout` through `<AppShell>` and
-   * forwarded to `<Sidebar>` unchanged — see `SidebarProps.tenantIdentitySlot`.
-   */
-  tenantIdentitySlot?: React.ReactNode;
-  /**
-   * Real session identity (Requirement 2, Task 12.1), threaded down from
-   * `DashboardLayout` through `<AppShell>` and forwarded to `<Header>`
-   * unchanged — see `HeaderProps.identity`.
-   */
-  headerIdentity?: HeaderIdentity;
-}
+export function DesktopShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { isDrawer } = useViewport();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const drawerClosed = isDrawer && !menuOpen;
 
-export function DesktopShell({ children, tenantIdentitySlot, headerIdentity }: DesktopShellProps) {
+  React.useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
   return (
-    <div className="flex h-screen overflow-hidden" data-shell="desktop">
-      {/* Sidebar Navigation */}
-      <Sidebar tenantIdentitySlot={tenantIdentitySlot} />
+    <div className="flex h-dvh min-h-0 overflow-hidden" data-shell="desktop">
+      {/* Below 1024px the sidebar is an off-canvas drawer, matching the prototype. */}
+      {menuOpen ? (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          aria-label="Close navigation menu"
+          onClick={() => setMenuOpen(false)}
+        />
+      ) : null}
+      <div
+        className={[
+          'z-40 h-full shrink-0 transition-transform lg:relative lg:translate-x-0',
+          'max-lg:fixed max-lg:inset-y-0 max-lg:start-0 max-lg:shadow-xl',
+          menuOpen
+            ? 'max-lg:translate-x-0'
+            : 'ltr:max-lg:-translate-x-full rtl:max-lg:translate-x-full',
+        ].join(' ')}
+        inert={drawerClosed ? true : undefined}
+        aria-hidden={drawerClosed ? true : undefined}
+      >
+        <Sidebar />
+      </div>
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top Header */}
-        <Header identity={headerIdentity} />
+      {/* Main Content Area. Header is a sibling of the scroller so it cannot cover the page. */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <Header onOpenMenu={() => setMenuOpen(true)} />
 
-        {/* Breadcrumbs + Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main
+          data-shell-scroll="page"
+          className="touch-controls relative z-0 min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-4 sm:px-6"
+        >
           <Breadcrumbs />
           <PageErrorBoundary>
             <div className="mt-4">{children}</div>

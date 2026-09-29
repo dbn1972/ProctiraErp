@@ -25,6 +25,7 @@ import type {
   ConditionOptionStore,
   InfrastructureRecord,
   InfrastructureStore,
+  RepairRequestRecord,
 } from './service.js';
 
 /** Pool surface we need (real pg.Pool, or a test double with `query`). */
@@ -226,6 +227,70 @@ export class PgInfrastructureStore implements InfrastructureStore {
         [id, tenantId],
       );
       return rows.length > 0;
+    });
+  }
+
+  async createRepairRequest(record: RepairRequestRecord): Promise<RepairRequestRecord> {
+    return this.run(async (client, tenantId) => {
+      const { rows } = await client.query(
+        `INSERT INTO institution_repair_requests
+           (id, tenant_id, institution_id, infrastructure_id, summary, status, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING *`,
+        [
+          record.id,
+          tenantId,
+          record.institutionId,
+          record.infrastructureId,
+          record.summary,
+          record.status,
+          record.createdAt,
+        ],
+      );
+      const row = rows[0] as {
+        id: string;
+        institution_id: string;
+        infrastructure_id: string;
+        summary: string;
+        status: 'open' | 'closed';
+        created_at: Date | string;
+      };
+      return {
+        id: row.id,
+        institutionId: row.institution_id,
+        infrastructureId: row.infrastructure_id,
+        summary: row.summary,
+        status: row.status,
+        createdAt: new Date(row.created_at),
+      };
+    });
+  }
+
+  async listRepairRequests(institutionId: string): Promise<RepairRequestRecord[]> {
+    return this.run(async (client, tenantId) => {
+      const { rows } = await client.query(
+        `SELECT * FROM institution_repair_requests
+          WHERE tenant_id = $1 AND institution_id = $2
+          ORDER BY created_at DESC`,
+        [tenantId, institutionId],
+      );
+      return (
+        rows as Array<{
+          id: string;
+          institution_id: string;
+          infrastructure_id: string;
+          summary: string;
+          status: 'open' | 'closed';
+          created_at: Date | string;
+        }>
+      ).map((row) => ({
+        id: row.id,
+        institutionId: row.institution_id,
+        infrastructureId: row.infrastructure_id,
+        summary: row.summary,
+        status: row.status,
+        createdAt: new Date(row.created_at),
+      }));
     });
   }
 }

@@ -1,24 +1,24 @@
 /**
  * @vitest-environment jsdom
  *
- * Header — help link (Task 12.2 / Requirement 2 AC3, AC4), real session
- * identity (Task 12.1 / Requirement 2 AC1, AC2, AC8), and notification
- * bell (Task 12.3 / Requirement 2 AC5, AC6, AC7) tests.
+ * Header — real session identity (Task 12.1 / Req 2 AC1, AC2, AC8), help
+ * link (Task 12.2 / Req 2 AC3, AC4), and notification bell (Task 12.3 /
+ * Req 2.5, 2.6, 2.7) tests.
  *
- * `<Header>` is a Client Component. `next-intl`, `next/link`, and the
- * sibling chrome controls (`<ThemeToggle>`, `<LanguageSelector>`) are
- * mocked to thin stand-ins so this suite stays focused on `Header`'s own
- * contract: the help link (Task 12.2), the `identity` prop's rendering
- * and fallback rules (Task 12.1), the notification bell's badge/aria
- * states (Task 12.3), and that neither addition regresses
- * search/theme/language/logout.
+ * `<Header>` is a Client Component that reads identity from `useAuth()`
+ * (not a prop) and the tenant/org name from `useDirectoryContext()` — the
+ * same real, same-origin, bearer-scoped sources `<Sidebar>`'s tenant
+ * switcher already uses. `next-intl`, `next/link`, and the sibling chrome
+ * controls (`<ThemeToggle>`, `<LanguageSelector>`) are mocked to thin
+ * stand-ins so this suite stays focused on `Header`'s own contract.
  *
- * This file deliberately does NOT re-test `<ThemeToggle>` or
- * `<LanguageSelector>` internals (each has its own test file) — only
- * that they still render inside `<Header>`.
+ * This file deliberately does NOT re-test `<ThemeToggle>`/`<LanguageSelector>`
+ * internals (each has its own test file), or the shared loading-skeleton
+ * contract (`sidebar.loading.test.tsx` already covers `Header` + `Sidebar`
+ * together while the session is still hydrating).
  */
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
@@ -51,9 +51,66 @@ vi.mock('@/lib/auth', () => ({
   signOut: vi.fn(async () => {}),
 }));
 
-import { Header, type HeaderIdentity } from './header';
+const useAuthMock = vi.fn();
+vi.mock('@/providers/AuthProvider', () => ({
+  useAuth: () => useAuthMock(),
+}));
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
+const useDirectoryContextMock = vi.fn();
+vi.mock('@/lib/institutions/use-directory-context', () => ({
+  useDirectoryContext: () => useDirectoryContextMock(),
+}));
+
+const useOptionalBrandMock = vi.fn();
+vi.mock('@/providers/BrandConfigProvider', () => ({
+  useOptionalBrand: () => useOptionalBrandMock(),
+}));
+
+const fetchMock = vi.fn();
+
+import { Header } from './header';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function authenticatedUser(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    id: 'user-1',
+    email: 'asha.rao@sunrise.test',
+    name: 'Asha Rao',
+    roles: ['principal'],
+    permissions: [],
+    scope: { level: 'school' as const },
+    tenant_id: 'tenant-1',
+    ...overrides,
+  };
+}
+
+function mockUnreadCountResponse(unread: number, ok = true): void {
+  fetchMock.mockResolvedValue({
+    ok,
+    json: async () => ({ unread }),
+  });
+}
+
+beforeEach(() => {
+  useAuthMock.mockReset();
+  useDirectoryContextMock.mockReset();
+  useOptionalBrandMock.mockReset();
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock);
+
+  useAuthMock.mockReturnValue({ user: authenticatedUser(), status: 'authenticated' });
+  useDirectoryContextMock.mockReturnValue({
+    organizationName: 'Sunrise Public School',
+    boardLabel: null,
+    studentsEnrolled: 620,
+    schools: {},
+  });
+  useOptionalBrandMock.mockReturnValue(null);
+  mockUnreadCountResponse(0);
+});
+
+// ─── Help link (Task 12.2 / Req 2 AC3, AC4) ─────────────────────────────────
 
 describe('<Header> — help link (Task 12.2 / Req 2 AC3, AC4)', () => {
   it('renders a link to the existing /help route', () => {
@@ -67,16 +124,7 @@ describe('<Header> — help link (Task 12.2 / Req 2 AC3, AC4)', () => {
   it('exposes an accessible name via aria-label', () => {
     render(<Header />);
 
-    const helpLink = screen.getByRole('link', { name: 'Help' });
-    expect(helpLink.getAttribute('href')).toBe('/help');
-  });
-
-  it('renders the help link in the right-side icon cluster alongside theme/language controls', () => {
-    render(<Header />);
-
-    expect(screen.getByTestId('theme-toggle-stub')).toBeInTheDocument();
-    expect(screen.getByTestId('language-selector-stub')).toBeInTheDocument();
-    expect(screen.getByTestId('header-help-link')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Help' }).getAttribute('href')).toBe('/help');
   });
 
   it('does not duplicate or fork help content — it is a bare link with only an icon', () => {
@@ -88,200 +136,190 @@ describe('<Header> — help link (Task 12.2 / Req 2 AC3, AC4)', () => {
   });
 });
 
-// ─── Real session identity (Task 12.1 / Req 2 AC1, AC2, AC8) ────────────────
-
-function identity(overrides: Partial<HeaderIdentity> = {}): HeaderIdentity {
-  return {
-    displayName: 'Asha Rao',
-    email: 'asha.rao@sunrise.test',
-    primaryRole: 'Principal',
-    tenantName: 'Sunrise Public School',
-    ...overrides,
-  };
-}
+// ─── Real session identity (Task 12.1 / Req 2 AC1, AC2, AC8) ───────────────
 
 describe('<Header> — real session identity (Task 12.1 / Req 2 AC1, AC2, AC8)', () => {
-  it('renders the real displayName instead of the hardcoded "U" placeholder', () => {
-    render(<Header identity={identity()} />);
+  it('renders the real displayName instead of a hardcoded placeholder', () => {
+    render(<Header />);
 
     expect(screen.getByTestId('header-display-name')).toHaveTextContent('Asha Rao');
   });
 
-  it('derives the avatar initial from the real display name, not a hardcoded "U"', () => {
-    render(<Header identity={identity({ displayName: 'Zara Khan' })} />);
+  it('derives the avatar initials from the real display name', () => {
+    useAuthMock.mockReturnValue({
+      user: authenticatedUser({ name: 'Zara Khan' }),
+      status: 'authenticated',
+    });
 
-    const avatar = screen.getByTestId('header-user-identity').querySelector('span');
-    expect(avatar?.textContent).toBe('Z');
+    render(<Header />);
+
+    expect(screen.getByTestId('header-display-name-avatar')).toHaveTextContent('ZK');
   });
 
-  it('falls back to email when displayName is empty', () => {
-    render(<Header identity={identity({ displayName: '' })} />);
+  it('falls back to "Account" when the session has no user (never a blank name)', () => {
+    useAuthMock.mockReturnValue({ user: null, status: 'unauthenticated' });
 
-    expect(screen.getByTestId('header-display-name')).toHaveTextContent(
-      'asha.rao@sunrise.test',
-    );
+    render(<Header />);
+
+    const name = screen.getByTestId('header-display-name');
+    expect(name.textContent?.trim()).toBe('Account');
   });
 
-  it('falls back to email when displayName is absent (undefined)', () => {
-    render(<Header identity={identity({ displayName: undefined })} />);
-
-    expect(screen.getByTestId('header-display-name')).toHaveTextContent(
-      'asha.rao@sunrise.test',
-    );
-  });
-
-  it('falls back to email when displayName is only whitespace', () => {
-    render(<Header identity={identity({ displayName: '   ' })} />);
-
-    expect(screen.getByTestId('header-display-name')).toHaveTextContent(
-      'asha.rao@sunrise.test',
-    );
-  });
-
-  it('renders the primary role and tenant name as identity subtext', () => {
-    render(<Header identity={identity()} />);
+  it('renders the role and tenant/organisation name as identity subtext', () => {
+    render(<Header />);
 
     expect(screen.getByTestId('header-identity-subtext')).toHaveTextContent(
       'Principal · Sunrise Public School',
     );
   });
 
-  it('renders only the tenant name when primaryRole is null', () => {
-    render(<Header identity={identity({ primaryRole: null })} />);
+  it('renders only the tenant/org name when the session carries no role', () => {
+    useAuthMock.mockReturnValue({
+      user: authenticatedUser({ roles: [] }),
+      status: 'authenticated',
+    });
+
+    render(<Header />);
 
     expect(screen.getByTestId('header-identity-subtext')).toHaveTextContent(
       'Sunrise Public School',
     );
   });
 
-  it('renders only the primary role when tenantName is null', () => {
-    render(<Header identity={identity({ tenantName: null })} />);
+  it('falls back to the brand name when the directory context has no organisation name', () => {
+    useDirectoryContextMock.mockReturnValue(null);
+    useOptionalBrandMock.mockReturnValue({ name: 'ProctiraERP' });
 
-    expect(screen.getByTestId('header-identity-subtext')).toHaveTextContent('Principal');
+    render(<Header />);
+
+    expect(screen.getByTestId('header-identity-subtext')).toHaveTextContent(
+      'Principal · ProctiraERP',
+    );
   });
 
-  it('omits the subtext line entirely (not blank) when both are null', () => {
-    render(<Header identity={identity({ primaryRole: null, tenantName: null })} />);
+  it('omits the subtext line entirely (not blank) when neither role nor tenant/org name is available', () => {
+    useAuthMock.mockReturnValue({
+      user: authenticatedUser({ roles: [] }),
+      status: 'authenticated',
+    });
+    useDirectoryContextMock.mockReturnValue(null);
+    useOptionalBrandMock.mockReturnValue(null);
+
+    render(<Header />);
 
     expect(screen.queryByTestId('header-identity-subtext')).toBeNull();
   });
 
-  it('never renders a literally blank name when identity itself is not supplied', () => {
+  it('shows the loading skeleton (not a placeholder identity) while the session is still hydrating', () => {
+    useAuthMock.mockReturnValue({ user: null, status: 'loading' });
+
     render(<Header />);
 
-    const name = screen.getByTestId('header-display-name');
-    expect(name.textContent?.trim()).not.toBe('');
-  });
-
-  it('scopes to only the authenticated caller — never renders another tenant/session\'s data from props it was not given', () => {
-    render(<Header identity={identity({ tenantName: 'Sunrise Public School' })} />);
-
-    expect(screen.queryByText(/Greenwood/)).toBeNull();
+    expect(screen.getByTestId('header-user-skeleton')).toBeInTheDocument();
+    expect(screen.queryByTestId('header-display-name')).toBeNull();
   });
 });
 
 // ─── Notification bell (Task 12.3 / Req 2.5, 2.6, 2.7) ──────────────────────
 
 describe('<Header> — notification bell (Task 12.3 / Req 2.5, 2.6, 2.7)', () => {
-  it('renders a plain bell with no badge when unreadNotificationCount is absent from identity', () => {
-    // `identity()`'s defaults omit `unreadNotificationCount` entirely, so
-    // this already exercises the "absent" case without an override.
-    render(<Header identity={identity()} />);
+  it('renders a plain bell with no badge before the unread-count fetch resolves', () => {
+    render(<Header />);
 
     expect(screen.queryByTestId('header-notifications-badge')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
+    expect(screen.getByTestId('header-notifications-link')).toHaveAttribute(
+      'href',
+      '/notifications',
+    );
   });
 
-  it('renders a plain bell with no badge when unreadNotificationCount is 0', () => {
-    render(<Header identity={identity({ unreadNotificationCount: 0 })} />);
+  it('renders the badge with the real unread count once the fetch resolves', async () => {
+    mockUnreadCountResponse(3);
 
-    expect(screen.queryByTestId('header-notifications-badge')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
-  });
+    render(<Header />);
 
-  it('renders the badge with the count and an aria-label naming it when unreadNotificationCount is a small positive number', () => {
-    render(<Header identity={identity({ unreadNotificationCount: 3 })} />);
-
-    expect(screen.getByTestId('header-notifications-badge')).toHaveTextContent('3');
+    await waitFor(() =>
+      expect(screen.getByTestId('header-notifications-badge')).toHaveTextContent('3'),
+    );
     expect(screen.getByRole('link', { name: 'Notifications, 3 unread' })).toBeInTheDocument();
   });
 
-  it('does not cap the badge at the exact boundary count of 9', () => {
-    render(<Header identity={identity({ unreadNotificationCount: 9 })} />);
+  it('caps the badge display at "9+" once the count exceeds 9', async () => {
+    mockUnreadCountResponse(25);
 
-    expect(screen.getByTestId('header-notifications-badge')).toHaveTextContent('9');
-    expect(screen.getByRole('link', { name: 'Notifications, 9 unread' })).toBeInTheDocument();
+    render(<Header />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('header-notifications-badge')).toHaveTextContent('9+'),
+    );
   });
 
-  it('renders "9+" instead of the literal number once the count exceeds 9, while the aria-label keeps the uncapped count', () => {
-    render(<Header identity={identity({ unreadNotificationCount: 12 })} />);
+  it('renders a plain bell with no badge when the unread count is 0', async () => {
+    mockUnreadCountResponse(0);
 
-    // The visible badge caps its display at "9+" (`formatNotificationBadgeCount`),
-    // but `header.tsx` builds the aria-label from the raw, uncapped
-    // `unreadNotificationCount` — the two intentionally diverge above 9.
-    expect(screen.getByTestId('header-notifications-badge')).toHaveTextContent('9+');
-    expect(screen.getByRole('link', { name: 'Notifications, 12 unread' })).toBeInTheDocument();
-  });
+    render(<Header />);
 
-  it('renders a plain bell with no badge (never an error state) for a negative unreadNotificationCount', () => {
-    render(<Header identity={identity({ unreadNotificationCount: -1 })} />);
-
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByTestId('header-notifications-badge')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('renders a plain bell with no badge (never an error state) for a NaN unreadNotificationCount', () => {
-    render(<Header identity={identity({ unreadNotificationCount: NaN })} />);
+  it('renders a plain bell with no badge (never an error state) when the fetch fails', async () => {
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({}) });
 
+    render(<Header />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByTestId('header-notifications-badge')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('renders a plain bell with no badge (never an error state) for an Infinity unreadNotificationCount', () => {
-    render(<Header identity={identity({ unreadNotificationCount: Infinity })} />);
+  it('renders a plain bell with no badge (never an error state) when the fetch rejects', async () => {
+    fetchMock.mockRejectedValue(new Error('network down'));
 
+    render(<Header />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(screen.queryByTestId('header-notifications-badge')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Notifications' })).toBeInTheDocument();
   });
 
-  it('always points the bell link to /notifications with a stable test id, regardless of count', () => {
-    const { unmount } = render(<Header identity={identity({ unreadNotificationCount: 0 })} />);
-    const bellLinkNoBadge = screen.getByTestId('header-notifications-link');
-    expect(bellLinkNoBadge.tagName.toLowerCase()).toBe('a');
-    expect(bellLinkNoBadge.getAttribute('href')).toBe('/notifications');
-    unmount();
+  it('does not fetch the unread count while the session is unauthenticated', () => {
+    useAuthMock.mockReturnValue({ user: null, status: 'unauthenticated' });
 
-    render(<Header identity={identity({ unreadNotificationCount: 7 })} />);
-    const bellLinkWithBadge = screen.getByTestId('header-notifications-link');
-    expect(bellLinkWithBadge.tagName.toLowerCase()).toBe('a');
-    expect(bellLinkWithBadge.getAttribute('href')).toBe('/notifications');
+    render(<Header />);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fetches the same-origin unread-count route, not the gateway directly', () => {
+    render(<Header />);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/notifications/unread-count',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
   });
 });
 
-// ─── Regression: search, theme, language, and logout still work ────────────
+// ─── Regression: search, theme, language, logout, and the menu toggle ──────
 
 describe('<Header> — existing search/theme/language/logout unaffected', () => {
   it('still renders the global search trigger with its ⌘K affordance', () => {
-    render(<Header identity={identity()} />);
+    render(<Header />);
 
     expect(screen.getByRole('button', { name: 'Search (Ctrl+K)' })).toBeInTheDocument();
-    expect(screen.getByText('Search students, staff, schools…')).toBeInTheDocument();
   });
 
   it('still renders ThemeToggle and LanguageSelector', () => {
-    render(<Header identity={identity()} />);
+    render(<Header />);
 
     expect(screen.getByTestId('theme-toggle-stub')).toBeInTheDocument();
     expect(screen.getByTestId('language-selector-stub')).toBeInTheDocument();
   });
 
-  it('still renders a working logout button that calls signOut', async () => {
-    const { signOut } = await import('@/lib/auth');
-    render(<Header identity={identity()} />);
+  it('renders the mobile/drawer menu-open button only when onOpenMenu is supplied', () => {
+    const { rerender } = render(<Header />);
+    expect(screen.queryByTestId('desktop-shell-menu')).toBeNull();
 
-    const logoutButton = screen.getByText('logout');
-    logoutButton.click();
-
-    expect(signOut).toHaveBeenCalledWith('/login');
+    rerender(<Header onOpenMenu={() => {}} />);
+    expect(screen.getByTestId('desktop-shell-menu')).toBeInTheDocument();
   });
 });

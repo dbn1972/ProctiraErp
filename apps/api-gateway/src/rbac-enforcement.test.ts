@@ -413,6 +413,18 @@ describe('G-301 campus module RBAC deny matrix', () => {
       allowedRole: 'teacher',
     },
     {
+      id: 'infrastructure-repair',
+      method: 'POST',
+      url: '/api/v1/infrastructure/repair-requests',
+      payload: {
+        institutionId: '11111111-1111-4111-8111-111111111111',
+        infrastructureId: '22222222-2222-4222-8222-222222222222',
+        summary: 'Ceiling leak',
+      },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
       id: 'health',
       method: 'POST',
       url: '/api/v1/health/screenings',

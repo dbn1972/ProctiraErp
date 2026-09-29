@@ -2,16 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { browserGatewayFetch } from '@/lib/api/browser-gateway';
-import { formatCodeNameLabel } from '@/lib/entity-label';
-
 const nameCache = new Map<string, string>();
-
-interface InstitutionSummary {
-  id: string;
-  code: string;
-  name: string;
-}
 
 /**
  * Resolves an institution UUID breadcrumb segment to a human label (B3-011).
@@ -34,12 +25,17 @@ export function InstitutionBreadcrumbLabel({
     }
 
     let cancelled = false;
-    void browserGatewayFetch<InstitutionSummary>(
-      `/institutions/${encodeURIComponent(institutionId)}`,
-    )
-      .then((institution) => {
+    void fetch(`/api/entity-labels?institutionId=${encodeURIComponent(institutionId)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('label unavailable');
+        return (await response.json()) as { name?: string };
+      })
+      .then((body) => {
         if (cancelled) return;
-        const resolved = formatCodeNameLabel(institution.code, institution.name) || fallbackLabel;
+        const resolved = body.name?.trim() || fallbackLabel;
         nameCache.set(institutionId, resolved);
         setLabel(resolved);
       })

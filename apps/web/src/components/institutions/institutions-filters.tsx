@@ -56,8 +56,14 @@ export function InstitutionsFilters({
     mutate(params);
     params.delete('page');
     const query = params.toString();
+    // App Router `router.push(pathname)` keeps the current query string.
+    // A cleared filter set has to navigate without that query.
+    if (!query) {
+      window.location.assign(pathname);
+      return;
+    }
     startTransition(() => {
-      router.push(query ? `${pathname}?${query}` : pathname);
+      router.push(`${pathname}?${query}`);
     });
   };
 
@@ -83,18 +89,20 @@ export function InstitutionsFilters({
   };
 
   return (
-    <div className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className="rounded-xl border bg-card px-3 py-3 shadow-sm">
       <form
         onSubmit={handleSearchSubmit}
-        className="flex flex-col gap-4 md:flex-row md:items-end"
+        className="flex flex-col gap-3 lg:flex-row lg:items-center"
         role="search"
         aria-label="Filter institutions"
       >
-        <div className="flex-1 space-y-2">
-          <Label htmlFor="search">Search</Label>
+        <div className="min-w-0 flex-1">
+          <Label htmlFor="search" className="sr-only">
+            Search
+          </Label>
           <div className="relative">
             <Search
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <Input
@@ -103,14 +111,16 @@ export function InstitutionsFilters({
               placeholder="Search by name or code"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              className="pl-9"
+              className="h-10 ps-9"
               disabled={isPending}
             />
           </div>
         </div>
 
-        <div className="space-y-2 md:w-64">
-          <Label htmlFor="filter-area">Area</Label>
+        <div className="lg:w-48">
+          <Label htmlFor="filter-area" className="sr-only">
+            Area
+          </Label>
           <Select
             value={defaultAreaId ?? ALL_AREAS}
             onValueChange={(value) =>
@@ -122,10 +132,12 @@ export function InstitutionsFilters({
                 }
               })
             }
-            disabled={isPending || areas.length === 0}
+            disabled={isPending}
           >
-            <SelectTrigger id="filter-area">
-              <SelectValue placeholder="All areas" />
+            <SelectTrigger id="filter-area" className="h-10">
+              <SelectValue placeholder="All areas">
+                {areas.find((area) => area.id === defaultAreaId)?.name ?? 'All areas'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_AREAS}>All areas</SelectItem>
@@ -138,8 +150,10 @@ export function InstitutionsFilters({
           </Select>
         </div>
 
-        <div className="space-y-2 md:w-44">
-          <Label htmlFor="filter-status">Status</Label>
+        <div className="lg:w-44">
+          <Label htmlFor="filter-status" className="sr-only">
+            Status
+          </Label>
           <Select
             value={defaultStatus ?? ALL_STATUSES}
             onValueChange={(value) =>
@@ -153,8 +167,14 @@ export function InstitutionsFilters({
             }
             disabled={isPending}
           >
-            <SelectTrigger id="filter-status">
-              <SelectValue placeholder="All statuses" />
+            <SelectTrigger id="filter-status" className="h-10">
+              <SelectValue placeholder="All statuses">
+                {defaultStatus === 'ACTIVE'
+                  ? 'Active'
+                  : defaultStatus === 'INACTIVE'
+                    ? 'Inactive'
+                    : 'All statuses'}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_STATUSES}>All statuses</SelectItem>
@@ -164,21 +184,20 @@ export function InstitutionsFilters({
           </Select>
         </div>
 
-        <div className="flex items-center gap-2 md:pb-1">
-          <Button type="submit" disabled={isPending}>
-            <Search className="h-4 w-4" /> Search
+        <div className="flex items-center gap-2">
+          <Button type="submit" disabled={isPending} className="h-10">
+            <Search className="h-4 w-4" aria-hidden="true" /> Search
           </Button>
-          {(defaultSearch || defaultAreaId || defaultStatus) && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClear}
-              disabled={isPending}
-              aria-label="Clear all filters"
-            >
-              <X className="h-4 w-4" /> Clear
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClear}
+            disabled={isPending}
+            aria-label="Clear all filters"
+            className="h-10"
+          >
+            <X className="h-4 w-4" aria-hidden="true" /> Clear
+          </Button>
         </div>
       </form>
     </div>

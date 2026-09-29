@@ -9,7 +9,7 @@ charts are not the canonical production path.
 ```bash
 helm template proctira-api-gateway ./infrastructure/helm/proctira-service \
   --set service.name=api-gateway \
-  --set image.repository=ghcr.io/proctira/api-gateway \
+  --set image.repository=ghcr.io/owner/proctira/api-gateway \
   --set image.tag=sha-test \
   --set environment=staging \
   -f ./infrastructure/helm/proctira-service/values-staging.yaml
