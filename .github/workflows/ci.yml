@@ -15,7 +15,9 @@ on:
     branches: [main, develop]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Include sha so a queued-but-never-started run cannot hold the group forever
+  # (GHA cancel-in-progress does not always clear stuck queued peers).
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:

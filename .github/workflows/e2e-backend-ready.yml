@@ -55,7 +55,8 @@ on:
     - cron: '15 4 * * *'
 
 concurrency:
-  group: e2e-backend-ready-${{ github.ref }}
+  # Include sha so a queued-but-never-started run cannot hold the group forever.
+  group: e2e-backend-ready-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:
