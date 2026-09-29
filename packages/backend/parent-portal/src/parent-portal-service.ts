@@ -1,7 +1,12 @@
 /**
  * Parent portal service — child links, messaging, consents, fee sandbox, academic reads.
  */
-import { BusinessRuleError, ForbiddenError, NotFoundError } from '@proctira/common';
+import {
+  BusinessRuleError,
+  ForbiddenError,
+  NotFoundError,
+  resolveProviderDeliveryMode,
+} from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -51,7 +56,13 @@ export interface FeesLedgerPort {
   recordPayment(
     tenantId: string,
     actorId: string,
-    input: { invoiceId: string; payerUserId?: string; method?: PayInvoiceInput['method'] },
+    input: {
+      invoiceId: string;
+      payerUserId?: string;
+      method?: PayInvoiceInput['method'];
+      // PRC-C001: replay-safe key so a re-submitted pay request settles at most once.
+      idempotencyKey?: string;
+    },
   ): Promise<{ invoice: unknown; payment: unknown; receipt: unknown }>;
   listPayments(tenantId: string): Promise<unknown[]>;
   listReceipts(tenantId: string): Promise<unknown[]>;
@@ -768,6 +779,9 @@ export class ParentPortalService {
         invoiceId,
         payerUserId: parentUserId,
         method: input.method,
+        // PRC-C001: settle at most once per (tenant, invoice, payer) even if the parent
+        // double-submits; FeesService verifies the charge via the payment adapter.
+        idempotencyKey: `pp-pay:${invoiceId}:${parentUserId}`,
       }) as unknown as Promise<{
         invoice: NonNullable<Awaited<ReturnType<ParentPortalRepository['findInvoiceById']>>>;
         payment: Awaited<ReturnType<ParentPortalRepository['createPayment']>>;
@@ -785,7 +799,28 @@ export class ParentPortalService {
       throw new BusinessRuleError('Invoice is not open for payment');
     }
 
-    const method = input.method ?? 'sandbox';
+    // PRC-C001: this standalone (in-memory) path performs NO PSP verification — it can only
+    // ever represent an honest sandbox settlement. Fail closed when a real settlement is
+    // implied so a guardian can never self-declare a payment as truly paid:
+    //   * refuse any non-sandbox method (upi/card/cash falsely imply real money moved), and
+    //   * refuse entirely when provider mode resolves to 'live' (or would be a silent
+    //     production default). Live payments MUST flow through FeesService.recordPayment,
+    //     which routes through the payment adapter and settles only on a verified charge.
+    // Cast to string for the runtime check: the schema narrows `method` to 'sandbox', but this
+    // service can be called directly, so we still defend against any other value at runtime.
+    const method = (input.method ?? 'sandbox') as string;
+    if (method !== 'sandbox') {
+      throw new BusinessRuleError(
+        `Self-declared payment method '${method}' is not accepted: only verified ` +
+          `payment-service settlements may mark an invoice paid`,
+      );
+    }
+    if (resolveProviderDeliveryMode('fees') !== 'sandbox') {
+      throw new BusinessRuleError(
+        'Sandbox self-service payment is disabled: configure a verified payment provider ' +
+          '(PROVIDER_MODE=live) so payments settle through the fee ledger',
+      );
+    }
     const paidAt = new Date();
 
     const payment = await this.repository.createPayment({
