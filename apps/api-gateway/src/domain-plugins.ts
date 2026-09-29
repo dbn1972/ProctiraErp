@@ -313,18 +313,18 @@ function createOfferFeeInvoiceHook() {
 }
 
 function assertOfferFeePaidHook() {
+  // PRC-C002: a client-supplied paymentRef is NOT proof of payment. Previously any non-empty
+  // string caused a fabricated sandbox settlement, letting a guardian accept an offer without
+  // paying. The invoice must already be genuinely paid — via a verified PSP/webhook settlement
+  // or a staff-recorded receipt through the fee ledger — before enrolment proceeds.
   return async (input: { tenantId: string; invoiceId: string; paymentRef?: string | null }) => {
+    // paymentRef is intentionally ignored: it is not evidence of settlement.
     const fees = new FeesService(createFeesRepository());
     const invoice = await fees.getInvoice(input.tenantId, input.invoiceId);
     if (invoice.status === 'paid') return;
-    if (input.paymentRef) {
-      await fees.recordPayment(input.tenantId, 'admissions-offer', {
-        invoiceId: input.invoiceId,
-        method: 'sandbox',
-      });
-      return;
-    }
-    throw new Error('Offer fee invoice must be paid before enrolment');
+    throw new BusinessRuleError(
+      'Offer fee invoice must be paid through a verified payment before enrolment',
+    );
   };
 }
 
