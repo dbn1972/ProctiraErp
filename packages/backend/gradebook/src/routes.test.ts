@@ -292,6 +292,22 @@ describe('gradebook routes G-907', () => {
         headers: { 'x-roles': 'parent' },
       });
       expect(otherPublished.statusCode).toBe(403);
+
+      // A portal reader passing only sectionId (no studentId) cannot get a whole section.
+      const sectionOnly = await app.inject({
+        method: 'GET',
+        url: `/gradebook/entries?sectionId=${SECTION}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(sectionOnly.statusCode).toBe(403);
+
+      // A foreign transcript id returns 404 (not 403) so ids cannot be probed.
+      const foreignTranscript = await app.inject({
+        method: 'GET',
+        url: `/gradebook/transcripts/${OTHER_STUDENT}`,
+        headers: { 'x-roles': 'parent' },
+      });
+      expect(foreignTranscript.statusCode).toBe(404);
     });
   });
 
