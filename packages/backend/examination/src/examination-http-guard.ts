@@ -47,3 +47,22 @@ export function examinationWritePreHandler(
     return;
   }
 }
+
+/**
+ * PRC-C004: assert `readAction` on read methods (GET/HEAD) and `writeAction` on mutating
+ * methods, so examination read routes are no longer open to every gateway examination:read
+ * holder. OPTIONS is allowed through for CORS preflight.
+ */
+export function examinationReadWritePreHandler(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  readAction: ExaminationAction,
+  writeAction: ExaminationAction,
+): void {
+  const method = request.method.toUpperCase();
+  if (method === 'OPTIONS') return;
+  const action = method === 'GET' || method === 'HEAD' ? readAction : writeAction;
+  if (!requireExaminationAction(request, reply, action)) {
+    return;
+  }
+}
