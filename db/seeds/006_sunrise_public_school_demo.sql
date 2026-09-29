@@ -1819,6 +1819,58 @@ ON CONFLICT (id) DO NOTHING;
 -- Institution detail tabs: Class 9-B Mathematics gradebook, MATH curriculum, facility tree.
 -- Idempotent. Tenant a501 / institution a551.
 
+-- CBSE board grading scale (report cards need boardId from listGradingScales).
+-- Letter grades on entries are stored directly; the scale drives report-card bands.
+INSERT INTO grading_scales (
+  id, tenant_id, board_id, code, name, scale_type, is_default, metadata
+)
+VALUES (
+  '00000000-0000-4000-8000-00000000a5c1',
+  '00000000-0000-4000-8000-00000000a501',
+  '00000000-0000-4000-8000-00000000a521',
+  'CBSE-9PT',
+  'CBSE 9-point scale',
+  'PERCENT_BAND',
+  TRUE,
+  '{"board":"CBSE","source":"006_sunrise_public_school_demo"}'::jsonb
+)
+ON CONFLICT (tenant_id, board_id, code) DO UPDATE
+SET name = EXCLUDED.name,
+    scale_type = EXCLUDED.scale_type,
+    is_default = EXCLUDED.is_default,
+    metadata = EXCLUDED.metadata,
+    deleted_at = NULL,
+    updated_at = now();
+
+INSERT INTO grading_scale_bands (
+  id, tenant_id, grading_scale_id, label, min_percent, max_percent, grade_points, sort_order
+)
+SELECT
+  uuid_generate_v5('6ba7b810-9dad-11d1-80b4-00c04fd430c8'::uuid, 'sunrise-gb-band-' || v.label),
+  '00000000-0000-4000-8000-00000000a501'::uuid,
+  '00000000-0000-4000-8000-00000000a5c1'::uuid,
+  v.label,
+  v.min_p,
+  v.max_p,
+  v.gp,
+  v.ord
+FROM (VALUES
+  ('A1'::text, 91.00::numeric, 100.00::numeric, 10.00::numeric, 1::smallint),
+  ('A2', 81.00, 90.99, 9.00, 2),
+  ('B1', 71.00, 80.99, 8.00, 3),
+  ('B2', 61.00, 70.99, 7.00, 4),
+  ('C1', 51.00, 60.99, 6.00, 5),
+  ('C2', 41.00, 50.99, 5.00, 6),
+  ('D',  33.00, 40.99, 4.00, 7),
+  ('E',   0.00, 32.99, 0.00, 8)
+) AS v(label, min_p, max_p, gp, ord)
+ON CONFLICT (grading_scale_id, label) DO UPDATE
+SET min_percent = EXCLUDED.min_percent,
+    max_percent = EXCLUDED.max_percent,
+    grade_points = EXCLUDED.grade_points,
+    sort_order = EXCLUDED.sort_order,
+    updated_at = now();
+
 UPDATE students
 SET custom_data = COALESCE(custom_data, '{}'::jsonb) || '{"gradebookCode":"SPS-2018-0142"}'::jsonb,
     updated_at = now()

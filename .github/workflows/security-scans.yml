@@ -32,7 +32,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: security-scans-${{ github.workflow }}-${{ github.ref }}
+  # Include sha so a queued-but-never-started caller cannot cancel tip scans.
+  group: security-scans-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:

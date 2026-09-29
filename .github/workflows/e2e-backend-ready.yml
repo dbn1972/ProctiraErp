@@ -55,7 +55,8 @@ on:
     - cron: '15 4 * * *'
 
 concurrency:
-  group: e2e-backend-ready-${{ github.ref }}
+  # Include sha so a queued-but-never-started run cannot hold the group forever.
+  group: e2e-backend-ready-${{ github.event.pull_request.number || github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 
 env:
@@ -111,6 +112,7 @@ env:
     e2e/53-communication-circulars-write-smoke.spec.ts
     e2e/54-transport-ops-write-smoke.spec.ts
     e2e/16e-institutions-tabs-live.spec.ts
+    e2e/16e-institutions-timetable-write-smoke.spec.ts
   # Nightly: PR set + the remaining live write smokes.
   NIGHTLY_SPECS: >-
     e2e/08b-legal-pages.spec.ts
@@ -151,6 +153,7 @@ env:
     e2e/53-communication-circulars-write-smoke.spec.ts
     e2e/54-transport-ops-write-smoke.spec.ts
     e2e/16e-institutions-tabs-live.spec.ts
+    e2e/16e-institutions-timetable-write-smoke.spec.ts
     e2e/21d-campus-hostel-library-write-smoke.spec.ts
     e2e/15b-staff-write-validation-smoke.spec.ts
     e2e/15d-student-write-validation-smoke.spec.ts

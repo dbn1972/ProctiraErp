@@ -24,6 +24,7 @@ export function TimetableGenerateForm(props: {
   bellScheduleOptions: { id: string; label: string }[];
   sectionOptions: { id: string; label: string }[];
   staffOptions: { id: string; label: string }[];
+  subjectOptions: { id: string; label: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -33,11 +34,13 @@ export function TimetableGenerateForm(props: {
   const [sectionId, setSectionId] = useState(props.sectionOptions[0]?.id ?? '');
   const [staffId, setStaffId] = useState(props.staffOptions[0]?.id ?? '');
   const [bellScheduleId, setBellScheduleId] = useState(props.bellScheduleOptions[0]?.id ?? '');
-  const [subjectId, setSubjectId] = useState('math');
+  const [subjectId, setSubjectId] = useState(props.subjectOptions[0]?.id ?? '');
   const [periodsPerWeek, setPeriodsPerWeek] = useState('4');
   const [persistMeetings, setPersistMeetings] = useState(false);
 
-  const canSubmit = Boolean(props.academicPeriodId && sectionId && staffId && bellScheduleId);
+  const canSubmit = Boolean(
+    props.academicPeriodId && sectionId && staffId && bellScheduleId && subjectId,
+  );
   const sectionLabel =
     props.sectionOptions.find((item) => item.id === sectionId)?.label ?? 'the section';
   const teacherLabel =
@@ -141,12 +144,24 @@ export function TimetableGenerateForm(props: {
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Subject reference</span>
-        <input
+        <select
           className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
+          aria-label="Subject reference"
           value={subjectId}
           onChange={(e) => setSubjectId(e.target.value)}
           required
-        />
+        >
+          {props.subjectOptions.length === 0 ? (
+            <option value="" disabled>
+              No subjects available
+            </option>
+          ) : null}
+          {props.subjectOptions.map((subject) => (
+            <option key={subject.id} value={subject.id}>
+              {subject.label}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Periods per week</span>

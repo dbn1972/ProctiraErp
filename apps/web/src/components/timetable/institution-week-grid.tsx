@@ -127,6 +127,8 @@ export function InstitutionWeekGrid(props: {
                       <td key={day.value} className="p-0 align-top">
                         <button
                           type="button"
+                          data-day={day.value}
+                          data-period-id={period.id}
                           className="flex min-h-[52px] w-full items-center justify-center rounded-md border border-dashed border-border text-muted-foreground hover:bg-muted/40"
                           onClick={() => prefill(day.value, period.id)}
                         >

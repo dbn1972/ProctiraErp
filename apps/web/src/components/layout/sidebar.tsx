@@ -276,7 +276,10 @@ export function Sidebar() {
                 {switcher.title}
               </p>
               {switcher.lines.map((line) => (
-                <p key={line} className="truncate text-[11px] leading-snug text-slate-400">
+                <p
+                  key={line}
+                  className="whitespace-normal break-words text-[11px] leading-snug text-slate-400"
+                >
                   {line}
                 </p>
               ))}
