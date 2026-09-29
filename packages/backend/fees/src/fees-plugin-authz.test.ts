@@ -199,5 +199,84 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
       const response = await app.inject({ method: 'GET', url: '/fees/payments' });
       expect(response.statusCode).toBe(200);
     });
+
+    it('scopes a linked parent to only their child receipts and 404s a foreign receipt', async () => {
+      const repository = new InMemoryFeesRepository();
+      const service = new FeesService(repository);
+
+      // Linked child: invoice + paid → receipt.
+      const linkedInvoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: STUDENT_ID,
+        title: 'Linked child fee',
+        amountCents: 5000,
+      });
+      const linkedPaid = await service.recordPayment(TENANT_ID, 'staff', {
+        invoiceId: linkedInvoice.id,
+      });
+
+      // Unrelated child: invoice + paid → receipt the parent must NOT read.
+      const otherInvoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: uuid(),
+        title: 'Other child fee',
+        amountCents: 7000,
+      });
+      const otherPaid = await service.recordPayment(TENANT_ID, 'staff', {
+        invoiceId: otherInvoice.id,
+      });
+
+      app = await buildFeesApp(['parent'], { repository, linkedStudentIds: [STUDENT_ID] });
+
+      // List: only the linked child's receipt.
+      const list = await app.inject({ method: 'GET', url: '/fees/receipts?scope=parent' });
+      expect(list.statusCode).toBe(200);
+      const listedIds = (list.json().data as Array<{ id: string }>).map((r) => r.id);
+      expect(listedIds).toEqual([linkedPaid.receipt.id]);
+
+      // Own receipt: 200.
+      const own = await app.inject({
+        method: 'GET',
+        url: `/fees/receipts/${linkedPaid.receipt.id}`,
+      });
+      expect(own.statusCode).toBe(200);
+
+      // Foreign receipt: 404 (not 403) so ids cannot be probed.
+      const foreign = await app.inject({
+        method: 'GET',
+        url: `/fees/receipts/${otherPaid.receipt.id}`,
+      });
+      expect(foreign.statusCode).toBe(404);
+    });
+
+    it('denies a student role on staff-only reads and scopes their self reads', async () => {
+      const repository = new InMemoryFeesRepository();
+      const service = new FeesService(repository);
+      const ownInvoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: STUDENT_ID,
+        title: 'My fee',
+        amountCents: 3000,
+      });
+      app = await buildFeesApp(['student'], { repository, linkedStudentIds: [STUDENT_ID] });
+
+      const trialBalance = await app.inject({
+        method: 'GET',
+        url: '/fees/ledger/trial-balance?scope=parent',
+      });
+      expect(trialBalance.statusCode).toBe(403);
+
+      const invoices = await app.inject({ method: 'GET', url: '/fees/invoices?scope=parent' });
+      expect(invoices.statusCode).toBe(200);
+      const ids = (invoices.json().data as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toEqual([ownInvoice.id]);
+    });
+
+    it('allows a self-scope caller to read structure instalments (structure-level, not PII)', async () => {
+      app = await buildFeesApp(['parent'], { linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({
+        method: 'GET',
+        url: `/fees/structures/${uuid()}/instalments`,
+      });
+      // Not 403: self-scope may read schedule data (empty list for an unknown structure).
+      expect(response.statusCode).not.toBe(403);
+    });
   });
 });
