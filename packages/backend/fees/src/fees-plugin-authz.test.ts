@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import { InMemoryFeesRepository } from './in-memory-repository.js';
 import { feesPlugin } from './fees-plugin.js';
+import { FeesService } from './fees-service.js';
 
 const TENANT_ID = '00000000-0000-4000-8000-000000000001';
 const STUDENT_ID = '00000000-0000-4000-8000-000000000099';
@@ -19,7 +20,14 @@ function uuid(): string {
   });
 }
 
-async function buildFeesApp(roles: unknown): Promise<FastifyInstance> {
+interface BuildOpts {
+  /** Optional parent-binding: linked student ids returned for the acting parent. */
+  linkedStudentIds?: string[];
+  /** Shared repository so a test can seed data the routes read back. */
+  repository?: InMemoryFeesRepository;
+}
+
+async function buildFeesApp(roles: unknown, opts: BuildOpts = {}): Promise<FastifyInstance> {
   const app = Fastify();
   app.decorateRequest('tenantId', '');
   app.addHook('onRequest', async (request) => {
@@ -31,8 +39,15 @@ async function buildFeesApp(roles: unknown): Promise<FastifyInstance> {
     };
   });
   await app.register(feesPlugin, {
-    repository: new InMemoryFeesRepository(),
+    repository: opts.repository ?? new InMemoryFeesRepository(),
     prefix: '/fees',
+    ...(opts.linkedStudentIds
+      ? {
+          parentBinding: {
+            listLinkedStudentIds: async () => opts.linkedStudentIds!,
+          },
+        }
+      : {}),
   });
   await app.ready();
   return app;
@@ -128,26 +143,61 @@ describe('fees-plugin RBAC deny proofs (W1-SEC-02 D1)', () => {
     });
   });
 
-  describe('parent self-scope reads', () => {
-    beforeEach(async () => {
-      app = await buildFeesApp(['parent']);
-    });
-
-    it('allows parent scoped invoice list', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/fees/invoices?scope=parent',
-      });
-      expect(response.statusCode).toBe(200);
-    });
-
-    it('denies parent tenant-wide dues report', async () => {
-      const response = await app.inject({
-        method: 'GET',
-        url: '/fees/reports/dues',
-      });
+  // PRC-C005: scope is derived from the caller's role, never a ?scope query param.
+  describe('parent self-scope reads (PRC-C005)', () => {
+    // A parent must be denied on every staff-only / tenant-wide read even with ?scope=parent.
+    it.each([
+      '/fees/payments?scope=parent',
+      '/fees/reports/dues?scope=parent',
+      '/fees/ledger/trial-balance?scope=parent',
+      '/fees/reminders/overdue?scope=parent',
+      '/fees/plans?scope=parent',
+      '/fees/structures?scope=parent',
+    ])('denies parent %s with 403 despite scope=parent', async (url) => {
+      app = await buildFeesApp(['parent'], { linkedStudentIds: [STUDENT_ID] });
+      const response = await app.inject({ method: 'GET', url });
       expect(response.statusCode).toBe(403);
       expect(response.json().code).toBe('FORBIDDEN');
+    });
+
+    it('fails closed (403) on self-scopable reads when no parentBinding is configured', async () => {
+      app = await buildFeesApp(['parent']); // no binding
+      const invoices = await app.inject({ method: 'GET', url: '/fees/invoices?scope=parent' });
+      expect(invoices.statusCode).toBe(403);
+      const receipts = await app.inject({ method: 'GET', url: '/fees/receipts' });
+      expect(receipts.statusCode).toBe(403);
+    });
+
+    it('scopes a linked parent to only their child invoices', async () => {
+      const repository = new InMemoryFeesRepository();
+      const service = new FeesService(repository);
+      // Seed an invoice for the linked child and one for an unrelated student.
+      const linkedInvoice = await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: STUDENT_ID,
+        title: 'Linked child term fee',
+        amountCents: 10000,
+      });
+      await service.createInvoice(TENANT_ID, 'staff', {
+        studentId: uuid(), // some other student
+        title: 'Other child term fee',
+        amountCents: 20000,
+      });
+
+      app = await buildFeesApp(['parent'], {
+        repository,
+        linkedStudentIds: [STUDENT_ID],
+      });
+
+      const response = await app.inject({ method: 'GET', url: '/fees/invoices?scope=parent' });
+      expect(response.statusCode).toBe(200);
+      const ids = (response.json().data as Array<{ id: string }>).map((row) => row.id);
+      expect(ids).toEqual([linkedInvoice.id]);
+    });
+
+    it('still allows a finance staff role to read tenant-wide (no scope param needed)', async () => {
+      app = await buildFeesApp(['bursar']);
+      const response = await app.inject({ method: 'GET', url: '/fees/payments' });
+      expect(response.statusCode).toBe(200);
     });
   });
 });
