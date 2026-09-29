@@ -9,13 +9,18 @@
  * This implementation provides the interface and basic structure.
  */
 import type { ExcelSourceConfig } from '../schemas.js';
+
+import {
+  assertInlineContentWithinCap,
+  assertNoHostFilePath,
+} from './file-source-policy.js';
 import type { SourceConnector, ExtractionResult, DataRow } from './types.js';
 
 export class ExcelSourceConnector implements SourceConnector {
   constructor(private readonly config: ExcelSourceConfig) {}
 
   async extract(): Promise<ExtractionResult> {
-    const buffer = await this.getFileBuffer();
+    const buffer = this.getFileBuffer();
     if (!buffer) {
       return { rows: [], totalCount: 0 };
     }
@@ -26,23 +31,25 @@ export class ExcelSourceConnector implements SourceConnector {
   }
 
   async validate(): Promise<{ valid: boolean; error?: string }> {
-    if (!this.config.filePath && !this.config.fileContent) {
-      return { valid: false, error: 'Either filePath or fileContent is required' };
+    // PRC-C003: reject any host filePath; tenant pipelines must supply inline content.
+    try {
+      assertNoHostFilePath(this.config.filePath);
+    } catch (error) {
+      return { valid: false, error: error instanceof Error ? error.message : 'Invalid file source' };
+    }
+    if (!this.config.fileContent) {
+      return { valid: false, error: 'Inline fileContent is required' };
     }
     return { valid: true };
   }
 
-  private async getFileBuffer(): Promise<Buffer | null> {
+  private getFileBuffer(): Buffer | null {
+    // PRC-C003: never read a tenant-supplied host path. Inline base64 content only, size-capped.
+    assertNoHostFilePath(this.config.filePath);
     if (this.config.fileContent) {
-      return Buffer.from(this.config.fileContent, 'base64');
-    }
-    if (this.config.filePath) {
-      const { readFile } = await import('node:fs/promises');
-      try {
-        return await readFile(this.config.filePath);
-      } catch {
-        return null;
-      }
+      const buffer = Buffer.from(this.config.fileContent, 'base64');
+      assertInlineContentWithinCap(buffer.byteLength);
+      return buffer;
     }
     return null;
   }

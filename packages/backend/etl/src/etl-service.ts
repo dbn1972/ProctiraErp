@@ -180,8 +180,37 @@ export class ETLService {
   /**
    * Create a new pipeline definition.
    */
+  /**
+   * PRC-C003: validate source/destination connector config at create/update time so an
+   * unsafe filePath (LFI) or non-public/non-https URL (SSRF) is rejected before it is ever
+   * stored or executed. Connectors are also guarded at execute time (stored rows may predate
+   * this check), but rejecting here gives the tenant immediate feedback and fails closed.
+   */
+  private async assertConnectorConfigSafe(input: {
+    source: CreatePipelineInput['source'];
+    destination: CreatePipelineInput['destination'];
+  }): Promise<void> {
+    const source = await createSourceConnector(input.source).validate();
+    if (!source.valid) {
+      throw new AppError(
+        source.error ?? 'Invalid source configuration',
+        'INVALID_SOURCE_CONFIG',
+        400,
+      );
+    }
+    const destination = await createDestinationConnector(input.destination).validate();
+    if (!destination.valid) {
+      throw new AppError(
+        destination.error ?? 'Invalid destination configuration',
+        'INVALID_DESTINATION_CONFIG',
+        400,
+      );
+    }
+  }
+
   async createPipeline(tenantId: string, input: CreatePipelineInput): Promise<Pipeline> {
     await this.ensureSchedulesHydrated(tenantId);
+    await this.assertConnectorConfigSafe(input);
     const now = new Date();
     const pipeline: Pipeline = {
       id: uuidv4(),
