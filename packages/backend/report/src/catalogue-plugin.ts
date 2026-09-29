@@ -1,3 +1,4 @@
+import { CacheClient } from '@proctira/cache';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
@@ -31,7 +32,11 @@ export const reportCataloguePlugin = fp(
   ) {
     const store = options.store ?? createReportStore().store;
     const blobStore = options.blobStore ?? (await createReportBlobStore());
-    const service = new CatalogueService(store, blobStore);
+    // Optional Redis read-through cache in front of the dashboard aggregates
+    // query, mirroring createStudentRepository's REDIS_URL-gated construction.
+    const redisUrl = process.env['REDIS_URL'];
+    const cache = redisUrl ? new CacheClient({ redisUrl }) : undefined;
+    const service = new CatalogueService(store, blobStore, cache);
     fastify.decorate('reportCatalogueService', service);
 
     registerCatalogueRoutes(fastify, {

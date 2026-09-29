@@ -383,3 +383,22 @@ describe('hasPermission (synchronous, no area check)', () => {
     expect(hasPermission(user, 'institution', 'read', registry)).toBe(false);
   });
 });
+
+describe('DEFAULT_ROLES dashboard-preview permission', () => {
+  let registry: RbacPermissionRegistry;
+
+  beforeEach(() => {
+    registry = new RbacPermissionRegistry(DEFAULT_ROLES);
+  });
+
+  it('grants dashboard-preview:manage to admin and principal', () => {
+    expect(registry.roleHasPermission('admin', 'dashboard-preview', 'manage')).toBe(true);
+    expect(registry.roleHasPermission('principal', 'dashboard-preview', 'manage')).toBe(true);
+  });
+
+  it('does not grant dashboard-preview:manage to teacher, staff, or guardian', () => {
+    expect(registry.roleHasPermission('teacher', 'dashboard-preview', 'manage')).toBe(false);
+    expect(registry.roleHasPermission('staff', 'dashboard-preview', 'manage')).toBe(false);
+    expect(registry.roleHasPermission('guardian', 'dashboard-preview', 'manage')).toBe(false);
+  });
+});

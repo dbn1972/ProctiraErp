@@ -322,7 +322,33 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
       },
     };
   }
+  const createdAt = buildCreatedAtRange(filter);
+  if (createdAt) {
+    where.createdAt = createdAt;
+  }
   return where;
+}
+
+/**
+ * `createdAfter`/`createdBefore` are `YYYY-MM-DD` date-only strings; `createdAt`
+ * is a full timestamp column, so the upper bound must be an *exclusive* start of
+ * the day after `createdBefore` to include every row created on that date
+ * (mirrors the `toDateOnly()` convention in
+ * `packages/backend/attendance/src/prisma-attendance-repository.ts`, adapted for
+ * a timestamp rather than a date-only column).
+ */
+function buildCreatedAtRange(filter: StudentFilter): { gte?: Date; lt?: Date } | null {
+  const gte = filter.createdAfter ? new Date(`${filter.createdAfter}T00:00:00.000Z`) : undefined;
+  let lt: Date | undefined;
+  if (filter.createdBefore) {
+    lt = new Date(`${filter.createdBefore}T00:00:00.000Z`);
+    lt.setUTCDate(lt.getUTCDate() + 1);
+  }
+  if (!gte && !lt) return null;
+  const range: { gte?: Date; lt?: Date } = {};
+  if (gte) range.gte = gte;
+  if (lt) range.lt = lt;
+  return range;
 }
 
 function buildSearchWhere(tenantId: string, query: string): Record<string, unknown> {

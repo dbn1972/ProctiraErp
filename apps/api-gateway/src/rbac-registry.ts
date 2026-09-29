@@ -109,6 +109,12 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   'custom-fields': 'institution',
   dashboards: 'report',
   privacy: 'platform',
+  // Task 9.2 (principal-dashboard-parity, Req 6.13): self-mapped resource so
+  // `/api/v1/dashboard-preview` (the trivial audit-anchor routes in
+  // `domain-plugins.ts`'s `dashboard-preview` registrar) is gated by the
+  // caller's actual `dashboard-preview:manage` permission (Task 6,
+  // DEFAULT_ROLES) rather than falling through to UNMAPPED_API_RESOURCE.
+  'dashboard-preview': 'dashboard-preview',
 };
 
 /**

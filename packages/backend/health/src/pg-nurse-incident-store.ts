@@ -52,6 +52,10 @@ function mapRow(row: Record<string, unknown>): NurseIncidentEntity {
     severity: String(row.severity) as NurseIncidentEntity['severity'],
     notes: decryptPhi(row.notes == null ? null : String(row.notes), scope) ?? '',
     reportedBy: String(row.reported_by),
+    // db/sql/107_health_nurse_incident_status.sql defaults every row to 'open';
+    // row.status is only absent against a not-yet-migrated database (older
+    // fixture), so fall back to the same default rather than surfacing undefined.
+    status: (row.status == null ? 'open' : String(row.status)) as NurseIncidentEntity['status'],
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };

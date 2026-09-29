@@ -8,8 +8,17 @@
  * - Retry with exponential backoff (Req 22.6)
  * - Rule-based triggering (Req 22.2)
  * - Recipient resolution (Req 22.3)
+ *
+ * Also covers the optional Redis read-through cache wrapper around
+ * `countUnreadNotifications` (principal-dashboard-parity spec, Task 3.5/3.6 —
+ * Requirements 7.1, 7.2), in the "countUnreadNotifications" describe block:
+ * cache omitted (unchanged direct-query behavior), cache hit (delegate not
+ * called), cache miss (delegate called once, result cached), and a
+ * `CacheClient` whose Redis calls throw (falls through to the real query).
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+import { CacheClient, tenantKey } from '@proctira/cache';
 
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
 import {
@@ -606,6 +615,177 @@ describe('NotificationService', () => {
 
       expect(readOnly.data).toHaveLength(1);
       expect(readOnly.data[0]!.status).toBe('read');
+    });
+  });
+
+  // ─── Unread Count — Redis cache wrapper (Task 3.5/3.6, Requirements 7.1, 7.2) ─
+
+  describe('countUnreadNotifications', () => {
+    const inAppTemplateId = '77777777-7777-4777-8777-777777777777';
+
+    beforeEach(async () => {
+      await repository.createTemplate({
+        id: inAppTemplateId,
+        tenantId,
+        name: 'In-App',
+        channel: 'in_app',
+        subject: null,
+        body: 'Notification {{num}}',
+        variables: ['num'],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
+
+    /**
+     * Real `CacheClient` over a minimal fake ioredis-like object, following
+     * the `createJsonRoundTripCache()` pattern in
+     * `packages/backend/institution/src/cached-institution-repository.test.ts`
+     * and the cache-wrapper tests in
+     * `packages/backend/report/src/dashboards.test.ts` (Task 2.8).
+     * `CacheClient`'s own get/set/getOrSet logic runs unmodified; only the
+     * network boundary (a real Redis connection) is faked.
+     */
+    function createFakeRedisCache(): { cache: CacheClient; store: Map<string, string> } {
+      const store = new Map<string, string>();
+      const mockRedis = {
+        get: vi.fn(async (key: string) => store.get(key) ?? null),
+        set: vi.fn(async (key: string, value: string) => {
+          store.set(key, value);
+          return 'OK';
+        }),
+        del: vi.fn(async (...keys: string[]) => {
+          let count = 0;
+          for (const key of keys) {
+            if (store.delete(key)) count++;
+          }
+          return count;
+        }),
+        scan: vi.fn(async () => ['0', []] as [string, string[]]),
+        ping: vi.fn(async () => 'PONG'),
+        quit: vi.fn(async () => 'OK'),
+      };
+      const cache = new CacheClient({ redis: mockRedis as unknown as import('ioredis').default });
+      return { cache, store };
+    }
+
+    /**
+     * A `CacheClient` whose underlying Redis calls all reject. Per
+     * `CacheClient.getOrSet`'s documented contract
+     * (`packages/shared/cache/src/cache-client.ts`): `get()` catches the
+     * error and returns `null`; `getOrSet` then treats that as a miss and
+     * falls through to the fetcher; `set()` likewise catches and swallows
+     * its own error. Nothing here should ever throw or reject out to the
+     * caller.
+     */
+    function createBrokenRedisCache(): CacheClient {
+      const redisError = () => Promise.reject(new Error('ECONNREFUSED: Redis unavailable'));
+      const mockRedis = {
+        get: vi.fn(redisError),
+        set: vi.fn(redisError),
+        del: vi.fn(redisError),
+        scan: vi.fn(redisError),
+        ping: vi.fn(redisError),
+        quit: vi.fn(async () => 'OK'),
+      };
+      return new CacheClient({ redis: mockRedis as unknown as import('ioredis').default });
+    }
+
+    it('cache omitted: runs the direct repository query on every call', async () => {
+      const spy = vi.spyOn(repository, 'countUnreadNotifications');
+
+      const first = await service.countUnreadNotifications(tenantId, userId1);
+      const second = await service.countUnreadNotifications(tenantId, userId1);
+
+      expect(first).toBe(0);
+      expect(second).toBe(0);
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
+
+    it('cache hit: returns the cached value and never calls the repository', async () => {
+      const { cache, store } = createFakeRedisCache();
+      const cacheKey = tenantKey(tenantId, 'notification-unread-count', userId1);
+      store.set(cacheKey, JSON.stringify(7));
+
+      const cachedService = new NotificationService(
+        repository,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        cache,
+      );
+      const spy = vi.spyOn(repository, 'countUnreadNotifications');
+
+      const result = await cachedService.countUnreadNotifications(tenantId, userId1);
+
+      expect(result).toBe(7);
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('cache miss: calls the repository once, returns its result, and leaves it cached afterward', async () => {
+      const { cache, store } = createFakeRedisCache();
+      const cacheKey = tenantKey(tenantId, 'notification-unread-count', userId1);
+
+      await service.send(tenantId, {
+        channel: 'in_app',
+        templateId: inAppTemplateId,
+        recipients: { userIds: [userId1] },
+        variables: { num: '1' },
+      });
+
+      const cachedService = new NotificationService(
+        repository,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        cache,
+      );
+      const spy = vi.spyOn(repository, 'countUnreadNotifications');
+
+      const result = await cachedService.countUnreadNotifications(tenantId, userId1);
+
+      expect(result).toBe(1);
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      // `CacheClient.getOrSet`'s cache write is fire-and-forget
+      // (`void this.set(...)`); give its microtask a tick to land before
+      // asserting the cache now holds the computed value.
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      expect(store.get(cacheKey)).toBe(JSON.stringify(1));
+      await expect(cache.get(cacheKey)).resolves.toBe(1);
+    });
+
+    it('Redis-throws: falls through to the real query and resolves correctly instead of throwing', async () => {
+      const brokenCache = createBrokenRedisCache();
+
+      await service.send(tenantId, {
+        channel: 'in_app',
+        templateId: inAppTemplateId,
+        recipients: { userIds: [userId1] },
+        variables: { num: '1' },
+      });
+
+      const cachedService = new NotificationService(
+        repository,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        brokenCache,
+      );
+      const spy = vi.spyOn(repository, 'countUnreadNotifications');
+
+      await expect(cachedService.countUnreadNotifications(tenantId, userId1)).resolves.toBe(1);
+      expect(spy).toHaveBeenCalledTimes(1);
     });
   });
 

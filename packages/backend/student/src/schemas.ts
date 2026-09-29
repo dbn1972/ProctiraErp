@@ -162,6 +162,18 @@ export const StudentListQuerySchema = Type.Object({
   institutionId: Type.Optional(
     Type.String({ description: 'Scope to one institution (school) within the tenant' }),
   ),
+  createdAfter: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Only students created on/after this date (YYYY-MM-DD, inclusive)',
+    }),
+  ),
+  createdBefore: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Only students created on/before this date (YYYY-MM-DD, inclusive)',
+    }),
+  ),
 });
 
 export type StudentListQuery = Static<typeof StudentListQuerySchema>;

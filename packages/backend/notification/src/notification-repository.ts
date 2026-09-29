@@ -128,6 +128,9 @@ export interface NotificationRepository {
     options: NotificationQueryOptions,
   ): Promise<PaginatedNotifications>;
 
+  /** Count a user's unread notifications (status is 'sent' or 'delivered', not yet 'read') */
+  countUnreadNotifications(tenantId: string, userId: string): Promise<number>;
+
   /** Get notifications pending retry (failed with retryCount < maxRetries) */
   getRetryableNotifications(tenantId: string): Promise<NotificationEntity[]>;
 

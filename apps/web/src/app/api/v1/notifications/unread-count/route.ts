@@ -1,11 +1,18 @@
 /**
- * Same-origin unread count for the header bell.
- * Counts inbox rows with no readAt. A missing session or a failed inbox
- * read returns zero so the bell does not invent a dot.
+ * Same-origin unread count for the header bell (`NotificationBell`,
+ * `@/components/layout/header.tsx`).
+ *
+ * Delegates to `getUnreadNotificationCount()` (`@/lib/api/notifications-inbox`),
+ * which calls the real `GET /notifications/user/:userId/unread-count`
+ * gateway endpoint (Task 3.2, `principal-dashboard-parity`) — a single
+ * indexed `COUNT(*)` query (optionally Redis-cached, Task 3.5) — rather
+ * than fetching every notification and counting unread rows client-side.
+ * A missing/expired session or a failed upstream call both degrade to
+ * zero, so the bell never shows an error state or a stale count.
  */
 import { NextResponse } from 'next/server';
 
-import { listUserNotifications } from '@/lib/api/notifications-inbox';
+import { getUnreadNotificationCount } from '@/lib/api/notifications-inbox';
 import { getSession } from '@/lib/auth/server';
 
 export async function GET(): Promise<Response> {
@@ -14,11 +21,6 @@ export async function GET(): Promise<Response> {
     return NextResponse.json({ unread: 0 }, { headers: { 'cache-control': 'no-store' } });
   }
 
-  try {
-    const items = await listUserNotifications(session.user.sub);
-    const unread = items.filter((item) => !item.readAt).length;
-    return NextResponse.json({ unread }, { headers: { 'cache-control': 'no-store' } });
-  } catch {
-    return NextResponse.json({ unread: 0 }, { headers: { 'cache-control': 'no-store' } });
-  }
+  const unread = await getUnreadNotificationCount(session.user.sub).catch(() => 0);
+  return NextResponse.json({ unread }, { headers: { 'cache-control': 'no-store' } });
 }

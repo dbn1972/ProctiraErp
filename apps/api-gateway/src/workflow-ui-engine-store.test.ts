@@ -4,6 +4,11 @@
  * transitions. A definition created through the UI shape is a real engine
  * definition; approving through the UI produces an engine transition audit row.
  */
+import {
+  InMemoryWorkflowRepository,
+  WorkflowService,
+  type WorkflowInstanceEntity,
+} from '@proctira/backend-workflow';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -11,13 +16,17 @@ import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 import {
   APPROVED_STATE_ID,
+  EngineBackedWorkflowUiStore,
   REJECTED_STATE_ID,
   engineToSteps,
   stepsToEngine,
+  subjectTypeToCategory,
+  toUiApproval,
 } from './workflow-ui-engine-store.js';
 import {
   WORKFLOW_DEF_TRANSFER_ID,
   WORKFLOW_DEMO_TENANT_ID,
+  WORKFLOW_INSTANCE_DONE_ID,
   WORKFLOW_INSTANCE_PENDING_ID,
 } from './workflow-ui-seed.js';
 
@@ -83,6 +92,132 @@ describe('step ↔ engine mapping', () => {
       updatedAt: new Date(),
     });
     expect(back).toEqual(steps);
+  });
+});
+
+describe('subjectTypeToCategory', () => {
+  it('maps only the real, seed-confirmed workflow subject types', () => {
+    expect(subjectTypeToCategory('student_transfer')).toBe('transfer');
+    expect(subjectTypeToCategory('staff_leave')).toBe('leave');
+  });
+
+  it('does not invent a category for a subject type with no real workflow definition', () => {
+    // Req 5 AC3: no 'purchase_order'/'scholarship_disbursement'/etc. category
+    // without a corresponding real workflow definition.
+    expect(subjectTypeToCategory('fees')).toBeUndefined();
+    expect(subjectTypeToCategory('scholarship_application')).toBeUndefined();
+    expect(subjectTypeToCategory('')).toBeUndefined();
+  });
+});
+
+describe('approval category propagation from the demo seed (Task 4.2)', () => {
+  it('seeds the student_transfer instance with category "transfer" and staff_leave with "leave"', async () => {
+    // Fresh in-memory repository so this test never depends on the shared,
+    // module-cached repository the app-level tests below use.
+    const repository = new InMemoryWorkflowRepository();
+    const store = new EngineBackedWorkflowUiStore(
+      repository,
+      new WorkflowService(repository),
+      'memory',
+    );
+
+    const pending = await store.listPendingApprovals(WORKFLOW_DEMO_TENANT_ID);
+    const transferApproval = pending.find((a) => a.instanceId === WORKFLOW_INSTANCE_PENDING_ID);
+    expect(transferApproval).toBeDefined();
+    expect(transferApproval?.category).toBe('transfer');
+
+    // The seeded staff_leave instance is already APPROVED (not itself a
+    // pending approval), but categorization is written into instance
+    // metadata at creation time regardless of status — read the raw engine
+    // instance and confirm toUiApproval() would surface "leave" for it.
+    const leaveInstance = await repository.findInstanceById(
+      WORKFLOW_INSTANCE_DONE_ID,
+      WORKFLOW_DEMO_TENANT_ID,
+    );
+    expect(leaveInstance).not.toBeNull();
+    expect(leaveInstance?.metadata?.['category']).toBe('leave');
+    expect(toUiApproval(leaveInstance!, undefined).category).toBe('leave');
+  });
+});
+
+/**
+ * Minimal, valid `WorkflowInstanceEntity` fixture for `toUiApproval()`-only
+ * tests (Task 4.3). Deliberately bypasses the seed/repository machinery
+ * covered by Task 4.2's tests above — this exists purely to drive
+ * `toUiApproval()`'s own metadata → category logic directly.
+ */
+function makeInstance(overrides: Partial<WorkflowInstanceEntity> = {}): WorkflowInstanceEntity {
+  const now = new Date('2025-01-15T10:00:00.000Z');
+  return {
+    id: 'instance-fixture-1',
+    tenantId: 'tenant-fixture-1',
+    workflowDefinitionId: 'def-fixture-1',
+    entityType: 'student_transfer',
+    entityId: 'subject-fixture-1',
+    currentStateId: 'review',
+    status: 'ACTIVE',
+    metadata: null,
+    approvals: [],
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+}
+
+describe('toUiApproval() category field (Task 4.3)', () => {
+  it('surfaces metadata.category when present', () => {
+    const instance = makeInstance({ metadata: { category: 'transfer' } });
+    expect(toUiApproval(instance, undefined).category).toBe('transfer');
+  });
+
+  it('surfaces whatever string value metadata.category holds, unchanged', () => {
+    // toUiApproval() itself does no allowlisting/validation of the category
+    // value — that's subjectTypeToCategory()'s job at write time (covered
+    // above). Confirm the read-side function is a pure passthrough.
+    const instance = makeInstance({ metadata: { category: 'leave' } });
+    expect(toUiApproval(instance, undefined).category).toBe('leave');
+  });
+
+  describe('the uncategorized case', () => {
+    it('omits category when metadata has other keys but no category key', () => {
+      const instance = makeInstance({ metadata: { initiatedBy: 'admin-1' } });
+      expect(toUiApproval(instance, undefined).category).toBeUndefined();
+    });
+
+    it('omits category when metadata is an empty object', () => {
+      const instance = makeInstance({ metadata: {} });
+      expect(toUiApproval(instance, undefined).category).toBeUndefined();
+    });
+
+    it('omits category when metadata is null', () => {
+      const instance = makeInstance({ metadata: null });
+      expect(toUiApproval(instance, undefined).category).toBeUndefined();
+    });
+
+    it('omits category when metadata is undefined at runtime', () => {
+      // WorkflowInstanceEntity['metadata'] is typed `Record<string, unknown> | null` —
+      // never `undefined` — but meta() reads it via `instance.metadata?.[key]`, which
+      // treats a runtime-undefined value identically to `null`. Cast through `unknown`
+      // to exercise that defensive branch directly (same pattern used elsewhere in this
+      // file's app-level tests, e.g. `as unknown as GatewayConfig`).
+      const instance = {
+        ...makeInstance(),
+        metadata: undefined,
+      } as unknown as WorkflowInstanceEntity;
+      expect(toUiApproval(instance, undefined).category).toBeUndefined();
+    });
+  });
+
+  describe("non-string metadata.category (meta()'s typeof value === 'string' guard)", () => {
+    it('omits category when metadata.category is a number', () => {
+      const instance = makeInstance({ metadata: { category: 42 } });
+      expect(toUiApproval(instance, undefined).category).toBeUndefined();
+    });
+
+    it('omits category when metadata.category is an object', () => {
+      const instance = makeInstance({ metadata: { category: { nested: true } } });
+      expect(toUiApproval(instance, undefined).category).toBeUndefined();
+    });
   });
 });
 

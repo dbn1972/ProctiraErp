@@ -11,7 +11,7 @@
  * - Permissions are evaluated against the user's JWT payload (AuthUser)
  */
 
-import type { AuthUser, RoleAssignment } from './types.js';
+import type { AuthUser } from './types.js';
 
 /**
  * Supported actions for permission checks.
@@ -27,13 +27,7 @@ import type { AuthUser, RoleAssignment } from './types.js';
  * read/write operations.
  */
 export type PermissionAction =
-  | 'create'
-  | 'read'
-  | 'update'
-  | 'delete'
-  | 'list'
-  | 'manage'
-  | 'preview';
+  'create' | 'read' | 'update' | 'delete' | 'list' | 'manage' | 'preview';
 
 /**
  * A single permission entry mapping a resource and action.
@@ -337,6 +331,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'report', action: 'manage' },
       { resource: 'workflow', action: 'manage' },
       { resource: 'user', action: 'manage' },
+      { resource: 'dashboard-preview', action: 'manage' },
     ],
   },
   {
@@ -350,6 +345,7 @@ export const DEFAULT_ROLES: RoleDefinition[] = [
       { resource: 'assessment', action: 'manage' },
       { resource: 'attendance', action: 'manage' },
       { resource: 'report', action: 'read' },
+      { resource: 'dashboard-preview', action: 'manage' },
     ],
   },
   {

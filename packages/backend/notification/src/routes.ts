@@ -5,6 +5,7 @@
  * GET    /notifications/:notificationId   - Get delivery status
  * POST   /notifications/:notificationId/read - Mark as read
  * GET    /notifications/user/:userId      - Get user notifications
+ * GET    /notifications/user/:userId/unread-count - Get unread notification count
  * POST   /notifications/rules             - Create a notification rule
  * GET    /notifications/rules             - List notification rules
  * GET    /notifications/rules/:ruleId     - Get a notification rule
@@ -25,6 +26,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { enforceNotificationRouteAccess } from './notification-http-guard.js';
 import type { NotificationService } from './notification-service.js';
 import {
   InMemoryNotificationPrefsStore,
@@ -47,8 +49,6 @@ import {
   type NotificationIdParams,
   type RuleIdParams,
 } from './schemas.js';
-
-import { enforceNotificationRouteAccess } from './notification-http-guard.js';
 
 /**
  * Options for registering notification routes.
@@ -366,6 +366,40 @@ export async function registerNotificationRoutes(
             totalPages: result.totalPages,
           },
         });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /notifications/user/:userId/unread-count
+   * Get the count of unread (sent/delivered but not read) notifications for a user.
+   */
+  fastify.get(
+    `${prefix}/user/:userId/unread-count`,
+    async function getUnreadNotificationCountHandler(
+      request: FastifyRequest<{ Params: { userId: string } }>,
+      reply: FastifyReply,
+    ) {
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const count = await notificationService.countUnreadNotifications(
+          tenantId,
+          request.params.userId,
+        );
+        return reply.status(200).send({ count });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

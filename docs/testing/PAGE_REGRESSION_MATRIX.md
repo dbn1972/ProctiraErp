@@ -4,7 +4,7 @@
 > Gate: `apps/web/src/app/page-regression-matrix.test.ts` fails when any page lacks an e2e reference.
 
 - App Router pages: **208**
-- Playwright specs: **95**
+- Playwright specs: **96**
 - Pages without any e2e reference: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).

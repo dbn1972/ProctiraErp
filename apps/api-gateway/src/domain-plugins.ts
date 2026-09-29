@@ -148,7 +148,7 @@ import {
 } from '@proctira/backend-workflow';
 import { BusinessRuleError, ConflictError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant } from '@proctira/database';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { shouldSeedDemoData } from './demo-seed-policy.js';
@@ -946,6 +946,78 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     },
   },
   {
+    name: 'dashboard-preview',
+    proxyPrefixes: ['/dashboard-preview'],
+    register: async (scope) => {
+      // Task 9.2 (principal-dashboard-parity, Req 6.13) — audit-anchor routes.
+      //
+      // `apps/web` (the BFF that owns the actual `Dashboard-Preview-State`
+      // cookie mechanics, Task 9.1) has no dependency on `@proctira/database`
+      // or `@proctira/backend-audit` and must not gain one — that would break
+      // the BFF/gateway boundary every other web-side route in this codebase
+      // respects. It cannot call `appendAuditEntryOnClient` / `withPgTenant`
+      // directly.
+      //
+      // The gateway already has a global same-shape mechanism for exactly
+      // this: `app.ts`'s `onSend` hook (`persistMutationAudit`) writes an
+      // `audit_log_entries` row for *every* successful `POST/PUT/PATCH/DELETE`
+      // under `/api/v1/*` that clears RBAC — using `entityTypeForPath()` /
+      // `operationForMethod()` / `entityIdFromPath()` (`./mutation-audit.ts`)
+      // to derive the audit fields from the request itself, with no
+      // per-route code (proven by `audit-mount.test.ts`'s
+      // "records an audit row on a successful mutating API call" for a plain
+      // `POST /api/v1/students`). So the audit entry Req 6.13 requires does
+      // not need a bespoke write here — it needs a real mutating endpoint for
+      // that hook to observe.
+      //
+      // These two handlers are that endpoint and nothing more: no database,
+      // no `appendAuditEntryOnClient` call, no state of their own. Task 9.1's
+      // cookie is still the actual signal `resolvePreviewOverride()` reads;
+      // this route's only job is to exist as an audited `/api/v1/*` mutation
+      // so `apps/web`'s set/clear handlers (`@/app/api/dashboard/preview-state/route.ts`)
+      // have something real to call before/after they set or clear that
+      // cookie. `entityTypeForPath('/api/v1/dashboard-preview')` resolves via
+      // `resourceForApiPath()` to the `dashboard-preview` RBAC resource
+      // (`rbac-registry.ts`'s `PATH_RESOURCE_MAP`), so the resulting audit
+      // rows carry `entityType: 'dashboard-preview'`.
+      //
+      // RBAC: the gateway's global `onRequest` evaluator (`app.ts`) resolves
+      // this path to the `dashboard-preview` resource (via the
+      // `PATH_RESOURCE_MAP` self-mapping added alongside this registrar) and
+      // requires `dashboard-preview:manage` — the exact permission Task 6
+      // added to `admin`/`principal` in `DEFAULT_ROLES`. Since a granted
+      // permission's `action: 'manage'` satisfies every action per
+      // `RbacPermissionRegistry.roleHasPermission`'s
+      // `p.action === action || p.action === 'manage'` rule, both the POST
+      // (`action: 'create'`) and DELETE (`action: 'delete'`) verbs below pass
+      // for any role holding `dashboard-preview:manage`, with no per-verb
+      // permission needed. Any other role gets the gateway's standard 403
+      // before this handler ever runs.
+      scope.post('/dashboard-preview', async (request: FastifyRequest, reply) => {
+        const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+        if (!tenantId) {
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
+        }
+        return reply.status(200).send({ ok: true });
+      });
+      scope.delete('/dashboard-preview', async (request: FastifyRequest, reply) => {
+        const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+        if (!tenantId) {
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
+        }
+        return reply.status(204).send();
+      });
+    },
+  },
+  {
     name: 'platform-admin',
     proxyPrefixes: [
       '/tenants',
@@ -1038,7 +1110,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // In-memory notification records + prefs/devices (PG when DATABASE_URL).
       // W2-JOB-01: durable delivery publisher when QUEUE_BACKEND / RABBITMQ_URL set.
-      const { repository, prefsStore } = createNotificationStack();
+      // Task 3.5: optional Redis read-through cache for countUnreadNotifications
+      // when REDIS_URL is set (createNotificationStack() constructs it).
+      const { repository, prefsStore, cache } = createNotificationStack();
       const deliveryHandle = await createNotificationDeliveryPublisherFromEnv();
       if (deliveryHandle) {
         scope.addHook('onClose', async () => {
@@ -1049,6 +1123,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         prefsStore,
         queuePublisher: deliveryHandle?.publisher,
+        cache,
         prefix: '/notifications',
       });
     },

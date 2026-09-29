@@ -65,6 +65,14 @@ export interface StudentFilter {
   search?: string;
   /** When set, only students enrolled at this institution are returned. */
   institutionId?: string;
+  /**
+   * Narrow date-range filter on `createdAt` (inclusive), each a `YYYY-MM-DD`
+   * date-only string. Used by the principal dashboard's "N new this term"
+   * subtext to count students created within an academic period's bounds
+   * without fetching the full roster (principal-dashboard-parity, Req 3.2).
+   */
+  createdAfter?: string;
+  createdBefore?: string;
 }
 
 /**

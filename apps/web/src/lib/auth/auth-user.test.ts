@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   authUserFromTokenPayload,
   normaliseAuthRole,
+  primaryRoleFromTokenPayload,
   rolesFromTokenPayload,
   scopeFromTokenPayload,
 } from './auth-user';
@@ -102,5 +103,32 @@ describe('authUserFromTokenPayload', () => {
   it('falls back to email when displayName is missing', () => {
     const user = authUserFromTokenPayload(payload({ displayName: undefined }));
     expect(user.name).toBe('admin@school.test');
+  });
+});
+
+describe('primaryRoleFromTokenPayload (Task 12.1 / Req 2 AC1)', () => {
+  it('returns the roleName of the first role assignment in claim order', () => {
+    expect(
+      primaryRoleFromTokenPayload(
+        payload({
+          roles: [
+            { roleId: 'principal', roleName: 'Principal', areaId: 'a1' },
+            { roleId: 'teacher', roleName: 'Teacher', areaId: 'a2' },
+          ],
+        }),
+      ),
+    ).toBe('Principal');
+  });
+
+  it('falls back to roleId when roleName is blank', () => {
+    expect(
+      primaryRoleFromTokenPayload(
+        payload({ roles: [{ roleId: 'principal', roleName: '', areaId: 'a1' }] }),
+      ),
+    ).toBe('principal');
+  });
+
+  it('returns null when there are no role assignments', () => {
+    expect(primaryRoleFromTokenPayload(payload({ roles: [] }))).toBeNull();
   });
 });

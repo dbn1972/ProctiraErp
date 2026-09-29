@@ -1990,6 +1990,9 @@ importers:
 
   packages/backend/notification:
     dependencies:
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
@@ -2297,6 +2300,9 @@ importers:
 
   packages/backend/report:
     dependencies:
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common

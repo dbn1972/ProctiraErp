@@ -15,6 +15,8 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
+import type { CacheClient } from '@proctira/cache';
+import { tenantKey } from '@proctira/cache';
 import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -125,6 +127,9 @@ const DEFAULT_CONFIG: NotificationServiceConfig = {
   smsMaxRetries: 3,
 };
 
+/** TTL for the cached unread-notification count (seconds). */
+const UNREAD_COUNT_TTL_SECONDS = 30;
+
 // ─── Service ─────────────────────────────────────────────────────────────────
 
 export class NotificationService {
@@ -138,6 +143,7 @@ export class NotificationService {
     private readonly smsSender?: SmsSender,
     private readonly queuePublisher?: NotificationQueuePublisher,
     config?: Partial<NotificationServiceConfig>,
+    private readonly cache?: CacheClient,
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
@@ -349,7 +355,10 @@ export class NotificationService {
 
     const template = await this.repository.getTemplateById(tenantId, notification.templateId);
     if (!template) {
-      await this.handleDeliveryFailure(notification, `Template '${notification.templateId}' not found`);
+      await this.handleDeliveryFailure(
+        notification,
+        `Template '${notification.templateId}' not found`,
+      );
       return true;
     }
 
@@ -477,6 +486,27 @@ export class NotificationService {
       status: options.status,
       channel: options.channel,
     });
+  }
+
+  /**
+   * Count a user's unread notifications (status is 'sent' or 'delivered', not yet 'read').
+   *
+   * Optionally wrapped in a Redis read-through cache. When `cache` is omitted
+   * (no `REDIS_URL` configured), this runs the direct repository query exactly
+   * as it always has — no new required dependency. When present, wraps the
+   * repository call behind a 30-second tenant-and-user-scoped cache key,
+   * following the same `CacheClient.getOrSet` pattern as
+   * `loadDashboardAggregates` (`packages/backend/report/src/dashboards.ts`).
+   */
+  async countUnreadNotifications(tenantId: string, userId: string): Promise<number> {
+    if (!this.cache) {
+      return this.repository.countUnreadNotifications(tenantId, userId);
+    }
+    return this.cache.getOrSet(
+      tenantKey(tenantId, 'notification-unread-count', userId),
+      () => this.repository.countUnreadNotifications(tenantId, userId),
+      UNREAD_COUNT_TTL_SECONDS,
+    );
   }
 
   // ─── Rule Management ───────────────────────────────────────────────────

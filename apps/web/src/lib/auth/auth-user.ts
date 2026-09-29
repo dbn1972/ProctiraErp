@@ -94,3 +94,27 @@ export function authUserFromTokenPayload(payload: TokenPayload): AuthUserFromTok
     tenant_id: payload.tenantId,
   };
 }
+
+/**
+ * Derives a single "primary role" label for display purposes — e.g. the
+ * header identity block (`apps/web/src/components/layout/header.tsx`,
+ * Task 12.1 / Req 2 AC1).
+ *
+ * `TokenPayload.roles` carries no explicit "primary" flag, and nothing
+ * else in this codebase ranks a user's concurrent role assignments (a
+ * user can hold more than one, e.g. principal at one campus and teacher
+ * at another). Absent any such precedent, "primary" is defined here as
+ * the simplest, most predictable reading: the first role assignment in
+ * claim order (`roles[0]`). Within that assignment, the human-readable
+ * `roleName` is preferred for display; the raw `roleId` is used only when
+ * `roleName` is blank. This returns the label as-is (NOT normalised via
+ * `normaliseAuthRole()`) because it is for display, not for permission
+ * comparisons.
+ *
+ * Returns `null` when the session carries no role assignments at all.
+ */
+export function primaryRoleFromTokenPayload(payload: TokenPayload): string | null {
+  const primary = payload.roles?.[0];
+  if (!primary) return null;
+  return primary.roleName?.trim() || primary.roleId?.trim() || null;
+}

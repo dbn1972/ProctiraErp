@@ -1,0 +1,378 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Add `status` column migration for nurse incidents": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562786243
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562856980
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790566611658
+      }
+    ],
+    "2.1 Fix the existing attendance query and add `todayAttendancePercent`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562787342
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790566645230
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790566924641
+      }
+    ],
+    "2.2 Add `feeCollectedThisMonthCents`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562788236
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790566947549
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790567486959
+      }
+    ],
+    "2.3 Add `pendingAdmissionsCount`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562789149
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790567495707
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790567697027
+      }
+    ],
+    "2.4 Add `openHealthIncidentsCount`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562790061
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790567706957
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790567870387
+      }
+    ],
+    "2.5 Update `DASHBOARDS.principal.cards` and `valuesForRole('principal', ...)`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562790903
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790567878002
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790568448438
+      }
+    ],
+    "2.6 Write unit tests for the four new aggregate fields": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562791799
+      },
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790568483005
+      }
+    ],
+    "2.7 Wrap `loadDashboardAggregates` with an optional Redis read-through cache": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562792703
+      }
+    ],
+    "2.8 Write tests for the cache-wrapped aggregates": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562793588
+      }
+    ],
+    "3.1 Add `countUnreadNotifications(tenantId, userId)` to the notification repository interface and implementations": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562794490
+      }
+    ],
+    "3.2 Add `GET /notifications/user/:userId/unread-count` route": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562795403
+      }
+    ],
+    "3.3 Add `getUnreadNotificationCount(userId)` to the web client": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562796303
+      }
+    ],
+    "3.4 Write tests for the repository method and route": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562797311
+      }
+    ],
+    "3.5 Wrap `countUnreadNotifications` with an optional Redis read-through cache": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562798217
+      }
+    ],
+    "3.6 Write tests for the cache-wrapped unread-count": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562799154
+      }
+    ],
+    "4.1 Extend `WorkflowApproval`/`UiWorkflowApproval` with an optional `category` field": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562800046
+      }
+    ],
+    "4.2 Set `category` when creating instances for known real definitions": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562800899
+      }
+    ],
+    "4.3 Write tests for category propagation and the uncategorized case": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562801758
+      }
+    ],
+    "5. Render approval category badges in the UI": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562802601
+      }
+    ],
+    "6. Add the `dashboard-preview` RBAC permission": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562803519
+      }
+    ],
+    "7.1 Implement cookie encode/decode helpers": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562804438
+      }
+    ],
+    "7.2 Implement `resolvePreviewOverride(request)` server-side helper": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562805317
+      }
+    ],
+    "7.3 Write unit tests for the helper": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562806069
+      }
+    ],
+    "8.1 Build fixture data for each state": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562806976
+      }
+    ],
+    "8.2 Intercept `apps/web/src/app/(dashboard)/page.tsx`'s data-fetch layer": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562807888
+      }
+    ],
+    "8.3 Write tests asserting each state renders its documented presentation": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562808754
+      }
+    ],
+    "9.1 Add routes to set and clear the preview-state cookie": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562809655
+      }
+    ],
+    "9.2 Write the audit entry on every set and every clear": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562810569
+      }
+    ],
+    "9.3 Write tests for the set/clear routes and their audit entries": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562811530
+      }
+    ],
+    "10.1 Build the switcher control component": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562812399
+      }
+    ],
+    "10.2 Build the visible fabricated-state banner": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562813315
+      }
+    ],
+    "10.3 Write component tests for visibility gating and banner content": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562814234
+      }
+    ],
+    "11.1 Build `TenantIdentityBlock` (`apps/web/src/components/layout/TenantIdentityBlock.tsx`)": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562815136
+      }
+    ],
+    "11.2 Mount it in `apps/web/src/components/layout/sidebar.tsx`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562816042
+      }
+    ],
+    "11.3 Write tests for the degraded and tenant-scoping cases": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562816936
+      }
+    ],
+    "12.1 Replace the hardcoded avatar with real session identity": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562817746
+      }
+    ],
+    "12.2 Add a help icon linking to `/help`": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562818555
+      }
+    ],
+    "12.3 Add a notification bell using the Task 3 unread-count endpoint": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562819346
+      }
+    ],
+    "12.4 Write tests for the fallback name, help link, and bell states": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562820178
+      }
+    ],
+    "13.1 Extend the local `KpiCard` component with an optional `subtext` prop": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562821034
+      }
+    ],
+    "13.2 Compute and wire the Students subtext": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562821958
+      }
+    ],
+    "13.3 Write tests for the subtext computation and its degraded case": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562822866
+      }
+    ],
+    "14.1 Write an end-to-end test for the preview-state switcher covering authorization, all five states, expiry, and audit": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562823754
+      }
+    ],
+    "14.2 Run the full existing dashboard test suite and fix any regressions surfaced by the additive changes": [
+      {
+        "executionId": "f4fd1951-c7ff-4313-bd96-fad8eae010a0",
+        "chatSessionId": "sess_66c7ea8d-f71e-4192-a577-0a3ad598afd0",
+        "timestamp": 1790562824656
+      }
+    ]
+  }
+}

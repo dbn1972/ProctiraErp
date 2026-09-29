@@ -284,6 +284,13 @@ export interface NurseIncidentRecord {
   severity: string;
   notes: string;
   reportedBy: string;
+  /**
+   * Open/closed status (principal-dashboard-parity Req 4.5/4.6). Optional and
+   * additive: `db/sql/107_health_nurse_incident_status.sql` defaults every row
+   * — new and pre-existing — to `'open'`, so a gateway predating this field
+   * would simply omit it rather than send an unexpected value.
+   */
+  status?: 'open' | 'closed';
   createdAt: string;
   updatedAt: string;
 }

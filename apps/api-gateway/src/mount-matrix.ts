@@ -438,6 +438,16 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
       'G-924: workflowUiPlugin now served by EngineBackedWorkflowUiStore — the same `@proctira/backend-workflow` repositories as `/workflow-engine` (db/sql/025 when DATABASE_URL, else in-memory), so UI steps/approvals are engine definitions/transitions with audit. The former workflow-ui PG store is retained only for the isolated plugin unit test. Registrar name `workflow`. Gateway RBAC resource `workflow` via PATH_RESOURCE_MAP.',
     registrarName: 'workflow',
   },
+  {
+    package: 'dashboard-preview-ui',
+    mounted: true,
+    prefixes: ['/dashboard-preview'],
+    persistence: 'n/a',
+    rbacWired: true,
+    notes:
+      'Task 9.2 (principal-dashboard-parity). Two stateless routes (no database, no domain state) whose only purpose is to give the gateway global mutation-audit `onSend` hook (G-105, `app.ts`) something real to audit — the actual `Dashboard-Preview-State` cookie lives entirely in `apps/web` (Task 9.1), which has no `@proctira/database`/`@proctira/backend-audit` dependency by design. Gateway RBAC resource `dashboard-preview` via PATH_RESOURCE_MAP, requiring `dashboard-preview:manage` (Task 6, DEFAULT_ROLES).',
+    registrarName: 'dashboard-preview',
+  },
 
   // —— Unmounted packages/backend/* ——
   {

@@ -10,7 +10,7 @@
  * - GET /notifications/rules
  * - POST /notifications/templates
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
@@ -54,9 +54,11 @@ describe('Notification Routes', () => {
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { tenantId: string }).tenantId = tenantId;
       // W1-SEC-02 package guards — staff principal for send/rules/templates.
-      (request as typeof request & {
-        user?: { sub: string; roles: string[] };
-      }).user = { sub: userId1, roles: ['notification_admin'] };
+      (
+        request as typeof request & {
+          user?: { sub: string; roles: string[] };
+        }
+      ).user = { sub: userId1, roles: ['notification_admin'] };
     });
 
     await registerNotificationRoutes(app, {
@@ -225,6 +227,95 @@ describe('Notification Routes', () => {
       expect(body.data).toHaveLength(2);
       expect(body.pagination.total).toBe(3);
       expect(body.pagination.totalPages).toBe(2);
+    });
+  });
+
+  // ─── GET /notifications/user/:userId/unread-count ────────────────────────
+
+  describe('GET /notifications/user/:userId/unread-count', () => {
+    it('should return the unread count for a user with unread notifications', async () => {
+      for (let i = 0; i < 2; i++) {
+        await app.inject({
+          method: 'POST',
+          url: '/notifications/send',
+          payload: {
+            channel: 'in_app',
+            templateId,
+            recipients: { userIds: [userId1] },
+            variables: { name: `User${i}` },
+          },
+        });
+      }
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/notifications/user/${userId1}/unread-count`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body).toEqual({ count: 2 });
+    });
+
+    it('should return count 0 for a user with no unread notifications', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/notifications/user/${userId1}/unread-count`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.payload);
+      expect(body).toEqual({ count: 0 });
+    });
+
+    it('should return 400 when tenant context is missing', async () => {
+      const noTenantApp = Fastify();
+      noTenantApp.decorateRequest('tenantId', '');
+      noTenantApp.addHook('onRequest', async (request) => {
+        (
+          request as typeof request & {
+            user?: { sub: string; roles: string[] };
+          }
+        ).user = { sub: userId1, roles: ['notification_admin'] };
+      });
+
+      await registerNotificationRoutes(noTenantApp, {
+        notificationService: service,
+        prefix: '/notifications',
+      });
+      await noTenantApp.ready();
+
+      const response = await noTenantApp.inject({
+        method: 'GET',
+        url: `/notifications/user/${userId1}/unread-count`,
+      });
+
+      expect(response.statusCode).toBe(400);
+      const body = JSON.parse(response.payload);
+      expect(body.code).toBe('TENANT_REQUIRED');
+
+      await noTenantApp.close();
+    });
+
+    it('propagates a 500 when the underlying notification service is unreachable', async () => {
+      // Simulates the backing repository/service being unreachable (e.g. a
+      // dropped DB connection) rather than a request-shape problem like the
+      // missing-tenant 400 case above. `countUnreadNotifications` throws a
+      // plain Error (not an `AppError`), so the route handler's catch block
+      // re-throws it and Fastify's default error handler maps it to a 500 —
+      // there is no bespoke "service unavailable" branch in `routes.ts` today.
+      const countSpy = vi
+        .spyOn(service, 'countUnreadNotifications')
+        .mockRejectedValueOnce(new Error('ECONNREFUSED: notification backing store unreachable'));
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/notifications/user/${userId1}/unread-count`,
+      });
+
+      expect(response.statusCode).toBe(500);
+
+      countSpy.mockRestore();
     });
   });
 

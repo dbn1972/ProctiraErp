@@ -88,6 +88,13 @@ export interface NurseIncidentEntity {
   severity: 'low' | 'medium' | 'high' | 'critical';
   notes: string;
   reportedBy: string;
+  /**
+   * Open/closed status (principal-dashboard-parity Req 4.5/4.6). Optional and
+   * additive: callers/tests predating `db/sql/107_health_nurse_incident_status.sql`
+   * compile unchanged. Postgres defaults every row (new and pre-existing) to
+   * `'open'`; the in-memory store mirrors that default for test/dev parity.
+   */
+  status?: 'open' | 'closed';
   createdAt: Date;
   updatedAt: Date;
 }

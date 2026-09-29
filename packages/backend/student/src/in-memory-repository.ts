@@ -89,6 +89,18 @@ export class InMemoryStudentRepository implements StudentRepository {
         return custom?.['institutionId'] === institutionId;
       });
     }
+    if (filter.createdAfter) {
+      const from = new Date(`${filter.createdAfter}T00:00:00.000Z`);
+      items = items.filter((entity) => entity.createdAt >= from);
+    }
+    if (filter.createdBefore) {
+      // Exclusive start of the following day so the whole `createdBefore`
+      // date is included, matching `buildCreatedAtRange()` in
+      // `prisma-student-repository.ts`.
+      const to = new Date(`${filter.createdBefore}T00:00:00.000Z`);
+      to.setUTCDate(to.getUTCDate() + 1);
+      items = items.filter((entity) => entity.createdAt < to);
+    }
 
     // Sort
     const sortBy = pagination.sortBy ?? 'lastName';
