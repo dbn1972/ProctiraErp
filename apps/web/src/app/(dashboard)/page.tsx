@@ -34,7 +34,10 @@ import {
 } from '@/lib/dashboard/previewStateFixtures';
 import { hasDashboardPreviewPermission } from '@/lib/dashboard/previewStatePermission';
 import { dashboardRoleLabel, detectDashboardRole } from '@/lib/dashboard/role-detection';
-import { resolvePreviewOverride, type PreviewOverride } from '@/lib/dashboard/resolvePreviewOverride';
+import {
+  resolvePreviewOverride,
+  type PreviewOverride,
+} from '@/lib/dashboard/resolvePreviewOverride';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
@@ -379,9 +382,7 @@ function ApprovalsPanel({ approvals }: { approvals: WorkflowApproval[] | null })
                 className="block rounded-lg border border-[hsl(var(--border))] px-3 py-2 transition-colors hover:bg-[hsl(var(--muted))]"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {a.definitionName}
-                  </p>
+                  <p className="truncate text-sm font-medium text-foreground">{a.definitionName}</p>
                   <ApprovalCategoryBadge category={a.category} />
                 </div>
                 <p className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">

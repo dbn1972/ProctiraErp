@@ -26,6 +26,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { enforceNotificationRouteAccess } from './notification-http-guard.js';
 import type { NotificationService } from './notification-service.js';
 import {
   InMemoryNotificationPrefsStore,
@@ -48,8 +49,6 @@ import {
   type NotificationIdParams,
   type RuleIdParams,
 } from './schemas.js';
-
-import { enforceNotificationRouteAccess } from './notification-http-guard.js';
 
 /**
  * Options for registering notification routes.

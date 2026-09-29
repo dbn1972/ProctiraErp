@@ -11,7 +11,7 @@
  * - Permissions are evaluated against the user's JWT payload (AuthUser)
  */
 
-import type { AuthUser, RoleAssignment } from './types.js';
+import type { AuthUser } from './types.js';
 
 /**
  * Supported actions for permission checks.
@@ -27,13 +27,7 @@ import type { AuthUser, RoleAssignment } from './types.js';
  * read/write operations.
  */
 export type PermissionAction =
-  | 'create'
-  | 'read'
-  | 'update'
-  | 'delete'
-  | 'list'
-  | 'manage'
-  | 'preview';
+  'create' | 'read' | 'update' | 'delete' | 'list' | 'manage' | 'preview';
 
 /**
  * A single permission entry mapping a resource and action.

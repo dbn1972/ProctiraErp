@@ -92,7 +92,12 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
         value: '—',
         hint: 'Current enrolments',
       },
-      { id: 'staff-notifications', title: 'Open invoices', value: '—', hint: 'Fee invoices still open' },
+      {
+        id: 'staff-notifications',
+        title: 'Open invoices',
+        value: '—',
+        hint: 'Fee invoices still open',
+      },
     ],
   },
   parent: {

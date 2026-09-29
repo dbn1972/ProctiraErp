@@ -28,10 +28,7 @@ import type {
   ReportStore,
   ScheduleCadence,
 } from './report-store.js';
-import {
-  InMemoryScheduleDelivery,
-  type ScheduleDeliveryPort,
-} from './schedule-delivery.js';
+import { InMemoryScheduleDelivery, type ScheduleDeliveryPort } from './schedule-delivery.js';
 import { computeNextRunAt } from './scheduler.js';
 import { createReportDownloadToken } from './signed-download.js';
 

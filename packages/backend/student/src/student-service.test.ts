@@ -549,7 +549,9 @@ describe('StudentService', () => {
         );
       });
       await expect(guarded.delete(TENANT_ID, created.id)).rejects.toThrow(BusinessRuleError);
-      await expect(service.getById(TENANT_ID, created.id)).resolves.toMatchObject({ id: created.id });
+      await expect(service.getById(TENANT_ID, created.id)).resolves.toMatchObject({
+        id: created.id,
+      });
     });
   });
 

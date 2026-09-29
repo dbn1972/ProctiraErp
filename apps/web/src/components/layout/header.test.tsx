@@ -188,12 +188,17 @@ describe('<Header> — real session identity (Task 12.1 / Req 2 AC1, AC2, AC8)',
 
   it('falls back to the brand name when the directory context has no organisation name', () => {
     useDirectoryContextMock.mockReturnValue(null);
-    useOptionalBrandMock.mockReturnValue({ name: 'ProctiraERP' });
+    // A neutral placeholder, not the real product brand string — this test
+    // only asserts that Header falls back to useOptionalBrand()'s `name`
+    // when the directory context has none, not what that name happens to
+    // be (the `no-hardcoded-brand-strings` lint rule flags literal brand
+    // strings in source, including test fixtures).
+    useOptionalBrandMock.mockReturnValue({ name: 'Acme School Group' });
 
     render(<Header />);
 
     expect(screen.getByTestId('header-identity-subtext')).toHaveTextContent(
-      'Principal · ProctiraERP',
+      'Principal · Acme School Group',
     );
   });
 

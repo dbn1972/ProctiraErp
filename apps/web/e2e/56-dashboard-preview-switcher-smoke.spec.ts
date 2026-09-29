@@ -63,7 +63,11 @@
  */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-import { createSignedJwt, setupFakeTenantSession, setupGatewayTenantSession } from './fixtures/fake-session';
+import {
+  createSignedJwt,
+  setupFakeTenantSession,
+  setupGatewayTenantSession,
+} from './fixtures/fake-session';
 import {
   PREVIEW_STATE_COOKIE_NAME,
   PREVIEW_STATE_MAX_AGE_SECONDS,
@@ -160,9 +164,7 @@ test.describe('Preview-state switcher — authorization (ungated)', () => {
     await expect(page.getByTestId('preview-state-switcher')).toHaveCount(0);
   });
 
-  test('a permitted role (admin) does see the switcher with all five options', async ({
-    page,
-  }) => {
+  test('a permitted role (admin) does see the switcher with all five options', async ({ page }) => {
     await setupFakeTenantSession(page, { roles: ADMIN_ROLE });
     await page.goto('/', { waitUntil: 'domcontentloaded' });
     await stableVisible(page, 'preview-state-switcher');
@@ -171,7 +173,7 @@ test.describe('Preview-state switcher — authorization (ungated)', () => {
     }
   });
 
-  test('a hand-crafted cookie has no effect on an unpermitted user\'s rendered page (Req 6.1, 6.8, 6.11, 6.12)', async ({
+  test("a hand-crafted cookie has no effect on an unpermitted user's rendered page (Req 6.1, 6.8, 6.11, 6.12)", async ({
     page,
   }) => {
     // "resolvePreviewOverride()'s server-side permission re-check — not
@@ -212,9 +214,7 @@ test.describe('Preview-state switcher — all five states (ungated)', () => {
     expect(response.status()).toBe(200);
 
     // The switcher's own optimistic UI...
-    await expect(page.getByTestId('preview-state-switcher-active-label')).toHaveText(
-      /Filled/,
-    );
+    await expect(page.getByTestId('preview-state-switcher-active-label')).toHaveText(/Filled/);
     // ...and the server-rendered result after router.refresh(): banner,
     // populated role snapshot, and the fixture's distinctive number.
     await stableVisible(page, 'preview-state-banner');
@@ -360,7 +360,7 @@ test.describe('Preview-state switcher — audit-adjacent network behavior (ungat
 // ─── Scope isolation sanity (Req 6.8, 6.11) ─────────────────────────────────
 
 test.describe('Preview-state switcher — scope isolation (ungated)', () => {
-  test('a session with no cookie of its own is unaffected by another session\'s active preview state', async ({
+  test("a session with no cookie of its own is unaffected by another session's active preview state", async ({
     browser,
   }) => {
     const contextA = await browser.newContext();

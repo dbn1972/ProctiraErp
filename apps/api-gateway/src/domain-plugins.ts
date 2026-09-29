@@ -996,18 +996,22 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       scope.post('/dashboard-preview', async (request: FastifyRequest, reply) => {
         const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
         if (!tenantId) {
-          return reply
-            .status(400)
-            .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
         }
         return reply.status(200).send({ ok: true });
       });
       scope.delete('/dashboard-preview', async (request: FastifyRequest, reply) => {
         const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
         if (!tenantId) {
-          return reply
-            .status(400)
-            .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+          return reply.status(400).send({
+            code: 'TENANT_REQUIRED',
+            message: 'Tenant context is required',
+            statusCode: 400,
+          });
         }
         return reply.status(204).send();
       });

@@ -85,9 +85,7 @@ describe('notifications-inbox client', () => {
       const result = await listUserNotifications('user-1');
 
       expect(result).toEqual([notification]);
-      expect(gatewayFetch.mock.calls[0]?.[0]).toBe(
-        '/notifications/user/user-1?page=1&pageSize=50',
-      );
+      expect(gatewayFetch.mock.calls[0]?.[0]).toBe('/notifications/user/user-1?page=1&pageSize=50');
     });
 
     it('returns an empty array when the gateway call fails', async () => {

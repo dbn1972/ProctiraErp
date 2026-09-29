@@ -255,7 +255,11 @@ export function PreviewStateSwitcher({ canManagePreview }: PreviewStateSwitcherP
         <span className="text-sm font-semibold">Dashboard preview</span>
       </div>
 
-      <div role="group" aria-label="Dashboard preview state" className="mt-2 flex flex-wrap gap-1.5">
+      <div
+        role="group"
+        aria-label="Dashboard preview state"
+        className="mt-2 flex flex-wrap gap-1.5"
+      >
         {PREVIEW_STATES.map((state) => {
           const isActive = activeState === state;
           return (
@@ -268,9 +272,7 @@ export function PreviewStateSwitcher({ canManagePreview }: PreviewStateSwitcherP
               data-testid={`preview-state-switcher-option-${state}`}
               className={cn(
                 'rounded-full px-3 py-1 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-                isActive
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-white text-amber-800 hover:bg-amber-100',
+                isActive ? 'bg-amber-600 text-white' : 'bg-white text-amber-800 hover:bg-amber-100',
               )}
             >
               {PREVIEW_STATE_LABELS[state]}
@@ -298,7 +300,11 @@ export function PreviewStateSwitcher({ canManagePreview }: PreviewStateSwitcherP
       ) : null}
 
       {error ? (
-        <p role="alert" className="mt-2 text-xs text-destructive" data-testid="preview-state-switcher-error">
+        <p
+          role="alert"
+          className="mt-2 text-xs text-destructive"
+          data-testid="preview-state-switcher-error"
+        >
           {error}
         </p>
       ) : null}

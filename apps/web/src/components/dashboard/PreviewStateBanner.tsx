@@ -91,17 +91,12 @@ export function PreviewStateBanner({ activeState }: PreviewStateBannerProps) {
   if (activeState === null) return null;
 
   return (
-    <Alert
-      variant="warning"
-      className="mb-6"
-      data-testid="preview-state-banner"
-      role="status"
-    >
+    <Alert variant="warning" className="mb-6" data-testid="preview-state-banner" role="status">
       <AlertTriangle className="h-4 w-4" aria-hidden="true" />
       <AlertTitle>Preview mode: {PREVIEW_STATE_LABELS[activeState]}</AlertTitle>
       <AlertDescription>
-        This is not real data. Clear the preview state below to return to your tenant&apos;s
-        actual dashboard.
+        This is not real data. Clear the preview state below to return to your tenant&apos;s actual
+        dashboard.
       </AlertDescription>
     </Alert>
   );

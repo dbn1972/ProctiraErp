@@ -123,8 +123,8 @@ function makeFakeClient(existing: Set<string>, counts: FakeCounts) {
         rows: [
           {
             n: text.includes('date_trunc')
-              ? counts.feeCollectedThisMonthCents ?? 0
-              : counts.feesCollectedCents ?? 0,
+              ? (counts.feeCollectedThisMonthCents ?? 0)
+              : (counts.feesCollectedCents ?? 0),
           },
         ],
       };

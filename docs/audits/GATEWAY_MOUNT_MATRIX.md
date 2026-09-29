@@ -80,37 +80,37 @@ Every unmounted package carries a **decision** and rationale. `EXPECTED_PARKED` 
 
 ## Registrar ↔ package map
 
-| `DOMAIN_REGISTRARS.name` | Package / surface                                          |
-| ------------------------ | ---------------------------------------------------------- |
-| `student`                | `backend/student`                                          |
-| `institution`            | `backend/institution`                                      |
-| `tenant-admin`           | `backend/tenant` (G-910)                                   |
-| `staff`                  | `backend/staff`                                            |
-| `attendance`             | `backend/attendance`                                       |
-| `examination`            | `backend/examination`                                      |
-| `assessment`             | `backend/assessment`                                       |
-| `timetable`              | `backend/timetable`                                        |
-| `gradebook`              | `backend/gradebook`                                        |
-| `curriculum`             | `backend/curriculum` (G-923)                               |
-| `lms`                    | `backend/lms`                                              |
-| `scholarship`            | `backend/scholarship`                                      |
-| `health`                 | `backend/health` (+ `healthUiPlugin`)                      |
-| `insights`               | `(gateway) insights-ui` (board rollup + `/data-warehouse`) |
-| `report`                 | `backend/report` (G-909 catalogue)                         |
-| `etl`                    | `backend/etl` (Wave 10 Option C `/pipelines`)              |
-| `platform-admin`         | `(gateway) platform-admin-ui`                              |
-| `workflow`               | `(gateway) workflow-ui` (not `backend/workflow`)           |
-| `workflow-engine`        | `backend/workflow` (G-715)                                 |
-| `notification`           | `backend/notification`                                     |
-| `transport`              | `backend/transport`                                        |
-| `communication`          | `backend/communication`                                    |
-| `hostel`                 | `backend/hostel`                                           |
-| `library`                | `backend/library`                                          |
-| `parent-portal`          | `backend/parent-portal`                                    |
-| `fees`                   | `backend/fees`                                             |
-| `registration`           | `backend/registration`                                     |
-| `developer`              | `backend/developer-portal`                                 |
-| `privacy`                | `backend/privacy` (W1-ARCH-05 / W1-SEC-06)                 |
+| `DOMAIN_REGISTRARS.name` | Package / surface                                                   |
+| ------------------------ | ------------------------------------------------------------------- |
+| `student`                | `backend/student`                                                   |
+| `institution`            | `backend/institution`                                               |
+| `tenant-admin`           | `backend/tenant` (G-910)                                            |
+| `staff`                  | `backend/staff`                                                     |
+| `attendance`             | `backend/attendance`                                                |
+| `examination`            | `backend/examination`                                               |
+| `assessment`             | `backend/assessment`                                                |
+| `timetable`              | `backend/timetable`                                                 |
+| `gradebook`              | `backend/gradebook`                                                 |
+| `curriculum`             | `backend/curriculum` (G-923)                                        |
+| `lms`                    | `backend/lms`                                                       |
+| `scholarship`            | `backend/scholarship`                                               |
+| `health`                 | `backend/health` (+ `healthUiPlugin`)                               |
+| `insights`               | `(gateway) insights-ui` (board rollup + `/data-warehouse`)          |
+| `report`                 | `backend/report` (G-909 catalogue)                                  |
+| `etl`                    | `backend/etl` (Wave 10 Option C `/pipelines`)                       |
+| `platform-admin`         | `(gateway) platform-admin-ui`                                       |
+| `workflow`               | `(gateway) workflow-ui` (not `backend/workflow`)                    |
+| `workflow-engine`        | `backend/workflow` (G-715)                                          |
+| `notification`           | `backend/notification`                                              |
+| `transport`              | `backend/transport`                                                 |
+| `communication`          | `backend/communication`                                             |
+| `hostel`                 | `backend/hostel`                                                    |
+| `library`                | `backend/library`                                                   |
+| `parent-portal`          | `backend/parent-portal`                                             |
+| `fees`                   | `backend/fees`                                                      |
+| `registration`           | `backend/registration`                                              |
+| `developer`              | `backend/developer-portal`                                          |
+| `privacy`                | `backend/privacy` (W1-ARCH-05 / W1-SEC-06)                          |
 | `dashboard-preview`      | `(gateway) dashboard-preview-ui` (Task 9.2, stateless audit-anchor) |
 
 ## Maintenance

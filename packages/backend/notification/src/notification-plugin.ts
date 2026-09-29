@@ -16,6 +16,11 @@ import type { CacheClient } from '@proctira/cache';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  createEmailSenderFromEnv,
+  createPushSenderFromEnv,
+  createSmsSenderFromEnv,
+} from './channel-sender-factory.js';
 import type { NotificationRepository } from './notification-repository.js';
 import {
   NotificationService,
@@ -26,11 +31,6 @@ import {
   type NotificationQueuePublisher,
   type NotificationServiceConfig,
 } from './notification-service.js';
-import {
-  createEmailSenderFromEnv,
-  createPushSenderFromEnv,
-  createSmsSenderFromEnv,
-} from './channel-sender-factory.js';
 import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
 

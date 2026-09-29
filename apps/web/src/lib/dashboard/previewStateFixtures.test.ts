@@ -176,10 +176,7 @@ describe('createNeverResolvingDashboardFetch', () => {
     const SETTLE_MARKER = Symbol('settled');
     const timeout = new Promise((resolve) => setTimeout(() => resolve(SETTLE_MARKER), 50));
 
-    const result = await Promise.race([
-      createNeverResolvingDashboardFetch<unknown>(),
-      timeout,
-    ]);
+    const result = await Promise.race([createNeverResolvingDashboardFetch<unknown>(), timeout]);
 
     expect(result).toBe(SETTLE_MARKER);
   });

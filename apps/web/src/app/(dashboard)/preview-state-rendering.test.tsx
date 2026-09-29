@@ -211,12 +211,8 @@ describe('<DashboardPage> preview-state rendering', () => {
 
       // Populated role-dashboard snapshot: the real RoleDashboardPanel
       // content, not the ScaffoldModeBanner fallback.
-      expect(screen.getByTestId('dashboard-role-title')).toHaveTextContent(
-        'Principal dashboard',
-      );
-      expect(screen.getByTestId('dashboard-card-principal-attendance')).toHaveTextContent(
-        '94.2%',
-      );
+      expect(screen.getByTestId('dashboard-role-title')).toHaveTextContent('Principal dashboard');
+      expect(screen.getByTestId('dashboard-card-principal-attendance')).toHaveTextContent('94.2%');
       expect(screen.queryByTestId('scaffold-mode-banner')).toBeNull();
 
       expect(currentlyUnavailableCount()).toBe(0);
@@ -237,9 +233,7 @@ describe('<DashboardPage> preview-state rendering', () => {
       expect(within(cardFor('Institutions')).getByText('3')).toBeInTheDocument();
       expect(within(cardFor('Students')).getByText('620')).toBeInTheDocument();
       expect(within(cardFor('Staff')).getByText('71')).toBeInTheDocument();
-      expect(screen.getByTestId('dashboard-role-title')).toHaveTextContent(
-        'Principal dashboard',
-      );
+      expect(screen.getByTestId('dashboard-role-title')).toHaveTextContent('Principal dashboard');
 
       // The approvals panel's EXISTING empty state — not a failure state.
       expect(screen.getByText('All caught up')).toBeInTheDocument();
@@ -271,12 +265,8 @@ describe('<DashboardPage> preview-state rendering', () => {
       // A populated section coexists with the unavailable KPI cards — the
       // key distinguishing assertion vs 'error', which fails everything.
       expect(screen.getByText('Student transfer approval')).toBeInTheDocument();
-      expect(screen.getByTestId('dashboard-role-title')).toHaveTextContent(
-        'Principal dashboard',
-      );
-      expect(screen.getByTestId('dashboard-card-principal-attendance')).toHaveTextContent(
-        '94.2%',
-      );
+      expect(screen.getByTestId('dashboard-role-title')).toHaveTextContent('Principal dashboard');
+      expect(screen.getByTestId('dashboard-card-principal-attendance')).toHaveTextContent('94.2%');
       expect(screen.queryByTestId('scaffold-mode-banner')).toBeNull();
 
       // Exactly the three KPI cards are unavailable — not the approvals
@@ -318,9 +308,7 @@ describe('<DashboardPage> preview-state rendering', () => {
       // fallback, not RoleDashboardPanel.
       expect(screen.queryByTestId('dashboard-role-title')).toBeNull();
       expect(screen.getByTestId('scaffold-mode-banner')).toBeInTheDocument();
-      expect(screen.getByTestId('scaffold-mode-banner')).toHaveTextContent(
-        'Principal dashboard',
-      );
+      expect(screen.getByTestId('scaffold-mode-banner')).toHaveTextContent('Principal dashboard');
 
       // Maximum failure surface: all four KPI cards plus the approvals
       // panel — more than 'degraded' (3) and none of 'no-approvals' (0).
@@ -366,8 +354,7 @@ describe('<DashboardPage> preview-state rendering', () => {
       });
       render(await DashboardPage());
       const degradedUnavailableCount = currentlyUnavailableCount();
-      const degradedHasPopulatedApproval =
-        screen.queryByText('Student transfer approval') !== null;
+      const degradedHasPopulatedApproval = screen.queryByText('Student transfer approval') !== null;
       cleanup();
 
       resolvePreviewOverride.mockResolvedValue({

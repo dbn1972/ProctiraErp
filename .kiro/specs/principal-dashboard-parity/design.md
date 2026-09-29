@@ -124,13 +124,13 @@ Every server read of the cookie re-verifies this permission fresh via `hasPermis
 
 **Rendering the five states** — a new server-side helper `resolvePreviewOverride(request)` runs before `page.tsx`'s `Promise.all`, returns `null` when no valid+authorized+unexpired signal exists (the normal path, unchanged for every other user), or a `PreviewOverride` object otherwise:
 
-| State | Behavior | Reused mechanism |
-|---|---|---|
-| Filled | Fabricated non-empty results substituted for all six sources | New fixture data shaped exactly like real `RoleDashboard`/`WorkflowApproval[]`/KPI results |
-| No approvals | All sources succeed except `approvals` is forced to `[]` | Existing `ApprovalsPanel` empty state ("All caught up") — already renders correctly for `[]`, no new UI needed (Req 6 AC4) |
-| Degraded | A defined subset (KPI cards) forced to `null`, `roleDashboard`/`approvals` still succeed | Existing per-source `.catch(() => null)` → "Currently unavailable" rendering — already correct for `null`, no new UI needed (Req 6 AC5) |
-| Loading | Route-level suspend, page never resolves while state is set | Existing `apps/web/src/app/(dashboard)/loading.tsx` (`RouteLoadingPanel`) — the override forces a never-resolving promise for the duration the state is active rather than a fabricated fast response (Req 6 AC6) |
-| Error | All sources rejected, page renders each section's existing error/unavailable branch | Same `.catch(() => null)` branches as Degraded, but applied to every source instead of a subset (Req 6 AC7) |
+| State        | Behavior                                                                                 | Reused mechanism                                                                                                                                                                                                  |
+| ------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Filled       | Fabricated non-empty results substituted for all six sources                             | New fixture data shaped exactly like real `RoleDashboard`/`WorkflowApproval[]`/KPI results                                                                                                                        |
+| No approvals | All sources succeed except `approvals` is forced to `[]`                                 | Existing `ApprovalsPanel` empty state ("All caught up") — already renders correctly for `[]`, no new UI needed (Req 6 AC4)                                                                                        |
+| Degraded     | A defined subset (KPI cards) forced to `null`, `roleDashboard`/`approvals` still succeed | Existing per-source `.catch(() => null)` → "Currently unavailable" rendering — already correct for `null`, no new UI needed (Req 6 AC5)                                                                           |
+| Loading      | Route-level suspend, page never resolves while state is set                              | Existing `apps/web/src/app/(dashboard)/loading.tsx` (`RouteLoadingPanel`) — the override forces a never-resolving promise for the duration the state is active rather than a fabricated fast response (Req 6 AC6) |
+| Error        | All sources rejected, page renders each section's existing error/unavailable branch      | Same `.catch(() => null)` branches as Degraded, but applied to every source instead of a subset (Req 6 AC7)                                                                                                       |
 
 **Visible indicator** (Req 6 AC10): a banner built the same way as `ScaffoldModeBanner` (`apps/web/src/components/insights/ScaffoldModeBanner.tsx`), reusing `Alert` `variant="warning"`, rendered at the top of the dashboard page whenever `resolvePreviewOverride()` returns non-null, naming the active state (e.g. "Preview mode: Filled — this is not real data"). It is visible only to the session that set it, since it's driven by that session's own cookie (Req 6 AC8, AC11).
 
@@ -182,20 +182,24 @@ async function countUnreadNotificationsCached(
   compute: () => Promise<number>,
 ): Promise<number> {
   if (!cache) return compute();
-  return cache.getOrSet(tenantKey(tenantId, 'notification-unread-count', userId), compute, UNREAD_COUNT_TTL_SECONDS);
+  return cache.getOrSet(
+    tenantKey(tenantId, 'notification-unread-count', userId),
+    compute,
+    UNREAD_COUNT_TTL_SECONDS,
+  );
 }
 ```
 
 ### 9. Cross-cutting constraints (Requirement 7)
 
-| AC | Satisfied by |
-|---|---|
-| AC1 (tenant scoping) | Every new query runs inside `withPgTenant`; the preview cookie is read only within the requesting session (§6) |
-| AC2 (independent degradation) | New KPI subtext (§3) and new snapshot metrics (§4) each fail independently via the same `.catch(() => null)` convention |
-| AC3 (relationExists guard) | Every new aggregate query in §4 is guarded by `relationExists()` before running |
-| AC4 (RBAC, not client-only) | §6's `dashboard-preview` permission is re-checked server-side on every read, never trusting client-side visibility |
+| AC                                                | Satisfied by                                                                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AC1 (tenant scoping)                              | Every new query runs inside `withPgTenant`; the preview cookie is read only within the requesting session (§6)                                    |
+| AC2 (independent degradation)                     | New KPI subtext (§3) and new snapshot metrics (§4) each fail independently via the same `.catch(() => null)` convention                           |
+| AC3 (relationExists guard)                        | Every new aggregate query in §4 is guarded by `relationExists()` before running                                                                   |
+| AC4 (RBAC, not client-only)                       | §6's `dashboard-preview` permission is re-checked server-side on every read, never trusting client-side visibility                                |
 | AC5 (explicit sign-off for open schema questions) | Board/affiliation, branch/campus, staff classification, and fee-collection target are named explicitly as NOT decided in this design (§1, §3, §4) |
-| AC6 (additive, no breaking changes) | `DashboardAggregates`, `WorkflowApproval`, `TenantSettings`, `NurseIncidentRecord` all gain fields only; nothing existing is removed or retyped |
+| AC6 (additive, no breaking changes)               | `DashboardAggregates`, `WorkflowApproval`, `TenantSettings`, `NurseIncidentRecord` all gain fields only; nothing existing is removed or retyped   |
 
 ## Data Models
 
@@ -205,14 +209,14 @@ export interface DashboardAggregates {
   schools: number;
   students: number;
   enrolments: number;
-  attendancePercent: number | null;       // unchanged, existing all-time metric
+  attendancePercent: number | null; // unchanged, existing all-time metric
   openInvoices: number;
   feesCollectedCents: number;
   linkedChildren: number;
-  todayAttendancePercent: number | null;  // new
-  feeCollectedThisMonthCents: number;     // new
-  pendingAdmissionsCount: number;         // new
-  openHealthIncidentsCount: number;       // new
+  todayAttendancePercent: number | null; // new
+  feeCollectedThisMonthCents: number; // new
+  pendingAdmissionsCount: number; // new
+  openHealthIncidentsCount: number; // new
 }
 ```
 
@@ -293,7 +297,7 @@ Every new field on `DashboardAggregates`, `WorkflowApproval`, and `health_nurse_
 
 Every successful preview-state set and every explicit clear (`POST`/`DELETE /api/dashboard/preview-state`, each routed through the gateway's `dashboard-preview` audit-anchor endpoint) produces exactly one corresponding `audit_log_entries` row attributing actor, tenant, and timestamp. No request-driven code path sets or clears the state without also triggering that audit call.
 
-Revised at Task 9.2 (see §6's "Audit" note above): automatic expiry is excluded from this property by design, not by omission. `resolvePreviewOverride()` treating an expired cookie as "no override" is a passive read with no request to attribute the transition to and no actor who took an action — it produces no audit row, and its own doc comment explains why. The property therefore covers every *request-driven* set/clear, which is every code path capable of producing an actor/tenant/timestamp triple in the first place.
+Revised at Task 9.2 (see §6's "Audit" note above): automatic expiry is excluded from this property by design, not by omission. `resolvePreviewOverride()` treating an expired cookie as "no override" is a passive read with no request to attribute the transition to and no actor who took an action — it produces no audit row, and its own doc comment explains why. The property therefore covers every _request-driven_ set/clear, which is every code path capable of producing an actor/tenant/timestamp triple in the first place.
 
 **Validates: Requirements 6.13**
 

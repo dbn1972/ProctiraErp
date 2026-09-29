@@ -47,9 +47,9 @@ describe('<PreviewStateBanner> — visible fabricated-state indicator (Req 6.10)
   it('renders the exact "Degraded (services down)" label for the "degraded" state', () => {
     render(<PreviewStateBanner activeState="degraded" />);
 
-    expect(
-      screen.getByTestId('preview-state-banner').querySelector('h5')?.textContent,
-    ).toBe('Preview mode: Degraded (services down)');
+    expect(screen.getByTestId('preview-state-banner').querySelector('h5')?.textContent).toBe(
+      'Preview mode: Degraded (services down)',
+    );
   });
 
   it('renders a distinct title per state, never the same text twice', () => {
