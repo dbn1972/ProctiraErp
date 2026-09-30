@@ -17,9 +17,10 @@ export interface Tenant {
   plan: string;
   region: string;
   createdAt: string;
-  contactEmail: string;
-  /** Number of active users (from latest usage snapshot). */
-  activeUsers: number;
+  /** Null when the tenant service does not hold it (PRC-H005). */
+  contactEmail: string | null;
+  /** Number of active users; null when unknown — never a fabricated 0 (PRC-H005). */
+  activeUsers: number | null;
   /** Latest entitlement summary. */
   entitlements: string[];
 }

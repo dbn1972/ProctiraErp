@@ -6,13 +6,14 @@
  */
 import { gatewayFetch } from './gateway';
 
-export type HealthStatus = 'healthy' | 'degraded' | 'down';
+export type HealthStatus = 'healthy' | 'degraded' | 'down' | 'unknown';
 
 export interface AdapterHealth {
   name: string;
   category: 'queue' | 'cache' | 'storage' | 'auth' | 'database' | 'external';
   status: HealthStatus;
-  latencyMs: number;
+  /** Null when no probe ran (PRC-H005). */
+  latencyMs: number | null;
   /** Human-readable note (last error, lag value, etc.). */
   note: string;
   lastChecked: string;
