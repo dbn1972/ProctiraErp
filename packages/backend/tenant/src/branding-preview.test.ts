@@ -129,7 +129,8 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
     const publishRes = await app.inject({
       method: 'POST',
       url: '/tenant/branding/publish',
-      headers: { 'x-tenant-id': tenantId },
+      // PRC-H097: publish now requires branding:edit — act as the admin test user.
+      headers: { 'x-tenant-id': tenantId, 'x-test-user': 'admin' },
       payload: { tokens: publishedTokens, publishedBy: PUBLISHER_ALICE },
     });
     expect(publishRes.statusCode).toBe(201);
