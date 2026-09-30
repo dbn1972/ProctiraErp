@@ -16,7 +16,11 @@ import {
 } from './branding-routes.js';
 import { registerTenantRoutes } from './routes.js';
 import type { TenantRepository } from './tenant-repository.js';
-import { TenantService, type DestructiveDeleteGuard } from './tenant-service.js';
+import {
+  TenantService,
+  type DestructiveDeleteGuard,
+  type TenantAdminProvisioner,
+} from './tenant-service.js';
 
 /**
  * Options for the tenant lifecycle plugin.
@@ -28,6 +32,11 @@ export interface TenantPluginOptions {
   prefix?: string;
   /** Optional W1-SEC-06 destructive-delete guard (e.g. PrivacyService). */
   destructiveDeleteGuard?: DestructiveDeleteGuard;
+  /**
+   * PRC-H099: creates the initial tenant admin. When omitted, POST /tenants
+   * fails closed (422) instead of creating a tenant without an admin.
+   */
+  adminProvisioner?: TenantAdminProvisioner;
   /**
    * Branding route configuration (Tasks 58.2 + 58.3). When omitted, the
    * branding endpoints are still registered at `/tenant/branding` and rely
@@ -62,10 +71,16 @@ declare module 'fastify' {
  */
 export const tenantLifecyclePlugin = fp(
   async function tenantLifecyclePluginImpl(fastify: FastifyInstance, options: TenantPluginOptions) {
-    const { repository, prefix = '/tenants', branding, destructiveDeleteGuard } = options;
+    const {
+      repository,
+      prefix = '/tenants',
+      branding,
+      destructiveDeleteGuard,
+      adminProvisioner,
+    } = options;
 
     // Create tenant service instance
-    const tenantService = new TenantService(repository, destructiveDeleteGuard);
+    const tenantService = new TenantService(repository, destructiveDeleteGuard, adminProvisioner);
 
     // Decorate fastify with the tenant service
     fastify.decorate('tenantService', tenantService);

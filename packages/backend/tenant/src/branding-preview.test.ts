@@ -34,6 +34,7 @@ import {
   type BrandingPermissionResolver,
 } from './branding-routes.js';
 import type { CreateTenantInput, ThemeTokens } from './schemas.js';
+import { RecordingAdminProvisioner } from './test-admin-provisioner.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -104,7 +105,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
 
   beforeEach(async () => {
     repository = new InMemoryTenantRepository();
-    service = new TenantService(repository);
+    service = new TenantService(repository, undefined, new RecordingAdminProvisioner());
 
     app = Fastify();
     await registerTenantRoutes(app, { tenantService: service });
@@ -397,7 +398,11 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       // Spin up a fresh app WITHOUT the hasPermission hook.
       const closedApp = Fastify();
       const closedRepo = new InMemoryTenantRepository();
-      const closedService = new TenantService(closedRepo);
+      const closedService = new TenantService(
+        closedRepo,
+        undefined,
+        new RecordingAdminProvisioner(),
+      );
       await registerTenantRoutes(closedApp, { tenantService: closedService });
       await registerBrandingRoutes(closedApp, {
         tenantService: closedService,
