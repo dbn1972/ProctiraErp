@@ -8,7 +8,7 @@
  * artifact. Demo rows are served ONLY in explicit non-production demo mode
  * (`REPORT_DEMO_DATA=1` and `NODE_ENV !== 'production'`).
  */
-import { AppError } from '@proctira/common';
+import { AppError, ValidationError } from '@proctira/common';
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
 import type { CatalogueReportKey } from './catalogue.js';
@@ -176,16 +176,39 @@ async function loadStudentsRoster(client: PgQueryable, tenantId: string): Promis
   };
 }
 
-async function loadAttendance(client: PgQueryable, tenantId: string): Promise<ReportTable> {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * PRC-H081: student_attendance has no grade_id — derive the grade via
+ * classes.grade_id -> grades, and honour the catalogue `date` filter.
+ */
+async function loadAttendance(
+  client: PgQueryable,
+  tenantId: string,
+  filters: Record<string, unknown>,
+): Promise<ReportTable> {
   await requireRelation(client, 'student_attendance');
+  const date = filters.date;
+  if (date !== undefined && date !== null && date !== '') {
+    if (typeof date !== 'string' || !ISO_DATE.test(date)) {
+      throw new ValidationError('Invalid attendance report date filter', [
+        { field: 'filters.date', rule: 'format', message: 'Expected YYYY-MM-DD' },
+      ]);
+    }
+  }
+  const dateFilter = typeof date === 'string' && date !== '' ? date : null;
   const { rows } = await client.query(
-    `SELECT COALESCE(grade_id::text, 'unspecified') AS grade,
-              COUNT(*) FILTER (WHERE status IN ('PRESENT', 'LATE', 'present', 'late'))::int AS present,
-              COUNT(*) FILTER (WHERE status IN ('ABSENT', 'absent'))::int AS absent,
-              COUNT(*) FILTER (WHERE status IN ('LATE', 'late'))::int AS late
-         FROM student_attendance
-        GROUP BY 1
-        ORDER BY 1`,
+    `SELECT COALESCE(g.name, 'unspecified') AS grade,
+            COUNT(*) FILTER (WHERE sa.status IN ('PRESENT', 'LATE'))::int AS present,
+            COUNT(*) FILTER (WHERE sa.status = 'ABSENT')::int AS absent,
+            COUNT(*) FILTER (WHERE sa.status = 'LATE')::int AS late
+       FROM student_attendance sa
+       LEFT JOIN classes c ON c.id = sa.class_id
+       LEFT JOIN grades g ON g.id = c.grade_id
+      WHERE ($1::date IS NULL OR sa.date = $1::date)
+      GROUP BY 1
+      ORDER BY 1`,
+    [dateFilter],
   );
   return {
     columns: [
@@ -303,7 +326,7 @@ async function loadLive(
   filters: Record<string, unknown>,
 ): Promise<ReportTable> {
   if (key === 'students_roster') return loadStudentsRoster(client, tenantId);
-  if (key === 'attendance_summary') return loadAttendance(client, tenantId);
+  if (key === 'attendance_summary') return loadAttendance(client, tenantId, filters);
   if (key === 'fee_dues') return loadFeeDues(client, tenantId);
   if (key === 'enrolment_by_grade') return loadEnrolment(client, tenantId, filters);
   return loadExamResults(client, tenantId);
@@ -326,7 +349,8 @@ export async function fetchCatalogueTable(
   try {
     return await withPgTenant(pool, tenantId, (client) => loadLive(client, tenantId, key, filters));
   } catch (error: unknown) {
-    if (error instanceof ReportDataUnavailableError) throw error;
+    if (error instanceof ReportDataUnavailableError || error instanceof ValidationError)
+      throw error;
     const message = error instanceof Error ? error.message : String(error);
     throw new ReportDataUnavailableError(`Report query failed for '${key}': ${message}`, error);
   }
