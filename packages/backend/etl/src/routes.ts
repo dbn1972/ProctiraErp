@@ -10,10 +10,12 @@
  * GET    /pipelines/:pipelineId/executions       - List executions for a pipeline
  * GET    /pipelines/:pipelineId/executions/:executionId - Get execution details
  */
+import { getActor } from '@proctira/backend-auth';
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { hasEtlAccess } from './etl-access.js';
 import type { ETLService } from './etl-service.js';
 import {
   CreatePipelineSchema,
@@ -26,6 +28,7 @@ import {
   type PipelineListQuery,
   type Pipeline,
   type PipelineExecution,
+  type ExecutionError,
 } from './schemas.js';
 
 /**
@@ -38,6 +41,28 @@ export interface ETLRoutesOptions {
 }
 
 /**
+ * PRC-H050 (defense in depth): connector configs carry live credentials — postgres `password`,
+ * REST `authConfig` and auth-bearing `headers`. Even ETL staff reading a pipeline definition
+ * should not get plaintext secrets echoed back; they are write-only from the API's perspective.
+ * Redact known secret-bearing fields, replacing present values with a stable sentinel so the UI
+ * can show "configured" without disclosing the value.
+ */
+const REDACTED = '__redacted__';
+const SECRET_CONNECTOR_FIELDS = ['password', 'authConfig', 'headers', 'body'] as const;
+
+function redactConnectorConfig(config: unknown): unknown {
+  if (!config || typeof config !== 'object') return config;
+  const source = config as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...source };
+  for (const field of SECRET_CONNECTOR_FIELDS) {
+    if (out[field] !== undefined && out[field] !== null) {
+      out[field] = REDACTED;
+    }
+  }
+  return out;
+}
+
+/**
  * Format a pipeline entity for API response.
  */
 function formatPipelineResponse(entity: Pipeline) {
@@ -46,14 +71,30 @@ function formatPipelineResponse(entity: Pipeline) {
     tenantId: entity.tenantId,
     name: entity.name,
     description: entity.description,
-    source: entity.source,
-    destination: entity.destination,
+    source: redactConnectorConfig(entity.source),
+    destination: redactConnectorConfig(entity.destination),
     fieldMappings: entity.fieldMappings,
     schedule: entity.schedule,
     retryPolicy: entity.retryPolicy,
     enabled: entity.enabled,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+/**
+ * PRC-H050 (defense in depth): execution error rows carry the offending *source record* in
+ * `data` — for student/PII sources this is sensitive material. Diagnostics need to know which
+ * row failed and why (row index, field, message), not the raw record, so strip `data` to a
+ * boolean presence flag. This keeps the failure actionable without echoing source PII over the
+ * API even to authorized ETL staff (and stays safe if the route gate ever regresses).
+ */
+function redactExecutionError(error: ExecutionError) {
+  return {
+    row: error.row,
+    field: error.field,
+    message: error.message,
+    hasData: error.data != null,
   };
 }
 
@@ -72,7 +113,7 @@ function formatExecutionResponse(entity: PipelineExecution) {
     transformedCount: entity.transformedCount,
     loadedCount: entity.loadedCount,
     errorCount: entity.errorCount,
-    errors: entity.errors,
+    errors: (entity.errors ?? []).map(redactExecutionError),
     lineage: entity.lineage ?? null,
   };
 }
@@ -92,6 +133,24 @@ export async function registerETLRoutes(
   options: ETLRoutesOptions,
 ): Promise<void> {
   const { etlService, prefix = '/pipelines' } = options;
+
+  /**
+   * PRC-H050: gate every ETL pipeline operation (read and write) behind an ETL/admin role.
+   * The gateway only enforces the coarse `report` resource, which parents/guardians/students/
+   * teachers/generic staff also hold, so without this the connector credentials and execution
+   * error rows returned by the read handlers were reachable by any authenticated tenant user.
+   * Identity/roles come from the verified JWT actor only.
+   */
+  fastify.addHook('preHandler', async function etlAccessGuard(request, reply) {
+    if (!hasEtlAccess(getActor(request).roles)) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'ETL pipeline access requires an ETL or admin role',
+        statusCode: 403,
+      });
+    }
+    return undefined;
+  });
 
   /**
    * POST /pipelines
