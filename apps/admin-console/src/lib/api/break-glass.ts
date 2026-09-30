@@ -37,11 +37,34 @@ export interface BreakGlassRequest {
   durationMinutes: number;
   status: BreakGlassStatus;
   createdAt: string;
+  /** Verified JWT subject of the requester (set by the gateway, PRC-H003). */
+  requesterSub?: string;
   /** Approver email, if approved. */
   approver?: string;
+  /** Verified JWT subject of the approver (set by the gateway, PRC-H003). */
+  approverSub?: string;
   approvedAt?: string;
   /** ISO timestamp at which the grant expires. */
   expiresAt?: string;
+}
+
+/**
+ * PRC-H003: an active grant for this operator on this tenant, still inside its window.
+ * Matches on the verified subject when the gateway provides it (email only for legacy rows).
+ */
+export function hasActiveBreakGlassGrant(
+  requests: BreakGlassRequest[],
+  tenantId: string | undefined,
+  operator: { sub: string; email?: string | null },
+  now: Date = new Date(),
+): boolean {
+  if (!tenantId) return false;
+  return requests.some((request) => {
+    if (request.status !== 'active' || request.targetTenantId !== tenantId) return false;
+    if (!request.expiresAt || Date.parse(request.expiresAt) <= now.getTime()) return false;
+    if (request.requesterSub) return request.requesterSub === operator.sub;
+    return !!operator.email && request.requester.toLowerCase() === operator.email.toLowerCase();
+  });
 }
 
 const STUB_REQUESTS: BreakGlassRequest[] = [
