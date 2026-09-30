@@ -7,9 +7,18 @@ import { registerETLRoutes } from './routes.js';
 import { ETLService } from './etl-service.js';
 import { InMemoryPipelineRepository } from './in-memory-repository.js';
 
+interface TestRole {
+  roleId: string;
+  roleName: string;
+  areaId: string | null;
+}
+
 describe('ETL Routes', () => {
   let app: FastifyInstance;
   let etlService: ETLService;
+  // PRC-H050: ETL routes now require an ETL/admin role. Default the harness to an ETL engineer
+  // so the functional route tests exercise the authorized path; individual tests override it.
+  let principalRoles: TestRole[] = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
   const tenantId = '550e8400-e29b-41d4-a716-446655440000';
 
   const validPipelineBody = {
@@ -47,9 +56,12 @@ describe('ETL Routes', () => {
       defaultRetryPolicy: { maxRetries: 3, backoffMs: 1000 },
     });
 
-    // Add tenant context hook for testing
+    principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+
+    // Add tenant + JWT-actor context hook for testing (getActor reads request.user).
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = tenantId;
+      (request as unknown as { user: unknown }).user = { sub: 'etl-user', tenantId, roles: principalRoles };
     });
 
     await registerETLRoutes(app, { etlService, prefix: '/pipelines' });
@@ -238,6 +250,71 @@ describe('ETL Routes', () => {
       expect(response.statusCode).toBe(503);
       const body = JSON.parse(response.payload);
       expect(body.code).toBe('SERVICE_UNAVAILABLE');
+    });
+  });
+
+  // PRC-H050: pipeline definitions carry connector credentials and execution error rows carry
+  // source records. Only ETL/admin roles may touch pipelines; report-readers must not.
+  describe('ETL access control (PRC-H050)', () => {
+    const denied: TestRole[][] = [
+      [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+      [{ roleId: 'guardian', roleName: 'Guardian', areaId: null }],
+      [{ roleId: 'student', roleName: 'Student', areaId: null }],
+      [{ roleId: 'teacher', roleName: 'Teacher', areaId: null }],
+      [{ roleId: 'staff', roleName: 'Staff', areaId: null }],
+      [],
+    ];
+
+    for (const roles of denied) {
+      const label = roles.length ? roles[0]!.roleId : 'no-role';
+      it(`denies GET /pipelines for ${label} (403)`, async () => {
+        principalRoles = roles;
+        const response = await app.inject({ method: 'GET', url: '/pipelines' });
+        expect(response.statusCode).toBe(403);
+        expect(JSON.parse(response.payload).code).toBe('FORBIDDEN');
+      });
+
+      it(`denies POST /pipelines for ${label} (403)`, async () => {
+        principalRoles = roles;
+        const response = await app.inject({
+          method: 'POST',
+          url: '/pipelines',
+          payload: validPipelineBody,
+        });
+        expect(response.statusCode).toBe(403);
+      });
+    }
+
+    it('allows an ETL engineer to list pipelines', async () => {
+      principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+      const response = await app.inject({ method: 'GET', url: '/pipelines' });
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('allows an admin to list pipelines', async () => {
+      principalRoles = [{ roleId: 'admin', roleName: 'Admin', areaId: null }];
+      const response = await app.inject({ method: 'GET', url: '/pipelines' });
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('redacts connector credentials in the pipeline response', async () => {
+      principalRoles = [{ roleId: 'etl_engineer', roleName: 'ETL Engineer', areaId: null }];
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/pipelines',
+        payload: validPipelineBody,
+      });
+      expect(createResponse.statusCode).toBe(201);
+      const created = JSON.parse(createResponse.payload);
+      // destination is postgresql with a password — it must not be echoed verbatim.
+      expect(created.destination.password).not.toBe('pass');
+      expect(created.destination.password).toBe('__redacted__');
+      // Non-secret fields are preserved.
+      expect(created.destination.host).toBe('localhost');
+      expect(created.destination.database).toBe('testdb');
+
+      const getResponse = await app.inject({ method: 'GET', url: `/pipelines/${created.id}` });
+      expect(JSON.parse(getResponse.payload).destination.password).toBe('__redacted__');
     });
   });
 });
