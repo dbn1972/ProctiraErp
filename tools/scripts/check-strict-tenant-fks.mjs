@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * W1-DATA-06 COMPLETE — Strict tenant FK posture + live catalog gate.
+ * W1-DATA-06 — Strict tenant FK posture + live catalog gate.
  *
  * Finding (PARTIAL residual):
  *   - APPLY_STRICT_FKS defaulted OFF, so prod/CI could forget create+validate.
@@ -760,7 +760,7 @@ export function evaluateStrictTenantFks({
 }
 
 function formatReport(report) {
-  const lines = ['## Strict tenant FK gate (W1-DATA-06 COMPLETE)', ''];
+  const lines = ['## Strict tenant FK gate (W1-DATA-06)', ''];
   if (report.ok) {
     lines.push(
       '**Status:** pass — prod/CI default ON, VALIDATE+repair present, workflow posture OK' +

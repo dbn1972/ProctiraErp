@@ -157,19 +157,47 @@ export function extractLeadingTenantIdCoverage(sqlText) {
     }
   }
 
-  const indexRe =
-    /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?["\w]+\s+ON\s+(?:ONLY\s+)?(?:"?public"?\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s*\(\s*"?tenant_id"?\b/gi;
-  while ((match = indexRe.exec(sqlText)) !== null) {
-    covered.add(match[1].toLowerCase());
+  // PRC-L180: named leading-tenant_id indexes (optionally `USING method`),
+  // replayed in corpus order so a later DROP INDEX removes the coverage.
+  const indexOrDropRe =
+    /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(IF\s+NOT\s+EXISTS\s+)?(?:"?public"?\.)?"?(\w+)"?\s+ON\s+(?:ONLY\s+)?(?:"?public"?\.)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?\s*(?:USING\s+\w+\s*)?\(\s*("?)(\w+)\4|DROP\s+INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+EXISTS\s+)?([^;]+);/gi;
+  /** @type {Map<string, { table: string, leadingTenant: boolean }>} */
+  const indexes = new Map();
+  while ((match = indexOrDropRe.exec(sqlText)) !== null) {
+    if (match[6] != null) {
+      for (const raw of match[6].split(',')) {
+        const name = raw
+          .trim()
+          .replace(/\s+(?:CASCADE|RESTRICT)$/i, '')
+          .replace(/^"?public"?\./i, '')
+          .replace(/"/g, '')
+          .toLowerCase();
+        indexes.delete(name);
+      }
+      continue;
+    }
+    const indexName = match[2].toLowerCase();
+    // `IF NOT EXISTS` on an existing name is a no-op in Postgres.
+    if (match[1] && indexes.has(indexName)) continue;
+    indexes.set(indexName, {
+      table: match[3].toLowerCase(),
+      leadingTenant: match[5].toLowerCase() === 'tenant_id',
+    });
+  }
+  for (const { table, leadingTenant } of indexes.values()) {
+    if (leadingTenant) covered.add(table);
   }
 
-  // Dynamic loops: FOREACH t IN ARRAY ARRAY['a','b'] … CREATE INDEX … (tenant_id)
+  // Dynamic loops: FOREACH t IN ARRAY ARRAY['a','b'] LOOP … END LOOP. Only a
+  // CREATE INDEX statement whose column list *starts* with tenant_id counts —
+  // an RLS `USING (tenant_id = …)` clause plus an unrelated index does not.
   const dynRe =
-    /FOREACH\s+\w+\s+IN\s+ARRAY\s+ARRAY\[([^\]]+)\]([\s\S]{0,800}?)(?=FOREACH\s+\w+\s+IN\s+ARRAY|INSERT\s+INTO\s+schema_migrations|$)/gi;
+    /FOREACH\s+\w+\s+IN\s+ARRAY\s+ARRAY\[([^\]]+)\]([\s\S]*?)(?=END\s+LOOP|FOREACH\s+\w+\s+IN\s+ARRAY|INSERT\s+INTO\s+schema_migrations|$)/gi;
+  const dynLeadingIndexRe =
+    /CREATE\s+(?:UNIQUE\s+)?INDEX\b[^;']*?\bON\s+(?:ONLY\s+)?\S+\s*(?:USING\s+\w+\s*)?\(\s*"?tenant_id"?\b/i;
   while ((match = dynRe.exec(sqlText)) !== null) {
     const block = match[2] ?? '';
-    if (!/\(tenant_id\)/i.test(block) && !/\(\s*tenant_id\b/i.test(block)) continue;
-    if (!/CREATE\s+(?:UNIQUE\s+)?INDEX/i.test(block)) continue;
+    if (!dynLeadingIndexRe.test(block)) continue;
     for (const nameMatch of match[1].matchAll(/'([^']+)'/g)) {
       covered.add(nameMatch[1].toLowerCase());
     }
@@ -192,18 +220,14 @@ export function extractLeadingTenantIdCoverage(sqlText) {
  *   allowlist?: { table: string, reason: string }[],
  * }} input
  */
-export function evaluateTenantIdIndexes({
-  root,
-  paths = defaultPaths(root),
-  sqlText,
-  allowlist,
-}) {
+export function evaluateTenantIdIndexes({ root, paths = defaultPaths(root), sqlText, allowlist }) {
   /** @type {string[]} */
   const failures = [];
   /** @type {string[]} */
   const notes = [];
 
-  const corpus = sqlText == null ? collectSqlCorpus(root, paths) : { files: ['(inline)'], text: sqlText };
+  const corpus =
+    sqlText == null ? collectSqlCorpus(root, paths) : { files: ['(inline)'], text: sqlText };
   const allow =
     allowlist ??
     (() => {

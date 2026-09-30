@@ -41,9 +41,15 @@ grep -qE '^[[:space:]]*workflow_call:' "$SCANS_WF" \
   || die "${SCANS_WF} must expose workflow_call for ci.yml"
 
 echo "==> fail-closed: no continue-on-error: true on scan steps"
-if grep -nE 'continue-on-error:[[:space:]]*true' "$SCANS_WF" >/tmp/ops11-coe.txt 2>/dev/null; then
-  die "${SCANS_WF} must not soft-pass scanners (continue-on-error: true):$(printf '\n'; cat /tmp/ops11-coe.txt)"
+COE_TMP="$(mktemp)"
+trap 'rm -f "$COE_TMP"' EXIT
+if grep -nE 'continue-on-error:[[:space:]]*true' "$SCANS_WF" >"$COE_TMP" 2>/dev/null; then
+  die "${SCANS_WF} must not soft-pass scanners (continue-on-error: true):$(printf '\n'; cat "$COE_TMP")"
 fi
+
+echo "==> per-step YAML contract (PRC-L181): each scanner step is blocking"
+node tools/scripts/check-workflow-step-contracts.mjs --scanners "$SCANS_WF" \
+  || die "${SCANS_WF} scanner steps are not all fail-closed"
 # Positive markers — each scanner step declares fail-closed.
 for marker in \
   'continue-on-error: false' \

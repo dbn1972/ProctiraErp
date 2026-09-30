@@ -7,7 +7,7 @@
  * indefinitely. Online-safe rollout also requires documented patterns
  * (CONCURRENTLY, NOT VALID → VALIDATE, no table rewrites without a window).
  *
- * PARTIAL residual (COMPLETE closes it):
+ * Residuals covered by this gate:
  *   - CI only checked wrappers, not DDL for long-lock ops.
  *   - Retry/resume after lock failure was unproven.
  *
@@ -15,7 +15,7 @@
  *   1. apply-sql.sh SETs lock_timeout + statement_timeout (via migration-timeouts.sh).
  *   2. prisma-migrate-deploy.sh injects the same timeouts for Prisma migrate.
  *   3. @proctira/database prisma:migrate:deploy invokes the wrapper (not bare prisma).
- *   4. Policy docs exist (timeouts audit + COMPLETE audit + db/README).
+ *   4. Policy docs exist (timeouts audit + W1-DATA-17 audit pack + db/README).
  *   5. New migrations (after baseline cutover) pass expand/contract DDL hazard
  *      scan, or carry an approved maintenance-window waiver.
  *   6. Lock-contention recovery drill artifact + apply-sql recovery contract exist.
@@ -211,7 +211,7 @@ export function databasePackageMigrateContract(pkgJsonText) {
 }
 
 /**
- * Policy docs must name timeouts, online-safe patterns, and COMPLETE residual closure.
+ * Policy docs must name timeouts, online-safe patterns, and residual posture.
  * @param {string} auditText
  * @param {string} readmeText
  * @param {string} [completeText]

@@ -203,8 +203,9 @@ rm -f "$missing_token_err"
 echo "OK production profile + W1-SEC-07 metrics contract"
 
 echo "==> lint + template ${PLATFORM_CHART}"
-# Umbrella may warn on icon/etc.; lint is advisory for platform.
-helm lint "${PLATFORM_CHART}" || true
+# PRC-L182: lint is blocking — helm lint exits non-zero only on errors
+# ([ERROR]); informational/warning findings (icon etc.) still pass.
+helm lint "${PLATFORM_CHART}"
 
 # Base values are intentionally non-destructive: DR jobs require an explicit
 # environment overlay, but all canonical Deployments must still render hardened.

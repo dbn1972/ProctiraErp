@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Unit tests for W1-DATA-11 COMPLETE runtime privilege catalog gate.
+ * Unit tests for W1-DATA-11 runtime privilege catalog gate.
  * Run with: node --test tools/scripts/check-runtime-table-privileges.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -50,7 +50,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 `;
 
 const GOOD_CLASSIFY_SQL = `
--- W1-DATA-11 COMPLETE
+-- W1-DATA-11
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM proctira_app;
 INSERT INTO schema_migrations (filename)
@@ -174,4 +174,42 @@ test('fixture repo missing catalog entry fails gate', () => {
   });
   assert.equal(report.ok, false);
   assert.ok(report.issues.some((i) => /orphan_tbl/.test(i)));
+});
+
+test('PRC-L186: sync SQL is one role-guarded DO block (skip really skips)', () => {
+  const sql = generateSyncSql({ tables: MIN_CATALOG.tables, classes: {}, sequences: {} });
+  // Exactly one DO block, and nothing referencing proctira_app outside it.
+  assert.equal((sql.match(/^DO \$\$$/gm) ?? []).length, 1);
+  assert.equal((sql.match(/^END \$\$;$/gm) ?? []).length, 1);
+  const start = sql.indexOf('DO $$');
+  const end = sql.lastIndexOf('END $$;');
+  const outside = sql.slice(0, start) + sql.slice(end + 'END $$;'.length);
+  assert.doesNotMatch(outside.replace(/^--.*$/gm, ''), /proctira_app/);
+  // The role guard (with RETURN) precedes every privilege statement.
+  const body = sql.slice(start, end);
+  const guard = body.indexOf('RETURN;');
+  assert.ok(guard > 0, 'missing role guard RETURN');
+  assert.ok(body.indexOf('ALTER DEFAULT PRIVILEGES') > guard);
+  assert.ok(body.indexOf('REVOKE ALL ON TABLE') > guard);
+  assert.match(
+    body.slice(0, guard),
+    /IF NOT EXISTS \(SELECT 1 FROM pg_roles WHERE rolname = 'proctira_app'\)/,
+  );
+});
+
+test('PRC-L186: extractPublicTables ignores non-public schema-qualified tables', () => {
+  const tables = extractPublicTables(`
+CREATE TABLE auth.users (id UUID);
+CREATE TABLE IF NOT EXISTS "platform"."settings" (id UUID);
+CREATE TABLE "public"."guardians" (id UUID);
+CREATE TABLE public . fees (id UUID);
+CREATE TABLE attendance (id UUID);
+`);
+  assert.equal(tables.has('auth'), false);
+  assert.equal(tables.has('users'), false);
+  assert.equal(tables.has('platform'), false);
+  assert.equal(tables.has('settings'), false);
+  assert.equal(tables.has('guardians'), true);
+  assert.equal(tables.has('fees'), true);
+  assert.equal(tables.has('attendance'), true);
 });

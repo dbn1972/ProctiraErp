@@ -1,24 +1,40 @@
 #!/usr/bin/env node
 /**
- * Enterprise multi-board / multi-school onboarding CLI.
+ * Multi-board / multi-school onboarding SIMULATION (PRC-L185: renamed from
+ * onboard-boards-schools.mjs — this CLI builds an in-memory graph only and
+ * never persists to a database).
  *
  * Default: 3 boards × 2 schools × 500 students (in-memory certification graph).
  *
  * Usage:
- *   node tools/scripts/onboard-boards-schools.mjs
- *   STUDENTS_PER_SCHOOL=500 node tools/scripts/onboard-boards-schools.mjs
- *   OUT=/opt/cursor/artifacts/multi-board-onboard/summary.json node tools/scripts/onboard-boards-schools.mjs
+ *   node tools/scripts/simulate-onboard-boards-schools.mjs
+ *   STUDENTS_PER_SCHOOL=500 node tools/scripts/simulate-onboard-boards-schools.mjs
+ *   ARTIFACT_DIR=/tmp/onboard node tools/scripts/simulate-onboard-boards-schools.mjs
+ *   OUT=/path/summary.json node tools/scripts/simulate-onboard-boards-schools.mjs
+ *
+ * Output: $OUT, else $ARTIFACT_DIR/summary.json, else
+ * /opt/cursor/artifacts/multi-board-onboard/summary.json (absolute; same
+ * directory as setup-live-db-and-onboard.sh).
  *
  * Persistence: when DATABASE_URL is set, prints a notice that Prisma persistence
  * must be run via packages/shared/database migrate+seed adapters (not invented here).
  */
-
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '../..');
+export const DEFAULT_ARTIFACT_DIR = '/opt/cursor/artifacts/multi-board-onboard';
+/**
+ * PRC-L185: absolute default (previously `resolve(root, '../../opt/...')`,
+ * which escaped two levels above the repo).
+ * @param {Record<string, string | undefined>} env
+ */
+export function resolveOutPath(env = process.env) {
+  if (env.OUT) return resolve(env.OUT);
+  return resolve(env.ARTIFACT_DIR || DEFAULT_ARTIFACT_DIR, 'summary.json');
+}
 
 async function loadSeedModule() {
   // Prefer workspace TypeScript source via tsx/vitest path; fall back to dynamic import of compiled-less TS via relative URL for node --import tsx.
@@ -39,9 +55,7 @@ async function loadSeedModule() {
 async function main() {
   const studentsPerSchool = Number(process.env.STUDENTS_PER_SCHOOL ?? 500);
   const staffPerSchool = Number(process.env.STAFF_PER_SCHOOL ?? 25);
-  const outPath =
-    process.env.OUT ??
-    resolve(root, '../../opt/cursor/artifacts/multi-board-onboard/summary.json');
+  const outPath = resolveOutPath();
 
   const mod = await loadSeedModule();
   const { seedMultiBoardSchools, assertMultiBoardSeedInvariants, DEFAULT_MULTI_BOARD_PROFILE } =
@@ -58,7 +72,7 @@ async function main() {
 
   const summary = {
     generatedAt: new Date().toISOString(),
-    mode: process.env.DATABASE_URL ? 'in-memory+db-url-present-not-persisted' : 'in-memory',
+    mode: process.env.DATABASE_URL ? 'simulation+db-url-present-not-persisted' : 'simulation',
     databaseUrlPresent: Boolean(process.env.DATABASE_URL),
     elapsedMs,
     totals: result.totals,
@@ -94,15 +108,21 @@ async function main() {
   mkdirSync(dirname(absOut), { recursive: true });
   writeFileSync(absOut, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 
-  console.log(JSON.stringify({ ok: true, out: absOut, totals: summary.totals, elapsedMs }, null, 2));
+  console.log(
+    JSON.stringify({ ok: true, out: absOut, totals: summary.totals, elapsedMs }, null, 2),
+  );
   if (process.env.DATABASE_URL) {
     console.error(
-      '[onboard-boards-schools] DATABASE_URL is set but this CLI persists in-memory only; wire Prisma adapter before claiming DB-backed onboarding.',
+      '[simulate-onboard-boards-schools] DATABASE_URL is set but this CLI persists in-memory only; wire Prisma adapter before claiming DB-backed onboarding.',
     );
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isDirect =
+  process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+if (isDirect) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

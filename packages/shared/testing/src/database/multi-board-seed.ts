@@ -5,7 +5,7 @@
  *   3 boards × 2 schools × 500 students = 3,000 enrollments
  *
  * In-memory by default (no DATABASE_URL). When DATABASE_URL is set, a future
- * Prisma adapter can persist the same graph — see tools/scripts/onboard-boards-schools.mjs.
+ * Prisma adapter can persist the same graph — see tools/scripts/simulate-onboard-boards-schools.mjs (in-memory simulation only).
  */
 
 import { createAcademicPeriod } from '../factories/academic-period.factory.js';

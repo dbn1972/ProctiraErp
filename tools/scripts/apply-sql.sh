@@ -33,7 +33,7 @@
 #
 # G-705: demo seed files inside db/sql (NNNb_*_seed.sql) are applied only when
 #        APPLY_SEEDS=1 (CI / local dev). Production must not set it.
-# G-718 / W1-DATA-06 COMPLETE: 021a + 021b (create), 068 (VALIDATE), 082 (repair
+# G-718 / W1-DATA-06: 021a + 021b (create), 068 (VALIDATE), 082 (repair
 #        create+validate+assert), and 100 (text→uuid completion for the last 23
 #        tables, plus the repo-wide FK assertion) apply when APPLY_STRICT_FKS=1.
 #        Default ON when CI=true or NODE_ENV=production; local fixtures may set
@@ -66,7 +66,7 @@ source "$ROOT/tools/scripts/migration-timeouts.sh"
 SQL_DIR="${APPLY_SQL_DIR:-$ROOT/db/sql}"
 DRY_RUN=0
 APPLY_SEEDS="${APPLY_SEEDS:-0}"
-# W1-DATA-06 COMPLETE: production/CI default ON; explicit 0/1 always wins.
+# W1-DATA-06: production/CI default ON; explicit 0/1 always wins.
 if [[ -z "${APPLY_STRICT_FKS+x}" ]]; then
   if [[ "${CI:-}" == "true" || "${NODE_ENV:-}" == "production" ]]; then
     APPLY_STRICT_FKS=1
@@ -542,7 +542,7 @@ done
 
 echo "==> Domain SQL apply complete (applied=$APPLIED, ledger_skipped=$LEDGER_SKIPPED, null_checksum_adopted=$ADOPTED)"
 
-# W1-DATA-11 COMPLETE: classify proctira_app privileges from
+# W1-DATA-11: classify proctira_app privileges from
 # db/runtime-table-privileges.json (no blanket TABLE DEFAULT PRIVILEGES).
 PRIV_SYNC="$ROOT/tools/scripts/apply-runtime-table-privileges.sh"
 if [[ ! -f "$PRIV_SYNC" ]]; then

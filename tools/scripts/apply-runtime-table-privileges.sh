@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W1-DATA-11 COMPLETE — sync proctira_app table privileges from the classification catalog.
+# W1-DATA-11 — sync proctira_app table privileges from the classification catalog.
 #
 # Invoked at the end of tools/scripts/apply-sql.sh so current and future tables
 # only receive explicitly classified grants (no blanket DEFAULT PRIVILEGES).

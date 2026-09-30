@@ -150,3 +150,63 @@ test('repo corpus currently satisfies the invariant (or documents allowlist)', (
     `repo residual: ${report.failures.join('; ')}\nmissing=${report.missing.join(',')}`,
   );
 });
+
+// PRC-L180 — heuristics must prove an index whose column list starts with tenant_id.
+const TENANT_TABLE = (name) => `
+CREATE TABLE IF NOT EXISTS ${name} (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL
+);
+`;
+
+test('PRC-L180: FOREACH with RLS (tenant_id = x) + non-tenant index is reported missing', () => {
+  const sql = `${TENANT_TABLE('loop_events')}
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['loop_events']
+  LOOP
+    EXECUTE format('CREATE POLICY tenant_isolation ON %I USING (tenant_id = app_tenant_id())', t);
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I (created_at)', t || '_created_idx', t);
+  END LOOP;
+END $$;
+`;
+  assert.equal(extractLeadingTenantIdCoverage(sql).has('loop_events'), false);
+  const result = evaluateTenantIdIndexes({ root: '/nonexistent', sqlText: sql, allowlist: [] });
+  assert.equal(result.ok, false);
+  assert.match(result.failures.join('\n'), /loop_events/);
+});
+
+test('PRC-L180: FOREACH CREATE INDEX leading tenant_id still counts', () => {
+  const sql = `${TENANT_TABLE('loop_ok')}
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['loop_ok']
+  LOOP
+    EXECUTE format('CREATE INDEX IF NOT EXISTS %I ON %I (tenant_id)', t || '_tenant_idx', t);
+  END LOOP;
+END $$;
+`;
+  assert.equal(extractLeadingTenantIdCoverage(sql).has('loop_ok'), true);
+});
+
+test('PRC-L180: USING btree (tenant_id, …) counts as leading coverage', () => {
+  const sql = `${TENANT_TABLE('btree_tbl')}
+CREATE INDEX btree_tbl_tenant_idx ON public.btree_tbl USING btree (tenant_id, created_at);
+`;
+  assert.equal(extractLeadingTenantIdCoverage(sql).has('btree_tbl'), true);
+});
+
+test('PRC-L180: DROP INDEX removes previously recorded coverage', () => {
+  const sql = `${TENANT_TABLE('dropped_tbl')}
+CREATE INDEX IF NOT EXISTS dropped_tbl_tenant_idx ON dropped_tbl (tenant_id);
+DROP INDEX IF EXISTS public.dropped_tbl_tenant_idx;
+`;
+  assert.equal(extractLeadingTenantIdCoverage(sql).has('dropped_tbl'), false);
+  const recreated = `${sql}
+CREATE INDEX dropped_tbl_tenant_idx ON dropped_tbl (tenant_id, created_at);
+`;
+  assert.equal(extractLeadingTenantIdCoverage(recreated).has('dropped_tbl'), true);
+});
