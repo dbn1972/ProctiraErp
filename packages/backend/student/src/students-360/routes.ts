@@ -135,6 +135,10 @@ function formatDocument(row: DocumentRecord) {
   };
 }
 
+/** Route body limits sized to the upload schemas (base64 maxLength + JSON envelope headroom). */
+export const PHOTO_UPLOAD_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
+export const DOCUMENT_UPLOAD_BODY_LIMIT_BYTES = 15 * 1024 * 1024;
+
 export async function registerStudents360Routes(
   fastify: FastifyInstance,
   options: Students360RoutesOptions,
@@ -143,6 +147,8 @@ export async function registerStudents360Routes(
 
   fastify.post(
     `${prefix}/:id/photo`,
+    // PRC-H096: base64 photo payloads (schema max 2.8M chars) exceed Fastify's 1 MiB default.
+    { bodyLimit: PHOTO_UPLOAD_BODY_LIMIT_BYTES },
     async (
       request: FastifyRequest<{ Params: { id: string }; Body: UploadPhotoDto }>,
       reply: FastifyReply,
@@ -520,6 +526,8 @@ export async function registerStudents360Routes(
 
   fastify.post(
     `${prefix}/:id/documents`,
+    // PRC-H096: base64 document payloads (schema max 14M chars) exceed Fastify's 1 MiB default.
+    { bodyLimit: DOCUMENT_UPLOAD_BODY_LIMIT_BYTES },
     async (
       request: FastifyRequest<{ Params: { id: string }; Body: UploadDocumentDto }>,
       reply: FastifyReply,
@@ -583,10 +591,7 @@ export async function registerStudents360Routes(
 
   fastify.get(
     `${prefix}/:id/documents/:docId`,
-    async (
-      request: FastifyRequest<{ Params: DocumentParamsDto }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: DocumentParamsDto }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) return tenantRequired(reply);
       const params = validate(DocumentParamsSchema, request.params);
@@ -621,10 +626,7 @@ export async function registerStudents360Routes(
 
   fastify.delete(
     `${prefix}/:id/documents/:docId`,
-    async (
-      request: FastifyRequest<{ Params: DocumentParamsDto }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: DocumentParamsDto }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) return tenantRequired(reply);
       const params = validate(DocumentParamsSchema, request.params);

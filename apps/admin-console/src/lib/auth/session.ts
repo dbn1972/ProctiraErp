@@ -5,6 +5,7 @@
  * happens upstream at the auth-service). Used to gate pages by role and to
  * forward the JWT on outbound API calls.
  */
+import { decodeJwtPayload } from './jwt-payload';
 import type { PlatformRole } from './roles';
 
 /** JWT payload fields the admin console relies on. */
@@ -28,15 +29,8 @@ export interface AdminTokenPayload {
  * Returns null on any structural failure.
  */
 export function decodeAdminToken(token: string): AdminTokenPayload | null {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-
-  try {
-    const decoded = atob(parts[1]!);
-    return JSON.parse(decoded) as AdminTokenPayload;
-  } catch {
-    return null;
-  }
+  // PRC-H112: shared base64url + UTF-8 decoder (same as middleware).
+  return decodeJwtPayload<AdminTokenPayload>(token);
 }
 
 /** Returns true when the access token is expired (with a 30s safety buffer). */

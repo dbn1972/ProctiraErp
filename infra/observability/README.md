@@ -38,9 +38,30 @@ docker compose -f infra/observability/docker-compose.observability.yml up -d
 
 Open:
 
+Set a Grafana admin password first — compose refuses to start without it:
+
+```bash
+export GRAFANA_ADMIN_PASSWORD='<strong-password>'
+```
+
+Open (all three bind to 127.0.0.1 only — PRC-H072):
+
 - Prometheus → http://localhost:9090
 - Alertmanager → http://localhost:9093
-- Grafana → http://localhost:3050 (admin / admin)
+- Grafana → http://localhost:3050 (user `admin`, password from `GRAFANA_ADMIN_PASSWORD`)
+
+From another machine use an SSH tunnel (`ssh -L 3050:127.0.0.1:3050 <host>`) or an
+authenticated reverse proxy/ingress; do not publish these ports publicly. Prometheus's admin
+API and lifecycle endpoints (`/-/reload`, `/-/quit`, TSDB admin) are disabled, so restart the
+container to pick up config changes.
+
+**Upgrading an existing install:** Grafana applies `GF_SECURITY_ADMIN_PASSWORD` only when its
+database is first created. If a `grafana_data` volume already exists (it may still use
+`admin/admin`), reset the password once:
+
+```bash
+docker exec proctira-grafana grafana cli admin reset-admin-password "$GRAFANA_ADMIN_PASSWORD"
+```
 
 The compose stack joins the `proctira` Docker network used by the main
 `docker-compose.yml` / `infrastructure/docker/docker-compose.services.yml` so
@@ -56,11 +77,11 @@ docker compose -f infra/observability/docker-compose.observability.yml up
 
 ## What is (and is not) collected — honest scope (G-725)
 
-| Signal  | Status              | Where                                                                                                                                                                                                                |
-| ------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Metrics | Live                | `@proctira/observability` → `/metrics` on api-gateway, etl-worker and the 9 standalone backend services; Prometheus scrapes only those targets                                                                       |
-| Logs    | Live                | Pino JSON to stdout (`@proctira/logging`), request-id correlated; ship with your platform's log agent                                                                                                                |
-| Alerts  | Live                | `alerts/*.yml` → Alertmanager; receivers rendered from env (below)                                                                                                                                                   |
+| Signal  | Status                | Where                                                                                                                                                                                                                                                                                                                                      |
+| ------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Metrics | Live                  | `@proctira/observability` → `/metrics` on api-gateway, etl-worker and the 9 standalone backend services; Prometheus scrapes only those targets                                                                                                                                                                                             |
+| Logs    | Live                  | Pino JSON to stdout (`@proctira/logging`), request-id correlated; ship with your platform's log agent                                                                                                                                                                                                                                      |
+| Alerts  | Live                  | `alerts/*.yml` → Alertmanager; receivers rendered from env (below)                                                                                                                                                                                                                                                                         |
 | Traces  | App-wired (W1-OPS-13) | `@proctira/observability` `initTracing` + Fastify `tracingPlugin` on api-gateway / etl-worker (and any service using `observabilityPlugin`). Exports OTLP/HTTP when `OTEL_EXPORTER_OTLP_ENDPOINT` (or `_TRACES_ENDPOINT`) is set; **fail-safe no-op** when unset. This repo does **not** ship a collector — configure yours in production. |
 
 Next.js apps (web, portals, admin console) expose `/api/health` but no
@@ -72,13 +93,13 @@ so none exists.
 
 Set on api-gateway / etl-worker (compose pass-through and Helm `config.tracing`):
 
-| Variable | Effect |
-| --- | --- |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base OTLP/HTTP URL; traces go to `{base}/v1/traces` |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Full traces URL (overrides base) |
-| `OTEL_EXPORTER_OTLP_HEADERS` | Optional `k=v,k2=v2` exporter headers |
-| `OTEL_SERVICE_NAME` | Resource `service.name` (compose/Helm also set per service) |
-| `TRACING_ENABLED=false` | Force off even when an endpoint is set |
+| Variable                             | Effect                                                      |
+| ------------------------------------ | ----------------------------------------------------------- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT`        | Base OTLP/HTTP URL; traces go to `{base}/v1/traces`         |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Full traces URL (overrides base)                            |
+| `OTEL_EXPORTER_OTLP_HEADERS`         | Optional `k=v,k2=v2` exporter headers                       |
+| `OTEL_SERVICE_NAME`                  | Resource `service.name` (compose/Helm also set per service) |
+| `TRACING_ENABLED=false`              | Force off even when an endpoint is set                      |
 
 Local/dev: leave endpoints unset — span APIs and Fastify hooks still run against the no-op provider (no network). Production: point at your collector; **no live collector proof is claimed by this repository**.
 

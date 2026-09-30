@@ -16,6 +16,13 @@ const nextConfig = {
     // block production builds on them.
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    serverActions: {
+      // PRC-H096: student photo upload goes through a server action as base64 (2 MB client
+      // cap -> ~2.7 MB body). Next's 1 MB default rejected it before it reached the gateway.
+      bodySizeLimit: '3mb',
+    },
+  },
   transpilePackages: [
     '@proctira/i18n',
     '@proctira/tenant',
