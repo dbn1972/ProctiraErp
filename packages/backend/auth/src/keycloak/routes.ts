@@ -5,7 +5,6 @@ import {
   revokeAccessTokenIdentifiers,
   type AccessTokenRevocationStore,
 } from '../access-token-revocation.js';
-
 import { resolveTenantDirectory, type TenantDirectoryReader } from '../tenant-directory.js';
 
 import {
