@@ -12,6 +12,8 @@
  * - 11.5: Generate reports on scholarship utilization by program, area, gender, and institution
  */
 import {
+  AppError,
+  ErrorCode,
   ConflictError,
   NotFoundError,
   BusinessRuleError,
@@ -63,6 +65,10 @@ export const DISBURSEMENT_TRANSITIONS: Readonly<Record<PaymentStatus, readonly P
   paid: ['cancelled'],
   cancelled: [],
 };
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 /** PRC-H085: max instalments of `amountPerRecipient` per award, by frequency. */
 export const INSTALMENTS_PER_FREQUENCY: Readonly<Record<DisbursementFrequency, number>> = {
@@ -796,53 +802,78 @@ export class ScholarshipService {
 
     assertMajorMatchesCents(updated.amount, updated.amountCents);
 
-    if (
-      this.onDisbursementPaid &&
-      updated.paymentStatus === 'paid' &&
-      existing.paymentStatus !== 'paid'
-    ) {
-      const application = await this.repository.findApplicationById(
-        updated.applicationId,
-        tenantId,
-      );
-      const program = application
-        ? await this.repository.findProgramById(application.programId, tenantId)
-        : null;
-      if (application) {
-        await this.onDisbursementPaid({
+    // PRC-H084: fee netting / un-netting hooks run after the status write. If a
+    // hook fails, restore the previous status so the caller sees an error and a
+    // retry re-fires the (disbursementId-idempotent) hook instead of skipping it.
+    try {
+      if (
+        this.onDisbursementPaid &&
+        updated.paymentStatus === 'paid' &&
+        existing.paymentStatus !== 'paid'
+      ) {
+        const application = await this.repository.findApplicationById(
+          updated.applicationId,
           tenantId,
-          disbursementId: updated.id,
-          applicationId: application.id,
-          applicantId: application.applicantId,
-          amount: updated.amount,
-          amountCents: updated.amountCents,
-          currency: program?.currency ?? 'INR',
-        });
+        );
+        const program = application
+          ? await this.repository.findProgramById(application.programId, tenantId)
+          : null;
+        if (application) {
+          await this.onDisbursementPaid({
+            tenantId,
+            disbursementId: updated.id,
+            applicationId: application.id,
+            applicantId: application.applicantId,
+            amount: updated.amount,
+            amountCents: updated.amountCents,
+            currency: program?.currency ?? 'INR',
+          });
+        }
       }
-    }
 
-    if (
-      this.onDisbursementReversed &&
-      existing.paymentStatus === 'paid' &&
-      updated.paymentStatus !== 'paid'
-    ) {
-      const application = await this.repository.findApplicationById(
-        updated.applicationId,
-        tenantId,
-      );
-      const program = application
-        ? await this.repository.findProgramById(application.programId, tenantId)
-        : null;
-      if (application) {
-        await this.onDisbursementReversed({
+      if (
+        this.onDisbursementReversed &&
+        existing.paymentStatus === 'paid' &&
+        updated.paymentStatus !== 'paid'
+      ) {
+        const application = await this.repository.findApplicationById(
+          updated.applicationId,
           tenantId,
-          disbursementId: updated.id,
-          applicationId: application.id,
-          applicantId: application.applicantId,
-          amountCents: updated.amountCents,
-          currency: program?.currency ?? 'INR',
-        });
+        );
+        const program = application
+          ? await this.repository.findProgramById(application.programId, tenantId)
+          : null;
+        if (application) {
+          await this.onDisbursementReversed({
+            tenantId,
+            disbursementId: updated.id,
+            applicationId: application.id,
+            applicantId: application.applicantId,
+            amountCents: updated.amountCents,
+            currency: program?.currency ?? 'INR',
+          });
+        }
       }
+    } catch (hookError: unknown) {
+      try {
+        await this.repository.updateDisbursement(id, tenantId, {
+          paymentStatus: existing.paymentStatus,
+          paidDate: existing.paidDate,
+          transactionReference: existing.transactionReference,
+          notes: existing.notes,
+        });
+      } catch (compensationError: unknown) {
+        throw new AppError(
+          `Fee ledger sync failed and disbursement '${id}' could not be restored to '${existing.paymentStatus}': ${errorMessage(compensationError)} (hook: ${errorMessage(hookError)})`,
+          ErrorCode.INTERNAL_ERROR,
+          500,
+        );
+      }
+      throw new AppError(
+        `Fee ledger sync failed; disbursement status left at '${existing.paymentStatus}'. Retry the update. (${errorMessage(hookError)})`,
+        ErrorCode.SERVICE_UNAVAILABLE,
+        503,
+      );
     }
 
     return updated;
