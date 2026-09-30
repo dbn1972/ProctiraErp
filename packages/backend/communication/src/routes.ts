@@ -5,6 +5,10 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import {
+  communicationActorId,
+  enforceCommunicationRouteAccess,
+} from './communication-http-guard.js';
 import type { CommunicationService } from './communication-service.js';
 import {
   AudiencePreviewSchema,
@@ -20,8 +24,6 @@ import {
   type CreateEmergencyBlastInput,
   type EmergencyParams,
 } from './schemas.js';
-
-import { enforceCommunicationRouteAccess } from './communication-http-guard.js';
 
 export interface CommunicationRoutesOptions {
   communicationService: CommunicationService;
@@ -180,7 +182,11 @@ export async function registerCommunicationRoutes(
       }
 
       try {
-        const campaign = await communicationService.createCampaign(tenantId, result.data);
+        const campaign = await communicationService.createCampaign(
+          tenantId,
+          result.data,
+          communicationActorId(request),
+        );
         return reply.status(201).send(formatCampaign(campaign));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -294,7 +300,11 @@ export async function registerCommunicationRoutes(
       }
 
       try {
-        const blast = await communicationService.createEmergencyBlast(tenantId, result.data);
+        const blast = await communicationService.createEmergencyBlast(
+          tenantId,
+          result.data,
+          communicationActorId(request),
+        );
         return reply.status(201).send(formatEmergency(blast));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -321,7 +331,8 @@ export async function registerCommunicationRoutes(
         });
       }
 
-      const bodyResult = validate(ConfirmEmergencySchema, request.body);
+      // PRC-H045: the body carries no identity anymore; tolerate an absent body.
+      const bodyResult = validate(ConfirmEmergencySchema, request.body ?? {});
       if (!bodyResult.success) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
@@ -340,11 +351,21 @@ export async function registerCommunicationRoutes(
         });
       }
 
+      // PRC-H045: the confirming actor is the verified session subject, never a body field.
+      const actorId = communicationActorId(request);
+      if (!actorId) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'An authenticated actor is required to confirm an emergency blast',
+          statusCode: 403,
+        });
+      }
+
       try {
         const blast = await communicationService.confirmEmergencyBlast(
           tenantId,
           paramsResult.data.id,
-          bodyResult.data.actorId,
+          actorId,
         );
         return reply.status(200).send(formatEmergency(blast!));
       } catch (error: unknown) {
