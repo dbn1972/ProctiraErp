@@ -299,6 +299,12 @@ export async function registerBrandingRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
+      // PRC-H097: publishing branding is a privileged mutation. Require branding:edit and fail
+      // closed (the default resolver denies), so this is safe even if the route is ever mounted
+      // outside the gateway's /api/v1 RBAC layer.
+      const allowed = Boolean(await hasPermission(request, 'branding:edit'));
+      if (!allowed) return forbidden(reply, 'branding:edit');
+
       const result = validate(PublishBrandingSchema, request.body);
       if (!result.success) {
         return reply.status(400).send({
@@ -331,6 +337,10 @@ export async function registerBrandingRoutes(
     ) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+
+      // PRC-H097: rollback is a privileged mutation — require branding:edit, fail closed.
+      const allowed = Boolean(await hasPermission(request, 'branding:edit'));
+      if (!allowed) return forbidden(reply, 'branding:edit');
 
       const result = validate(RollbackBrandingSchema, request.body);
       if (!result.success) {

@@ -816,7 +816,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(tenantLifecyclePlugin, {
     repository: getTenantRepository(),
     prefix: '/api/v1/tenant-lifecycle',
-    branding: { disabled: false },
+    // PRC-H097: do NOT register branding here. tenantLifecyclePlugin is fastify-plugin-wrapped,
+    // so the branding routes mounted at their default '/tenant/branding' land at the server root
+    // — outside the gateway's '/api/v1' RBAC hook — letting any authenticated user publish/roll
+    // back. Branding is already served (with a tenant resolver + branding:* permission check) by
+    // tenantAdminPlugin under '/api/v1/tenant/branding'.
+    branding: { disabled: true },
     // W1-SEC-06: fail-closed destructive tenant delete under privacy legal hold
     // (shared createPrivacyRepository with /privacy + student delete gate).
     destructiveDeleteGuard: new PrivacyService(sharedPrivacyRepository),
