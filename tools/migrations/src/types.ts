@@ -2,6 +2,12 @@
  * Shared type definitions for the migration pipeline.
  */
 
+/**
+ * Single source of truth for the legacy-id -> UUID mapping table name
+ * (created by generate-uuids, read by cdc-sync, written by assign-tenant).
+ */
+export const MIGRATION_UUID_MAP_TABLE = 'migration_uuid_map';
+
 /** Configuration for connecting to the legacy MySQL database. */
 export interface MySQLConfig {
   host: string;

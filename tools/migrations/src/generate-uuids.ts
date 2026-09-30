@@ -12,25 +12,27 @@
  * The mapping table is preserved for audit/rollback purposes.
  */
 
-import { Pool, PoolClient } from 'pg';
+import type { PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
-import { loadConfig } from './config.js';
-import { MigrationConfig, MigrationStepResult } from './types.js';
+
 import { TABLE_MAPPINGS } from './table-mappings.js';
+import type { MigrationConfig, MigrationStepResult } from './types.js';
+import { MIGRATION_UUID_MAP_TABLE } from './types.js';
 
 /**
  * SQL to create the UUID mapping table.
  */
 const CREATE_MAPPING_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS migration_uuid_map (
+  CREATE TABLE IF NOT EXISTS ${MIGRATION_UUID_MAP_TABLE} (
     legacy_table VARCHAR(100) NOT NULL,
     legacy_id BIGINT NOT NULL,
     new_uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     PRIMARY KEY (legacy_table, legacy_id)
   );
-  CREATE INDEX IF NOT EXISTS idx_uuid_map_uuid ON migration_uuid_map (new_uuid);
-  CREATE INDEX IF NOT EXISTS idx_uuid_map_table ON migration_uuid_map (legacy_table);
+  CREATE INDEX IF NOT EXISTS idx_uuid_map_uuid ON ${MIGRATION_UUID_MAP_TABLE} (new_uuid);
+  CREATE INDEX IF NOT EXISTS idx_uuid_map_table ON ${MIGRATION_UUID_MAP_TABLE} (legacy_table);
 `;
 
 /**
@@ -47,10 +49,10 @@ export async function generateUuidsForTable(
 ): Promise<number> {
   // Count total rows to process
   const filterClause = sourceFilter ? `WHERE ${sourceFilter}` : '';
-  const countResult = await client.query(
+  const countResult = await client.query<{ total: string }>(
     `SELECT COUNT(*) as total FROM "${stagingSchema}"."${sourceTable}" ${filterClause}`,
   );
-  const totalRows = parseInt(countResult.rows[0].total, 10);
+  const totalRows = parseInt(countResult.rows[0]!.total, 10);
 
   if (totalRows === 0) return 0;
 
@@ -59,7 +61,7 @@ export async function generateUuidsForTable(
 
   while (offset < totalRows) {
     // Fetch a batch of legacy IDs
-    const batchResult = await client.query(
+    const batchResult = await client.query<{ legacy_id: number }>(
       `SELECT "${pkColumn}" as legacy_id
        FROM "${stagingSchema}"."${sourceTable}"
        ${filterClause}
@@ -83,7 +85,7 @@ export async function generateUuidsForTable(
     }
 
     await client.query(
-      `INSERT INTO migration_uuid_map (legacy_table, legacy_id, new_uuid)
+      `INSERT INTO ${MIGRATION_UUID_MAP_TABLE} (legacy_table, legacy_id, new_uuid)
        VALUES ${values.join(', ')}
        ON CONFLICT (legacy_table, legacy_id) DO NOTHING`,
       params,
@@ -116,7 +118,7 @@ async function applyUuidsToTable(
     `
     UPDATE "${targetSchema}"."${targetTable}" t
     SET id = m.new_uuid::text
-    FROM migration_uuid_map m
+    FROM ${MIGRATION_UUID_MAP_TABLE} m
     WHERE m.legacy_table = $1
       AND m.legacy_id = t._legacy_id::bigint
   `,
@@ -140,7 +142,7 @@ export async function remapForeignKeys(
     `
     UPDATE "${targetSchema}"."${targetTable}" t
     SET "${fkColumn}" = m.new_uuid::text
-    FROM migration_uuid_map m
+    FROM ${MIGRATION_UUID_MAP_TABLE} m
     WHERE m.legacy_table = $1
       AND m.legacy_id = CAST(t."${fkColumn}" AS bigint)
       AND t."${fkColumn}" IS NOT NULL
