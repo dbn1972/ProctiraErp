@@ -62,6 +62,14 @@ describe('middleware public surface', () => {
     expect(response.headers.get('location')).toContain('/login');
   });
 
+  it('gates MFA enrolment behind a session (PRC-H019)', async () => {
+    for (const path of ['/mfa-setup', '/auth/mfa-setup']) {
+      const response = await middleware(get(path));
+      expect(response.status, path).toBe(307);
+      expect(response.headers.get('location'), path).toContain('/login');
+    }
+  });
+
   it('sends the consent documents to the user, not to the login page', async () => {
     // Named separately because it is the specific journey that was broken: the signup form
     // links to both, so a redirect here means consent cannot be informed.

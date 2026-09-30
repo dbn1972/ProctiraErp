@@ -19,9 +19,9 @@ const PUBLIC_PATHS = [
   '/forgot-password',
   '/reset-password',
   '/mfa',
-  '/mfa-setup',
-  '/mfa/setup',
-  '/auth/mfa-setup',
+  // PRC-H019: `/mfa-setup` (and its `/auth/mfa-setup` alias) enrols a TOTP
+  // secret for the *signed-in* user, so it is deliberately NOT public.
+  // `/mfa/setup` only redirects to `/mfa-setup`, which is then gated.
   '/oauth',
   '/callback',
   '/logout',
