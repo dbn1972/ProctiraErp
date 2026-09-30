@@ -655,4 +655,60 @@ describe('LMS routes', () => {
     expect(res.statusCode).toBe(400);
     expect((res.json() as { code: string }).code).toBe('TENANT_REQUIRED');
   });
+
+  describe('user-supplied URLs (PRC-H024 / PRC-H033)', () => {
+    async function createLesson() {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/lms/lessons',
+        headers: as(teacherSchool1),
+        payload: { scope: 'school', institutionId: SCHOOL_1, title: 'Fractions' },
+      });
+      expect(res.statusCode).toBe(201);
+      return res.json() as { id: string };
+    }
+
+    it.each([
+      'javascript:alert(1)',
+      'JavaScript:alert(1)',
+      'data:text/html,<b>x</b>',
+      'vbscript:x',
+    ])('rejects lesson resource url %s with 400', async (url) => {
+      const lesson = await createLesson();
+      const res = await app.inject({
+        method: 'POST',
+        url: `/lms/lessons/${lesson.id}/resources`,
+        headers: as(teacherSchool1),
+        payload: { kind: 'link', title: 'Evil', url },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    it('accepts an https lesson resource url', async () => {
+      const lesson = await createLesson();
+      const res = await app.inject({
+        method: 'POST',
+        url: `/lms/lessons/${lesson.id}/resources`,
+        headers: as(teacherSchool1),
+        payload: { kind: 'link', title: 'Khan', url: 'https://example.edu/fractions' },
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it('rejects a javascript: body on a link content item with 400', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/lms/content',
+        headers: as(teacherSchool1),
+        payload: {
+          scope: 'school',
+          institutionId: SCHOOL_1,
+          title: 'Evil link',
+          kind: 'link',
+          body: 'javascript:alert(1)',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+  });
 });

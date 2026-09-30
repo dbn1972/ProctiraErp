@@ -48,6 +48,7 @@ import {
   CreateContentItemSchema,
   CreateDiscussionSchema,
   CreateLessonResourceSchema,
+  HTTP_URL_PATTERN,
   CreateLessonSchema,
   CreatePostSchema,
   CreateRubricSchema,
@@ -168,7 +169,6 @@ export async function registerLmsRoutes(
       return reply;
     }
   });
-
 
   // ─── Skills ────────────────────────────────────────────────────────────
 
@@ -896,6 +896,16 @@ export async function registerLmsRoutes(
   fastify.post(`${prefix}/content`, async (request, reply) => {
     const body = validate(CreateContentItemSchema, request.body);
     if (!body.success) return validationFailed(reply, body.errors);
+    // PRC-H024 / PRC-H033: a 'link' body is rendered as an href — http(s) only.
+    if (
+      body.data.kind === 'link' &&
+      body.data.body &&
+      !new RegExp(HTTP_URL_PATTERN).test(body.data.body)
+    ) {
+      return validationFailed(reply, [
+        { path: '/body', message: 'Link must be an http:// or https:// URL' },
+      ]);
+    }
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     try {
