@@ -495,4 +495,34 @@ describe('PRC-H070 notification read authorization', () => {
     expect(list.statusCode).toBe(200);
     await app.close();
   });
+
+  it('cross-tenant notification id returns 404 even for staff', async () => {
+    // The onRequest hook pins the request tenant to `tenantId`; a notification created for a
+    // DIFFERENT tenant must not be readable here (repository filters by tenant_id).
+    const app = await build();
+    const OTHER_TENANT = '99999999-9999-4999-8999-999999999999';
+    await repository.createTemplate({
+      id: '88888888-8888-4888-8888-888888888888',
+      tenantId: OTHER_TENANT,
+      name: 'X',
+      channel: 'in_app',
+      subject: null,
+      body: 'x',
+      variables: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    const foreign = await service.send(OTHER_TENANT, {
+      channel: 'in_app',
+      templateId: '88888888-8888-4888-8888-888888888888',
+      recipients: { userIds: [userA] },
+      variables: {},
+    });
+    const foreignId = foreign[0]!.id;
+
+    principal = { sub: 'staff-2', roles: ['notification_admin'] };
+    const get = await app.inject({ method: 'GET', url: `/notifications/${foreignId}` });
+    expect(get.statusCode).toBe(404);
+    await app.close();
+  });
 });
