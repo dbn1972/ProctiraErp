@@ -888,7 +888,7 @@ export class FeesService {
       status: 'approved',
       approverId: actorId,
     });
-    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount);
+    return this.applyApprovedConcessionToInvoice(tenantId, actorId, approved!, discount, audit);
   }
 
   async rejectConcession(tenantId: string, actorId: string, concessionId: string) {
