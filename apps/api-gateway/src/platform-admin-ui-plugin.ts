@@ -208,9 +208,18 @@ export const platformAdminUiPlugin = fp(
       }
       throw error;
     };
-    const reasonOf = (request: FastifyRequest): string => {
+    /** Same rule as the /tenant-lifecycle schemas: a 1–500 char reason is mandatory. */
+    const reasonOf = (request: FastifyRequest): string | null => {
       const reason = (request.body as { reason?: unknown } | undefined)?.reason;
-      return typeof reason === 'string' && reason.trim() ? reason.trim() : 'Platform console action';
+      if (typeof reason !== 'string') return null;
+      const trimmed = reason.trim();
+      return trimmed.length >= 1 && trimmed.length <= 500 ? trimmed : null;
+    };
+    const retainDaysOf = (request: FastifyRequest): number | undefined => {
+      const value = (request.body as { retainDataDays?: unknown } | undefined)?.retainDataDays;
+      return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 365
+        ? value
+        : undefined;
     };
 
     fastify.get('/tenants', async (request, reply) => {
@@ -302,14 +311,25 @@ export const platformAdminUiPlugin = fp(
     for (const action of ['suspend', 'reactivate', 'decommission'] as const) {
       fastify.post<{ Params: { id: string } }>(`/tenants/:id/${action}`, async (request, reply) => {
         if (tenantService) {
+          const reason = reasonOf(request);
+          if (action !== 'reactivate' && !reason) {
+            return reply.status(400).send({
+              code: 'VALIDATION_ERROR',
+              message: 'reason (1–500 characters) is required',
+              statusCode: 400,
+            });
+          }
           try {
             const id = request.params.id;
             const updated =
               action === 'suspend'
-                ? await tenantService.suspendTenant(id, { reason: reasonOf(request) })
+                ? await tenantService.suspendTenant(id, { reason: reason! })
                 : action === 'reactivate'
                   ? await tenantService.reactivateTenant(id)
-                  : await tenantService.decommissionTenant(id, { reason: reasonOf(request) });
+                  : await tenantService.decommissionTenant(id, {
+                      reason: reason!,
+                      retainDataDays: retainDaysOf(request),
+                    });
             return reply.send(toConsoleTenant(updated));
           } catch (error) {
             return sendDomainError(reply, error);
@@ -337,14 +357,14 @@ export const platformAdminUiPlugin = fp(
 
     fastify.delete<{ Params: { id: string } }>('/tenants/:id', async (request, reply) => {
       if (tenantService) {
-        try {
-          // Permanent delete: the service only allows decommissioned tenants past retention and
-          // fails closed under legal hold.
-          await tenantService.deleteTenant(request.params.id);
-          return reply.status(204).send();
-        } catch (error) {
-          return sendDomainError(reply, error);
-        }
+        // Irreversible permanent delete is not exposed from the console until it collects an
+        // explicit confirmation and writes an audit trail; decommission is the console action.
+        return reply.status(501).send({
+          code: 'NOT_IMPLEMENTED',
+          message:
+            'Permanent tenant deletion is not available from the console. Decommission the tenant; deletion after retention is an operator runbook step.',
+          statusCode: 501,
+        });
       }
       const tenant = await tenants.get(request.params.id);
       if (!tenant) {
@@ -514,7 +534,8 @@ export const platformAdminUiPlugin = fp(
       const postgres = await probePostgres(getSharedPgPool() as SqlPool | null);
       const up = (status: string) => (status === 'healthy' ? 'up' : status);
       return reply.send({
-        status: postgres.status === 'down' ? 'degraded' : 'ok',
+        // Only 'ok' when every dependency was actually verified.
+        status: postgres.status === 'healthy' ? 'ok' : postgres.status === 'down' ? 'degraded' : 'unknown',
         services: [
           { name: 'gateway', status: 'up' },
           { name: 'postgres', status: up(postgres.status), note: postgres.note },

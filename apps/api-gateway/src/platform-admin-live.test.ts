@@ -34,10 +34,11 @@ describe('probePostgres', () => {
 
 describe('queryPlatformAudit', () => {
   it('returns only rows read from audit_log_entries', async () => {
-    let sql = '';
+    const statements: string[] = [];
     const pool: SqlPool = {
       query: (text) => {
-        sql = text;
+        statements.push(text);
+        if (!text.includes('audit_log_entries')) return Promise.resolve({ rows: [] });
         return Promise.resolve({
           rows: [
             {
@@ -56,7 +57,11 @@ describe('queryPlatformAudit', () => {
       },
     };
     const rows = await queryPlatformAudit(pool);
-    expect(sql).toContain('FROM audit_log_entries');
+    // FORCE RLS: the read must run with the platform-admin GUC bound first.
+    const scopeIdx = statements.findIndex((q) => q.includes("set_config('app.platform_admin', '1'"));
+    const readIdx = statements.findIndex((q) => q.includes('FROM audit_log_entries'));
+    expect(scopeIdx).toBeGreaterThanOrEqual(0);
+    expect(readIdx).toBeGreaterThan(scopeIdx);
     expect(rows).toEqual([
       expect.objectContaining({ id: 'a1', action: 'student.update', actor: 'Registrar', tenantId: 't1' }),
     ]);
@@ -122,6 +127,7 @@ describe('platform-admin console routes (gateway)', () => {
     expect(health.statusCode).toBe(200);
     const pg = health.json().services.find((s: { name: string }) => s.name === 'postgres');
     expect(pg.status).not.toBe('up');
+    expect(health.json().status).toBe('unknown');
 
     const system = await app.inject({ method: 'GET', url: '/api/v1/health/system', headers: platformAdmin() });
     const adapter = system.json().adapters.find((a: { name: string }) => a.name === 'PostgreSQL');
@@ -171,6 +177,60 @@ describe('platform-admin console routes (gateway)', () => {
       payload: { reason: 'again' },
     });
     expect(again.statusCode).toBe(422);
+  });
+
+  async function makeTenant(slugPrefix: string) {
+    const tenantService = (app as FastifyInstance & { tenantService: TenantService }).tenantService;
+    const tenant = await tenantService.createTenant({
+      name: `${slugPrefix} School`,
+      slug: `${slugPrefix}-${Date.now().toString(36)}`,
+      admin: { firstName: 'A', lastName: 'B', email: 'a@b.example', password: 'correct-horse-battery' },
+    });
+    return { tenantService, tenant };
+  }
+
+  it('requires a reason for suspend and decommission (same rule as /tenant-lifecycle)', async () => {
+    const { tenant } = await makeTenant('reason');
+    for (const action of ['suspend', 'decommission']) {
+      for (const payload of [{}, { reason: '' }, { reason: 'x'.repeat(501) }]) {
+        const res = await app.inject({
+          method: 'POST',
+          url: `/api/v1/tenants/${tenant.id}/${action}`,
+          headers: platformAdmin(),
+          payload,
+        });
+        expect(res.statusCode, `${action} ${JSON.stringify(payload).slice(0, 30)}`).toBe(400);
+      }
+    }
+  });
+
+  it('decommission honours retainDataDays and reports honest placeholders', async () => {
+    const { tenantService, tenant } = await makeTenant('retain');
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/v1/tenants/${tenant.id}/decommission`,
+      headers: platformAdmin(),
+      payload: { reason: 'Contract ended', retainDataDays: 90 },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().status).toBe('decommissioning');
+    expect(res.json().activeUsers).toBeNull();
+    expect(res.json().contactEmail).toBeNull();
+    const stored = await tenantService.getTenantById(tenant.id);
+    const days = (stored.dataRetentionUntil!.getTime() - Date.now()) / 86_400_000;
+    expect(days).toBeGreaterThan(89);
+    expect(days).toBeLessThan(91);
+  });
+
+  it('does not permanently delete a tenant from the console', async () => {
+    const { tenantService, tenant } = await makeTenant('nodelete');
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/api/v1/tenants/${tenant.id}`,
+      headers: platformAdmin(),
+    });
+    expect(res.statusCode).toBe(501);
+    expect((await tenantService.getTenantById(tenant.id)).id).toBe(tenant.id);
   });
 
   it('console create refuses instead of creating a console-only tenant', async () => {

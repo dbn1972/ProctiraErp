@@ -88,7 +88,7 @@ export default async function SupportPage({
                 <CardContent className="space-y-3">
                   <ImpactRow
                     label="Active users"
-                    value={selectedTenant.activeUsers.toLocaleString()}
+                    value={selectedTenant.activeUsers?.toLocaleString() ?? 'Unavailable'}
                   />
                   <ImpactRow label="Plan" value={selectedTenant.plan} />
                   <ImpactRow label="Region" value={selectedTenant.region} />

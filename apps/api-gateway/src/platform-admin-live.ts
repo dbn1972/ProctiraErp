@@ -7,6 +7,7 @@
  * and report `unknown` / `unavailable` honestly when a source is not configured.
  */
 import type { TenantEntity } from '@proctira/backend-tenant';
+import { withPlatformScope, type PgPoolWithConnect } from '@proctira/database';
 
 export interface SqlPool {
   query: (sql: string, values?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>;
@@ -76,14 +77,20 @@ export interface ConsoleAuditEntry {
  * Read the most recent audit trail rows across tenants (platform scope). Only rows that exist in
  * audit_log_entries are returned.
  */
-export async function queryPlatformAudit(pool: SqlPool, limit = 100): Promise<ConsoleAuditEntry[]> {
+export async function queryPlatformAudit(
+  pool: SqlPool | PgPoolWithConnect,
+  limit = 100,
+): Promise<ConsoleAuditEntry[]> {
   const bounded = Math.max(1, Math.min(500, Math.floor(limit)));
-  const { rows } = await pool.query(
-    `SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name, occurred_at, metadata
+  const sql = `SELECT id, tenant_id, entity_type, entity_id, operation, user_id, user_name, occurred_at, metadata
        FROM audit_log_entries
       ORDER BY occurred_at DESC
-      LIMIT $1`,
-    [bounded],
+      LIMIT $1`;
+  // audit_log_entries is FORCE RLS: a bare pooled query as the runtime role returns no rows.
+  // Read under the transaction-local platform-admin scope (same path as PgAuditRepository).
+  const { rows } = await withPlatformScope(
+    pool as PgPoolWithConnect,
+    (client) => client.query(sql, [bounded]) as Promise<{ rows: Record<string, unknown>[] }>,
   );
   return rows.map((row) => {
     const metadata =
@@ -121,10 +128,13 @@ export interface ConsoleTenant {
   plan: string;
   region: string;
   createdAt: string;
-  contactEmail: string;
-  activeUsers: number;
+  /** Not held by the tenant service; null rather than a fabricated value. */
+  contactEmail: string | null;
+  /** Not held by the tenant service; null rather than a fabricated 0. */
+  activeUsers: number | null;
   entitlements: string[];
   suspendedReason?: string | null;
+  dataRetentionUntil?: string | null;
   source: 'tenant-service';
 }
 
@@ -141,12 +151,15 @@ export function toConsoleTenant(entity: TenantEntity): ConsoleTenant {
     plan: entity.plan ?? 'unassigned',
     region: entity.region ?? 'unassigned',
     createdAt: new Date(entity.createdAt).toISOString(),
-    contactEmail: '',
-    activeUsers: 0,
+    contactEmail: null,
+    activeUsers: null,
     entitlements: Object.entries(modules)
       .filter(([, enabled]) => enabled)
       .map(([key]) => key),
     suspendedReason: entity.suspendedReason,
+    dataRetentionUntil: entity.dataRetentionUntil
+      ? new Date(entity.dataRetentionUntil).toISOString()
+      : null,
     source: 'tenant-service',
   };
 }
