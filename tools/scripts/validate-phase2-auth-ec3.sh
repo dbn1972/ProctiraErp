@@ -7,9 +7,23 @@ set -euo pipefail
 
 WEB_URL="${WEB_URL:-http://127.0.0.1:3201}"
 API_URL="${API_URL:-http://127.0.0.1:3200}"
-DB_URL="${DATABASE_URL_HOST:-postgresql://proctira:proctira_dev_password@127.0.0.1:5434/proctira}"
-EMAIL="${INDIA_ADMIN_EMAIL:-admin@proctira.in}"
-PASSWORD="${INDIA_ADMIN_PASSWORD:-proctira-india-admin}"
+# PRC-L183: no committed credential defaults — callers must supply them.
+usage() {
+  echo "usage: DATABASE_URL_HOST=... INDIA_ADMIN_EMAIL=... INDIA_ADMIN_PASSWORD=... $0" >&2
+  echo "error: $1 is required (no default credentials are shipped)" >&2
+  exit 2
+}
+for v in DATABASE_URL_HOST INDIA_ADMIN_EMAIL INDIA_ADMIN_PASSWORD; do
+  [[ -n "${!v:-}" ]] || usage "$v"
+done
+DB_URL="$DATABASE_URL_HOST"
+EMAIL="$INDIA_ADMIN_EMAIL"
+PASSWORD="$INDIA_ADMIN_PASSWORD"
+# Private per-run output files (tokens / profile JSON); removed on exit.
+OUT_DIR="$(mktemp -d)"
+trap 'rm -rf "$OUT_DIR"' EXIT
+LOGIN_JSON="$OUT_DIR/phase2-login.json"
+ME_JSON="$OUT_DIR/phase2-me.json"
 POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-proctira-erp-postgres-1}"
 
 echo "==> Branding smoke: ${WEB_URL}/login"
@@ -25,17 +39,17 @@ echo "$html" | grep -qi 'Every school, every student\|AuthShell\|Welcome back' &
 echo "OK branding"
 
 echo "==> Password login via web BFF"
-login_headers="$(mktemp)"
-curl -fsS -D "$login_headers" -o /tmp/phase2-login.json \
+login_headers="$OUT_DIR/login-headers.txt"
+curl -fsS -D "$login_headers" -o "$LOGIN_JSON" \
   -X POST "${WEB_URL}/api/auth/login" \
   -H 'content-type: application/json' \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}"
 grep -qi 'set-cookie:.*access' "$login_headers" || {
-  echo "FAIL: access cookie missing"; cat /tmp/phase2-login.json; exit 1;
+  echo "FAIL: access cookie missing"; cat "$LOGIN_JSON"; exit 1;
 }
 echo "OK login cookies"
 
-cookie_jar="$(mktemp)"
+cookie_jar="$OUT_DIR/cookies.txt"
 curl -fsS -c "$cookie_jar" -X POST "${WEB_URL}/api/auth/login" \
   -H 'content-type: application/json' \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}" >/dev/null
@@ -46,9 +60,9 @@ tok_json="$(curl -fsS -X POST "${API_URL}/api/v1/auth/password" \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}")"
 access="$(printf '%s' "$tok_json" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("accessToken",""))')"
 test -n "$access" || { echo "FAIL: no accessToken"; echo "$tok_json"; exit 1; }
-curl -fsS "${API_URL}/api/v1/auth/me" -H "Authorization: Bearer ${access}" -o /tmp/phase2-me.json
-cat /tmp/phase2-me.json
-grep -qi 'proctira\|india\|admin' /tmp/phase2-me.json || {
+curl -fsS "${API_URL}/api/v1/auth/me" -H "Authorization: Bearer ${access}" -o "$ME_JSON"
+cat "$ME_JSON"
+grep -qi 'proctira\|india\|admin' "$ME_JSON" || {
   echo "WARN: /me payload did not clearly mention india/admin — inspect manually"
 }
 echo "OK /me"

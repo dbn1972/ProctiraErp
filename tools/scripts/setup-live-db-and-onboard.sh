@@ -3,8 +3,14 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-export PGPASSWORD="${PGPASSWORD:-proctira_dev_password}"
-DB_URL="${DATABASE_URL:-postgresql://proctira:proctira_dev_password@127.0.0.1:5432/proctira}"
+# PRC-L183: no committed credential defaults — DATABASE_URL must be supplied
+# (embed the password in the URL or export PGPASSWORD separately).
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  echo "usage: DATABASE_URL=postgresql://user:pass@host:port/db $0" >&2
+  echo "error: DATABASE_URL is required (no default credentials are shipped)" >&2
+  exit 2
+fi
+DB_URL="$DATABASE_URL"
 ARTIFACT_DIR="${ARTIFACT_DIR:-/opt/cursor/artifacts/multi-board-onboard}"
 mkdir -p "$ARTIFACT_DIR"
 export ARTIFACT_DIR
