@@ -5,7 +5,7 @@
  * records live in `enrollment_history` / `transfer_records` (db/sql/021).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { ConflictError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { withPgTenant, withPlatformScope, type PgQueryable } from '@proctira/database';
 
 import type {
@@ -15,6 +15,8 @@ import type {
   EnrollmentHistoryEntity,
   EnrollmentRepository,
   InstitutionLookup,
+  TransferEnrollmentResult,
+  TransferEnrollmentWrite,
   TransferRecordDetail,
   TransferRecordEntity,
 } from './enrollment-repository.js';
@@ -390,6 +392,114 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
           row.destination_board_name == null ? null : String(row.destination_board_name),
       };
     });
+  }
+
+  /**
+   * PRC-H094: one withPgTenant transaction for the whole transfer. History GUCs
+   * are re-bound before each statement so the DB trigger records the right
+   * reason/effective date for the transfer-out and transfer-in rows.
+   */
+  async transferEnrollment(write: TransferEnrollmentWrite): Promise<TransferEnrollmentResult> {
+    const { tenantId, destination: dest } = write;
+    try {
+      return await this.withTenant(tenantId, async (client) => {
+        if (dest.classId) {
+          const cls = await client.query(
+            `SELECT institution_id, grade_id, academic_period_id
+               FROM classes
+              WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL
+              LIMIT 1`,
+            [dest.classId, tenantId],
+          );
+          const row = cls.rows[0] as
+            { institution_id: unknown; grade_id: unknown; academic_period_id: unknown } | undefined;
+          if (
+            !row ||
+            String(row.institution_id) !== dest.institutionId ||
+            String(row.grade_id) !== dest.gradeId ||
+            String(row.academic_period_id) !== dest.academicPeriodId
+          ) {
+            throw new BusinessRuleError(
+              'Transfer rejected: destination class does not belong to the destination institution, grade and academic period',
+            );
+          }
+        }
+        const locked = await client.query(
+          `SELECT * FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+          [write.sourceEnrollmentId, tenantId],
+        );
+        const sourceRow = locked.rows[0] as Record<string, unknown> | undefined;
+        if (!sourceRow) {
+          throw new NotFoundError(
+            `Source enrollment with id '${write.sourceEnrollmentId}' not found`,
+          );
+        }
+        if (String(sourceRow.status) !== write.expectedSourceStatus) {
+          throw new ConflictError(
+            `Source enrollment changed concurrently (status '${String(sourceRow.status)}')`,
+          );
+        }
+        await bindEnrollmentHistoryGucs(client, write.sourceHistory);
+        const updated = await client.query(
+          `UPDATE enrollments
+              SET status = $3::enrollment_status, exited_at = $4::date, updated_at = now()
+            WHERE id = $1 AND tenant_id = $2
+            RETURNING *`,
+          [
+            write.sourceEnrollmentId,
+            tenantId,
+            write.sourceUpdate.status,
+            write.sourceUpdate.exitedAt,
+          ],
+        );
+        await bindEnrollmentHistoryGucs(client, write.destinationHistory);
+        const inserted = await client.query(
+          `INSERT INTO enrollments (
+             id, tenant_id, student_id, institution_id, grade_id, class_id,
+             academic_period_id, status, enrolled_at, exited_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::enrollment_status,$9::date,$10::date)
+           RETURNING *`,
+          [
+            dest.id,
+            tenantId,
+            dest.studentId,
+            dest.institutionId,
+            dest.gradeId,
+            dest.classId,
+            dest.academicPeriodId,
+            dest.status,
+            dest.enrolledAt,
+            dest.exitedAt,
+          ],
+        );
+        const t = write.transfer;
+        const transfer = await client.query(
+          `INSERT INTO transfer_records (
+             id, tenant_id, student_id, source_institution_id, source_enrollment_id,
+             destination_institution_id, destination_enrollment_id, transfer_date, reason
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::date,$9) RETURNING *`,
+          [
+            t.id,
+            tenantId,
+            t.studentId,
+            t.sourceInstitutionId,
+            t.sourceEnrollmentId,
+            t.destinationInstitutionId,
+            t.destinationEnrollmentId,
+            t.transferDate,
+            t.reason,
+          ],
+        );
+        return {
+          sourceEnrollment: mapEnrollment(updated.rows[0] as Record<string, unknown>),
+          destinationEnrollment: mapEnrollment(inserted.rows[0] as Record<string, unknown>),
+          transferRecord: mapTransfer(transfer.rows[0] as Record<string, unknown>),
+        };
+      });
+    } catch (err) {
+      mapActiveEnrollmentConflict(err);
+      throw err;
+    }
   }
 
   async findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null> {

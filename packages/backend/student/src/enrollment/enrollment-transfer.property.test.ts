@@ -579,3 +579,102 @@ describe('Property 13: Enrollment Status History Completeness', () => {
     );
   });
 });
+
+// --- PRC-H094: transfer atomicity (injected failure at each step) ---
+describe('PRC-H094: transfer is all-or-nothing', () => {
+  const failingStepArb = fc.constantFrom('destination' as const, 'transfer_record' as const);
+  it('an injected failure at any step leaves the source ENROLLED with no new history/transfer', async () => {
+    await fc.assert(
+      fc.asyncProperty(transferScenarioArb, failingStepArb, async (scenario, failAt) => {
+        const repository = new InMemoryEnrollmentRepository();
+        const service = new EnrollmentService(repository);
+        repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
+        repository.addInstitution(scenario.destinationInstitutionId, scenario.tenantId, 'active');
+        const enrollment = await service.createEnrollment(scenario.tenantId, {
+          studentId: scenario.studentId,
+          institutionId: scenario.sourceInstitutionId,
+          gradeId: scenario.gradeId,
+          classId: scenario.classId,
+          academicPeriodId: scenario.academicPeriodId,
+          enrolledAt: scenario.enrolledAt,
+        });
+        const historyBefore = await repository.getEnrollmentHistory(
+          scenario.tenantId,
+          scenario.studentId,
+        );
+        repository.beforeTransferStep = (step) => {
+          if (step === failAt) throw new Error(`injected failure at ${step}`);
+        };
+        await expect(
+          service.transferStudent(scenario.tenantId, {
+            studentId: scenario.studentId,
+            sourceEnrollmentId: enrollment.id,
+            destinationInstitutionId: scenario.destinationInstitutionId,
+            destinationGradeId: scenario.destinationGradeId,
+            destinationClassId: scenario.destinationClassId,
+            academicPeriodId: scenario.academicPeriodId,
+            transferDate: scenario.transferDate,
+            reason: scenario.reason,
+          }),
+        ).rejects.toThrow(/injected failure/);
+        const source = await repository.findEnrollmentById(enrollment.id, scenario.tenantId);
+        expect(source?.status).toBe(EnrollmentStatus.ENROLLED);
+        expect(source?.exitedAt).toBeNull();
+        const active = await repository.findActiveEnrollment(
+          scenario.tenantId,
+          scenario.studentId,
+          scenario.academicPeriodId,
+        );
+        expect(active?.id).toBe(enrollment.id);
+        expect(
+          await repository.getEnrollmentHistory(scenario.tenantId, scenario.studentId),
+        ).toHaveLength(historyBefore.length);
+        expect(
+          await repository.getTransferRecords(scenario.tenantId, scenario.studentId),
+        ).toHaveLength(0);
+      }),
+      { numRuns: 50 },
+    );
+  });
+
+  it('a conflicting active enrollment in the destination period is rejected before any write', async () => {
+    const repository = new InMemoryEnrollmentRepository();
+    const service = new EnrollmentService(repository);
+    const tenantId = '11111111-1111-4111-8111-111111111111';
+    const studentId = '22222222-2222-4222-8222-222222222222';
+    const [srcInst, dstInst] = [
+      '33333333-3333-4333-8333-333333333333',
+      '44444444-4444-4444-8444-444444444444',
+    ];
+    const [p1, p2] = [
+      '55555555-5555-4555-8555-555555555555',
+      '66666666-6666-4666-8666-666666666666',
+    ];
+    repository.addInstitution(srcInst, tenantId, 'active');
+    repository.addInstitution(dstInst, tenantId, 'active');
+    const base = {
+      studentId,
+      institutionId: srcInst,
+      gradeId: '77777777-7777-4777-8777-777777777777',
+      classId: '88888888-8888-4888-8888-888888888888',
+      enrolledAt: '2026-04-01',
+    };
+    const source = await service.createEnrollment(tenantId, { ...base, academicPeriodId: p1 });
+    await service.createEnrollment(tenantId, { ...base, academicPeriodId: p2 });
+    await expect(
+      service.transferStudent(tenantId, {
+        studentId,
+        sourceEnrollmentId: source.id,
+        destinationInstitutionId: dstInst,
+        destinationGradeId: base.gradeId,
+        destinationClassId: base.classId,
+        academicPeriodId: p2,
+        transferDate: '2026-06-01',
+        reason: 'Relocation',
+      }),
+    ).rejects.toThrow(/already has an active enrollment/);
+    expect((await repository.findEnrollmentById(source.id, tenantId))?.status).toBe(
+      EnrollmentStatus.ENROLLED,
+    );
+  });
+});
