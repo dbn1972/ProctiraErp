@@ -4,7 +4,15 @@
 import { AppError } from '@proctira/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
-import { assertFeesAccess, type FeesAction } from './fees-access.js';
+import { assertFeesAccess, hasFeesAccess, type FeesAction } from './fees-access.js';
+
+/**
+ * Effective fees read scope, derived from the caller's ROLES — never a client query param.
+ *  - 'staff': caller holds fees.read → may read tenant-wide (subject to institution scope).
+ *  - 'self':  caller holds only fees.read.self (parent/guardian/student) → reads MUST be
+ *             filtered to the caller's linked students; staff-only routes must deny.
+ */
+export type FeesReadScope = 'staff' | 'self';
 
 export function feesRequestRoles(request: FastifyRequest): unknown {
   const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
@@ -33,10 +41,35 @@ export function requireFeesAction(
 }
 
 /**
- * Staff-wide reads vs parent/guardian self-scope reads.
+ * PRC-C005: resolve the caller's effective fees read scope from their ROLES.
+ *
+ * The previous requireFeesRead trusted a `?scope=parent` query param to downgrade the required
+ * action to fees.read.self, so any parent/student could add `?scope=parent` to any fees read
+ * route and pass the guard — while most handlers ignored the scope and returned tenant-wide
+ * data. Scope must be derived from identity, not the request.
+ *
+ * Returns the scope when allowed; sends 403 and returns null when the caller holds no fees read
+ * permission at all. Callers MUST branch on the returned scope: 'self' reads are filtered to the
+ * caller's linked students, and staff-only routes must reject 'self' via requireFeesStaffRead.
  */
-export function requireFeesRead(request: FastifyRequest, reply: FastifyReply): boolean {
-  const scope = String((request.query as { scope?: string }).scope ?? '').toLowerCase();
-  const action: FeesAction = scope === 'parent' ? 'fees.read.self' : 'fees.read';
-  return requireFeesAction(request, reply, action);
+export function resolveFeesReadScope(
+  request: FastifyRequest,
+  reply: FastifyReply,
+): FeesReadScope | null {
+  const roles = feesRequestRoles(request);
+  if (hasFeesAccess(roles, 'fees.read')) return 'staff';
+  if (hasFeesAccess(roles, 'fees.read.self')) return 'self';
+  void reply
+    .status(403)
+    .send(new AppError('Forbidden: role cannot read fees', 'FORBIDDEN', 403).toJSON());
+  return null;
+}
+
+/**
+ * Staff-only fees read: rejects self-scope callers (parent/guardian/student) even if they hold
+ * fees.read.self. Use on routes that cannot be meaningfully self-scoped (tenant-wide ledgers,
+ * trial balance, reconciliation, dues reports).
+ */
+export function requireFeesStaffRead(request: FastifyRequest, reply: FastifyReply): boolean {
+  return requireFeesAction(request, reply, 'fees.read');
 }
