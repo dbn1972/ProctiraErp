@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -175,5 +175,52 @@ describe('GradebookService board exports', () => {
     const audits = service.listAudits(TENANT);
     expect(audits.some((a) => a.action === 'board_export.create')).toBe(true);
     expect(audits.some((a) => a.action === 'board_export.download')).toBe(true);
+  });
+
+  // PRC-H065: candidate PII (national IDs, names, marks) lives in metadata.prep for the worker
+  // and must never be returned by create/list/get.
+  it('never returns prep candidate PII from create/list/get for queued jobs', async () => {
+    const { service, repo } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    expect(queued.metadata).not.toHaveProperty('prep');
+    expect(JSON.stringify(queued)).not.toContain('NID-1');
+
+    const listed = await service.listBoardExportJobs(TENANT);
+    expect(JSON.stringify(listed)).not.toContain('NID-1');
+    const fetched = await service.getBoardExportJob(TENANT, queued.id);
+    expect(fetched?.metadata).not.toHaveProperty('prep');
+
+    // The worker still has what it needs: the stored row keeps prep until processing.
+    const raw = await repo.getExportJob(TENANT, queued.id);
+    expect(raw?.metadata).toHaveProperty('prep');
+    const done = await service.processBoardExportJob(TENANT, queued.id);
+    expect(done.status).toBe('SUCCEEDED');
+  });
+
+  it('purges prep candidate PII from the stored row when an export fails', async () => {
+    const { service, repo } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    // Point the artifact root at a regular file so writing the pack fails.
+    const blockerParent = mkdtempSync(join(tmpdir(), 'sis-board-block-'));
+    artifactDirs.push(blockerParent);
+    const blocker = join(blockerParent, 'not-a-dir');
+    writeFileSync(blocker, 'x');
+    process.env.SIS_BOARD_EXPORT_DIR = blocker;
+
+    await expect(service.processBoardExportJob(TENANT, queued.id)).rejects.toThrow();
+    const raw = await repo.getExportJob(TENANT, queued.id);
+    expect(raw?.status).toBe('FAILED');
+    expect(raw?.metadata).not.toHaveProperty('prep');
+    expect(JSON.stringify(raw)).not.toContain('NID-1');
   });
 });
