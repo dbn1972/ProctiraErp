@@ -104,6 +104,16 @@ class AppLocalizations {
   String get syncStatusConflict => _t('syncStatusConflict');
   String get notMarked => _t('notMarked');
 
+  // Student document capture (PRC-H016).
+  String get documentType => _t('documentType');
+  String documentCategory(String category) => _t('documentCategory_$category');
+  String get documentSaveAndUpload => _t('documentSaveAndUpload');
+  String get documentSaving => _t('documentSaving');
+  String get documentUploadHelp => _t('documentUploadHelp');
+  String get documentSavedSnack => _t('documentSavedSnack');
+  String get documentStudentMissing => _t('documentStudentMissing');
+  String get documentSaveFailed => _t('documentSaveFailed');
+
   String _t(String key) {
     final Map<String, String>? values = _localizedValues[locale.languageCode];
     return values?[key] ?? _en[key] ?? key;
@@ -166,6 +176,26 @@ class AppLocalizations {
     'syncStatusFailed': 'Not sent: sync failed',
     'syncStatusConflict': 'Conflict with server',
     'notMarked': 'Not marked',
+    'documentType': 'Document type',
+    'documentCategory_birth_certificate': 'Birth certificate',
+    'documentCategory_transfer_certificate': 'Transfer certificate',
+    'documentCategory_passport': 'Passport',
+    'documentCategory_national_id': 'National ID',
+    'documentCategory_medical': 'Medical record',
+    'documentCategory_address_proof': 'Address proof',
+    'documentCategory_previous_marksheet': 'Previous marksheet',
+    'documentCategory_other': 'Other',
+    'documentSaveAndUpload': 'Save and upload',
+    'documentSaving': 'Saving…',
+    'documentUploadHelp':
+        'The scan is saved on this device and uploads to the student record '
+        'when you are online. If an upload fails it is listed under sync '
+        'status with a Retry option.',
+    'documentSavedSnack':
+        'Document saved on this device. It will upload when you are online.',
+    'documentStudentMissing':
+        'This student is not available offline, so the document was not saved.',
+    'documentSaveFailed': 'Could not save the document',
   };
 
   // --- Hindi ---
