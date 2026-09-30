@@ -218,10 +218,11 @@ export class TenantService {
   /**
    * Suspend a tenant.
    *
-   * Suspended tenants:
-   * - Cannot authenticate new sessions
-   * - Existing sessions are invalidated
-   * - Data is preserved and accessible to platform admins
+   * Suspended tenants (enforced by the gateway suspension gate, PRC-H008/H098):
+   * - Cannot make mutating API requests (403 TENANT_SUSPENDED), except billing remediation and
+   *   privacy/data-subject requests
+   * - Can still read their data (read-only mode) and sign in
+   * - Existing sessions are NOT revoked (tracked follow-up)
    * - Can be reactivated
    *
    * @throws NotFoundError if tenant not found

@@ -11,6 +11,8 @@ import type { GatewayConfig } from './config.js';
 import {
   clearSuspendedTenantsForTests,
   configureTenantStatusSource,
+  currentTenantStatusSource,
+  noteTenantStatusChange,
   resolveTenantBlocked,
 } from './tenant-entitlement.js';
 
@@ -92,13 +94,13 @@ describe('tenant suspension reaches the gateway gate', () => {
     const write = () =>
       app.inject({
         method: 'POST',
-        url: '/api/v1/students',
+        url: '/api/v1/communication/campaigns',
         headers,
-        payload: { firstName: 'Ada', lastName: 'Lovelace' },
+        payload: { name: `H008 ${Date.now()}` },
       });
 
     const before = await write();
-    expect(before.json()?.code).not.toBe('TENANT_SUSPENDED');
+    expect(before.statusCode).toBe(201);
 
     await tenantService.suspendTenant(tenant.id, { reason: 'Unpaid invoice' });
     const during = await write();
@@ -111,7 +113,7 @@ describe('tenant suspension reaches the gateway gate', () => {
 
     await tenantService.reactivateTenant(tenant.id);
     const after = await write();
-    expect(after.json()?.code).not.toBe('TENANT_SUSPENDED');
+    expect(after.statusCode).toBe(201);
   });
 
   it('decommissioned tenants are blocked too', async () => {
@@ -127,34 +129,60 @@ describe('tenant suspension reaches the gateway gate', () => {
     expect(res.json().code).toBe('TENANT_SUSPENDED');
   });
 
-  it('another gateway instance sees the suspension from the store (no local event)', async () => {
-    const tenant = await createTenant('multi');
-    // Simulate a second instance: same store, but it never received the lifecycle event.
-    let reads = 0;
-    configureTenantStatusSource(
-      async () => {
-        reads += 1;
-        return 'suspended';
-      },
-      { ttlMs: 50 },
-    );
-    try {
-      expect(await resolveTenantBlocked(tenant.id)).toBe(true);
-      expect(reads).toBe(1);
-    } finally {
-      // Restore the app's own wiring for later tests.
-      const repo = tenantService as unknown as {
-        repository: { findTenantById(id: string): Promise<{ status: string } | null> };
-      };
-      configureTenantStatusSource(async (id) => {
-        const t = await repo.repository.findTenantById(id);
-        return (t?.status as never) ?? null;
+  it('billing remediation and privacy requests stay reachable while suspended', async () => {
+    const tenant = await createTenant('remed');
+    await tenantService.suspendTenant(tenant.id, { reason: 'Unpaid invoice' });
+    for (const url of ['/api/v1/billing/subscriptions/x/reactivate', '/api/v1/privacy/requests']) {
+      const res = await app.inject({
+        method: 'POST',
+        url,
+        headers: adminOf(tenant.id),
+        payload: {},
       });
+      expect(res.json()?.code, url).not.toBe('TENANT_SUSPENDED');
     }
+  });
+
+  it('an in-flight store read cannot overwrite a newer lifecycle event', async () => {
+    const tenant = await createTenant('race');
+    let release!: (v: 'active') => void;
+    const pending = new Promise<'active'>((r) => (release = r));
+    const previous = currentTenantStatusSource();
+    configureTenantStatusSource(() => pending);
+    try {
+      const inFlight = resolveTenantBlocked(tenant.id); // reads "active" slowly
+      noteTenantStatusChange(tenant.id, 'suspended'); // event lands meanwhile
+      release('active');
+      expect(await inFlight).toBe(true);
+      expect(await resolveTenantBlocked(tenant.id)).toBe(true);
+    } finally {
+      configureTenantStatusSource(previous);
+    }
+  });
+
+  it('a second gateway sharing the store enforces a suspension it never received as an event', async () => {
+    const tenant = await createTenant('multi');
+    // Suspend behind every listener's back (e.g. another instance's write), then drop caches.
+    const repo = (
+      tenantService as unknown as {
+        repository: { updateTenant(id: string, p: object): Promise<unknown> };
+      }
+    ).repository;
+    await repo.updateTenant(tenant.id, { status: 'suspended' });
+    clearSuspendedTenantsForTests();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/communication/campaigns',
+      headers: adminOf(tenant.id),
+      payload: { name: 'x' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('TENANT_SUSPENDED');
   });
 
   it('fails closed with 503 for writes when the tenant store lookup fails', async () => {
     const tenant = await createTenant('fail');
+    const previous = currentTenantStatusSource();
     configureTenantStatusSource(async () => {
       throw new Error('db down');
     });
@@ -168,13 +196,7 @@ describe('tenant suspension reaches the gateway gate', () => {
       expect(res.statusCode).toBe(503);
       expect(res.json().code).toBe('TENANT_STATUS_UNAVAILABLE');
     } finally {
-      const repo = tenantService as unknown as {
-        repository: { findTenantById(id: string): Promise<{ status: string } | null> };
-      };
-      configureTenantStatusSource(async (id) => {
-        const t = await repo.repository.findTenantById(id);
-        return (t?.status as never) ?? null;
-      });
+      configureTenantStatusSource(previous);
     }
   });
 });

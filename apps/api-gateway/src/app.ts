@@ -103,6 +103,7 @@ import {
 } from './rbac-registry.js';
 import {
   configureTenantStatusSource,
+  currentTenantStatusSource,
   isRequestTenantSuspended,
   noteTenantStatusChange,
   resolveTenantBlocked,
@@ -679,6 +680,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // PRC-H008 / PRC-H098: status is resolved from the tenant store (TTL cache, invalidated on
   // lifecycle transitions — wired after tenantLifecyclePlugin below), not only an env list.
   const SUSPEND_MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+  const SUSPENSION_REMEDIATION_PREFIXES = ['/api/v1/billing/', '/api/v1/privacy/'];
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
     if (!SUSPEND_MUTATING.has(method)) return;
@@ -686,6 +688,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (!url.startsWith('/api/v1/')) return;
     if (isPublicRegistrationPath(url)) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    // A suspended tenant must still be able to remediate (pay/reactivate its subscription) and
+    // exercise data-subject rights; everything else is read-only while suspended.
+    if (SUSPENSION_REMEDIATION_PREFIXES.some((prefix) => url.startsWith(prefix))) return;
     const tenantId = request.tenantId ?? request.user?.tenantId;
     const userClaim = request.user as { tenantStatus?: string } | undefined;
     let blocked = isRequestTenantSuspended(tenantId, userClaim);
@@ -844,16 +849,19 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   {
     const tenantRepository = getTenantRepository();
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    configureTenantStatusSource(async (tenantId) => {
+    const ownSource: Parameters<typeof configureTenantStatusSource>[0] = async (tenantId) => {
       if (!UUID_RE.test(tenantId)) return null;
       const tenant = await tenantRepository.findTenantById(tenantId);
       return tenant?.status ?? null;
-    });
+    };
+    configureTenantStatusSource(ownSource);
     app.tenantService.onStatusChange((tenantId, status) => {
       noteTenantStatusChange(tenantId, status);
     });
-    app.addHook('onClose', async () => {
-      configureTenantStatusSource(null);
+    app.addHook('onClose', () => {
+      // Only disarm the gate if this app's source is still the one installed.
+      if (currentTenantStatusSource() === ownSource) configureTenantStatusSource(null);
+      return Promise.resolve();
     });
   }
 
