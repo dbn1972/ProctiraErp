@@ -318,3 +318,23 @@ describe('LMS file signed download', () => {
     expect(verifyLmsFileDownloadToken(TENANT_B, fileId, token.token).ok).toBe(false);
   });
 });
+
+describe('PRC-H023 bank answer key range', () => {
+  it('rejects an MCQ bank item whose correctOptionIndex is outside its options', async () => {
+    const svc = service();
+    await expect(
+      svc.createBankQuestion(
+        TENANT_A,
+        {
+          scope: 'school',
+          institutionId: SCHOOL,
+          subject: 'Geo',
+          questionType: 'mcq',
+          prompt: 'Capital of Italy',
+          payload: { options: ['Paris', 'Rome'], correctOptionIndex: 2 },
+        },
+        teacher,
+      ),
+    ).rejects.toThrow(/out of range/);
+  });
+});
