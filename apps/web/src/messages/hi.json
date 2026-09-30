@@ -711,7 +711,16 @@
     "statusApproved": "स्वीकृत",
     "statusRejected": "अस्वीकृत",
     "statusWaitlisted": "प्रतीक्षा सूची में",
-    "statusUnknown": "{status}"
+    "statusUnknown": "{status}",
+    "dateOfBirthLabel": "आवेदक की जन्म तिथि",
+    "dateOfBirthHint": "आवेदन में दी गई जन्म तिथि दर्ज करें। आवेदक के विवरण की सुरक्षा के लिए यह आवश्यक है।",
+    "dateOfBirthRequired": "जन्म तिथि आवश्यक है।",
+    "institution": "विद्यालय",
+    "waitlistPosition": "प्रतीक्षा सूची में स्थान",
+    "remarks": "प्रवेश कार्यालय की टिप्पणियाँ",
+    "interviews": "साक्षात्कार",
+    "interviewsEmpty": "अभी तक कोई साक्षात्कार बुक नहीं किया गया है।",
+    "interviewsBooked": "साक्षात्कार बुक: {count}"
   },
   "settings": {
     "branding": {

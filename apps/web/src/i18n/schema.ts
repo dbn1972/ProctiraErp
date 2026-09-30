@@ -764,6 +764,15 @@ export interface MessageSchema {
     statusWaitlisted: string;
     /** ICU: {status} */
     statusUnknown: string;
+    dateOfBirthLabel: string;
+    dateOfBirthHint: string;
+    dateOfBirthRequired: string;
+    institution: string;
+    waitlistPosition: string;
+    remarks: string;
+    interviews: string;
+    interviewsEmpty: string;
+    interviewsBooked: string;
   };
 }
 

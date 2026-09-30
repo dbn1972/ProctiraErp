@@ -78,7 +78,7 @@ test.describe('Insights & System E2E', () => {
 
 test.describe('Insights & System — public track (no backend)', () => {
   test('public track form is reachable', async ({ page }) => {
-    await page.route('**/api/v1/registration/applications/**', async (route) => {
+    await page.route('**/api/v1/registrations/*/status**', async (route) => {
       await route.fulfill({
         status: 404,
         contentType: 'application/json',
