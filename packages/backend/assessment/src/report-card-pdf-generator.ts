@@ -47,7 +47,7 @@ export class ReportCardPdfGenerator implements PdfGenerator {
 
     flow.keyValue('Student', data.student.name || data.student.id);
     if (data.student.name) flow.keyValue('Student ID', data.student.id);
-    flow.keyValue('Academic period', data.academicPeriodId);
+    flow.keyValue('Academic period', data.academicPeriodName || data.academicPeriodId);
     flow.horizontalRule();
 
     flow.subheading('Subject results');
