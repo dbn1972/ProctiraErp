@@ -651,6 +651,7 @@ describe('ScholarshipService', () => {
         await service.updateDisbursement(TENANT_ID, disbursement.id, {
           paymentStatus: 'paid',
           paidDate: '2024-04-01',
+          transactionReference: 'TXN-TEST',
         });
 
         const report = await service.getUtilizationReport(TENANT_ID, {
@@ -803,6 +804,7 @@ describe('ScholarshipService', () => {
         await service.updateDisbursement(TENANT_ID, disbursement.id, {
           paymentStatus: 'paid',
           paidDate: '2024-04-01',
+          transactionReference: 'TXN-TEST',
         });
         expect(paid).toEqual([{ amountCents: 1999, amount: 19.99 }]);
       } finally {
@@ -838,6 +840,7 @@ describe('ScholarshipService', () => {
         await service.updateDisbursement(TENANT_ID, disbursement.id, {
           paymentStatus: 'paid',
           paidDate: '2024-04-01',
+          transactionReference: 'TXN-TEST',
         });
         await service.updateDisbursement(TENANT_ID, disbursement.id, {
           paymentStatus: 'cancelled',
@@ -873,5 +876,4 @@ describe('ScholarshipService', () => {
       }
     });
   });
-
 });
