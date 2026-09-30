@@ -4,15 +4,26 @@
  * Serves `/api/v1` shapes expected by apps/admin-console API clients:
  *   GET/POST /tenants, GET /tenants/:id, POST lifecycle
  *   GET /plugins, GET /plugins/:id, POST decision
- *   GET/POST /break-glass, POST approve/deny
+ *   GET/POST /break-glass, GET /break-glass/:id, POST approve/deny/revoke (PRC-H003)
  *   GET /plans, GET /themes
  *   GET /platform/health, GET /platform/audit
  */
 import { randomUUID } from 'node:crypto';
 
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  applyExpiry,
+  approveRequest,
+  createKeyedLock,
+  createRequest,
+  denyRequest,
+  revokeRequest,
+  type BreakGlassActor,
+  type BreakGlassRow,
+  type PolicyResult,
+} from './break-glass-policy.js';
 import { createPlatformAdminStores } from './platform-admin-store.js';
 
 type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
@@ -43,20 +54,7 @@ interface PluginSubmission {
   manifestHash: string;
 }
 
-interface BreakGlassRequest {
-  id: string;
-  requester: string;
-  targetTenantId: string;
-  scope: 'read' | 'support' | 'admin';
-  justification: string;
-  useCase: string;
-  durationMinutes: number;
-  status: 'pending_approval' | 'approved' | 'active' | 'expired' | 'revoked' | 'denied';
-  createdAt: string;
-  approver?: string;
-  approvedAt?: string;
-  expiresAt?: string;
-}
+type BreakGlassRequest = BreakGlassRow;
 
 function seedTenants(): Tenant[] {
   return [
@@ -314,72 +312,138 @@ export const platformAdminUiPlugin = fp(
       });
     }
 
+    // PRC-H003: break-glass dual control is enforced here (not only in the console). Identity
+    // comes from the verified JWT; see break-glass-policy.ts for the rules.
+    const now = () => new Date();
+    const actorOf = (request: FastifyRequest): BreakGlassActor | null => {
+      const user = request.user as { sub?: unknown; email?: unknown } | undefined;
+      const sub = typeof user?.sub === 'string' ? user.sub.trim() : '';
+      if (!sub) return null;
+      return { sub, email: typeof user?.email === 'string' ? user.email : undefined };
+    };
+    const sendPolicyError = (
+      reply: FastifyReply,
+      result: Extract<PolicyResult, { ok: false }>,
+    ) =>
+      reply
+        .status(result.statusCode)
+        .send({ code: result.code, message: result.message, statusCode: result.statusCode });
+    const noActor = (reply: FastifyReply) =>
+      reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'A verified operator identity is required',
+        statusCode: 401,
+      });
+    const notFound = (reply: FastifyReply) =>
+      reply.status(404).send({
+        code: 'NOT_FOUND',
+        message: 'Break-glass request not found',
+        statusCode: 404,
+      });
+
+    /**
+     * Serialize every break-glass write per request id so read-check-write decisions cannot
+     * interleave (e.g. an approve racing a deny, or a read-triggered expiry clobbering a revoke).
+     * The keyed store has no compare-and-set; this closes the race within one gateway process.
+     * Multi-replica deployments still need a conditional update in the document store
+     * (tracked with PRC-H116, PgDocumentCollection).
+     */
+    const withLock = createKeyedLock();
+
+    /** Persist lazy expiry, re-reading under the lock so a concurrent decision is never overwritten. */
+    const persistExpiry = (id: string) =>
+      withLock(id, async () => {
+        const fresh = await breakGlass.get(id);
+        if (!fresh) return null;
+        const current = applyExpiry(fresh, now());
+        if (current.status !== fresh.status) await breakGlass.set(current);
+        return current;
+      });
+
+    const loadRow = async (id: string): Promise<BreakGlassRow | null> => {
+      const row = await breakGlass.get(id);
+      if (!row) return null;
+      const current = applyExpiry(row, now());
+      return current.status === row.status ? row : persistExpiry(id);
+    };
+    const listRows = async (): Promise<BreakGlassRow[]> => {
+      const rows = await breakGlass.list();
+      const out: BreakGlassRow[] = [];
+      for (const row of rows) {
+        const current = applyExpiry(row, now());
+        out.push(current.status === row.status ? row : ((await persistExpiry(row.id)) ?? current));
+      }
+      return out;
+    };
+
+    /** Read → decide → write for one request, serialized per id. */
+    const decide = (
+      reply: FastifyReply,
+      id: string,
+      policy: (row: BreakGlassRow) => PolicyResult,
+    ) =>
+      withLock(id, async () => {
+        const stored = await breakGlass.get(id);
+        if (!stored) return notFound(reply);
+        const current = applyExpiry(stored, now());
+        if (current.status !== stored.status) await breakGlass.set(current);
+        const result = policy(current);
+        if (!result.ok) return sendPolicyError(reply, result);
+        await breakGlass.set(result.row);
+        return reply.send(result.row);
+      });
+
     fastify.get('/break-glass', async (_request, reply) => {
-      const items = await breakGlass.list();
+      const items = await listRows();
       return reply.send({ items, data: items });
     });
 
     fastify.get('/break-glass/requests', async (_request, reply) => {
-      const items = await breakGlass.list();
+      const items = await listRows();
       return reply.send({ items, data: items });
     });
 
-    fastify.post('/break-glass', async (request, reply) => {
-      const body = (request.body ?? {}) as Partial<BreakGlassRequest>;
-      if (!body.targetTenantId || !body.justification || body.justification.trim().length < 20) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'targetTenantId and justification (≥20 chars) are required',
-          statusCode: 400,
-        });
-      }
-      const row: BreakGlassRequest = {
-        id: `bg_${randomUUID().slice(0, 8)}`,
-        requester: body.requester ?? 'ops@proctira.org',
-        targetTenantId: body.targetTenantId,
-        scope: body.scope ?? 'read',
-        justification: body.justification,
-        useCase: body.useCase ?? 'Production incident triage',
-        durationMinutes: body.durationMinutes ?? 60,
-        status: 'pending_approval',
-        createdAt: new Date().toISOString(),
-      };
-      await breakGlass.set(row);
-      return reply.status(201).send(row);
+    fastify.get<{ Params: { id: string } }>('/break-glass/:id', async (request, reply) => {
+      const row = await loadRow(request.params.id);
+      if (!row) return notFound(reply);
+      return reply.send(row);
     });
 
+    fastify.post('/break-glass', async (request, reply) => {
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      const result = createRequest(
+        (request.body ?? {}) as Record<string, unknown>,
+        actor,
+        now(),
+        `bg_${randomUUID().slice(0, 8)}`,
+      );
+      if (!result.ok) return sendPolicyError(reply, result);
+      await breakGlass.set(result.row);
+      return reply.status(201).send(result.row);
+    });
+
+    const decisionReason = (request: FastifyRequest): string | undefined => {
+      const reason = (request.body as { reason?: unknown } | undefined)?.reason;
+      return typeof reason === 'string' && reason.trim() ? reason.trim() : undefined;
+    };
+
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/approve', async (request, reply) => {
-      const row = await breakGlass.get(request.params.id);
-      if (!row) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Break-glass request not found',
-          statusCode: 404,
-        });
-      }
-      const updated: BreakGlassRequest = {
-        ...row,
-        status: 'active',
-        approver: 'security@proctira.org',
-        approvedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + row.durationMinutes * 60_000).toISOString(),
-      };
-      await breakGlass.set(updated);
-      return reply.send(updated);
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      return decide(reply, request.params.id, (row) => approveRequest(row, actor, now()));
     });
 
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/deny', async (request, reply) => {
-      const row = await breakGlass.get(request.params.id);
-      if (!row) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Break-glass request not found',
-          statusCode: 404,
-        });
-      }
-      const updated = { ...row, status: 'denied' as const };
-      await breakGlass.set(updated);
-      return reply.send(updated);
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      return decide(reply, request.params.id, (row) => denyRequest(row, actor, now(), decisionReason(request)));
+    });
+
+    fastify.post<{ Params: { id: string } }>('/break-glass/:id/revoke', async (request, reply) => {
+      const actor = actorOf(request);
+      if (!actor) return noActor(reply);
+      return decide(reply, request.params.id, (row) => revokeRequest(row, actor, now(), decisionReason(request)));
     });
 
     fastify.get('/plans', async (_request, reply) => {

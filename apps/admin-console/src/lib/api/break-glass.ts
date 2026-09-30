@@ -37,11 +37,34 @@ export interface BreakGlassRequest {
   durationMinutes: number;
   status: BreakGlassStatus;
   createdAt: string;
+  /** Verified JWT subject of the requester (set by the gateway, PRC-H003). */
+  requesterSub?: string;
   /** Approver email, if approved. */
   approver?: string;
+  /** Verified JWT subject of the approver (set by the gateway, PRC-H003). */
+  approverSub?: string;
   approvedAt?: string;
   /** ISO timestamp at which the grant expires. */
   expiresAt?: string;
+}
+
+/**
+ * PRC-H003: an active grant for this operator on this tenant, still inside its window.
+ * Matches on the verified subject when the gateway provides it (email only for legacy rows).
+ */
+export function hasActiveBreakGlassGrant(
+  requests: BreakGlassRequest[],
+  tenantId: string | undefined,
+  operator: { sub: string; email?: string | null },
+  now: Date = new Date(),
+): boolean {
+  if (!tenantId) return false;
+  return requests.some((request) => {
+    if (request.status !== 'active' || request.targetTenantId !== tenantId) return false;
+    if (!request.expiresAt || Date.parse(request.expiresAt) <= now.getTime()) return false;
+    if (request.requesterSub) return request.requesterSub === operator.sub;
+    return !!operator.email && request.requester.toLowerCase() === operator.email.toLowerCase();
+  });
 }
 
 const STUB_REQUESTS: BreakGlassRequest[] = [
@@ -141,7 +164,7 @@ export async function decideBreakGlassRequest(
   id: string,
   decision: 'approve' | 'deny' | 'revoke',
   reason: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; code?: string }> {
   const response = await gatewayFetch<unknown>(`/break-glass/${id}/${decision}`, {
     method: 'POST',
     json: { reason },
@@ -149,5 +172,10 @@ export async function decideBreakGlassRequest(
   if (response.ok) return { ok: true };
   // PRC-H002: an unreachable gateway is a failed write, never a simulated success.
   if (response.status === 0) return { ok: false, error: GATEWAY_UNREACHABLE_WRITE_ERROR };
-  return { ok: false, error: response.error?.message ?? 'Action failed.' };
+  // PRC-H003: keep the gateway's policy code (SELF_APPROVAL_FORBIDDEN, INVALID_STATE, ...).
+  return {
+    ok: false,
+    error: response.error?.message ?? 'Action failed.',
+    code: response.error?.code,
+  };
 }
