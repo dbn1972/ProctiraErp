@@ -59,24 +59,28 @@ export function actorLabel(actor: BreakGlassActor): string {
   return actor.email?.trim() || actor.sub;
 }
 
-/** True when the actor is the person who raised the request. */
+/**
+ * True when the actor is (or may be) the person who raised the request. Matches on the verified
+ * subject and, as a second signal, on normalised email so one person holding two subjects
+ * (IdP migration, re-provisioned account) cannot approve their own request.
+ */
 export function isRequester(row: BreakGlassRow, actor: BreakGlassActor): boolean {
-  if (row.requesterSub) return row.requesterSub === actor.sub;
-  // Legacy rows carry only a display string; compare against both identities.
-  const needle = row.requester.trim().toLowerCase();
-  return (
-    needle === actor.sub.trim().toLowerCase() ||
-    (!!actor.email && needle === actor.email.trim().toLowerCase())
-  );
+  if (row.requesterSub && row.requesterSub === actor.sub) return true;
+  const actorEmail = actor.email?.trim().toLowerCase();
+  const requester = row.requester.trim().toLowerCase();
+  if (actorEmail && requester === actorEmail) return true;
+  return !row.requesterSub && requester === actor.sub.trim().toLowerCase();
 }
 
-/** Lazily expire an active grant whose window has closed. Returns the (possibly updated) row. */
+/**
+ * Lazily expire grants. An active/approved grant expires once its window closes. A grant with no
+ * `approverSub` predates server-side dual control (PRC-H003): its requester and duration were
+ * body-controlled and it may never have had a second approver, so it is not honoured.
+ */
 export function applyExpiry(row: BreakGlassRow, now: Date): BreakGlassRow {
-  if (
-    (row.status === 'active' || row.status === 'approved') &&
-    row.expiresAt &&
-    Date.parse(row.expiresAt) <= now.getTime()
-  ) {
+  if (row.status !== 'active' && row.status !== 'approved') return row;
+  if (!row.approverSub) return { ...row, status: 'expired' };
+  if (!row.expiresAt || Date.parse(row.expiresAt) <= now.getTime()) {
     return { ...row, status: 'expired' };
   }
   return row;
@@ -144,6 +148,15 @@ export function approveRequest(row: BreakGlassRow, actor: BreakGlassActor, now: 
       statusCode: 409,
       code: 'INVALID_STATE',
       message: `Only pending requests can be approved (current status: ${row.status})`,
+    };
+  }
+  if (!row.requesterSub) {
+    // Pre-fix rows carry a body-supplied requester string; we cannot prove who raised them.
+    return {
+      ok: false,
+      statusCode: 409,
+      code: 'RESUBMIT_REQUIRED',
+      message: 'This request predates verified requester identity; submit a new request',
     };
   }
   if (isRequester(row, actor)) {
@@ -219,5 +232,26 @@ export function revokeRequest(
       decidedAt: now.toISOString(),
       decisionReason: reason,
     },
+  };
+}
+
+/**
+ * Per-key async mutex: calls sharing a key run one at a time, in arrival order; different keys
+ * run independently. Used to serialize break-glass read-check-write decisions per request id,
+ * because the keyed document store has no compare-and-set. In-process only — multi-replica
+ * deployments still need a conditional update in the store (tracked with PRC-H116).
+ */
+export function createKeyedLock(): <T>(key: string, fn: () => Promise<T>) => Promise<T> {
+  const tails = new Map<string, Promise<unknown>>();
+  return async <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+    const previous = tails.get(key) ?? Promise.resolve();
+    const run = previous.then(fn, fn);
+    const tail = run.catch(() => undefined);
+    tails.set(key, tail);
+    try {
+      return await run;
+    } finally {
+      if (tails.get(key) === tail) tails.delete(key);
+    }
   };
 }

@@ -176,12 +176,17 @@ export async function decideBreakGlassRequest(
   id: string,
   decision: 'approve' | 'deny' | 'revoke',
   reason: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; code?: string }> {
   const response = await gatewayFetch<unknown>(`/break-glass/${id}/${decision}`, {
     method: 'POST',
     json: { reason },
   });
   if (response.ok) return { ok: true };
   if (response.status === 0) return { ok: true };
-  return { ok: false, error: response.error?.message ?? 'Action failed.' };
+  // PRC-H003: keep the gateway's policy code (SELF_APPROVAL_FORBIDDEN, INVALID_STATE, ...).
+  return {
+    ok: false,
+    error: response.error?.message ?? 'Action failed.',
+    code: response.error?.code,
+  };
 }

@@ -16,6 +16,20 @@ import { formatDateTime } from '@/lib/utils';
 
 import { ApprovalActions } from './approval-actions';
 
+/** Operator-facing text for a gateway-rejected break-glass decision (PRC-H003). */
+function blockedMessage(reason: string): string {
+  switch (reason) {
+    case 'own-request':
+      return 'Approval was blocked because you filed this request. Another operator must approve it.';
+    case 'invalid-state':
+      return 'That decision no longer applies: the request is not in a state that allows it (it may already be decided, revoked or expired).';
+    case 'resubmit':
+      return 'This request predates verified requester identity and cannot be approved. Ask the requester to submit a new request.';
+    default:
+      return 'The decision was not applied. Try again, and contact platform support if it keeps failing.';
+  }
+}
+
 /**
  * /break-glass/requests — admin queue for the approval chain.
  * Operators with the security role (or platform_admin) can approve / deny / revoke.
@@ -63,11 +77,9 @@ export default async function BreakGlassRequestsPage({
 
       <StubDataBanner source={source} />
 
-      {resolvedSearchParams.blocked === 'own-request' && (
+      {resolvedSearchParams.blocked && (
         <Alert variant="warning" className="mb-6">
-          <AlertDescription>
-            Approval was blocked because you filed this request. Another operator must approve it.
-          </AlertDescription>
+          <AlertDescription>{blockedMessage(resolvedSearchParams.blocked)}</AlertDescription>
         </Alert>
       )}
 

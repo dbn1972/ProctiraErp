@@ -16,6 +16,7 @@ import fp from 'fastify-plugin';
 import {
   applyExpiry,
   approveRequest,
+  createKeyedLock,
   createRequest,
   denyRequest,
   revokeRequest,
@@ -340,24 +341,57 @@ export const platformAdminUiPlugin = fp(
         statusCode: 404,
       });
 
-    /** Load a row and persist lazy expiry so every read and decision sees the current state. */
+    /**
+     * Serialize every break-glass write per request id so read-check-write decisions cannot
+     * interleave (e.g. an approve racing a deny, or a read-triggered expiry clobbering a revoke).
+     * The keyed store has no compare-and-set; this closes the race within one gateway process.
+     * Multi-replica deployments still need a conditional update in the document store
+     * (tracked with PRC-H116, PgDocumentCollection).
+     */
+    const withLock = createKeyedLock();
+
+    /** Persist lazy expiry, re-reading under the lock so a concurrent decision is never overwritten. */
+    const persistExpiry = (id: string) =>
+      withLock(id, async () => {
+        const fresh = await breakGlass.get(id);
+        if (!fresh) return null;
+        const current = applyExpiry(fresh, now());
+        if (current.status !== fresh.status) await breakGlass.set(current);
+        return current;
+      });
+
     const loadRow = async (id: string): Promise<BreakGlassRow | null> => {
       const row = await breakGlass.get(id);
       if (!row) return null;
       const current = applyExpiry(row, now());
-      if (current.status !== row.status) await breakGlass.set(current);
-      return current;
+      return current.status === row.status ? row : persistExpiry(id);
     };
     const listRows = async (): Promise<BreakGlassRow[]> => {
       const rows = await breakGlass.list();
       const out: BreakGlassRow[] = [];
       for (const row of rows) {
         const current = applyExpiry(row, now());
-        if (current.status !== row.status) await breakGlass.set(current);
-        out.push(current);
+        out.push(current.status === row.status ? row : ((await persistExpiry(row.id)) ?? current));
       }
       return out;
     };
+
+    /** Read → decide → write for one request, serialized per id. */
+    const decide = (
+      reply: FastifyReply,
+      id: string,
+      policy: (row: BreakGlassRow) => PolicyResult,
+    ) =>
+      withLock(id, async () => {
+        const stored = await breakGlass.get(id);
+        if (!stored) return notFound(reply);
+        const current = applyExpiry(stored, now());
+        if (current.status !== stored.status) await breakGlass.set(current);
+        const result = policy(current);
+        if (!result.ok) return sendPolicyError(reply, result);
+        await breakGlass.set(result.row);
+        return reply.send(result.row);
+      });
 
     fastify.get('/break-glass', async (_request, reply) => {
       const items = await listRows();
@@ -397,34 +431,19 @@ export const platformAdminUiPlugin = fp(
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/approve', async (request, reply) => {
       const actor = actorOf(request);
       if (!actor) return noActor(reply);
-      const row = await loadRow(request.params.id);
-      if (!row) return notFound(reply);
-      const result = approveRequest(row, actor, now());
-      if (!result.ok) return sendPolicyError(reply, result);
-      await breakGlass.set(result.row);
-      return reply.send(result.row);
+      return decide(reply, request.params.id, (row) => approveRequest(row, actor, now()));
     });
 
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/deny', async (request, reply) => {
       const actor = actorOf(request);
       if (!actor) return noActor(reply);
-      const row = await loadRow(request.params.id);
-      if (!row) return notFound(reply);
-      const result = denyRequest(row, actor, now(), decisionReason(request));
-      if (!result.ok) return sendPolicyError(reply, result);
-      await breakGlass.set(result.row);
-      return reply.send(result.row);
+      return decide(reply, request.params.id, (row) => denyRequest(row, actor, now(), decisionReason(request)));
     });
 
     fastify.post<{ Params: { id: string } }>('/break-glass/:id/revoke', async (request, reply) => {
       const actor = actorOf(request);
       if (!actor) return noActor(reply);
-      const row = await loadRow(request.params.id);
-      if (!row) return notFound(reply);
-      const result = revokeRequest(row, actor, now(), decisionReason(request));
-      if (!result.ok) return sendPolicyError(reply, result);
-      await breakGlass.set(result.row);
-      return reply.send(result.row);
+      return decide(reply, request.params.id, (row) => revokeRequest(row, actor, now(), decisionReason(request)));
     });
 
     fastify.get('/plans', async (_request, reply) => {

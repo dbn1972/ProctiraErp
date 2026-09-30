@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   applyExpiry,
   approveRequest,
+  createKeyedLock,
   createRequest,
   revokeRequest,
   type BreakGlassRow,
@@ -48,11 +49,39 @@ describe('break-glass policy', () => {
     const self = approveRequest(created.row, REQUESTER, t0);
     expect(self).toMatchObject({ ok: false, statusCode: 403 });
 
+    // Same person under a second subject (same email) is still the requester.
+    expect(approveRequest(created.row, { sub: 'other-sub', email: 'REQUESTER@proctira.org' }, t0)).toMatchObject(
+      { ok: false, statusCode: 403 },
+    );
+  });
+
+  it('refuses to approve legacy rows without a verified requester subject', () => {
+    const created = createRequest(validBody, REQUESTER, t0, 'bg_1');
+    if (!created.ok) throw new Error('setup');
     const legacy: BreakGlassRow = { ...created.row, requesterSub: undefined };
-    expect(approveRequest(legacy, { sub: 'other-sub', email: 'REQUESTER@proctira.org' }, t0)).toMatchObject({
+    // Even an approver with no email claim cannot approve it.
+    expect(approveRequest(legacy, { sub: 'op-approver' }, t0)).toMatchObject({
       ok: false,
-      statusCode: 403,
+      statusCode: 409,
+      code: 'RESUBMIT_REQUIRED',
     });
+  });
+
+  it('does not honour legacy active grants that have no approver subject', () => {
+    const legacyActive: BreakGlassRow = {
+      id: 'bg_old',
+      requester: 'someone@proctira.org',
+      targetTenantId: 'tnt_002',
+      scope: 'admin',
+      justification: 'x'.repeat(30),
+      useCase: 'Production incident triage',
+      durationMinutes: 10_000_000,
+      status: 'active',
+      createdAt: t0.toISOString(),
+      approver: 'security@proctira.org',
+      expiresAt: new Date(t0.getTime() + 10_000_000 * 60_000).toISOString(),
+    };
+    expect(applyExpiry(legacyActive, t0).status).toBe('expired');
   });
 
   it('expires active grants lazily and revoke closes the window immediately', () => {
@@ -68,6 +97,43 @@ describe('break-glass policy', () => {
     const revoked = revokeRequest(approved.row, APPROVER, at, 'done');
     expect(revoked.ok && revoked.row.status).toBe('revoked');
     expect(revoked.ok && Date.parse(revoked.row.expiresAt!) <= at.getTime()).toBe(true);
+  });
+});
+
+describe('createKeyedLock', () => {
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+
+  it('serializes read-check-write on the same key so only one decision wins', async () => {
+    const lock = createKeyedLock();
+    let status = 'pending_approval';
+    const decide = (next: string) =>
+      lock('bg_1', async () => {
+        const seen = status; // read
+        await tick(); // store latency lets the other call interleave without the lock
+        if (seen !== 'pending_approval') return 409;
+        status = next; // write
+        return 200;
+      });
+    const results = await Promise.all([decide('active'), decide('denied')]);
+    expect(results.sort()).toEqual([200, 409]);
+    expect(status).toBe('active');
+  });
+
+  it('keeps running after a failed call and does not block other keys', async () => {
+    const lock = createKeyedLock();
+    await expect(lock('a', async () => Promise.reject(new Error('boom')))).rejects.toThrow('boom');
+    await expect(lock('a', async () => 'next')).resolves.toBe('next');
+    const order: string[] = [];
+    await Promise.all([
+      lock('a', async () => {
+        await tick();
+        order.push('a');
+      }),
+      lock('b', async () => {
+        order.push('b');
+      }),
+    ]);
+    expect(order).toEqual(['b', 'a']);
   });
 });
 
@@ -132,6 +198,26 @@ describe('break-glass routes (gateway)', () => {
     expect(ok.statusCode).toBe(200);
     expect(ok.json().approver).toBe('approver@proctira.org');
     expect(ok.json().approverSub).toBe('op-approver');
+  });
+
+  it('returns 401 when the token has no subject', async () => {
+    actor = { sub: '', email: 'x@proctira.org' };
+    const res = await app.inject({ method: 'POST', url: '/break-glass', payload: validBody });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('serializes concurrent approve and deny: exactly one decision wins', async () => {
+    const row = await create();
+    actor = APPROVER;
+    const [a, b] = await Promise.all([
+      app.inject({ method: 'POST', url: `/break-glass/${row.id}/approve` }),
+      app.inject({ method: 'POST', url: `/break-glass/${row.id}/deny`, payload: { reason: 'no' } }),
+    ]);
+    const codes = [a.statusCode, b.statusCode].sort();
+    expect(codes).toEqual([200, 409]);
+    const winner = a.statusCode === 200 ? a.json() : b.json();
+    const stored = (await app.inject({ method: 'GET', url: `/break-glass/${row.id}` })).json();
+    expect(stored.status).toBe(winner.status);
   });
 
   it('revoke on an active grant sets status revoked and expiresAt <= now', async () => {
