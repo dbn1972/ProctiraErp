@@ -1306,6 +1306,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/privacy',
         anonymizationPublisher: queueHandle?.anonymizationPublisher,
         offboardPublisher: queueHandle?.offboardPublisher,
+        // PRC-H078: in-process consumers (dedicated connections) for both job types.
+        anonymizationWorkerQueue: queueHandle?.createConsumerAdapter(),
+        offboardWorkerQueue: queueHandle?.createConsumerAdapter(),
       });
     },
   },
