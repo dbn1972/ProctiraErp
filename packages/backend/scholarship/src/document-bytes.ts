@@ -6,6 +6,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import { AppError, ValidationError } from '@proctira/common';
+import { createLogger } from '@proctira/logging';
 
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -195,6 +196,12 @@ export function isScholarshipDocSigningKeyMissingError(
 /** Process-local ephemeral key for non-production only. Never persisted, never used in prod. */
 let ephemeralDevSecret: { secret: string; logged: boolean } | null = null;
 
+let docSigningLog: ReturnType<typeof createLogger> | null = null;
+function getDocSigningLog(): ReturnType<typeof createLogger> {
+  if (!docSigningLog) docSigningLog = createLogger({ name: 'scholarship-doc-signing', level: 'warn' });
+  return docSigningLog;
+}
+
 /** Test hook. Production code must not call this. */
 export function resetScholarshipDocSigningForTests(): void {
   ephemeralDevSecret = null;
@@ -231,10 +238,10 @@ function signingSecret(env: NodeJS.ProcessEnv = process.env): string {
   }
   if (!ephemeralDevSecret.logged) {
     ephemeralDevSecret.logged = true;
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[scholarship] SCHOLARSHIP_DOC_URL_SECRET is unset outside production; using an ephemeral ' +
-        'in-memory HMAC key for this process only. Tokens are not valid across restarts. Set ' +
+    getDocSigningLog().warn(
+      { event: 'scholarship_doc_signing_dev_ephemeral_key', nodeEnv: env.NODE_ENV ?? 'undefined' },
+      'SCHOLARSHIP_DOC_URL_SECRET is unset outside production; using an ephemeral in-memory HMAC ' +
+        'key for this process only. Tokens are not valid across restarts. Set ' +
         'SCHOLARSHIP_DOC_URL_SECRET before production.',
     );
   }
