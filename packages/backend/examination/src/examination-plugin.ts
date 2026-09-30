@@ -12,9 +12,9 @@
  * - 10.7: 1–10 grading schemes per examination with pass thresholds
  * - 10.8: Result analysis with breakdowns by subject, center, gender, area
  */
+import type { OutboxStore } from '@proctira/queue-abstraction';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import type { OutboxStore } from '@proctira/queue-abstraction';
 
 import type { DocumentTaskQueue } from './document-generation-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
@@ -83,7 +83,7 @@ export const examinationPlugin = fp(
     } = options;
 
     // Create examination service instance
-    const examinationService = new ExaminationService(repository);
+    const examinationService = new ExaminationService(repository, resultRepository);
 
     // Decorate fastify with the examination service
     fastify.decorate('examinationService', examinationService);

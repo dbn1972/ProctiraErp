@@ -27,6 +27,7 @@ import type {
   ExaminationGradingScheme,
   GradeThreshold,
 } from './examination-repository.js';
+import type { ResultRepository } from './result-repository.js';
 import type {
   CreateExaminationInput,
   UpdateExaminationInput,
@@ -46,7 +47,14 @@ export const MIN_GRADING_SCHEMES = 1;
  * Service handling examination business logic.
  */
 export class ExaminationService {
-  constructor(private readonly repository: ExaminationRepository) {}
+  constructor(
+    private readonly repository: ExaminationRepository,
+    /** Optional: enables marks/publication reference checks on update (PRC-H053). */
+    private readonly resultRepository?: Pick<
+      ResultRepository,
+      'getCandidates' | 'getPublicationResult'
+    >,
+  ) {}
 
   /**
    * Create a new examination.
@@ -296,9 +304,12 @@ export class ExaminationService {
     if (input.endDate !== undefined) updateData.endDate = input.endDate;
     if (input.status !== undefined) updateData.status = input.status;
 
+    // PRC-H053: nested arrays are merged by id. Supplied ids are preserved;
+    // only entries without an id receive a new UUID.
+    const idErrors: FieldError[] = [];
     if (input.subjects !== undefined) {
-      updateData.subjects = input.subjects.map((s) => ({
-        id: uuidv4(),
+      updateData.subjects = input.subjects.map((s, i) => ({
+        id: resolveNestedId(s.id, existing.subjects, `subjects[${i}].id`, idErrors),
         examinationId: id,
         name: s.name,
         code: s.code,
@@ -308,8 +319,8 @@ export class ExaminationService {
     }
 
     if (input.centers !== undefined) {
-      updateData.centers = input.centers.map((c) => ({
-        id: uuidv4(),
+      updateData.centers = input.centers.map((c, i) => ({
+        id: resolveNestedId(c.id, existing.centers, `centers[${i}].id`, idErrors),
         examinationId: id,
         name: c.name,
         code: c.code,
@@ -319,8 +330,8 @@ export class ExaminationService {
     }
 
     if (input.sessions !== undefined) {
-      updateData.sessions = input.sessions.map((s) => ({
-        id: uuidv4(),
+      updateData.sessions = input.sessions.map((s, i) => ({
+        id: resolveNestedId(s.id, existing.sessions, `sessions[${i}].id`, idErrors),
         examinationId: id,
         subjectId: s.subjectId,
         date: s.date,
@@ -331,8 +342,8 @@ export class ExaminationService {
     }
 
     if (input.gradingSchemes !== undefined) {
-      updateData.gradingSchemes = input.gradingSchemes.map((gs) => ({
-        id: uuidv4(),
+      updateData.gradingSchemes = input.gradingSchemes.map((gs, i) => ({
+        id: resolveNestedId(gs.id, existing.gradingSchemes, `gradingSchemes[${i}].id`, idErrors),
         examinationId: id,
         name: gs.name,
         minScore: gs.minScore,
@@ -346,6 +357,12 @@ export class ExaminationService {
         })),
       }));
     }
+
+    if (idErrors.length > 0) {
+      throw new ValidationError('Examination validation failed', idErrors);
+    }
+
+    await this.assertStructuralEditAllowed(tenantId, existing, updateData);
 
     const updated = await this.repository.update(id, tenantId, updateData);
     if (!updated) {
@@ -513,6 +530,66 @@ export class ExaminationService {
     };
 
     return this.repository.createCandidateRegistration(registration);
+  }
+
+  /**
+   * PRC-H053: reject removal of subjects/centers that registrations or
+   * candidate marks reference, and block any structural change to
+   * subjects/centers/grading schemes once the exam is IN_PROGRESS or results
+   * have been published.
+   */
+  private async assertStructuralEditAllowed(
+    tenantId: string,
+    existing: ExaminationEntity,
+    updateData: Partial<ExaminationEntity>,
+  ): Promise<void> {
+    const subjectsChanged =
+      updateData.subjects !== undefined && !sameStructure(existing.subjects, updateData.subjects);
+    const centersChanged =
+      updateData.centers !== undefined && !sameStructure(existing.centers, updateData.centers);
+    const schemesChanged =
+      updateData.gradingSchemes !== undefined &&
+      !sameStructure(existing.gradingSchemes, updateData.gradingSchemes);
+    if (!subjectsChanged && !centersChanged && !schemesChanged) return;
+
+    const published = this.resultRepository
+      ? await this.resultRepository.getPublicationResult(existing.id, tenantId)
+      : null;
+    if (existing.status === 'IN_PROGRESS' || published) {
+      throw new BusinessRuleError(
+        'Subjects, centers and grading schemes cannot be changed once the examination is in progress or results exist',
+      );
+    }
+
+    const removedSubjects = removedIds(existing.subjects, updateData.subjects);
+    const removedCenters = removedIds(existing.centers, updateData.centers);
+    if (removedSubjects.size === 0 && removedCenters.size === 0) return;
+
+    const referencedSubjects = new Set<string>();
+    const referencedCenters = new Set<string>();
+    const registrations = await this.repository.listCandidateRegistrations(existing.id, tenantId);
+    for (const r of registrations) {
+      referencedCenters.add(r.centerId);
+      for (const sid of r.subjectIds) referencedSubjects.add(sid);
+    }
+    if (this.resultRepository) {
+      const candidates = await this.resultRepository.getCandidates(existing.id, tenantId);
+      for (const c of candidates) {
+        referencedCenters.add(c.centerId);
+        for (const sr of c.subjectResults) referencedSubjects.add(sr.subjectId);
+      }
+    }
+
+    const blockedSubjects = [...removedSubjects].filter((sid) => referencedSubjects.has(sid));
+    const blockedCenters = [...removedCenters].filter((cid) => referencedCenters.has(cid));
+    if (blockedSubjects.length > 0 || blockedCenters.length > 0) {
+      const parts: string[] = [];
+      if (blockedSubjects.length > 0) parts.push(`subjects [${blockedSubjects.join(', ')}]`);
+      if (blockedCenters.length > 0) parts.push(`centers [${blockedCenters.join(', ')}]`);
+      throw new BusinessRuleError(
+        `Cannot remove ${parts.join(' and ')}: referenced by candidate registrations or marks`,
+      );
+    }
   }
 
   /**
@@ -741,4 +818,50 @@ export class ExaminationService {
 
     return errors;
   }
+}
+
+/**
+ * Preserve a supplied nested id when it belongs to the existing examination;
+ * generate a new id for new entries (PRC-H053).
+ */
+function resolveNestedId(
+  suppliedId: string | undefined,
+  existing: ReadonlyArray<{ id: string }>,
+  field: string,
+  errors: FieldError[],
+): string {
+  if (suppliedId === undefined) return uuidv4();
+  if (!existing.some((e) => e.id === suppliedId)) {
+    errors.push({
+      field,
+      message: `Unknown id '${suppliedId}' for this examination; omit id for new entries`,
+      rule: 'reference',
+    });
+  }
+  return suppliedId;
+}
+
+function removedIds(
+  before: ReadonlyArray<{ id: string }>,
+  after: ReadonlyArray<{ id: string }> | undefined,
+): Set<string> {
+  if (after === undefined) return new Set();
+  const kept = new Set(after.map((a) => a.id));
+  return new Set(before.map((b) => b.id).filter((bid) => !kept.has(bid)));
+}
+
+function sameStructure(a: ReadonlyArray<unknown>, b: ReadonlyArray<unknown>): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+/** Key-order-insensitive JSON (undefined/null fields dropped) for structural comparison. */
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined && v !== null)
+      .sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
 }
