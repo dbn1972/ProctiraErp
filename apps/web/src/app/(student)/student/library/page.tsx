@@ -1,4 +1,5 @@
-import { requireStudentSession } from '../_lib/session';
+import { redirect } from 'next/navigation';
+import { requireStudentSession, type StudentFrameStatus } from '../_lib/session';
 import {
   listLibraryHoldsResult,
   listLibraryLoansResult,
@@ -22,9 +23,12 @@ function firstFailure(
   return null;
 }
 
-function frameStatusFromKind(kind: ListFailureKind | null): 'ok' | 'forbidden' | 'error' {
+function frameStatusFromKind(kind: ListFailureKind | null): StudentFrameStatus {
   if (!kind) return 'ok';
-  if (kind === 'denied' || kind === 'unauthenticated') return 'forbidden';
+  // PRC-L023: an expired upstream session must send the student to sign in.
+  if (kind === 'unauthenticated') redirect('/login?expired=true');
+  if (kind === 'denied') return 'forbidden';
+  if (kind === 'missing') return 'not-found';
   return 'error';
 }
 
