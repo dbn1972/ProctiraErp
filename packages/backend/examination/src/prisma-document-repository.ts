@@ -35,8 +35,10 @@ import type { ExamOpsStore } from './ops-store.js';
 import type {
   CandidateGradeResult,
   CandidateSubjectResult,
+  IncompleteRecord,
   PublicationResult,
 } from './result-repository.js';
+import { buildCandidateResultData } from './certificate-result.js';
 
 /** Adapt Prisma transaction client to OutboxQueryable for same-TX outbox inserts. */
 function prismaTxAsOutboxClient(tx: Prisma.TransactionClient): OutboxQueryable {
@@ -206,9 +208,9 @@ export class PrismaDocumentRepository implements DocumentRepository {
    * Mapping choices (documented, conservative):
    * - rollNumber: candidate id (no roll-number source — same as
    *   getDocumentCandidates).
-   * - maxPossibleScore: sum of `maxScore` of the subjects the candidate has
-   *   grade results for.
-   * - overallPassed: every graded subject passed.
+   * - maxPossibleScore: sum of `maxScore` of every examination subject.
+   * - overallPassed: every examination subject graded and passed; any
+   *   missing/incomplete subject yields overallGrade 'INCOMPLETE' (PRC-H056).
    * - overallGrade: no per-candidate aggregate grade is computed or stored by
    *   result publication, so this is the coarse 'PASS' / 'FAIL' derived from
    *   overallPassed.
@@ -228,62 +230,55 @@ export class PrismaDocumentRepository implements DocumentRepository {
       let gradeResults: CandidateGradeResult[] = Array.isArray(payload.gradeResults)
         ? payload.gradeResults
         : [];
+      let incompleteRecords: IncompleteRecord[] = Array.isArray(payload.incompleteRecords)
+        ? payload.incompleteRecords
+        : [];
       if (candidateIds && candidateIds.length > 0) {
         const wanted = new Set(candidateIds);
         gradeResults = gradeResults.filter((r) => wanted.has(r.candidateId));
+        incompleteRecords = incompleteRecords.filter((r) => wanted.has(r.candidateId));
       }
-      if (gradeResults.length === 0) return [];
+      if (gradeResults.length === 0 && incompleteRecords.length === 0) return [];
 
       const examination = await tx.examination.findFirst({
         where: { id: examinationId, tenantId },
       });
       const subjects = jsonArray<ExaminationSubject>(examination?.subjects);
-      const subjectById = new Map(subjects.map((s) => [s.id, s]));
 
-      const studentIds = [...new Set(gradeResults.map((r) => r.studentId))];
+      // PRC-H056: candidates appear even when every subject is incomplete.
+      const byCandidate = new Map<
+        string,
+        { studentId: string; results: CandidateGradeResult[]; incomplete: Set<string> }
+      >();
+      const entry = (candidateId: string, studentId: string) => {
+        let e = byCandidate.get(candidateId);
+        if (!e) {
+          e = { studentId, results: [], incomplete: new Set() };
+          byCandidate.set(candidateId, e);
+        }
+        return e;
+      };
+      for (const r of gradeResults) entry(r.candidateId, r.studentId).results.push(r);
+      for (const r of incompleteRecords)
+        entry(r.candidateId, r.studentId).incomplete.add(r.subjectId);
+
+      const studentIds = [...new Set([...byCandidate.values()].map((e) => e.studentId))];
       const students = await tx.student.findMany({
         where: { tenantId, id: { in: studentIds }, deletedAt: null },
         select: { id: true, firstName: true, lastName: true },
       });
       const studentById = new Map(students.map((s) => [s.id, s]));
 
-      const byCandidate = new Map<string, CandidateGradeResult[]>();
-      for (const result of gradeResults) {
-        const group = byCandidate.get(result.candidateId);
-        if (group) group.push(result);
-        else byCandidate.set(result.candidateId, [result]);
-      }
-
-      return [...byCandidate.entries()].map(([candidateId, results]) => {
-        const studentId = results[0]!.studentId;
-        const student = studentById.get(studentId);
-        const subjectRows = results.map((r) => {
-          const subject = subjectById.get(r.subjectId);
-          return {
-            name: subject?.name ?? r.subjectId,
-            score: r.score,
-            grade: r.grade,
-            passed: r.passed,
-            maxScore: subject?.maxScore ?? 0,
-          };
-        });
-        const overallPassed = subjectRows.every((s) => s.passed);
-        return {
+      return [...byCandidate.entries()].map(([candidateId, e]) => {
+        const student = studentById.get(e.studentId);
+        return buildCandidateResultData({
           candidateId,
-          studentId,
-          studentName: student ? `${student.firstName} ${student.lastName}` : studentId,
-          rollNumber: candidateId,
-          subjects: subjectRows.map(({ name, score, grade, passed }) => ({
-            name,
-            score,
-            grade,
-            passed,
-          })),
-          overallGrade: overallPassed ? 'PASS' : 'FAIL',
-          overallPassed,
-          totalScore: subjectRows.reduce((sum, s) => sum + s.score, 0),
-          maxPossibleScore: subjectRows.reduce((sum, s) => sum + s.maxScore, 0),
-        };
+          studentId: e.studentId,
+          studentName: student ? `${student.firstName} ${student.lastName}` : e.studentId,
+          gradeResults: e.results,
+          subjects,
+          incompleteSubjectIds: e.incomplete,
+        });
       });
     });
   }

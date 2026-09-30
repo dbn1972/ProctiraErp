@@ -68,6 +68,12 @@ export interface CandidateResultData {
   overallPassed: boolean;
   totalScore: number;
   maxPossibleScore: number;
+  /**
+   * PRC-H056: names of examination subjects with no graded result (missing,
+   * incomplete or ungradable marks). Non-empty => overallGrade 'INCOMPLETE',
+   * overallPassed false, and certificates are refused.
+   */
+  incompleteSubjects?: string[];
 }
 
 /**

@@ -315,6 +315,16 @@ export class DocumentGenerationService {
             tenantId,
             job.candidateIds,
           );
+          // PRC-H056: never certify a candidate whose subjects are not all graded.
+          const incomplete = results.filter((r) => (r.incompleteSubjects?.length ?? 0) > 0);
+          if (incomplete.length > 0) {
+            throw new BusinessRuleError(
+              `Result certificates withheld: ${incomplete.length} candidate(s) have incomplete results (${incomplete
+                .slice(0, 10)
+                .map((r) => `${r.candidateId}: ${r.incompleteSubjects!.join(', ')}`)
+                .join('; ')})`,
+            );
+          }
           pdfBuffer = await this.pdfGenerator.generateResultCertificates(examInfo, results);
           break;
         }

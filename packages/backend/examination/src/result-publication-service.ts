@@ -92,6 +92,19 @@ export class ResultPublicationService {
 
     // Process each candidate
     for (const candidate of candidates) {
+      // PRC-H056: a registered candidate with no marks row for an examination
+      // subject is flagged incomplete instead of being silently dropped.
+      const recordedSubjectIds = new Set(candidate.subjectResults.map((r) => r.subjectId));
+      for (const subject of examination.subjects) {
+        if (!recordedSubjectIds.has(subject.id)) {
+          incompleteRecords.push({
+            candidateId: candidate.id,
+            studentId: candidate.studentId,
+            subjectId: subject.id,
+            reason: 'No marks recorded for subject',
+          });
+        }
+      }
       for (const subjectResult of candidate.subjectResults) {
         // Requirement 10.5: If result data is incomplete, skip and flag
         if (!subjectResult.isComplete || subjectResult.score === null) {
