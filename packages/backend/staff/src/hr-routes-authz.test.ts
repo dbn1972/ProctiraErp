@@ -76,7 +76,32 @@ describe('HR route authorization (PRC-H088)', () => {
   it('allows GET /staff/payroll/export for a bursar', async () => {
     roles = ['bursar'];
     const res = await app.inject({ method: 'GET', url: '/staff/payroll/export?month=2026-09' });
-    expect(res.statusCode).not.toBe(403);
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does not downgrade the payroll check for a percent-encoded path', async () => {
+    roles = ['registrar'];
+    const res = await app.inject({
+      method: 'GET',
+      url: '/staff/%70ayroll/export?month=2026-09',
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('does not downgrade the import check for a percent-encoded path', async () => {
+    roles = ['admissions_officer']; // has staff.hr.write but not staff.import
+    const res = await app.inject({
+      method: 'POST',
+      url: '/staff/%69mport/commit',
+      payload: { csv: 'firstName,lastName\nA,B' },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('does not expose a HEAD route for the side-effecting payroll export', async () => {
+    roles = ['hr_officer'];
+    const res = await app.inject({ method: 'HEAD', url: '/staff/payroll/export?month=2026-09' });
+    expect(res.statusCode).toBe(404);
   });
 
   for (const url of ['/staff/contracts', '/staff/qualifications', '/staff/attendance']) {
@@ -92,4 +117,54 @@ describe('HR route authorization (PRC-H088)', () => {
       expect((await app.inject({ method: 'GET', url })).statusCode).toBe(200);
     });
   }
+});
+
+describe('HR route authorization under the gateway /api/v1 prefix (PRC-H088)', () => {
+  let app: FastifyInstance;
+  let roles: string[] = [];
+
+  beforeEach(async () => {
+    app = Fastify();
+    const staffService = new StaffService(new InMemoryStaffRepository());
+    const hrService = new StaffHrService(new InMemoryStaffHrStore(), staffService);
+    app.decorateRequest('tenantId', '');
+    app.decorateRequest('user', undefined);
+    app.addHook('onRequest', async (request) => {
+      (request as FastifyRequest & { tenantId: string }).tenantId = TENANT_ID;
+      (request as FastifyRequest & { user?: { sub?: string; roles?: string[] } }).user = {
+        sub: 'jwt-user',
+        roles,
+      };
+    });
+    // Mirrors the gateway: each domain is mounted inside register(..., { prefix: '/api/v1' }).
+    await app.register(
+      async (scope) => {
+        await registerStaffHrRoutes(scope, { hrService, prefix: '/staff' });
+      },
+      { prefix: '/api/v1' },
+    );
+    await app.ready();
+  });
+
+  it('denies canonical and encoded payroll export to a registrar', async () => {
+    roles = ['registrar'];
+    for (const url of [
+      '/api/v1/staff/payroll/export?month=2026-09',
+      '/api/v1/staff/%70ayroll/export?month=2026-09',
+    ]) {
+      expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(403);
+    }
+  });
+
+  it('allows payroll export for an hr_officer and HR reads for a registrar', async () => {
+    roles = ['hr_officer'];
+    const payroll = await app.inject({
+      method: 'GET',
+      url: '/api/v1/staff/payroll/export?month=2026-09',
+    });
+    expect(payroll.statusCode).toBe(200);
+    roles = ['registrar'];
+    const contracts = await app.inject({ method: 'GET', url: '/api/v1/staff/contracts' });
+    expect(contracts.statusCode).toBe(200);
+  });
 });

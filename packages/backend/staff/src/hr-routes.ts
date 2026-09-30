@@ -169,7 +169,11 @@ export async function registerStaffHrRoutes(
   // payroll.export, and salary/qualification/attendance reads had no domain role check.
   // Scoped to this encapsulated HR route module only (see staff-plugin.ts).
   fastify.addHook('preHandler', async (request, reply) => {
-    const action = staffHrActionFor(request.method, request.url, prefix);
+    // Classify by the *matched route pattern*, not the raw request target: Fastify routes on the
+    // percent-decoded path, so `/staff/%70ayroll/export` reaches the payroll handler while a regex
+    // over request.url would see no "payroll" segment and downgrade the check.
+    const routePath = request.routeOptions.url ?? request.url;
+    const action = staffHrActionFor(request.method, routePath, prefix);
     requireStaffAction(request, reply, action);
   });
 
@@ -501,6 +505,9 @@ export async function registerStaffHrRoutes(
 
   fastify.get(
     `${prefix}/payroll/export`,
+    // PRC-H088: this GET persists (and with ?replace=true reverses) payroll runs, so do not let
+    // Fastify's auto-HEAD route re-run it. Moving persistence to a POST is a tracked follow-up.
+    { exposeHeadRoute: false },
     async function payrollExportHandler(
       request: FastifyRequest<{ Querystring: PayrollExportQuery }>,
       reply: FastifyReply,
