@@ -29,6 +29,7 @@ import {
   type QuizAnalytics,
   type QuestionType,
 } from './grading-engine.js';
+import { LMS_STAFF_ROLES } from './lms-access.js';
 import {
   assertAllowedUpload,
   createLmsFileDownloadToken,
@@ -105,7 +106,12 @@ export function uuidOrNull(value: string | null | undefined): string | null {
 }
 
 const TENANT_ADMIN_ROLES = new Set(['admin', 'platform_admin', 'super-admin', 'board_admin']);
-const AUTHOR_ROLES = new Set([...TENANT_ADMIN_ROLES, 'principal', 'teacher', 'staff']);
+/**
+ * PRC-H069: positive staff allowlist shared with the HTTP guard
+ * (`LMS_STAFF_ROLES`). Any role not listed here (parent, guardian, generic
+ * `staff`, custom roles) is a restricted principal, never a staff reader.
+ */
+const AUTHOR_ROLES = new Set<string>([...TENANT_ADMIN_ROLES, ...LMS_STAFF_ROLES]);
 const LEARNER_ROLES = new Set(['student']);
 
 export function isTenantAdmin(actor: LmsActor): boolean {
@@ -116,8 +122,29 @@ export function canAuthor(actor: LmsActor): boolean {
   return actor.roles.some((r) => AUTHOR_ROLES.has(r));
 }
 
+/**
+ * Restricted (learner-like) principal: every authenticated actor that is not
+ * on the staff allowlist. Deny-by-default — unknown roles never inherit staff
+ * visibility (PRC-H069).
+ */
 export function isLearner(actor: LmsActor): boolean {
+  return !canAuthor(actor);
+}
+/** Actual student principal (may read / act on their own learner records). */
+export function isStudent(actor: LmsActor): boolean {
   return actor.roles.some((r) => LEARNER_ROLES.has(r)) && !canAuthor(actor);
+}
+/**
+ * Per-student learner data (submissions, PAL plan / progress / attempts):
+ * staff see all; a student only their own id; everyone else is denied.
+ * Guardian → linked-child resolution is not available in the LMS domain, so
+ * parents are denied rather than widened (PRC-H069).
+ */
+function assertOwnLearnerRecord(actor: LmsActor, studentId: string, message: string): void {
+  if (canAuthor(actor)) return;
+  if (!isStudent(actor) || !actor.userId || studentId !== actor.userId) {
+    throw new ForbiddenError(message);
+  }
 }
 
 /** School-bound = has an institution list and is not a tenant/board admin. */
@@ -559,9 +586,7 @@ export class LmsService {
     now: Date = new Date(),
   ): Promise<SubmissionEntity> {
     const assignment = await this.requireAssignment(tenantId, assignmentId, actor);
-    if (isLearner(actor) && actor.userId && input.studentId !== actor.userId) {
-      throw new ForbiddenError('Students can only submit their own work');
-    }
+    assertOwnLearnerRecord(actor, input.studentId, 'Students can only submit their own work');
     assertInstitutionAllowed(actor, input.institutionId);
     if (assignment.status !== 'published') {
       throw new BusinessRuleError('Assignment is not open for submissions');
@@ -690,7 +715,9 @@ export class LmsService {
   ): Promise<PaginatedResult<SubmissionEntity>> {
     const effective: SubmissionFilter = { ...filter };
     if (isLearner(actor)) {
-      if (!actor.userId) throw new ForbiddenError('Unknown learner');
+      if (!isStudent(actor) || !actor.userId) {
+        throw new ForbiddenError('Only staff or the submitting student can list submissions');
+      }
       effective.studentId = actor.userId;
     }
     if (effective.assignmentId)
@@ -758,9 +785,7 @@ export class LmsService {
     actor: LmsActor,
     now: Date = new Date(),
   ): Promise<SkillMasteryEntity> {
-    if (isLearner(actor) && actor.userId && studentId !== actor.userId) {
-      throw new ForbiddenError('Students can only practise as themselves');
-    }
+    assertOwnLearnerRecord(actor, studentId, 'Students can only practise as themselves');
     assertInstitutionAllowed(actor, input.institutionId);
     const skill = await this.repository.findSkillById(tenantId, input.skillId);
     if (!skill) throw new NotFoundError('Skill not found');
@@ -781,9 +806,7 @@ export class LmsService {
     actor: LmsActor,
     now: Date = new Date(),
   ): Promise<SpiralPlan> {
-    if (isLearner(actor) && actor.userId && studentId !== actor.userId) {
-      throw new ForbiddenError('Students can only view their own plan');
-    }
+    assertOwnLearnerRecord(actor, studentId, 'Students can only view their own plan');
     assertInstitutionAllowed(actor, query.institutionId);
     const skills = await this.repository.listSkills(
       tenantId,
@@ -819,9 +842,7 @@ export class LmsService {
     query: PlanQuery,
     actor: LmsActor,
   ): Promise<StudentProgress> {
-    if (isLearner(actor) && actor.userId && studentId !== actor.userId) {
-      throw new ForbiddenError('Students can only view their own progress');
-    }
+    assertOwnLearnerRecord(actor, studentId, 'Students can only view their own progress');
     assertInstitutionAllowed(actor, query.institutionId);
     const skills = await this.repository.listSkills(
       tenantId,
@@ -860,9 +881,7 @@ export class LmsService {
     pagination: PaginationOptions,
     actor: LmsActor,
   ): Promise<PaginatedResult<PracticeAttemptEntity>> {
-    if (isLearner(actor) && actor.userId && studentId !== actor.userId) {
-      throw new ForbiddenError('Students can only view their own attempts');
-    }
+    assertOwnLearnerRecord(actor, studentId, 'Students can only view their own attempts');
     return this.repository.listAttempts(tenantId, studentId, pagination);
   }
 
@@ -1198,13 +1217,31 @@ export class LmsService {
     submissionId?: string,
   ) {
     await this.requireAssignment(tenantId, assignmentId, actor);
-    return this.repository.listAssignmentFiles(tenantId, assignmentId, submissionId);
+    const files = await this.repository.listAssignmentFiles(tenantId, assignmentId, submissionId);
+    if (!isLearner(actor)) return files;
+    // Restricted principals: assignment attachments + their own submission files only.
+    const allowed: typeof files = [];
+    for (const file of files) {
+      if (await this.canReadFile(tenantId, file, actor)) allowed.push(file);
+    }
+    return allowed;
+  }
+  private async canReadFile(
+    tenantId: string,
+    file: AssignmentFileEntity,
+    actor: LmsActor,
+  ): Promise<boolean> {
+    if (!isLearner(actor) || file.submissionId === null) return true;
+    if (!isStudent(actor) || !actor.userId) return false;
+    const sub = await this.repository.findSubmissionById(tenantId, file.submissionId);
+    return sub !== null && sub.studentId === actor.userId;
   }
 
   async signedFileDownload(tenantId: string, fileId: string, actor: LmsActor) {
     const file = await this.repository.findAssignmentFile(tenantId, fileId);
     if (!file) throw new NotFoundError('File not found');
     await this.requireAssignment(tenantId, file.assignmentId, actor);
+    if (!(await this.canReadFile(tenantId, file, actor))) throw new NotFoundError('File not found');
     const token = createLmsFileDownloadToken(tenantId, file.id);
     return { ...file, ...token, url: `/lms/files/${file.id}/download?token=${token.token}` };
   }
@@ -1213,6 +1250,7 @@ export class LmsService {
     const file = await this.repository.findAssignmentFile(tenantId, fileId);
     if (!file) throw new NotFoundError('File not found');
     await this.requireAssignment(tenantId, file.assignmentId, actor);
+    if (!(await this.canReadFile(tenantId, file, actor))) throw new NotFoundError('File not found');
     const verified = verifyLmsFileDownloadToken(tenantId, fileId, token);
     if (!verified.ok) throw new ForbiddenError(verified.reason);
     return file;

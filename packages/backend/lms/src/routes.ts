@@ -32,8 +32,8 @@ import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { getLmsFile } from './lms-file-store.js';
-import type { LmsActor, LmsService } from './lms-service.js';
 import { enforceLmsRouteAccess } from './lms-http-guard.js';
+import type { LmsActor, LmsService } from './lms-service.js';
 import {
   AssembleFromBankSchema,
   AssignmentListQuerySchema,
@@ -94,6 +94,7 @@ export function getLmsActor(request: FastifyRequest): LmsActor {
   if (!user) return { userId: null, roles: [], institutions: [] };
   const roles = (user.roles ?? [])
     .map((r) => (typeof r === 'string' ? r : r?.roleId))
+    .map((r) => (typeof r === 'string' ? r.toLowerCase() : r))
     .filter((r): r is string => typeof r === 'string' && r.length > 0);
   return {
     userId: user.sub ?? null,
@@ -168,7 +169,6 @@ export async function registerLmsRoutes(
       return reply;
     }
   });
-
 
   // ─── Skills ────────────────────────────────────────────────────────────
 
