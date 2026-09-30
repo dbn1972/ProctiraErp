@@ -26,7 +26,11 @@ import {
   assertCanVerify,
   type ScholarshipActor,
 } from './document-access.js';
-import { parseMultipartForm, verifyDocumentDownloadToken } from './document-bytes.js';
+import {
+  DownloadTokenReplayGuard,
+  parseMultipartForm,
+  verifyDocumentDownloadToken,
+} from './document-bytes.js';
 import type { ScholarshipDocumentService } from './document-service.js';
 import type { ScholarshipService } from './scholarship-service.js';
 
@@ -53,6 +57,8 @@ export interface ScholarshipDocumentRouteOptions {
   documentService: ScholarshipDocumentService;
   prefix?: string;
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** Single-use download token guard (PRC-L344). Defaults to a process-local guard. */
+  downloadReplayGuard?: DownloadTokenReplayGuard;
 }
 
 function tenantIdOf(request: FastifyRequest): string | null {
@@ -85,6 +91,7 @@ export async function registerScholarshipDocumentRoutes(
 ): Promise<void> {
   const prefix = options.prefix ?? '/scholarships';
   const { scholarshipService, documentService } = options;
+  const replayGuard = options.downloadReplayGuard ?? new DownloadTokenReplayGuard();
 
   if (!fastify.hasContentTypeParser('multipart/form-data')) {
     fastify.addContentTypeParser(
@@ -201,7 +208,9 @@ export async function registerScholarshipDocumentRoutes(
         const application = await loadApplication(tenantId, params.data.id);
         const actor = await actorFor(request, tenantId);
         assertCanReadDocuments(actor, application);
-        const doc = await documentService.downloadDescriptor(tenantId, params.data.documentId);
+        const doc = await documentService.downloadDescriptor(tenantId, params.data.documentId, {
+          userId: actor.userId,
+        });
         if (!doc) return;
         const listed = await documentService.list(tenantId, application.id);
         if (!listed.some((row) => row.id === params.data.documentId)) {
@@ -393,31 +402,62 @@ export async function registerScholarshipDocumentRoutes(
     }
   });
 
-  fastify.get(`${prefix}/document-downloads`, async (request, reply) => {
-    const params = validate(TokenQuery, request.query);
-    if (!params.success) {
-      return reply.status(400).send({
-        code: 'VALIDATION_ERROR',
-        message: 'Download link is invalid',
-        statusCode: 400,
-        errors: params.errors,
-      });
-    }
-    try {
-      const claims = verifyDocumentDownloadToken(params.data.token);
-      const file = await documentService.readBytes(claims.tenantId, claims.documentId);
-      return reply
-        .header('content-type', file.mimeType)
-        .header('cache-control', 'private, max-age=0')
-        .header(
-          'content-disposition',
-          `attachment; filename="${file.originalFilename.replace(/"/g, '')}"`,
-        )
-        .send(file.bytes);
-    } catch (error) {
-      return sendError(reply, error);
-    }
-  });
+  fastify.get(
+    `${prefix}/document-downloads`,
+    // Route-level limit on top of the global gateway limiter (PRC-L344).
+    { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } },
+    async (request, reply) => {
+      const params = validate(TokenQuery, request.query);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Download link is invalid',
+          statusCode: 400,
+          errors: params.errors,
+        });
+      }
+      try {
+        const claims = verifyDocumentDownloadToken(params.data.token);
+        // A session presented with the link must be the user it was minted for.
+        const sessionUser = actorFromRequest(request).userId;
+        if (sessionUser && claims.sub && sessionUser !== claims.sub) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: 'This download link was issued to another user',
+            statusCode: 403,
+          });
+        }
+        if (!replayGuard.consume(claims.jti, claims.exp)) {
+          return reply.status(401).send({
+            code: 'UNAUTHORIZED',
+            message: 'Download link has already been used',
+            statusCode: 401,
+          });
+        }
+        const file = await documentService.readBytes(claims.tenantId, claims.documentId);
+        request.log.info(
+          {
+            event: 'scholarship.document.downloaded',
+            tenantId: claims.tenantId,
+            documentId: claims.documentId,
+            userId: claims.sub || null,
+            jti: claims.jti,
+          },
+          'scholarship document downloaded',
+        );
+        return reply
+          .header('content-type', file.mimeType)
+          .header('cache-control', 'private, max-age=0')
+          .header(
+            'content-disposition',
+            `attachment; filename="${file.originalFilename.replace(/"/g, '')}"`,
+          )
+          .send(file.bytes);
+      } catch (error) {
+        return sendError(reply, error);
+      }
+    },
+  );
 }
 
 /** Used by the application create route so parents can file only for linked students. */

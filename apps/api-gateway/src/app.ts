@@ -67,6 +67,7 @@ import {
   type InstitutionScopeUser,
 } from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
+import { redactedRequestSerializer } from './log-redaction.js';
 import { PARKED_GATEWAY_PREFIXES } from './mount-matrix.js';
 import {
   attachMutatingRouteAuthzTracker,
@@ -157,6 +158,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       config.env !== 'test'
         ? {
             level: process.env['LOG_LEVEL'] || 'info',
+            // PRC-L344: never log capability tokens carried in query strings.
+            serializers: { req: redactedRequestSerializer },
             transport:
               config.env === 'development'
                 ? { target: 'pino-pretty', options: { colorize: true } }

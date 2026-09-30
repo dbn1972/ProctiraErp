@@ -3,7 +3,7 @@
  * filename sanitisation, and a stable placeholder PDF for seeds/tests.
  * No ClamAV client exists in this repo; callers pass an optional scan hook.
  */
-import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 
 import { AppError, ValidationError } from '@proctira/common';
 
@@ -159,7 +159,32 @@ export function parseMultipartForm(body: Buffer, contentType: string): ParsedMul
 export interface DocumentDownloadClaims {
   tenantId: string;
   documentId: string;
+  /** User the link was minted for (PRC-L344). Empty when minted without a session. */
+  sub: string;
+  /** Unique token id; each link is single-use (PRC-L344). */
+  jti: string;
   exp: number;
+}
+/**
+ * Single-use guard for download tokens (PRC-L344). Process-local: a shared
+ * store is required for strict single-use across multiple gateway replicas.
+ */
+export class DownloadTokenReplayGuard {
+  private readonly used = new Map<string, number>();
+  constructor(private readonly maxEntries = 50_000) {}
+  /** Returns false when the jti was already consumed. */
+  consume(jti: string, exp: number, nowSeconds = Date.now() / 1000): boolean {
+    for (const [key, keyExp] of this.used) {
+      if (keyExp < nowSeconds) this.used.delete(key);
+    }
+    if (this.used.has(jti)) return false;
+    if (this.used.size >= this.maxEntries) {
+      const oldest = this.used.keys().next().value;
+      if (oldest !== undefined) this.used.delete(oldest);
+    }
+    this.used.set(jti, exp);
+    return true;
+  }
 }
 
 function signingSecret(): string {
@@ -170,12 +195,19 @@ function signingSecret(): string {
 }
 
 export function signDocumentDownloadToken(
-  claims: Omit<DocumentDownloadClaims, 'exp'> & { expiresInSeconds?: number; exp?: number },
+  claims: Omit<DocumentDownloadClaims, 'exp' | 'jti' | 'sub'> & {
+    sub?: string;
+    jti?: string;
+    expiresInSeconds?: number;
+    exp?: number;
+  },
 ): { token: string; expiresAt: string } {
   const exp = claims.exp ?? Math.floor(Date.now() / 1000) + (claims.expiresInSeconds ?? 120);
   const payload: DocumentDownloadClaims = {
     tenantId: claims.tenantId,
     documentId: claims.documentId,
+    sub: claims.sub ?? '',
+    jti: claims.jti ?? randomUUID(),
     exp,
   };
   const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -208,7 +240,7 @@ export function verifyDocumentDownloadToken(
   if (!claims.exp || claims.exp < nowSeconds) {
     throw new AppError('Download link has expired', 'UNAUTHORIZED', 401);
   }
-  if (!claims.tenantId || !claims.documentId) {
+  if (!claims.tenantId || !claims.documentId || typeof claims.jti !== 'string' || !claims.jti) {
     throw new AppError('Download link is invalid', 'UNAUTHORIZED', 401);
   }
   return claims;
