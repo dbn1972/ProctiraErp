@@ -124,8 +124,17 @@ export class ResultPublicationService {
           continue;
         }
 
-        // Calculate grade
-        const grade = this.calculateGrade(subjectResult.score, gradingScheme);
+        // Calculate grade (PRC-H054: out-of-range / unbanded scores are incomplete)
+        const grade = calculateGrade(subjectResult.score, gradingScheme);
+        if (grade === null) {
+          incompleteRecords.push({
+            candidateId: candidate.id,
+            studentId: candidate.studentId,
+            subjectId: subjectResult.subjectId,
+            reason: `Score ${subjectResult.score} does not map to a grade band in scheme '${gradingScheme.name}'`,
+          });
+          continue;
+        }
         const passed = subjectResult.score >= gradingScheme.passThreshold;
 
         gradeResults.push({
@@ -471,25 +480,6 @@ export class ResultPublicationService {
   }
 
   /**
-   * Calculate the grade for a given score using the grading scheme thresholds.
-   * Returns the grade label that matches the score range.
-   */
-  private calculateGrade(score: number, scheme: ExaminationGradingScheme): string {
-    // Sort thresholds by minScore descending to find the highest matching grade
-    const sortedThresholds = [...scheme.thresholds].sort((a, b) => b.minScore - a.minScore);
-
-    for (const threshold of sortedThresholds) {
-      if (score >= threshold.minScore && score <= threshold.maxScore) {
-        return threshold.grade;
-      }
-    }
-
-    // If no threshold matches, return the lowest grade
-    const lowestThreshold = [...scheme.thresholds].sort((a, b) => a.minScore - b.minScore)[0];
-    return lowestThreshold?.grade ?? 'N/A';
-  }
-
-  /**
    * Build score distribution buckets for a set of scores.
    */
   private buildScoreDistribution(
@@ -574,6 +564,27 @@ export class ResultPublicationService {
 
     return breakdowns;
   }
+}
+
+/**
+ * Calculate the grade for a score (PRC-H054).
+ *
+ * Grade = the band with the greatest minScore <= score, provided the score lies
+ * within the scheme range [minScore, maxScore]. Returns null when the score is
+ * outside the scheme range or no band starts at/below it; callers must flag
+ * such results as incomplete rather than defaulting to the lowest grade.
+ */
+export function calculateGrade(score: number, scheme: ExaminationGradingScheme): string | null {
+  if (!Number.isFinite(score) || score < scheme.minScore || score > scheme.maxScore) {
+    return null;
+  }
+  let match: ExaminationGradingScheme['thresholds'][number] | undefined;
+  for (const threshold of scheme.thresholds) {
+    if (threshold.minScore <= score && (!match || threshold.minScore > match.minScore)) {
+      match = threshold;
+    }
+  }
+  return match?.grade ?? null;
 }
 
 /**

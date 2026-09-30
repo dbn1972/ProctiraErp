@@ -126,6 +126,7 @@ export class ExaminationService {
         errors.push(...schemeErrors);
       }
     }
+    const bandErrors = collectGradeBandErrors(input.gradingSchemes);
 
     // Validate sessions if provided
     if (input.sessions) {
@@ -135,6 +136,11 @@ export class ExaminationService {
 
     if (errors.length > 0) {
       throw new ValidationError('Examination validation failed', errors);
+    }
+
+    // PRC-H054: grade bands must be sorted, non-overlapping and cover the scheme range.
+    if (bandErrors.length > 0) {
+      throw new BusinessRuleError(`Invalid grade bands: ${bandErrors.join('; ')}`);
     }
 
     // Build entity
@@ -275,6 +281,7 @@ export class ExaminationService {
         errors.push(...schemeErrors);
       }
     }
+    const bandErrors = collectGradeBandErrors(input.gradingSchemes);
 
     // Validate dates if provided
     const startDate = input.startDate ?? existing.startDate;
@@ -292,6 +299,11 @@ export class ExaminationService {
 
     if (errors.length > 0) {
       throw new ValidationError('Examination validation failed', errors);
+    }
+
+    // PRC-H054: grade bands must be sorted, non-overlapping and cover the scheme range.
+    if (bandErrors.length > 0) {
+      throw new BusinessRuleError(`Invalid grade bands: ${bandErrors.join('; ')}`);
     }
 
     // Build update data
@@ -864,4 +876,58 @@ function canonicalJson(value: unknown): string {
     return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+/**
+ * PRC-H054: validate that a scheme's grade bands are non-overlapping and cover
+ * [minScore, maxScore] without gaps. Integer-edge bands (e.g. 80-89 / 90-100)
+ * are contiguous because grading uses the band with the greatest minScore <= score.
+ * Returns human-readable errors (empty when valid).
+ */
+export function validateGradeBands(scheme: {
+  name: string;
+  minScore: number;
+  maxScore: number;
+  thresholds: GradeThreshold[];
+}): string[] {
+  const errors: string[] = [];
+  const bands = [...scheme.thresholds].sort((a, b) => a.minScore - b.minScore);
+  const first = bands[0];
+  const last = bands[bands.length - 1];
+  if (!first || !last) {
+    return [`Scheme '${scheme.name}' has no grade bands`];
+  }
+  if (first.minScore !== scheme.minScore) {
+    errors.push(
+      `Scheme '${scheme.name}' bands must start at the scheme minimum (${scheme.minScore}); lowest band '${first.grade}' starts at ${first.minScore}`,
+    );
+  }
+  const highestMax = Math.max(...bands.map((b) => b.maxScore));
+  if (highestMax !== scheme.maxScore) {
+    errors.push(
+      `Scheme '${scheme.name}' bands must reach the scheme maximum (${scheme.maxScore}); highest band ends at ${highestMax}`,
+    );
+  }
+  for (let i = 1; i < bands.length; i++) {
+    const prev = bands[i - 1]!;
+    const next = bands[i]!;
+    if (next.minScore <= prev.maxScore) {
+      errors.push(
+        `Scheme '${scheme.name}' bands '${prev.grade}' (${prev.minScore}-${prev.maxScore}) and '${next.grade}' (${next.minScore}-${next.maxScore}) overlap`,
+      );
+    } else if (next.minScore > prev.maxScore + 1) {
+      errors.push(
+        `Scheme '${scheme.name}' has a gap between '${prev.grade}' (ends ${prev.maxScore}) and '${next.grade}' (starts ${next.minScore})`,
+      );
+    }
+  }
+  return errors;
+}
+
+function collectGradeBandErrors(
+  schemes:
+    | Array<{ name: string; minScore: number; maxScore: number; thresholds: GradeThreshold[] }>
+    | undefined,
+): string[] {
+  return (schemes ?? []).flatMap((scheme) => validateGradeBands(scheme));
 }
