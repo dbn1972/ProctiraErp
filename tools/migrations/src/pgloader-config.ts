@@ -5,15 +5,16 @@
  * This script generates the .load file with actual connection credentials substituted.
  */
 
+import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execSync } from 'node:child_process';
-import { loadConfig } from './config.js';
-import { MigrationConfig, MigrationStepResult } from './types.js';
+
+import type { MigrationConfig, MigrationStepResult } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_PATH = resolve(__dirname, '../pgloader/proctira-migration.load');
+// PRC-H104: the shipped template is openemis-migration.load (proctira-migration.load never existed).
+export const TEMPLATE_PATH = resolve(__dirname, '../pgloader/openemis-migration.load');
 const OUTPUT_PATH = resolve(__dirname, '../pgloader/generated-migration.load');
 
 /**
