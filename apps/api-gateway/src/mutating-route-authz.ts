@@ -296,7 +296,17 @@ export function inventoryKey(method: string, path: string): string {
 }
 
 function normalizePath(urlOrPath: string): string {
-  const path = urlOrPath.split('?')[0] ?? urlOrPath;
+  const raw = urlOrPath.split('?')[0] ?? urlOrPath;
+  // Match rules against the path the router will actually dispatch. find-my-way decodes
+  // percent-escapes before matching, so `/institutions/:id/%64eactivate` reaches the deactivate
+  // handler; matching the raw form would miss the exact rule and fall back to a coarser one.
+  // `%2F` is kept encoded because the router does not treat it as a segment separator.
+  let path = raw;
+  try {
+    path = decodeURIComponent(raw.replace(/%2f/gi, '%252F'));
+  } catch {
+    path = raw;
+  }
   if (path.length > 1 && path.endsWith('/')) return path.slice(0, -1);
   return path;
 }

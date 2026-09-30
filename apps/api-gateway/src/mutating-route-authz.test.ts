@@ -123,6 +123,14 @@ describe('W1-SEC-02 mutating-route authz inventory', () => {
     });
   });
 
+  it('matches exact rules on the decoded path the router dispatches', () => {
+    const id = '11111111-1111-4111-8111-111111111111';
+    const plain = resolveExactMutatingAuthz('POST', `/api/v1/institutions/${id}/deactivate`);
+    const encoded = resolveExactMutatingAuthz('POST', `/api/v1/institutions/${id}/%64eactivate`);
+    expect(plain?.ruleId).toBe('institution.deactivate');
+    expect(encoded).toEqual(plain);
+  });
+
   it('fails closed when mutating path has no inventory rule', () => {
     const gate = evaluateExactMutatingAuthzGate({
       method: 'POST',

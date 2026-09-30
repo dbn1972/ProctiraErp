@@ -89,7 +89,8 @@ export function isPublicRegistrationPath(path: string): boolean {
   const under = normalized.slice('/registrations'.length) || '/';
 
   if (under === '/' || under === '') return true;
-  if (/^\/[A-Za-z0-9-]+\/status$/.test(under)) return true;
+  // Accept both a concrete tracking number and the matched route pattern (routePathForAuthz).
+  if (/^\/(?::trackingNumber|[A-Za-z0-9-]+)\/status$/.test(under)) return true;
   if (under === '/institutions') return true;
   if (under.startsWith('/schools/search')) return true;
   if (under.startsWith('/form-config/')) return true;

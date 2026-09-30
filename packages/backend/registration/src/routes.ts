@@ -12,7 +12,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 
-import { AppError } from '@proctira/common';
+import { AppError, routePathForAuthz } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
@@ -240,7 +240,9 @@ export async function registerRegistrationRoutes(
   // Caller tenant and forwarding headers are deliberately ignored. Staff paths
   // retain the authenticated gateway tenant/RBAC path.
   fastify.addHook('preHandler', async (request, reply) => {
-    if (!isPublicRegistrationPath(request.url)) {
+    // Classify public vs staff once, on the matched route pattern (same as the inner guard), so
+    // a percent-encoded segment cannot make the two decisions disagree.
+    if (!isPublicRegistrationPath(routePathForAuthz(request))) {
       if (!enforceRegistrationRouteAccess(request, reply)) return reply;
       return;
     }

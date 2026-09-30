@@ -37,6 +37,9 @@ describe('registration-access (W1-SEC-02)', () => {
   it('classifies public registration paths', () => {
     expect(isPublicRegistrationPath('/registrations')).toBe(true);
     expect(isPublicRegistrationPath('/registrations/REG-ABC12345/status')).toBe(true);
+    // Guards classify on the matched route pattern (routePathForAuthz).
+    expect(isPublicRegistrationPath('/api/v1/registrations/:trackingNumber/status')).toBe(true);
+    expect(isPublicRegistrationPath('/registrations/applications/:id/status')).toBe(false);
     expect(isPublicRegistrationPath('/registrations/institutions')).toBe(true);
     expect(isPublicRegistrationPath('/registrations/schools/search')).toBe(true);
     expect(isPublicRegistrationPath('/registrations/form-config/inst-1')).toBe(true);

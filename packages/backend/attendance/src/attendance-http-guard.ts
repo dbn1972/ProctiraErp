@@ -1,7 +1,7 @@
 /**
  * Fastify helpers for attendance domain RBAC (W1-SEC-02 residual).
  */
-import { AppError } from '@proctira/common';
+import { AppError, routePathForAuthz } from '@proctira/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { assertAttendanceAccess, type AttendanceAction } from './attendance-access.js';
@@ -40,20 +40,20 @@ export function attendanceActionForRequest(
   method: string,
   url: string,
 ): AttendanceAction | null {
-  const path = url.split('?')[0] ?? url;
-  if (path.endsWith('/ingest') || path.includes('/ingest')) {
+  // Callers must pass the matched route pattern (routePathForAuthz), not the raw request target:
+  // Fastify routes on the decoded path, so `/leave-requests/:id/%61pprove` reaches the approve
+  // handler while a raw-URL check would see no `/approve` and downgrade to attendance.write.
+  const path = (url.split('?')[0] ?? url).replace(/\/+$/, '');
+  // Device ingest authenticates with x-device-api-key in the handler. Only the exact ingest route
+  // skips user RBAC — a substring match let e.g. `/leave-requests/ingest/approve` skip it too.
+  if (/(?:^|\/)attendance\/ingest$/.test(path) && method.toUpperCase() === 'POST') {
     return null;
   }
   const upper = method.toUpperCase();
   if (upper === 'GET' || upper === 'HEAD' || upper === 'OPTIONS') {
     return 'attendance.read';
   }
-  if (
-    path.includes('/approve') ||
-    path.includes('/reject') ||
-    path.endsWith('/devices') ||
-    path.includes('/devices')
-  ) {
+  if (/\/(?:approve|reject)(?:\/|$)/.test(path) || /\/devices(?:\/|$)/.test(path)) {
     return 'attendance.approve';
   }
   return 'attendance.write';
@@ -67,7 +67,7 @@ export function enforceAttendanceRouteAccess(
   request: FastifyRequest,
   reply: FastifyReply,
 ): boolean {
-  const action = attendanceActionForRequest(request.method, request.url);
+  const action = attendanceActionForRequest(request.method, routePathForAuthz(request));
   if (action == null) return true;
   return requireAttendanceAction(request, reply, action);
 }
