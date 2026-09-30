@@ -420,8 +420,20 @@ export class ResultPublicationService {
     const errors: FieldError[] = [];
     const upserts: ExaminationCandidate[] = [];
     let subjectResultCount = 0;
+    const seenStudents = new Set<string>();
 
     input.entries.forEach((entry, entryIndex) => {
+      // PRC-L304: duplicate student entries would build divergent upserts from
+      // the same snapshot (last write wins silently) — reject them.
+      if (seenStudents.has(entry.studentId)) {
+        errors.push({
+          field: `entries[${entryIndex}].studentId`,
+          rule: 'unique',
+          message: `Student '${entry.studentId}' appears more than once in this request`,
+        });
+        return;
+      }
+      seenStudents.add(entry.studentId);
       const registration = registrationByStudent.get(entry.studentId);
       if (!registration) {
         errors.push({
@@ -436,7 +448,17 @@ export class ResultPublicationService {
       const results = new Map(
         (current?.subjectResults ?? []).map((r) => [r.subjectId, r] as const),
       );
+      const seenSubjects = new Set<string>();
       entry.marks.forEach((mark, markIndex) => {
+        if (seenSubjects.has(mark.subjectId)) {
+          errors.push({
+            field: `entries[${entryIndex}].marks[${markIndex}].subjectId`,
+            rule: 'unique',
+            message: `Subject '${mark.subjectId}' appears more than once for this student`,
+          });
+          return;
+        }
+        seenSubjects.add(mark.subjectId);
         const subject = subjectsById.get(mark.subjectId);
         if (!subject) {
           errors.push({
