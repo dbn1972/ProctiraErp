@@ -161,26 +161,48 @@ export function clearRefreshTokenCookieOptions(request?: Request | null): AuthCo
 }
 
 /**
+ * Local-development default for upstream auth + gateway calls. Auth routes are
+ * served by the api-gateway (`AUTH_SERVICE_URL=http://api-gateway:3000` in
+ * `.env.example`); the old `:3010` fallback collided with the etl-worker
+ * default port (PRC-L027).
+ */
+const DEV_GATEWAY_FALLBACK = 'http://localhost:3000';
+
+/**
+ * Returns the first configured URL, or the localhost fallback outside
+ * production. In production a missing value is a misconfiguration and throws
+ * rather than silently calling localhost (PRC-L027).
+ */
+function resolveUpstreamUrl(names: readonly string[], label: string): string {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`${label} is not configured: set one of ${names.join(', ')}.`);
+  }
+  return DEV_GATEWAY_FALLBACK;
+}
+
+/**
  * Resolves the upstream auth-service URL.
- * Falls back to localhost during development.
+ * Falls back to the local gateway during development only.
  */
 export function getAuthServiceUrl(): string {
-  return (
-    process.env.AUTH_SERVICE_URL ||
-    process.env.NEXT_PUBLIC_AUTH_SERVICE_URL ||
-    'http://localhost:3010'
+  return resolveUpstreamUrl(
+    ['AUTH_SERVICE_URL', 'NEXT_PUBLIC_AUTH_SERVICE_URL'],
+    'Auth service URL',
   );
 }
 
 /**
  * Resolves the API gateway base URL (Keycloak BFF / ticket redemption).
- * Falls back to NEXT_PUBLIC_API_URL, then localhost gateway.
+ * Falls back to NEXT_PUBLIC_API_URL / API_GATEWAY_URL, then (development
+ * only) the localhost gateway.
  */
 export function getGatewayUrl(): string {
-  return (
-    process.env.GATEWAY_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    process.env.API_GATEWAY_URL ||
-    'http://localhost:3000'
+  return resolveUpstreamUrl(
+    ['GATEWAY_URL', 'NEXT_PUBLIC_API_URL', 'API_GATEWAY_URL'],
+    'API gateway URL',
   );
 }
