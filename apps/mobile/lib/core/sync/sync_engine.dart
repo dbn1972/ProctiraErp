@@ -157,6 +157,7 @@ class SyncEngine {
     required Map<String, dynamic> syncPayload,
     String? entityId,
     String? baseVersion,
+    bool coalesceIntoPendingCreate = false,
   }) async {
     final String tenantId = _requireTenantId();
     final Database db = await _database.database;
@@ -167,6 +168,35 @@ class SyncEngine {
         cachePayload,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      // PRC-H012: an edit of a record whose create has never been sent is
+      // folded into that create instead of queueing an update that has no
+      // server version to send as If-Match.
+      if (coalesceIntoPendingCreate &&
+          operation == SyncOperation.update &&
+          baseVersion == null &&
+          entityId != null) {
+        final List<Map<String, Object?>> creates = await txn.query(
+          'pending_sync',
+          columns: <String>['id'],
+          where:
+              'tenant_id = ? AND entity_type = ? AND entity_id = ? '
+              "AND operation = 'create' AND status = 'pending' "
+              'AND attempts = 0',
+          whereArgs: <Object>[tenantId, entityType.toWire(), entityId],
+          orderBy: 'id DESC',
+          limit: 1,
+        );
+        if (creates.isNotEmpty) {
+          final int existingId = creates.first['id']! as int;
+          await txn.update(
+            'pending_sync',
+            <String, Object?>{'payload': jsonEncode(syncPayload)},
+            where: 'id = ?',
+            whereArgs: <Object>[existingId],
+          );
+          return existingId;
+        }
+      }
       final String idempotencyKey = const Uuid().v4();
       final int id = await txn.insert('pending_sync', <String, Object?>{
         'tenant_id': tenantId,
@@ -303,10 +333,42 @@ class SyncEngine {
       int conflicted = 0;
       int parked = 0;
 
+      // Entities whose create is still queued (any status). Updates/deletes
+      // for them that carry no base version wait for the create instead of
+      // being parked as "missing base version" (PRC-H012).
+      final List<Map<String, Object?>> createRows = await db.query(
+        'pending_sync',
+        columns: <String>['entity_type', 'entity_id'],
+        where: tenantId == null
+            ? "operation = 'create' AND entity_id IS NOT NULL"
+            : "operation = 'create' AND entity_id IS NOT NULL AND tenant_id = ?",
+        whereArgs: tenantId == null ? null : <Object>[tenantId],
+      );
+      final Set<String> queuedCreates = <String>{
+        for (final Map<String, Object?> c in createRows)
+          '${c['entity_type']}:${c['entity_id']}',
+      };
+
       for (final Map<String, Object?> raw in rawRows) {
-        final PendingSyncRow row = PendingSyncRow.fromDb(raw);
+        PendingSyncRow row = PendingSyncRow.fromDb(raw);
         if (!_isReadyForRetry(row, nowMs)) {
           continue; // Backoff window not elapsed yet.
+        }
+        if (row.operation != SyncOperation.create &&
+            row.baseVersion == null &&
+            row.entityId != null) {
+          if (queuedCreates.contains(_entityKey(row))) {
+            continue; // Wait for the create to land first.
+          }
+          // The create may have succeeded earlier in this pass and
+          // back-filled base_version; re-read the row.
+          final List<Map<String, Object?>> fresh = await db.query(
+            'pending_sync',
+            where: 'id = ?',
+            whereArgs: <Object>[row.id],
+          );
+          if (fresh.isEmpty) continue;
+          row = PendingSyncRow.fromDb(fresh.first);
         }
         processed += 1;
 
@@ -329,6 +391,9 @@ class SyncEngine {
 
         if (outcome is DispatchSuccess) {
           await _onSuccess(row, outcome);
+          if (row.operation == SyncOperation.create) {
+            queuedCreates.remove(_entityKey(row));
+          }
           synced += 1;
         } else if (outcome is DispatchConflict) {
           await _onConflict(row, outcome);
@@ -371,21 +436,85 @@ class SyncEngine {
     return nowMs - row.lastAttemptAt! >= waitMs;
   }
 
+  static String _entityKey(PendingSyncRow row) =>
+      '${row.entityType.toWire()}:${row.entityId}';
+
   Future<void> _onSuccess(PendingSyncRow row, DispatchSuccess outcome) async {
     final Database db = await _database.database;
     await db.transaction((Transaction txn) async {
-      await txn.delete(
+      final List<Map<String, Object?>> current = await txn.query(
         'pending_sync',
+        columns: <String>['payload'],
         where: 'id = ?',
         whereArgs: <Object>[row.id],
       );
+      final bool editedInFlight =
+          row.operation == SyncOperation.create &&
+          outcome.serverVersion.isNotEmpty &&
+          current.isNotEmpty &&
+          jsonEncode(jsonDecode(current.first['payload']! as String)) !=
+              jsonEncode(row.payload);
+      if (editedInFlight) {
+        // The user edited the record while its create was on the wire: the
+        // server has the old payload, so replay the newest payload as an
+        // update against the version the create just produced.
+        await txn.update(
+          'pending_sync',
+          <String, Object?>{
+            'operation': SyncOperation.update.toWire(),
+            'base_version': outcome.serverVersion,
+            'attempts': 0,
+            'last_attempt_at': null,
+            'last_error': null,
+            'idempotency_key': const Uuid().v4(),
+          },
+          where: 'id = ?',
+          whereArgs: <Object>[row.id],
+        );
+      } else {
+        await txn.delete(
+          'pending_sync',
+          where: 'id = ?',
+          whereArgs: <Object>[row.id],
+        );
+      }
+      if (row.operation == SyncOperation.create &&
+          outcome.serverVersion.isNotEmpty &&
+          row.entityId != null) {
+        // Queued follow-up edits now have a server version to send.
+        await txn.update(
+          'pending_sync',
+          <String, Object?>{'base_version': outcome.serverVersion},
+          where:
+              'tenant_id = ? AND entity_type = ? AND entity_id = ? '
+              "AND operation != 'create' AND base_version IS NULL",
+          whereArgs: <Object>[
+            row.tenantId,
+            row.entityType.toWire(),
+            row.entityId!,
+          ],
+        );
+      }
+      final List<Map<String, Object?>> remaining = row.entityId == null
+          ? const <Map<String, Object?>>[]
+          : await txn.rawQuery(
+              'SELECT COUNT(*) AS c FROM pending_sync '
+              'WHERE tenant_id = ? AND entity_type = ? AND entity_id = ?',
+              <Object>[row.tenantId, row.entityType.toWire(), row.entityId!],
+            );
+      final bool stillQueued =
+          remaining.isNotEmpty &&
+          ((remaining.first['c'] as num?)?.toInt() ?? 0) > 0;
       // Refresh local cache with server-canonical version when applicable.
       switch (row.entityType) {
         case SyncEntityType.attendance:
           if (outcome.serverVersion.isEmpty) break; // delete
           await txn.update(
             'attendance_offline',
-            <String, Object?>{'version': outcome.serverVersion, 'synced': 1},
+            <String, Object?>{
+              'version': outcome.serverVersion,
+              'synced': stillQueued ? 0 : 1,
+            },
             where: 'id = ?',
             whereArgs: <Object>[outcome.serverEntityId ?? row.entityId ?? ''],
           );
