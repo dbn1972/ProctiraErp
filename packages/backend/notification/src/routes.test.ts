@@ -382,3 +382,117 @@ describe('Notification Routes', () => {
     });
   });
 });
+
+// ─── PRC-H070: notification read IDOR ──────────────────────────────────────
+
+describe('PRC-H070 notification read authorization', () => {
+  const tenantId = '11111111-1111-4111-8111-111111111111';
+  const templateId = '22222222-2222-4222-8222-222222222222';
+  const userA = '33333333-3333-4333-8333-333333333333';
+  const userB = '44444444-4444-4444-8444-444444444444';
+
+  let repository: InMemoryNotificationRepository;
+  let service: NotificationService;
+  // Mutable principal so each test can act as a specific user/role.
+  let principal: { sub: string; roles: string[] };
+
+  async function build(): Promise<FastifyInstance> {
+    const app = Fastify();
+    app.decorateRequest('tenantId', '');
+    app.addHook('onRequest', async (request) => {
+      (request as typeof request & { tenantId: string }).tenantId = tenantId;
+      (request as typeof request & { user?: { sub: string; roles: string[] } }).user = principal;
+    });
+    await registerNotificationRoutes(app, {
+      notificationService: service,
+      prefix: '/notifications',
+    });
+    await app.ready();
+    return app;
+  }
+
+  beforeEach(async () => {
+    repository = new InMemoryNotificationRepository();
+    service = new NotificationService(repository);
+    repository.seedUsers([
+      { id: userA, roleIds: [], areaIds: [], institutionIds: [] },
+      { id: userB, roleIds: [], areaIds: [], institutionIds: [] },
+    ]);
+    await repository.createTemplate({
+      id: templateId,
+      tenantId,
+      name: 'T',
+      channel: 'in_app',
+      subject: null,
+      body: 'Hi {{name}}',
+      variables: ['name'],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  });
+
+  async function sendToUserAAsStaff(app: FastifyInstance): Promise<string> {
+    principal = { sub: 'staff-1', roles: ['notification_admin'] };
+    const send = await app.inject({
+      method: 'POST',
+      url: '/notifications/send',
+      payload: {
+        channel: 'in_app',
+        templateId,
+        recipients: { userIds: [userA] },
+        variables: { name: 'A' },
+      },
+    });
+    expect(send.statusCode).toBe(201);
+    return JSON.parse(send.payload).data[0].id as string;
+  }
+
+  it('denies user B reading user A notifications list, own list allowed', async () => {
+    const app = await build();
+    await sendToUserAAsStaff(app);
+
+    principal = { sub: userB, roles: [] };
+    const other = await app.inject({ method: 'GET', url: `/notifications/user/${userA}` });
+    expect(other.statusCode).toBe(403);
+
+    const own = await app.inject({ method: 'GET', url: `/notifications/user/${userB}` });
+    expect(own.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('denies user B reading and marking-read user A notification by id (404)', async () => {
+    const app = await build();
+    const id = await sendToUserAAsStaff(app);
+
+    principal = { sub: userB, roles: [] };
+    const get = await app.inject({ method: 'GET', url: `/notifications/${id}` });
+    expect(get.statusCode).toBe(404);
+    const read = await app.inject({ method: 'POST', url: `/notifications/${id}/read` });
+    expect(read.statusCode).toBe(404);
+    await app.close();
+  });
+
+  it('the recipient can read and mark-read their own notification', async () => {
+    const app = await build();
+    const id = await sendToUserAAsStaff(app);
+
+    principal = { sub: userA, roles: [] };
+    const get = await app.inject({ method: 'GET', url: `/notifications/${id}` });
+    expect(get.statusCode).toBe(200);
+    const read = await app.inject({ method: 'POST', url: `/notifications/${id}/read` });
+    expect(read.statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('staff can read any user notification', async () => {
+    const app = await build();
+    const id = await sendToUserAAsStaff(app);
+
+    principal = { sub: 'staff-2', roles: ['notification_admin'] };
+    const get = await app.inject({ method: 'GET', url: `/notifications/${id}` });
+    expect(get.statusCode).toBe(200);
+    const list = await app.inject({ method: 'GET', url: `/notifications/user/${userA}` });
+    expect(list.statusCode).toBe(200);
+    await app.close();
+  });
+});
