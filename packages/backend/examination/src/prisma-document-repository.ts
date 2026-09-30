@@ -23,6 +23,7 @@ import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 import type { NewOutboxEntry, OutboxQueryable, OutboxStore } from '@proctira/queue-abstraction';
 
+import { buildCandidateResultData } from './certificate-result.js';
 import type {
   CandidateResultData,
   DocumentCandidate,
@@ -38,7 +39,6 @@ import type {
   IncompleteRecord,
   PublicationResult,
 } from './result-repository.js';
-import { buildCandidateResultData } from './certificate-result.js';
 
 /** Adapt Prisma transaction client to OutboxQueryable for same-TX outbox inserts. */
 function prismaTxAsOutboxClient(tx: Prisma.TransactionClient): OutboxQueryable {
@@ -47,7 +47,7 @@ function prismaTxAsOutboxClient(tx: Prisma.TransactionClient): OutboxQueryable {
       // $executeRawUnsafe for INSERT/UPDATE; $queryRawUnsafe when SELECT needed.
       const trimmed = text.trim().toUpperCase();
       if (trimmed.startsWith('SELECT') || trimmed.startsWith('WITH')) {
-        const rows = (await tx.$queryRawUnsafe(text, ...values)) as unknown[];
+        const rows = await tx.$queryRawUnsafe(text, ...values);
         return { rows: Array.isArray(rows) ? rows : [] };
       }
       const count = await tx.$executeRawUnsafe(text, ...values);
