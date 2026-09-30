@@ -108,6 +108,27 @@ export interface BulkInvoiceInput {
   dueAt?: string;
 }
 
+/** PRC-H020: tenant-scoped view of a scholarship disbursement used to verify netting. */
+export interface NettableScholarshipDisbursement {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  amountCents: number;
+  paymentStatus: string;
+  currency?: string | null;
+  paidDate?: string | null;
+}
+/** PRC-H020: injected by the gateway; backed by the scholarship repository. */
+export interface ScholarshipDisbursementLookup {
+  findDisbursement(
+    tenantId: string,
+    disbursementId: string,
+  ): Promise<NettableScholarshipDisbursement | null>;
+  listPaidDisbursements(
+    tenantId: string,
+    filter: { studentId?: string },
+  ): Promise<NettableScholarshipDisbursement[]>;
+}
 export interface ApplyConcessionInput {
   studentId: string;
   structureId: string;
@@ -1501,7 +1522,8 @@ export class FeesService {
       return {
         concession: prior,
         invoice,
-        discountCents: input.amountCents,
+        // PRC-H020: replay reports the stored credit, never the caller-supplied amount.
+        discountCents: prior.amountCents ?? 0,
         idempotent: true as const,
       };
     }
@@ -1557,6 +1579,64 @@ export class FeesService {
     };
   }
 
+  /**
+   * PRC-H020: HTTP-facing netting. The disbursement is loaded from the scholarship
+   * domain (tenant-scoped) and must be `paid` for the same student; the credited
+   * amount always comes from the disbursement, never from the operator.
+   */
+  async applyVerifiedScholarshipNetting(
+    tenantId: string,
+    actorId: string,
+    lookup: ScholarshipDisbursementLookup,
+    input: {
+      studentId: string;
+      disbursementId: string;
+      amountCents?: number;
+      invoiceId?: string;
+      currency?: string;
+    },
+  ) {
+    const disbursement = await lookup.findDisbursement(tenantId, input.disbursementId);
+    if (!disbursement || disbursement.tenantId !== tenantId) {
+      throw new NotFoundError(`Scholarship disbursement '${input.disbursementId}' not found`);
+    }
+    if (disbursement.paymentStatus !== 'paid') {
+      throw new BusinessRuleError('Only paid scholarship disbursements can be netted');
+    }
+    if (disbursement.studentId !== input.studentId) {
+      throw new BusinessRuleError('Disbursement does not belong to the selected student');
+    }
+    if (
+      input.amountCents !== undefined &&
+      input.amountCents !== null &&
+      input.amountCents !== disbursement.amountCents
+    ) {
+      throw new BusinessRuleError('Netting amount must equal the paid disbursement amount');
+    }
+    return this.applyScholarshipNetting(tenantId, actorId, {
+      studentId: disbursement.studentId,
+      disbursementId: disbursement.id,
+      amountCents: disbursement.amountCents,
+      invoiceId: input.invoiceId,
+      currency: disbursement.currency ?? input.currency,
+    });
+  }
+  /** PRC-H020: paid disbursements for the tenant that have not yet been netted. */
+  async listNettableScholarshipDisbursements(
+    tenantId: string,
+    lookup: ScholarshipDisbursementLookup,
+    filter: { studentId?: string } = {},
+  ): Promise<NettableScholarshipDisbursement[]> {
+    const rows = await lookup.listPaidDisbursements(tenantId, filter);
+    const nettable: NettableScholarshipDisbursement[] = [];
+    for (const row of rows) {
+      if (row.tenantId !== tenantId || row.paymentStatus !== 'paid') continue;
+      if (filter.studentId && row.studentId !== filter.studentId) continue;
+      const prior = await this.repository.findConcessionBySourceDisbursementId(tenantId, row.id);
+      if (!prior) nettable.push(row);
+    }
+    return nettable;
+  }
   /**
    * W2-FIN-08: reverse a prior scholarship netting when a paid disbursement is cancelled/failed.
    * Restores invoice face and posts the inverse journal (DR AR / CR fee_revenue).

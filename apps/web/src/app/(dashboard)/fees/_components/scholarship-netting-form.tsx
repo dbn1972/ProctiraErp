@@ -10,14 +10,12 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  FormField,
-  Input,
 } from '@proctira/ui/components';
 import { ConfirmActionDialog } from '@/components/shared/confirm-action-dialog';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { useHydrated } from '@/hooks/useHydrated';
 import { applyScholarshipNettingAction } from '@/lib/fees/actions';
-import type { ScholarshipNettingResult } from '@/lib/api/fees';
+import type { NettableScholarshipDisbursement, ScholarshipNettingResult } from '@/lib/api/fees';
 import type { EntityLabelOption } from '@/lib/entity-label';
 import { humanizeStatus } from '@/lib/status-label';
 import { resolveEntityLabel } from '@/lib/entity-label';
@@ -27,15 +25,36 @@ function formatMoney(cents: number, currency = 'INR'): string {
   return `${currency} ${amount}`;
 }
 
+/** PRC-H020: picker label for a verified, paid, un-netted disbursement. */
+export function disbursementOptionLabel(
+  disbursement: NettableScholarshipDisbursement,
+  studentLabels: Record<string, string>,
+): string {
+  const student = resolveEntityLabel(disbursement.studentId, studentLabels, 'Student');
+  const money = formatMoney(disbursement.amountCents, disbursement.currency ?? 'INR');
+  const paid = disbursement.paidDate ? ` · paid ${disbursement.paidDate.slice(0, 10)}` : '';
+  return `${student} · ${money}${paid}`;
+}
+
 export function ScholarshipNettingForm({
   studentOptions = [],
+  disbursements = [],
+  disbursementsFailed = false,
   invoiceOptions = [],
   invoiceDirectoryFailed = false,
 }: {
   studentOptions?: EntityLabelOption[];
+  /** Paid, un-netted disbursements returned by GET /fees/scholarships/nettable-disbursements. */
+  disbursements?: NettableScholarshipDisbursement[];
+  disbursementsFailed?: boolean;
   invoiceOptions?: EntityLabelOption[];
   invoiceDirectoryFailed?: boolean;
 }) {
+  const studentLabels = Object.fromEntries(studentOptions.map((o) => [o.id, o.label]));
+  const disbursementOptions: EntityLabelOption[] = disbursements.map((d) => {
+    const label = disbursementOptionLabel(d, studentLabels);
+    return { id: d.id, label, searchText: label };
+  });
   const router = useRouter();
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +64,6 @@ export function ScholarshipNettingForm({
   const [pendingValues, setPendingValues] = useState<{
     studentId: string;
     disbursementId: string;
-    amount: number;
     invoiceId: string;
     currency: string;
   } | null>(null);
@@ -53,12 +71,19 @@ export function ScholarshipNettingForm({
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
+    // PRC-H020: student and currency come from the verified disbursement, not free text.
+    const disbursementId = String(fd.get('disbursementId') ?? '').trim();
+    const disbursement = disbursements.find((d) => d.id === disbursementId);
+    if (!disbursement) {
+      setError('Select a paid scholarship disbursement.');
+      return;
+    }
+    setError(null);
     setPendingValues({
-      studentId: String(fd.get('studentId') ?? '').trim(),
-      disbursementId: String(fd.get('disbursementId') ?? '').trim(),
-      amount: Number(fd.get('amount') ?? 0),
+      studentId: disbursement.studentId,
+      disbursementId: disbursement.id,
       invoiceId: String(fd.get('invoiceId') ?? '').trim(),
-      currency: String(fd.get('currency') ?? '').trim() || 'INR',
+      currency: disbursement.currency ?? 'INR',
     });
     setConfirmOpen(true);
   }
@@ -88,8 +113,9 @@ export function ScholarshipNettingForm({
           <CardTitle className="text-base">Apply disbursement credit</CardTitle>
           <CardDescription>
             Credits an open fee invoice from a paid scholarship disbursement (
-            <code className="text-xs">POST /fees/scholarships/net</code>). Idempotent on
-            disbursement ID. Sandbox ledger only — not a live PSP claim.
+            <code className="text-xs">POST /fees/scholarships/net</code>). The credited amount is
+            the verified disbursement amount. Idempotent on disbursement. Sandbox ledger only — not
+            a live PSP claim.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -100,34 +126,25 @@ export function ScholarshipNettingForm({
             data-testid="scholarship-netting-form"
             data-hydrated={hydrated ? 'true' : 'false'}
           >
+            {disbursementsFailed ? (
+              <p
+                className="text-sm text-destructive"
+                role="alert"
+                data-testid="netting-disbursements-error"
+              >
+                Paid scholarship disbursements could not be loaded. Netting is unavailable until
+                they can be verified.
+              </p>
+            ) : null}
             <EntitySearchSelect
-              id="net-student"
-              name="studentId"
-              label="Student"
-              options={studentOptions}
+              id="net-disbursement"
+              name="disbursementId"
+              label="Paid disbursement"
+              options={disbursementOptions}
               required
+              placeholder="Search paid disbursements…"
+              emptyMessage="No paid scholarship disbursements are waiting to be netted."
             />
-            <FormField id="net-disbursement" label="Disbursement ID" required>
-              <Input
-                id="net-disbursement"
-                name="disbursementId"
-                required
-                disabled={!hydrated || pending}
-                autoComplete="off"
-                placeholder="Paid disbursement id from Scholarships"
-              />
-            </FormField>
-            <FormField id="net-amount" label="Amount (INR)" required>
-              <Input
-                id="net-amount"
-                name="amount"
-                type="number"
-                min="0.01"
-                step="0.01"
-                required
-                disabled={!hydrated || pending}
-              />
-            </FormField>
             <EntitySearchSelect
               id="net-invoice"
               name="invoiceId"
@@ -140,7 +157,6 @@ export function ScholarshipNettingForm({
                   : 'No invoices are loaded. Leave this blank to use the first open invoice.'
               }
             />
-            <input type="hidden" name="currency" value="INR" />
             {error ? (
               <p className="text-sm text-destructive" role="alert" data-testid="netting-error">
                 {error}
@@ -148,7 +164,7 @@ export function ScholarshipNettingForm({
             ) : null}
             <Button
               type="submit"
-              disabled={!hydrated || pending || studentOptions.length === 0}
+              disabled={!hydrated || pending || disbursementOptions.length === 0}
               data-testid="submit-scholarship-netting"
             >
               {pending ? 'Applying…' : 'Apply netting'}

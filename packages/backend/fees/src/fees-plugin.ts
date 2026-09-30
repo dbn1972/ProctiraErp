@@ -1,11 +1,9 @@
 /**
  * Fastify Fees Plugin — staff fees routes under `/fees`.
  */
+import { appendAuditEntryOnClient, toCreateAuditLogInput } from '@proctira/backend-audit';
 import { AppError } from '@proctira/common';
-import {
-  appendAuditEntryOnClient,
-  toCreateAuditLogInput,
-} from '@proctira/backend-audit';
+import type { PgQueryable } from '@proctira/database';
 import { validate } from '@proctira/validation';
 import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -24,6 +22,7 @@ import {
   type GenerateInstalmentScheduleInput,
   type RecordPaymentInput,
   type RecordRefundInput,
+  type ScholarshipDisbursementLookup,
 } from './fees-service.js';
 import type { PaymentAdapter } from './payment-adapter.js';
 import { FEES_REMINDER_SANDBOX_HONESTY_NOTE } from './reminder-sandbox.js';
@@ -102,7 +101,9 @@ const CreateFeeStructureSchema = Type.Object({
   gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   validFrom: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
-  validTo: Type.Optional(Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()])),
+  validTo: Type.Optional(
+    Type.Union([Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }), Type.Null()]),
+  ),
 });
 
 const GenerateInstalmentsSchema = Type.Object({
@@ -206,12 +207,25 @@ export interface FeesPluginOptions {
   paymentAdapter?: PaymentAdapter;
   prefix?: string;
   parentBinding?: ParentFeeBinding;
+  /**
+   * PRC-H020: verifies scholarship disbursements for HTTP netting. When absent the
+   * netting routes fail closed (503) instead of trusting operator-typed ids/amounts.
+   */
+  scholarshipDisbursements?: ScholarshipDisbursementLookup;
 }
 
 declare module 'fastify' {
   interface FastifyInstance {
     feesService: FeesService;
   }
+}
+
+function scholarshipLookupUnavailable(reply: FastifyReply) {
+  return reply.status(503).send({
+    code: 'SCHOLARSHIP_LOOKUP_UNAVAILABLE',
+    message: 'Scholarship disbursement verification is not configured',
+    statusCode: 503,
+  });
 }
 
 function getTenantId(request: FastifyRequest): string | null {
@@ -235,16 +249,15 @@ function getActorDisplayName(request: FastifyRequest): string {
 const MUTATION_AUDIT_COMMITTED = Symbol.for('proctira.mutationAuditCommitted');
 
 function markRegulatedMutationAuditCommitted(request: FastifyRequest): void {
-  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[
-    MUTATION_AUDIT_COMMITTED
-  ] = true;
+  (request as FastifyRequest & { [MUTATION_AUDIT_COMMITTED]?: boolean })[MUTATION_AUDIT_COMMITTED] =
+    true;
 }
 
 function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
   if (!isPgFeesEnabled()) return undefined;
   return {
     appendAuditInTxn: async (
-      client: import('@proctira/database').PgQueryable,
+      client: PgQueryable,
       settled: {
         payment: { id: string };
       },
@@ -266,7 +279,7 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
           },
           metadata: {
             method: request.method,
-            path: (request.url.split('?')[0] ?? request.url),
+            path: request.url.split('?')[0] ?? request.url,
             regulated: 'fees.payment',
             atomic: true,
           },
@@ -407,7 +420,13 @@ function formatReceipt(entity: {
 
 export const feesPlugin = fp(
   async function feesPluginImpl(fastify: FastifyInstance, options: FeesPluginOptions) {
-    const { repository, paymentAdapter, prefix = '/fees', parentBinding } = options;
+    const {
+      repository,
+      paymentAdapter,
+      prefix = '/fees',
+      parentBinding,
+      scholarshipDisbursements,
+    } = options;
     const feesService = new FeesService(repository, paymentAdapter);
     fastify.decorate('feesService', feesService);
 
@@ -1090,7 +1109,6 @@ export const feesPlugin = fp(
       },
     );
 
-
     fastify.post(
       `${prefix}/invoices/:id/credit-notes`,
       async function issueCreditNote(
@@ -1489,6 +1507,24 @@ export const feesPlugin = fp(
       },
     );
 
+    fastify.get(
+      `${prefix}/scholarships/nettable-disbursements`,
+      async function listNettableDisbursements(
+        request: FastifyRequest<{ Querystring: { studentId?: string } }>,
+        reply: FastifyReply,
+      ) {
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
+        if (!scholarshipDisbursements) return scholarshipLookupUnavailable(reply);
+        const data = await feesService.listNettableScholarshipDisbursements(
+          tenantId,
+          scholarshipDisbursements,
+          { studentId: request.query?.studentId || undefined },
+        );
+        return reply.status(200).send({ data });
+      },
+    );
     fastify.post(
       `${prefix}/scholarships/net`,
       async function netScholarship(
@@ -1496,7 +1532,7 @@ export const feesPlugin = fp(
           Body: {
             studentId: string;
             disbursementId: string;
-            amountCents: number;
+            amountCents?: number;
             invoiceId?: string;
             currency?: string;
           };
@@ -1505,23 +1541,30 @@ export const feesPlugin = fp(
       ) {
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
-        if (!requireFeesAction(request, reply, 'fees.write')) return;
+        // PRC-H020: netting auto-approves a concession, so it needs concession.approve.
+        if (!requireFeesAction(request, reply, 'concession.approve')) return;
         const body = request.body;
-        if (!body?.studentId || !body?.disbursementId || !body?.amountCents) {
+        if (!body?.studentId || !body?.disbursementId) {
           return reply.status(400).send({
             code: 'VALIDATION_ERROR',
-            message: 'studentId, disbursementId, amountCents are required',
+            message: 'studentId and disbursementId are required',
             statusCode: 400,
           });
         }
+        if (!scholarshipDisbursements) return scholarshipLookupUnavailable(reply);
         try {
-          const result = await feesService.applyScholarshipNetting(tenantId, getActorId(request), {
-            studentId: body.studentId,
-            disbursementId: body.disbursementId,
-            amountCents: body.amountCents,
-            invoiceId: body.invoiceId,
-            currency: body.currency,
-          });
+          const result = await feesService.applyVerifiedScholarshipNetting(
+            tenantId,
+            getActorId(request),
+            scholarshipDisbursements,
+            {
+              studentId: body.studentId,
+              disbursementId: body.disbursementId,
+              amountCents: body.amountCents,
+              invoiceId: body.invoiceId,
+              currency: body.currency,
+            },
+          );
           return reply.status(200).send(result);
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -1531,7 +1574,6 @@ export const feesPlugin = fp(
         }
       },
     );
-
     fastify.post(
       `${prefix}/structures/clone-period`,
       async function cloneStructures(

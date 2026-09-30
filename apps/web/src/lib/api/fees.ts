@@ -452,7 +452,8 @@ export interface FeeConcession {
 export interface ApplyScholarshipNettingInput {
   studentId: string;
   disbursementId: string;
-  amountCents: number;
+  /** PRC-H020: omitted — the gateway credits the verified disbursement amount. */
+  amountCents?: number;
   invoiceId?: string;
   currency?: string;
 }
@@ -462,6 +463,25 @@ export interface ScholarshipNettingResult {
   invoice: FeeInvoice | null;
   discountCents: number;
   idempotent: boolean;
+}
+
+/** PRC-H020 — paid scholarship disbursements not yet netted (verified server-side). */
+export interface NettableScholarshipDisbursement {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  amountCents: number;
+  paymentStatus: string;
+  currency?: string | null;
+  paidDate?: string | null;
+}
+
+export async function listNettableScholarshipDisbursementsResult(): Promise<
+  ListResult<NettableScholarshipDisbursement>
+> {
+  return fetchList<NettableScholarshipDisbursement>('/fees/scholarships/nettable-disbursements', {
+    next: { revalidate: 0 },
+  });
 }
 
 export async function applyScholarshipNetting(
