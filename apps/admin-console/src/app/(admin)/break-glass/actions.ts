@@ -77,6 +77,8 @@ export async function breakGlassDecisionAction(formData: FormData): Promise<void
     }
   }
 
-  await decideBreakGlassRequest(id, decision, reason);
+  const result = await decideBreakGlassRequest(id, decision, reason);
+  // PRC-H002: surface failed writes (incl. unreachable gateway) instead of silently revalidating.
+  if (!result.ok) throw new Error(result.error ?? 'Break-glass decision failed.');
   revalidatePath('/break-glass/requests');
 }

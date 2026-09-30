@@ -4,6 +4,7 @@ const gatewayFetch = vi.fn();
 
 vi.mock('./gateway', () => ({
   gatewayFetch: (...args: unknown[]) => gatewayFetch(...args),
+  GATEWAY_UNREACHABLE_WRITE_ERROR: 'Gateway unreachable (test)',
 }));
 
 import { listAudit } from './audit';
@@ -32,7 +33,45 @@ describe('admin API clients', () => {
     gatewayFetch.mockReset();
   });
 
-  it('uses stub catalogues when the gateway is offline', async () => {
+  // PRC-H002: privileged writes must fail visibly when the gateway is unreachable —
+  // never simulate success or fabricate ids/requesters.
+  it('fails every write when the gateway is unreachable (status 0)', async () => {
+    gatewayFetch.mockResolvedValue(offline());
+    const unreachable = { ok: false, error: 'Gateway unreachable (test)' };
+
+    const created = await createTenant({
+      name: 'New',
+      slug: 'new',
+      contactEmail: 'a@b.c',
+      plan: 'pilot',
+      region: 'eu-west-1',
+    });
+    expect(created).toEqual(unreachable);
+    expect(created.tenant).toBeUndefined();
+
+    expect(await tenantAction('tnt_001', 'suspend', 'reason')).toEqual(unreachable);
+    expect(await tenantAction('tnt_001', 'offboard', 'reason')).toEqual(unreachable);
+    expect(await pluginAction('plg_001', 'revoke', 'reason')).toEqual(unreachable);
+    expect(await updatePlanEntitlements({ planId: 'plan_pilot', entitlements: [] })).toEqual(
+      unreachable,
+    );
+    expect(await themeAction('thm_001', 'approve', 'notes')).toEqual(unreachable);
+
+    const submitted = await createBreakGlassRequest({
+      targetTenantId: 'tnt_001',
+      scope: 'read',
+      justification: 'Need a look at the export job.',
+      useCase: 'Production incident triage',
+      durationMinutes: 30,
+    });
+    expect(submitted).toEqual(unreachable);
+    expect(submitted.request).toBeUndefined();
+    for (const decision of ['approve', 'deny', 'revoke'] as const) {
+      expect(await decideBreakGlassRequest('bg_001', decision, 'r')).toEqual(unreachable);
+    }
+  });
+
+  it('uses stub catalogues for reads when the gateway is offline', async () => {
     gatewayFetch.mockResolvedValue(offline());
 
     const tenants = await listTenants({ status: 'active', search: 'ministry' });
@@ -45,37 +84,20 @@ describe('admin API clients', () => {
     expect((await getTenant('tnt_002')).tenant?.slug).toBe('district-northwest');
     expect((await getTenant('missing')).tenant).toBeNull();
 
-    const created = await createTenant({
-      name: 'New',
-      slug: 'new',
-      contactEmail: 'a@b.c',
-      plan: 'pilot',
-      region: 'eu-west-1',
-    });
-    expect(created.ok).toBe(true);
-    expect(created.tenant?.status).toBe('provisioning');
-
-    expect((await tenantAction('tnt_001', 'suspend', 'reason')).ok).toBe(true);
-    expect((await tenantAction('tnt_001', 'offboard', 'reason')).ok).toBe(true);
 
     const plugins = await listPlugins();
     expect(plugins.source).toBe('stub');
     expect(plugins.plugins.length).toBeGreaterThan(0);
     expect((await getPlugin('plg_001')).plugin?.name).toBe('Attendance Insights Pro');
     expect((await getPlugin('missing')).plugin).toBeNull();
-    expect((await pluginAction('plg_001', 'revoke', 'reason')).ok).toBe(true);
 
     expect((await listPlans()).plans.length).toBeGreaterThan(0);
     expect((await getPlan('plan_pilot')).plan?.tier).toBe('pilot');
     expect((await getPlan('missing')).plan).toBeNull();
-    expect((await updatePlanEntitlements({ planId: 'plan_pilot', entitlements: [] })).ok).toBe(
-      true,
-    );
 
     expect((await listThemes()).themes.length).toBeGreaterThan(0);
     expect((await getTheme('thm_001')).theme?.name).toBe('Sunrise Bright');
     expect((await getTheme('missing')).theme).toBeNull();
-    expect((await themeAction('thm_001', 'approve', 'notes')).ok).toBe(true);
 
     const health = await getSystemHealth();
     expect(health.source).toBe('stub');
@@ -97,16 +119,6 @@ describe('admin API clients', () => {
     expect(requests.source).toBe('stub');
     expect((await getBreakGlassRequest('bg_001'))?.requester).toContain('@');
     expect(await getBreakGlassRequest('missing')).toBeNull();
-    const submitted = await createBreakGlassRequest({
-      targetTenantId: 'tnt_001',
-      scope: 'read',
-      justification: 'Need a look at the export job.',
-      useCase: 'Production incident triage',
-      durationMinutes: 30,
-    });
-    expect(submitted.ok).toBe(true);
-    expect(submitted.request?.status).toBe('pending_approval');
-    expect((await decideBreakGlassRequest('bg_001', 'deny', 'not now')).ok).toBe(true);
   });
 
   it('prefers live gateway payloads', async () => {
