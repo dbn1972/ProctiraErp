@@ -363,6 +363,9 @@ export class PgFeesRepository implements FeesRepository {
     return withPgTenant(this.pool, tenantId, fn);
   }
 
+  transactionClient(): PgQueryable | null {
+    return this.txClient?.client ?? null;
+  }
   private bindTx(client: PgQueryable, tenantId: string): PgFeesRepository {
     return new PgFeesRepository(this.pool, this.options, { client, tenantId });
   }

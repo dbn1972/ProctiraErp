@@ -13,6 +13,7 @@ import type {
   FeePaymentEntity,
   FeePlanEntity,
   FeeReceiptEntity,
+  FeesMoneyAuditSink,
   FeesRepository,
   LedgerAccount,
   PaymentMethod,
@@ -371,7 +372,7 @@ export class FeesService {
   async voidInvoice(
     tenantId: string,
     invoiceId: string,
-    options: { actorId?: string | null; reason?: string | null } = {},
+    options: { actorId?: string | null; reason?: string | null; audit?: FeesMoneyAuditSink } = {},
   ) {
     const reason = options.reason?.trim() ?? '';
     return this.repository.withInvoiceLock(tenantId, invoiceId, async (tx, locked) => {
@@ -401,6 +402,15 @@ export class FeesService {
           unpaidRemainder,
         );
       }
+      // PRC-L306: audit shares the COMMIT boundary.
+      await options.audit?.(tx, {
+        kind: 'void',
+        entityId: invoiceId,
+        invoiceId,
+        amountCents: unpaidRemainder,
+        beforeStatus: invoice.status,
+        afterStatus: 'void',
+      });
       return updated!;
     });
   }
@@ -854,7 +864,12 @@ export class FeesService {
   /**
    * W2-FIN-04: second actor (≠ createdBy) approves a pending concession and posts ledger.
    */
-  async approveConcession(tenantId: string, actorId: string, concessionId: string) {
+  async approveConcession(
+    tenantId: string,
+    actorId: string,
+    concessionId: string,
+    audit?: FeesMoneyAuditSink,
+  ) {
     const concession = await this.repository.findConcessionById(concessionId, tenantId);
     if (!concession) {
       throw new NotFoundError(`Concession with id '${concessionId}' not found`);
@@ -899,6 +914,7 @@ export class FeesService {
     actorId: string,
     concession: FeeConcessionEntity,
     discount: number,
+    audit?: FeesMoneyAuditSink,
   ) {
     const target = concession.invoiceId
       ? await this.getInvoice(tenantId, concession.invoiceId)
@@ -938,11 +954,24 @@ export class FeesService {
       });
       await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
       const refreshed = await tx.findConcessionById(concession.id, tenantId);
+      await audit?.(tx, {
+        kind: 'concession_approve',
+        entityId: concession.id,
+        invoiceId: invoice.id,
+        amountCents: applied,
+        beforeStatus: invoice.status,
+        afterStatus: updated?.status ?? invoice.status,
+      });
       return { concession: refreshed ?? concession, invoice: updated, discountCents: applied };
     });
   }
 
-  async recordRefund(tenantId: string, actorId: string, input: RecordRefundInput) {
+  async recordRefund(
+    tenantId: string,
+    actorId: string,
+    input: RecordRefundInput,
+    audit?: FeesMoneyAuditSink,
+  ) {
     // PRC-H058: cap check (SQL SUM under FOR UPDATE) + refund row + journal in one txn,
     // so concurrent refunds serialize and cannot exceed collected cash.
     return this.repository.withInvoiceLock(tenantId, input.invoiceId, async (tx, locked) => {
@@ -976,6 +1005,14 @@ export class FeesService {
         ],
         input.amountCents,
       );
+      await audit?.(tx, {
+        kind: 'refund',
+        entityId: refund.id,
+        invoiceId: invoice.id,
+        amountCents: input.amountCents,
+        beforeStatus: invoice.status,
+        afterStatus: invoice.status,
+      });
       return refund;
     });
   }
@@ -985,7 +1022,12 @@ export class FeesService {
    * Journal: DR fee_revenue / CR accounts_receivable. Caps at unpaid balance.
    * Rejects paid/void/written_off invoices — post-payment cash return uses refunds.
    */
-  async issueCreditNote(tenantId: string, actorId: string, input: IssueCreditNoteInput) {
+  async issueCreditNote(
+    tenantId: string,
+    actorId: string,
+    input: IssueCreditNoteInput,
+    audit?: FeesMoneyAuditSink,
+  ) {
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new BusinessRuleError('Credit note amountCents must be a positive integer');
     }
@@ -1037,7 +1079,14 @@ export class FeesService {
         ],
         input.amountCents,
       );
-
+      await audit?.(tx, {
+        kind: 'credit_note',
+        entityId: creditNote.id,
+        invoiceId: invoice.id,
+        amountCents: input.amountCents,
+        beforeStatus: invoice.status,
+        afterStatus: updated!.status,
+      });
       return { creditNote, invoice: updated! };
     });
   }
@@ -1047,7 +1096,12 @@ export class FeesService {
    * Journal: DR bad_debt_expense / CR accounts_receivable. Caps at unpaid balance.
    * When remaining unpaid hits zero, invoice status becomes written_off.
    */
-  async writeOffInvoice(tenantId: string, actorId: string, input: WriteOffInvoiceInput) {
+  async writeOffInvoice(
+    tenantId: string,
+    actorId: string,
+    input: WriteOffInvoiceInput,
+    audit?: FeesMoneyAuditSink,
+  ) {
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new BusinessRuleError('Write-off amountCents must be a positive integer');
     }
@@ -1098,7 +1152,14 @@ export class FeesService {
         ],
         input.amountCents,
       );
-
+      await audit?.(tx, {
+        kind: 'write_off',
+        entityId: writeOff.id,
+        invoiceId: invoice.id,
+        amountCents: input.amountCents,
+        beforeStatus: invoice.status,
+        afterStatus: updated!.status,
+      });
       return { writeOff, invoice: updated! };
     });
   }

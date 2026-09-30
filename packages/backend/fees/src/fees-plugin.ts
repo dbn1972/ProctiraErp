@@ -11,7 +11,7 @@ import fp from 'fastify-plugin';
 
 import { isPgFeesEnabled } from './create-fees-repository.js';
 import { requireFeesAction, requireFeesRead } from './fees-http-guard.js';
-import type { FeesRepository } from './fees-repository.js';
+import type { FeesMoneyAuditSink, FeesRepository } from './fees-repository.js';
 import {
   FeesService,
   type ApplyConcessionInput,
@@ -310,7 +310,8 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
     appendAuditInTxn: async (
       client: PgQueryable,
       settled: {
-        payment: { id: string };
+        payment: { id: string; invoiceId: string; amountCents: number; method: string };
+        invoice: { status: string };
       },
     ) => {
       await appendAuditEntryOnClient(
@@ -327,6 +328,11 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
           afterValues: {
             path: '/api/v1/fees/payments',
             paymentId: settled.payment.id,
+            // PRC-L306: reviewable money detail, no PII.
+            invoiceId: settled.payment.invoiceId,
+            amountCents: settled.payment.amountCents,
+            method: settled.payment.method,
+            invoiceStatusAfter: settled.invoice.status,
           },
           metadata: {
             method: request.method,
@@ -341,6 +347,44 @@ function buildPaymentAuditBinder(request: FastifyRequest, tenantId: string) {
   };
 }
 
+/**
+ * PRC-L306: same-transaction audit for refund / credit note / write-off / void /
+ * concession approval. No-op when the repository is not transaction-bound
+ * (in-memory); the gateway onSend audit remains the safety net there.
+ */
+function buildMoneyAuditSink(request: FastifyRequest, tenantId: string): FeesMoneyAuditSink {
+  return async (tx, event) => {
+    const client = tx.transactionClient?.() ?? null;
+    if (!client) return;
+    await appendAuditEntryOnClient(
+      client,
+      toCreateAuditLogInput({
+        tenantId,
+        entityType: 'fees',
+        entityId: event.entityId,
+        operation:
+          event.kind === 'void' || event.kind === 'concession_approve' ? 'UPDATE' : 'CREATE',
+        userId: getActorId(request),
+        userName: getActorDisplayName(request),
+        ipAddress: request.ip,
+        beforeValues: { invoiceId: event.invoiceId, status: event.beforeStatus },
+        afterValues: {
+          invoiceId: event.invoiceId,
+          amountCents: event.amountCents,
+          status: event.afterStatus,
+          kind: event.kind,
+        },
+        metadata: {
+          method: request.method,
+          path: request.url.split('?')[0] ?? request.url,
+          regulated: `fees.${event.kind}`,
+          atomic: true,
+        },
+      }),
+    );
+    markRegulatedMutationAuditCommitted(request);
+  };
+}
 function tenantRequired(reply: FastifyReply) {
   return reply.status(400).send({
     code: 'TENANT_REQUIRED',
@@ -600,6 +644,7 @@ export const feesPlugin = fp(
           const invoice = await feesService.voidInvoice(tenantId, paramsResult.data.id, {
             actorId: getActorId(request),
             reason: bodyResult.data.reason,
+            audit: buildMoneyAuditSink(request, tenantId),
           });
           return reply.status(200).send(formatInvoice(invoice));
         } catch (error: unknown) {
@@ -1026,6 +1071,7 @@ export const feesPlugin = fp(
             tenantId,
             getActorId(request),
             paramsResult.data.id,
+            buildMoneyAuditSink(request, tenantId),
           );
           return reply.status(200).send({
             concession: {
@@ -1107,10 +1153,15 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'refund.record')) return;
         try {
-          const refund = await feesService.recordRefund(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            ...bodyResult.data,
-          });
+          const refund = await feesService.recordRefund(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              ...bodyResult.data,
+            },
+            buildMoneyAuditSink(request, tenantId),
+          );
           return reply.status(201).send({
             ...refund,
             createdAt: refund.createdAt.toISOString(),
@@ -1152,11 +1203,16 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'credit_note.issue')) return;
         try {
-          const result = await feesService.issueCreditNote(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            amountCents: bodyResult.data.amountCents,
-            reason: bodyResult.data.reason,
-          });
+          const result = await feesService.issueCreditNote(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              amountCents: bodyResult.data.amountCents,
+              reason: bodyResult.data.reason,
+            },
+            buildMoneyAuditSink(request, tenantId),
+          );
           return reply.status(201).send({
             creditNote: {
               ...result.creditNote,
@@ -1201,11 +1257,16 @@ export const feesPlugin = fp(
         if (!tenantId) return tenantRequired(reply);
         if (!requireFeesAction(request, reply, 'write_off.record')) return;
         try {
-          const result = await feesService.writeOffInvoice(tenantId, getActorId(request), {
-            invoiceId: paramsResult.data.id,
-            amountCents: bodyResult.data.amountCents,
-            reason: bodyResult.data.reason,
-          });
+          const result = await feesService.writeOffInvoice(
+            tenantId,
+            getActorId(request),
+            {
+              invoiceId: paramsResult.data.id,
+              amountCents: bodyResult.data.amountCents,
+              reason: bodyResult.data.reason,
+            },
+            buildMoneyAuditSink(request, tenantId),
+          );
           return reply.status(201).send({
             writeOff: {
               ...result.writeOff,

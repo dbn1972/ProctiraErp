@@ -287,7 +287,29 @@ export interface RecordPaymentOnInvoiceSettlement {
   invoiceStatus: InvoiceStatus;
 }
 
+/**
+ * PRC-L306: money-movement audit event emitted inside the locked transaction.
+ * Carries amounts and before/after status only (no PII).
+ */
+export interface FeesMoneyAuditEvent {
+  kind: 'refund' | 'credit_note' | 'write_off' | 'void' | 'concession_approve';
+  entityId: string;
+  invoiceId: string;
+  amountCents: number;
+  beforeStatus: string;
+  afterStatus: string;
+}
+/**
+ * PRC-L306: called on the transaction-bound repository before COMMIT. A throw
+ * rolls the whole money movement back (same contract as payment appendAuditInTxn).
+ */
+export type FeesMoneyAuditSink = (tx: FeesRepository, event: FeesMoneyAuditEvent) => Promise<void>;
 export interface FeesRepository {
+  /**
+   * PRC-L306: the open transaction client when this repository is bound to a
+   * tenant transaction (Pg), else null (in-memory / unbound).
+   */
+  transactionClient?(): PgQueryable | null;
   /**
    * Post one or more balanced journals atomically. Implementations MUST
    * reject unbalanced journals (in-memory: {@link assertJournalBalanced};
