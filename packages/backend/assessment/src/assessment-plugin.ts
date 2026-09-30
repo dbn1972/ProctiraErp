@@ -30,7 +30,7 @@ import type {
 import { registerReportCardRoutes } from './report-card-routes.js';
 import { ReportCardService } from './report-card-service.js';
 import type { TaskQueuePublisher, PdfGenerator } from './report-card-service.js';
-import { createReportCardWorker } from './report-card-worker.js';
+import { createReportCardWorker, type ReportCardWorker } from './report-card-worker.js';
 import type { AssessmentResultRepository } from './result-repository.js';
 import { registerResultRoutes } from './result-routes.js';
 import { ResultService } from './result-service.js';
@@ -87,7 +87,7 @@ declare module 'fastify' {
     assessmentService: AssessmentService;
     resultService?: ResultService;
     reportCardService?: ReportCardService;
-    reportCardWorker?: import('./report-card-worker.js').ReportCardWorker;
+    reportCardWorker?: ReportCardWorker;
   }
 }
 
