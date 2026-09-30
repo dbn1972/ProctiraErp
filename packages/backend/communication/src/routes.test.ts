@@ -14,14 +14,18 @@ const ACTOR_2 = '22222222-2222-4222-8222-222222222222';
 
 describe('Communication Routes', () => {
   let app: FastifyInstance;
+  // PRC-H045: the acting session identity. Tests switch this to simulate different staff members;
+  // the actor is taken from here (request.user.sub), never from the request body.
+  let currentUserSub = 'comms-staff';
 
   beforeEach(async () => {
+    currentUserSub = 'comms-staff';
     app = Fastify({ logger: false });
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as { tenantId: string }).tenantId = TENANT_ID;
       (request as { user?: { sub: string; roles: string[] } }).user = {
-        sub: 'comms-staff',
+        sub: currentUserSub,
         roles: ['communications_officer'],
       };
     });
@@ -118,17 +122,46 @@ describe('Communication Routes', () => {
   });
 
   describe('POST /communication/emergency/:id/confirm', () => {
-    it('should require two distinct actors to confirm', async () => {
+    // Create as a dedicated raiser so the two confirmers are distinct from the creator.
+    async function createBlastAs(creatorSub: string) {
+      currentUserSub = creatorSub;
       const createRes = await app.inject({
         method: 'POST',
         url: '/communication/emergency',
-        payload: {
-          reason: 'Weather closure',
-          channels: ['sms', 'push'],
-        },
+        payload: { reason: 'Weather closure', channels: ['sms', 'push'] },
       });
-      const blast = createRes.json();
+      return createRes.json();
+    }
 
+    it('confirms only with two distinct authenticated sessions', async () => {
+      const blast = await createBlastAs('raiser');
+
+      currentUserSub = ACTOR_1;
+      const first = await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/confirm`,
+        payload: {},
+      });
+      expect(first.statusCode).toBe(200);
+      expect(first.json().confirmActor1).toBe(ACTOR_1);
+      expect(first.json().status).toBe('pending_confirm');
+
+      currentUserSub = ACTOR_2;
+      const second = await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/confirm`,
+        payload: {},
+      });
+      expect(second.statusCode).toBe(200);
+      expect(second.json().status).toBe('confirmed');
+      expect(second.json().confirmActor2).toBe(ACTOR_2);
+    });
+
+    // PRC-H045: the core exploit — one authenticated user posting two fabricated body actorIds.
+    it('rejects a single session confirming twice even with differing body actorIds', async () => {
+      const blast = await createBlastAs('raiser');
+
+      currentUserSub = ACTOR_1;
       const first = await app.inject({
         method: 'POST',
         url: `/communication/emergency/${blast.id}/confirm`,
@@ -138,41 +171,50 @@ describe('Communication Routes', () => {
       expect(first.json().confirmActor1).toBe(ACTOR_1);
       expect(first.json().status).toBe('pending_confirm');
 
-      const duplicate = await app.inject({
-        method: 'POST',
-        url: `/communication/emergency/${blast.id}/confirm`,
-        payload: { actorId: ACTOR_1 },
-      });
-      expect(duplicate.statusCode).toBe(409);
-
-      const second = await app.inject({
+      // Same session, but tries to pass a different actorId in the body — must be ignored.
+      const secondSameSession = await app.inject({
         method: 'POST',
         url: `/communication/emergency/${blast.id}/confirm`,
         payload: { actorId: ACTOR_2 },
       });
-      expect(second.statusCode).toBe(200);
-      expect(second.json().status).toBe('confirmed');
-      expect(second.json().confirmActor2).toBe(ACTOR_2);
+      expect(secondSameSession.statusCode).toBe(409);
+      // Still only one confirmation recorded.
+      expect(first.json().confirmActor2).toBeNull();
+    });
+
+    // PRC-H045: the creator cannot be one of the two confirmers.
+    it('rejects the creator confirming their own blast', async () => {
+      const blast = await createBlastAs(ACTOR_1);
+      currentUserSub = ACTOR_1;
+      const res = await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/confirm`,
+        payload: {},
+      });
+      expect(res.statusCode).toBe(409);
     });
   });
 
   describe('POST /communication/emergency/:id/dispatch', () => {
     it('should sandbox-dispatch a confirmed blast', async () => {
+      currentUserSub = 'raiser';
       const createRes = await app.inject({
         method: 'POST',
         url: '/communication/emergency',
         payload: { reason: 'Fire drill', channels: ['sms'] },
       });
       const blast = createRes.json();
+      currentUserSub = ACTOR_1;
       await app.inject({
         method: 'POST',
         url: `/communication/emergency/${blast.id}/confirm`,
-        payload: { actorId: ACTOR_1 },
+        payload: {},
       });
+      currentUserSub = ACTOR_2;
       await app.inject({
         method: 'POST',
         url: `/communication/emergency/${blast.id}/confirm`,
-        payload: { actorId: ACTOR_2 },
+        payload: {},
       });
 
       const response = await app.inject({

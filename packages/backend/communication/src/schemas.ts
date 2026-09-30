@@ -19,8 +19,8 @@ export const CreateCampaignSchema = Type.Object({
   body: Type.Optional(Type.String()),
   audienceJson: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   scheduledAt: Type.Optional(Type.String()),
-  /** Actor id from session (UUID preferred; opaque string accepted for local auth). */
-  createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+  // PRC-H045: creator identity is derived from the verified session server-side, never accepted
+  // from the client. Any client-supplied createdBy is ignored.
 });
 
 export type CreateCampaignInput = Static<typeof CreateCampaignSchema>;
@@ -34,7 +34,7 @@ export type CampaignParams = Static<typeof CampaignParamsSchema>;
 export const CreateEmergencyBlastSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
   channels: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
-  createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+  // PRC-H045: creator identity is derived from the verified session server-side.
 });
 
 export type CreateEmergencyBlastInput = Static<typeof CreateEmergencyBlastSchema>;
@@ -46,7 +46,8 @@ export const EmergencyParamsSchema = Type.Object({
 export type EmergencyParams = Static<typeof EmergencyParamsSchema>;
 
 export const ConfirmEmergencySchema = Type.Object({
-  actorId: Type.String({ minLength: 1, maxLength: 128 }),
+  // PRC-H045: the confirming actor is taken from the verified session, never the body — a single
+  // authenticated user cannot satisfy the two-person rule by posting two fabricated actor ids.
 });
 
 export type ConfirmEmergencyInput = Static<typeof ConfirmEmergencySchema>;
