@@ -21,6 +21,7 @@ class AttendanceRosterEntry {
     this.comment,
     this.version,
     this.synced = false,
+    this.queueStatus,
   });
 
   final String studentId;
@@ -32,6 +33,10 @@ class AttendanceRosterEntry {
   String? comment;
   String? version;
   bool synced;
+
+  /// Most severe state of any still-queued op for this mark (PRC-H011):
+  /// `parked` / `conflicted` rows never reach the server on their own.
+  SyncStatus? queueStatus;
 }
 
 /// Wraps the SQLite cache + [SyncEngine] for the attendance feature.
@@ -138,6 +143,9 @@ class AttendanceRepository {
             row['student_id'] as String: row,
         };
 
+    final Map<String, SyncStatus> queueStatuses = await _syncEngine
+        .entityQueueStatuses(SyncEntityType.attendance, tenantId: tenantId);
+
     final List<AttendanceRosterEntry> roster = <AttendanceRosterEntry>[];
     for (final Map<String, Object?> row in rows) {
       final String studentId = row['id'] as String;
@@ -156,6 +164,7 @@ class AttendanceRepository {
           comment: attendance?['remarks'] as String?,
           version: attendance?['version'] as String?,
           synced: ((attendance?['synced'] as int?) ?? 0) == 1,
+          queueStatus: queueStatuses[attendance?['id'] as String?],
         ),
       );
     }
@@ -250,6 +259,7 @@ class AttendanceRepository {
       status: status,
       comment: comment,
       version: baseVersion,
+      queueStatus: SyncStatus.pending,
     );
   }
 

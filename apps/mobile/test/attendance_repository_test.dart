@@ -164,6 +164,8 @@ void main() {
     );
     expect(after.first.status, AttendanceStatus.present);
     expect(after.first.recordId, isNotNull);
+    // PRC-H011: the roster knows the mark is still queued.
+    expect(after.first.queueStatus, SyncStatus.pending);
 
     await ctx.db.close();
   });

@@ -67,6 +67,9 @@ class SyncEngine {
   /// Whether [start] has been called (and [stop] has not).
   bool get isRunning => _running;
 
+  /// Tenant whose queue the UI should show.
+  String? get activeTenantId => _tenantProvider.tenantId;
+
   /// Begin automatic draining (PRC-H010). Once started the engine flushes:
   /// - immediately (rows left over from a previous launch while online),
   /// - whenever the device transitions to online,
@@ -108,8 +111,22 @@ class SyncEngine {
   }
 
   void _afterEnqueue() {
+    _notifyChanged();
     if (_running) unawaited(flushPending());
   }
+
+  final StreamController<void> _changes = StreamController<void>.broadcast();
+
+  /// Emits whenever the queue may have changed (enqueue, flush, retry,
+  /// conflict resolution). UI surfaces re-read [queueSummary] on each event.
+  Stream<void> get changes => _changes.stream;
+
+  void _notifyChanged() {
+    if (!_changes.isClosed) _changes.add(null);
+  }
+
+  /// Let collaborators (e.g. the conflict resolver) signal a queue change.
+  void notifyQueueChanged() => _notifyChanged();
 
   void _schedulePeriodic() {
     _periodicTimer?.cancel();
@@ -285,6 +302,97 @@ class SyncEngine {
     return (rows.first['c'] as num?)?.toInt() ?? 0;
   }
 
+  /// Counts of queued ops by lifecycle state for the active tenant (or
+  /// [tenantId]). Parked and conflicted rows are never retried automatically,
+  /// so the UI must surface them (PRC-H011).
+  Future<SyncQueueSummary> queueSummary({String? tenantId}) async {
+    final String? tenant = tenantId ?? _tenantProvider.tenantId;
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.rawQuery(
+      tenant == null
+          ? 'SELECT status, COUNT(*) AS c FROM pending_sync GROUP BY status'
+          : 'SELECT status, COUNT(*) AS c FROM pending_sync '
+                'WHERE tenant_id = ? GROUP BY status',
+      tenant == null ? null : <Object>[tenant],
+    );
+    int pending = 0;
+    int parked = 0;
+    int conflicted = 0;
+    for (final Map<String, Object?> row in rows) {
+      final int c = (row['c'] as num?)?.toInt() ?? 0;
+      switch (SyncStatus.fromWire(row['status'] as String? ?? 'pending')) {
+        case SyncStatus.pending:
+          pending += c;
+        case SyncStatus.parked:
+          parked += c;
+        case SyncStatus.conflicted:
+          conflicted += c;
+      }
+    }
+    return SyncQueueSummary(
+      pending: pending,
+      parked: parked,
+      conflicted: conflicted,
+    );
+  }
+
+  /// Most severe queue state per entity id (conflicted > parked > pending)
+  /// so lists can show per-row "failed" / "conflict" markers.
+  Future<Map<String, SyncStatus>> entityQueueStatuses(
+    SyncEntityType entityType, {
+    String? tenantId,
+  }) async {
+    final String? tenant = tenantId ?? _tenantProvider.tenantId;
+    final Database db = await _database.database;
+    final List<Map<String, Object?>> rows = await db.query(
+      'pending_sync',
+      columns: <String>['entity_id', 'status'],
+      where: tenant == null
+          ? 'entity_type = ? AND entity_id IS NOT NULL'
+          : 'entity_type = ? AND entity_id IS NOT NULL AND tenant_id = ?',
+      whereArgs: tenant == null
+          ? <Object>[entityType.toWire()]
+          : <Object>[entityType.toWire(), tenant],
+    );
+    int rank(SyncStatus s) => switch (s) {
+      SyncStatus.pending => 0,
+      SyncStatus.parked => 1,
+      SyncStatus.conflicted => 2,
+    };
+    final Map<String, SyncStatus> out = <String, SyncStatus>{};
+    for (final Map<String, Object?> row in rows) {
+      final String id = row['entity_id']! as String;
+      final SyncStatus status = SyncStatus.fromWire(
+        row['status'] as String? ?? 'pending',
+      );
+      final SyncStatus? existing = out[id];
+      if (existing == null || rank(status) > rank(existing)) out[id] = status;
+    }
+    return out;
+  }
+
+  /// Move parked rows back to `pending` with a fresh retry budget and kick a
+  /// flush. Returns the number of rows re-queued.
+  Future<int> retryParked({String? tenantId}) async {
+    final String? tenant = tenantId ?? _tenantProvider.tenantId;
+    final Database db = await _database.database;
+    final int count = await db.update(
+      'pending_sync',
+      <String, Object?>{
+        'status': SyncStatus.pending.toWire(),
+        'attempts': 0,
+        'last_attempt_at': null,
+      },
+      where: tenant == null
+          ? "status = 'parked'"
+          : "status = 'parked' AND tenant_id = ?",
+      whereArgs: tenant == null ? null : <Object>[tenant],
+    );
+    _notifyChanged();
+    requestFlush();
+    return count;
+  }
+
   // ------------------------------------------------------------------
   // Flush pipeline.
   // ------------------------------------------------------------------
@@ -423,6 +531,7 @@ class SyncEngine {
       );
     } finally {
       _isFlushing = false;
+      _notifyChanged();
       if (_rerunRequested) {
         _rerunRequested = false;
         if (_running) unawaited(flushPending());
