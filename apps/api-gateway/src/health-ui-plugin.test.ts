@@ -393,7 +393,7 @@ describe('healthUiPlugin', () => {
       }
     }
 
-    it("nurse bound to school A gets no rows for a school-B student", async () => {
+    it('nurse bound to school A gets no rows for a school-B student', async () => {
       const repository = new InMemoryHealthRepository();
       await seedDomain(repository);
       await seedSchoolB(repository);
@@ -401,7 +401,9 @@ describe('healthUiPlugin', () => {
       for (const url of ['/health/records', '/health/special-needs', '/health/counselling']) {
         const res = await app.inject({ method: 'GET', url });
         expect(res.statusCode, url).toBe(200);
-        const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map((r) => r.studentId);
+        const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map(
+          (r) => r.studentId,
+        );
         expect(ids, url).not.toContain(STUDENT_B);
         expect(ids, url).toContain(STUDENT);
       }
@@ -417,6 +419,20 @@ describe('healthUiPlugin', () => {
       expect((res.json() as { data: unknown[] }).data).toEqual([]);
     });
 
+    it('authoritative staff assignments override broader JWT institution claims', async () => {
+      const repository = new InMemoryHealthRepository();
+      await seedDomain(repository);
+      await seedSchoolB(repository);
+      // JWT claims both schools, but the nurse is only assigned to school A.
+      repository.setActorInstitutions(TENANT, 'actor-1', [SCHOOL_A]);
+      const app = await appAs(repository, { institutions: [SCHOOL_A, SCHOOL_B] });
+      const res = await app.inject({ method: 'GET', url: '/health/records' });
+      const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map(
+        (r) => r.studentId,
+      );
+      expect(ids).toEqual([STUDENT]);
+    });
+
     it('a tenant-wide health admin sees every school', async () => {
       const repository = new InMemoryHealthRepository();
       await seedDomain(repository);
@@ -426,7 +442,9 @@ describe('healthUiPlugin', () => {
         institutions: [],
       });
       const res = await app.inject({ method: 'GET', url: '/health/records' });
-      const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map((r) => r.studentId);
+      const ids = (res.json() as { data: Array<{ studentId: string }> }).data.map(
+        (r) => r.studentId,
+      );
       expect(ids.sort()).toEqual([STUDENT, STUDENT_B].sort());
     });
 
@@ -454,10 +472,21 @@ describe('healthUiPlugin', () => {
       process.env.NODE_ENV = 'production';
       delete process.env.ALLOW_PHI_AUDIT_DEGRADE;
       try {
+        await seedSchoolB(repository);
         const app = await appAs(repository, {});
-        const res = await app.inject({ method: 'GET', url: '/health/records' });
-        expect(res.statusCode).toBe(503);
-        expect(JSON.stringify(res.json())).not.toContain('Peanuts');
+        for (const url of [
+          '/health/records',
+          `/health/records/${STUDENT}`,
+          '/health/special-needs',
+          '/health/counselling',
+        ]) {
+          const res = await app.inject({ method: 'GET', url });
+          expect(res.statusCode, url).toBe(503);
+          const body = JSON.stringify(res.json());
+          expect(body, url).not.toContain('Peanuts');
+          // Driver/auditor detail stays in server logs.
+          expect(body, url).not.toContain('audit store down');
+        }
       } finally {
         process.env.NODE_ENV = savedEnv;
         if (savedDegrade === undefined) delete process.env.ALLOW_PHI_AUDIT_DEGRADE;
@@ -470,7 +499,9 @@ describe('healthUiPlugin', () => {
       await seedDomain(repository);
       await seedSchoolB(repository);
       const nurse = await appAs(repository, {});
-      const nurseRows = (await nurse.inject({ method: 'GET', url: '/health/counselling' })).json() as {
+      const nurseRows = (
+        await nurse.inject({ method: 'GET', url: '/health/counselling' })
+      ).json() as {
         data: Array<{ studentId: string; topic: string }>;
       };
       expect(nurseRows.data).toHaveLength(1);

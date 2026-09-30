@@ -23,6 +23,8 @@ export type { HealthPluginOptions } from './health-plugin.js';
 export {
   HealthService,
   hasHealthAccess,
+  canReadCounsellingReason,
+  redactCounsellingReasons,
   isSchoolBoundHealthActor,
   isTenantWideHealthActor,
   effectiveInstitutionIds,
