@@ -331,7 +331,8 @@ export async function registerCommunicationRoutes(
         });
       }
 
-      const bodyResult = validate(ConfirmEmergencySchema, request.body);
+      // PRC-H045: the body carries no identity anymore; tolerate an absent body.
+      const bodyResult = validate(ConfirmEmergencySchema, request.body ?? {});
       if (!bodyResult.success) {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',

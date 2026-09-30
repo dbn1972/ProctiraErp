@@ -182,6 +182,17 @@ describe('Communication Routes', () => {
       expect(first.json().confirmActor2).toBeNull();
     });
 
+    it('accepts a confirm request with no JSON body', async () => {
+      const blast = await createBlastAs('raiser');
+      currentUserSub = ACTOR_1;
+      const res = await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/confirm`,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().confirmActor1).toBe(ACTOR_1);
+    });
+
     // PRC-H045: the creator cannot be one of the two confirmers.
     it('rejects the creator confirming their own blast', async () => {
       const blast = await createBlastAs(ACTOR_1);
