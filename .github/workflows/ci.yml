@@ -1424,6 +1424,10 @@ jobs:
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
+      - name: Unit-test deploy/release workflow_run gate (PRC-H061)
+        run: node --test tools/scripts/check-workflow-run-gate.test.mjs
+      - name: Fail when deploy/release workflow_run gate trusts branch name only
+        run: node tools/scripts/check-workflow-run-gate.mjs
 
       - name: Fail when application runtimes load migrations or issue DDL
         run: node tools/scripts/check-no-runtime-ddl.mjs
