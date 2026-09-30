@@ -59,6 +59,12 @@ const otherStudent: Principal = {
   roles: [{ roleId: 'student', roleName: 'Student', areaId: null }],
 };
 
+const registrar: Principal = {
+  sub: '00000000-0000-4000-8000-0000000000d1',
+  email: 'registrar@tenant.test',
+  roles: [{ roleId: 'registrar', roleName: 'Registrar', areaId: null }],
+};
+
 const VIEWS = ['attendance', 'grades', 'timetable', 'homework', 'calendar', 'notices'] as const;
 
 const HOUSEHOLD_H1 = '00000000-0000-4000-8000-000000000101';
@@ -186,5 +192,69 @@ describe('parent/student academic visibility routes', () => {
     expect(other.statusCode).toBe(200);
     expect(other.json().meta.studentId).toBe(OTHER_STUDENT);
     expect(other.json().meta.studentId).not.toBe(STUDENT_USER);
+  });
+
+  // PRC-H073: consent create/supersede is staff-only; a guardian/student JWT must be rejected
+  // before the service runs, so it cannot forge a consent naming any parent+student.
+  describe('consent create/supersede authorization (PRC-H073)', () => {
+    const consentBody = {
+      studentId: STUDENT_ID,
+      parentUserId: PARENT_USER,
+      consentType: 'photo_media',
+      title: 'Photo consent',
+      consentVersion: 'photo-media-v2026-01',
+    };
+
+    it('rejects a guardian creating a consent request (403)', async () => {
+      await provisionLinkedParent(
+        repository,
+        PARENT_USER,
+        STUDENT_ID,
+        '00000000-0000-4000-8000-000000000041',
+      );
+      const res = await app.inject({
+        method: 'POST',
+        url: '/parent-portal/consents',
+        headers: as(parent),
+        payload: consentBody,
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('rejects a student creating a consent request (403)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/parent-portal/consents',
+        headers: as(student),
+        payload: consentBody,
+      });
+      expect(res.statusCode).toBe(403);
+    });
+
+    it('allows staff to create a consent for a linked guardian (201)', async () => {
+      await provisionLinkedParent(
+        repository,
+        PARENT_USER,
+        STUDENT_ID,
+        '00000000-0000-4000-8000-000000000042',
+      );
+      const res = await app.inject({
+        method: 'POST',
+        url: '/parent-portal/consents',
+        headers: as(registrar),
+        payload: consentBody,
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it('rejects staff creating a consent for an unlinked guardian (422)', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/parent-portal/consents',
+        headers: as(registrar),
+        payload: { ...consentBody, parentUserId: 'unlinked-parent' },
+      });
+      expect(res.statusCode).toBe(422);
+    });
   });
 });

@@ -160,6 +160,7 @@ describe('ParentPortalService', () => {
     const CONSENT_VERSION = 'photo-media-v2026-01';
 
     it('requires consentVersion on create and exposes it on read (W1-PRIV-01)', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_USER,
@@ -177,6 +178,8 @@ describe('ParentPortalService', () => {
     });
 
     it('allows parent to approve a pending consent', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
+
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_USER,
@@ -188,8 +191,6 @@ describe('ParentPortalService', () => {
 
       expect(consent.status).toBe('pending');
 
-      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
-
       const decided = await service.decideConsent(TENANT_A, PARENT_USER, consent.id, {
         status: 'approved',
       });
@@ -199,6 +200,7 @@ describe('ParentPortalService', () => {
     });
 
     it('rejects deciding a consent for another parent', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
       const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
         studentId: STUDENT_ID,
         parentUserId: PARENT_USER,
@@ -210,6 +212,66 @@ describe('ParentPortalService', () => {
       await expect(
         service.decideConsent(TENANT_A, 'other-parent', consent.id, { status: 'approved' }),
       ).rejects.toThrow(NotFoundError);
+    });
+
+    // PRC-H073: staff must name a real (parent, student) relationship.
+    it('rejects creating a consent for a guardian not linked to the student', async () => {
+      await expect(
+        service.createConsentRequest(TENANT_A, 'staff-admin', {
+          studentId: STUDENT_ID,
+          parentUserId: 'unlinked-parent',
+          consentType: 'photo_media',
+          title: 'Photo consent',
+          consentVersion: CONSENT_VERSION,
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('rejects superseding a consent whose guardian is no longer an active linked guardian', async () => {
+      // Seed an open consent whose parent was never (or is no longer) linked to the student —
+      // the realistic state after a guardian link is removed. Supersede must refuse to re-open it.
+      const orphanId = '00000000-0000-4000-8000-0000000000c1';
+      await repository.createConsent({
+        id: orphanId,
+        tenantId: TENANT_A,
+        studentId: STUDENT_ID,
+        parentUserId: 'delinked-parent',
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        description: '',
+        status: 'approved',
+        consentVersion: CONSENT_VERSION,
+        consentChainId: orphanId,
+        version: 1,
+        supersedesId: null,
+        validFrom: new Date(),
+        createdBy: 'staff-admin',
+      });
+
+      await expect(
+        service.supersedeConsent(TENANT_A, 'staff-admin', orphanId, {
+          consentVersion: 'photo-media-v2026-02',
+        }),
+      ).rejects.toThrow(BusinessRuleError);
+    });
+
+    it('allows staff to supersede an active linked consent with a new version', async () => {
+      await linkWithSoleCustody(PARENT_USER, STUDENT_ID);
+      const consent = await service.createConsentRequest(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        parentUserId: PARENT_USER,
+        consentType: 'photo_media',
+        title: 'Photo consent',
+        consentVersion: CONSENT_VERSION,
+      });
+
+      const next = await service.supersedeConsent(TENANT_A, 'staff-admin', consent.id, {
+        consentVersion: 'photo-media-v2026-02',
+      });
+
+      expect(next.consentVersion).toBe('photo-media-v2026-02');
+      expect(next.supersedesId).toBe(consent.id);
+      expect(next.version).toBe(consent.version + 1);
     });
   });
 
