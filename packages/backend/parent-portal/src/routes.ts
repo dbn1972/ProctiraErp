@@ -7,6 +7,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
+import { isFeesStaff } from './parent-portal-fees-access.js';
 import type { ParentPortalService } from './parent-portal-service.js';
 import {
   AddMessageSchema,
@@ -60,6 +61,25 @@ function getTenantId(request: FastifyRequest): string | null {
 function getActorId(request: FastifyRequest): string {
   const actor = getActor(request);
   return actor.userId || 'anonymous';
+}
+
+function getActorRoles(request: FastifyRequest): unknown {
+  return getActor(request).roles ?? [];
+}
+
+/**
+ * PRC-C008: gate a staff-only fee route. Returns true when the caller holds a finance/admin
+ * role; otherwise sends 403 and returns false. Guardians/students (the parent-portal audience)
+ * are denied.
+ */
+function requireFeesStaff(request: FastifyRequest, reply: FastifyReply): boolean {
+  if (isFeesStaff(getActorRoles(request))) return true;
+  void reply.status(403).send({
+    code: 'FORBIDDEN',
+    message: 'Staff fee administration is not available for this account',
+    statusCode: 403,
+  });
+  return false;
 }
 
 function formatLink(entity: {
@@ -792,6 +812,7 @@ export async function registerParentPortalRoutes(
           statusCode: 400,
         });
       }
+      if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
 
       const plans = await parentPortalService.listFeePlans(tenantId);
       return reply.status(200).send({ data: plans.map(formatPlan) });
@@ -823,6 +844,7 @@ export async function registerParentPortalRoutes(
         });
       }
 
+      if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
       const actorId = getActorId(request);
 
       try {
@@ -853,7 +875,10 @@ export async function registerParentPortalRoutes(
         (request.query as { scope?: string } | undefined)?.scope ?? 'parent',
       ).toLowerCase();
 
-      if (scope === 'staff') {
+      // PRC-C008: the tenant-wide staff view is honoured only for finance/admin staff. A
+      // guardian/student who passes ?scope=staff is served their own children's invoices, never
+      // the tenant-wide list.
+      if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
         const invoices = await parentPortalService.listInvoicesForStaff(tenantId);
         return reply.status(200).send({ data: invoices.map(formatInvoice) });
       }
@@ -889,6 +914,7 @@ export async function registerParentPortalRoutes(
         });
       }
 
+      if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
       const actorId = getActorId(request);
 
       try {
@@ -928,6 +954,7 @@ export async function registerParentPortalRoutes(
         });
       }
 
+      if (!requireFeesStaff(request, reply)) return; // PRC-C008: staff-only
       try {
         const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id);
         return reply.status(200).send(formatInvoice(invoice));
@@ -952,6 +979,9 @@ export async function registerParentPortalRoutes(
         });
       }
 
+      // PRC-C008: this returns the tenant-wide payment ledger — finance/admin staff only.
+      // A guardian's own payment history is available via receipts on the parent-scope routes.
+      if (!requireFeesStaff(request, reply)) return;
       const payments = await parentPortalService.listPaymentsForStaff(tenantId);
       return reply.status(200).send({ data: payments.map(formatPayment) });
     },
@@ -973,7 +1003,9 @@ export async function registerParentPortalRoutes(
         (request.query as { scope?: string } | undefined)?.scope ?? 'parent',
       ).toLowerCase();
 
-      if (scope === 'staff') {
+      // PRC-C008: staff tenant-wide receipts only for finance/admin; guardians/students always
+      // get their own children's receipts regardless of ?scope.
+      if (scope === 'staff' && isFeesStaff(getActorRoles(request))) {
         const receipts = await parentPortalService.listReceiptsForStaff(tenantId);
         return reply.status(200).send({ data: receipts.map(formatReceipt) });
       }
@@ -1010,7 +1042,15 @@ export async function registerParentPortalRoutes(
       }
 
       try {
-        const receipt = await parentPortalService.getReceipt(tenantId, paramsResult.data.id);
+        // PRC-C008: staff read any receipt; a guardian/student may only read a receipt for one
+        // of their fee-visible linked children (404 otherwise — no id probing).
+        const receipt = isFeesStaff(getActorRoles(request))
+          ? await parentPortalService.getReceipt(tenantId, paramsResult.data.id)
+          : await parentPortalService.getReceiptForParent(
+              tenantId,
+              getActorId(request),
+              paramsResult.data.id,
+            );
         return reply.status(200).send(formatReceipt(receipt));
       } catch (error: unknown) {
         if (error instanceof AppError) {
