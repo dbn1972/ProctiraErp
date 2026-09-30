@@ -12,7 +12,12 @@ import {
   ScheduleIdParamsSchema,
 } from './catalogue-schemas.js';
 import type { CatalogueService } from './catalogue-service.js';
-import { formatApiLabel } from './catalogue.js';
+import { formatApiLabel, resolveReportKey, type CatalogueReportKey } from './catalogue.js';
+import {
+  canAccessReport,
+  isReportManager,
+  isReportStaff,
+} from './report-access.js';
 import { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
 
 export interface CatalogueRoutesOptions {
@@ -49,6 +54,35 @@ function tenantMissing(reply: FastifyReply) {
     message: 'Tenant context is required',
     statusCode: 400,
   });
+}
+
+/**
+ * PRC-C009: the report catalogue is a staff surface. Deny parent/guardian/student (who hold
+ * gateway report:read) before any tenant-wide report data is produced or listed.
+ */
+function requireReportStaff(request: FastifyRequest, reply: FastifyReply): boolean {
+  if (isReportStaff(resolveRoles(request))) return true;
+  void reply.status(403).send({
+    code: 'FORBIDDEN',
+    message: 'Report catalogue access is restricted to staff',
+    statusCode: 403,
+  });
+  return false;
+}
+
+/**
+ * PRC-C009: a report artifact may be read/downloaded by a report manager (admin), or by a
+ * staff member who (a) is entitled to the artifact's report and (b) requested it. This stops a
+ * finance clerk downloading an exam-results artifact another user generated, etc.
+ */
+function mayAccessArtifact(
+  request: FastifyRequest,
+  artifact: { reportKey: CatalogueReportKey; requestedBy: string },
+): boolean {
+  const roles = resolveRoles(request);
+  if (isReportManager(roles)) return true;
+  if (!canAccessReport(roles, artifact.reportKey)) return false;
+  return artifact.requestedBy === resolveUserId(request);
 }
 
 function sendError(reply: FastifyReply, error: unknown) {
@@ -129,6 +163,19 @@ export function registerCatalogueRoutes(
     }
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
+    if (!requireReportStaff(request, reply)) return;
+    // PRC-C009: per-report entitlement — the caller must be allowed to run THIS report.
+    const reportKey = resolveReportKey({
+      reportKey: (parsed.data as { reportKey?: string }).reportKey,
+      templateId: (parsed.data as { templateId?: string }).templateId,
+    });
+    if (reportKey && !canAccessReport(resolveRoles(request), reportKey)) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Your role is not entitled to this report',
+        statusCode: 403,
+      });
+    }
     try {
       const result = await service.generate(tenantId, resolveUserId(request), parsed.data);
       return reply.status(201).send(service.toInsightsRun(result, resolveUserId(request)));
@@ -140,6 +187,7 @@ export function registerCatalogueRoutes(
   fastify.get(`${prefix}/runs`, async (request, reply) => {
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
+    if (!requireReportStaff(request, reply)) return;
     const query = validate(ListRunsQuerySchema, request.query ?? {});
     if (!query.success) {
       return reply.status(400).send({
@@ -151,8 +199,15 @@ export function registerCatalogueRoutes(
     }
     try {
       const runs = await service.listRuns(tenantId, query.data);
+      // PRC-C009: non-managers only see runs for reports their role is entitled to (a finance
+      // clerk should not see exam-result runs, etc.). Managers/admins see all.
+      const roles = resolveRoles(request);
+      const manager = isReportManager(roles);
+      const visibleRuns = manager
+        ? runs
+        : runs.filter((run) => canAccessReport(roles, run.reportKey));
       const payload = await Promise.all(
-        runs.map(async (run) => {
+        visibleRuns.map(async (run) => {
           const artifact = run.artifactId
             ? await service.getArtifact(tenantId, run.artifactId).catch(() => null)
             : null;
@@ -177,8 +232,17 @@ export function registerCatalogueRoutes(
     }
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
+    if (!requireReportStaff(request, reply)) return;
     try {
       const artifact = await service.getArtifact(tenantId, params.data.id);
+      if (!mayAccessArtifact(request, artifact)) {
+        // 404 (not 403) so a non-owner cannot probe which artifact ids exist.
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: `Report artifact '${params.data.id}' not found`,
+          statusCode: 404,
+        });
+      }
       const signed = createReportDownloadToken(tenantId, artifact.id);
       return reply.send({
         ...artifact,
@@ -205,18 +269,34 @@ export function registerCatalogueRoutes(
       }
       const tenantId = resolveTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      if (!requireReportStaff(request, reply)) return;
+      // PRC-C009: the signed download token is mandatory (was optional/decorative), and must
+      // match this artifact + tenant.
       const token = request.query.token;
-      if (token) {
-        const check = verifyReportDownloadToken(tenantId, params.data.id, token);
-        if (!check.ok) {
-          return reply.status(403).send({
-            code: 'FORBIDDEN',
-            message: check.reason,
-            statusCode: 403,
-          });
-        }
+      if (!token) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'A signed download token is required',
+          statusCode: 403,
+        });
+      }
+      const check = verifyReportDownloadToken(tenantId, params.data.id, token);
+      if (!check.ok) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: check.reason,
+          statusCode: 403,
+        });
       }
       try {
+        const artifact = await service.getArtifact(tenantId, params.data.id);
+        if (!mayAccessArtifact(request, artifact)) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: `Report artifact '${params.data.id}' not found`,
+            statusCode: 404,
+          });
+        }
         const file = await service.downloadBytes(tenantId, params.data.id);
         return reply
           .status(200)
@@ -233,6 +313,7 @@ export function registerCatalogueRoutes(
   fastify.get(`${prefix}/schedules`, async (request, reply) => {
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
+    if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
     const schedules = await service.listSchedules(tenantId);
     return reply.send({ data: schedules.map(formatSchedule) });
   });
@@ -249,6 +330,15 @@ export function registerCatalogueRoutes(
     }
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
+    if (!requireReportStaff(request, reply)) return;
+    const scheduleKey = resolveReportKey({ reportKey: (parsed.data as { reportKey?: string }).reportKey });
+    if (scheduleKey && !canAccessReport(resolveRoles(request), scheduleKey)) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Your role is not entitled to schedule this report',
+        statusCode: 403,
+      });
+    }
     try {
       const schedule = await service.createSchedule(tenantId, resolveUserId(request), parsed.data);
       return reply.status(201).send(formatSchedule(schedule));
@@ -260,6 +350,7 @@ export function registerCatalogueRoutes(
   fastify.post(`${prefix}/schedules/run-due`, async (request, reply) => {
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
+    if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
     try {
       const result = await service.runDue(new Date());
       return reply.send(result);
@@ -281,6 +372,7 @@ export function registerCatalogueRoutes(
       }
       const tenantId = resolveTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
       try {
         await service.deleteSchedule(tenantId, params.data.scheduleId);
         return reply.status(204).send();
@@ -304,6 +396,7 @@ export function registerCatalogueRoutes(
       }
       const tenantId = resolveTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
       if (typeof body.data.enabled !== 'boolean') {
         return reply.status(400).send({
           code: 'VALIDATION_ERROR',
@@ -337,6 +430,7 @@ export function registerCatalogueRoutes(
       }
       const tenantId = resolveTenantId(request);
       if (!tenantId) return tenantMissing(reply);
+      if (!requireReportStaff(request, reply)) return; // PRC-C009: staff-only
       try {
         const schedule = (await service.listSchedules(tenantId)).find(
           (s) => s.id === params.data.scheduleId,
@@ -346,6 +440,13 @@ export function registerCatalogueRoutes(
             code: 'NOT_FOUND',
             message: 'Schedule not found',
             statusCode: 404,
+          });
+        }
+        if (!canAccessReport(resolveRoles(request), schedule.reportKey)) {
+          return reply.status(403).send({
+            code: 'FORBIDDEN',
+            message: 'Your role is not entitled to run this report',
+            statusCode: 403,
           });
         }
         const result = await service.generate(
