@@ -77,7 +77,7 @@ describe('student upload body limits (PRC-H096)', () => {
     expect(res.statusCode).not.toBe(413);
   });
 
-  it('an 11 MB document gets a schema/validation answer, not 413', async () => {
+  it('an 11 MB document gets a 400 schema answer, not 413', async () => {
     const raw = Buffer.alloc(11 * 1024 * 1024, 0x25);
     const res = await app.inject({
       method: 'POST',
@@ -90,7 +90,8 @@ describe('student upload body limits (PRC-H096)', () => {
         contentBase64: raw.toString('base64'),
       },
     });
-    expect(res.statusCode).not.toBe(413);
+    // 11 MB raw -> ~14.7M base64 chars, over the 14M schema max: rejected by validation.
+    expect(res.statusCode).toBe(400);
   });
 
   it('bodies beyond the route limit are still rejected with 413', async () => {
@@ -101,5 +102,6 @@ describe('student upload body limits (PRC-H096)', () => {
       payload: { mimeType: 'image/jpeg', contentBase64: 'A'.repeat(5 * 1024 * 1024) },
     });
     expect(res.statusCode).toBe(413);
+    expect(res.json().code).toBe('PAYLOAD_TOO_LARGE');
   });
 });
