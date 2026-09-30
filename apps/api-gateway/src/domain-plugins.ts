@@ -865,6 +865,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         prefix: '/scholarships',
         documentStore,
         resolveLinkedStudentIds,
+        // PRC-H030: with Postgres, applicants must be real students of the tenant.
+        applicantExists: isPgScholarshipEnabled()
+          ? async (tenantId: string, studentId: string) =>
+              (await createStudentRepository().findById(studentId, tenantId)) !== null
+          : undefined,
         serviceOptions: {
           onDisbursementPaid: async (input) => {
             // W2-FIN-08: prefer reconciled amountCents from scholarship domain.

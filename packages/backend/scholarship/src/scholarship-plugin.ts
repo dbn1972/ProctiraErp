@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { ApplicantStudentLookup } from './application-intake.js';
 import {
   createScholarshipDocumentBlobStore,
   type ScholarshipDocumentBlobStore,
@@ -42,6 +43,8 @@ export interface ScholarshipPluginOptions {
   documentBlobs?: ScholarshipDocumentBlobStore;
   /** Active guardian → student links for applicant authz. */
   resolveLinkedStudentIds?: (tenantId: string, userId: string) => Promise<string[]>;
+  /** PRC-H030: tenant-scoped student existence check for application subjects. */
+  applicantExists?: ApplicantStudentLookup;
 }
 
 // Extend Fastify types
@@ -67,6 +70,7 @@ export const scholarshipPlugin = fp(
       documentStore,
       documentBlobs,
       resolveLinkedStudentIds,
+      applicantExists,
     } = options;
 
     // Create scholarship service instance
@@ -86,6 +90,7 @@ export const scholarshipPlugin = fp(
       scholarshipService,
       prefix,
       resolveLinkedStudentIds,
+      applicantExists,
     });
     await registerScholarshipDocumentRoutes(fastify, {
       scholarshipService,

@@ -136,8 +136,8 @@ export default function ScholarshipApplication() {
       method: 'POST',
       json: {
         programId: selectedProgramId,
-        applicantId: '00000000-0000-4000-8000-000000000000',
-        institutionId: '00000000-0000-4000-8000-000000000000',
+        // PRC-H030: no placeholder subject ids — the gateway resolves the applicant
+        // (own student / linked child) and institution from the signed-in session.
         academicRecords: records,
         financialInfo,
         documents: [],

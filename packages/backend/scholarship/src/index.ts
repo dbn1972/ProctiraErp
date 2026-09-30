@@ -16,6 +16,8 @@
 export { scholarshipPlugin } from './scholarship-plugin.js';
 export { parentScholarshipPlugin } from './parent-scholarship-routes.js';
 export type { ScholarshipPluginOptions } from './scholarship-plugin.js';
+export type { ApplicantStudentLookup } from './application-intake.js';
+export { isPlaceholderId } from './application-intake.js';
 
 // Service
 export { ScholarshipService } from './scholarship-service.js';
