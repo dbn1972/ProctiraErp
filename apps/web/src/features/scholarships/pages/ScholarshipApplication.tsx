@@ -10,13 +10,15 @@
  *
  * Wired to the Scholarship Service API (Task 14):
  *   - GET  /api/v1/scholarships/programs (open programs)
- *   - POST /api/v1/scholarships/applications
+ *   - POST /api/v1/scholarships/applications        (create draft, once)
+ *   - PUT  /api/v1/scholarships/applications/:id    (PRC-H031: sync edits before submit)
+ *   - POST /api/v1/scholarships/applications/:id/submit
  *
  * Requirements: 11.2, 11.3
  */
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { BrowserGatewayError, scholarshipBrowserFetch } from '../scholarship-browser';
 
@@ -125,9 +127,38 @@ export default function ScholarshipApplication() {
 
   const currentStepIndex = STEPS.findIndex((s) => s.key === currentStep);
 
+  // PRC-H031: one in-flight create at a time, so a double-click on Next cannot
+  // create two drafts.
+  const draftRequest = useRef<Promise<string | null> | null>(null);
+
+  const completedRecords = () =>
+    academicRecords.filter((r) => r.institutionName && r.educationLevel);
+
+  /** PRC-H031: push the wizard's current state onto the existing draft. */
+  const syncDraft = async (id: string): Promise<void> => {
+    await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${id}`, {
+      method: 'PUT',
+      json: {
+        programId: selectedProgramId,
+        academicRecords: completedRecords(),
+        financialInfo,
+        personalStatement,
+      },
+    });
+  };
+
   const ensureDraft = async (): Promise<string | null> => {
     if (draftApplicationId) return draftApplicationId;
-    const records = academicRecords.filter((r) => r.institutionName && r.educationLevel);
+    if (draftRequest.current) return draftRequest.current;
+    const request = createDraft().finally(() => {
+      draftRequest.current = null;
+    });
+    draftRequest.current = request;
+    return request;
+  };
+
+  const createDraft = async (): Promise<string | null> => {
+    const records = completedRecords();
     if (!selectedProgramId || records.length === 0) {
       setSubmitError('Add at least one academic record before uploading documents.');
       return null;
@@ -153,7 +184,12 @@ export default function ScholarshipApplication() {
     const next = STEPS[currentStepIndex + 1];
     if (!next) return;
     if (next.key === 'documents') {
-      void ensureDraft()
+      setSubmitError(null);
+      // Existing draft: sync edits made after it was created (program, GPA, income…).
+      const ready = draftApplicationId
+        ? syncDraft(draftApplicationId).then(() => draftApplicationId)
+        : ensureDraft();
+      void ready
         .then((id) => {
           if (id) setCurrentStep('documents');
         })
@@ -196,6 +232,8 @@ export default function ScholarshipApplication() {
         setSubmitting(false);
         return;
       }
+      // PRC-H031: submit exactly what the Review step shows (incl. the personal statement).
+      await syncDraft(draftId);
       await scholarshipBrowserFetch<unknown>(`/scholarships/applications/${draftId}/submit`, {
         method: 'POST',
         json: {},
@@ -284,7 +322,7 @@ export default function ScholarshipApplication() {
                           </div>
                         )}
                       </div>
-                      <div className="text-right text-xs text-muted-foreground">
+                      <div className="text-end text-xs text-muted-foreground">
                         <div>{program.totalSlots - program.usedSlots} slots remaining</div>
                         <div className="font-medium text-foreground">
                           {new Intl.NumberFormat(undefined, {
@@ -599,6 +637,12 @@ export default function ScholarshipApplication() {
           </div>
         )}
       </div>
+
+      {submitError && currentStep !== 'documents' && currentStep !== 'review' ? (
+        <p role="alert" className="text-sm text-destructive">
+          {submitError}
+        </p>
+      ) : null}
 
       {/* Navigation buttons */}
       <div className="flex justify-between pt-4 border-t">

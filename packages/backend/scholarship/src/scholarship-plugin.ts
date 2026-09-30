@@ -9,6 +9,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { registerApplicationDraftRoutes } from './application-draft-routes.js';
 import type { ApplicantStudentLookup } from './application-intake.js';
 import {
   createScholarshipDocumentBlobStore,
@@ -91,6 +92,12 @@ export const scholarshipPlugin = fp(
       prefix,
       resolveLinkedStudentIds,
       applicantExists,
+    });
+    // PRC-H031: drafts can be updated until they are submitted.
+    await registerApplicationDraftRoutes(fastify, {
+      repository,
+      prefix,
+      resolveLinkedStudentIds,
     });
     await registerScholarshipDocumentRoutes(fastify, {
       scholarshipService,

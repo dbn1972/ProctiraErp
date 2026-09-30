@@ -1,6 +1,8 @@
 /**
  * ScholarshipApplication wizard — draft creation contract.
  * PRC-H030: the draft POST never carries placeholder subject ids.
+ * PRC-H031: later edits (incl. the Review-step statement) are synced before submit, and
+ * a double-click on Next creates exactly one draft.
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -85,5 +87,62 @@ describe('ScholarshipApplication draft (PRC-H030)', () => {
     expect(body).not.toHaveProperty('institutionId');
     expect(body.programId).toBe(PROGRAM);
     await waitFor(() => expect(screen.getByTestId('upload-slots')).toBeTruthy());
+  });
+});
+
+describe('ScholarshipApplication draft sync (PRC-H031)', () => {
+  it('sends the Review-step personal statement to the draft before submitting', async () => {
+    const { container } = render(<ScholarshipApplication />);
+    await reachDocuments(container);
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const textarea = await screen.findByPlaceholderText(/why should you receive/i);
+    fireEvent.change(textarea, { target: { value: 'I want to study engineering.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Application' }));
+    await screen.findByText('Application Submitted');
+    const put = calls.findIndex(
+      (c) => c.path === '/scholarships/applications/draft-1' && c.method === 'PUT',
+    );
+    const submit = calls.findIndex((c) => c.path === '/scholarships/applications/draft-1/submit');
+    expect(put).toBeGreaterThanOrEqual(0);
+    expect(put).toBeLessThan(submit);
+    expect(calls[put]!.json!.personalStatement).toBe('I want to study engineering.');
+  });
+
+  it('syncs a GPA edited after the draft was created', async () => {
+    const { container } = render(<ScholarshipApplication />);
+    await reachDocuments(container);
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    const gpa = container.querySelector<HTMLInputElement>('input[step="0.01"]')!;
+    fireEvent.change(gpa, { target: { value: '3.9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await waitFor(() => expect(calls.some((c) => c.method === 'PUT')).toBe(true));
+    const put = calls.find((c) => c.method === 'PUT')!;
+    const records = put.json!.academicRecords as Array<{ gpa?: number }>;
+    expect(records[0]!.gpa).toBe(3.9);
+    expect(
+      calls.filter((c) => c.path === '/scholarships/applications' && c.method === 'POST'),
+    ).toHaveLength(1);
+  });
+
+  it('creates exactly one draft when Next is clicked twice quickly', async () => {
+    const { container } = render(<ScholarshipApplication />);
+    await screen.findByText('Merit grant');
+    fireEvent.click(screen.getByText('Merit grant'));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const [institution, level] = Array.from(
+      container.querySelectorAll<HTMLInputElement>('input[type="text"]'),
+    );
+    fireEvent.change(institution!, { target: { value: 'Sunrise School' } });
+    fireEvent.change(level!, { target: { value: 'Grade 10' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const next = screen.getByRole('button', { name: 'Next' });
+    fireEvent.click(next);
+    fireEvent.click(next);
+    await screen.findByTestId('upload-slots');
+    expect(
+      calls.filter((c) => c.path === '/scholarships/applications' && c.method === 'POST'),
+    ).toHaveLength(1);
   });
 });

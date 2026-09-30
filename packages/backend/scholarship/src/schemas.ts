@@ -267,6 +267,21 @@ export const CreateApplicationRequestSchema = Type.Composite([
 
 export type CreateApplicationRequest = Static<typeof CreateApplicationRequestSchema>;
 
+/** PRC-H031: PUT /scholarships/applications/:id — sync a draft before submit. */
+export const UpdateDraftApplicationSchema = Type.Object(
+  {
+    programId: Type.Optional(
+      Type.String({ pattern: UUID_PATTERN, description: 'Scholarship program UUID' }),
+    ),
+    academicRecords: Type.Optional(Type.Array(AcademicRecordSchema, { minItems: 1 })),
+    financialInfo: Type.Optional(FinancialInfoSchema),
+    personalStatement: Type.Optional(Type.String({ maxLength: 5000 })),
+  },
+  { additionalProperties: false },
+);
+
+export type UpdateDraftApplicationInput = Static<typeof UpdateDraftApplicationSchema>;
+
 /**
  * Optional body for POST …/applications/:id/approve | reject (G-911).
  * The reviewer is taken from the JWT, never from the body.
