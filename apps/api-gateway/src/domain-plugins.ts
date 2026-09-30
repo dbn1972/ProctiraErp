@@ -811,9 +811,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Raw pg against 003/004 gradebook tables when DATABASE_URL is set;
       // in-memory otherwise. No Prisma on this path.
+      // PRC-C006: bind portal readers (guardian/parent) to their linked children so portal
+      // gradebook reads are self-scoped, not fail-closed. Uses the same child-link source as
+      // the fees parentBinding. A student reading their own grades is served via the guardian
+      // link table when present; direct student-self resolution is a tracked follow-up.
+      const gradebookParentRepo = createParentPortalRepository();
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+        studentBinding: {
+          listReadableStudentIds: async (tenantId, actorUserId) => {
+            const links = await gradebookParentRepo.listChildLinksForParent(tenantId, actorUserId);
+            return links.map((link) => link.studentId);
+          },
+        },
       });
     },
   },
