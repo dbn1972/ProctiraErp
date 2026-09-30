@@ -7,6 +7,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { AdmissionsOffersPort } from './admissions-offers-port.js';
+import { isConsentStaff } from './parent-portal-consent-access.js';
 import type { ParentPortalService } from './parent-portal-service.js';
 import {
   AddMessageSchema,
@@ -60,6 +61,29 @@ function getTenantId(request: FastifyRequest): string | null {
 function getActorId(request: FastifyRequest): string {
   const actor = getActor(request);
   return actor.userId || 'anonymous';
+}
+
+/** Roles from the verified JWT actor (used for the PRC-H073 consent staff gate). */
+function getActorRoles(request: FastifyRequest): unknown {
+  return getActor(request).roles;
+}
+
+/**
+ * PRC-H073: consent requests are raised/superseded by staff on behalf of a linked guardian.
+ * A guardian may only decide/withdraw their own consent (those handlers keep their existing
+ * ownership checks). Reject non-staff callers before touching the service so an authenticated
+ * guardian or student cannot forge a consent naming any parent+student.
+ */
+function forbidNonConsentStaff(request: FastifyRequest, reply: FastifyReply): boolean {
+  if (isConsentStaff(getActorRoles(request))) {
+    return false;
+  }
+  void reply.status(403).send({
+    code: 'FORBIDDEN',
+    message: 'Consent requests may only be created or superseded by authorized staff',
+    statusCode: 403,
+  });
+  return true;
 }
 
 function formatLink(entity: {
@@ -558,6 +582,8 @@ export async function registerParentPortalRoutes(
         });
       }
 
+      if (forbidNonConsentStaff(request, reply)) return reply;
+
       const actorId = getActorId(request);
 
       try {
@@ -718,6 +744,8 @@ export async function registerParentPortalRoutes(
           statusCode: 400,
         });
       }
+
+      if (forbidNonConsentStaff(request, reply)) return reply;
 
       const actorId = getActorId(request);
 

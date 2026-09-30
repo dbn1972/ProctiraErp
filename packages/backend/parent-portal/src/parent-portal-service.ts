@@ -284,6 +284,26 @@ export class ParentPortalService {
   }
 
   /**
+   * PRC-H073: staff-facing link assertion for consent create/supersede. Unlike the
+   * guardian-facing {@link assertParentLinkedToStudent} (which returns 404 to avoid leaking
+   * whether a student exists to an untrusted caller), the caller here is already trusted staff
+   * naming a (parent, student) pair, so a missing/withdrawn link is a 422 business-rule error.
+   */
+  private async assertConsentTargetLinked(
+    tenantId: string,
+    parentUserId: string,
+    studentId: string,
+  ): Promise<ParentChildLinkEntity> {
+    const link = await this.repository.findActiveLink(tenantId, parentUserId, studentId);
+    if (!link) {
+      throw new BusinessRuleError(
+        'Consent target guardian is not an active linked guardian for this student',
+      );
+    }
+    return link;
+  }
+
+  /**
    * Relationship-scoped gate: linked parent must hold the named authority flag
    * and must not be under an active restriction that suspends that authority.
    * Unlinked / no custody → 404 (no existence leak). Linked without flag or
@@ -392,6 +412,10 @@ export class ParentPortalService {
   }
 
   async createConsentRequest(tenantId: string, actorId: string, input: CreateConsentInput) {
+    // PRC-H073: the route restricts this to staff. Staff must still name a real (parent,student)
+    // relationship — a consent addressed to a guardian who is not linked to the student is a
+    // business-rule violation (422), not a valid record to create.
+    await this.assertConsentTargetLinked(tenantId, input.parentUserId, input.studentId);
     const id = uuidv4();
     const validFrom = new Date();
     return this.repository.createConsent({
@@ -555,6 +579,9 @@ export class ParentPortalService {
     if (!consent) {
       throw new NotFoundError(`Consent with id '${consentId}' not found`);
     }
+    // PRC-H073: the route restricts this to staff. Do not re-open a consent chain for a guardian
+    // who is no longer an active linked guardian of the student.
+    await this.assertConsentTargetLinked(tenantId, consent.parentUserId, consent.studentId);
     if (consent.validTo != null) {
       throw new BusinessRuleError('Consent version is closed; operate on the current open version');
     }

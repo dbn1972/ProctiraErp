@@ -5,7 +5,7 @@
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import type pg from 'pg';
 
-import { isParentVisibleGrade } from './academic-visibility.js';
+import { isCampaignAudienceBroadcast, isParentVisibleGrade } from './academic-visibility.js';
 import {
   EMPTY_ATTENDANCE_SUMMARY,
   emptyAcademicList,
@@ -477,15 +477,21 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     recipientUserId?: string | null,
   ): Promise<AcademicList<NoticeItem>> {
     return this.withTenant(tenantId, async (client) => {
-      const campaignRows = await queryRows(
-        client,
-        `SELECT id, name AS title, body, sent_at
-           FROM comms_campaigns
-          WHERE tenant_id = $1::uuid AND status = 'sent'
-          ORDER BY sent_at DESC NULLS LAST
-          LIMIT 30`,
-        [tenantId],
-      );
+      const campaignRows = (
+        await queryRows(
+          client,
+          // PRC-H074: pull audience_json so we can drop narrowly-targeted campaigns the caller's
+          // student is not proven to belong to (see isCampaignAudienceBroadcast).
+          `SELECT id, name AS title, body, sent_at, audience_json
+             FROM comms_campaigns
+            WHERE tenant_id = $1::uuid AND status = 'sent'
+            ORDER BY sent_at DESC NULLS LAST
+            LIMIT 60`,
+          [tenantId],
+        )
+      )
+        .filter((row) => isCampaignAudienceBroadcast(row.audience_json))
+        .slice(0, 30);
       const noticeRows =
         recipientUserId != null && recipientUserId.length > 0
           ? await queryRows(
