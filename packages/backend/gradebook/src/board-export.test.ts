@@ -202,6 +202,48 @@ describe('GradebookService board exports', () => {
     expect(done.status).toBe('SUCCEEDED');
   });
 
+  it('does not return prep when processing a legacy terminal row that still holds it', async () => {
+    const { service, repo } = setupComplete();
+    const queued = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      async: true,
+    });
+    // Simulate a FAILED row written before prep was purged at rest.
+    const raw = await repo.getExportJob(TENANT, queued.id);
+    await repo.updateExportJob(TENANT, queued.id, {
+      status: 'FAILED',
+      metadata: raw!.metadata,
+      updatedAt: new Date().toISOString(),
+    });
+    const legacy = await repo.getExportJob(TENANT, queued.id);
+    expect(legacy?.metadata).toHaveProperty('prep');
+
+    const result = await service.processBoardExportJob(TENANT, queued.id);
+    expect(result.status).toBe('FAILED');
+    expect(result.metadata).not.toHaveProperty('prep');
+    expect(JSON.stringify(result)).not.toContain('NID-1');
+  });
+
+  it('ignores client metadata that tries to override the server-built prep', async () => {
+    const { service } = setupComplete();
+    const job = await service.createBoardExportJob(TENANT, {
+      boardId: BOARD,
+      institutionId: INST,
+      studentIds: [STUDENT],
+      metadata: {
+        prep: { candidates: [{ studentId: STUDENT, nationalId: 'FORGED-NID' }] },
+        boardCode: 'FORGED',
+      },
+    });
+    expect(job.status).toBe('SUCCEEDED');
+    expect(job.metadata.boardCode).toBe('CBSE');
+    const file = await service.downloadBoardExport(TENANT, job.id, 'csv');
+    expect(file.body.toString('utf8')).toContain('NID-1');
+    expect(file.body.toString('utf8')).not.toContain('FORGED-NID');
+  });
+
   it('purges prep candidate PII from the stored row when an export fails', async () => {
     const { service, repo } = setupComplete();
     const queued = await service.createBoardExportJob(TENANT, {

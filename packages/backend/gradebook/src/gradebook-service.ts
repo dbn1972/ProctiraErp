@@ -948,6 +948,9 @@ export class GradebookService {
       artifactUri: null,
       errorMessage: null,
       metadata: {
+        // Client metadata first so it cannot override server-owned keys — notably `prep`, which
+        // would otherwise let a caller inject arbitrary candidates into the generated pack.
+        ...((input.metadata as Record<string, unknown>) ?? {}),
         boardCode: board.code as BoardPackCode,
         packVersion: pack.version,
         securityMark: pack.securityMark,
@@ -960,7 +963,6 @@ export class GradebookService {
           centreCode,
           candidates: exportCohort,
         },
-        ...((input.metadata as Record<string, unknown>) ?? {}),
       },
       createdAt: now,
       updatedAt: now,
@@ -998,7 +1000,8 @@ export class GradebookService {
       throw new NotFoundError(`Job ${jobId} is not a board marksheet pack`);
     }
     if (job.status !== 'QUEUED' && job.status !== 'RUNNING') {
-      return job;
+      // PRC-H065: terminal rows written before prep was purged at rest may still carry it.
+      return toPublicBoardExportJob(job);
     }
 
     const prep = job.metadata.prep as
@@ -1070,7 +1073,8 @@ export class GradebookService {
         actorId: job.requestedBy,
         details: { checksumSha256: artifacts.checksumSha256 },
       });
-      return running;
+      // If the update returned null we fall back to `running`, which still has prep.
+      return toPublicBoardExportJob(running);
     } catch (error) {
       const finished = nowIso();
       const message = error instanceof Error ? error.message : 'Board export failed';
