@@ -591,9 +591,11 @@ export async function registerLibraryRoutes(
         patronBinding,
       );
       if (!('studentId' in bound)) return bound;
+      // bound.studentId equals the path param on any successful bind (staff pass-through or an
+      // owned/linked portal read); use it so the ownership guarantee is local to this call.
       const clearance = await libraryService.getStudentClearance(
         tenantId,
-        paramsResult.data.studentId,
+        bound.studentId ?? paramsResult.data.studentId,
       );
       return reply.status(200).send({
         studentId: clearance.studentId,

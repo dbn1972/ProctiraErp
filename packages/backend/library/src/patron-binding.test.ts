@@ -197,6 +197,20 @@ describe('PRC-H067/H068 library read scoping', () => {
     await app.close();
   });
 
+  it('H067: parent /fines is linked-child 200, unlinked 404, no-studentId 400', async () => {
+    const app = await appAs({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
+    const own = await app.inject({ method: 'GET', url: `/library/fines?studentId=${CHILD}` });
+    expect(own.statusCode).toBe(200);
+    const other = await app.inject({
+      method: 'GET',
+      url: `/library/fines?studentId=${OTHER_CHILD}`,
+    });
+    expect(other.statusCode).toBe(404);
+    const none = await app.inject({ method: 'GET', url: '/library/fines' });
+    expect(none.statusCode).toBe(400);
+    await app.close();
+  });
+
   it('H067: parent clearance is bound — linked child 200, unlinked 404', async () => {
     const app = await appAs({ sub: PARENT_SUB, roles: [{ roleId: 'guardian', roleName: 'Guardian' }] });
     const own = await app.inject({ method: 'GET', url: `/library/patrons/${CHILD}/clearance` });
