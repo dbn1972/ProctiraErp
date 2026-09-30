@@ -25,6 +25,8 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { hasNotificationAccess } from './notification-access.js';
+import { enforceNotificationRouteAccess } from './notification-http-guard.js';
 import type { NotificationService } from './notification-service.js';
 import {
   InMemoryNotificationPrefsStore,
@@ -47,8 +49,6 @@ import {
   type NotificationIdParams,
   type RuleIdParams,
 } from './schemas.js';
-
-import { enforceNotificationRouteAccess } from './notification-http-guard.js';
 
 /**
  * Options for registering notification routes.
@@ -191,6 +191,24 @@ export async function registerNotificationRoutes(
   function getUserId(request: FastifyRequest): string | null {
     const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
     return user?.sub ?? user?.userId ?? null;
+  }
+
+  function getRoles(request: FastifyRequest): unknown {
+    const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+    return user?.roles ?? [];
+  }
+
+  /** PRC-H070: staff (notification officers/admins) may read any recipient's notifications. */
+  function isNotificationStaff(request: FastifyRequest): boolean {
+    return hasNotificationAccess(getRoles(request), 'notification.staff');
+  }
+
+  function forbiddenOtherUser(reply: FastifyReply) {
+    return reply.status(403).send({
+      code: 'FORBIDDEN',
+      message: 'You may only read your own notifications',
+      statusCode: 403,
+    });
   }
 
   // ─── Preferences (before /:notificationId) ───────────────────────────────
@@ -351,6 +369,11 @@ export async function registerNotificationRoutes(
         });
       }
 
+      // PRC-H070: a non-staff caller may only read their own notifications.
+      if (!isNotificationStaff(request) && request.params.userId !== getUserId(request)) {
+        return forbiddenOtherUser(reply);
+      }
+
       try {
         const result = await notificationService.getUserNotifications(
           tenantId,
@@ -460,6 +483,15 @@ export async function registerNotificationRoutes(
           tenantId,
           paramsResult.data.notificationId,
         );
+        // PRC-H070: a non-staff caller may only read a notification addressed to them; 404
+        // (not 403) so notification ids cannot be probed.
+        if (!isNotificationStaff(request) && notification.recipientUserId !== getUserId(request)) {
+          return reply.status(404).send({
+            code: 'NOT_FOUND',
+            message: 'Notification not found',
+            statusCode: 404,
+          });
+        }
         return reply.status(200).send(formatNotificationResponse(notification));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -502,6 +534,21 @@ export async function registerNotificationRoutes(
       }
 
       try {
+        // PRC-H070: only the recipient (or staff) may mark a notification read. Check ownership
+        // before mutating; 404 for a non-owned id so ids cannot be probed.
+        if (!isNotificationStaff(request)) {
+          const existing = await notificationService.getDeliveryStatus(
+            tenantId,
+            paramsResult.data.notificationId,
+          );
+          if (existing.recipientUserId !== getUserId(request)) {
+            return reply.status(404).send({
+              code: 'NOT_FOUND',
+              message: 'Notification not found',
+              statusCode: 404,
+            });
+          }
+        }
         const notification = await notificationService.markAsRead(
           tenantId,
           paramsResult.data.notificationId,
