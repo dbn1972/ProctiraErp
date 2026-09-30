@@ -1422,7 +1422,7 @@ jobs:
       - name: Unit-test target migration contract
         run: node --test tools/scripts/target-database-migration-contract.test.mjs
       - name: Unit-test tools/scripts hygiene contracts
-        run: node --test tools/scripts/no-completion-claims.test.mjs tools/scripts/backend-runtime-deps.test.mjs
+        run: node --test tools/scripts/no-completion-claims.test.mjs tools/scripts/backend-runtime-deps.test.mjs tools/scripts/check-campus-i18n.test.mjs
 
       - name: Fail when deploy/CI omit required runtime-role gate
         run: node tools/scripts/check-runtime-role-gate.mjs
@@ -1615,6 +1615,16 @@ jobs:
     if: always()
     steps:
       - uses: actions/checkout@v7
+      # PRC-L179: the path-filter gate parses ci.yml with the `yaml` package.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+      - name: Install dependencies for YAML-backed path-filter gate
+        run: pnpm install --frozen-lockfile
 
       - name: Assert CI path-filter matrix (W1-OPS-05)
         run: |
