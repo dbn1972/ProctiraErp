@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getAuthServiceUrl } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
+import { resolveTenantForRequest } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/mfa/setup
@@ -22,7 +23,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
   };
-  const tenantId = request.headers.get('x-tenant-id');
+  // PRC-H027: tenant comes from the Host, never from a client header.
+  const tenantId = resolveTenantForRequest(request);
   if (tenantId) headers['X-Tenant-ID'] = tenantId;
 
   let upstream: Response;

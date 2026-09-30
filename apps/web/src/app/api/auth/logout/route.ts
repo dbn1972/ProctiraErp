@@ -7,6 +7,7 @@ import {
   getAuthServiceUrl,
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
+import { resolveTenantForRequest } from '@/lib/api/request-tenant';
 
 /**
  * POST /api/auth/logout
@@ -18,9 +19,11 @@ import { AUTH_COOKIES } from '@/lib/auth/session';
 export async function POST(request: Request): Promise<NextResponse> {
   const jar = await cookies();
   const accessToken = jar.get(AUTH_COOKIES.ACCESS_TOKEN)?.value;
-  const tenantId = request.headers.get('x-tenant-id') ?? 'default';
+  // PRC-H027: tenant comes from the Host, never from a client header. When it
+  // cannot be resolved we skip the upstream call but still clear cookies.
+  const tenantId = resolveTenantForRequest(request);
 
-  if (accessToken) {
+  if (accessToken && tenantId) {
     try {
       await fetch(`${getAuthServiceUrl()}/auth/logout`, {
         method: 'POST',
