@@ -208,8 +208,11 @@ export class PrismaDocumentRepository implements DocumentRepository {
    * Mapping choices (documented, conservative):
    * - rollNumber: candidate id (no roll-number source — same as
    *   getDocumentCandidates).
-   * - maxPossibleScore: sum of `maxScore` of every examination subject.
-   * - overallPassed: every examination subject graded and passed; any
+   * - required subjects: the candidate's non-cancelled registration
+   *   `subjectIds` (matched on studentId); every examination subject only
+   *   when no registration exists (PRC-H056).
+   * - maxPossibleScore: sum of `maxScore` over the required subjects.
+   * - overallPassed: every required subject graded and passed; any
    *   missing/incomplete subject yields overallGrade 'INCOMPLETE' (PRC-H056).
    * - overallGrade: no per-candidate aggregate grade is computed or stored by
    *   result publication, so this is the coarse 'PASS' / 'FAIL' derived from
@@ -263,11 +266,22 @@ export class PrismaDocumentRepository implements DocumentRepository {
         entry(r.candidateId, r.studentId).incomplete.add(r.subjectId);
 
       const studentIds = [...new Set([...byCandidate.values()].map((e) => e.studentId))];
-      const students = await tx.student.findMany({
-        where: { tenantId, id: { in: studentIds }, deletedAt: null },
-        select: { id: true, firstName: true, lastName: true },
-      });
+      const [students, registrations] = await Promise.all([
+        tx.student.findMany({
+          where: { tenantId, id: { in: studentIds }, deletedAt: null },
+          select: { id: true, firstName: true, lastName: true },
+        }),
+        tx.examinationCandidateRegistration.findMany({
+          where: { tenantId, examinationId, studentId: { in: studentIds } },
+        }),
+      ]);
       const studentById = new Map(students.map((s) => [s.id, s]));
+      // PRC-H056: required subjects come from the candidate's registration.
+      const registeredSubjectsByStudent = new Map(
+        registrations
+          .filter((r) => r.status !== 'CANCELLED')
+          .map((r) => [r.studentId, jsonArray<string>(r.subjectIds)] as const),
+      );
 
       return [...byCandidate.entries()].map(([candidateId, e]) => {
         const student = studentById.get(e.studentId);
@@ -277,6 +291,7 @@ export class PrismaDocumentRepository implements DocumentRepository {
           studentName: student ? `${student.firstName} ${student.lastName}` : e.studentId,
           gradeResults: e.results,
           subjects,
+          registeredSubjectIds: registeredSubjectsByStudent.get(e.studentId),
           incompleteSubjectIds: e.incomplete,
         });
       });

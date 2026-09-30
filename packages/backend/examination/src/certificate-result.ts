@@ -1,6 +1,6 @@
 /**
  * PRC-H056: build a candidate's certificate read-model from graded results and
- * the examination's subject list, so missing/ungraded subjects make the overall
+ * the candidate's registered subjects, so missing/ungraded subjects make the overall
  * result INCOMPLETE instead of silently certifying a pass over fewer subjects.
  */
 import type { CandidateResultData } from './document-repository.js';
@@ -14,27 +14,41 @@ export function buildCandidateResultData(input: {
   studentId: string;
   studentName: string;
   gradeResults: CandidateGradeResult[];
-  /** Registered subjects for the candidate (the examination's subject list). */
+  /** The examination's subject list (names and maxScore lookup). */
   subjects: Pick<ExaminationSubject, 'id' | 'name' | 'maxScore'>[];
+  /**
+   * The candidate's registered subject ids (registration `subjectIds`). When
+   * provided, only these subjects are required; otherwise every examination
+   * subject is (legacy candidates without a registration).
+   */
+  registeredSubjectIds?: Iterable<string>;
   /** Subject ids flagged incomplete at publication. */
   incompleteSubjectIds?: Iterable<string>;
 }): CandidateResultData {
   const flagged = new Set(input.incompleteSubjectIds ?? []);
   const graded = new Map(input.gradeResults.map((r) => [r.subjectId, r]));
   const subjectById = new Map(input.subjects.map((s) => [s.id, s]));
+  const required = requiredSubjects(input.subjects, input.registeredSubjectIds);
+  const requiredIds = new Set(required.map((s) => s.id));
 
-  const rows = input.gradeResults.map((r) => ({
-    name: subjectById.get(r.subjectId)?.name ?? r.subjectId,
-    score: r.score,
-    grade: r.grade,
-    passed: r.passed,
-  }));
+  // Only registered subjects are certified (a stray mark for an unregistered
+  // subject must not inflate totalScore past maxPossibleScore).
+  const rows = input.gradeResults
+    .filter((r) => requiredIds.has(r.subjectId))
+    .map((r) => ({
+      name: subjectById.get(r.subjectId)?.name ?? r.subjectId,
+      score: r.score,
+      grade: r.grade,
+      passed: r.passed,
+    }));
 
-  const incompleteSubjects = input.subjects
+  const incompleteSubjects = required
     .filter((s) => !graded.has(s.id) || flagged.has(s.id))
     .map((s) => s.name);
   for (const subjectId of flagged) {
-    if (!subjectById.has(subjectId)) incompleteSubjects.push(subjectId);
+    if (!requiredIds.has(subjectId)) {
+      incompleteSubjects.push(subjectById.get(subjectId)?.name ?? subjectId);
+    }
   }
 
   const incomplete = incompleteSubjects.length > 0;
@@ -49,7 +63,23 @@ export function buildCandidateResultData(input: {
     overallPassed,
     totalScore: rows.reduce((sum, s) => sum + s.score, 0),
     // Max possible is computed over every registered subject, not only graded ones.
-    maxPossibleScore: input.subjects.reduce((sum, s) => sum + s.maxScore, 0),
+    maxPossibleScore: required.reduce((sum, s) => sum + s.maxScore, 0),
     incompleteSubjects,
   };
+}
+
+/**
+ * PRC-H056: the candidate's required subject set — registration subjectIds
+ * when known (unknown ids are kept, with maxScore 0, so they surface as
+ * incomplete rather than vanish), otherwise every examination subject.
+ */
+export function requiredSubjects<S extends Pick<ExaminationSubject, 'id' | 'name' | 'maxScore'>>(
+  subjects: S[],
+  registeredSubjectIds?: Iterable<string>,
+): Pick<ExaminationSubject, 'id' | 'name' | 'maxScore'>[] {
+  if (!registeredSubjectIds) return subjects;
+  const byId = new Map(subjects.map((s) => [s.id, s]));
+  return [...new Set(registeredSubjectIds)].map(
+    (id) => byId.get(id) ?? { id, name: id, maxScore: 0 },
+  );
 }

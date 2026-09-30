@@ -96,24 +96,61 @@ export class ResultPublicationService {
         );
       }
     }
-    // Fetch all candidates
-    const candidates = await this.resultRepository.getCandidates(examinationId, tenantId);
+    // PRC-H056: the candidate population is the non-cancelled registrations
+    // (plus any legacy result-store rows without a registration), and each
+    // candidate's required subjects are their registration subjectIds.
+    const [storedCandidates, registrations] = await Promise.all([
+      this.resultRepository.getCandidates(examinationId, tenantId),
+      this.examinationRepository.listCandidateRegistrations(examinationId, tenantId),
+    ]);
+    const registrationByStudent = new Map(registrations.map((r) => [r.studentId, r]));
+    const storedStudentIds = new Set(storedCandidates.map((c) => c.studentId));
+    const allExamSubjectIds = examination.subjects.map((s) => s.id);
+
+    const population: Array<{
+      candidateId: string;
+      studentId: string;
+      requiredSubjectIds: string[];
+      subjectResults: ExaminationCandidate['subjectResults'];
+    }> = [];
+    for (const candidate of storedCandidates) {
+      const registration = registrationByStudent.get(candidate.studentId);
+      if (registration?.status === 'CANCELLED') continue;
+      population.push({
+        candidateId: candidate.id,
+        studentId: candidate.studentId,
+        requiredSubjectIds: registration ? registration.subjectIds : allExamSubjectIds,
+        subjectResults: candidate.subjectResults,
+      });
+    }
+    for (const registration of registrations) {
+      if (registration.status === 'CANCELLED' || storedStudentIds.has(registration.studentId)) {
+        continue;
+      }
+      // Registered but no marks row at all: every registered subject is incomplete.
+      population.push({
+        candidateId: registration.id,
+        studentId: registration.studentId,
+        requiredSubjectIds: registration.subjectIds,
+        subjectResults: [],
+      });
+    }
 
     const gradeResults: CandidateGradeResult[] = [];
     const incompleteRecords: IncompleteRecord[] = [];
     let processedCount = 0;
 
     // Process each candidate
-    for (const candidate of candidates) {
-      // PRC-H056: a registered candidate with no marks row for an examination
-      // subject is flagged incomplete instead of being silently dropped.
+    for (const candidate of population) {
+      // PRC-H056: a registered subject with no marks row is flagged incomplete
+      // instead of being silently dropped.
       const recordedSubjectIds = new Set(candidate.subjectResults.map((r) => r.subjectId));
-      for (const subject of examination.subjects) {
-        if (!recordedSubjectIds.has(subject.id)) {
+      for (const subjectId of new Set(candidate.requiredSubjectIds)) {
+        if (!recordedSubjectIds.has(subjectId)) {
           incompleteRecords.push({
-            candidateId: candidate.id,
+            candidateId: candidate.candidateId,
             studentId: candidate.studentId,
-            subjectId: subject.id,
+            subjectId,
             reason: 'No marks recorded for subject',
           });
         }
@@ -122,7 +159,7 @@ export class ResultPublicationService {
         // Requirement 10.5: If result data is incomplete, skip and flag
         if (!subjectResult.isComplete || subjectResult.score === null) {
           incompleteRecords.push({
-            candidateId: candidate.id,
+            candidateId: candidate.candidateId,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
             reason:
@@ -142,7 +179,7 @@ export class ResultPublicationService {
 
         if (!gradingScheme) {
           incompleteRecords.push({
-            candidateId: candidate.id,
+            candidateId: candidate.candidateId,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
             reason: 'No grading scheme found for subject',
@@ -154,7 +191,7 @@ export class ResultPublicationService {
         const grade = calculateGrade(subjectResult.score, gradingScheme);
         if (grade === null) {
           incompleteRecords.push({
-            candidateId: candidate.id,
+            candidateId: candidate.candidateId,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
             reason: `Score ${subjectResult.score} does not map to a grade band in scheme '${gradingScheme.name}'`,
@@ -164,7 +201,7 @@ export class ResultPublicationService {
         const passed = subjectResult.score >= gradingScheme.passThreshold;
 
         gradeResults.push({
-          candidateId: candidate.id,
+          candidateId: candidate.candidateId,
           studentId: candidate.studentId,
           subjectId: subjectResult.subjectId,
           score: subjectResult.score,
@@ -183,7 +220,7 @@ export class ResultPublicationService {
       examinationId,
       tenantId,
       publishedAt: new Date(),
-      totalCandidates: candidates.length,
+      totalCandidates: population.length,
       processedCount,
       incompleteCount: incompleteRecords.length,
       gradeResults,
