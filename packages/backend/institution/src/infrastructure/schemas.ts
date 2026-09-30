@@ -131,6 +131,19 @@ export type UpdateInfrastructureInput = Static<typeof UpdateInfrastructureSchema
 /**
  * Schema for infrastructure ID path parameter.
  */
+/** PRC-L124: body for POST /infrastructure/repair-requests. */
+export const REPAIR_SUMMARY_MAX_LENGTH = 2000;
+export const CreateRepairRequestSchema = Type.Object(
+  {
+    institutionId: Type.String({ pattern: UuidPattern }),
+    infrastructureId: Type.String({ pattern: UuidPattern }),
+    summary: Type.String({ minLength: 1, maxLength: REPAIR_SUMMARY_MAX_LENGTH, pattern: '\\S' }),
+  },
+  { additionalProperties: false },
+);
+
+export type CreateRepairRequestInput = Static<typeof CreateRepairRequestSchema>;
+
 export const InfrastructureParamsSchema = Type.Object({
   id: Type.String({ pattern: UuidPattern, description: 'Infrastructure item UUID' }),
 });

@@ -10,7 +10,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
-import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PrismaClient } from '@proctira/database';
 
 import type { CalendarEventRecord, CalendarStore } from './calendar-store.js';
@@ -163,9 +163,14 @@ export class AcademicCalendarService {
   }
 
   async removeEvent(tenantId: string, periodId: string, eventId: string): Promise<void> {
+    const period = await this.requirePeriod(tenantId, periodId);
     const existing = await this.store.findById(tenantId, eventId);
     if (!existing || existing.academicPeriodId !== periodId) {
       throw new NotFoundError(`Calendar event '${eventId}' not found`);
+    }
+    // PRC-L124: archived periods are read-only (mirrors addEvent).
+    if (period.status === 'archived') {
+      throw new ConflictError('Cannot remove calendar events from an archived period');
     }
     await this.store.delete(tenantId, eventId);
   }

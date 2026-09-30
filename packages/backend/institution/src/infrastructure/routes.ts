@@ -37,6 +37,7 @@ import {
   InfrastructureParamsSchema,
   InstitutionScopeParamsSchema,
   CreateConditionOptionSchema,
+  CreateRepairRequestSchema,
   type CreateLandInput,
   type CreateBuildingInput,
   type CreateFloorInput,
@@ -81,24 +82,18 @@ export async function registerInfrastructureRoutes(
   // Static paths must be registered before `/:id`, which would otherwise
   // capture "repair-requests" as an infrastructure id.
   fastify.post(`${prefix}/repair-requests`, async (request, reply) => {
-    const body = request.body as {
-      institutionId?: string;
-      infrastructureId?: string;
-      summary?: string;
-    };
-    if (!body?.institutionId || !body.infrastructureId || !body.summary?.trim()) {
+    // PRC-L124: Typebox-validated body (uuid ids, bounded summary).
+    const result = validate(CreateRepairRequestSchema, request.body);
+    if (!result.success) {
       return reply.status(400).send({
         code: 'VALIDATION_ERROR',
-        message: 'institutionId, infrastructureId, and summary are required',
+        message: 'Validation failed',
         statusCode: 400,
+        errors: result.errors,
       });
     }
     try {
-      const row = await infrastructureService.logRepairRequest({
-        institutionId: body.institutionId,
-        infrastructureId: body.infrastructureId,
-        summary: body.summary,
-      });
+      const row = await infrastructureService.logRepairRequest(result.data);
       return reply.status(201).send({
         id: row.id,
         institutionId: row.institutionId,
@@ -114,7 +109,6 @@ export async function registerInfrastructureRoutes(
       throw error;
     }
   });
-
   fastify.get(`${prefix}/repair-requests`, async (request, reply) => {
     const institutionId = (request.query as { institutionId?: string }).institutionId;
     if (!institutionId) {
@@ -122,6 +116,15 @@ export async function registerInfrastructureRoutes(
         code: 'VALIDATION_ERROR',
         message: 'institutionId query parameter is required',
         statusCode: 400,
+      });
+    }
+    const scope = validate(InstitutionScopeParamsSchema, { institutionId });
+    if (!scope.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid institutionId',
+        statusCode: 400,
+        errors: scope.errors,
       });
     }
     const rows = await infrastructureService.listRepairRequests(institutionId);
@@ -136,7 +139,6 @@ export async function registerInfrastructureRoutes(
       })),
     });
   });
-
   // ─── Land Routes ─────────────────────────────────────────────────────────────
 
   /**
