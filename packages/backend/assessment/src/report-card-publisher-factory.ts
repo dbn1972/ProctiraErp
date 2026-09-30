@@ -7,13 +7,37 @@
 import type { QueueAdapter } from '@proctira/queue-abstraction';
 import { createQueueAdapter, createQueueAdapterFromEnv } from '@proctira/queue-abstraction';
 
-import type { TaskQueuePublisher } from './report-card-service.js';
 import { QueueReportCardPublisher } from './queue-report-card-publisher.js';
+import type { TaskQueuePublisher } from './report-card-service.js';
 
 export interface ReportCardPublisherHandle {
   publisher: TaskQueuePublisher;
   adapter: QueueAdapter;
+  /**
+   * PRC-H039: fresh (unconnected) adapter on the same backend for the
+   * report-card worker, so worker.stop() does not close the publisher.
+   */
+  createConsumerAdapter(): QueueAdapter;
   disconnect(): Promise<void>;
+}
+
+function buildAdapterFromEnv(
+  backend: string | undefined,
+  rabbitUrl: string | undefined,
+): QueueAdapter {
+  if (backend) {
+    return createQueueAdapterFromEnv();
+  }
+  return createQueueAdapter({
+    backend: 'rabbitmq',
+    rabbitmq: {
+      url: rabbitUrl!,
+      exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
+      exchangeType: 'topic',
+      deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
+      durable: true,
+    },
+  });
 }
 
 /**
@@ -28,26 +52,12 @@ export async function createReportCardPublisherFromEnv(): Promise<ReportCardPubl
     return null;
   }
 
-  let adapter: QueueAdapter;
-  if (backend) {
-    adapter = createQueueAdapterFromEnv();
-  } else {
-    adapter = createQueueAdapter({
-      backend: 'rabbitmq',
-      rabbitmq: {
-        url: rabbitUrl!,
-        exchange: process.env['RABBITMQ_EXCHANGE'] ?? 'proctira.events',
-        exchangeType: 'topic',
-        deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
-        durable: true,
-      },
-    });
-  }
-
+  const adapter = buildAdapterFromEnv(backend, rabbitUrl);
   await adapter.connect();
   return {
     publisher: new QueueReportCardPublisher(adapter),
     adapter,
+    createConsumerAdapter: () => buildAdapterFromEnv(backend, rabbitUrl),
     disconnect: () => adapter.disconnect(),
   };
 }

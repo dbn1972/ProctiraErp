@@ -64,6 +64,15 @@ export type {
   WebhookDeliveryProcessor,
 } from './webhook-delivery-worker.js';
 export { createWebhookDeliveryPublisherFromEnv } from './webhook-delivery-publisher-factory.js';
+export {
+  createWebhookEventFanOutSubscriber,
+  parseWebhookFanOutEvents,
+} from './webhook-event-fanout.js';
+export type {
+  WebhookEventFanOutOptions,
+  WebhookEventFanOutProcessor,
+  WebhookEventFanOutSubscriber,
+} from './webhook-event-fanout.js';
 export type { WebhookDeliveryPublisherHandle } from './webhook-delivery-publisher-factory.js';
 
 // Repository

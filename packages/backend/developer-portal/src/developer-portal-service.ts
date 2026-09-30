@@ -524,6 +524,26 @@ export class DeveloperPortalService {
   }
 
   /**
+   * PRC-H046: event-to-webhook fan-out. Creates (and enqueues) one delivery per
+   * active webhook of `tenantId` subscribed to `event` (or `*`). Strictly
+   * tenant-scoped: webhooks of other tenants are never matched.
+   */
+  async fanOutEvent(
+    tenantId: string,
+    event: string,
+    payload: Record<string, unknown>,
+  ): Promise<WebhookDeliveryEntity[]> {
+    const webhooks = await this.repository.listActiveWebhooksForTenant(tenantId);
+    const deliveries: WebhookDeliveryEntity[] = [];
+    for (const webhook of webhooks) {
+      if (webhook.tenantId !== tenantId || !webhook.active) continue;
+      if (!webhook.events.includes(event) && !webhook.events.includes('*')) continue;
+      deliveries.push(await this.createDelivery(webhook.id, event, payload));
+    }
+    return deliveries;
+  }
+
+  /**
    * Durable queue consumer handler (W2-JOB-07).
    * POSTs the webhook payload; on failure marks retry with exponential backoff
    * and re-enqueues when a publisher is configured.

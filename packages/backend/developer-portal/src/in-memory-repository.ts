@@ -160,6 +160,12 @@ export class InMemoryDeveloperPortalRepository implements DeveloperPortalExtende
     return { data, total };
   }
 
+  async listActiveWebhooksForTenant(tenantId: string): Promise<WebhookEntity[]> {
+    return Array.from(this.webhooks.values())
+      .filter((w) => w.tenantId === tenantId && w.active)
+      .map((w) => ({ ...w }));
+  }
+
   async updateWebhook(
     id: string,
     updates: Partial<

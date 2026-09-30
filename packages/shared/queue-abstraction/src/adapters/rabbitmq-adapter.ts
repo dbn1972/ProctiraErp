@@ -4,7 +4,7 @@
  * with tenant-prefixed naming conventions.
  */
 
-import type { ChannelModel, Channel, ConsumeMessage, Options } from 'amqplib';
+import type { ChannelModel, ConfirmChannel, ConsumeMessage, Message, Options } from 'amqplib';
 import amqplib from 'amqplib';
 
 import { assertTenantScopedSubscribeTopic } from '../tenant-scope';
@@ -19,6 +19,17 @@ import type {
 } from '../types';
 import { buildTenantName } from '../types';
 
+import {
+  DEFAULT_MAX_RETRIES,
+  DeliveryFailureCounter,
+  decideDisposition,
+  errorMessage,
+  reportDeliveryFailure,
+  withIncrementedRetry,
+  type DeliveryFailureEvent,
+  type QueueConsumerLogger,
+} from './delivery-failure';
+
 const DEFAULT_CONFIG: Partial<RabbitMQAdapterConfig> = {
   exchangeType: 'topic',
   deadLetterExchange: 'dlx',
@@ -27,14 +38,43 @@ const DEFAULT_CONFIG: Partial<RabbitMQAdapterConfig> = {
   heartbeat: 60,
 };
 
+export interface RabbitMQAdapterRuntimeOptions {
+  /** Retry budget when a message has no `metadata.maxRetries` (default 3). */
+  defaultMaxRetries?: number;
+  /** Structured logger for failed deliveries / returned publishes. */
+  logger?: QueueConsumerLogger;
+  /** Metric hook invoked once per failed delivery. */
+  onDeliveryFailure?: (event: DeliveryFailureEvent) => void;
+}
+
+/** Name of the queue bound (`#`) to the dead-letter exchange (PRC-H086). */
+export function deadLetterQueueName(deadLetterExchange: string): string {
+  return `${deadLetterExchange}.dlq`;
+}
+
+interface PendingPublish {
+  reject: (err: Error) => void;
+  returned: boolean;
+}
+
 export class RabbitMQAdapter implements QueueAdapter {
   private config: RabbitMQAdapterConfig;
   private connection: ChannelModel | null = null;
-  private channel: Channel | null = null;
+  private channel: ConfirmChannel | null = null;
   private connected = false;
+  private readonly defaultMaxRetries: number;
+  private readonly logger: QueueConsumerLogger | undefined;
+  private readonly onDeliveryFailure: ((event: DeliveryFailureEvent) => void) | undefined;
+  /** In-flight publishes keyed by messageId, used to correlate basic.return (PRC-H087). */
+  private readonly pendingPublishes = new Map<string, Set<PendingPublish>>();
+  /** Failed-delivery counter (retried vs dead-lettered). */
+  readonly failures = new DeliveryFailureCounter();
 
-  constructor(config: RabbitMQAdapterConfig) {
+  constructor(config: RabbitMQAdapterConfig, runtime: RabbitMQAdapterRuntimeOptions = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config } as RabbitMQAdapterConfig;
+    this.defaultMaxRetries = runtime.defaultMaxRetries ?? DEFAULT_MAX_RETRIES;
+    this.logger = runtime.logger;
+    this.onDeliveryFailure = runtime.onDeliveryFailure;
   }
 
   async connect(): Promise<void> {
@@ -44,33 +84,61 @@ export class RabbitMQAdapter implements QueueAdapter {
       heartbeat: this.config.heartbeat,
     });
 
-    this.channel = await this.connection.createChannel();
-    await this.channel.prefetch(this.config.prefetchCount ?? 10);
+    // PRC-H087: confirm channel so publish resolves only after broker ack.
+    const channel = await this.connection.createConfirmChannel();
+    this.channel = channel;
+    await channel.prefetch(this.config.prefetchCount ?? 10);
+
+    // Unroutable mandatory publishes come back as basic.return before the ack.
+    channel.on('return', (msg: Message) => {
+      const id = msg.properties?.messageId as string | undefined;
+      for (const pending of (id ? this.pendingPublishes.get(id) : undefined) ?? []) {
+        pending.returned = true;
+      }
+      this.logger?.error?.(
+        { messageId: id, routingKey: msg.fields?.routingKey },
+        'queue publish returned unroutable',
+      );
+    });
+    // Connection/channel loss: fail every in-flight publish (row stays pending).
+    const failAll = (reason: string) => {
+      const all = [...this.pendingPublishes.values()].flatMap((set) => [...set]);
+      this.pendingPublishes.clear();
+      for (const pending of all) {
+        pending.reject(new Error(`RabbitMQ publish not confirmed: ${reason}`));
+      }
+      this.connected = false;
+    };
+    channel.on('close', () => failAll('channel closed'));
+    channel.on('error', (err: unknown) => failAll(errorMessage(err)));
 
     // Assert the main exchange
-    await this.channel.assertExchange(this.config.exchange, this.config.exchangeType ?? 'topic', {
+    await channel.assertExchange(this.config.exchange, this.config.exchangeType ?? 'topic', {
       durable: this.config.durable ?? true,
     });
 
-    // Assert the dead-letter exchange
+    // Assert the dead-letter exchange + a bound DLQ so dead letters are retained (PRC-H086).
     if (this.config.deadLetterExchange) {
-      await this.channel.assertExchange(this.config.deadLetterExchange, 'topic', {
+      await channel.assertExchange(this.config.deadLetterExchange, 'topic', {
         durable: this.config.durable ?? true,
       });
+      const dlq = deadLetterQueueName(this.config.deadLetterExchange);
+      await channel.assertQueue(dlq, { durable: this.config.durable ?? true });
+      await channel.bindQueue(dlq, this.config.deadLetterExchange, '#');
     }
 
     this.connected = true;
   }
 
   async disconnect(): Promise<void> {
-    if (!this.connected) return;
+    if (!this.connected && !this.channel && !this.connection) return;
 
     if (this.channel) {
-      await this.channel.close();
+      await this.channel.close().catch(() => undefined);
       this.channel = null;
     }
     if (this.connection) {
-      await this.connection.close();
+      await this.connection.close().catch(() => undefined);
       this.connection = null;
     }
 
@@ -78,6 +146,14 @@ export class RabbitMQAdapter implements QueueAdapter {
   }
 
   async publish(message: QueueMessage, options?: PublishOptions): Promise<void> {
+    await this.publishInternal(message, options, false);
+  }
+
+  private async publishInternal(
+    message: QueueMessage,
+    options: PublishOptions | undefined,
+    mandatory: boolean,
+  ): Promise<void> {
     if (!this.connected || !this.channel) {
       throw new Error('RabbitMQAdapter is not connected. Call connect() first.');
     }
@@ -88,6 +164,7 @@ export class RabbitMQAdapter implements QueueAdapter {
 
     const publishOptions: Options.Publish = {
       persistent: true,
+      mandatory,
       priority: options?.priority ?? message.metadata?.priority ?? 5,
       headers: {
         'x-tenant-id': message.tenantId,
@@ -106,12 +183,56 @@ export class RabbitMQAdapter implements QueueAdapter {
       publishOptions.expiration = String(delay);
     }
 
-    this.channel.publish(
-      this.config.exchange,
-      routingKey,
-      Buffer.from(JSON.stringify(message)),
-      publishOptions,
+    await this.confirmedSend(message.id, (cb) =>
+      this.channel!.publish(
+        this.config.exchange,
+        routingKey,
+        Buffer.from(JSON.stringify(message)),
+        publishOptions,
+        cb,
+      ),
     );
+  }
+
+  /**
+   * PRC-H087: resolve only after broker confirm; reject on nack, basic.return
+   * (unroutable mandatory publish), or channel loss. Honours write backpressure.
+   */
+  private async confirmedSend(
+    messageId: string,
+    send: (cb: (err: unknown) => void) => boolean,
+  ): Promise<void> {
+    const channel = this.channel!;
+    let written = true;
+    await new Promise<void>((resolve, reject) => {
+      const pending: PendingPublish = { reject, returned: false };
+      const untrack = () => {
+        const set = this.pendingPublishes.get(messageId);
+        set?.delete(pending);
+        if (set && set.size === 0) this.pendingPublishes.delete(messageId);
+      };
+      const set = this.pendingPublishes.get(messageId) ?? new Set<PendingPublish>();
+      set.add(pending);
+      this.pendingPublishes.set(messageId, set);
+      try {
+        written = send((err: unknown) => {
+          untrack();
+          if (err) {
+            reject(new Error(`RabbitMQ publish nacked: ${errorMessage(err)}`));
+          } else if (pending.returned) {
+            reject(new Error(`RabbitMQ publish unroutable (no bound queue) for ${messageId}`));
+          } else {
+            resolve();
+          }
+        });
+      } catch (err: unknown) {
+        untrack();
+        reject(err instanceof Error ? err : new Error(errorMessage(err)));
+      }
+    });
+    if (!written) {
+      await new Promise<void>((resolve) => channel.once('drain', () => resolve()));
+    }
   }
 
   async subscribe(options: SubscribeOptions, handler: MessageHandler): Promise<void> {
@@ -123,48 +244,14 @@ export class RabbitMQAdapter implements QueueAdapter {
     assertTenantScopedSubscribeTopic(options.topic, { surface: 'queue.rabbitmq.subscribe' });
 
     const queueName = buildTenantName(options.groupId ?? 'shared', `sub.${options.topic}`);
-
-    // Assert queue with dead-letter exchange
-    await this.channel.assertQueue(queueName, {
-      durable: this.config.durable ?? true,
-      arguments: {
-        'x-dead-letter-exchange': this.config.deadLetterExchange ?? '',
-        'x-max-priority': 10,
-      },
-    });
-
-    // Bind queue to exchange with the topic as routing key pattern
-    await this.channel.bindQueue(queueName, this.config.exchange, options.topic);
-
-    const channel = this.channel;
-    const autoAck = options.autoAck ?? false;
-
-    await channel.consume(
-      queueName,
-      (msg: ConsumeMessage | null) => {
-        if (!msg) return;
-
-        void (async () => {
-          try {
-            const message = JSON.parse(msg.content.toString()) as QueueMessage;
-            await handler(message);
-            if (!autoAck) {
-              channel.ack(msg);
-            }
-          } catch {
-            channel.nack(msg, false, false);
-          }
-        })();
-      },
-      { noAck: autoAck },
-    );
+    await this.consumeQueue(queueName, options, handler);
   }
 
   async dispatch(message: QueueMessage, options?: PublishOptions): Promise<void> {
-    // Dispatch uses the same publish mechanism in RabbitMQ.
-    // The competing consumer pattern is achieved by multiple consumers
-    // on the same queue (via consume with the same groupId/queue name).
-    await this.publish(message, options);
+    // Dispatch uses the same exchange; competing consumers share one queue.
+    // PRC-H087: mandatory — a task with no bound work queue must reject so the
+    // outbox row is not marked published.
+    await this.publishInternal(message, options, true);
   }
 
   async consume(options: SubscribeOptions, handler: MessageHandler): Promise<void> {
@@ -177,9 +264,18 @@ export class RabbitMQAdapter implements QueueAdapter {
 
     // For consume (competing consumers), use a shared queue name
     const queueName = buildTenantName(options.groupId ?? 'workers', `task.${options.topic}`);
+    await this.consumeQueue(queueName, options, handler);
+  }
+
+  private async consumeQueue(
+    queueName: string,
+    options: SubscribeOptions,
+    handler: MessageHandler,
+  ): Promise<void> {
+    const channel = this.channel!;
 
     // Assert queue with dead-letter exchange
-    await this.channel.assertQueue(queueName, {
+    await channel.assertQueue(queueName, {
       durable: this.config.durable ?? true,
       arguments: {
         'x-dead-letter-exchange': this.config.deadLetterExchange ?? '',
@@ -187,31 +283,78 @@ export class RabbitMQAdapter implements QueueAdapter {
       },
     });
 
-    // Bind queue to exchange
-    await this.channel.bindQueue(queueName, this.config.exchange, options.topic);
+    // Bind queue to exchange with the topic as routing key pattern
+    await channel.bindQueue(queueName, this.config.exchange, options.topic);
 
-    const channel = this.channel;
     const autoAck = options.autoAck ?? false;
 
     await channel.consume(
       queueName,
       (msg: ConsumeMessage | null) => {
         if (!msg) return;
-
-        void (async () => {
-          try {
-            const message = JSON.parse(msg.content.toString()) as QueueMessage;
-            await handler(message);
-            if (!autoAck) {
-              channel.ack(msg);
-            }
-          } catch {
-            channel.nack(msg, false, false);
-          }
-        })();
+        void this.handleDelivery(channel, queueName, msg, handler, autoAck);
       },
       { noAck: autoAck },
     );
+  }
+
+  private async handleDelivery(
+    channel: ConfirmChannel,
+    queueName: string,
+    msg: ConsumeMessage,
+    handler: MessageHandler,
+    autoAck: boolean,
+  ): Promise<void> {
+    let message: QueueMessage | undefined;
+    try {
+      message = JSON.parse(msg.content.toString()) as QueueMessage;
+      await handler(message);
+      if (!autoAck) channel.ack(msg);
+      return;
+    } catch (err: unknown) {
+      const decision = decideDisposition(message, this.defaultMaxRetries);
+      reportDeliveryFailure(
+        {
+          messageId: message?.id ?? (msg.properties?.messageId as string | undefined),
+          type: message?.type,
+          tenantId: message?.tenantId,
+          retryCount: decision.retryCount,
+          maxRetries: decision.maxRetries,
+          disposition: decision.disposition,
+          error: errorMessage(err),
+        },
+        this.failures,
+        this.logger,
+        this.onDeliveryFailure,
+      );
+      if (autoAck) return; // Broker already considers it delivered.
+      if (decision.disposition === 'retry' && message) {
+        try {
+          // Republish straight to the same work queue (default exchange) with
+          // retryCount+1, confirmed, then ack the original delivery.
+          const retry = withIncrementedRetry(message);
+          await this.confirmedSend(`${retry.id}#retry${decision.retryCount + 1}`, (cb) =>
+            channel.sendToQueue(
+              queueName,
+              Buffer.from(JSON.stringify(retry)),
+              {
+                ...msg.properties,
+                persistent: true,
+              },
+              cb,
+            ),
+          );
+          channel.ack(msg);
+          return;
+        } catch {
+          // Could not re-enqueue: requeue original so the job is never lost.
+          channel.nack(msg, false, true);
+          return;
+        }
+      }
+      // Exhausted → dead-letter exchange → DLQ, original payload preserved.
+      channel.nack(msg, false, false);
+    }
   }
 
   async healthCheck(): Promise<HealthCheckResult> {
