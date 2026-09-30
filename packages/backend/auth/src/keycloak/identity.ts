@@ -96,7 +96,13 @@ export async function linkKeycloakIdentity(
 
   const existing = await store.findIdentity(input.externalId);
   if (existing) {
-    await store.touchIdentity(existing.id);
+    // PRC-L283: lastUsedAt is telemetry; write it at most once per interval per
+    // identity and never block (or fail) the request on it.
+    if (shouldTouchIdentity(existing.id)) {
+      void Promise.resolve()
+        .then(() => store.touchIdentity(existing.id))
+        .catch(() => undefined);
+    }
     const user = await store.findUserByEmail(existing.email, existing.tenantId);
     return {
       userId: existing.userId,
@@ -163,6 +169,28 @@ export async function linkKeycloakIdentity(
     displayName: created.displayName,
     countryCode: created.countryCode,
   };
+}
+
+const TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+const MAX_TOUCH_ENTRIES = 50_000;
+const lastTouchedAt = new Map<string, number>();
+
+function shouldTouchIdentity(id: string, now = Date.now()): boolean {
+  const last = lastTouchedAt.get(id);
+  if (last !== undefined && now - last < TOUCH_INTERVAL_MS) return false;
+  lastTouchedAt.delete(id);
+  lastTouchedAt.set(id, now);
+  while (lastTouchedAt.size > MAX_TOUCH_ENTRIES) {
+    const oldest = lastTouchedAt.keys().next().value;
+    if (oldest === undefined) break;
+    lastTouchedAt.delete(oldest);
+  }
+  return true;
+}
+
+/** Test hook: forget touch throttling state. */
+export function resetIdentityTouchThrottleForTests(): void {
+  lastTouchedAt.clear();
 }
 
 export function identityInputFromClaims(
@@ -265,7 +293,10 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
       displayName: input.displayName,
       countryCode: input.countryCode,
     };
-    this.usersByKey.set(`${user.tenantId}:${user.email}`, user);
+    const key = `${user.tenantId}:${user.email}`;
+    const existing = this.usersByKey.get(key);
+    if (existing) return { ...existing };
+    this.usersByKey.set(key, user);
     return { ...user };
   }
 
@@ -276,6 +307,7 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
     email: string;
     realm: string;
   }): Promise<void> {
+    if (this.identitiesByExternalId.has(input.externalId)) return;
     this.identitiesByExternalId.set(input.externalId, {
       id: randomUUID(),
       userId: input.userId,

@@ -50,8 +50,7 @@ function toDate(v: unknown): Date {
  * `app.platform_admin` bind can stop being unconditional.
  */
 export type DocumentScope =
-  | { tenantId: string; platform?: never }
-  | { platform: true; tenantId?: never };
+  { tenantId: string; platform?: never } | { platform: true; tenantId?: never };
 
 /**
  * Renders `scope` as an additional SQL predicate plus its parameters.
@@ -173,6 +172,31 @@ export class PgDocumentCollection<T extends object> {
     });
   }
 
+  /**
+   * Insert only when `(collection, id)` is free; otherwise return the existing
+   * document unchanged. Concurrent callers all observe the single winner
+   * (INSERT ... ON CONFLICT DO NOTHING), unlike `put` which is last-write-wins.
+   */
+  async insertIfAbsent(id: string, data: T, tenantId: string | null = null): Promise<T> {
+    return withPlatformScope(this.pool, async (client) => {
+      const inserted = await client.query(
+        `INSERT INTO control_plane_documents (collection, id, tenant_id, data)
+         VALUES ($1, $2, $3, $4::jsonb)
+         ON CONFLICT (collection, id) DO NOTHING
+         RETURNING *`,
+        [this.collection, id, tenantId, JSON.stringify(data)],
+      );
+      const row = (inserted.rows[0] ??
+        (
+          await client.query(
+            `SELECT * FROM control_plane_documents WHERE collection = $1 AND id = $2 LIMIT 1`,
+            [this.collection, id],
+          )
+        ).rows[0]) as Record<string, unknown> | undefined;
+      if (!row) throw new Error(`insertIfAbsent lost row ${this.collection}/${id}`);
+      return this.map(row).data;
+    });
+  }
   async delete(id: string, scope?: DocumentScope): Promise<boolean> {
     const s = scopeClause(scope, 3);
     return withPlatformScope(this.pool, async (client) => {

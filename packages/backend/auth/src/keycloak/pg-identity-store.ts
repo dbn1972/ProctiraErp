@@ -138,8 +138,13 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
       lastName: input.lastName,
       countryCode: input.countryCode,
     };
-    await this.users.put(`${user.tenantId}:${user.email}`, user, user.tenantId);
-    return this.publicUser(user);
+    // PRC-L283: concurrent first logins converge on one user row.
+    const winner = await this.users.insertIfAbsent(
+      `${user.tenantId}:${user.email}`,
+      user,
+      user.tenantId,
+    );
+    return this.publicUser(winner);
   }
 
   async createIdentity(input: {
@@ -158,7 +163,8 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
       realm: input.realm,
       lastUsedAt: new Date(),
     };
-    await this.identities.put(input.externalId, doc, input.tenantId);
+    // PRC-L283: first writer wins; a racing login cannot repoint the subject.
+    await this.identities.insertIfAbsent(input.externalId, doc, input.tenantId);
   }
 
   private publicUser(user: UserDoc) {
