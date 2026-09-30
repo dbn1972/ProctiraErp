@@ -15,4 +15,16 @@ describe('examination-access', () => {
     expect(hasExaminationAccess([], 'exam.delete')).toBe(false);
     expect(() => assertExaminationAccess(['teacher'], 'exam.create')).toThrow(/Forbidden/);
   });
+
+  // PRC-C004: examination read surfaces (results, marks, seating, PDFs, candidates) are
+  // staff-only. Students/guardians hold gateway examination:read but must be denied here.
+  it('allows staff (officer/teacher/admin) to read, denies student/guardian/parent', () => {
+    expect(hasExaminationAccess(['examinations_officer'], 'exam.read.staff')).toBe(true);
+    expect(hasExaminationAccess(['teacher'], 'exam.read.staff')).toBe(true);
+    expect(hasExaminationAccess([{ roleName: 'PRINCIPAL' }], 'exam.read.staff')).toBe(true);
+    expect(hasExaminationAccess(['student'], 'exam.read.staff')).toBe(false);
+    expect(hasExaminationAccess(['guardian'], 'exam.read.staff')).toBe(false);
+    expect(hasExaminationAccess(['parent'], 'exam.read.staff')).toBe(false);
+    expect(() => assertExaminationAccess(['student'], 'exam.read.staff')).toThrow(/Forbidden/);
+  });
 });

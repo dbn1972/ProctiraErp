@@ -24,7 +24,7 @@ import {
   type DocumentExaminationParams,
   type DocumentJobParams,
 } from './document-schemas.js';
-import { examinationWritePreHandler } from './examination-http-guard.js';
+import { examinationReadWritePreHandler } from './examination-http-guard.js';
 
 /**
  * Options for registering document generation routes.
@@ -83,7 +83,9 @@ export async function registerDocumentRoutes(
   // Gateway exact resource/action is inventory-declared in
   // `apps/api-gateway/src/mutating-route-authz.ts` (examination + document.generate).
   fastify.addHook('preHandler', async (request, reply) => {
-    examinationWritePreHandler(request, reply, 'document.generate');
+    // PRC-C004: reads require exam.read.staff; writes require document.generate. Note the
+    // worker-only POST /process endpoint is a write and stays gated by document.generate.
+    examinationReadWritePreHandler(request, reply, 'exam.read.staff', 'document.generate');
   });
 
   /**
