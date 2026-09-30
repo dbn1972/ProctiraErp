@@ -258,38 +258,43 @@ export class FeesService {
     }
 
     const invoiceId = uuidv4();
-    const invoice = await this.repository.createInvoice({
-      id: invoiceId,
-      tenantId,
-      studentId: input.studentId,
-      planId,
-      title,
-      description,
-      amountCents,
-      currency,
-      status: 'open',
-      dueAt: input.dueAt ? new Date(input.dueAt) : null,
-      createdBy: actorId,
-      invoiceNumber: invoiceNumberFor(invoiceId),
-      structureId: null,
-      classId: null,
-      gradeId: null,
-    });
+    const faceCents = amountCents;
+    // PRC-H058: invoice row + issuance journal commit together.
+    return this.repository.runInTransaction(tenantId, async (tx) => {
+      const invoice = await tx.createInvoice({
+        id: invoiceId,
+        tenantId,
+        studentId: input.studentId,
+        planId,
+        title,
+        description,
+        amountCents: faceCents,
+        currency,
+        status: 'open',
+        dueAt: input.dueAt ? new Date(input.dueAt) : null,
+        createdBy: actorId,
+        invoiceNumber: invoiceNumberFor(invoiceId),
+        structureId: null,
+        classId: null,
+        gradeId: null,
+      });
 
-    // G-718: DR accounts_receivable / CR fee_revenue
-    if (amountCents > 0) {
-      await this.postJournal(
-        invoice,
-        actorId,
-        'invoice issued',
-        [
-          ['accounts_receivable', 'debit'],
-          ['fee_revenue', 'credit'],
-        ],
-        amountCents,
-      );
-    }
-    return invoice;
+      // G-718: DR accounts_receivable / CR fee_revenue
+      if (faceCents > 0) {
+        await this.postJournal(
+          tx,
+          invoice,
+          actorId,
+          'invoice issued',
+          [
+            ['accounts_receivable', 'debit'],
+            ['fee_revenue', 'credit'],
+          ],
+          faceCents,
+        );
+      }
+      return invoice;
+    });
   }
 
   /**
@@ -300,6 +305,7 @@ export class FeesService {
    * the repository still rejects unbalanced journals defensively.
    */
   private async postJournal(
+    repo: FeesRepository,
     invoice: FeeInvoiceEntity,
     actorId: string | null,
     memo: string,
@@ -312,7 +318,7 @@ export class FeesService {
     }
     const journalId = uuidv4();
     const postedAt = new Date();
-    return this.repository.postLedgerEntries(
+    return repo.postLedgerEntries(
       legs.map(([account, side]) => ({
         id: uuidv4(),
         tenantId: invoice.tenantId,
@@ -355,32 +361,38 @@ export class FeesService {
   }
 
   async voidInvoice(tenantId: string, invoiceId: string) {
-    const invoice = await this.getInvoice(tenantId, invoiceId);
-    if (invoice.status === 'paid') {
-      const netCollected = await this.getNetCollectedCents(tenantId, invoice.id);
-      if (netCollected > 0) {
-        throw new BusinessRuleError('Cannot void a paid invoice with unreconciled collected cash');
+    // PRC-H058: status check, void update and reversal journal under one invoice lock.
+    return this.repository.withInvoiceLock(tenantId, invoiceId, async (tx, locked) => {
+      const { invoice } = locked;
+      if (invoice.status === 'paid') {
+        const netCollected = Math.max(0, locked.paidCents - locked.refundedCents);
+        if (netCollected > 0) {
+          throw new BusinessRuleError(
+            'Cannot void a paid invoice with unreconciled collected cash',
+          );
+        }
+        return (await tx.updateInvoice(invoiceId, tenantId, { status: 'void' }))!;
       }
-      return (await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' }))!;
-    }
-    if (invoice.status === 'void') {
-      return invoice;
-    }
-    const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
-    // G-718: reverse the issuance — DR fee_revenue / CR accounts_receivable
-    if (invoice.amountCents > 0) {
-      await this.postJournal(
-        invoice,
-        null,
-        'invoice voided',
-        [
-          ['fee_revenue', 'debit'],
-          ['accounts_receivable', 'credit'],
-        ],
-        invoice.amountCents,
-      );
-    }
-    return updated!;
+      if (invoice.status === 'void') {
+        return invoice;
+      }
+      const updated = await tx.updateInvoice(invoiceId, tenantId, { status: 'void' });
+      // G-718: reverse the issuance — DR fee_revenue / CR accounts_receivable
+      if (invoice.amountCents > 0) {
+        await this.postJournal(
+          tx,
+          invoice,
+          null,
+          'invoice voided',
+          [
+            ['fee_revenue', 'debit'],
+            ['accounts_receivable', 'credit'],
+          ],
+          invoice.amountCents,
+        );
+      }
+      return updated!;
+    });
   }
 
   async listPayments(tenantId: string) {
@@ -738,38 +750,43 @@ export class FeesService {
           : 0;
       const amountCents = Math.max(0, structure.amountCents - discount);
       const invoiceId = uuidv4();
-      const invoice = await this.repository.createInvoice({
-        id: invoiceId,
-        tenantId,
-        studentId,
-        planId: null,
-        title: structure.name,
-        description: structure.category,
-        amountCents,
-        currency: structure.currency,
-        status: 'open',
-        dueAt: input.dueAt ? new Date(input.dueAt) : null,
-        createdBy: actorId,
-        invoiceNumber: invoiceNumberFor(invoiceId),
-        structureId: structure.id,
-        classId: classId ?? null,
-        gradeId: gradeId ?? null,
+      // PRC-H058: invoice + issuance journal + concession link commit together.
+      const invoice = await this.repository.runInTransaction(tenantId, async (tx) => {
+        const row = await tx.createInvoice({
+          id: invoiceId,
+          tenantId,
+          studentId,
+          planId: null,
+          title: structure.name,
+          description: structure.category,
+          amountCents,
+          currency: structure.currency,
+          status: 'open',
+          dueAt: input.dueAt ? new Date(input.dueAt) : null,
+          createdBy: actorId,
+          invoiceNumber: invoiceNumberFor(invoiceId),
+          structureId: structure.id,
+          classId: classId ?? null,
+          gradeId: gradeId ?? null,
+        });
+        if (amountCents > 0) {
+          await this.postJournal(
+            tx,
+            row,
+            actorId,
+            'invoice issued',
+            [
+              ['accounts_receivable', 'debit'],
+              ['fee_revenue', 'credit'],
+            ],
+            row.amountCents,
+          );
+        }
+        if (concession) {
+          await tx.updateConcession(concession.id, tenantId, { invoiceId: row.id });
+        }
+        return row;
       });
-      if (amountCents > 0) {
-        await this.postJournal(
-          invoice,
-          actorId,
-          'invoice issued',
-          [
-            ['accounts_receivable', 'debit'],
-            ['fee_revenue', 'credit'],
-          ],
-          invoice.amountCents,
-        );
-      }
-      if (concession) {
-        await this.repository.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
-      }
       created.push(invoice);
     }
     return { created, skipped, structureId: structure.id };
@@ -873,85 +890,84 @@ export class FeesService {
     concession: FeeConcessionEntity,
     discount: number,
   ) {
-    const invoice = concession.invoiceId
+    const target = concession.invoiceId
       ? await this.getInvoice(tenantId, concession.invoiceId)
       : await this.repository.findInvoiceForStructureStudent(
           tenantId,
           concession.structureId,
           concession.studentId,
         );
-    if (!invoice) {
+    if (!target) {
       return { concession, invoice: null, discountCents: discount };
     }
-    if (invoice.status !== 'open') {
-      throw new BusinessRuleError('Concession can only recompute dues on an open invoice');
-    }
-    const nextAmount = Math.max(0, invoice.amountCents - discount);
-    if (discount > 0 && invoice.amountCents > 0) {
-      await this.postJournal(
-        invoice,
-        actorId,
-        'concession applied',
-        [
-          ['fee_revenue', 'debit'],
-          ['accounts_receivable', 'credit'],
-        ],
-        discount,
-      );
-    }
-    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
-      amountCents: nextAmount,
+    // PRC-H058: re-read the invoice under lock; journal + face update + link are atomic.
+    return this.repository.withInvoiceLock(tenantId, target.id, async (tx, locked) => {
+      const { invoice } = locked;
+      if (invoice.status !== 'open') {
+        throw new BusinessRuleError('Concession can only recompute dues on an open invoice');
+      }
+      // Never discount below cash already collected (negative AR).
+      const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
+      const applied = Math.min(discount, unpaid);
+      const nextAmount = invoice.amountCents - applied;
+      if (applied > 0) {
+        await this.postJournal(
+          tx,
+          invoice,
+          actorId,
+          'concession applied',
+          [
+            ['fee_revenue', 'debit'],
+            ['accounts_receivable', 'credit'],
+          ],
+          applied,
+        );
+      }
+      const updated = await tx.updateInvoice(invoice.id, tenantId, {
+        amountCents: nextAmount,
+      });
+      await tx.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
+      const refreshed = await tx.findConcessionById(concession.id, tenantId);
+      return { concession: refreshed ?? concession, invoice: updated, discountCents: applied };
     });
-    await this.repository.updateConcession(concession.id, tenantId, { invoiceId: invoice.id });
-    const refreshed = await this.repository.findConcessionById(concession.id, tenantId);
-    return { concession: refreshed ?? concession, invoice: updated, discountCents: discount };
   }
 
   async recordRefund(tenantId: string, actorId: string, input: RecordRefundInput) {
-    const invoice = await this.getInvoice(tenantId, input.invoiceId);
-    const payments = (await this.repository.listPaymentsForTenant(tenantId)).filter(
-      (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
-    );
-    const paidCents = payments.reduce((sum, p) => sum + p.amountCents, 0);
-    const refunds = await this.repository.listRefundsForInvoice(tenantId, invoice.id);
-    const alreadyRefunded = refunds
-      .filter((r) => r.status === 'posted')
-      .reduce((sum, r) => sum + r.amountCents, 0);
-    assertRefundWithinPaid(paidCents, alreadyRefunded, input.amountCents);
-
-    const refund = await this.repository.createRefund({
-      id: uuidv4(),
-      tenantId,
-      invoiceId: invoice.id,
-      paymentId: input.paymentId ?? payments[0]?.id ?? null,
-      amountCents: input.amountCents,
-      reason: input.reason,
-      status: 'posted',
-      createdBy: actorId,
+    // PRC-H058: cap check (SQL SUM under FOR UPDATE) + refund row + journal in one txn,
+    // so concurrent refunds serialize and cannot exceed collected cash.
+    return this.repository.withInvoiceLock(tenantId, input.invoiceId, async (tx, locked) => {
+      const { invoice } = locked;
+      assertRefundWithinPaid(locked.paidCents, locked.refundedCents, input.amountCents);
+      let paymentId = input.paymentId ?? null;
+      if (!paymentId) {
+        const first = (await tx.listPaymentsForTenant(tenantId)).find(
+          (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
+        );
+        paymentId = first?.id ?? null;
+      }
+      const refund = await tx.createRefund({
+        id: uuidv4(),
+        tenantId,
+        invoiceId: invoice.id,
+        paymentId,
+        amountCents: input.amountCents,
+        reason: input.reason,
+        status: 'posted',
+        createdBy: actorId,
+      });
+      await this.postJournal(
+        tx,
+        invoice,
+        actorId,
+        'refund posted',
+        [
+          ['fee_revenue', 'debit'],
+          ['cash', 'credit'],
+        ],
+        input.amountCents,
+      );
+      return refund;
     });
-    await this.postJournal(
-      invoice,
-      actorId,
-      'refund posted',
-      [
-        ['fee_revenue', 'debit'],
-        ['cash', 'credit'],
-      ],
-      input.amountCents,
-    );
-    return refund;
-  }
-
-  /**
-   * Unpaid AR on an open/overdue invoice: face amount minus succeeded payments.
-   * Credit notes / write-offs reduce face (and thus remaining) after posting.
-   */
-  private async unpaidBalanceCents(tenantId: string, invoice: FeeInvoiceEntity): Promise<number> {
-    const payments = (await this.repository.listPaymentsForTenant(tenantId)).filter(
-      (p) => p.invoiceId === invoice.id && p.status === 'succeeded',
-    );
-    const paidCents = payments.reduce((sum, p) => sum + p.amountCents, 0);
-    return Math.max(0, invoice.amountCents - paidCents);
   }
 
   /**
@@ -960,15 +976,6 @@ export class FeesService {
    * Rejects paid/void/written_off invoices — post-payment cash return uses refunds.
    */
   async issueCreditNote(tenantId: string, actorId: string, input: IssueCreditNoteInput) {
-    const invoice = await this.getInvoice(tenantId, input.invoiceId);
-    if (invoice.status === 'void' || invoice.status === 'written_off') {
-      throw new BusinessRuleError(`Cannot credit-note a ${invoice.status} invoice`);
-    }
-    if (invoice.status === 'paid') {
-      throw new BusinessRuleError(
-        'Cannot credit-note a paid invoice — use refund for post-payment cash return',
-      );
-    }
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new BusinessRuleError('Credit note amountCents must be a positive integer');
     }
@@ -976,40 +983,53 @@ export class FeesService {
     if (reason.length === 0) {
       throw new BusinessRuleError('Credit note reason is required');
     }
-    const unpaid = await this.unpaidBalanceCents(tenantId, invoice);
-    if (input.amountCents > unpaid) {
-      throw new BusinessRuleError(
-        `Credit note amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+    // PRC-H058: status + unpaid check, credit note row, face update and journal under
+    // one invoice lock so a concurrent payment cannot make the unpaid balance stale.
+    return this.repository.withInvoiceLock(tenantId, input.invoiceId, async (tx, locked) => {
+      const { invoice } = locked;
+      if (invoice.status === 'void' || invoice.status === 'written_off') {
+        throw new BusinessRuleError(`Cannot credit-note a ${invoice.status} invoice`);
+      }
+      if (invoice.status === 'paid') {
+        throw new BusinessRuleError(
+          'Cannot credit-note a paid invoice — use refund for post-payment cash return',
+        );
+      }
+      const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
+      if (input.amountCents > unpaid) {
+        throw new BusinessRuleError(
+          `Credit note amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+        );
+      }
+
+      const creditNote = await tx.createCreditNote({
+        id: uuidv4(),
+        tenantId,
+        invoiceId: invoice.id,
+        amountCents: input.amountCents,
+        reason,
+        status: 'posted',
+        createdBy: actorId,
+      });
+
+      const updated = await tx.updateInvoice(invoice.id, tenantId, {
+        amountCents: invoice.amountCents - input.amountCents,
+      });
+
+      await this.postJournal(
+        tx,
+        invoice,
+        actorId,
+        'credit note posted',
+        [
+          ['fee_revenue', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        input.amountCents,
       );
-    }
 
-    const creditNote = await this.repository.createCreditNote({
-      id: uuidv4(),
-      tenantId,
-      invoiceId: invoice.id,
-      amountCents: input.amountCents,
-      reason,
-      status: 'posted',
-      createdBy: actorId,
+      return { creditNote, invoice: updated! };
     });
-
-    const nextAmount = invoice.amountCents - input.amountCents;
-    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
-      amountCents: nextAmount,
-    });
-
-    await this.postJournal(
-      invoice,
-      actorId,
-      'credit note posted',
-      [
-        ['fee_revenue', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ],
-      input.amountCents,
-    );
-
-    return { creditNote, invoice: updated! };
   }
 
   /**
@@ -1018,13 +1038,6 @@ export class FeesService {
    * When remaining unpaid hits zero, invoice status becomes written_off.
    */
   async writeOffInvoice(tenantId: string, actorId: string, input: WriteOffInvoiceInput) {
-    const invoice = await this.getInvoice(tenantId, input.invoiceId);
-    if (invoice.status === 'void' || invoice.status === 'written_off') {
-      throw new BusinessRuleError(`Cannot write off a ${invoice.status} invoice`);
-    }
-    if (invoice.status === 'paid') {
-      throw new BusinessRuleError('Cannot write off a paid invoice — use refund if needed');
-    }
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) {
       throw new BusinessRuleError('Write-off amountCents must be a positive integer');
     }
@@ -1032,42 +1045,52 @@ export class FeesService {
     if (reason.length === 0) {
       throw new BusinessRuleError('Write-off reason is required');
     }
-    const unpaid = await this.unpaidBalanceCents(tenantId, invoice);
-    if (input.amountCents > unpaid) {
-      throw new BusinessRuleError(
-        `Write-off amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+    // PRC-H058: locked read-check-write + journal in one transaction.
+    return this.repository.withInvoiceLock(tenantId, input.invoiceId, async (tx, locked) => {
+      const { invoice } = locked;
+      if (invoice.status === 'void' || invoice.status === 'written_off') {
+        throw new BusinessRuleError(`Cannot write off a ${invoice.status} invoice`);
+      }
+      if (invoice.status === 'paid') {
+        throw new BusinessRuleError('Cannot write off a paid invoice — use refund if needed');
+      }
+      const unpaid = Math.max(0, invoice.amountCents - locked.paidCents);
+      if (input.amountCents > unpaid) {
+        throw new BusinessRuleError(
+          `Write-off amountCents ${input.amountCents} exceeds unpaid balance ${unpaid}`,
+        );
+      }
+
+      const writeOff = await tx.createWriteOff({
+        id: uuidv4(),
+        tenantId,
+        invoiceId: invoice.id,
+        amountCents: input.amountCents,
+        reason,
+        status: 'posted',
+        createdBy: actorId,
+      });
+
+      const nextUnpaid = unpaid - input.amountCents;
+      const updated = await tx.updateInvoice(invoice.id, tenantId, {
+        amountCents: invoice.amountCents - input.amountCents,
+        ...(nextUnpaid === 0 ? { status: 'written_off' as const } : {}),
+      });
+
+      await this.postJournal(
+        tx,
+        invoice,
+        actorId,
+        'write-off posted',
+        [
+          ['bad_debt_expense', 'debit'],
+          ['accounts_receivable', 'credit'],
+        ],
+        input.amountCents,
       );
-    }
 
-    const writeOff = await this.repository.createWriteOff({
-      id: uuidv4(),
-      tenantId,
-      invoiceId: invoice.id,
-      amountCents: input.amountCents,
-      reason,
-      status: 'posted',
-      createdBy: actorId,
+      return { writeOff, invoice: updated! };
     });
-
-    const nextAmount = invoice.amountCents - input.amountCents;
-    const nextUnpaid = unpaid - input.amountCents;
-    const updated = await this.repository.updateInvoice(invoice.id, tenantId, {
-      amountCents: nextAmount,
-      ...(nextUnpaid === 0 ? { status: 'written_off' as const } : {}),
-    });
-
-    await this.postJournal(
-      invoice,
-      actorId,
-      'write-off posted',
-      [
-        ['bad_debt_expense', 'debit'],
-        ['accounts_receivable', 'credit'],
-      ],
-      input.amountCents,
-    );
-
-    return { writeOff, invoice: updated! };
   }
 
   private isReminderSuppressedInRows(
@@ -1587,31 +1610,38 @@ export class FeesService {
       throw new BusinessRuleError('Cannot reverse scholarship netting without a positive amount');
     }
 
-    let invoice = prior.invoiceId
+    const existing = prior.invoiceId
       ? await this.repository.findInvoiceById(prior.invoiceId, tenantId)
       : null;
 
-    if (invoice) {
-      const restored = await this.repository.updateInvoice(invoice.id, tenantId, {
-        amountCents: invoice.amountCents + discountCents,
-        ...(invoice.status === 'written_off' ? { status: 'open' as const } : {}),
-      });
-      invoice = restored;
-      await this.postJournal(
-        invoice!,
-        actorId,
-        'scholarship netting reversed',
-        [
-          ['accounts_receivable', 'debit'],
-          ['fee_revenue', 'credit'],
-        ],
-        discountCents,
-      );
-    }
-
-    const rejected = await this.repository.updateConcession(prior.id, tenantId, {
-      status: 'rejected',
-    });
+    // PRC-H058: face restore + journal + concession rejection commit together.
+    const reverse = async (tx: FeesRepository, invoice: FeeInvoiceEntity | null) => {
+      let restored: FeeInvoiceEntity | null = null;
+      if (invoice) {
+        restored = await tx.updateInvoice(invoice.id, tenantId, {
+          amountCents: invoice.amountCents + discountCents,
+          ...(invoice.status === 'written_off' ? { status: 'open' as const } : {}),
+        });
+        await this.postJournal(
+          tx,
+          restored!,
+          actorId,
+          'scholarship netting reversed',
+          [
+            ['accounts_receivable', 'debit'],
+            ['fee_revenue', 'credit'],
+          ],
+          discountCents,
+        );
+      }
+      const rejectedRow = await tx.updateConcession(prior.id, tenantId, { status: 'rejected' });
+      return { invoice: restored, rejected: rejectedRow };
+    };
+    const { invoice, rejected } = existing
+      ? await this.repository.withInvoiceLock(tenantId, existing.id, (tx, locked) =>
+          reverse(tx, locked.invoice),
+        )
+      : await this.repository.runInTransaction(tenantId, (tx) => reverse(tx, null));
     return {
       reversed: true as const,
       concession: rejected ?? prior,

@@ -2,6 +2,7 @@
  * In-memory fees repository (unit tests / gateway without DATABASE_URL).
  */
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import type { PgQueryable } from '@proctira/database';
 
 import {
   assertJournalBalanced,
@@ -21,6 +22,7 @@ import {
   type FeeStructureInstalmentEntity,
   type FeesRepository,
   type InvoicePaymentBalance,
+  type LockedInvoiceBalance,
   type LedgerAccount,
   type LedgerTrialBalance,
   type RecordPaymentOnInvoiceSettlement,
@@ -60,7 +62,67 @@ export class InMemoryFeesRepository implements FeesRepository {
       if (this.invoicePaymentChains.get(key) === result) {
         this.invoicePaymentChains.delete(key);
       }
-    }) as Promise<T>;
+    });
+  }
+
+  /**
+   * PRC-H058: all-or-nothing semantics for the in-memory adapter — snapshot the
+   * mutable financial collections and restore them when `fn` throws.
+   */
+  private async runAtomically<T>(fn: () => Promise<T>): Promise<T> {
+    const snapshot = {
+      invoices: this.invoices.map((r) => ({ ...r })),
+      payments: this.payments.map((r) => ({ ...r })),
+      receipts: this.receipts.map((r) => ({ ...r })),
+      ledger: this.ledger.map((r) => ({ ...r })),
+      concessions: this.concessions.map((r) => ({ ...r })),
+      refunds: this.refunds.map((r) => ({ ...r })),
+      creditNotes: this.creditNotes.map((r) => ({ ...r })),
+      writeOffs: this.writeOffs.map((r) => ({ ...r })),
+    };
+    try {
+      return await fn();
+    } catch (error) {
+      this.invoices = snapshot.invoices;
+      this.payments = snapshot.payments;
+      this.receipts = snapshot.receipts;
+      this.ledger = snapshot.ledger;
+      this.concessions = snapshot.concessions;
+      this.refunds = snapshot.refunds;
+      this.creditNotes = snapshot.creditNotes;
+      this.writeOffs = snapshot.writeOffs;
+      throw error;
+    }
+  }
+
+  async runInTransaction<T>(_tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T> {
+    return this.runAtomically(() => fn(this));
+  }
+
+  async withInvoiceLock<T>(
+    tenantId: string,
+    invoiceId: string,
+    fn: (tx: FeesRepository, locked: LockedInvoiceBalance) => Promise<T>,
+  ): Promise<T> {
+    return this.runSerializedOnInvoice(tenantId, invoiceId, () =>
+      this.runAtomically(async () => {
+        const invoice = this.invoices.find((i) => i.id === invoiceId && i.tenantId === tenantId);
+        if (!invoice) {
+          throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+        }
+        const paidCents = this.payments
+          .filter(
+            (p) => p.tenantId === tenantId && p.invoiceId === invoiceId && p.status === 'succeeded',
+          )
+          .reduce((sum, p) => sum + p.amountCents, 0);
+        const refundedCents = this.refunds
+          .filter(
+            (r) => r.tenantId === tenantId && r.invoiceId === invoiceId && r.status === 'posted',
+          )
+          .reduce((sum, r) => sum + r.amountCents, 0);
+        return fn(this, { invoice: { ...invoice }, paidCents, refundedCents });
+      }),
+    );
   }
 
   /** Test helper — students billed when bulk-invoicing a class/grade. */
@@ -259,7 +321,9 @@ export class InMemoryFeesRepository implements FeesRepository {
     if (index === -1) return null;
     const current = this.structures[index]!;
     if (current.validTo != null && validTo > current.validTo) {
-      throw new Error('fee_structures valid_to can only narrow; insert a successor version to extend');
+      throw new Error(
+        'fee_structures valid_to can only narrow; insert a successor version to extend',
+      );
     }
     if (validTo < current.validFrom) {
       throw new Error('fee_structures valid_to must be on or after valid_from');
@@ -370,12 +434,10 @@ export class InMemoryFeesRepository implements FeesRepository {
   ): Promise<FeeConcessionEntity | null> {
     return (
       this.concessions.find(
-        (row) =>
-          row.tenantId === tenantId && row.sourceDisbursementId === sourceDisbursementId,
+        (row) => row.tenantId === tenantId && row.sourceDisbursementId === sourceDisbursementId,
       ) ?? null
     );
   }
-
 
   async updateConcession(
     id: string,
@@ -389,15 +451,21 @@ export class InMemoryFeesRepository implements FeesRepository {
     return updated;
   }
 
-
-  async createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity> {
+  async createCreditNote(
+    data: Omit<FeeCreditNoteEntity, 'createdAt'>,
+  ): Promise<FeeCreditNoteEntity> {
     const entity: FeeCreditNoteEntity = { ...data, createdAt: new Date() };
     this.creditNotes.push(entity);
     return entity;
   }
 
-  async listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]> {
-    return this.creditNotes.filter((row) => row.tenantId === tenantId && row.invoiceId === invoiceId);
+  async listCreditNotesForInvoice(
+    tenantId: string,
+    invoiceId: string,
+  ): Promise<FeeCreditNoteEntity[]> {
+    return this.creditNotes.filter(
+      (row) => row.tenantId === tenantId && row.invoiceId === invoiceId,
+    );
   }
 
   async listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]> {
@@ -494,7 +562,7 @@ export class InMemoryFeesRepository implements FeesRepository {
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         settled: {
           invoice: FeeInvoiceEntity;
           payment: FeePaymentEntity;
@@ -508,7 +576,9 @@ export class InMemoryFeesRepository implements FeesRepository {
     receipt: FeeReceiptEntity;
   }> {
     return this.runSerializedOnInvoice(tenantId, invoiceId, async () => {
-      const invoice = this.invoices.find((row) => row.id === invoiceId && row.tenantId === tenantId);
+      const invoice = this.invoices.find(
+        (row) => row.id === invoiceId && row.tenantId === tenantId,
+      );
       if (!invoice) {
         throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
       }
@@ -530,10 +600,7 @@ export class InMemoryFeesRepository implements FeesRepository {
       }
 
       const settlement = await build({ invoice, paidCents, remainingCents });
-      if (
-        !Number.isInteger(settlement.paymentAmountCents) ||
-        settlement.paymentAmountCents <= 0
-      ) {
+      if (!Number.isInteger(settlement.paymentAmountCents) || settlement.paymentAmountCents <= 0) {
         throw new BusinessRuleError('Payment amountCents must be a positive integer');
       }
       if (settlement.paymentAmountCents > remainingCents) {
@@ -582,8 +649,7 @@ export class InMemoryFeesRepository implements FeesRepository {
   ): Promise<FeePaymentEntity | null> {
     return (
       this.payments.find(
-        (payment) =>
-          payment.tenantId === tenantId && payment.idempotencyKey === idempotencyKey,
+        (payment) => payment.tenantId === tenantId && payment.idempotencyKey === idempotencyKey,
       ) ?? null
     );
   }
@@ -633,9 +699,7 @@ export class InMemoryFeesRepository implements FeesRepository {
       .map((row) => ({ ...row }));
   }
 
-  async createReminderSendAudit(
-    data: ReminderSendAuditEntity,
-  ): Promise<ReminderSendAuditEntity> {
+  async createReminderSendAudit(data: ReminderSendAuditEntity): Promise<ReminderSendAuditEntity> {
     this.reminderSendAudits.push(data);
     return { ...data };
   }

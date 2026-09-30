@@ -1,3 +1,5 @@
+import type { PgQueryable } from '@proctira/database';
+
 import type { ReminderSendAuditEntity, ReminderSuppressionEntity } from './reminder-sandbox.js';
 /**
  * Fees / finance repository interfaces (plans, invoices, payments, receipts).
@@ -198,7 +200,6 @@ export interface FeeConcessionEntity {
   createdAt: Date;
 }
 
-
 export interface FeeCreditNoteEntity {
   id: string;
   tenantId: string;
@@ -266,6 +267,15 @@ export interface InvoicePaymentBalance {
   invoice: FeeInvoiceEntity;
   paidCents: number;
   remainingCents: number;
+}
+
+/** PRC-H058: invoice snapshot + money totals read while the invoice row is locked. */
+export interface LockedInvoiceBalance {
+  invoice: FeeInvoiceEntity;
+  /** Sum of succeeded payments. */
+  paidCents: number;
+  /** Sum of posted refunds. */
+  refundedCents: number;
 }
 
 /** Atomic payment settlement payload produced while the invoice row is locked. */
@@ -361,7 +371,6 @@ export interface FeesRepository {
     sourceDisbursementId: string,
   ): Promise<FeeConcessionEntity | null>;
 
-
   createCreditNote(data: Omit<FeeCreditNoteEntity, 'createdAt'>): Promise<FeeCreditNoteEntity>;
   listCreditNotesForInvoice(tenantId: string, invoiceId: string): Promise<FeeCreditNoteEntity[]>;
   listCreditNotesForTenant(tenantId: string): Promise<FeeCreditNoteEntity[]>;
@@ -410,7 +419,7 @@ export interface FeesRepository {
     build: (balance: InvoicePaymentBalance) => Promise<RecordPaymentOnInvoiceSettlement>,
     options?: {
       appendAuditInTxn?: (
-        client: import('@proctira/database').PgQueryable,
+        client: PgQueryable,
         settled: {
           invoice: FeeInvoiceEntity;
           payment: FeePaymentEntity;
@@ -423,6 +432,26 @@ export interface FeesRepository {
     payment: FeePaymentEntity;
     receipt: FeeReceiptEntity;
   }>;
+
+  /**
+   * PRC-H058: run `fn` in ONE tenant transaction with no invoice lock. Every
+   * repository call made through `tx` shares the transaction; any throw rolls
+   * all of them back (e.g. invoice row + issuance journal).
+   */
+  runInTransaction<T>(tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T>;
+
+  /**
+   * PRC-H058: lock the invoice row (Pg: SELECT … FOR UPDATE), compute succeeded
+   * payment and posted refund totals by SQL SUM under the lock, then run `fn`
+   * with a transaction-bound repository. Check + row write + ledger journal +
+   * invoice update commit or roll back together, and concurrent money movements
+   * on the same invoice serialize.
+   */
+  withInvoiceLock<T>(
+    tenantId: string,
+    invoiceId: string,
+    fn: (tx: FeesRepository, locked: LockedInvoiceBalance) => Promise<T>,
+  ): Promise<T>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;
@@ -438,9 +467,7 @@ export interface FeesRepository {
 
   /** W2-FIN-06 durable dunning state */
   listReminderSuppressions(tenantId: string): Promise<ReminderSuppressionEntity[]>;
-  createReminderSuppression(
-    data: ReminderSuppressionEntity,
-  ): Promise<ReminderSuppressionEntity>;
+  createReminderSuppression(data: ReminderSuppressionEntity): Promise<ReminderSuppressionEntity>;
   deleteReminderSuppression(tenantId: string, suppressionId: string): Promise<boolean>;
   listReminderSendAudits(tenantId: string): Promise<ReminderSendAuditEntity[]>;
   createReminderSendAudit(data: ReminderSendAuditEntity): Promise<ReminderSendAuditEntity>;

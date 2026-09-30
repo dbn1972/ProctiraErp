@@ -41,6 +41,7 @@ import {
   type FeeStructureStatus,
   type FeeWriteOffEntity,
   type InvoicePaymentBalance,
+  type LockedInvoiceBalance,
   type InvoiceStatus,
   type LedgerAccount,
   type LedgerSide,
@@ -340,15 +341,67 @@ export class PgFeesRepository implements FeesRepository {
   constructor(
     private readonly pool: PgPoolLike,
     private readonly options: { ensureSchema?: boolean } = {},
+    /**
+     * PRC-H058: when set, this instance is bound to an open tenant transaction
+     * (BEGIN + tenant GUC already applied) and every call reuses that client.
+     */
+    private readonly txClient: { client: PgQueryable; tenantId: string } | null = null,
   ) {}
 
   async ensureSchema(): Promise<void> {
-    if (this.options.ensureSchema === false) return;
+    if (this.txClient || this.options.ensureSchema === false) return;
     await ensureFeesSchema(this.pool);
   }
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
+    if (this.txClient) {
+      if (this.txClient.tenantId !== tenantId) {
+        throw new Error('Transaction-bound fees repository used with a different tenant');
+      }
+      return fn(this.txClient.client);
+    }
     return withPgTenant(this.pool, tenantId, fn);
+  }
+
+  private bindTx(client: PgQueryable, tenantId: string): PgFeesRepository {
+    return new PgFeesRepository(this.pool, this.options, { client, tenantId });
+  }
+
+  async runInTransaction<T>(tenantId: string, fn: (tx: FeesRepository) => Promise<T>): Promise<T> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, (client) => fn(this.bindTx(client, tenantId)));
+  }
+
+  async withInvoiceLock<T>(
+    tenantId: string,
+    invoiceId: string,
+    fn: (tx: FeesRepository, locked: LockedInvoiceBalance) => Promise<T>,
+  ): Promise<T> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const invoiceResult = await client.query(
+        `SELECT * FROM parent_fee_invoices WHERE id = $1 AND tenant_id = $2 LIMIT 1 FOR UPDATE`,
+        [invoiceId, tenantId],
+      );
+      const invoiceRow = invoiceResult.rows[0] as Record<string, unknown> | undefined;
+      if (!invoiceRow) {
+        throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+      }
+      const totals = await client.query(
+        `SELECT
+           (SELECT COALESCE(SUM(amount_cents), 0)::bigint FROM parent_fee_payments
+             WHERE tenant_id = $1 AND invoice_id = $2 AND status = 'succeeded') AS paid,
+           (SELECT COALESCE(SUM(amount_cents), 0)::bigint FROM fee_refunds
+             WHERE tenant_id = $1 AND invoice_id = $2 AND status = 'posted') AS refunded`,
+        [tenantId, invoiceId],
+      );
+      const row = totals.rows[0] as { paid: string; refunded: string };
+      return fn(this.bindTx(client, tenantId), {
+        invoice: mapInvoice(invoiceRow),
+        paidCents: pgIntegerCents(row.paid),
+        refundedCents: pgIntegerCents(row.refunded),
+      });
+    });
   }
 
   // ─── Double-entry ledger (G-718) ──────────────────────────────────────────
