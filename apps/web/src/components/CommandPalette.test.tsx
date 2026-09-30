@@ -38,15 +38,20 @@ vi.mock('@/providers/AuthProvider', () => ({
       name: 'Admin',
       roles: ['admin'],
       permissions: [
-      'institution.read',
-      'student.read',
-      'staff.read',
-      'assessment.read',
-      'analytics.read',
-      'etl.read',
-      'settings.read',
-      'report.read',
-    ],
+        'institution.read',
+        'student.read',
+        'staff.read',
+        'assessment.read',
+        'analytics.read',
+        'etl.read',
+        'settings.read',
+        'report.read',
+        'fees.read',
+        'hostel.read',
+        'transport.read',
+        'library.read',
+        'communication.read',
+      ],
       scope: { level: 'country' as const },
       tenant_id: 'tenant-1',
     },
@@ -250,9 +255,6 @@ describe('CommandPalette', () => {
     expect(screen.queryByTestId('command-palette-item-library')).not.toBeNull();
     expect(screen.queryByTestId('command-palette-item-fees')).not.toBeNull();
   });
-
-
-
 
   it('W2-UX-02: app-scope palette hrefs resolve to live App Router aliases', () => {
     const items = buildPaletteItems([
